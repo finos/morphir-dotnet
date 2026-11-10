@@ -42,5 +42,7 @@
     <!-- The crafted corpus modules of bounds/trap and bounds/grow-to-ceiling-then-trap, run through the product's SessionStore. -->
     <EmbeddedResource Include="../../tests/Fixtures/MepWasm/fixtures/wasm/extism-trap.wasm" LogicalName="extism-trap.wasm" />
     <EmbeddedResource Include="../../tests/Fixtures/MepWasm/fixtures/wasm/extism-grow-then-trap.wasm" LogicalName="extism-grow-then-trap.wasm" />
+    <!-- The spinning guest of the cancellation test, for the stop latency. -->
+    <EmbeddedResource Include="../../tests/Fixtures/MepWasm/fixtures/wasm/extism-spin.wasm" LogicalName="extism-spin.wasm" />
   </ItemGroup>
 </Project>

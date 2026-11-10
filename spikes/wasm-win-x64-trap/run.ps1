@@ -108,6 +108,8 @@ $summary.Add(''); $summary.Add("System policy: $($shadowLines -join '; ')"); $su
 # WER keeps a minidump of every process that dies (LocalDumps), so the fail-fast code can be read.
 if (-not $NoSystemChanges) {
 if ($werDisabled -eq 1) { Set-ItemProperty $werKey -Name Disabled -Value 0 }
+# LocalDumps are written by the WER service, which is stopped on the runner image.
+try { Start-Service WerSvc -ErrorAction Stop } catch { Write-Host "WerSvc did not start: $($_.Exception.Message)" }
 $localDumps = Join-Path $werKey 'LocalDumps'
 New-Item -Force $localDumps | Out-Null
 New-ItemProperty $localDumps -Name DumpFolder -PropertyType ExpandString -Value $dumps -Force | Out-Null
@@ -305,19 +307,6 @@ if ($isX64 -and -not $NoSystemChanges) {
         'native-aot product-trap' = Invoke-Case $defaultLaunches['native-aot'] 'product-trap' $true
     }
     [void](Set-Mitigation 'Set-ProcessMitigation -Name TrapRepro.exe -Remove')
-    # A copy of dotnet.exe beside the real one (it finds hostfxr from its own folder), with shadow stacks turned on.
-    $dotnetCopy = Join-Path (Split-Path -Parent $dotnet) 'dotnet-cet.exe'
-    Copy-Item $dotnet $dotnetCopy -Force
-    $policyOn = Set-Mitigation 'Set-ProcessMitigation -Name dotnet-cet.exe -Enable UserShadowStack'
-    $copyLaunch = @{ File = $dotnetCopy; Prefix = @("$builds/default-fd/TrapRepro.dll"); Cwd = $WorkDirectory; Env = @{} }
-    $experiments['policy: UserShadowStack enabled for a copy of dotnet.exe'] = [ordered]@{
-        policy = $policyOn
-        unreachable = Invoke-Case $copyLaunch 'unreachable' $true
-        'host-throws' = Invoke-Case $copyLaunch 'host-throws' $true
-        'unreachable, signals-based traps off' = Invoke-Case $copyLaunch 'unreachable' $false
-    }
-    [void](Set-Mitigation 'Set-ProcessMitigation -Name dotnet-cet.exe -Remove')
-    Remove-Item $dotnetCopy -Force
     $results.experiments = $experiments
     Read-Dumps
     $summary.Add('### One change at a time'); $summary.Add('')
@@ -335,6 +324,13 @@ foreach ($signals in @($true, $false)) {
     $bench[$signals ? 'on' : 'off'] = (Invoke-Captured $dotnet $arguments -TimeoutSeconds 300).Stdout.Trim()
 }
 $results.bench = $bench
+$latency = [ordered]@{}
+foreach ($signals in @($true, $false)) {
+    $arguments = @($reader, 'latency') + ($signals ? @() : @('--signals-based-traps', 'false'))
+    $latency[$signals ? 'on' : 'off'] = (Invoke-Captured $dotnet $arguments -TimeoutSeconds 300).Stdout.Trim()
+}
+$results.latency = $latency
+$summary.Add('### Stop latency'); $summary.Add(''); foreach ($key in $latency.Keys) { $summary.Add("- $($latency[$key])") }; $summary.Add('')
 $summary.Add("### Bench"); $summary.Add(''); foreach ($key in $bench.Keys) { $summary.Add("- $($bench[$key])") }; $summary.Add('')
 
 # 7. The product.
@@ -398,6 +394,19 @@ if (-not $SkipProduct) {
             Write-Host "wasm tests $key -> $($run.Status) in $($run.Seconds) s"
         }
     }
+    # The cancellation test, which failed in some runs above, alone: five times each way, through dotnet exec.
+    $filter = '/*/*/ChannelTests/Cancelling_during_a_call_throws_after_the_call_has_stopped'
+    foreach ($signals in @($true, $false)) {
+        $outcomes = @()
+        foreach ($round in 1..5) {
+            $environment = $signals ? @{} : @{ MORPHIR_WASM_EXPERIMENT_SIGNALS_BASED_TRAPS = 'false' }
+            $run = Invoke-Captured $dotnet @('exec', (Join-Path $testDir 'Morphir.Extensions.Wasm.Tests.dll'), '--no-progress', '--treenode-filter', $filter) -Environment $environment -WorkingDirectory $testDir -TimeoutSeconds 600
+            $plain = @(($run.Stdout -replace '\x1b\[[0-9;]*m', '') -split "`r?`n")
+            $line = @($plain | Where-Object { $_ -match '^\s*(passed|failed) Cancelling' } | ForEach-Object { $_.Trim() }) -join ''
+            $outcomes += "$($run.Status) $line"
+        }
+        $tests["cancellation test alone x5, signals-based traps $($signals ? 'on' : 'off')"] = [ordered]@{ exitCode = ''; seconds = ''; summary = $outcomes }
+    }
     $product.tests = $tests
     $results.product = $product
     $summary.Add('### Product'); $summary.Add('')
@@ -413,6 +422,32 @@ if ($isX64 -and $results.dumps) {
     $summary.Add('### Crash records'); $summary.Add('')
     foreach ($d in $results.dumps.read) { $summary.Add("- $($d.spike -replace "`r?`n", ' / ')") }
     foreach ($e in $results.events | Select-Object -First 3) { $summary.Add("- event: $(($e -replace "`r?`n", ' / ').Substring(0, [Math]::Min(600, $e.Length)))") }
+    $summary.Add('')
+}
+
+# Last, because it changes dotnet.exe for the whole machine: the mitigation policy of the image name dotnet.exe (a renamed
+# copy refuses to run), so the process that dotnet.exe starts has shadow stacks although dotnet.exe is not marked.
+if ($isX64 -and -not $NoSystemChanges) {
+    $dotnetPolicy = [ordered]@{}
+    $fd = "$builds/default-fd/TrapRepro.dll"
+    foreach ($options in @('UserShadowStack', 'UserShadowStack,SetContextIpValidation')) {
+        $policy = Set-Mitigation "Set-ProcessMitigation -Name dotnet.exe -Enable $options"
+        $launch = @{ File = $dotnet; Prefix = @($fd); Cwd = $WorkDirectory; Env = @{} }
+        $dotnetPolicy["enabled: $options"] = [ordered]@{
+            policy = $policy
+            unreachable = Invoke-Case $launch 'unreachable' $true
+            'host-throws' = Invoke-Case $launch 'host-throws' $true
+            'unreachable, signals-based traps off' = Invoke-Case $launch 'unreachable' $false
+            'product-trap' = Invoke-Case $launch 'product-trap' $true
+        }
+        [void](Set-Mitigation 'Set-ProcessMitigation -Name dotnet.exe -Remove')
+    }
+    $results.dotnetPolicy = $dotnetPolicy
+    $summary.Add('### dotnet.exe with shadow stacks turned on by policy'); $summary.Add('')
+    foreach ($key in $dotnetPolicy.Keys) {
+        $cells = @($dotnetPolicy[$key].Keys | Where-Object { $_ -ne 'policy' } | ForEach-Object { "$_ = $($dotnetPolicy[$key][$_].cell) ($($dotnetPolicy[$key][$_].policy))" })
+        $summary.Add("- $key`: $($cells -join '; ')")
+    }
     $summary.Add('')
 }
 
