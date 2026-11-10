@@ -313,9 +313,9 @@ let tests =
                     (ReaderCode.InconsistentDocument, "plan.components[0].source.target")
                     "refused at the host's source target"
             | Ok _ -> failtest "a host source naming another artifact was read")
-        testCase "a host plan source with the right target and another digest is inconsistent_document at its source" (fun () ->
-            // Review of #582, R5: the page gives source.target for the target only. A digest-only mismatch is reported
-            // at source (provisional: the contract author is asked to confirm).
+        testCase "a host plan source with the right target and another digest is inconsistent_document at source.sha256" (fun () ->
+            // Review of #582, R5: the contract author decided the target is checked first, at source.target, then the
+            // digest, at source.sha256: the coming case result/negative/plan-host-source-other-digest.json.
             let text = Encoding.UTF8.GetString(Fixtures.bytes "result/setup-plan.json")
             let digest = String.replicate 64 "d"
             let at = text.IndexOf digest
@@ -326,8 +326,8 @@ let tests =
             | Error refusal ->
                 Expect.equal
                     (refusal.Code, DocumentPath.render refusal.Path)
-                    (ReaderCode.InconsistentDocument, "plan.components[0].source")
-                    "refused at the host's source"
+                    (ReaderCode.InconsistentDocument, "plan.components[0].source.sha256")
+                    "refused at the host's source digest"
             | Ok _ -> failtest "a host source naming another digest was read")
         testCase "a host plan component with a recipe-digest source is inconsistent_document at its source" (fun () ->
             // manager-result.md: a host's source is repository-target or external-owner. No fixture pins recipe-digest.
