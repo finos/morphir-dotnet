@@ -432,3 +432,154 @@ let tests =
                 testCase text (fun () -> Expect.equal (Mirror.tryParse text |> Result.map ignore) expected text)
         ]
     ]
+
+let private withoutMember (name: string) (value: Value) =
+    Value.Object(objectMembers value |> List.filter (fst >> (<>) name))
+
+let private plusMember (name: string) (added: Value) (value: Value) =
+    Value.Object(objectMembers value @ [ name, added ])
+
+/// <summary>Root's distinct-class shape for #582 (10 November 2026), over shape B: each offering adds its own MEP
+/// version <c>0.2.0-host-i</c> to the common one, so no two offerings form one class, and each of the first n providers
+/// has its own version that it does not fit with. With <paramref name="relevant"/>, provider i names offering i's own
+/// version but as a WASM provider with an ABI no offering lists, so it reaches that offering's class and still does
+/// not fit; otherwise it names <c>0.2.0-unfit-i</c>, which no offering speaks. With <paramref name="fitting"/> the last
+/// provider, which fits every offering, is kept.</summary>
+let distinctShape (relevant: bool) (fitting: bool) (n: int) =
+    let recipe = parsed (candidateShape 'B' n)
+    let hosts = arrayItems (memberOf "hosts" recipe)
+    let providers = arrayItems (memberOf "providers" recipe)
+
+    let host (i: int) (h: Value) =
+        h |> withMember "protocolVersions" (Value.Array(arrayItems (memberOf "protocolVersions" h) @ [ Value.String $"0.2.0-host-{i}" ]))
+
+    let wasm (version: string) (p: Value) =
+        p
+        |> withoutMember "packageId"
+        |> withoutMember "command"
+        |> withoutMember "packageTarget"
+        |> withoutMember "packageSha256"
+        |> withoutMember "prerequisites"
+        |> withMember "delivery" (Value.String "wasm")
+        |> withMember "protocolVersion" (Value.String version)
+        |> plusMember "abi" (Value.String "absent")
+        |> plusMember "artifactTarget" (Value.String "extensions/fsharp-frontend-wasm/0.6.0/morphir-bytes-v1.wasm")
+        |> plusMember "artifactSha256" (Value.String(String.replicate 64 "c"))
+
+    let unfit =
+        providers
+        |> List.take n
+        |> List.mapi (fun i p ->
+            if relevant then wasm $"0.2.0-host-{i}" p else p |> withMember "protocolVersion" (Value.String $"0.2.0-unfit-{i}"))
+
+    recipe
+    |> withMember "hosts" (Value.Array(hosts |> List.mapi host))
+    |> withMember "providers" (Value.Array(if fitting then unfit @ [ List.last providers ] else unfit))
+    |> Canonical.bytes
+    |> ok "canonical"
+
+/// The candidate rule as the toolset recipe page states it, offering by offering and provider by provider: the index
+/// of the first operation that some offering performs with neither a built-in nor a provider that fits it.
+let private referenceUnperformed (recipe: Recipe) =
+    recipe.Operations
+    |> List.tryFindIndex (fun operation ->
+        not (
+            recipe.Hosts
+            |> List.forall (fun host ->
+                host.BuiltIns |> List.exists (fun b -> b.Operation = operation)
+                || recipe.Providers |> List.exists (fun p -> p.Operation = operation && Fit.onSomePlatform host p))
+        ))
+
+[<Tests>]
+let distinctClassTests =
+    let expectRead (bytes: byte array) (what: string) =
+        Expect.isLessThan bytes.Length (16 * 1024 * 1024) "within the recipe bound"
+
+        match withinBudget 10.0 what (fun () -> RecipeDocument.read bytes) with
+        | Ok recipe -> Expect.equal recipe.Providers.Length 10_001 "every provider"
+        | Error refusal -> failtestf "refused: %A" refusal
+
+    let expectRefused (bytes: byte array) (what: string) =
+        match withinBudget 10.0 what (fun () -> RecipeDocument.read bytes) with
+        | Error refusal -> Expect.equal (refusal.Code, DocumentPath.render refusal.Path) (ReaderCode.InconsistentDocument, "operations[0]") "no candidate fits"
+        | Ok _ -> failtest "an offering without a candidate was read"
+
+    // Root's benchmark of #582 at a856ddaa: 10,000 distinct classes and 10,000 distinct provider keys took 18.3 s on one
+    // CPU, because each key was checked against every class.
+    testList "The candidate rule over distinct classes and keys" [
+        testCase "10,000 distinct classes and 10,000 unfit keys no offering speaks, then one that fits" (fun () ->
+            expectRead (distinctShape false true 10_000) "the candidate rule over distinct classes and unspoken keys")
+
+        testCase "without the provider that fits, the operation is refused" (fun () ->
+            expectRefused (distinctShape false false 10_000) "refusing distinct classes and unspoken keys")
+
+        testCase "10,000 distinct classes and 10,000 keys that each reach one class and do not fit, then one that fits" (fun () ->
+            expectRead (distinctShape true true 10_000) "the candidate rule over distinct classes and misfit keys")
+
+        testCase "without the provider that fits, misfit keys do not cover their classes" (fun () ->
+            expectRefused (distinctShape true false 10_000) "refusing distinct classes and misfit keys")
+
+        testCase "an offering speaking only its own version is covered by the provider that speaks it" (fun () ->
+            // Control: offering 0 drops the common version, and provider 0 names offering 0's own version with a
+            // delivery that fits it (dotnet-tool), so every offering still has a candidate.
+            let recipe = parsed (distinctShape false true 3)
+            let hosts = arrayItems (memberOf "hosts" recipe)
+            let providers = arrayItems (memberOf "providers" recipe)
+            let deaf = hosts.Head |> withMember "protocolVersions" (Value.Array [ Value.String "0.2.0-host-0" ])
+            let speaker = providers.Head |> withMember "protocolVersion" (Value.String "0.2.0-host-0")
+
+            let edited =
+                recipe |> withMember "hosts" (Value.Array(deaf :: hosts.Tail)) |> withMember "providers" (Value.Array(speaker :: providers.Tail))
+
+            Expect.isOk (RecipeDocument.read (Canonical.bytes edited |> ok "canonical")) "covered"
+
+            let unheard = recipe |> withMember "hosts" (Value.Array(deaf :: hosts.Tail))
+            expectRefused (Canonical.bytes unheard |> ok "canonical") "an offering no provider speaks to")
+
+        testCase "the rule agrees with the page's offering-by-offering reading on 3,000 seeded recipes" (fun () ->
+            let signed =
+                match RecipeDocument.read (SignedCaseTests.targetBytes "toolchains/recipes/fsharp/1.0.0.json") with
+                | Ok recipe -> recipe
+                | Error refusal -> failtestf "the signed recipe: %A" refusal
+
+            let pv (text: string) = ProtocolVersion.tryParse text |> ok text
+            let token (text: string) = Token.tryParse text |> ok text
+            let versions = [ pv "0.2.0-draft.1"; pv "0.2.0-a"; pv "0.2.0-b" ]
+            let abis = [ token "x"; token "y" ]
+            let platforms = signed.Hosts.Head.Platforms
+            let operations = signed.Operations
+            let builtIn = signed.Hosts |> List.collect _.BuiltIns |> List.head
+            let processProvider = signed.Providers.Head
+            let dotnetProvider = signed.Providers |> List.find (fun p -> RecipeProvider.delivery p = Delivery.DotnetTool)
+            let binding = platforms.Head |> snd
+            let random = System.Random 582
+
+            let subset (items: 'T list) = items |> List.filter (fun _ -> random.Next 2 = 0)
+            let pick (items: 'T list) = items[random.Next items.Length]
+
+            for trial in 1..3_000 do
+                let hosts =
+                    [ for i in 0 .. random.Next(1, 5) ->
+                          { signed.Hosts.Head with
+                              Implementation = token $"h{i}"
+                              ProtocolVersions = subset versions
+                              WasmAbis = subset abis
+                              Platforms = subset platforms
+                              BuiltIns = subset operations |> List.map (fun operation -> { builtIn with Operation = operation }) } ]
+
+                let providers =
+                    [ for _ in 1 .. random.Next(0, 6) ->
+                          let template, delivery =
+                              match random.Next 3 with
+                              | 0 -> processProvider, RecipeDelivery.Process(match subset platforms with [] -> [ platforms.Head ] | some -> some)
+                              | 1 -> dotnetProvider, dotnetProvider.Delivery
+                              | _ -> processProvider, RecipeDelivery.Wasm(pick abis, binding)
+
+                          { template with
+                              Operation = pick operations
+                              Protocol = { template.Protocol with Version = pick versions }
+                              Delivery = delivery } ]
+
+                let recipe = { signed with Hosts = hosts; Providers = providers }
+                Expect.equal (RecipeDocument.firstUnperformed recipe) (referenceUnperformed recipe) $"trial {trial}")
+    ]
