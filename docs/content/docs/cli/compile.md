@@ -150,6 +150,14 @@ The command reads the value in this way:
 - A path that ends in `.dll` runs on the `dotnet` host: `DOTNET_HOST_PATH` when it is set, else `dotnet`
   searched on `PATH` in the same way.
 
+**What configuration can run.** `[frontend.<language>].extension` names a program that `morphir compile` starts with your user's rights.
+The project configuration is the `morphir.toml` found from the working directory upward, so running
+`morphir compile` inside a checkout that you do not trust can start a program that the checkout chooses: a file
+inside the checkout, or any command on `PATH`. `MORPHIR_ISOLATED=1` leaves out only the machine and personal
+configuration files, not the project's own file, and `MORPHIR_DISCOVERY_BOUNDARY` only limits how far up the
+search goes. Read the `extension` keys of a project before you run `morphir compile` in it, or choose the file
+with `--config`.
+
 The command starts the guest with explicit arguments and no shell, and passes the guest's stderr to its own
 stderr. It agrees the session with `initialize`, and it admits only the model tuples that both sides
 support. The F# guest claims the language `fsharp` with the file extension `.fs`, several documents in one

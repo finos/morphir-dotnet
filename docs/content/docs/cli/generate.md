@@ -115,6 +115,14 @@ The command reads the value as `compile` reads a frontend extension:
 - A path that ends in `.dll` runs on the `dotnet` host: `DOTNET_HOST_PATH` when it is set, else `dotnet`
   searched on `PATH` in the same way.
 
+**What configuration can run.** `[codegen.<target>].extension` names a program that `morphir generate` starts with your user's rights.
+The project configuration is the `morphir.toml` found from the working directory upward, so running
+`morphir generate` inside a checkout that you do not trust can start a program that the checkout chooses: a file
+inside the checkout, or any command on `PATH`. `MORPHIR_ISOLATED=1` leaves out only the machine and personal
+configuration files, not the project's own file, and `MORPHIR_DISCOVERY_BOUNDARY` only limits how far up the
+search goes. Read the `extension` keys of a project before you run `morphir generate` in it, or choose the file
+with `--config`.
+
 `generate` loads the model first, then starts the guest with explicit arguments and no shell, and passes the
 guest's stderr to its own stderr. It agrees the session with `initialize` and offers JSON IR in the tuples
 profile `morphir-ir`, codec `morphir-json`, envelope `0.1.0-draft.1`, IR `4.0.0` and `3.0.0`. A v4 model

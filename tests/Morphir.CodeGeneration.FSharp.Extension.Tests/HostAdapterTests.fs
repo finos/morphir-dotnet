@@ -353,8 +353,9 @@ let tests =
                   let model = load (irFixture "daily-rate-v4.json")
                   let target = RequestedTarget.Parse "fsharp"
 
-                  // Nothing selected: the registered built-ins resolve fsharp to morphir.fsharp, with the adapter
-                  // connected beside them.
+                  // Nothing selected: the registered built-ins resolve fsharp to morphir.fsharp. The adapter is
+                  // connected (its guest runs) but not registered: nothing adds it to the registry, so the default
+                  // resolution cannot see it.
                   match RegisteredBackendResolver(builtIns ()).Resolve(target, model.Descriptor) with
                   | :? Outcome<IGenerationBackend>.Success as success ->
                       Expect.equal success.Value.Descriptor.Id.Value "morphir.fsharp" "The default backend for fsharp"
