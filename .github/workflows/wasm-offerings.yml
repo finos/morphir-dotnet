@@ -21,6 +21,11 @@ on:
                 required: true
                 default: "native-aot,self-contained,framework-dependent,dotnet-tool"
                 type: string
+            diagnose-cet:
+                description: "On win-x64, also run the corpus with the launch executable's CET-compatible mark cleared (a diagnosis, never a pass or failure)"
+                required: false
+                default: false
+                type: boolean
     push:
         branches:
             - ci/wasm-offerings
@@ -37,8 +42,9 @@ concurrency:
 
 env:
     # The platforms and offerings of a push run. A dispatch run takes its inputs instead.
-    PUSH_PLATFORMS: "linux-x64,linux-arm64,osx-x64,osx-arm64,win-x64,win-arm64"
-    PUSH_OFFERINGS: "native-aot,self-contained,framework-dependent,dotnet-tool"
+    PUSH_PLATFORMS: "win-x64"
+    PUSH_OFFERINGS: "native-aot,self-contained"
+    PUSH_DIAGNOSE_CET: "true"
 
 jobs:
     setup:
@@ -46,6 +52,7 @@ jobs:
         outputs:
             matrix: ${{ steps.matrix.outputs.matrix }}
             offerings: ${{ steps.matrix.outputs.offerings }}
+            diagnose-cet: ${{ steps.matrix.outputs.diagnose-cet }}
         steps:
             - name: Choose the platforms
               id: matrix
@@ -53,6 +60,7 @@ jobs:
               env:
                   PLATFORMS: ${{ inputs.platforms || env.PUSH_PLATFORMS }}
                   OFFERINGS: ${{ inputs.offerings || env.PUSH_OFFERINGS }}
+                  DIAGNOSE_CET: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnose-cet || github.event_name == 'push' && env.PUSH_DIAGNOSE_CET == 'true' }}
               run: |
                   # The runner labels that this change's earlier workflows used and verified.
                   $runners = [ordered]@{
@@ -68,6 +76,7 @@ jobs:
                   $matrix = @{ include = $include } | ConvertTo-Json -Compress -Depth 4
                   "matrix=$matrix" >> $env:GITHUB_OUTPUT
                   "offerings=$offerings" >> $env:GITHUB_OUTPUT
+                  "diagnose-cet=$($env:DIAGNOSE_CET -eq 'true')" >> $env:GITHUB_OUTPUT
                   Write-Host "matrix $matrix; offerings $offerings"
 
     offerings:
@@ -119,6 +128,7 @@ jobs:
                   ./scripts/wasm-offerings.ps1 -Rid ${{ matrix.rid }} -RunnerLabel ${{ matrix.runner }}
                   -WorkDirectory (Join-Path $env:RUNNER_TEMP 'wasm-offerings')
                   -Offerings ('${{ needs.setup.outputs.offerings }}' -split ',')
+                  -DiagnoseCetCompat:([bool]::Parse('${{ needs.setup.outputs.diagnose-cet }}'))
 
             - name: Upload the results
               if: always()
