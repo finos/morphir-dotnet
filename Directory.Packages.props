@@ -130,5 +130,8 @@
     <PackageVersion Include="CsToml" Version="1.8.6" />
     <!-- Toolchain acquisition contracts: SemVer 2.0.0 parsing, precedence and npm-style comparators -->
     <PackageVersion Include="Semver" Version="3.0.0" />
+    <!-- Semver 3.0.0 asks for Microsoft.Extensions.Primitives 5.0.1; pin it to the version the rest of the solution
+         already resolves, so the toolchain projects do not carry a five-year-old copy beside it. -->
+    <PackageVersion Include="Microsoft.Extensions.Primitives" Version="10.0.14" />
   </ItemGroup>
 </Project>
