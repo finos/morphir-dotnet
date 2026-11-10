@@ -129,7 +129,7 @@ with error diagnostics:
 
 | Code | Meaning |
 | --- | --- |
-| `extension.unavailable` | The guest did not start, the session did not initialize, or the guest does not claim the target. |
+| `extension.unavailable` | The command is not on `PATH`, the guest did not start, the session did not initialize, the guest does not claim the target, or the guest gave the id of a built-in backend (such as `morphir.fsharp`). |
 | `extension.tuple_unavailable` | The host and the guest agreed no `generateModel` tuple, or the model needs a tuple that the session did not agree. The message names the tuples. |
 | `extension.not_admitted` | The guest refused the request, for example an option. |
 | `extension.unsafe_artifact` | The guest returned an artifact path that is not a plain relative path, or two paths that differ only in case. |

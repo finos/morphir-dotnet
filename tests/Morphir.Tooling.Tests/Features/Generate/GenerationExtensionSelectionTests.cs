@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Immutable;
 using FluentAssertions;
+using Foundatio.Mediator;
+using Microsoft.Extensions.DependencyInjection;
 using Morphir.Compilation;
 using Morphir.Extensions;
 using Morphir.Frontend.FSharp;
 using Morphir.IR.Pipeline;
 using Morphir.Tooling.Features.Compile;
+using Morphir.Tooling.Scenarios;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Features.TaskRecords;
 using Morphir.Tooling.Tests.Features.Compile;
@@ -119,11 +122,11 @@ public sealed class GenerationExtensionSelectionTests
     }
 
     /// <summary>A connected external backend that records the request and returns one file.</summary>
-    private sealed class StubExternal : IExternalGenerationBackend
+    private sealed class StubExternal(string id = "org.example.stub-backend") : IExternalGenerationBackend
     {
         public bool Generated { get; private set; }
         public bool Disposed { get; private set; }
-        public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create("org.example.stub-backend"), ExtensionName.Create("Stub backend"), TargetId.Create("fsharp"),
+        public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create(id), ExtensionName.Create("Stub backend"), TargetId.Create("fsharp"),
             [new(Morphir.IR.Model.ModelFamily.V4, Morphir.Extensions.SourceFormatVersions.Create("4", "4.0.0"), Morphir.IR.Model.DistributionKind.Library)]);
         public string ExtensionVersion => "9.9.9";
         public string Transport => "mep";
@@ -155,7 +158,7 @@ public sealed class GenerationExtensionSelectionTests
 
     private static Task<Outcome<GenerationSuccess>> Handle(CompileWorkspace workspace, GenerateOverrides overrides, IBackendExtensionConnector connector) =>
         GenerateHandler.Handle(new GenerateRequest(overrides, Invocation(workspace)), Resolver(), new GenerationModelLoader(new BoundedModelCapture()),
-            new RegisteredBackendResolver([new FSharpGenerationBackend()]), new GenerationPublisher(), default, null, connector);
+            new RegisteredBackendResolver([new FSharpGenerationBackend()]), new GenerationPublisher(), connector, [new FSharpGenerationBackend()], default);
 
     [Test]
     public async Task ASelectedExtensionRunsInsteadOfTheBuiltInAndTheResultNamesIt()
@@ -211,5 +214,39 @@ public sealed class GenerationExtensionSelectionTests
         error.Diagnostics.Single().Code.Should().Be("extension.unavailable");
         GenerationReport.From(outcome, Explicit(workspace, "no-such-guest")).ExitCode.Should().Be(2);
         Directory.Exists(workspace.PathOf("gen")).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task AnExtensionThatGivesTheIdOfABuiltInIsRefusedAndNothingIsGenerated()
+    {
+        using var workspace = Workspace();
+        var stub = new StubExternal("morphir.fsharp");
+        var connector = new StubConnector(new Outcome<IExternalGenerationBackend>.Success(stub));
+
+        var outcome = await Handle(workspace, Explicit(workspace, "impostor-guest"), connector);
+        var error = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>(outcome.ToString()).Subject.Error;
+        error.Diagnostics.Single().Code.Should().Be("extension.unavailable");
+        error.Diagnostics.Single().Message.Should().Contain("morphir.fsharp").And.Contain("built-in");
+        stub.Generated.Should().BeFalse();
+        stub.Disposed.Should().BeTrue("the refused extension's session ends");
+        Directory.Exists(workspace.PathOf("gen")).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task TheMediatorRunsTheHandlerWithTheRegisteredBuiltInsSoAnImpostorIsRefused()
+    {
+        using var workspace = Workspace();
+        var stub = new StubExternal("morphir.fsharp");
+        using var app = MorphirCli.CreateBuilder([])
+            .ConfigureServices(services => services.AddSingleton<IBackendExtensionConnector>(
+                new StubConnector(new Outcome<IExternalGenerationBackend>.Success(stub))))
+            .AddScenario<GenerationScenario>()
+            .Build();
+        var mediator = app.Services.GetRequiredService<IMediator>();
+
+        var outcome = await mediator.InvokeAsync<Outcome<GenerationSuccess>>(new GenerateRequest(Explicit(workspace, "impostor-guest"), Invocation(workspace)));
+        var error = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>(outcome.ToString()).Subject.Error;
+        error.Diagnostics.Single().Message.Should().Contain("built-in");
+        stub.Generated.Should().BeFalse();
     }
 }

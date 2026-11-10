@@ -1,3 +1,4 @@
+using Foundatio.Mediator;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 
@@ -19,15 +20,27 @@ public sealed record GenerationSuccess(string Target, string Backend, string Inp
 public static class GenerateHandler
 {
     /// <summary>
+    /// Runs one generate with the MEP backend extension connector and no registered backends to protect: the
+    /// signature of earlier releases, kept for compiled callers. See the overload with the connector. The mediator does not use it.
+    /// </summary>
+    [FoundatioIgnore]
+    public static Task<Outcome<GenerationSuccess>> Handle(GenerateRequest command,
+        IGenerationSettingsResolver settingsResolver, IModelLoader loader, IGenerationBackendResolver backendResolver,
+        IGenerationPublisher publisher, CancellationToken ct, ILogger<GenerateRequest>? logger = null) =>
+        Handle(command, settingsResolver, loader, backendResolver, publisher, new MepBackendExtensionConnector(), [], ct, logger);
+
+    /// <summary>
     /// Runs one generate. With a backend extension in the settings (<c>--extension</c> or
     /// <c>[codegen.&lt;target&gt;].extension</c>), the extension connector connects it and the run resolves over that
     /// backend alone; the result names it with its transport and version, and the run ends its session. Without
-    /// one, the registered backends of the target are resolved as before.
+    /// one, the registered backends of the target are resolved as before. An extension whose id is the id of a
+    /// <paramref name="registered"/> backend is refused: a guest cannot report itself as a built-in. Without a connector,
+    /// the MEP backend extension connector is used.
     /// </summary>
     public static async Task<Outcome<GenerationSuccess>> Handle(GenerateRequest command,
         IGenerationSettingsResolver settingsResolver, IModelLoader loader, IGenerationBackendResolver backendResolver,
-        IGenerationPublisher publisher, CancellationToken ct, ILogger<GenerateRequest>? logger = null,
-        IBackendExtensionConnector? backendExtensions = null)
+        IGenerationPublisher publisher, IBackendExtensionConnector? backendExtensions, IEnumerable<IGenerationBackend> registered,
+        CancellationToken ct, ILogger<GenerateRequest>? logger = null)
     {
         try
         {
@@ -39,7 +52,7 @@ public static class GenerateHandler
             var model = ((Outcome<LoadedModel>.Success)loaded).Value;
             if (settings.Extension is { } extension && settings.Target is RequestedTarget.Valid target)
                 return await RunWithExtension(extension, target.Id, command.Context, model, settings, publisher, ct, logger,
-                    backendExtensions ?? new MepBackendExtensionConnector());
+                    backendExtensions ?? new MepBackendExtensionConnector(), registered);
             return await GenerationStages.RunFrom(model, settings, backendResolver, publisher, ct, logger);
         }
         catch (OperationCanceledException) { return GenerationStages.Cancelled(null); }
@@ -52,11 +65,16 @@ public static class GenerateHandler
     /// <summary>Connects the selected backend extension, runs the stages over it alone, and ends its session.</summary>
     private static async Task<Outcome<GenerationSuccess>> RunWithExtension(Morphir.Tooling.Features.Compile.Setting<string> extension,
         Morphir.Extensions.TargetId target, InvocationContext context, LoadedModel model, GenerationSettings settings,
-        IGenerationPublisher publisher, CancellationToken ct, ILogger? logger, IBackendExtensionConnector connector)
+        IGenerationPublisher publisher, CancellationToken ct, ILogger? logger, IBackendExtensionConnector connector,
+        IEnumerable<IGenerationBackend> registered)
     {
         var connected = await connector.ConnectAsync(new BackendExtensionRequest(extension, target, context.WorkingDirectory), ct);
         if (connected is Outcome<IExternalGenerationBackend>.Failure connectFailure) return GenerationStages.Failed(connectFailure.Error, null);
         await using var backend = ((Outcome<IExternalGenerationBackend>.Success)connected).Value;
+        var id = backend.Descriptor.Id;
+        if (registered.Any(builtIn => builtIn.Descriptor.Id.Equals(id)))
+            return GenerationStages.Failed(GenerationFailure.One(GenerationFailureKind.Operational, "extension.unavailable",
+                $"The backend extension {extension.Value} gave the extension id {id.Value}, which is the id of a built-in backend. An extension must have its own id."), null);
         var outcome = await GenerationStages.RunFrom(model, settings, new RegisteredBackendResolver([backend]), publisher, ct, logger);
         return outcome switch
         {
