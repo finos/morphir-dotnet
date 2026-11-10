@@ -102,9 +102,19 @@ module ToolReleaseDocument =
             return { TargetPath = targetPath; Platform = platform }
         }
 
-    /// The index of the first element equal, as a parsed value, to an earlier one.
-    let private firstRepeat (values: Value list) =
-        values |> List.indexed |> List.tryFind (fun (index, value) -> values |> List.take index |> List.contains value) |> Option.map fst
+    /// A value with every object's members in ordinal name order, so two values equal as parsed values, the schema's
+    /// <c>uniqueItems</c> equality, are equal as F# values whatever their member order.
+    let rec private ordered (value: Value) =
+        match value with
+        | Value.Object members ->
+            Value.Object(members |> List.map (fun (name, item) -> name, ordered item) |> List.sortWith (fun (a, _) (b, _) -> System.String.CompareOrdinal(a, b)))
+        | Value.Array items -> Value.Array(items |> List.map ordered)
+        | other -> other
+
+    /// <summary>The index of the first element equal, as a parsed value, to an earlier one, in linear time: the
+    /// earlier elements are kept in a hash set. A scan of the earlier ones was quadratic within the 1 MiB bound, and
+    /// compared member order, which <c>uniqueItems</c> does not (review of #582, R1).</summary>
+    let private firstRepeat (values: Value list) = firstRepeatBy ordered values
 
     let private body (o: ObjectNode) : Read<ToolRelease> =
         result {
@@ -484,8 +494,8 @@ module ExtensionReleaseDocument =
             let! artifacts = artifactNodes |> Result.traverse artifact
 
             // One filename names one artifact in the descriptor's directory.
-            match artifacts |> List.indexed |> List.tryFind (fun (i, a) -> artifacts |> List.take i |> List.exists (fun e -> e.Filename = a.Filename)) with
-            | Some(index, _) -> return! refuse ReaderCode.InconsistentDocument (((o.Path.Child "artifacts").At index).Child "filename")
+            match firstRepeatBy _.Filename artifacts with
+            | Some index -> return! refuse ReaderCode.InconsistentDocument (((o.Path.Child "artifacts").At index).Child "filename")
             | None -> ()
 
             return

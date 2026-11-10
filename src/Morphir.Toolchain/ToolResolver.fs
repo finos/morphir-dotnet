@@ -131,13 +131,15 @@ module ToolResolver =
         else
             let states = List.choose id ofTool
 
-            let ambiguous =
-                states
-                |> List.indexed
-                |> List.exists (fun (index, a) ->
-                    states
-                    |> List.skip (index + 1)
-                    |> List.exists (fun b -> SemVersion.ComparePrecedence(a.Version.SemVersion, b.Version.SemVersion) = 0))
+            // Two versions have one precedence exactly when their text without build metadata is equal (canonical
+            // SemVer, no leading zeros), so the check is a hash set of that text, not a pairwise comparison, which
+            // was quadratic in the releases of a tool (review of #582, R1).
+            let precedence (state: ToolReleaseState) =
+                match state.Version.Text.IndexOf '+' with
+                | -1 -> state.Version.Text
+                | at -> state.Version.Text.Substring(0, at)
+
+            let ambiguous = (firstRepeatBy precedence states).IsSome
 
             if ambiguous then refuse (Code.Trust TrustCode.ReleaseDescriptorMismatch) else Ok states
 

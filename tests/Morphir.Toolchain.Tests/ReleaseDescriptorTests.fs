@@ -366,3 +366,60 @@ let toolResolverTests =
             let targets = [ release "1.0.0" [ "stable" ] "active" "^0.4" windows ]
             Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Stable) "0.4.0") (Error "release_descriptor_mismatch") "^0.4")
     ]
+
+/// Runs a read under a time budget on its own task, so a quadratic check fails within the budget instead of hanging.
+let private withinBudget (seconds: float) (what: string) (read: unit -> 'T) : 'T =
+    let task = System.Threading.Tasks.Task.Run(fun () -> read ())
+
+    if task.Wait(System.TimeSpan.FromSeconds seconds) then
+        task.Result
+    else
+        failtestf "%s took longer than %.0f s" what seconds
+
+[<Tests>]
+let linearTests =
+    // Review of #582, R1, applied to the readers and the resolver of this slice: a descriptor may be 1 MiB and the
+    // targets metadata 8 MiB, so a check of each element against the earlier ones is a hang inside the bounds.
+    testList "Descriptor and resolver checks are linear" [
+        testCase "a v1 descriptor of 6,000 artifacts within 1 MiB reads in linear time" (fun () ->
+            let artifact (i: int) =
+                $"{{\"targetPath\":\"a/x\",\"platform\":{{\"os\":\"linux\",\"arch\":\"x86_64\"}},\"archive\":{{\"format\":\"raw\",\"entryPoint\":\"e\"}},\"launch\":{{\"kind\":\"executable\",\"path\":\"e\",\"args\":[\"{i}\"]}}}}"
+
+            let text =
+                "{\"schemaVersion\":1,\"kind\":\"morphir-tool-release\",\"tool\":{\"id\":\"t\",\"name\":\"T\"},\"version\":\"1.0.0\",\"channels\":[],\"status\":\"active\",\"compatibility\":{\"morphirCli\":\">=0.4.0\"},\"artifacts\":["
+                + String.concat "," [ for i in 1..6_000 -> artifact i ]
+                + "]}"
+
+            let bytes = Encoding.UTF8.GetBytes text
+            Expect.isLessThan bytes.Length ToolReleaseDocument.limit "within the bound"
+
+            match withinBudget 5.0 "reading 6,000 artifacts" (fun () -> ToolReleaseDocument.read bytes) with
+            | Ok release -> Expect.equal release.Artifacts.Length 6_000 "every artifact"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "two artifacts equal as parsed values, with their members in another order, are refused" (fun () ->
+            let release = valueOf "releases/morphir-dotnet-native-aot/1.2.3.json"
+            let first = match memberOf "artifacts" release with Value.Array(a :: _) -> a | _ -> failwith "artifacts"
+            let reordered = match first with Value.Object members -> Value.Object(List.rev members) | other -> other
+            let edited = setAt [ "artifacts" ] (Value.Array [ first; reordered ]) release
+            refusedWith ReaderCode.InconsistentDocument "artifacts[1]" (ToolReleaseDocument.read (bytesOf edited)))
+
+        testCase "a repeated filename among many artifacts is refused at the repetition" (fun () ->
+            let descriptor = valueOf "extensions/fsharp-frontend/0.6.0/release.json"
+            let first = match memberOf "artifacts" descriptor with Value.Array(a :: _) -> a | _ -> failwith "artifacts"
+            let named (i: int) = setAt [ "filename" ] (str $"a{i}.zip") first
+            let artifacts = [ for i in 1..300 -> named i ] @ [ named 1 ]
+            let edited = setAt [ "artifacts" ] (Value.Array artifacts) descriptor
+            refusedWith ReaderCode.InconsistentDocument "artifacts[300].filename" (readDescriptor edited))
+
+        testCase "the resolver selects among 60,000 releases in linear time" (fun () ->
+            let targets = Map.ofList [ for i in 1..60_000 -> release $"1.0.{i}" [ "stable" ] "active" ">=0.4.0" windows ]
+
+            let resolved =
+                withinBudget 20.0 "resolving among 60,000 releases" (fun () ->
+                    ToolResolver.resolve targets toolId (ToolRequest.OnChannel Channel.Stable) { Os = "windows"; Arch = "x86_64" } (semver "0.4.0"))
+
+            match resolved with
+            | Ok selection -> Expect.equal selection.Version.Text "1.0.60000" "the greatest"
+            | Error refusal -> failtestf "refused: %A" refusal)
+    ]
