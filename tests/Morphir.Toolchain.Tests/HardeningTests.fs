@@ -86,6 +86,33 @@ let tests =
 
             Expect.isOk (TargetPath.tryParse ("notes/a" + noncharacter + ".txt")) "an NFC target path that holds it"
             Expect.equal (TargetPath.tryParse ("notes/a" + noncharacter + decomposed) |> Result.map ignore) (Error ReaderCode.NonPortablePath) "and one that is not NFC")
+        testList "a built-in with a protocol member is inconsistent_document at that member" [
+            // toolchain-lock.md and installation-receipt.md: a built-in has no MEP session. The fixtures pin
+            // protocolVersion in a lock and modelTuple in a recipe; these pin the other members and the receipt.
+            let tuple =
+                "{\"operation\": \"morphir.frontend.compileModel\", \"profile\": \"morphir-ir\", \"codec\": \"morphir-json\", \"envelopeVersion\": \"0.2.0\", \"irVersion\": \"4.0.0\"}"
+
+            let withMember (fixture: string) (name: string) (value: string) =
+                let text = Encoding.UTF8.GetString(Fixtures.bytes fixture)
+                let marker = "\"delivery\": \"built-in\","
+                let at = text.IndexOf marker
+                Expect.isGreaterThan at 0 "the first built-in"
+                Encoding.UTF8.GetBytes(text.Insert(at + marker.Length, $" \"{name}\": {value},"))
+
+            let refusedAt (read: byte array -> Result<'T, ReaderRefusal>) (bytes: byte array) (path: string) =
+                match read bytes with
+                | Error refusal -> Expect.equal (refusal.Code, DocumentPath.render refusal.Path) (ReaderCode.InconsistentDocument, path) path
+                | Ok _ -> failtestf "a built-in with %s was read" path
+
+            for name, value in [ "protocolVersion", "\"0.2.0\""; "modelTuple", tuple ] do
+                yield
+                    testCase $"{name} in a lock" (fun () ->
+                        refusedAt LockDocument.read (withMember "lock/built-in-frontend.json" name value) $"platforms.win-x64.providers[0].{name}")
+
+                yield
+                    testCase $"{name} in a receipt" (fun () ->
+                        refusedAt ReceiptDocument.read (withMember "receipt/win-x64-qualified.json" name value) $"providers[1].identity.{name}")
+        ]
         testCase "a host plan component with a recipe-digest source is inconsistent_document at its source" (fun () ->
             // manager-result.md: a host's source is repository-target or external-owner. No fixture pins recipe-digest.
             let text = Encoding.UTF8.GetString(Fixtures.bytes "result/setup-plan.json")
