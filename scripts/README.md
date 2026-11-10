@@ -58,6 +58,25 @@ dotnet fsi scripts/validate-changelog.fsx --file CHANGELOG.md
 dotnet fsi scripts/validate-changelog.fsx --verbose
 ```
 
+#### `generate-wasm-host-cases.fsx`
+
+Generates the `wasm-host` suite of the compatibility kit, the Gherkin features and
+the id map in `conformance/suites/wasm-host/`, from the pinned WASM host corpus
+`tests/Fixtures/MepWasm/wasm-host.cases.json` and the commit in its
+`PROVENANCE.md`. Run it after the pin moves. Never edit a generated feature by
+hand.
+
+**Usage:**
+```bash
+dotnet fsi scripts/generate-wasm-host-cases.fsx          # write the features and the id map
+dotnet fsi scripts/generate-wasm-host-cases.fsx --check  # exit 1, naming each file and case, if a committed file differs
+```
+
+The script loads the generator's source from `src/Morphir.Conformance/`, so it
+needs only the .NET SDK. The `lint` job of `.github/workflows/development.yml`
+runs `--check` on every pull request. See
+[conformance/README.md](../conformance/README.md#wasm-host-suite).
+
 ### C# Scripts
 
 #### `generate-wolverine-code.cs`

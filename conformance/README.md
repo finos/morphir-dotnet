@@ -6,8 +6,13 @@ under test. Do not record or regenerate expectations from compiler output.
 
 - [Vocabulary 1.1](steps/steps-1.md) defines every supported step and the
   value codecs of call observations.
+- [Vocabulary 1.2](steps/steps-1.2.md) adds the steps of the `wasm-host` suite
+  and changes nothing in version 1.1.
 - [F# frontend suite](suites/frontend-fsharp/) covers four IR versions and three
   source input kinds.
+- [WASM host suite](suites/wasm-host/) holds the crafted cases that qualify a
+  WASM extension host, generated from a pinned upstream corpus (see
+  [WASM host suite](#wasm-host-suite)).
 - [Deviations](deviations.md) records the upstream compatibility decisions.
 - [Runner source](../src/Morphir.Conformance/) implements the official Gherkin
   reader, linter, matrix checks, comparison and deterministic JSON reports.
@@ -89,6 +94,51 @@ The compiler and Core pins remain unchanged. The smoke's expanded FSharp.Core
 warnings are compared with the existing AOT CLI baseline in the feature PRD;
 no new warning is suppressed. Other RIDs can run the same smoke using their own
 runtime identifier.
+
+## WASM host suite
+
+`suites/wasm-host/` holds the crafted cases of the WASM host qualification kit
+(`morphir/mep-wasm-host-kit` `0.1.0-draft.1`, OpenSpec change
+`add-wasm-extension-host`, task 1.5). Each case names one module that does one
+thing, the frames to send to a worker that runs it, and what the worker must
+show: its exit status, its stdout frames and its stderr events. The suite uses
+[vocabulary 1.2](steps/steps-1.2.md).
+
+The features are generated; never edit one by hand. While finos/morphir
+publishes the corpus as JSON, the copy pinned in
+`tests/Fixtures/MepWasm/wasm-host.cases.json` (commit and digests in its
+`PROVENANCE.md`) is the hand-reviewed source, and the features are generated
+from it. An expectation changes only when the corpus changes upstream and the
+pin moves. After the pin moves, generate the suite again:
+
+```console
+dotnet fsi scripts/generate-wasm-host-cases.fsx
+```
+
+The script writes one feature for each group of upstream case ids and the id
+map `suites/wasm-host/case-ids.json`, which gives each upstream case id its
+stable number. A scenario is named `wasm-host-NNNN <upstream case id>`. A number
+never changes and is never reused: a new case takes the next unused number, and
+a removed case keeps its number, retired, in the map. Output is byte-stable, with
+LF line endings.
+
+The `lint` job of `.github/workflows/development.yml` runs
+`dotnet fsi scripts/generate-wasm-host-cases.fsx --check`, which fails, naming
+each file and case, when the committed features or id map differ from what the
+pin generates: stale features or a hand edit. The reader of the suite
+(`Morphir.Conformance.WasmHost.FeatureReader`) refuses the same differences,
+and a step outside the vocabulary with its file and line. The tests compare
+the pinned JSON and the features case by case:
+
+```console
+dotnet build tests/Morphir.Conformance.Tests -c Release
+dotnet exec tests/Morphir.Conformance.Tests/bin/Release/net10.0/Morphir.Conformance.Tests.dll
+```
+
+The reader of the F# frontend suite (`Corpus.read`) reads only the features
+under `suites/<suite>/` of the suite it is given, so the two suites sit side by
+side. The runner that drives a host's worker with these cases is later work of
+task 1.5.
 
 Kit manifests, profiles, claims planning, additional adapters, provenance review
 records, report checking and literate documentation belong to the full
