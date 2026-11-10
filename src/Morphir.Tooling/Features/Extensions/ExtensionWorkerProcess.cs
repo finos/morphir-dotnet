@@ -56,7 +56,7 @@ public static class ExtensionWorkerProcess
         var root = WorkspaceRoot.Create();
         try
         {
-            var context = new WorkerContext(WorkerBuildIdentity.Of(host), root.Path);
+            var context = new WorkerContext(WorkerBuildIdentity.Of(host), root.Path, new WasmModuleLoader(WasmRuntime.Process, host));
             return ExtensionWorker.RunAsync([.. args.Skip(2)], new WorkerIo(stdin, stdout, stderr), context, interrupt.Token)
                 .GetAwaiter().GetResult();
         }

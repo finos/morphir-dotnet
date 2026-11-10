@@ -28,7 +28,8 @@ public sealed class ExtensionListWasmTests
         .WithDelivery(ExtensionDelivery.Wasm);
 
     private static ExtensionRegistry Registry(HostIdentity host, WasmRuntimeAvailability wasmRuntime) =>
-        new([new BackendExtensionSource([new FSharpGenerationBackend(), new CSharpGenerationBackend()], host), new FixedSource(WasmEntry())], host, wasmRuntime);
+        new([new BackendExtensionSource([new FSharpGenerationBackend(), new CSharpGenerationBackend()], host), new FixedSource(WasmEntry())], host,
+            new WasmRuntime("win-arm64", () => wasmRuntime));
 
     private static string Run(ExtensionRegistry registry, bool json)
     {
@@ -101,13 +102,13 @@ public sealed class ExtensionListWasmTests
         entries["morphir.csharp"].Available.Should().BeTrue();
     }
 
-    /// <summary>No executable wires the WASM engine into the CLI yet (task 4.2 adds the probe), so the default is engine_missing.</summary>
+    /// <summary>The registry reads the runtime of its host (task 4.2): this test process carries the engine.</summary>
     [Test]
-    public void ARegistryWithNoRuntimeGivenHasNoEngine()
+    public void ARegistryOfThisProcessListsTheWasmEntryAsTheProcessRuntimeReportsIt()
     {
-        var registry = new ExtensionRegistry([new FixedSource(WasmEntry())], Native);
-        registry.WasmRuntime.Should().Be(WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.EngineMissing));
-        Entries(Run(registry, json: true))["acme.python"].Available.Should().BeFalse();
+        var registry = new ExtensionRegistry([new FixedSource(WasmEntry())], Native, WasmRuntime.Process);
+        Entries(Run(registry, json: true))["acme.python"].Available.Should().Be(WasmRuntime.Process.Availability.CanRunModules);
+        WasmRuntime.Process.Availability.Should().Be(WasmRuntimeAvailability.Available);
     }
 
     [Test]

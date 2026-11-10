@@ -18,6 +18,10 @@ public class ManagementScenario : IMorphirCliScenario
         builder.ConfigureServices(services =>
         {
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IExtensionSource, BackendExtensionSource>());
+            // The process's WASM runtime, registered once (task 4.2, design RPT-1): the registry, extension list, the
+            // loader and extension runtimes read this one value, which probes the engine only when one of them needs it.
+            // The worker, which runs before this composition exists, reads the same WasmRuntime.Process.
+            services.TryAddSingleton(WasmRuntime.Process);
             services.TryAddSingleton<ExtensionRegistry>();
             // The configured WASM module loader (design CFG-1). No command uses it yet (design review question 5).
             services.TryAddSingleton<IWasmModuleLoader, WasmModuleLoader>();
@@ -36,7 +40,11 @@ public class ManagementScenario : IMorphirCliScenario
         });
 
         builder.ConfigureHostedCommands((rootCommand, services) =>
-            rootCommand.Subcommands.Single(command => command.Name == "extension").Subcommands.Insert(0, new ExtensionListCommand(services)));
+        {
+            var extension = rootCommand.Subcommands.Single(command => command.Name == "extension");
+            extension.Subcommands.Insert(0, new ExtensionListCommand(services));
+            extension.Subcommands.Insert(1, new ExtensionRuntimesCommand(services));
+        });
     }
 
     private static Command CreateDistCommand()
@@ -167,7 +175,8 @@ public class ManagementScenario : IMorphirCliScenario
     {
         var extensionCommand = new Command("extension", "Manage Morphir extensions");
 
-        // extension list needs the extension registry, so ConfigureHostedCommands inserts it first, after the host is built.
+        // extension list and extension runtimes need the registry and the WASM runtime, so ConfigureHostedCommands
+        // inserts them first, after the host is built.
 
         // extension install
         var installCommand = new Command("install", "Install an extension (not implemented yet)");

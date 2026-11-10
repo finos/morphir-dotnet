@@ -16,7 +16,11 @@ public sealed record WorkerIo(Stream Input, Stream Output, Stream Report);
 /// <summary>What the worker knows of the process it runs in.</summary>
 /// <param name="BuildIdentity">This worker's own build identity (<see cref="WorkerBuildIdentity"/>).</param>
 /// <param name="WorkspaceRoot">The absolute directory below which a session's private workspace is created.</param>
-public sealed record WorkerContext(string BuildIdentity, string WorkspaceRoot);
+/// <param name="Loader">
+/// The module loader, with the process's WASM runtime (<see cref="WasmRuntime.Process"/> in the worker process). It
+/// asks the runtime before it reads the module, and that is the worker's only probe of the engine.
+/// </param>
+public sealed record WorkerContext(string BuildIdentity, string WorkspaceRoot, IWasmModuleLoader Loader);
 
 /// <summary>
 /// <c>morphir extension worker</c> (task 4.1 of <c>add-wasm-extension-host</c>, design WRK-2): the mode through which a
@@ -31,6 +35,9 @@ public sealed record WorkerContext(string BuildIdentity, string WorkspaceRoot);
 /// <item>The arguments. Invalid ones serve nothing and exit with 2; <c>--help</c> writes the help and exits with 0.</item>
 /// <item>The build identity, before the module file is read: another identity is <c>refused</c>
 /// <c>extension.worker_runtime_mismatch</c>, exit 3.</item>
+/// <item>The WASM runtime, before the module file is read (requirement "Unavailable runtime fails by name"): a host
+/// without it is <c>refused</c> <c>extension.runtime_unavailable</c>, naming the host, the platform and the reason,
+/// exit 3, a refusal before any request. The arguments, <c>--help</c> and the identity check never probe the engine.</item>
 /// <item>The module (<see cref="WasmModuleLoader"/>): read, hashed, validated and compiled, classified against the
 /// pinned contract and admitted with the declared ABI. A file that cannot be read or is not a module is
 /// <c>fault</c> <c>failure</c>, exit 1; a refusal is <c>refused</c> with its code, exit 3.</item>
@@ -71,8 +78,6 @@ public static class ExtensionWorker
 
     const string FailureKind = "failure";
 
-    static readonly WasmModuleLoader Loader = new();
-
     /// <summary>Runs the worker for the arguments after <c>extension worker</c>, and returns its exit status.</summary>
     public static async Task<int> RunAsync(IReadOnlyList<string> arguments, WorkerIo io, WorkerContext context, CancellationToken interrupt)
     {
@@ -111,7 +116,7 @@ public static class ExtensionWorker
             return report.Exited(Refused);
         }
 
-        var load = Load(options);
+        var load = Load(options, context.Loader);
         if (load.Fault is { } loadFault)
         {
             report.Fault(FailureKind, loadFault);
@@ -254,7 +259,7 @@ public static class ExtensionWorker
     /// path and the digest of the file.</summary>
     sealed record Refusal(string Code, string Message);
 
-    static Loaded Load(WorkerOptions options)
+    static Loaded Load(WorkerOptions options, IWasmModuleLoader loader)
     {
         string path;
         try
@@ -268,10 +273,11 @@ public static class ExtensionWorker
 
         var name = Path.GetFileNameWithoutExtension(path);
         var source = new WasmModuleSource(string.IsNullOrWhiteSpace(name) ? "worker" : name, path, options.Abi);
-        return Loader.Load(source).Match(
+        return loader.Load(source).Match(
             module => new Loaded(module, null, null),
             failure => failure switch
             {
+                WasmModuleFailure.RuntimeUnavailable unavailable => new Loaded(null, null, new Refusal(unavailable.Code!, unavailable.Message)),
                 WasmModuleFailure.Refused refused => new Loaded(null, null,
                     new Refusal(refused.Refusal.Code, $"{refused.Refusal.Message}; module {path}, SHA-256 {refused.Digest}")),
                 WasmModuleFailure.NotFound => new Loaded(null, $"the module could not be read: there is no file at '{path}'", null),
