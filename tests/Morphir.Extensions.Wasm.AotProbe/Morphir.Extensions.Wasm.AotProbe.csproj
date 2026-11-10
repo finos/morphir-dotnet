@@ -4,6 +4,9 @@
     Extism kernel and a published Extism guest in one Wasmtime store, under Native AOT, and a whole
     MEP host session through the WASM channel (task 3.1).
     Publish with: dotnet publish -c Release -r <rid> -p:MorphirProbeAot=true
+    Add -p:MorphirWasmtimeStaticLink=true to link the engine into the executable from the pinned Wasmtime C API
+    archive in place of the package's dynamic library beside it (task 5.1; ../../build/wasmtime/). It is off by
+    default, and .github/workflows/wasm-engine-static-link.yml tries it on each of the six platforms.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -24,4 +27,5 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Extensions.Wasm/Morphir.Extensions.Wasm.csproj" />
   </ItemGroup>
+  <Import Project="../../build/wasmtime/WasmtimeStaticLink.targets" Condition="'$(MorphirWasmtimeStaticLink)' == 'true'" />
 </Project>
