@@ -35,8 +35,9 @@ def amend(schema):
     # 3. Every [codegen.<target>] table has the member extension: the backend extension of that target, as
     #    [frontend.<language>].extension names a frontend extension (generate --extension). Upstream has
     #    additionalProperties: true for [codegen], so only an object-valued member is a target table; any other
-    #    member stays unconstrained.
-    codegen = schema['properties']['codegen']
+    #    member stays unconstrained. A dotted target id is one quoted key, [codegen."acme.codegen"]; the unquoted
+    #    [codegen.acme.codegen] is the member acme, which is a codegenTarget object with no extension.
+    codegen =schema['properties']['codegen']
     schema['definitions']['codegenTarget'] = {
         'type': 'object',
         'properties': {'extension': dict(extension)},

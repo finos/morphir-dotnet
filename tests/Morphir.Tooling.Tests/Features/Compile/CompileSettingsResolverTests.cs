@@ -230,4 +230,16 @@ public sealed class CompileSettingsResolverTests
         flagged.Extension!.Value.Should().Be("/opt/guest");
         flagged.Extension.Origin.Should().Be(new SettingOrigin.CommandLine("--extension"));
     }
+
+    [Test]
+    public void CompileTargetReadsTheIgnoredExtensionOfADottedTargetFromItsQuotedTable()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", "[project]\nname = \"acme/car-rental\"\n\n[codegen.\"acme.codegen\"]\nextension = \"dotted-guest\"\n");
+        CompileTarget.Parse("acme.codegen", "gen", [], workspace.Root).TryGetValue(out var target).Should().BeTrue();
+
+        var settings = Passed(Resolver.Resolve(new CompileOverrides { Target = target }, workspace.Context()));
+        settings.IgnoredBackendExtension.Should().NotBeNull("compile --target notes the dotted target's configured extension");
+        settings.IgnoredBackendExtension!.Value.Should().Be("dotted-guest");
+    }
 }
