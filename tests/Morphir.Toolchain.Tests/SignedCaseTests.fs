@@ -317,7 +317,7 @@ let private trustTests () =
                       let lock = LockDocument.read (Fixtures.bytesIn Fixtures.signed lockFile) |> valid lockFile
                       // The generation's recipe, as setup stored it: the authenticated bytes of the lock's recipe target.
                       // A generation whose recipe target the trust state does not list is refused before it is read.
-                      let recipe = lazy (signedRecipe lock.Recipe.Target.Text)
+                      let recipe () = Ok(signedRecipe lock.Recipe.Target.Text)
 
                       let actual = RecipeTargets.checkLockedGeneration (repository ()) listed recipe lock |> targetOutcome
                       Expect.equal actual (Manifest.expected name case) name)
@@ -410,6 +410,30 @@ let tests =
         testList "recipeChecks" (recipeCheckTests ())
         testList "trust" (trustTests ())
         testList "channelSelection" (channelTests ())
+
+        testList "the launch check reads the generation's recipe without letting an exception out" [
+            // Review of #582, R7: a Lazy caches the exception its factory throws.
+            let listed () = authenticatedTargets "metadata"
+            let lockOf (file: string) = LockDocument.read (Fixtures.bytesIn Fixtures.signed file) |> valid file
+            let launch lock recipe = RecipeTargets.checkLockedGeneration (repository ()) (listed ()) recipe lock |> targetOutcome
+
+            yield testCase "a recipe source that throws is a refusal" (fun () ->
+                let lock = lockOf "fsharp-native-aot.lock.json"
+                let actual = launch lock (fun () -> raise (System.IO.IOException "the stored recipe is gone"))
+                Expect.equal actual (Refused("invalid_document", "recipe.target")) "refused, not thrown")
+
+            yield testCase "a recipe source that is refused is that refusal" (fun () ->
+                let lock = lockOf "fsharp-native-aot.lock.json"
+                let refusal: TargetRefusal = { Code = Code.Reader ReaderCode.UnsupportedContractVersion; Path = DocumentPath.root.Child "schemaVersion" }
+                Expect.equal (launch lock (fun () -> Error refusal)) (Refused("unsupported_contract_version", "schemaVersion")) "the source's refusal")
+
+            yield testCase "an unlisted recipe target is refused before the recipe is asked for" (fun () ->
+                let lock = lockOf "negative/lock-recipe-unlisted.lock.json"
+                let mutable asked = false
+                let actual = launch lock (fun () -> asked <- true; Error({ Code = Code.Reader ReaderCode.InvalidDocument; Path = DocumentPath.root }: TargetRefusal))
+                Expect.equal actual (Refused("target_not_authenticated", "recipe.target")) "unlisted"
+                Expect.isFalse asked "the recipe was not asked for")
+        ]
 
         testList "a target mutation the runner does not apply fails its case" [
             let caseOf (json: string) = (JsonDocument.Parse json).RootElement.Clone()
