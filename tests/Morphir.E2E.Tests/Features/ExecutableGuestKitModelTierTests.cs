@@ -34,23 +34,33 @@ public sealed class ExecutableGuestKitModelTierTests
         var executable = ExecutableExtensionWorkerSteps.Executable;
         await using var sessions = await WorkerSessions.CreateAsync(executable, [], module, Host, CancellationToken.None);
 
-        var run = await ModelTierRunner.RunAsync(Kit(), sessions.OpenAsync, CancellationToken.None);
-        var records = await sessions.EndAsync(CancellationToken.None);
-
         Console.WriteLine($"host {executable}, build identity {sessions.BuildIdentity}");
-        Console.WriteLine(run.Report());
-        foreach (var record in records)
+
+        // The records are printed even when the run throws, so a failure shows each worker's exit status, fault
+        // line and problems.
+        ModelTierRun run;
+        IReadOnlyList<WorkerSessionRecord> records;
+        try
         {
-            Console.WriteLine(record);
+            run = await ModelTierRunner.RunAsync(Kit(), sessions.OpenAsync, CancellationToken.None);
+            Console.WriteLine(run.Report());
+        }
+        finally
+        {
+            records = await sessions.EndAsync(CancellationToken.None);
+            foreach (var record in records)
+            {
+                Console.WriteLine(record);
+            }
         }
 
-        var notPassed = run.Steps.Where(step => step.Outcome.ToString() != "passed").Select(step => step.ToString()).ToList();
+        var notPassed = run.Steps.Where(step => step.Outcome.WireValue != "passed").Select(step => step.ToString()).ToList();
         notPassed.Should().BeEmpty();
         run.Guest.Should().Be("morphir-python 0.6.0");
         run.ModelTierOnly.Should().BeTrue();
         run.ModelIrVersions.Should().Equal("3.0.0", "4.0.0");
         run.Steps.Should().HaveCount(16);
-        run.LegacyTier.Should().NotBeEmpty().And.OnlyContain(step => step.Outcome.ToString().StartsWith("not-run: ", StringComparison.Ordinal));
+        run.LegacyTier.Should().NotBeEmpty().And.OnlyContain(step => step.Outcome.WireValue == "not-run");
 
         // One worker for describe and one for the model tier. A handle call per request is not observable through a
         // worker; what is, is that each worker exited with 0, wrote started and exited and wrote no fault.

@@ -96,7 +96,11 @@ module RunLimits =
 
 /// One line that the worker wrote on stderr, with the time it was read, in milliseconds from the start of
 /// the worker.
-type StderrLine = { AtMs: int64; Text: string }
+type StderrLine =
+    { AtMs: int64; Text: string }
+
+    /// Stable text for diagnostics: the time and the line, such as `12 ms: <line>`.
+    override this.ToString() = $"{this.AtMs} ms: {this.Text}"
 
 /// How a worker ended.
 [<RequireQualifiedAccess>]

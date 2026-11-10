@@ -35,7 +35,7 @@ Scenario: wasm-host-0001 classification/unknown-namespace
   And stderr has no "fault" event
 ```
 
-The runner checks the module's digest, starts `<host> extension worker --module <wasm> --json`, writes the frame, reads stdout and the stderr events, and compares them with the expectation. It knows nothing about the host except its path and arguments, so the same run qualifies the MoonBit host and the .NET host.
+The runner checks the module's digest, starts `<host> extension worker --abi <profile> --module <wasm> --build-identity <identity> --json`, writes the frame, reads stdout and the stderr events, and compares them with the expectation. It knows nothing about the host except its path and arguments, so the same run qualifies the MoonBit host and the .NET host.
 
 No expectation ever comes from a host run. The runner compares; it never records.
 

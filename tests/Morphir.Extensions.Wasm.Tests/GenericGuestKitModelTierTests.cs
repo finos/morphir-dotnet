@@ -71,18 +71,18 @@ public class GenericGuestKitModelTierTests
 
         foreach (var suffix in new[] { "vthree", "vfour" })
         {
-            await Assert.That(run.RequiredStep($"compile-model-{suffix}").Outcome.ToString()).IsEqualTo("passed");
-            await Assert.That(run.RequiredStep($"roundtrip-model-{suffix}").Outcome.ToString()).IsEqualTo("passed");
-            await Assert.That(run.RequiredStep($"roundtrip-model-independent-{suffix}").Outcome.ToString()).IsEqualTo("passed");
+            await Assert.That(run.RequiredStep($"compile-model-{suffix}").Outcome.WireValue).IsEqualTo("passed");
+            await Assert.That(run.RequiredStep($"roundtrip-model-{suffix}").Outcome.WireValue).IsEqualTo("passed");
+            await Assert.That(run.RequiredStep($"roundtrip-model-independent-{suffix}").Outcome.WireValue).IsEqualTo("passed");
         }
 
-        var notPassed = run.Steps.Where(step => step.Outcome.ToString() != "passed").Select(step => $"{step.Id}: {step.Outcome.ToString()}").ToList();
+        var notPassed = run.Steps.Where(step => step.Outcome.WireValue != "passed").Select(step => $"{step.Id}: {step.Outcome}").ToList();
         await Assert.That(notPassed).IsEmpty();
 
         await Assert.That(run.LegacyTier).IsNotEmpty();
         foreach (var step in run.LegacyTier)
         {
-            await Assert.That(step.Outcome.ToString()).StartsWith("not-run: ");
+            await Assert.That(step.Outcome.WireValue).IsEqualTo("not-run");
         }
 
         // Two guest instances: one for describe, one for the model tier. Each request was one handle call, and no

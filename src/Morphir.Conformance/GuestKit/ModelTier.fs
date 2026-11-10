@@ -804,6 +804,9 @@ type internal Reply =
     | RpcError of RpcError
     /// A result this runner cannot read.
     | Unreadable of Reason: string
+    /// The session's transport ended, so the request could not be sent: a write to the guest failed with an
+    /// IOException, such as a worker that has ended.
+    | TransportEnded of Reason: string
 
 /// Drives the sessions of a model-tier run and records each step.
 module internal ModelTierSession =
@@ -845,24 +848,49 @@ module internal ModelTierSession =
                 | (ConnectionEnd.Stopped | ConnectionEnd.EndOfStream), None -> return Ok()
         }
 
+    /// Why a write to the session failed: its transport ended, such as the stdin of a worker that has ended.
+    let private transportEnded (error: IO.IOException) =
+        $"The session's transport ended: {error.Message}"
+
+    /// Runs a send of the session; an IOException from its write is the end of the transport, with the reason.
+    let private sending (send: unit -> Task<'T>) =
+        task {
+            try
+                let! sent = send ()
+                return Ok sent
+            with :? IO.IOException as error ->
+                return Error(transportEnded error)
+        }
+
+    /// Sends morphir.exit and waits for the session to end; Error when the transport has ended or the session did
+    /// not end cleanly.
+    let exitAndFinish (session: HostSession) (run: Task<ConnectionEnd>) (cancellation: CancellationToken) =
+        task {
+            match! sending (fun () -> task { do! session.ExitAsync() }) with
+            | Error reason -> return Error reason
+            | Ok() -> return! finish session run cancellation
+        }
+
     let private request (session: HostSession) (method: Method) (parameters: JsonValue) (cancellation: CancellationToken) =
         task {
             let watch = Diagnostics.Stopwatch.StartNew()
-            let! reply = session.RequestAsync(method, Nullable(toElement parameters), cancellation)
+            let! sent = sending (fun () -> session.RequestAsync(method, Nullable(toElement parameters), cancellation))
             watch.Stop()
 
-            let response =
-                match reply with
-                | Ok element -> element.GetRawText()
-                | Error error -> errorText error
+            let response: string | null =
+                match sent with
+                | Ok(Ok element) -> element.GetRawText()
+                | Ok(Error error) -> errorText error
+                | Error _ -> null
 
             let observed =
-                match reply with
-                | Ok element ->
+                match sent with
+                | Ok(Ok element) ->
                     match ofElement element with
                     | Ok value -> Reply.Result value
                     | Error message -> Reply.Unreadable $"the result is not JSON this runner reads: {message}"
-                | Error error -> Reply.RpcError error
+                | Ok(Error error) -> Reply.RpcError error
+                | Error reason -> Reply.TransportEnded reason
 
             return observed, response, watch.Elapsed
         }
@@ -872,7 +900,8 @@ module internal ModelTierSession =
         match reply with
         | Reply.Result value -> Ok value
         | Reply.RpcError error -> Error $"expected a result, got RPC error {error.Code}: {error.Message}"
-        | Reply.Unreadable reason -> Error reason
+        | Reply.Unreadable reason
+        | Reply.TransportEnded reason -> Error reason
 
     /// The kit's expect_error: an RPC error with this code and no result.
     let private expectError (code: int) (reply: Reply) =
@@ -880,7 +909,8 @@ module internal ModelTierSession =
         | Reply.RpcError error when error.Code = code -> Ok()
         | Reply.RpcError error -> Error $"expected RPC error {code}, got RPC error {error.Code}: {error.Message}"
         | Reply.Result _ -> Error $"expected RPC error {code}, got a result"
-        | Reply.Unreadable reason -> Error reason
+        | Reply.Unreadable reason
+        | Reply.TransportEnded reason -> Error reason
 
     /// The describe session: describe, then exit.
     let describe (kit: GuestKit) (openSession: Func<KitSessionRequest, CancellationToken, Task<HostSession>>) cancellation =
@@ -890,8 +920,7 @@ module internal ModelTierSession =
             // The kit sends [0.2.0-draft.1, 0.1]; this host offers the 0.2 line only (design MEP-1).
             let parameters = obj [ "protocolVersions", arr [ str ModelProtocol ] ]
             let! observed, response, elapsed = request session Method.Describe parameters cancellation
-            do! session.ExitAsync()
-            let! ended = finish session run cancellation
+            let! ended = exitAndFinish session run cancellation
 
             let checkedResult =
                 result observed
@@ -1019,14 +1048,34 @@ module internal ModelTierSession =
 
             let! session = openSession.Invoke(KitSessionRequest(KitSessionPurpose.ModelTier, Some support), cancellation)
             let run = session.RunAsync cancellation
+            // Why the session's transport ended, once a send failed; no step after it runs.
+            let transport: string option ref = ref None
 
             let watch = Diagnostics.Stopwatch.StartNew()
-            let! initialized = session.InitializeAsync cancellation
+            let! initialized = sending (fun () -> session.InitializeAsync cancellation)
             watch.Stop()
 
             let negotiated =
                 match initialized with
-                | Ok negotiated ->
+                | Error reason ->
+                    transport.Value <- Some reason
+
+                    steps.Add(
+                        step
+                            "model-initialize"
+                            KitTier.Model
+                            Method.Initialize.WireValue
+                            1
+                            0
+                            null
+                            null
+                            (StepOutcome.Failed reason)
+                            watch.Elapsed
+                    )
+
+                    steps.Add(notRun "model-initialized-silent" KitTier.Model Method.Initialized.WireValue reason)
+                    None
+                | Ok(Ok negotiated) ->
                     let check, response = checkInitialize kit describeResult selection negotiated
                     steps.Add(step "model-initialize" KitTier.Model Method.Initialize.WireValue 1 0 null response (outcomeOf check) watch.Elapsed)
 
@@ -1044,7 +1093,7 @@ module internal ModelTierSession =
                     )
 
                     Some negotiated
-                | Error failure ->
+                | Ok(Error failure) ->
                     let failureText =
                         match session.FailureOrNull() with
                         | null -> failure.ToString()
@@ -1082,13 +1131,14 @@ module internal ModelTierSession =
 
             // Why a request step cannot run now, or None.
             let blocked (needs: string list) =
-                match negotiated, session.FailureOrNull() with
-                | None, _ -> Some "model-initialize did not succeed, so the session is not initialized."
-                | _, null ->
+                match transport.Value, negotiated, session.FailureOrNull() with
+                | Some reason, _, _ -> Some reason
+                | None, None, _ -> Some "model-initialize did not succeed, so the session is not initialized."
+                | None, _, null ->
                     needs
                     |> List.tryFind (fun need -> not (results.ContainsKey need))
                     |> Option.map (fun need -> $"It needs the result of {need}, which returned none.")
-                | _, ended -> Some $"The session ended: {ended}"
+                | None, _, ended -> Some $"The session ended: {ended}"
 
             let requestStep
                 id
@@ -1108,6 +1158,7 @@ module internal ModelTierSession =
 
                             match observed with
                             | Reply.Result value -> results[id] <- value
+                            | Reply.TransportEnded reason -> transport.Value <- Some reason
                             | Reply.RpcError _
                             | Reply.Unreadable _ -> ()
 
@@ -1200,27 +1251,33 @@ module internal ModelTierSession =
             | Some reason -> steps.Add(notRun "model-shutdown" KitTier.Model Method.Shutdown.WireValue reason)
             | None ->
                 let watch = Diagnostics.Stopwatch.StartNew()
-                let! reply = session.ShutdownAsync cancellation
+                let! reply = sending (fun () -> session.ShutdownAsync cancellation)
                 watch.Stop()
 
-                let response, outcome =
+                let (response: string | null), outcome =
                     match reply with
-                    | Ok element -> element.GetRawText(), StepOutcome.Passed
-                    | Error error -> errorText error, StepOutcome.Failed $"expected a result, got RPC error {error.Code}: {error.Message}"
+                    | Ok(Ok element) -> element.GetRawText(), StepOutcome.Passed
+                    | Ok(Error error) -> errorText error, StepOutcome.Failed $"expected a result, got RPC error {error.Code}: {error.Message}"
+                    | Error reason ->
+                        transport.Value <- Some reason
+                        null, StepOutcome.Failed reason
 
                 steps.Add(step "model-shutdown" KitTier.Model Method.Shutdown.WireValue 1 0 null response outcome watch.Elapsed)
 
-            let watch = Diagnostics.Stopwatch.StartNew()
-            do! session.ExitAsync()
-            let! ended = finish session run cancellation
-            watch.Stop()
+            match transport.Value with
+            | Some reason -> steps.Add(notRun "model-exit" KitTier.Model Method.Exit.WireValue reason)
+            | None ->
+                let watch = Diagnostics.Stopwatch.StartNew()
+                let! ended = exitAndFinish session run cancellation
+                watch.Stop()
 
-            let exitOutcome =
-                match ended with
-                | Ok() -> StepOutcome.Passed
-                | Error reason -> StepOutcome.Failed $"unclean exit: {reason}"
+                let exitOutcome =
+                    match ended with
+                    | Ok() -> StepOutcome.Passed
+                    | Error reason -> StepOutcome.Failed $"unclean exit: {reason}"
 
-            steps.Add(step "model-exit" KitTier.Model Method.Exit.WireValue 0 1 null null exitOutcome watch.Elapsed)
+                steps.Add(step "model-exit" KitTier.Model Method.Exit.WireValue 0 1 null null exitOutcome watch.Elapsed)
+
             return List.ofSeq steps
         }
 
@@ -1232,7 +1289,9 @@ type ModelTierRunner =
     /// instance or worker process, for each session the runner asks for: first one that only describes, then, when
     /// the describe claim plans a model tier, one that offers the request's model transport (pass OfferOrNull() to
     /// the HostSession constructor). The runner starts each session's RunAsync, sends morphir.exit at its end and
-    /// waits for it to end. Cancellation ends the run with an OperationCanceledException.
+    /// waits for it to end. When a send of a session fails with an IOException, such as the WorkerEndedException of a
+    /// worker that has ended, the session's transport has ended: that step fails, the session's later steps are not
+    /// run, and the run keeps every step. Cancellation ends the run with an OperationCanceledException.
     static member RunAsync
         (
             kit: GuestKit,
