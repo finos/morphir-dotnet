@@ -24,8 +24,25 @@ let private dotnet =
 
 let private stderr = new StringWriter()
 
+/// The working folder of the guests that the adapter starts: a test sandbox shared by these tests, removed after the
+/// run by Program.fs. The adapter under test starts the guest process itself, so the guest cannot be confined with
+/// TestSandbox.Apply; it runs in the sandbox, and the run's MachineTripwire checks the machine folders.
+let private guestWork = lazy (TestSandbox.Create "morphir-backend-adapter-guests-")
+
+/// Removes the guests' working folder, if a test made it.
+let internal disposeGuestWork () =
+    if guestWork.IsValueCreated then
+        guestWork.Value.Dispose()
+
 let private optionsFor (arguments: string list) (deadline: TimeSpan) =
-    MepBackendOptions(dotnet, Array.ofList arguments, TargetId.Create "fsharp", Deadline = deadline, Stderr = TextWriter.Synchronized stderr)
+    MepBackendOptions(
+        dotnet,
+        Array.ofList arguments,
+        TargetId.Create "fsharp",
+        Deadline = deadline,
+        Stderr = TextWriter.Synchronized stderr,
+        WorkingDirectory = guestWork.Value.Work
+    )
 
 /// The real guest, morphir-fsharp-backend, as a framework-dependent dll.
 let private realGuest () =

@@ -23,10 +23,20 @@ let private host =
 
 let private stderr = new StringWriter()
 
+/// The working folder of the guests that the adapter starts: a test sandbox shared by these tests, removed after the
+/// run by Program.fs. The adapter under test starts the guest process itself, so the guest cannot be confined with
+/// TestSandbox.Apply; it runs in the sandbox, and the run's MachineTripwire checks the machine folders.
+let private guestWork = lazy (Morphir.TestSupport.TestSandbox.Create "morphir-frontend-adapter-guests-")
+
+/// Removes the guests' working folder, if a test made it.
+let internal disposeGuestWork () =
+    if guestWork.IsValueCreated then
+        guestWork.Value.Dispose()
+
 let private optionsFor (arguments: string list) : MepFrontendOptions =
     { Executable = host
       Arguments = Array.ofList arguments
-      WorkingDirectory = null
+      WorkingDirectory = guestWork.Value.Work
       Deadline = TimeSpan.FromMinutes 2.0
       Stderr = TextWriter.Synchronized stderr
       Host =

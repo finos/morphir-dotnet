@@ -13,6 +13,12 @@ let main args =
     | [| "--fake-backend-guest"; scenario |] -> FakeBackendGuests.run scenario
     | _ ->
         let tripwire = MachineTripwire.Capture()
-        let result = runTestsInAssemblyWithCLIArgs [] args
+
+        let result =
+            try
+                runTestsInAssemblyWithCLIArgs [] args
+            finally
+                HostAdapterTests.disposeGuestWork ()
+
         tripwire.AssertUnchanged()
         result

@@ -9,7 +9,8 @@ namespace Morphir.Tooling.Tests.Features.Generate;
 [Binding]
 public sealed class GenerateSteps : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), "morphir-generate-" + Guid.NewGuid().ToString("N"));
+    private readonly TestSandbox _sandbox = TestSandbox.Create("morphir-generate-");
+    private string _directory => _sandbox.PathOf("scenario");
     private readonly CliTestHelper _cli = new(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI"));
     private readonly CliRun _run;
     private string _input = "";
@@ -172,7 +173,7 @@ public sealed class GenerateSteps : IDisposable
 
     public void Dispose()
     {
-        TolerantDirectory.TryDelete(_directory);
+        _sandbox.Dispose();
     }
 
     internal static string RepositoryRoot()
