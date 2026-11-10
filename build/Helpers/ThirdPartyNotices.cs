@@ -23,7 +23,27 @@ public sealed record LinkedPackage(string Id, string Version, string Directory);
 /// <param name="LicenseFile">The license text file, in the declarations folder.</param>
 /// <param name="Source">Where it was obtained: the URL of the pinned archive.</param>
 /// <param name="Sha256">The SHA-256 of the linked file, lowercase hex.</param>
-public sealed record DeclaredNativeLibrary(string Name, string Version, string License, string LicenseFile, string Source, string Sha256);
+public sealed record DeclaredNativeLibrary(string Name, string Version, string License, string LicenseFile, string Source, string Sha256)
+{
+    /// <summary>What is declared: a native library of the link (the default), or a file a linked assembly embeds.</summary>
+    public DeclaredKind Kind { get; init; } = DeclaredKind.NativeLibrary;
+
+    /// <summary>A NOTICE text file in the declarations folder, written after the license text; none by default.</summary>
+    public string? NoticeFile { get; init; }
+}
+
+/// <summary>The kind of a declared third-party component: the <c>kind</c> member of its declaration.</summary>
+public enum DeclaredKind
+{
+    /// <summary><c>native-library</c>, the default: a <c>NativeLibrary</c> item of the Native AOT link.</summary>
+    NativeLibrary,
+
+    /// <summary><c>embedded-resource</c>: a file that a linked assembly embeds as a manifest resource.</summary>
+    EmbeddedResource,
+}
+
+/// <summary>A manifest resource that a linked assembly embeds, with the SHA-256 of its content.</summary>
+public sealed record EmbeddedResource(string Assembly, string LogicalName, string Sha256);
 
 /// <summary>
 /// The third-party notices of a Native AOT executable, generated from what was linked into it so that they cannot go
@@ -128,9 +148,13 @@ public static class ThirdPartyNotices
 
         foreach (var native in declared)
         {
-            var licenseFile = Path.Combine(declarations ?? throw new ArgumentNullException(nameof(declarations), "Declared native libraries need their declarations folder."), native.LicenseFile);
-            text.Append($"\n{Rule}\n{native.Name} {native.Version}\nLicense: {native.License}\nSource: {native.Source}\nSHA-256: {native.Sha256}\n");
-            text.Append($"License text: build/notices/native/{native.LicenseFile} in morphir-dotnet\n{Rule}\n\n{Normal(File.ReadAllText(licenseFile))}");
+            var folder = declarations ?? throw new ArgumentNullException(nameof(declarations), "Declared components need their declarations folder.");
+            var how = native.Kind == DeclaredKind.EmbeddedResource ? "Embedded in a linked assembly as a resource" : "A native library of the link";
+            text.Append($"\n{Rule}\n{native.Name} {native.Version}\n{how}\nLicense: {native.License}\nSource: {native.Source}\nSHA-256: {native.Sha256}\n");
+            // The license and notice texts are written as the files hold them, each after its own heading.
+            text.Append($"License text: build/notices/native/{native.LicenseFile} in morphir-dotnet\n{Rule}\n\n{Verbatim(Path.Combine(folder, native.LicenseFile))}");
+            if (native.NoticeFile is { } noticeFile)
+                text.Append($"\nNotice: build/notices/native/{noticeFile} in morphir-dotnet\n\n{Verbatim(Path.Combine(folder, noticeFile))}");
         }
 
         text.Append($"\n{Rule}\nUnicode Character Database 17.0.0\nLicense: Unicode-3.0\n{Rule}\n\n{Normal(unicodeLicense)}");
@@ -138,9 +162,10 @@ public static class ThirdPartyNotices
     }
 
     /// <summary>
-    /// The declared native libraries in <paramref name="declarations"/>, one JSON file each:
-    /// <c>{ "name", "version", "license", "licenseFile", "source", "sha256" }</c>. <c>licenseFile</c> is a file in the same
-    /// folder. A missing folder declares none.
+    /// The declared third-party components in <paramref name="declarations"/>, one JSON file each:
+    /// <c>{ "kind", "name", "version", "license", "licenseFile", "noticeFile", "source", "sha256" }</c>. <c>kind</c> is
+    /// <c>native-library</c> (the default) or <c>embedded-resource</c>; <c>noticeFile</c> is optional. Both text files are
+    /// in the same folder, and a declaration that names a missing one fails the build. A missing folder declares none.
     /// </summary>
     public static IReadOnlyList<DeclaredNativeLibrary> ReadDeclaredNativeLibraries(string declarations)
     {
@@ -149,39 +174,132 @@ public static class ThirdPartyNotices
         foreach (var file in Directory.GetFiles(declarations, "*.json").Order(StringComparer.Ordinal))
         {
             using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+            var label = Path.GetFileName(file);
+            string? Optional(string member) =>
+                !document.RootElement.TryGetProperty(member, out var value) ? null
+                : value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString()!
+                : throw new InvalidOperationException($"{label}: the member '{member}' is not a string.");
             string Text(string member) =>
-                document.RootElement.TryGetProperty(member, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String
-                    ? value.GetString()!
-                    : throw new InvalidOperationException($"{Path.GetFileName(file)} declares a native library without the string member '{member}'.");
-            declared.Add(new DeclaredNativeLibrary(Text("name"), Text("version"), Text("license"), Text("licenseFile"), Text("source"), Text("sha256")));
+                Optional(member) ?? throw new InvalidOperationException($"{label} declares a component without the string member '{member}'.");
+            var kind = Optional("kind") switch
+            {
+                null or "native-library" => DeclaredKind.NativeLibrary,
+                "embedded-resource" => DeclaredKind.EmbeddedResource,
+                var other => throw new InvalidOperationException($"{label}: the kind '{other}' is not native-library or embedded-resource."),
+            };
+            var entry = new DeclaredNativeLibrary(Text("name"), Text("version"), Text("license"), Text("licenseFile"), Text("source"), Text("sha256"))
+            {
+                Kind = kind,
+                NoticeFile = Optional("noticeFile"),
+            };
+            foreach (var text in new[] { entry.LicenseFile, entry.NoticeFile }.OfType<string>())
+                if (!File.Exists(Path.Combine(declarations, text)))
+                    throw new InvalidOperationException($"{label} names {text}, which is not in {declarations}.");
+            declared.Add(entry);
         }
 
         return declared;
     }
 
     /// <summary>
-    /// Why the native libraries that the link includes are not covered by notices: a library in a restored package is that
-    /// package's, and every other one needs a <see cref="DeclaredNativeLibrary"/> of the same file name whose SHA-256 is the
-    /// file's. Empty when every library is covered.
+    /// The declarations of the native libraries that the link includes, and why the others are not covered. A library in a
+    /// restored package is that package's; every other one needs a <see cref="DeclaredKind.NativeLibrary"/> declaration
+    /// with its file name and SHA-256 together, because one name can be declared once per platform with another digest.
+    /// Only the declarations that matched are returned, for the notices.
     /// </summary>
-    public static IReadOnlyList<string> NativeLibraryProblems(IEnumerable<string> linkedNativeLibraries, string repository, IReadOnlyList<DeclaredNativeLibrary> declared)
+    public static (IReadOnlyList<DeclaredNativeLibrary> Matched, IReadOnlyList<string> Problems) MatchNativeLibraries(
+        IEnumerable<string> linkedNativeLibraries, string repository, IReadOnlyList<DeclaredNativeLibrary> declared)
     {
+        var matched = new List<DeclaredNativeLibrary>();
         var problems = new List<string>();
         foreach (var library in linkedNativeLibraries)
         {
             if (PackageOf(library) is not null) continue;
             var name = Path.GetFileName(library);
             var shown = Path.GetRelativePath(repository, library).Replace('\\', '/');
-            var entry = declared.FirstOrDefault(native => string.Equals(native.Name, name, StringComparison.Ordinal));
-            if (entry is null)
+            var named = declared.Where(native => native.Kind == DeclaredKind.NativeLibrary && string.Equals(native.Name, name, StringComparison.Ordinal)).ToList();
+            if (named.Count == 0)
+            {
                 problems.Add($"{shown} is linked into the executable, is in no restored package, and has no declared entry in build/notices/native/ (name, version, license, licenseFile, source and sha256).");
-            else if (!File.Exists(library))
+                continue;
+            }
+
+            if (!File.Exists(library))
+            {
                 problems.Add($"{shown} is declared but does not exist, so its SHA-256 cannot be checked.");
-            else if (!string.Equals(ReleaseArchive.Sha256(library), entry.Sha256, StringComparison.OrdinalIgnoreCase))
-                problems.Add($"{shown} has SHA-256 {ReleaseArchive.Sha256(library)}, not the declared {entry.Sha256}.");
+                continue;
+            }
+
+            var digest = ReleaseArchive.Sha256(library);
+            var entry = named.FirstOrDefault(native => string.Equals(native.Sha256, digest, StringComparison.OrdinalIgnoreCase));
+            if (entry is null)
+                problems.Add($"{shown} has SHA-256 {digest}, and no declaration of {name} has it; the declared SHA-256 values are {string.Join(", ", named.Select(native => native.Sha256))}.");
+            else if (!matched.Contains(entry))
+                matched.Add(entry);
         }
 
-        return problems;
+        return (matched, problems);
+    }
+
+    /// <summary>Why the native libraries that the link includes are not covered by notices; see <see cref="MatchNativeLibraries"/>.</summary>
+    public static IReadOnlyList<string> NativeLibraryProblems(IEnumerable<string> linkedNativeLibraries, string repository, IReadOnlyList<DeclaredNativeLibrary> declared) =>
+        MatchNativeLibraries(linkedNativeLibraries, repository, declared).Problems;
+
+    /// <summary>
+    /// The manifest resources embedded in <paramref name="assemblies"/> (the assemblies of the ILC response file), with the
+    /// SHA-256 of each one's content. A file that is not a .NET assembly is skipped.
+    /// </summary>
+    public static IReadOnlyList<EmbeddedResource> EmbeddedResources(IEnumerable<string> assemblies)
+    {
+        var found = new List<EmbeddedResource>();
+        foreach (var assembly in assemblies.Where(File.Exists))
+        {
+            using var stream = File.OpenRead(assembly);
+            using var pe = new System.Reflection.PortableExecutable.PEReader(stream);
+            if (!pe.HasMetadata) continue;
+            var reader = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(pe);
+            var directory = pe.PEHeaders.CorHeader?.ResourcesDirectory;
+            foreach (var handle in reader.ManifestResources)
+            {
+                var resource = reader.GetManifestResource(handle);
+                if (!resource.Implementation.IsNil || directory is null || directory.Value.Size == 0) continue;
+                var data = pe.GetSectionData(directory.Value.RelativeVirtualAddress).GetReader((int)resource.Offset, directory.Value.Size - (int)resource.Offset);
+                var length = data.ReadInt32();
+                var content = data.ReadBytes(length);
+                found.Add(new EmbeddedResource(assembly, reader.GetString(resource.Name), Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(content))));
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// The <see cref="DeclaredKind.EmbeddedResource"/> declarations that a linked assembly embeds: a resource whose logical
+    /// name is the declared file name, or ends with it after a dot or slash, and whose content has the declared SHA-256. The
+    /// check runs one way: not every embedded resource is third-party, so an undeclared resource needs nothing, and a
+    /// declaration that matches nothing is not listed. A resource of a declared name with another SHA-256 is a stale
+    /// declaration and a problem.
+    /// </summary>
+    public static (IReadOnlyList<DeclaredNativeLibrary> Matched, IReadOnlyList<string> Problems) MatchEmbeddedResources(
+        IReadOnlyList<EmbeddedResource> resources, IReadOnlyList<DeclaredNativeLibrary> declared)
+    {
+        static bool Named(EmbeddedResource resource, string name) =>
+            resource.LogicalName == name
+            || resource.LogicalName.EndsWith("." + name, StringComparison.Ordinal)
+            || resource.LogicalName.EndsWith("/" + name, StringComparison.Ordinal);
+        var matched = new List<DeclaredNativeLibrary>();
+        var problems = new List<string>();
+        foreach (var entry in declared.Where(native => native.Kind == DeclaredKind.EmbeddedResource))
+        {
+            var named = resources.Where(resource => Named(resource, entry.Name)).ToList();
+            if (named.Any(resource => string.Equals(resource.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)))
+                matched.Add(entry);
+            else if (named.Count > 0)
+                problems.AddRange(named.Select(resource =>
+                    $"{Path.GetFileName(resource.Assembly)} embeds {resource.LogicalName} with SHA-256 {resource.Sha256}, not the {entry.Sha256} that the declaration of {entry.Name} states."));
+        }
+
+        return (matched, problems);
     }
 
     /// <summary>The packages (as <c>Id Version</c>) that <paramref name="notices"/> does not list.</summary>
@@ -256,6 +374,12 @@ public static class ThirdPartyNotices
         Directory.GetFiles(directory)
             .Where(path => Regex.IsMatch(Path.GetFileName(path), @"^(third-?party-?notices|notice)(\.(txt|md))?$", RegexOptions.IgnoreCase))
             .Order(StringComparer.Ordinal);
+
+    private static string Verbatim(string path)
+    {
+        var text = File.ReadAllText(path);
+        return text.EndsWith('\n') ? text : text + "\n";
+    }
 
     private static string Normal(string text) => text.Replace("\r\n", "\n").Replace('\r', '\n').TrimEnd('\n') + "\n";
 }

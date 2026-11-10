@@ -104,7 +104,8 @@ partial class Build
 
             var packages = MorphirupLinkedPackages();
             var version = Version.ToString();
-            var natives = CheckNativeLibraries(MorphirupProjectDirectory / "Morphirup.fsproj", Rid!);
+            var linkedAssemblies = ThirdPartyNotices.LinkedFiles(File.ReadAllText(MorphirupIlcResponseFile), MorphirupProjectDirectory);
+            IReadOnlyList<DeclaredNativeLibrary> natives = [.. CheckNativeLibraries(MorphirupProjectDirectory / "Morphirup.fsproj", Rid!), .. CheckEmbeddedResources(linkedAssemblies)];
             var notices = ThirdPartyNotices.Write(version, Rid!, packages, RootDirectory / "build" / "notices",
                 File.ReadAllText(RootDirectory / "tests" / "Fixtures" / "Unicode" / "17.0.0" / "LICENSE.txt"), natives, NativeLibraryDeclarations);
             var written = MorphirupRelease.WriteAssets(executable, Rid!, version, ReleaseAssetsDir, RootDirectory / "LICENSE", RootDirectory / "NOTICE", notices);

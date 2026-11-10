@@ -94,13 +94,30 @@ partial class Build
                     linked.Add(library.GetProperty("FullPath").GetString()!);
 
         var declared = ThirdPartyNotices.ReadDeclaredNativeLibraries(NativeLibraryDeclarations);
-        var problems = ThirdPartyNotices.NativeLibraryProblems(linked, RootDirectory, declared);
+        var (matched, problems) = ThirdPartyNotices.MatchNativeLibraries(linked, RootDirectory, declared);
         if (problems.Count > 0)
             throw new Exception($"The native libraries of {project.Name} are not all covered by notices:{Environment.NewLine}{string.Join(Environment.NewLine, problems)}");
-        var names = linked.Select(Path.GetFileName).ToHashSet(StringComparer.Ordinal);
         Serilog.Log.Information("{Project}: {Count} native libraries added to the link{Names}", project.Name, linked.Count,
             linked.Count == 0 ? "" : $": {string.Join(", ", linked.Select(Path.GetFileName))}");
-        return [.. declared.Where(native => names.Contains(native.Name))];
+        return matched;
+    }
+
+    /// <summary>
+    /// The <c>embedded-resource</c> declarations in <see cref="NativeLibraryDeclarations"/> whose file a linked assembly
+    /// embeds, by name and SHA-256. The assemblies are those of the ILC response file, so a resource of a referenced project
+    /// (such as Morphir.Extensions.Wasm) is seen as well as one of the executable's own. The check runs one way: an
+    /// undeclared resource needs nothing, a declaration that matches nothing is not listed, and a declared name embedded
+    /// with another SHA-256 fails the build.
+    /// </summary>
+    IReadOnlyList<DeclaredNativeLibrary> CheckEmbeddedResources(IReadOnlyList<string> linkedAssemblies)
+    {
+        var (matched, problems) = ThirdPartyNotices.MatchEmbeddedResources(ThirdPartyNotices.EmbeddedResources(linkedAssemblies),
+            ThirdPartyNotices.ReadDeclaredNativeLibraries(NativeLibraryDeclarations));
+        if (problems.Count > 0)
+            throw new Exception($"Embedded resources do not match their declarations:{Environment.NewLine}{string.Join(Environment.NewLine, problems)}");
+        Serilog.Log.Information("{Count} declared embedded resources are linked{Names}", matched.Count,
+            matched.Count == 0 ? "" : $": {string.Join(", ", matched.Select(native => native.Name))}");
+        return matched;
     }
 
     /// <summary>Copies <paramref name="executable"/> into <paramref name="folder"/> as <paramref name="launchName"/>, executable, and returns its path.</summary>

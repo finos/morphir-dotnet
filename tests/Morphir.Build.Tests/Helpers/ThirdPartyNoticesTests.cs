@@ -147,6 +147,101 @@ public class ThirdPartyNoticesTests
         notices.Should().Contain("Apache License\nVersion 2.0, January 2004").And.Contain(wasmtimeEntry.Sha256);
     }
 
+    [Test]
+    public async Task ALinkedLibraryMatchesTheDeclarationWithItsNameAndDigestAndOnlyThatOneIsListed()
+    {
+        await using var sandbox = TestSandbox.Create("notices-");
+        var repository = Directory.CreateDirectory(sandbox.PathOf("repo")).FullName;
+        var linux = sandbox.PathOf("linux", "libwasmtime.a");
+        var mac = sandbox.PathOf("mac", "libwasmtime.a");
+        Directory.CreateDirectory(Path.GetDirectoryName(linux)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(mac)!);
+        await File.WriteAllBytesAsync(linux, [1, 1]);
+        await File.WriteAllBytesAsync(mac, [2, 2]);
+        DeclaredNativeLibrary Declared(string file) =>
+            new("libwasmtime.a", "30.0.0", "Apache-2.0 WITH LLVM-exception", "wasmtime.LICENSE.txt", "https://example.org/wasmtime.tar.xz", ReleaseArchive.Sha256(file));
+        var linuxEntry = Declared(linux);
+        var macEntry = Declared(mac);
+
+        // One declaration per platform, all named libwasmtime.a: the linked file takes the one with its digest.
+        var (matched, problems) = ThirdPartyNotices.MatchNativeLibraries([mac], repository, [linuxEntry, macEntry]);
+        problems.Should().BeEmpty();
+        matched.Should().Equal(macEntry);
+
+        await File.WriteAllBytesAsync(mac, [3, 3]);
+        (matched, problems) = ThirdPartyNotices.MatchNativeLibraries([mac], repository, [linuxEntry, macEntry]);
+        matched.Should().BeEmpty();
+        problems.Should().ContainSingle().Which.Should().Contain(ReleaseArchive.Sha256(mac))
+            .And.Contain(linuxEntry.Sha256).And.Contain(macEntry.Sha256);
+    }
+
+    [Test]
+    public async Task ADeclarationsNoticeFileFollowsItsLicenseAndAMissingFileFailsTheBuild()
+    {
+        await using var sandbox = TestSandbox.Create("notices-");
+        var declarations = Directory.CreateDirectory(sandbox.PathOf("native")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(declarations, "kernel.LICENSE.txt"), "Apache License\r\nVersion 2.0");
+        await File.WriteAllTextAsync(Path.Combine(declarations, "kernel.NOTICE.txt"), "Extism kernel\r\nCopyright Dylibso\r\n");
+        await File.WriteAllTextAsync(Path.Combine(declarations, "kernel.json"), """
+            { "kind": "embedded-resource", "name": "extism-kernel.wasm", "version": "0.3.0", "license": "Apache-2.0",
+              "licenseFile": "kernel.LICENSE.txt", "noticeFile": "kernel.NOTICE.txt", "source": "https://example.org/extism.zip",
+              "sha256": "3d23b39dc4cb508c32d5f8911ceeb625070dbe1335288d871e17feb03a7fba17" }
+            """);
+
+        var kernel = ThirdPartyNotices.ReadDeclaredNativeLibraries(declarations).Should().ContainSingle().Subject;
+        kernel.Kind.Should().Be(DeclaredKind.EmbeddedResource);
+        kernel.NoticeFile.Should().Be("kernel.NOTICE.txt");
+
+        var notices = ThirdPartyNotices.Write("1.2.3", "linux-x64", [], declarations, "U", [kernel], declarations);
+        var license = notices.IndexOf("Apache License\r\nVersion 2.0", StringComparison.Ordinal);
+        var notice = notices.IndexOf("Extism kernel\r\nCopyright Dylibso\r\n", StringComparison.Ordinal);
+        license.Should().BePositive("the license text is written as the file holds it");
+        notice.Should().BeGreaterThan(license, "the notice follows the license, as a separate text");
+
+        File.Delete(Path.Combine(declarations, "kernel.NOTICE.txt"));
+        FluentActions.Invoking(() => ThirdPartyNotices.ReadDeclaredNativeLibraries(declarations))
+            .Should().Throw<InvalidOperationException>().WithMessage("*kernel.NOTICE.txt*");
+        await File.WriteAllTextAsync(Path.Combine(declarations, "kernel.json"), """
+            { "kind": "static-blob", "name": "x", "version": "1", "license": "MIT", "licenseFile": "kernel.LICENSE.txt", "source": "s", "sha256": "0" }
+            """);
+        FluentActions.Invoking(() => ThirdPartyNotices.ReadDeclaredNativeLibraries(declarations))
+            .Should().Throw<InvalidOperationException>().WithMessage("*static-blob*");
+    }
+
+    [Test]
+    public async Task AnEmbeddedResourceDeclarationIsListedOnlyWhenALinkedAssemblyEmbedsThatFile()
+    {
+        await using var sandbox = TestSandbox.Create("notices-");
+        byte[] kernelBytes = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+        var wasm = sandbox.PathOf("Morphir.Extensions.Wasm.dll");
+        StandInAssembly.Write(wasm, "Morphir.Extensions.Wasm", ("Morphir.Extensions.Wasm.Kernel.extism-kernel.wasm", kernelBytes),
+            ("Morphir.Extensions.Wasm.Contracts.manager-result.md", "first-party"u8.ToArray()));
+        var other = sandbox.PathOf("Other.dll");
+        StandInAssembly.Write(other, "Other");
+
+        var resources = ThirdPartyNotices.EmbeddedResources([wasm, other]);
+        resources.Select(resource => resource.LogicalName).Should().Equal(
+            "Morphir.Extensions.Wasm.Kernel.extism-kernel.wasm", "Morphir.Extensions.Wasm.Contracts.manager-result.md");
+
+        var digest = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(kernelBytes));
+        var kernel = new DeclaredNativeLibrary("extism-kernel.wasm", "0.3.0", "Apache-2.0", "kernel.LICENSE.txt", "https://example.org/extism.zip", digest)
+        {
+            Kind = DeclaredKind.EmbeddedResource,
+        };
+
+        // One-directional: a declared resource is listed when a linked assembly embeds that file, by name and digest; an
+        // undeclared resource (the first-party contract file) needs nothing, and a declaration that matches nothing is not listed.
+        var (matched, problems) = ThirdPartyNotices.MatchEmbeddedResources(resources, [kernel]);
+        matched.Should().Equal(kernel);
+        problems.Should().BeEmpty();
+        ThirdPartyNotices.MatchEmbeddedResources(ThirdPartyNotices.EmbeddedResources([other]), [kernel]).Matched.Should().BeEmpty();
+
+        // The same file name with another digest is an embedded file whose declaration is stale: that fails the build.
+        (matched, problems) = ThirdPartyNotices.MatchEmbeddedResources(resources, [kernel with { Sha256 = new string('0', 64) }]);
+        matched.Should().BeEmpty();
+        problems.Should().ContainSingle().Which.Should().Contain("extism-kernel.wasm").And.Contain("SHA-256");
+    }
+
     private static string Package(TestSandbox sandbox, string folder, string version, string id, string license)
     {
         var directory = Directory.CreateDirectory(sandbox.PathOf("packages", folder, version)).FullName;
