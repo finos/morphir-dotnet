@@ -142,10 +142,30 @@ jobs:
                   path: ./artifacts/single-file/${{ matrix.rid }}/
                   retention-days: 1
 
+    # The morphirup manager, from the same build-and-check definition that the pull request workflow morphirup.yml runs.
+    build-morphirup:
+        needs: [validate-version]
+        if: ${{ !failure() }}
+        permissions:
+            contents: read
+        strategy:
+            matrix:
+                include:
+                    - { rid: linux-x64, os: ubuntu-latest }
+                    - { rid: linux-arm64, os: ubuntu-24.04-arm }
+                    - { rid: win-x64, os: windows-latest }
+                    - { rid: osx-arm64, os: macos-latest }
+        uses: ./.github/workflows/morphirup-build.yml
+        with:
+            rid: ${{ matrix.rid }}
+            os: ${{ matrix.os }}
+            configuration: ${{ github.event.inputs.configuration || 'Release' }}
+
     release:
         runs-on: ubuntu-latest
         environment: production
-        needs: [validate-version, build-executables]
+        # Nothing is published unless morphirup built and passed its check on every platform too.
+        needs: [validate-version, build-executables, build-morphirup]
         permissions:
             contents: read
             id-token: write
@@ -221,7 +241,7 @@ jobs:
 
     create-github-release:
         runs-on: ubuntu-latest
-        needs: [validate-version, build-executables, release]
+        needs: [validate-version, build-executables, build-morphirup, release]
         if: ${{ !failure() && needs.validate-version.outputs.skip-git-release != 'true' }}
         # This job needs write permissions to create releases
         permissions:
@@ -239,10 +259,18 @@ jobs:
                   pattern: morphir-*
                   merge-multiple: false
 
+            # morphir-* does not match morphirup-* (the eighth character differs), so the two downloads stay apart.
+            - name: Download the morphirup release assets
+              uses: actions/download-artifact@v7
+              with:
+                  path: ./artifacts/release-assets
+                  pattern: morphirup-*
+                  merge-multiple: true
+
             - name: List downloaded artifacts
               run: |
                   echo "Downloaded artifacts:"
-                  find ./artifacts/executables -type f -ls
+                  find ./artifacts/executables ./artifacts/release-assets -type f -ls
 
             - name: Prepare executables for release
               run: |
@@ -279,6 +307,21 @@ jobs:
                   echo "Release assets prepared:"
                   ls -lh ./artifacts/release-assets/
 
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            # The checksum file lists every uploaded morphirup asset; the target reads it back and checks the files, and
+            # sha256sum checks it the way a user would.
+            - name: Write and verify the morphirup checksum file
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  ./build.sh --target MorphirupChecksums --release-assets-dir ./artifacts/release-assets
+                  cd ./artifacts/release-assets
+                  sha256sum -c "morphirup-v${{ needs.validate-version.outputs.version }}.sha256"
+
             - name: Extract release notes from CHANGELOG.md
               id: extract-notes
               run: |
@@ -307,6 +350,7 @@ jobs:
                   prerelease: ${{ contains(needs.validate-version.outputs.version, '-') }}
                   files: |
                       ./artifacts/release-assets/morphir-*
+                      ./artifacts/release-assets/morphirup-*
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

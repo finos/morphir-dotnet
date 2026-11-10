@@ -1,0 +1,74 @@
+name: "morphirup"
+
+# Proves the morphirup release path on a pull request that can change it: the same build-and-check definition that the
+# release workflow runs (morphirup-build.yml), for every platform that releases build, then the checksum file over the
+# assets of all four. The development workflow has no path filters, so this check lives in its own workflow.
+
+on:
+    pull_request:
+        paths:
+            - "src/Morphirup/**"
+            - "src/Morphir.Toolchain/**"
+            - "tests/Morphir.Toolchain.Tests/AotProbe/**"
+            - "build/**"
+            - "build.sh"
+            - "build.cmd"
+            - "build.ps1"
+            - "global.json"
+            - "Directory.Build.props"
+            - "Directory.Build.targets"
+            - "Directory.Packages.props"
+            - "src/Directory.Build.props"
+            - ".github/workflows/morphirup.yml"
+            - ".github/workflows/morphirup-build.yml"
+            - ".github/workflows/deployment.yml"
+
+permissions:
+    contents: read
+
+jobs:
+    build:
+        strategy:
+            fail-fast: false
+            matrix:
+                # The platforms of the release workflow's build-executables matrix.
+                include:
+                    - { rid: linux-x64, os: ubuntu-latest }
+                    - { rid: linux-arm64, os: ubuntu-24.04-arm }
+                    - { rid: win-x64, os: windows-latest }
+                    - { rid: osx-arm64, os: macos-latest }
+        uses: ./.github/workflows/morphirup-build.yml
+        with:
+            rid: ${{ matrix.rid }}
+            os: ${{ matrix.os }}
+
+    checksums:
+        name: morphirup checksums
+        needs: [build]
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+              with:
+                  fetch-depth: 0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            - name: Download the morphirup assets of every platform
+              uses: actions/download-artifact@v7
+              with:
+                  path: ./artifacts/release-assets
+                  pattern: morphirup-*
+                  merge-multiple: true
+
+            - name: Write and verify the checksum file, as the release job does
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  ./build.sh --target MorphirupChecksums --release-assets-dir ./artifacts/release-assets
+                  cd ./artifacts/release-assets
+                  sha256sum -c morphirup-v*.sha256
