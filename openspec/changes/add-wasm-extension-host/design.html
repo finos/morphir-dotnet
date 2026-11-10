@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-wasm-extension-host</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; --ok: #1f7a4d; --stop: #b3261e; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; --ok: #6fd3a0; --stop: #ff9a92; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+.table-wrap { overflow-x: auto; }
+figure { margin: 1.5rem 0; overflow-x: auto; } figcaption { color: var(--muted); font-size: .95rem; }
+svg { display: block; width: 100%; min-width: 640px; } .toc ol { padding-left: 1.3rem; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+svg .new { fill: var(--panel); stroke: var(--ok); stroke-width: 2; }
+svg .edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+svg .small { font-size: 11.5px; fill: var(--muted); }
+.stage { color: var(--muted); font-size: .95rem; margin-bottom: 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>add-wasm-extension-host</h1>
+<p class="meta">OpenSpec change | 9 November 2026 | Proposed, awaiting maintainer approval. No implementation starts before it.</p>
+<p><a href="proposal.md">Proposal</a> · <a href="tasks.md">Tasks</a> ·
+<a href="specs/dotnet-wasm-host/spec.md">.NET WASM host</a> ·
+<a href="specs/wasm-host-qualification/spec.md">Host qualification runner</a> ·
+<a href="specs/mep-protocol/spec.md">MEP protocol delta</a> ·
+<a href="specs/extension-registry/spec.md">Extension registry delta</a></p>
+<nav class="toc" aria-label="Contents"><ol>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#parent">What is adopted from the parent design</a></li>
+<li><a href="#decisions">Decisions made in this repository</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#review">Questions for review</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+<li><a href="#references">References</a></li>
+</ol></nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">the proposal</a> for motivation. The narrative design, with every decision argued from first principles, is the parent change in finos/morphir: <code>openspec/changes/add-dotnet-wasm-extension-host/design.html</code>, draft PR <a href="https://github.com/finos/morphir/pull/1148">finos/morphir#1148</a>, read at <code>bb9d15c3b</code>. This page does not repeat it. It says what this repository adopts, where the work lands in this codebase, and which choices the parent leaves to the implementing repository.</p>
+<p>What inspection of this repository at <code>3f226a0</code> found:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Where</th><th>Observed</th><th>What it means here</th></tr></thead>
+<tbody>
+<tr><td><code>src/Morphir.Mep/Peers.fs</code></td>
+<td><code>HostSession</code> takes an input stream and an output stream and builds a <code>Connection</code> on them. <code>Dispatcher.DispatchAsync(bytes)</code> gives single-message dispatch, for guests only.</td>
+<td>The host side has no way to talk to a guest that takes one message per call. Decision <a href="#chan-1">CHAN-1</a>.</td></tr>
+<tr><td><code>src/Morphir.Extensions/Registry.fs</code></td>
+<td><code>ExtensionDelivery</code> has one case, <code>BuiltIn</code>. The spec fixes the delivery value to <code>built-in</code>.</td>
+<td>The spec and the type need a second value. Decision <a href="#reg-1">REG-1</a>.</td></tr>
+<tr><td><code>src/Morphir.Configuration/Schema.fs</code></td>
+<td>The <code>extension</code> table has <code>path</code>, <code>url</code>, <code>command</code>, <code>args</code>, <code>enabled</code> and <code>config</code>. The schema is generated from a pinned upstream fixture with recorded local amendments.</td>
+<td>Naming a module needs no new key. Declaring its ABI or digest does. Decision <a href="#cfg-1">CFG-1</a>.</td></tr>
+<tr><td><code>src/Morphir.Conformance</code>, <code>conformance/</code></td>
+<td>A runner with <code>cli</code>, <code>mep-guest</code> and <code>library</code> adapters for the F# frontend suite. There is no <code>morphir mck</code> command. <code>establish-morphir-compatibility-kit</code> plans one and has completed none of its 32 tasks.</td>
+<td>New runner code has a home, and no command surface yet. Decision <a href="#run-1">RUN-1</a>.</td></tr>
+<tr><td><code>build/Build.cs</code>, PR <a href="https://github.com/finos/morphir-dotnet/pull/559">#559</a></td>
+<td>The released <code>morphir</code> binaries are managed, trimmed, self-contained single-file builds for four platforms. A separate target publishes with Native AOT. PR #559 adopts the four named offerings and is not merged; implementation branches for its first tasks exist.</td>
+<td>The four offerings this change must package do not exist as release profiles yet. Decision <a href="#seq-1">SEQ-1</a>.</td></tr>
+<tr><td>PR #559, <code>specs/extension-registry</code></td>
+<td>It modifies the requirement "An entry states its delivery and hosts", which this change also modifies.</td>
+<td>Whichever change archives second must merge both edits. See <a href="#reg-1">REG-1</a>.</td></tr>
+<tr><td><code>tests/Fixtures/Mep/PROVENANCE.md</code></td>
+<td>Upstream MEP inputs are copied without edits, with the upstream commit and a SHA-256 for each file.</td>
+<td>The same convention fits the profile contract and the crafted corpus. Decision <a href="#pin-1">PIN-1</a>.</td></tr>
+<tr><td>finos/morphir-moonbit <code>origin/main</code> at <code>89f8924</code></td>
+<td><code>pkgs/morphir-host/moon.mod</code> pins <code>moonrockz/extism@0.3.0</code>. The model-line instruction budget is 5,000,000,000 since its PR 328.</td>
+<td>The kernel to embed comes from that package version. The parent contract's JSON still says 2,147,483,647 and cites kernel <code>v0.1.1</code>; the parent specs win where they differ.</td></tr>
+</tbody></table></div>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals.</strong> Give the parent tasks 2.1 to 6.2, and the runner parts of 1.5 and 4.3, a place in this codebase, with their numbers kept so that completion can be reported against the parent. Change this repository's two existing specs that the runtime contradicts. Record the four decisions of 9 November 2026 where a later reader of this repository will find them.</p>
+<p><strong>Non-goals.</strong> This page does not reopen a parent decision. It does not restate the shared profile rules; those stay in the parent capability and reach this repository by pin. It adds no product command that runs a configured WASM extension: the runtime is reachable only through the worker mode in this change, as the parent's migration section states.</p>
+
+<h2 id="parent">What is adopted from the parent design</h2>
+<p>Every parent decision is adopted. The table lists each one, the task that carries it here, and anything this repository adds. The four marked "maintainer, 9 November" override older text in this repository's PRD and spike report.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Parent decision</th><th>Summary</th><th>Carried by</th><th>Note for this repository</th></tr></thead>
+<tbody>
+<tr><td>PROF-1</td><td>One profile contract, in finos/morphir</td><td>0.2</td><td>Pinned, not copied into local specs (<a href="#adpt-1">ADPT-1</a>, <a href="#pin-1">PIN-1</a>).</td></tr>
+<tr><td>CLS-1</td><td>Classify from the engine's validated module, before instantiation</td><td>2.4</td><td>No managed WASM parser is added.</td></tr>
+<tr><td>ENG-1</td><td>One Wasmtime engine per process, one store per session, modules reused in memory by digest</td><td>2.4</td><td>Wasmtime 50.0.1, the spike's choice.</td></tr>
+<tr><td>SES-1</td><td>The host session talks to a message channel</td><td>2.3</td><td><a href="#chan-1">CHAN-1</a> places it in <code>Morphir.Mep</code>.</td></tr>
+<tr><td>ABI-1</td><td>Host one profile. <strong>Maintainer, 9 November: Extism only.</strong></td><td>2.4, 0.1</td><td>Reverses the PRD's order. <a href="#ord-1">ORD-1</a>.</td></tr>
+<tr><td>KRN-1</td><td>Embed the Extism kernel module on Wasmtime. <strong>Maintainer, 9 November.</strong></td><td>2.2, 3.1</td><td>The proof is the first implementation task. <a href="#kpf-1">KPF-1</a>.</td></tr>
+<tr><td>NTF-1</td><td>Notifications only to a guest that advertises them. <strong>Maintainer, 9 November.</strong></td><td>3.2</td><td>The member name is not fixed upstream yet. <a href="#ntfy-1">NTFY-1</a>.</td></tr>
+<tr><td>SBX-1</td><td>Accept the imports, bound the calls</td><td>3.3, 3.4</td><td>How WASI is supplied is an <a href="#open-questions">open question</a>.</td></tr>
+<tr><td>BND-1, BND-2</td><td>Three bounds, each with its own outcome; memory limit reported at the ceiling</td><td>2.5</td><td>Closes the PRD's open point "Memory limit report".</td></tr>
+<tr><td>PKG-1, PKG-2</td><td>One engine version, four ways to carry it; platform-specific tool with a fallback</td><td>5.1 to 5.4</td><td>Sequenced after the offerings exist. <a href="#seq-1">SEQ-1</a>.</td></tr>
+<tr><td>WRK-1</td><td>Worker mode with MoonBit's command shape</td><td>4.1</td><td><a href="#wrk-2">WRK-2</a> says what the worker joins.</td></tr>
+<tr><td>QUAL-1</td><td>Qualify with modules that misbehave on purpose. <strong>Maintainer, 9 November: the runner's home is this repository.</strong></td><td>1.5, 4.3, 6.1</td><td><a href="#run-1">RUN-1</a>, <a href="#run-2">RUN-2</a>.</td></tr>
+<tr><td>CACHE-1</td><td>No compiled-module cache on disk</td><td>2.5</td><td>Overrides the spike's recommendation to serialize modules. Compile time is measured and reported.</td></tr>
+</tbody></table></div>
+
+<h2 id="decisions">Decisions made in this repository</h2>
+<p>The running example is the parent's: the published Python extension <code>0.4.2</code>, one 4.7 MB Extism module. Each decision below is a point where the parent design meets this codebase and something had to be chosen.</p>
+
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-labelledby="lay-title lay-desc">
+<title id="lay-title">Where the work lands</title>
+<desc id="lay-desc">The two entry points use Morphir.Tooling, which gains the worker and runtime report commands. Tooling uses Morphir.Mep, which gains the message channel, and a new project Morphir.Extensions.Wasm, which holds the engine, the kernel, the Extism adapter and the sandbox. Morphir.Conformance gains a worker adapter and drives any host executable as a process.</desc>
+<rect class="box" x="20" y="20" width="230" height="44" rx="6"/><text x="135" y="40" text-anchor="middle">src/Morphir (Native AOT)</text><text class="small" x="135" y="56" text-anchor="middle">entry point</text>
+<rect class="box" x="270" y="20" width="230" height="44" rx="6"/><text x="385" y="40" text-anchor="middle">src/Morphir.Tool</text><text class="small" x="385" y="56" text-anchor="middle">entry point</text>
+<rect class="box" x="20" y="96" width="480" height="54" rx="6"/><text x="260" y="118" text-anchor="middle">src/Morphir.Tooling</text><text class="small" x="260" y="136" text-anchor="middle">new: extension worker, extension runtimes, module loading from configuration</text>
+<rect class="box" x="20" y="182" width="230" height="64" rx="6"/><text x="135" y="204" text-anchor="middle">src/Morphir.Mep</text><text class="small" x="135" y="222" text-anchor="middle">new: message channel under</text><text class="small" x="135" y="237" text-anchor="middle">HostSession; streams are one channel</text>
+<rect class="new" x="270" y="182" width="230" height="64" rx="6"/><text x="385" y="204" text-anchor="middle">src/Morphir.Extensions.Wasm (new)</text><text class="small" x="385" y="222" text-anchor="middle">engine, classifier, bounds, kernel,</text><text class="small" x="385" y="237" text-anchor="middle">Extism adapter, policy, WASI</text>
+<rect class="box" x="270" y="272" width="230" height="40" rx="6"/><text x="385" y="296" text-anchor="middle">Wasmtime 50.0.1 + embedded kernel</text>
+<rect class="box" x="540" y="96" width="200" height="54" rx="6"/><text x="640" y="118" text-anchor="middle">src/Morphir.Conformance</text><text class="small" x="640" y="136" text-anchor="middle">new: worker adapter, kit reader</text>
+<rect class="box" x="540" y="182" width="200" height="64" rx="6"/><text x="640" y="204" text-anchor="middle">Pinned inputs</text><text class="small" x="640" y="222" text-anchor="middle">profile contract, crafted corpus,</text><text class="small" x="640" y="237" text-anchor="middle">40 modules (finos/morphir)</text>
+<path class="edge" d="M135 64v32M385 64v32M135 150v32M385 150v32M385 246v26M640 150v32"/>
+<path class="edge" d="M540 123h-40" stroke-dasharray="5 4"/><text class="small" x="520" y="88" text-anchor="middle">starts a host</text><text class="small" x="520" y="170" text-anchor="middle">as a process</text>
+<path class="edge" d="M250 214h20"/>
+</svg>
+<figcaption>Figure 1. The runner reaches a host only as a process, through its worker mode. It has no reference to the runtime project.</figcaption>
+</figure>
+
+<h3 id="adpt-1">ADPT-1. Carry the .NET host's own requirements; pin the shared ones</h3>
+<p>The parent has three capabilities. <code>extensions/dotnet-wasm-host</code> was written for this host, so its fifteen requirements are carried into the local capability <code>dotnet-wasm-host</code> with their text. The one edit is that "as <code>mep/wasm-execution-profiles</code> defines" becomes "as the pinned WASM execution profile contract defines".</p>
+<p><code>mep/wasm-execution-profiles</code> is different. It is shared by every host, it is still a draft, and its own first decision exists to stop a third description from drifting. So its 19 requirements are not copied. One local requirement binds the host to the pinned contract, and the crafted corpus is how conformance to it is tested. This repository already treats the MEP contract this way.</p>
+<p><code>mck/wasm-host-qualification</code> is split by owner. The corpus rules stay with finos/morphir, which owns the data. The runner rules are carried into the local capability <code>wasm-host-qualification</code>, because the runner now lives here.</p>
+<p><em>Alternative.</em> Copy all three, as <code>add-deployment-and-acquisition</code> did with an approved parent. That parent was final. This one is about to be revised, and a copy of all 44 requirements would need the same revision twice.</p>
+
+<h3 id="ord-1">ORD-1. Extism first, the byte profile never</h3>
+<p>The PRD says "morphir-dotnet hosts <code>morphir-bytes-v1</code> first, because any WASM runtime can host it", places that in step 2a and places Extism in step 5. The maintainer reversed this on 9 November 2026. The host runs <code>extism-kernel-v1</code> only. It still classifies a byte-profile module, so that the refusal is <code>extension.abi_unsupported</code> with the profile named, and not a confusing import error.</p>
+<p>Three consequences for existing text in this repository, all handled by task 0.1:</p>
+<ul>
+<li>The PRD's Runtimes section, step 2a and step 5 change. Step 2a keeps its analyzer scope but its guests are Extism modules. Step 5 keeps host grants only.</li>
+<li>The PRD's step 2a reference guest, the morphir-elm <code>morphir-bytes-v1</code> release, can no longer run in this host. The Python <code>0.4.2</code> module takes its place as the guest this repository did not write.</li>
+<li>The spike's advice to write a <code>LibraryImport</code> binding for three per-byte callbacks is void. An Extism guest moves its bytes through the kernel, inside WASM, and the host is called only for the rare functions. Untyped callbacks, which give zero AOT warnings, are fast enough for those.</li>
+</ul>
+
+<h3 id="lay-1">LAY-1. One new C# project for the runtime</h3>
+<p>The runtime goes into <code>src/Morphir.Extensions.Wasm</code>, a C# project marked trimmable and AOT-compatible, with <code>tests/Morphir.Extensions.Wasm.Tests</code> (TUnit) and <code>tests/Morphir.Extensions.Wasm.AotProbe</code>. It references <code>Morphir.Mep</code> for the channel and the wire types. Nothing references it except <code>Morphir.Tooling</code> and tests.</p>
+<p>C# is chosen because almost every line touches the Wasmtime .NET API or native memory: delegates as host callbacks, spans over linear memory, disposal order. The closed sets the domain needs (profile, refusal, fault kind, outcome) are small and are modeled as sealed record hierarchies, as AGENTS.md shows. The F# types it consumes from <code>Morphir.Mep</code> follow the <code>fsharp-csharp-interop</code> skill, and the reviewer agent runs on each diff that crosses that boundary.</p>
+<p><em>Alternatives.</em> Put it in <code>Morphir.Mep</code>: that would give every MEP consumer, including the F# frontend guest, a native dependency. Write it in F#: possible, but it buys little for interop code and adds FSharp.Core closures on a hot native boundary.</p>
+
+<h3 id="chan-1">CHAN-1. The channel lives in Morphir.Mep, and the guest's runtime owns notification delivery</h3>
+<p>Take the first request of a session:</p>
+<pre><code class="language-json">{"jsonrpc": "2.0", "id": 1, "method": "morphir.initialize", "params": {"protocolVersions": ["0.2.0-draft.1"]}}</code></pre>
+<p>For a process guest, <code>HostSession</code> frames it and writes it to a pipe, and a reader loop matches the reply by id later. For the Python module it is one <code>handle</code> call that returns the reply. <code>HostSession</code> should not know the difference, so it is changed to hold a channel with two operations: send a request and get its response, and send a notification. The existing <code>Connection</code> over two streams becomes the first channel, with its constructor kept, so every process-guest caller compiles unchanged. The WASM adapter is the second.</p>
+<p>The protocol rules that differ for a single-message guest are now written in the <a href="specs/mep-protocol/spec.md">mep-protocol delta</a>: one reply at most, the reply must be the response with the same id, a notification returns nothing, and cancellation stops the call and ends the session without a <code>$/cancelRequest</code>. One rule is deliberately left to the channel: whether a notification reaches the guest at all. <code>HostSession</code> always sends <code>morphir.initialized</code>; the WASM channel drops it for a guest that advertised nothing (<a href="#ntfy-1">NTFY-1</a>).</p>
+<p>A single-message guest cannot send the host a message of its own, so <code>morphir.progress</code> never arrives from one. The PRD already says the host drops guest notifications for WASM.</p>
+
+<h3 id="kpf-1">KPF-1. Prove the kernel under Native AOT before building on it</h3>
+<p>Parent task 2.2 is a gate, and it is the first implementation task. The proof is a small console program, <code>tests/Morphir.Extensions.Wasm.AotProbe</code>, published with <code>PublishAot</code> in the same way as <code>tests/Morphir.Mep.AotProbe</code>. It loads the embedded kernel and the Python <code>0.4.2</code> module into one store, sends <code>morphir.initialize</code> and prints what it observed. Three things must hold:</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Claim</th><th>How the probe shows it</th></tr></thead>
+<tbody>
+<tr><td>Zero IL2026 and IL3050 warnings, no suppressions</td><td>The publish log is checked for IL warnings, and the project files are checked for <code>NoWarn</code>, <code>UnconditionalSuppressMessage</code> and <code>TrimmerRootDescriptor</code> entries.</td></tr>
+<tr><td>The store limit covers the kernel's memory</td><td>With a small test ceiling, a kernel <code>alloc</code> larger than the ceiling returns 0 and the kernel's memory does not grow past it. The guest's memory is checked the same way.</td></tr>
+<tr><td>The host reads the result of <code>handle</code> directly</td><td>The probe prints the <code>i32</code> that <code>handle</code> returned, the output it read from the kernel and the kernel's error value.</td></tr>
+</tbody></table></div>
+<p>The kernel bytes come from <code>moonrockz/extism</code> at the version finos/morphir-moonbit pins, <code>0.3.0</code> today. The task records the version, the SHA-256 of the module and how the bytes were obtained, and adds the Apache-2.0 licence and notice beside them. The Python module is downloaded from its release and checked against its published digest; it is not committed.</p>
+<p>If any of the three fails, work stops and KRN-1 returns for review. The implementation does not switch to <code>libextism</code>, to upstream's kernel or to managed kernel functions on its own.</p>
+<p><em>Note on this machine.</em> Development here is Windows ARM64, and Native AOT on ARM64 has an open question in issue 264. The proof must run where a Native AOT publish works. If it cannot be published locally, it runs on a CI runner, and that is recorded with the evidence.</p>
+
+<h3 id="ntfy-1">NTFY-1. Wait for the contract to name the advertisement</h3>
+<p>The parent shows <code>capabilities.notifications.accept</code> and says the member name is illustrative until its task 1.1 fixes it. This repository's <code>mep-protocol</code> forbids adding a member to the contract. So task 3.2 implements the gate against the pinned contract, and it starts only after the pin holds the fixed member. Until then task 3.1 delivers the behavior every published bundle needs: no notification reaches the guest.</p>
+
+<h3 id="reg-1">REG-1. The registry learns the value; the list does not grow yet</h3>
+<p>The registry's delivery set becomes <code>built-in</code> and <code>wasm</code>, and a <code>wasm</code> entry is unavailable in a host whose WASM runtime is unavailable. That is all the registry change. <code>morphir extension list</code> prints the same entries after this change as before, because nothing registers a WASM entry: listing a configured module would mean running its <code>describe</code> on every list, and which commands consult configured extensions is the business of the change that adds the first such command.</p>
+<p>The value is still worth adding now. Session diagnostics and the loader name a delivery, and the availability rule gives the later change one place to ask.</p>
+<p><em>Overlap.</em> PR #559 modifies the same requirement to say that a host value names a command and not an offering. The two edits do not conflict in meaning. The change that archives second keeps both sentences.</p>
+
+<h3 id="cfg-1">CFG-1. Two optional keys for a declared ABI and digest</h3>
+<p>The parent requires that a declared ABI confirms the classified profile and that a declared digest refuses other bytes. Configuration has nowhere to declare either. Two optional keys are added to the <code>extension</code> table as a recorded local amendment to the generated schema, in the same way <code>frontend.&lt;language&gt;.extension</code> was:</p>
+<pre><code class="language-toml">[extensions.python]
+path = "extensions/morphir-python-binding.wasm"
+abi = "extism-kernel-v1"                   # optional; must equal the classified profile
+sha256 = "10acafa0...22b5"                 # optional; other bytes are refused before classification</code></pre>
+<p>Both keys are proposed upstream for the shared configuration schema. Task 2.6 confirms how the configuration layer resolves a relative <code>path</code> today and documents that rule; it does not add a second one.</p>
+
+<h3 id="rpt-1">RPT-1. The runtime report is <code>morphir extension runtimes</code></h3>
+<p>The parent leaves the command and field names to the implementation. The command is <code>morphir extension runtimes [--json]</code>, beside <code>extension list</code>, in both executables. Its JSON follows this repository's convention of one document with no envelope:</p>
+<pre><code class="language-json">{
+  "host": "morphir",
+  "deployment": "native-aot",
+  "platform": "linux-x64",
+  "runtimes": [
+    {
+      "kind": "wasm",
+      "available": true,
+      "engine": {"name": "wasmtime", "version": "50.0.1"},
+      "profiles": ["extism-kernel-v1"],
+      "bounds": {"memoryBytes": 268435456, "deadline": "enforced", "budget": "enforced"}
+    }
+  ]
+}</code></pre>
+<p>The parent's sample calls the offering member <code>offering</code>. Here it is <code>deployment</code>, the name PR #559 gives the same value in <code>extension list</code>, so one executable does not report one fact under two names. The unavailable reasons are <code>platform_unsupported</code>, <code>engine_missing</code>, <code>engine_load_failed</code> and <code>disabled</code>. The engine is probed once, on first need, and never at start-up.</p>
+
+<h3 id="wrk-2">WRK-2. The worker relays messages; it is not a second MEP host</h3>
+<p>In worker mode the MEP host is the runner at the other end of stdio. The worker reads one frame, passes its body to the WASM channel and writes the reply as a frame. It does not negotiate, and it does not use <code>HostSession</code>, which speaks only <code>0.2.0-draft.1</code>: the generic guest kit's legacy tier speaks MEP <code>0.1</code> through the same worker, and the worker must carry it.</p>
+<p>The worker looks inside a message only where the profile contract requires it: the method name, to know a notification from a request and to see <code>morphir.exit</code>; and the <code>morphir.initialize</code> result, for the protocol version that selects the instruction budget and for the notification advertisement. The channel, the adapter, the bounds and the policy are the same objects a product command will use, which is what the parent means by "not a second implementation".</p>
+<p>The command is registered in both entry points before the CLI host is built, so that no log line or banner can reach stdout. It is hidden from help and documented in the contributor guide as internal and experimental.</p>
+
+<h3 id="pin-1">PIN-1. Pin the contract and the corpus by commit, and expect the pin to move</h3>
+<p>The profile contract (<code>wasm-execution-profiles.json</code> and <code>.md</code>), the crafted corpus (<code>wasm-host.cases.json</code>) and its 40 modules are copied unchanged into <code>tests/Fixtures/MepWasm/</code> with a <code>PROVENANCE.md</code> that records the upstream commit and each file's SHA-256, as <code>tests/Fixtures/Mep/</code> does. The first pin is a commit of the draft PR's branch.</p>
+<p>The parent is about to revise these files once more: the byte profile marked transitional, notification cases added, and about a dozen silences settled from the MoonBit implementation. So:</p>
+<ul>
+<li>Where the pinned JSON and the parent specs differ, the parent specs win. Today that is the instruction budget (5,000,000,000, not 2,147,483,647) and notification delivery (negotiated, not "never").</li>
+<li>A task that depends on a detail re-reads the parent first. If the detail is unsettled, the implementer asks; it does not guess.</li>
+<li>The pin moves as one change, and qualification (group 6) runs only against a pin of a merged parent commit.</li>
+</ul>
+
+<h3 id="run-1">RUN-1. The crafted-case runner is new code in Morphir.Conformance, reading the upstream format</h3>
+<p>The corpus has no runner anywhere. It gets one here: a reader for the kit's JSON, an adapter that starts <code>&lt;host&gt; extension worker --module &lt;wasm&gt; --json</code> with the case's arguments, writes the frames, and collects stdout frames, stderr events, the exit status and timings, and a comparer for the kit's matchers. It reuses the project's process handling and report code.</p>
+<p>The kit is read as finos/morphir publishes it. <code>establish-morphir-compatibility-kit</code> makes Gherkin the normative format for cases authored in this repository, and it also says upstream kits are imported as reviewed inputs. The crafted corpus is such an input: its cases and expectations stay in finos/morphir as data, and converting them here would create a second copy to review.</p>
+<p>The command surface is small and marked experimental, so that the compatibility-kit change can fold it into its general command:</p>
+<pre><code class="language-console">$ morphir mck wasm-host run \
+    --kit tests/Fixtures/MepWasm/wasm-host.cases.json \
+    --host /path/to/morphir \
+    --report .dev/wasm-host-dotnet.json
+$ morphir mck wasm-host report-check --kit ... --report .dev/wasm-host-dotnet.json</code></pre>
+<p>Exit codes follow upstream <code>mck</code>: 0 qualified, 1 failed or operational error, 2 invalid invocation. The report shape follows the host qualification report that parent task 1.4 defines. That task is not done; until it is, the runner writes per-case observations and no qualification verdict.</p>
+<p>Parent task 1.5 asks that the corpus first be run against the MoonBit native CLI's worker mode, because that host exists. Each difference is recorded as a contract question or a MoonBit issue before any .NET result is compared. That needs a MoonBit native CLI build on the machine that runs it.</p>
+
+<h3 id="run-2">RUN-2. The generic guest kit keeps today's runner</h3>
+<p>Positive evidence comes from the generic guest kit: describe, a legacy tier on MEP <code>0.1</code>, a model tier on <code>0.2.0-draft.1</code>, generate, and compiling the generated files again, with semantic IR comparison. Its runner is the Rust <code>morphir mck mep guest-run</code>. That runner already drives any stdio host by path and arguments, so driving the .NET worker needs no new runner code, and parent task 4.3 asks exactly that the invocation differ only in the host path.</p>
+<p>This change therefore does not port <code>guest-run</code>. Porting it is part of moving the kit, which <code>establish-morphir-compatibility-kit</code> owns. The host qualification report cites the generic kit run by its report digest, and the check ties both to the same host executable digest.</p>
+<p>Task 3.5 runs the same kit package in-process, in this repository's tests, on <code>0.2.0-draft.1</code> only, since that is the one version <code>HostSession</code> speaks. It reuses the kit's documents and expected IR as fixed data and the conformance project's JSON comparison with the kit's three stated comparison rules.</p>
+
+<h3 id="seq-1">SEQ-1. Packaging waits for the offerings</h3>
+<p>Group 5 packages the engine in four offerings. Three of them do not exist as release profiles until <code>add-deployment-and-acquisition</code> lands its tasks 2.1 to 2.4, and that work edits the same files: <code>build/Build.cs</code>, <code>build/Build.Packaging.cs</code>, <code>src/Morphir.Tool/Morphir.Tool.csproj</code> and the entry points. The order is:</p>
+<ol>
+<li>Groups 2, 3 and 4 need none of it. They add a project, commands and tests, and touch the entry points only to register two commands.</li>
+<li>Task 5.1, the static-link trial on six platforms, is a workflow of its own that publishes the AOT probe per runner. It can start once group 2 exists and does not touch the release profiles.</li>
+<li>Tasks 5.2 to 5.4 start only after the deployment change's publish profiles have merged. Before starting, the state of PR #559, of the branches <code>feat/managed-composition</code> and <code>feat/fsharp-frontend-self-contained</code>, and of finos/morphir PR 1147 is checked again and reported in the tracking issue.</li>
+<li>The runtime report's <code>deployment</code> value comes from the build identity the deployment change adds. Until that merges, task 4.2 reports the two identities that exist today and says so.</li>
+</ol>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<p>The parent's risk table applies in full. These are the risks this repository adds or sees more closely.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>The kernel proof cannot be published with Native AOT on the development machine.</td><td>The proof runs on a CI runner where the publish works, and the evidence says where (<a href="#kpf-1">KPF-1</a>).</td></tr>
+<tr><td>The parent revises the contract or corpus while implementation is under way.</td><td>One pin, moved as one change. Parent specs win over the pinned JSON. Unsettled details are asked, not guessed (<a href="#pin-1">PIN-1</a>).</td></tr>
+<tr><td>The notification member is not fixed when group 3 is otherwise done.</td><td>Task 3.2 is separable. Group 3 without it already runs every published bundle (<a href="#ntfy-1">NTFY-1</a>).</td></tr>
+<tr><td>Two open changes edit the same registry requirement.</td><td>The edits are independent sentences. The second archive keeps both (<a href="#reg-1">REG-1</a>).</td></tr>
+<tr><td>Packaging collides with the deployment change's publish profiles.</td><td>Tasks 5.2 to 5.4 wait for those profiles to merge. Only the static-link trial runs earlier, in its own workflow (<a href="#seq-1">SEQ-1</a>).</td></tr>
+<tr><td>The experimental <code>mck wasm-host</code> command shape differs from what the compatibility-kit change later wants.</td><td>It is hidden and experimental, and its logic is in the library. Folding it into a general command changes argument parsing only (<a href="#run-1">RUN-1</a>).</td></tr>
+<tr><td>Heavy builds exhaust disk on the development machine.</td><td>At most four workers at once, one publish at a time, and build output removed when a task no longer needs it.</td></tr>
+<tr><td>A change to <code>HostSession</code> breaks the F# frontend process guest.</td><td>Task 2.3 keeps the stream constructor and requires every existing process-guest test and replay to pass unchanged.</td></tr>
+</tbody></table></div>
+
+<h2 id="migration">Migration plan</h2>
+<p>No existing command changes behavior, and no configuration key changes meaning. The two new configuration keys are optional. The runtime ships dark: only the hidden worker command and the runtime report reach it.</p>
+<p>The tool packaging change (task 5.4) is the one step a user can notice. It ships with release notes and updated installation guidance in the same release. Rollback is the next release with the previous single package; the fallback package keeps the tool installable in between.</p>
+<p>If an engine defect appears after release, a release-level switch makes the runtime report <code>wasm</code> as unavailable with reason <code>disabled</code>. Every WASM extension then fails by name and the rest of the CLI is unaffected.</p>
+
+<h2 id="review">Questions for review</h2>
+<p>The specs and tasks are written to the recommendation in each row. A different answer changes the artifact named in the last column, so these are for the maintainer at approval, not for later.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Question</th><th>Recommendation written into this change</th><th>If answered otherwise</th></tr></thead>
+<tbody>
+<tr><td>1. Does this change port the generic guest kit's runner to .NET?</td><td>No. The Rust <code>guest-run</code> drives the .NET worker unchanged, and the port belongs to the compatibility-kit change (<a href="#run-2">RUN-2</a>).</td><td>Tasks 3.5 and 4.3 grow, and the qualification report holds the run instead of citing it.</td></tr>
+<tr><td>2. Is the crafted corpus read in its upstream JSON format, outside the Gherkin rule?</td><td>Yes, as a pinned upstream input (<a href="#run-1">RUN-1</a>).</td><td>A conversion step and a second review of 44 cases are added to task 1.5.</td></tr>
+<tr><td>3. Does <code>extension list</code> show configured WASM modules now?</td><td>No. The registry gains the value only (<a href="#reg-1">REG-1</a>).</td><td>The registry delta gains a requirement and task 2.6 runs <code>describe</code> at list time.</td></tr>
+<tr><td>4. Are <code>abi</code> and <code>sha256</code> acceptable as local amendments to the configuration schema?</td><td>Yes, proposed upstream at the same time (<a href="#cfg-1">CFG-1</a>).</td><td>Task 2.6 declares them only through the worker's arguments, and the digest scenario waits for installation.</td></tr>
+<tr><td>5. Should a product command reach a configured module in this change, for example <code>morphir extension describe &lt;name&gt;</code>?</td><td>No. The parent keeps the runtime behind the worker mode. Task 2.6 is verified at the service level and through the worker.</td><td>One command, its spec and its documentation are added to group 2.</td></tr>
+<tr><td>6. Is the report member <code>deployment</code>, as in PR #559, and not <code>offering</code>, as in the parent's sample?</td><td><code>deployment</code> (<a href="#rpt-1">RPT-1</a>).</td><td>A rename in task 4.2.</td></tr>
+</tbody></table></div>
+
+<h2 id="open-questions">Open questions</h2>
+<p>None of these changes the specs or the task breakdown. Each is settled with evidence inside the task named.</p>
+<ul>
+<li>How the WASI surface is supplied (task 3.4). The engine's own WASI is the first choice if it can capture stdout and stderr into a bounded buffer and return an error code for every other call. If it cannot, the preview 1 imports are defined as host functions in managed code, which gives exact control at the cost of more code. Either way the crafted sandbox cases decide.</li>
+<li>Where the Python <code>0.4.2</code> module and the SDK fixture are cached for tests, and whether a test without them skips outside CI and fails in CI, as the MoonBit tests do (task 2.2).</li>
+<li>The fuel value. The contract's number comes from another engine and the unit is engine-defined. Task 2.5 measures the published guests' fuel use and records it; a .NET-specific value needs no contract change.</li>
+</ul>
+
+<h2 id="references">References</h2>
+<ul>
+<li>finos/morphir, branch <code>t3/design-file-based-layout</code> at <code>bb9d15c3b</code> (draft PR <a href="https://github.com/finos/morphir/pull/1148">1148</a>): <code>openspec/changes/add-dotnet-wasm-extension-host/</code>, <code>spec/mep/wasm-execution-profiles.md</code> and <code>.json</code>, <code>spec/mep/mck/wasm-host.cases.json</code>, <code>spec/mep/mck/fixtures/wasm/</code>, <code>spec/mep/mck/README.md</code>.</li>
+<li>finos/morphir-moonbit <code>origin/main</code> at <code>89f8924</code>: <code>pkgs/morphir-host/worker/wasm/README.mbt.md</code> (worker mode, events, exit statuses, policy, bounds) and <code>pkgs/morphir-host/moon.mod</code> (<code>moonrockz/extism@0.3.0</code>).</li>
+<li>This repository at <code>3f226a0</code>: <code>docs/content/contributing/design/prds/morphir-extension-model.md</code>, <code>docs/content/contributing/design/spikes/extension-model/wasm-runtime.md</code>, <code>src/Morphir.Mep/Peers.fs</code>, <code>src/Morphir.Extensions/Registry.fs</code>, <code>src/Morphir.Configuration/Schema.fs</code>, <code>src/Morphir.Conformance/</code>, <code>tests/Fixtures/Mep/PROVENANCE.md</code>.</li>
+<li>Sibling changes: <a href="../establish-morphir-compatibility-kit/proposal.md">establish-morphir-compatibility-kit</a>, and <code>add-deployment-and-acquisition</code> in PR <a href="https://github.com/finos/morphir-dotnet/pull/559">559</a>.</li>
+<li>Tracking: <a href="https://github.com/finos/morphir-dotnet/issues/563">finos/morphir-dotnet#563</a>.</li>
+</ul>
+</main>
+</body>
+</html>
