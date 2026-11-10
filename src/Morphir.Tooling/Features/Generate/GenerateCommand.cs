@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.Collections.Immutable;
 using Foundatio.Mediator;
 using Microsoft.Extensions.DependencyInjection;
+using Morphir.CodeGeneration.FSharp;
 using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Generate;
@@ -56,7 +57,7 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
     /// this host cannot run the formatter, as the Native AOT <c>morphir</c> cannot run Fantomas.
     /// </summary>
     public static IReadOnlyList<string> Warnings(GenerationReport report) =>
-        report.Formatting == "unavailable"
+        report.Formatting == FSharpFormatting.Unavailable.WireValue
             ? [$"warning: {report.Backend ?? report.Target} did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unformatted text. Pass --option format=false to ask for that text explicitly, or use dotnet-morphir for formatted files."]
             : [];
 

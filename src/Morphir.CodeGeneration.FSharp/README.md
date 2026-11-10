@@ -33,8 +33,9 @@ fractional, string or future versions fail. It does not accept Ion, trees or v4.
 
 `GenerationOptions.Default` enables exact constant folding and formatting. `Format = false` writes the
 emitter's own text, with LF line endings only and exactly one final LF, the same bytes on every OS,
-runtime and culture; `Transpiler.formatting` records `applied`, `off` or `unavailable` (formatting
-asked for under Native AOT, which cannot run Fantomas). Disabling constant folding does
+runtime and culture; `Transpiler.formatting` records an `FSharpFormatting`: `Applied`, `Off` or `Unavailable` (formatting
+asked for under Native AOT, which cannot run Fantomas). C# reads it with
+`FSharpGeneration.TryGetFormatting` and writes it as text with `WireValue`. Disabling constant folding does
 not disable scope, type, naming, SDK or dependency checks. Both typed and file
 APIs share the target profile and dependency ordering. Constructed typed models
 cannot bypass generation's name rules or type-application arity checks.

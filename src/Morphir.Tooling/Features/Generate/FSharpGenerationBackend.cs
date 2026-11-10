@@ -49,7 +49,7 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
 
         var context = VFileModule.fromPath(request.Model.Original.SourcePath);
         context = FSharpGeneration.WithRequiredSemantics(context, request.Model.Descriptor.RequiredSemantics);
-        var tree = Transpiler.generateModelWith(new GenerationOptions(options.Optimize, options.Format), request.Model.Model, context);
+        var tree = Transpiler.generateModelWith(GenerationOptions.Default.WithOptimize(options.Optimize).WithFormat(options.Format), request.Model.Model, context);
         var diagnostics = tree.Messages.Select(message => new GenerationDiagnostic(
             message.RuleId?.Value ?? "generation", message.Message, message.Path?.Value, message.Location?.Value,
             message.Severity.IsError || message.Severity.IsFatal ? "error" : message.Severity.IsWarning ? "warning" : "info")).ToImmutableArray();
@@ -57,6 +57,6 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
             return ValueTask.FromResult(Fail(GenerationFailureKind.Cancelled, "cancelled", "Generation was cancelled."));
         return ValueTask.FromResult<Outcome<GenerationArtifacts>>(VFileTreeModule.hasErrors(tree)
             ? new Outcome<GenerationArtifacts>.Failure(new(GenerationFailureKind.Semantic, diagnostics))
-            : new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics) { Formatting = FSharpGeneration.Formatting(tree) }));
+            : new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics) { Formatting = FSharpGeneration.TryGetFormatting(tree, out var formatting) ? formatting.WireValue : null }));
     }
 }

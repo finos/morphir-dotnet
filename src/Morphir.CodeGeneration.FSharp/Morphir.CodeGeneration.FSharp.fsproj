@@ -2,8 +2,15 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- C# (Morphir.Tooling) calls this project: nullable metadata lets it see FSharpGeneration.Formatting's null. -->
+    <!-- C# (Morphir.Tooling) calls this project, and the Native AOT morphir compiles it (rule 1 of the interop skill). -->
     <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Every Fabulous.AST release asks for exactly Fantomas.Core 7.0.1; the repository pins a later patch centrally, as
+         Morphir.Tooling and the guest do. -->
+    <NoWarn>$(NoWarn);NU1608</NoWarn>
     <Description>Morphir classic and v4 IR to F# code generation</Description>
   </PropertyGroup>
   <ItemGroup>

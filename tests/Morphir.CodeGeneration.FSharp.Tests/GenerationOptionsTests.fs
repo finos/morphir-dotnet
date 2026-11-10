@@ -162,14 +162,14 @@ let tests =    testList "Generation options" [
             let tree = Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith GenerationOptions.Default (typedV4 "daily-rate-v4.json") (VFile.fromPath "model.json")
             filesOf tree |> ignore
             // This test host runs JIT, which can run Fantomas.
-            Expect.equal (formattingOf tree) (Some "applied") "formatting was applied"
+            Expect.equal (formattingOf tree) (Some FSharpFormatting.Applied) "formatting was applied"
 
         testCase "Format false writes the emitter's own text for an IR v4 model: LF only, one final LF, recorded as off"
         <| fun () ->
             let tree = Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith off (typedV4 "daily-rate-v4.json") (VFile.fromPath "model.json")
             let files = filesOf tree
             expectUnformattedRule files
-            Expect.equal (formattingOf tree) (Some "off") "formatting is off"
+            Expect.equal (formattingOf tree) (Some FSharpFormatting.Off) "formatting is off"
 
             let formatted =
                 Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith GenerationOptions.Default (typedV4 "daily-rate-v4.json") (VFile.fromPath "model.json")
@@ -178,11 +178,38 @@ let tests =    testList "Generation options" [
             Expect.equal (List.map fst files) (List.map fst formatted) "the same files in the same order"
             Expect.notEqual (List.map snd files) (List.map snd formatted) "the text is not the formatter's"
 
-        testCase "FSharpGeneration.Formatting, for C# callers, gives the recorded text, or null when nothing is recorded"
+        testCase "FSharpGeneration.TryGetFormatting, for C# callers, gives the recorded formatting, or false when nothing is recorded"
         <| fun () ->
             let tree = Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith off (typedV4 "daily-rate-v4.json") (VFile.fromPath "model.json")
-            Expect.equal (FSharpGeneration.Formatting tree) "off" "the recorded formatting"
-            Expect.isNull (FSharpGeneration.Formatting VFileTree.empty) "null when the tree records none"
+            let mutable recorded = Unchecked.defaultof<FSharpFormatting>
+            Expect.isTrue (FSharpGeneration.TryGetFormatting(tree, &recorded)) "the tree records formatting"
+            Expect.equal recorded FSharpFormatting.Off "the recorded formatting"
+            Expect.isFalse (FSharpGeneration.TryGetFormatting(VFileTree.empty, &recorded)) "false when the tree records none"
+
+            let output =
+                typeof<FSharpGeneration>.GetMethod("TryGetFormatting").GetParameters()
+                |> Array.find _.IsOut
+
+            let attribute =
+                output.GetCustomAttributes(typeof<System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute>, false)
+                |> Array.tryHead
+                |> Option.map (fun value -> (value :?> System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute).ReturnValue)
+
+            Expect.equal attribute (Some false) "[MaybeNullWhen(false)] on the out value, for C# flow analysis"
+
+        testCase "FSharpFormatting gives C# its wire values, and ToString is the wire value"
+        <| fun () ->
+            for value, wire in [ FSharpFormatting.Applied, "applied"; FSharpFormatting.Off, "off"; FSharpFormatting.Unavailable, "unavailable" ] do
+                Expect.equal value.WireValue wire $"{wire}: WireValue"
+                Expect.equal (value.ToString()) wire $"{wire}: ToString"
+
+        testCase "GenerationOptions has With members, so C# changes one named field and never passes two positional Booleans"
+        <| fun () ->
+            let options = GenerationOptions.Default.WithOptimize(false).WithFormat(false)
+            Expect.equal options { Optimize = false; Format = false } "both fields"
+            Expect.equal (GenerationOptions.Default.WithFormat false) { GenerationOptions.Default with Format = false } "only Format"
+            Expect.equal (GenerationOptions.Default.WithOptimize false) { GenerationOptions.Default with Optimize = false } "only Optimize"
+            Expect.equal (options.ToString()) "Optimize = false; Format = false" "ToString names the fields without %A"
 
         testCase "FSharpGeneration.WithRequiredSemantics, for C# callers, records the required semantics on the context"
         <| fun () ->
@@ -202,7 +229,7 @@ let tests =    testList "Generation options" [
                     [ Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith off (typed version json) (VFile.fromPath "model.json")
                       Morphir.CodeGeneration.FSharp.Transpiler.generateWithOptions off (VFile.ofText "model.json" json) ] do
                     expectUnformattedRule (filesOf tree)
-                    Expect.equal (formattingOf tree) (Some "off") $"classic {version}: formatting is off"
+                    Expect.equal (formattingOf tree) (Some FSharpFormatting.Off) $"classic {version}: formatting is off"
 
         testCase "Format false gives the same bytes under any current culture"
         <| fun () ->

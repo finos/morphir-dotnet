@@ -1,6 +1,8 @@
 namespace Morphir.CodeGeneration.FSharp
 
+open System.Diagnostics.CodeAnalysis
 open System.IO
+open System.Runtime.InteropServices
 open System.Text.Json
 open Morphir.IR.Classic
 open Morphir.IR.Model
@@ -14,10 +16,10 @@ module Transpiler =
     let manifest = Property.create<ManifestEntry list> "morphir.fsharp.manifest"
 
     /// <summary>
-    /// Whether the files of the tree were formatted: <c>applied</c>, <c>off</c> (GenerationOptions.Format is false) or
-    /// <c>unavailable</c> (formatting was asked for, but the runtime cannot run Fantomas, as under Native AOT).
+    /// Whether the files of the tree were formatted: applied, off (GenerationOptions.Format is false) or unavailable
+    /// (formatting was asked for, but the runtime cannot run Fantomas, as under Native AOT).
     /// </summary>
-    let formatting = Property.create<string> "morphir.fsharp.formatting"
+    let formatting = Property.create<FSharpFormatting> "morphir.fsharp.formatting"
 
     /// Requirements supplied by admission/callers, separately from opaque IR extension data.
     let requiredSemantics =
@@ -119,7 +121,7 @@ module Transpiler =
             with ExpectedFailure(rule, location, message) ->
                 invalid rule location message
 
-    let private artifacts (rendered: Emit.Formatting) (modules: GeneratedModule list) =
+    let private artifacts (rendered: FSharpFormatting) (modules: GeneratedModule list) =
         let tree =
             modules
             |> List.map (fun generated ->
@@ -133,7 +135,7 @@ module Transpiler =
             VFileTree.declaredOrder
             (modules
              |> List.map (fun generated -> generated.RelativePath))
-        |> VFileTree.set formatting rendered.WireValue
+        |> VFileTree.set formatting rendered
         |> VFileTree.set
             manifest
             (modules
@@ -143,7 +145,7 @@ module Transpiler =
              }))
 
     /// Emits one file per module, declaring dependency order separately from directory structure.
-    let private compile (rendered: Emit.Formatting) (model: Decode.Model) (_: VFile) : VFileTree =
+    let private compile (rendered: FSharpFormatting) (model: Decode.Model) (_: VFile) : VFileTree =
         try
             artifacts rendered (Emit.generate rendered model)
         with ExpectedFailure(rule, location, message) ->
@@ -201,7 +203,7 @@ module Transpiler =
                 Some model, checkedFile
             )
 
-    let private withoutOptimizer (rendered: Emit.Formatting) : MorphirProcessor<Decode.Model> = pipeline {
+    let private withoutOptimizer (rendered: FSharpFormatting) : MorphirProcessor<Decode.Model> = pipeline {
         parse (Parser.forFile parseModel)
         uses scopeValidator
         uses typeValidator
@@ -210,7 +212,7 @@ module Transpiler =
 
     // Folding only: other rewrites could delete code that emission would reject, which would change
     // which models are accepted.
-    let private processor (rendered: Emit.Formatting) : MorphirProcessor<Decode.Model> = pipeline {
+    let private processor (rendered: FSharpFormatting) : MorphirProcessor<Decode.Model> = pipeline {
         parse (Parser.forFile parseModel)
         uses scopeValidator
         uses typeValidator
@@ -336,11 +338,21 @@ module Transpiler =
 type FSharpGeneration =
 
     /// <summary>
-    /// What the generator recorded about formatting (<see cref="Transpiler.formatting"/>): <c>applied</c>, <c>off</c> or
-    /// <c>unavailable</c>; null when the tree records nothing.
+    /// What the generator recorded about formatting (<see cref="Transpiler.formatting"/>), for C# callers: true and the
+    /// value, or false when the tree records nothing. C# writes the value as text with <c>WireValue</c>.
     /// </summary>
-    static member Formatting(tree: VFileTree) : string | null =
-        VFileTree.tryGet Transpiler.formatting tree |> Option.toObj
+    static member TryGetFormatting
+        (
+            tree: VFileTree,
+            [<Out; MaybeNullWhen(false)>] formatting: byref<FSharpFormatting>
+        ) : bool =
+        match VFileTree.tryGet Transpiler.formatting tree with
+        | Some recorded ->
+            formatting <- recorded
+            true
+        | None ->
+            formatting <- Unchecked.defaultof<_>
+            false
 
     /// <summary>The context with its required semantics (<see cref="Transpiler.requiredSemantics"/>), given as any sequence.</summary>
     static member WithRequiredSemantics(context: VFile, semantics: seq<string>) : VFile =
