@@ -214,6 +214,7 @@ An extension adds a capability to Morphir, such as a code generator. The plan is
 
 ```bash
 morphir extension list [--json] [--platform <rid>] [--local]
+morphir extension runtimes [--json]
 morphir extension install <name> <url> <version> [--platform <rid>] [--local]   # not implemented yet
 morphir extension use <name> <version> [--platform <rid>] [--local]             # not implemented yet
 morphir extension remove <name> <version> [--platform <rid>] [--local]          # not implemented yet
@@ -222,6 +223,9 @@ morphir extension which <name> [--platform <rid>]                               
 
 `install`, `use`, `remove` and `which` fail with exit code 1 and a link to
 [issue #492](https://github.com/finos/morphir-dotnet/issues/492). They arrive with step 3 of the PRD.
+
+`morphir extension runtimes` reports whether this host can run WASM extensions, with its engine, profiles and bounds,
+or the reason it cannot. See [morphir extension runtimes](../extension-runtimes/).
 
 `morphir extension worker` is internal and experimental, and is not in this list or in the help: it serves one
 WASM module over stdio for a conformance runner, and no product command uses it. See
