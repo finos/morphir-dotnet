@@ -88,11 +88,38 @@ let private written (contract: string) (bytes: byte array) : Value =
     | "result" -> ResultDocument.read bytes |> Result.map ResultDocument.value |> Result.defaultWith fail
     | other -> failtestf "no writer for %s" other
 
+/// <summary>The schemas' shared <c>$defs.mepVersion</c>, read from the lock schema.</summary>
+let private mepVersionDefinition () =
+    use document = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(Fixtures.schemas, schemaFiles["lock"])))
+    let definition = document.RootElement.GetProperty("$defs").GetProperty "mepVersion"
+    nonNull (definition.GetProperty("pattern").GetString()), definition.GetProperty("maxLength").GetInt32()
+
+/// <summary>Whether a string meets <c>$defs.mepVersion</c> as JSON Schema defines it: an ECMA-262 pattern, whose
+/// final <c>$</c> without the m flag matches only at the end, unlike .NET's, which also matches before a final line
+/// feed; and <c>maxLength</c> counted in code points.</summary>
+let meetsMepVersion (text: string) =
+    let pattern, maxLength = mepVersionDefinition ()
+
+    let anchored =
+        if pattern.EndsWith "$" then pattern.Substring(0, pattern.Length - 1) + @"\z" else pattern
+
+    System.Text.RegularExpressions.Regex.IsMatch(text, anchored, System.Text.RegularExpressions.RegexOptions.CultureInvariant)
+    && Seq.length (text.EnumerateRunes() |> Seq.cast<System.Text.Rune>) <= maxLength
+
 [<Tests>]
 let tests =
     let cases = documents ()
 
     testList "JSON Schemas" [
+        testList "a mep-version string meets $defs.mepVersion exactly when it is valid" [
+            // index.md: a refused string the pattern accepts would say so with "schema": "accepts"; no case does.
+            for case in bindings () do
+                match case with
+                | MepVersion(name, version, expected) ->
+                    yield testCase name (fun () -> Expect.equal (meetsMepVersion version) (expected = Valid) name)
+                | _ -> ()
+        ]
+
         testList "the manifest's schema claims hold" [
             for case in cases do
                 match case.Expected, case.Schema with
