@@ -56,6 +56,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Morphir.Conformance.Smoke/Morphir.Conformance.Smoke.fsproj" />
+    <Project Path="tests/Morphir.Conformance.Tests/Morphir.Conformance.Tests.fsproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Tests/Morphir.Frontend.FSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Extension.Tests/Morphir.Frontend.FSharp.Extension.Tests.fsproj" />
     <Project Path="tests/Morphir.Compilation.Mep.Tests/Morphir.Compilation.Mep.Tests.fsproj" />
