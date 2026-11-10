@@ -3,7 +3,6 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json;
-using Microsoft.FSharp.Collections;
 using Morphir.Compilation.Mep;
 using Morphir.Extensions;
 using Morphir.IR.Model;
@@ -309,7 +308,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         if (UnsafePaths(result.Artifacts.Select(artifact => artifact.Path)) is { } unsafePath)
             return Fail(GenerationFailureKind.Operational, "extension.unsafe_artifact", $"Extension {Identity} returned the artifact path '{unsafePath.Path}': {unsafePath.Reason}");
 
-        var files = new List<Tuple<string, VFile>>();
+        var files = new List<KeyValuePair<string, VFile>>();
         foreach (var artifact in result.Artifacts)
         {
             if (artifact.Binary)
@@ -317,14 +316,14 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 byte[] content;
                 try { content = Convert.FromBase64String(artifact.Content); }
                 catch (FormatException) { return Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity}: the binary artifact '{artifact.Path}' is not base64."); }
-                files.Add(Tuple.Create(artifact.Path, VFileModule.ofBytes(artifact.Path, content)));
+                files.Add(KeyValuePair.Create(artifact.Path, VFileModule.ofBytes(artifact.Path, content)));
             }
             else
-                files.Add(Tuple.Create(artifact.Path, VFileModule.ofText(artifact.Path, artifact.Content)));
+                files.Add(KeyValuePair.Create(artifact.Path, VFileModule.ofText(artifact.Path, artifact.Content)));
         }
 
-        var tree = VFileTreeModule.fromFileMap(MapModule.OfSeq(files));
-        tree = VFileTreeModule.set(VFileTreeModule.declaredOrder, ListModule.OfSeq(files.Select(entry => entry.Item1)), tree);
+        // The guest's order is the declared order.
+        var tree = VFileTree.OfFiles(files);
         return new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics));
     }
 

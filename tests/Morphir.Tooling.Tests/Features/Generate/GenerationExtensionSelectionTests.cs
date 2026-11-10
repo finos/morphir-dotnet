@@ -134,7 +134,7 @@ public sealed class GenerationExtensionSelectionTests
         public ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct)
         {
             Generated = true;
-            var tree = VFileTreeModule.fromFileMap(Microsoft.FSharp.Collections.MapModule.OfSeq([Tuple.Create("Stub.fs", VFileModule.ofText("Stub.fs", "module Stub"))]));
+            var tree = VFileTree.OfFiles([KeyValuePair.Create("Stub.fs", VFileModule.ofText("Stub.fs", "module Stub"))]);
             return ValueTask.FromResult<Outcome<GenerationArtifacts>>(new Outcome<GenerationArtifacts>.Success(new(tree, [])));
         }
         public ValueTask DisposeAsync()
