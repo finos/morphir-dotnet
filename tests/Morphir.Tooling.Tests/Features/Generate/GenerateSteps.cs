@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Morphir.TestSupport;
 using Morphir.Testing;
+using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Tests.Integration.CLI;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
@@ -93,16 +94,23 @@ public sealed class GenerateSteps : IDisposable
         json.RootElement.GetProperty("backendVersion").GetString().Should().NotBeNullOrEmpty();
     }
 
+    /// <summary>
+    /// Compares with the managed built-in backend in this process, not with the CLI under test: the guest formats
+    /// with Fantomas, as the managed built-in does, while the built-in backend of the Native AOT <c>morphir</c>
+    /// (MORPHIR_GENERATION_CLI) writes the same declarations unformatted. The comparison does not normalize formatting.
+    /// </summary>
     [Then("the generated files equal those of the built-in F# backend")]
     public async Task EqualsBuiltIn()
     {
         var external = Sources();
         var builtInOutput = Path.Combine(_directory, "built-in");
-        var result = await _cli.ExecuteCommandAsync($"generate --json --input \"{_input}\" --target fsharp --output \"{builtInOutput}\"", timeout: TimeSpan.FromSeconds(120));
-        result.ExitCode.Should().Be(0, result.CombinedOutput);
-        using var json = JsonDocument.Parse(result.StandardOutput);
-        var builtIn = json.RootElement.GetProperty("artifacts").EnumerateArray()
-            .Select(item => item.GetString()!)
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(_input, "fsharp", builtInOutput), new InvocationContext(_directory)),
+            new CliGenerationSettingsResolver(), new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([new FSharpGenerationBackend()]), new GenerationPublisher(), default);
+        var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Subject.Value;
+        success.Backend.Should().Be("morphir.fsharp");
+        var builtIn = success.Publication.Artifacts
             .Select(path => Tuple.Create(path, File.ReadAllText(Path.Combine(builtInOutput, path))))
             .ToArray();
         builtIn.Should().NotBeEmpty();
