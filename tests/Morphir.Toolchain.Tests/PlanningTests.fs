@@ -158,7 +158,10 @@ let tests =
             with
             | Error(PlanFailure.Unresolved failure) ->
                 Expect.equal failure.Code ArtifactCode.AbiUnavailable "abi_unavailable"
-                Expect.equal (failure.Abi |> Option.map _.Text) (Some "extism-kernel-v1") "the missing ABI"
+
+                match failure.Problem with
+                | ArtifactProblem.AbiUnavailable abi -> Expect.equal abi.Text "extism-kernel-v1" "the missing ABI"
+                | other -> failtestf "the problem is %A" other
 
                 let diagnostic = Diagnostics.ofResolutionFailure failure
 

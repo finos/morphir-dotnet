@@ -5,15 +5,20 @@ namespace Morphir.Toolchain
 /// Why a closure could not be resolved: the stable code and the request member it concerns, with what a diagnostic
 /// reports about it.
 type ResolutionFailure =
-    { Code: ArtifactCode
+    { /// The code, with the ABI the host lacks exactly for <c>abi_unavailable</c>.
+      Problem: ArtifactProblem
       /// A member of the request, such as <c>toolset.providers[0]</c>.
       Path: DocumentPath
       Platform: Platform
       Component: Component
-      /// The ABI the host lacks, exactly for <c>abi_unavailable</c>.
-      Abi: Token option
       /// Offerings the recipe does have, for host failures.
       Alternatives: Alternative list }
+
+    member this.Code =
+        match this.Problem with
+        | ArtifactProblem.Unsupported -> ArtifactCode.UnsupportedArtifact
+        | ArtifactProblem.AbiUnavailable _ -> ArtifactCode.AbiUnavailable
+        | ArtifactProblem.NoCompatibleRelease -> ArtifactCode.NoCompatibleRelease
 
 /// The provider resolution chose for an operation.
 [<RequireQualifiedAccess>]
@@ -55,21 +60,22 @@ module Resolution =
     let resolve (recipe: Recipe) (request: Request) (platform: Platform) : Result<Resolved, ResolutionFailure> =
         let hostComponent = Component.Host(request.Host.Implementation, request.Host.Deployment)
 
-        let fail code path on abi alternatives =
+        let fail problem path on alternatives =
             Error
-                { Code = code
+                { Problem = problem
                   Path = path
                   Platform = platform
                   Component = on
-                  Abi = abi
                   Alternatives = alternatives }
 
+        let unsupported path on = fail ArtifactProblem.Unsupported path on []
+
         let hostFailure path =
-            fail ArtifactCode.UnsupportedArtifact path hostComponent None (alternativesFor recipe request platform)
+            fail ArtifactProblem.Unsupported path hostComponent (alternativesFor recipe request platform)
 
         result {
             if recipe.Preset <> request.Toolset.Preset then
-                return! fail ArtifactCode.UnsupportedArtifact (toolset.Child "preset") hostComponent None []
+                return! unsupported (toolset.Child "preset") hostComponent
 
             let! offering =
                 recipe.Hosts
@@ -80,7 +86,7 @@ module Resolution =
 
             match request.Host.Release with
             | HostRelease.Exact version when version <> offering.Version ->
-                return! fail ArtifactCode.UnsupportedArtifact ((root.Child "host").Child "version") hostComponent None []
+                return! unsupported ((root.Child "host").Child "version") hostComponent
             | _ -> ()
 
             let! hostArtifact =
@@ -94,9 +100,9 @@ module Resolution =
             let misfit (path: DocumentPath) (operation: Operation) (provider: RecipeProvider) =
                 match Fit.onPlatform offering platform provider with
                 | None -> Ok(Selected.Provider provider)
-                | Some(Misfit.AbiUnavailable abi) ->
-                    fail ArtifactCode.AbiUnavailable path (Component.Provider operation) (Some abi) []
-                | Some _ -> fail ArtifactCode.UnsupportedArtifact path (Component.Provider operation) None []
+                | Some(Misfit.AbiUnavailable abi) -> fail (ArtifactProblem.AbiUnavailable abi) path (Component.Provider operation) []
+                | Some Misfit.Protocol
+                | Some Misfit.NoArtifact -> unsupported path (Component.Provider operation)
 
             let select (operation: Operation) : Result<Selected, ResolutionFailure> =
                 let builtIn = offering.BuiltIns |> List.tryFind (fun b -> b.Operation = operation)
@@ -126,32 +132,31 @@ module Resolution =
 
                         match candidates |> List.tryFind matches with
                         | Some provider -> misfit path operation provider
-                        | None -> fail ArtifactCode.UnsupportedArtifact path (Component.Provider operation) None []
+                        | None -> unsupported path (Component.Provider operation)
                 | None ->
                     match builtIn, candidates with
                     | Some b, _ -> Ok(Selected.BuiltIn b)
                     | None, provider :: _ -> misfit toolset operation provider
-                    | None, [] -> fail ArtifactCode.UnsupportedArtifact toolset (Component.Provider operation) None []
+                    | None, [] -> unsupported toolset (Component.Provider operation)
 
             let! selected = recipe.Operations |> Result.traverse select
 
             // A choice for an operation the recipe does not require matches nothing.
             match choices |> List.tryFind (fun (_, choice) -> not (List.contains choice.Operation recipe.Operations)) with
             | Some(index, choice) ->
-                return!
-                    fail
-                        ArtifactCode.UnsupportedArtifact
-                        ((toolset.Child "providers").At index)
-                        (Component.Provider choice.Operation)
-                        None
-                        []
+                return! unsupported ((toolset.Child "providers").At index) (Component.Provider choice.Operation)
             | None -> ()
 
-            let providers =
+            // Fit already checked that a selected process provider has an artifact here; a provider without a
+            // locked form is an error, never dropped from the closure.
+            let! providers =
                 selected
-                |> List.choose (function
-                    | Selected.BuiltIn b -> Some(Locked.ofBuiltIn b)
-                    | Selected.Provider provider -> Locked.ofProvider platform provider)
+                |> Result.traverse (function
+                    | Selected.BuiltIn b -> Ok(Locked.ofBuiltIn b)
+                    | Selected.Provider provider ->
+                        match Locked.ofProvider platform provider with
+                        | Some locked -> Ok locked
+                        | None -> unsupported toolset (Component.Provider provider.Operation))
 
             return
                 { Offering = offering
@@ -176,13 +181,10 @@ module Resolution =
         (recipeRepository: Sha256)
         (recipeTarget: TargetPath)
         (request: Request)
-        (platforms: Platform list)
+        (current: Platform)
         : Result<Lock * Resolved list, ResolutionFailure> =
-        if List.isEmpty platforms then
-            invalidArg (nameof platforms) "A lock records at least one platform."
-
         result {
-            let! resolved = platforms |> List.distinct |> List.sortBy Platform.order |> Result.traverse (resolve recipe request)
+            let! resolved = lockPlatforms request current |> Result.traverse (resolve recipe request)
             let offering = (List.head resolved).Offering
 
             let lock =

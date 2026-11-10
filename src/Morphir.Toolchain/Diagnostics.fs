@@ -88,17 +88,15 @@ module Diagnostics =
         let platform = Platform.name failure.Platform
         let path = DocumentPath.render failure.Path
 
-        let problem, text =
-            match failure.Code, failure.Abi with
-            | ArtifactCode.AbiUnavailable, Some abi ->
-                ArtifactProblem.AbiUnavailable abi,
+        let text =
+            match failure.Problem with
+            | ArtifactProblem.AbiUnavailable abi ->
                 $"The selected provider at {path} needs the {abi.Text} WASM ABI, which the host does not support. No other ABI is substituted."
-            | ArtifactCode.NoCompatibleRelease, _ -> ArtifactProblem.NoCompatibleRelease, $"No release matches {path}."
-            | _ ->
-                ArtifactProblem.Unsupported,
+            | ArtifactProblem.NoCompatibleRelease -> $"No release matches {path}."
+            | ArtifactProblem.Unsupported ->
                 $"No artifact matches the request at {path} for {platform}. No other implementation, deployment, release, platform or ABI is substituted."
 
         let alternatives =
             if List.isEmpty failure.Alternatives then None else Some failure.Alternatives
 
-        error (DiagnosticDetail.UnsupportedArtifact(problem, failure.Component, failure.Platform, alternatives)) text None
+        error (DiagnosticDetail.UnsupportedArtifact(failure.Problem, failure.Component, failure.Platform, alternatives)) text None

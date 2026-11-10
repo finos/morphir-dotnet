@@ -10,7 +10,7 @@ open Semver
 /// A lowercase portable token: <c>[a-z]</c>, then <c>[a-z0-9-]</c>, ending in a letter or digit, at most 64
 /// characters. Implementations, deployments, presets, languages, targets, ABIs, generation ids, workflows, package
 /// managers and commands are tokens.
-[<Struct; CustomEquality; CustomComparison>]
+[<CustomEquality; CustomComparison>]
 type Token =
     private
     | Token of string
@@ -48,7 +48,6 @@ module Token =
     let text (token: Token) = token.Text
 
 /// A provider identity: portable tokens joined by <c>.</c>, at most 238 characters, such as <c>morphir.fsharp</c>.
-[<Struct>]
 type ExtensionId =
     private
     | ExtensionId of string
@@ -67,7 +66,6 @@ module ExtensionId =
             Error ReaderCode.InvalidValue
 
 /// A NuGet package id: segments of <c>[A-Za-z0-9_]</c> joined by <c>.</c> or <c>-</c>, at most 100 characters.
-[<Struct>]
 type PackageId =
     private
     | PackageId of string
@@ -92,7 +90,6 @@ module PackageId =
 
 /// A tool release metadata v1 tool id: <c>[a-z]</c>, then <c>[a-z0-9-]</c>, ending in a letter or digit, at most 182
 /// characters.
-[<Struct>]
 type ToolId =
     private
     | ToolId of string
@@ -108,7 +105,6 @@ module ToolId =
         if Token.isToken 182 text then Ok(ToolId text) else Error ReaderCode.InvalidValue
 
 /// 64 lowercase hexadecimal digits of SHA-256 over exact bytes.
-[<Struct>]
 type Sha256 =
     private
     | Sha256 of string
@@ -293,7 +289,6 @@ module Platform =
 
 /// <summary>A target path naming an authenticated TUF target: relative, <c>/</c>-separated, at most 512 UTF-8 bytes
 /// and 240 UTF-16 code units, every segment storable on every first-delivery platform.</summary>
-[<Struct>]
 type TargetPath =
     private
     | TargetPath of string
@@ -362,7 +357,6 @@ type PathSyntax =
 
 /// <summary>An absolute local path, as receipts and <c>show</c> results hold. No <c>\</c>- or <c>/</c>-separated
 /// segment is <c>.</c> or <c>..</c>, and the path has no NUL.</summary>
-[<Struct>]
 type LocalPath =
     private
     | LocalPath of string
@@ -525,7 +519,6 @@ module Protocol =
         | Protocol.Mep020Draft1 _ -> ProtocolVersion.Mep020Draft1
 
 /// Text with at least one character that is not white space.
-[<Struct>]
 type NonBlankText =
     private
     | NonBlankText of string

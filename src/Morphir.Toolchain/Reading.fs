@@ -192,16 +192,21 @@ module internal Reading =
     let extensionId = validated ExtensionId.tryParse
     let packageId = validated PackageId.tryParse
 
+    [<RequireQualifiedAccess>]
+    type OperationTag =
+        | Compile
+        | Generate
+
     /// <c>operation</c> with <c>language</c> for <c>compile</c> or <c>target</c> for <c>generate</c>.
     let operation (o: ObjectNode) : Read<Operation> =
         result {
-            let! kind = required "operation" (tag [ "compile", "compile"; "generate", "generate" ]) o
+            let! kind = required "operation" (tag [ "compile", OperationTag.Compile; "generate", OperationTag.Generate ]) o
 
             match kind with
-            | "compile" ->
+            | OperationTag.Compile ->
                 let! language = required "language" token o
                 return Operation.Compile language
-            | _ ->
+            | OperationTag.Generate ->
                 let! target = required "target" token o
                 return Operation.Generate target
         }
@@ -267,29 +272,96 @@ module internal Reading =
 
     let comparators (n: Node) = array (validated Comparator.tryParse) n
 
+    [<RequireQualifiedAccess>]
+    type PrerequisiteTag =
+        | Runtime
+        | Sdk
+        | Native
+
     let prerequisite (n: Node) : Read<Prerequisite> =
         result {
             let! o = asObject n
-            let! kind = required "kind" (tag [ "runtime", 0; "sdk", 1; "native", 2 ]) o
+
+            let! kind =
+                required "kind" (tag [ "runtime", PrerequisiteTag.Runtime; "sdk", PrerequisiteTag.Sdk; "native", PrerequisiteTag.Native ]) o
+
             let! name = required "name" (validated NonBlankText.tryParse) o
             let! platforms = optional "platforms" (array platform) o
 
             let! kind =
                 match kind with
-                | 0 -> required "versions" comparators o |> Result.map PrerequisiteKind.Runtime
-                | 1 ->
+                | PrerequisiteTag.Runtime -> required "versions" comparators o |> Result.map PrerequisiteKind.Runtime
+                | PrerequisiteTag.Sdk ->
                     result {
                         let! versions = required "versions" comparators o
                         let! phase = required "phase" (tag [ "install", SdkPhase.Install; "run", SdkPhase.Run ]) o
                         return PrerequisiteKind.Sdk(versions, phase)
                     }
-                | _ -> optional "versions" comparators o |> Result.map PrerequisiteKind.Native
+                | PrerequisiteTag.Native -> optional "versions" comparators o |> Result.map PrerequisiteKind.Native
 
             return
                 { Kind = kind
                   Name = name
                   Platforms = platforms }
         }
+
+    // ---- closed tags, matched exhaustively by the readers ---------------------------------------------------
+
+    [<RequireQualifiedAccess>]
+    type CheckStatusTag =
+        | Passed
+        | Failed
+        | Skipped
+        | Unsupported
+
+    [<RequireQualifiedAccess>]
+    type OwnershipTag =
+        | ManagerOwned
+        | DirectArchive
+        | DotnetTool
+        | SystemPackage
+
+    [<RequireQualifiedAccess>]
+    type AuthenticationTag =
+        | RepositoryTarget
+        | RecipeDigest
+        | LocalDeveloper
+        | ExternalOwner
+
+    [<RequireQualifiedAccess>]
+    type RuntimeTag =
+        | None
+        | Bundled
+        | System
+
+    [<RequireQualifiedAccess>]
+    type SourceTag =
+        | ToolRelease
+        | DotnetTool
+
+    [<RequireQualifiedAccess>]
+    type RoleTag =
+        | Host
+        | Provider
+
+    [<RequireQualifiedAccess>]
+    type SelectionTag =
+        | Cli
+        | Environment
+        | Project
+        | UserDefault
+
+    [<RequireQualifiedAccess>]
+    type ComponentSourceTag =
+        | RepositoryTarget
+        | RecipeDigest
+        | BuiltIn
+        | ExternalOwner
+
+    [<RequireQualifiedAccess>]
+    type ClaimTag =
+        | Probed
+        | Unchecked
 
     /// Reads a document: parse its syntax, check the envelope, then read the body.
     let document parse (understood: Set<string>) (body: ObjectNode -> Read<'T>) (bytes: byte array) : Read<'T> =

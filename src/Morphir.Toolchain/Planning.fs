@@ -92,10 +92,8 @@ module Planning =
     /// platform being set up.
     let plan (input: PlanRequest) : Result<DigestedPlan * Lock, PlanFailure> =
         result {
-            let platforms = Resolution.lockPlatforms input.Request input.Platform
-
             let! lock, resolved =
-                Resolution.lock input.Recipe input.RecipeRepository input.RecipeTarget input.Request platforms
+                Resolution.lock input.Recipe input.RecipeRepository input.RecipeTarget input.Request input.Platform
                 |> Result.mapError PlanFailure.Unresolved
 
             let current = resolved |> List.find (fun r -> r.Platform = input.Platform)

@@ -77,7 +77,6 @@ type TufRole =
     | Targets
 
 /// A mirror URL with no user information, query or fragment.
-[<Struct>]
 type Mirror =
     private
     | Mirror of string
@@ -303,13 +302,14 @@ module ResultDocument =
     let private componentOf (n: Node) : Read<Component> =
         result {
             let! o = asObject n
-            let! role = required "role" (tag [ "host", true; "provider", false ]) o
+            let! role = required "role" (tag [ "host", RoleTag.Host; "provider", RoleTag.Provider ]) o
 
-            if role then
+            match role with
+            | RoleTag.Host ->
                 let! implementation = required "implementation" token o
                 let! deployment = required "deployment" token o
                 return Component.Host(implementation, deployment)
-            else
+            | RoleTag.Provider ->
                 let! operation = operation o
                 return Component.Provider operation
         }
@@ -327,40 +327,28 @@ module ResultDocument =
                   Platform = platform }
         }
 
-    let private ownership (n: Node) : Read<Ownership> =
-        result {
-            let! o = asObject n
-
-            let! kind =
-                required "kind" (tag [ "manager-owned", 0; "direct-archive", 1; "dotnet-tool", 2; "system-package", 3 ]) o
-
-            match kind with
-            | 0 -> return Ownership.ManagerOwned
-            | 1 -> return Ownership.DirectArchive
-            | 2 ->
-                let! packageId = required "packageId" packageId o
-
-                let! scope =
-                    required "scope" (tag [ "global", ToolScope.Global; "tool-path", ToolScope.ToolPath; "local-manifest", ToolScope.LocalManifest ]) o
-
-                return Ownership.DotnetTool(packageId, scope)
-            | _ ->
-                let! manager = required "manager" token o
-                return Ownership.SystemPackage manager
-        }
+    let private ownership = ReceiptDocument.ownership
 
     let private selectionSource (n: Node) : Read<SelectionSource> =
         result {
             let! o = asObject n
-            let! kind = required "kind" (tag [ "cli", 0; "environment", 1; "project", 2; "user-default", 3 ]) o
+            let! kind =
+                required
+                    "kind"
+                    (tag
+                        [ "cli", SelectionTag.Cli
+                          "environment", SelectionTag.Environment
+                          "project", SelectionTag.Project
+                          "user-default", SelectionTag.UserDefault ])
+                    o
 
             match kind with
-            | 0 -> return SelectionSource.Cli
-            | 1 -> return SelectionSource.Environment
-            | 2 ->
+            | SelectionTag.Cli -> return SelectionSource.Cli
+            | SelectionTag.Environment -> return SelectionSource.Environment
+            | SelectionTag.Project ->
                 let! path = required "path" (validated (LocalPath.tryParse PathSyntax.Any)) o
                 return SelectionSource.Project path
-            | _ -> return SelectionSource.UserDefault
+            | SelectionTag.UserDefault -> return SelectionSource.UserDefault
         }
 
     let private diagnostic (n: Node) : Read<Diagnostic> =
@@ -501,22 +489,32 @@ module ResultDocument =
             let! o = asObject n
 
             let! kind =
-                required "kind" (tag [ "repository-target", 0; "recipe-digest", 1; "built-in", 2; "external-owner", 3 ]) o
+                required
+                    "kind"
+                    (tag
+                        [ "repository-target", ComponentSourceTag.RepositoryTarget
+                          "recipe-digest", ComponentSourceTag.RecipeDigest
+                          "built-in", ComponentSourceTag.BuiltIn
+                          "external-owner", ComponentSourceTag.ExternalOwner ])
+                    o
+
+            let bound () =
+                result {
+                    let! repositoryId = required "repositoryId" sha256 o
+                    let! target = required "target" targetPath o
+                    let! sha = required "sha256" sha256 o
+                    return repositoryId, target, sha
+                }
 
             match kind with
-            | 0
-            | 1 ->
-                let! repositoryId = required "repositoryId" sha256 o
-                let! target = required "target" targetPath o
-                let! sha = required "sha256" sha256 o
-
-                return
-                    if kind = 0 then
-                        ComponentSource.RepositoryTarget(repositoryId, target, sha)
-                    else
-                        ComponentSource.RecipeDigest(repositoryId, target, sha)
-            | 2 -> return ComponentSource.BuiltIn
-            | _ -> return ComponentSource.ExternalOwner
+            | ComponentSourceTag.RepositoryTarget ->
+                let! repositoryId, target, sha = bound ()
+                return ComponentSource.RepositoryTarget(repositoryId, target, sha)
+            | ComponentSourceTag.RecipeDigest ->
+                let! repositoryId, target, sha = bound ()
+                return ComponentSource.RecipeDigest(repositoryId, target, sha)
+            | ComponentSourceTag.BuiltIn -> return ComponentSource.BuiltIn
+            | ComponentSourceTag.ExternalOwner -> return ComponentSource.ExternalOwner
         }
 
     let private plannedComponent (n: Node) : Read<PlannedComponent> =

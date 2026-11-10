@@ -215,7 +215,7 @@ let private frozenTests () =
                   | Ok resolved -> Expect.equal resolved.Closure closure $"the {Platform.name platform} closure is the resolution"
                   | Error failure -> failtestf "%s does not resolve: %A" (Platform.name platform) failure
 
-              match Resolution.lock recipe lock.Recipe.RepositoryId lock.Recipe.Target request platforms with
+              match Resolution.lock recipe lock.Recipe.RepositoryId lock.Recipe.Target request (List.head platforms) with
               | Ok(written, _) ->
                   Expect.equal { written with Identity = lock.Identity } lock "setup writes the same lock"
               | Error failure -> failtestf "the lock cannot be written: %A" failure) ]

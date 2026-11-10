@@ -209,12 +209,13 @@ module RecipeDocument =
     let private source (n: Node) : Read<HostSource> =
         result {
             let! o = asObject n
-            let! kind = required "kind" (tag [ "tool-release", true; "dotnet-tool", false ]) o
+            let! kind = required "kind" (tag [ "tool-release", SourceTag.ToolRelease; "dotnet-tool", SourceTag.DotnetTool ]) o
 
-            if kind then
+            match kind with
+            | SourceTag.ToolRelease ->
                 let! toolId = required "toolId" (validated ToolId.tryParse) o
                 return HostSource.ToolRelease toolId
-            else
+            | SourceTag.DotnetTool ->
                 let! packageId = required "packageId" packageId o
                 let! command = required "command" token o
                 return HostSource.DotnetTool(packageId, command)
@@ -300,7 +301,9 @@ module RecipeDocument =
                         let! artifact = targetBinding "artifactTarget" "artifactSha256" n
                         return RecipeDelivery.Wasm(abi, artifact)
                     }
-                | _ ->
+                // The tag offers no built-in: built-ins belong to a host.
+                | Delivery.BuiltIn -> refuse ReaderCode.UnsupportedCase (n.Path.Child "delivery")
+                | Delivery.DotnetTool ->
                     result {
                         let! packageId = required "packageId" packageId o
                         let! command = required "command" token o

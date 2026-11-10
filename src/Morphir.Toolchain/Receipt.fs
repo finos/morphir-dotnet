@@ -189,23 +189,35 @@ module ReceiptDocument =
             let! kind =
                 required "check" (tag [ "integrity", CheckKind.Integrity; "capability", CheckKind.Capability; "workflow", CheckKind.Workflow ]) o
 
-            let! status = required "status" (tag [ "passed", 0; "failed", 1; "skipped", 2; "unsupported", 3 ]) o
+            let! status =
+                required
+                    "status"
+                    (tag
+                        [ "passed", CheckStatusTag.Passed
+                          "failed", CheckStatusTag.Failed
+                          "skipped", CheckStatusTag.Skipped
+                          "unsupported", CheckStatusTag.Unsupported ])
+                    o
+
             let! reason = optional "reason" (validated NonBlankText.tryParse) o
             let! workflow = optional "workflow" token o
 
             let! status =
                 match status, reason with
-                | 0, _ -> Ok CheckStatus.Passed
-                | _, None -> refuse ReaderCode.InconsistentDocument (n.Path.Child "reason")
-                | 1, Some reason -> Ok(CheckStatus.Failed reason)
-                | 2, Some reason -> Ok(CheckStatus.Skipped reason)
-                | _, Some reason -> Ok(CheckStatus.Unsupported reason)
+                | CheckStatusTag.Passed, _ -> Ok CheckStatus.Passed
+                | (CheckStatusTag.Failed | CheckStatusTag.Skipped | CheckStatusTag.Unsupported), None ->
+                    refuse ReaderCode.InconsistentDocument (n.Path.Child "reason")
+                | CheckStatusTag.Failed, Some reason -> Ok(CheckStatus.Failed reason)
+                | CheckStatusTag.Skipped, Some reason -> Ok(CheckStatus.Skipped reason)
+                | CheckStatusTag.Unsupported, Some reason -> Ok(CheckStatus.Unsupported reason)
 
             match kind, workflow with
             | CheckKind.Workflow, None -> return! refuse ReaderCode.InconsistentDocument (n.Path.Child "workflow")
             | CheckKind.Integrity, Some _
             | CheckKind.Capability, Some _ -> return! refuse ReaderCode.InconsistentDocument (n.Path.Child "workflow")
-            | _ -> ()
+            | CheckKind.Workflow, Some _
+            | CheckKind.Integrity, None
+            | CheckKind.Capability, None -> ()
 
             return kind, status, workflow
         }
@@ -240,41 +252,56 @@ module ReceiptDocument =
                 return! refuse ReaderCode.InconsistentDocument (o.Path.Child "readiness")
         }
 
-    let private ownership (n: Node) : Read<Ownership> =
+    /// An installation owner, shared by receipts and results: <c>dotnet-tool</c> requires <c>packageId</c> and
+    /// <c>scope</c>, <c>system-package</c> requires <c>manager</c>.
+    let internal ownership (n: Node) : Read<Ownership> =
         result {
             let! o = asObject n
 
             let! kind =
-                required "kind" (tag [ "manager-owned", 0; "direct-archive", 1; "dotnet-tool", 2; "system-package", 3 ]) o
+                required
+                    "kind"
+                    (tag
+                        [ "manager-owned", OwnershipTag.ManagerOwned
+                          "direct-archive", OwnershipTag.DirectArchive
+                          "dotnet-tool", OwnershipTag.DotnetTool
+                          "system-package", OwnershipTag.SystemPackage ])
+                    o
 
             match kind with
-            | 0 -> return Ownership.ManagerOwned
-            | 1 -> return Ownership.DirectArchive
-            | 2 ->
+            | OwnershipTag.ManagerOwned -> return Ownership.ManagerOwned
+            | OwnershipTag.DirectArchive -> return Ownership.DirectArchive
+            | OwnershipTag.DotnetTool ->
                 let! packageId = required "packageId" packageId o
 
                 let! scope =
                     required "scope" (tag [ "global", ToolScope.Global; "tool-path", ToolScope.ToolPath; "local-manifest", ToolScope.LocalManifest ]) o
 
                 return Ownership.DotnetTool(packageId, scope)
-            | _ ->
+            | OwnershipTag.SystemPackage ->
                 let! manager = required "manager" token o
                 return Ownership.SystemPackage manager
         }
-
     let private authentication (recipe: RecipeReference) (n: Node) : Read<Authentication> =
         result {
             let! o = asObject n
 
             let! kind =
-                required "kind" (tag [ "repository-target", 0; "recipe-digest", 1; "local-developer", 2; "external-owner", 3 ]) o
+                required
+                    "kind"
+                    (tag
+                        [ "repository-target", AuthenticationTag.RepositoryTarget
+                          "recipe-digest", AuthenticationTag.RecipeDigest
+                          "local-developer", AuthenticationTag.LocalDeveloper
+                          "external-owner", AuthenticationTag.ExternalOwner ])
+                    o
 
             match kind with
-            | 0 ->
+            | AuthenticationTag.RepositoryTarget ->
                 let! repositoryId = required "repositoryId" sha256 o
                 let! targetsVersion = required "targetsVersion" integer o
                 return Authentication.RepositoryTarget(repositoryId, targetsVersion)
-            | 1 ->
+            | AuthenticationTag.RecipeDigest ->
                 let! repositoryId = required "repositoryId" sha256 o
                 let! target = required "recipeTarget" targetPath o
                 let! sha = required "recipeSha256" sha256 o
@@ -288,14 +315,14 @@ module ReceiptDocument =
                     return! refuse ReaderCode.InconsistentDocument n.Path
 
                 return Authentication.RecipeDigest named
-            | 2 ->
+            | AuthenticationTag.LocalDeveloper ->
                 let! policy = required "policy" text o
 
                 if policy <> "developer" then
                     return! refuse ReaderCode.InconsistentDocument (n.Path.Child "policy")
 
                 return Authentication.LocalDeveloper
-            | _ -> return Authentication.ExternalOwner
+            | AuthenticationTag.ExternalOwner -> return Authentication.ExternalOwner
         }
 
     let private launch (platform: Platform) (n: Node) : Read<Launch> =
@@ -338,15 +365,18 @@ module ReceiptDocument =
             let! o = asObject n
             let! mode = required "mode" (tag [ "native-aot", Execution.NativeAot; "jit", Execution.Jit ]) o
             let! runtimeNode = objectMember "runtime" o
-            let! kind = required "kind" (tag [ "none", 0; "bundled", 1; "system", 2 ]) runtimeNode
+            let! kind =
+                required "kind" (tag [ "none", RuntimeTag.None; "bundled", RuntimeTag.Bundled; "system", RuntimeTag.System ]) runtimeNode
+
             let runtimePath = n.Path.Child "runtime"
 
             let! execution =
                 match mode, kind with
-                | Execution.NativeAot, 0 -> Ok HostExecution.NativeAot
-                | Execution.Jit, 1 -> required "version" version runtimeNode |> Result.map HostExecution.JitBundled
-                | Execution.Jit, 2 -> required "version" version runtimeNode |> Result.map HostExecution.JitSystem
-                | _ -> refuse ReaderCode.InconsistentDocument runtimePath
+                | Execution.NativeAot, RuntimeTag.None -> Ok HostExecution.NativeAot
+                | Execution.Jit, RuntimeTag.Bundled -> required "version" version runtimeNode |> Result.map HostExecution.JitBundled
+                | Execution.Jit, RuntimeTag.System -> required "version" version runtimeNode |> Result.map HostExecution.JitSystem
+                | Execution.NativeAot, (RuntimeTag.Bundled | RuntimeTag.System)
+                | Execution.Jit, RuntimeTag.None -> refuse ReaderCode.InconsistentDocument runtimePath
 
             // For the dotnet implementation the deployment fixes the execution.
             let expected =
@@ -418,7 +448,7 @@ module ReceiptDocument =
                         let! installation = installation platform recipe installedNode
 
                         let! claim =
-                            required "claimCheck" (tag [ "probed", true; "unchecked", false ]) installedNode
+                            required "claimCheck" (tag [ "probed", ClaimTag.Probed; "unchecked", ClaimTag.Unchecked ]) installedNode
 
                         let! probeSource =
                             optional "probeSource" (tag [ "describe", ProbeSource.Describe; "session-fallback", ProbeSource.SessionFallback ]) installedNode
@@ -427,9 +457,10 @@ module ReceiptDocument =
 
                         let! claimCheck =
                             match claim, probeSource with
-                            | true, Some source -> Ok(ClaimCheck.Probed source)
-                            | false, None -> Ok ClaimCheck.Unchecked
-                            | _ -> refuse ReaderCode.InconsistentDocument probePath
+                            | ClaimTag.Probed, Some source -> Ok(ClaimCheck.Probed source)
+                            | ClaimTag.Unchecked, None -> Ok ClaimCheck.Unchecked
+                            | ClaimTag.Probed, None
+                            | ClaimTag.Unchecked, Some _ -> refuse ReaderCode.InconsistentDocument probePath
 
                         return ProviderInstallation.Installed(installation, claimCheck)
                     }
@@ -439,10 +470,10 @@ module ReceiptDocument =
 
             let outcome status =
                 match status with
-                | CheckStatus.Passed -> 0
-                | CheckStatus.Failed _ -> 1
-                | CheckStatus.Skipped _ -> 2
-                | CheckStatus.Unsupported _ -> 3
+                | CheckStatus.Passed -> CheckStatusTag.Passed
+                | CheckStatus.Failed _ -> CheckStatusTag.Failed
+                | CheckStatus.Skipped _ -> CheckStatusTag.Skipped
+                | CheckStatus.Unsupported _ -> CheckStatusTag.Unsupported
 
             match identity.Delivery with
             | LockedDelivery.BuiltIn _ when outcome checks.Integrity <> outcome host.Checks.Integrity ->
