@@ -443,6 +443,21 @@ let tests =
               finally
                   dispose frontend
 
+          testCase "A guest that reports an id reserved for built-ins (morphir.) is refused as unavailable, naming the id"
+          <| fun _ ->
+              match MepFrontend.ConnectAsync(fakeOptions "reserved-id", sandboxEnvironment (), CancellationToken.None).GetAwaiter().GetResult() with
+              | Error failure ->
+                  Expect.equal
+                      (failure.Diagnostics |> Seq.map (fun diagnostic -> diagnostic.CodeOrNull |> string) |> List.ofSeq)
+                      [ "extension.unavailable" ]
+                      "the code"
+
+                  Expect.stringContains failure.Message "morphir.fake-frontend" "names the id"
+                  Expect.stringContains failure.Message "reserved" "says why"
+              | Ok frontend ->
+                  dispose frontend
+                  failtest "A guest with a reserved id cannot connect"
+
           testCase "An executable that does not exist is an unavailable extension"
           <| fun _ ->
               let options =

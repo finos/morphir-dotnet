@@ -313,6 +313,10 @@ ASCII letter, contains only lowercase letters, digits and `-`, and ends with a l
 
 A one-segment id follows the upstream Morphir rule. Dotted ids are a morphir-dotnet superset, proposed upstream in [finos/morphir#1137](https://github.com/finos/morphir/issues/1137).
 
+Every id that starts with `morphir.` is reserved for the built-in frontends and backends of morphir-dotnet,
+including built-ins that do not ship yet. `compile` and `generate` refuse an extension guest that reports such an id
+(`extension.unavailable`). Ids such as `org.finos.morphir.fsharp-backend` are not reserved.
+
 ## Platform Identifiers (RIDs)
 
 Morphir uses .NET Runtime Identifiers to manage platform-specific artifacts:

@@ -182,7 +182,7 @@ An extension failure is exit code 2 with one of these codes:
 
 | Code | Meaning |
 | --- | --- |
-| `extension.unavailable` | The guest did not start, or the session did not initialize. |
+| `extension.unavailable` | The guest did not start, the session did not initialize, or the guest gave an id reserved for built-ins (every id that starts with `morphir.`). |
 | `extension.not_admitted` | The agreed session does not admit the request, for example its IR version. |
 | `extension.tuple_unavailable` | The host and the guest agreed no `compileModel` tuple, so no request can be sent. |
 | `extension.protocol_error` | The guest broke the protocol, for example it wrote a log line to stdout. |

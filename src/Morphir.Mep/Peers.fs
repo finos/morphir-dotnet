@@ -310,3 +310,19 @@ type ResultExtensions =
         match result with
         | Ok value -> ok.Invoke value
         | Error failure -> error.Invoke failure
+
+/// <summary>
+/// The extension ids that only a host's own built-in frontends and backends may use: every id that starts with
+/// <c>morphir.</c>, including ids of built-ins that a host does not ship yet. A host refuses a guest that reports one,
+/// so a guest cannot pass as a built-in. <c>org.finos.morphir.*</c> and every other id are not reserved.
+/// </summary>
+[<AbstractClass; Sealed>]
+type ReservedExtensionIds =
+    /// <summary>The reserved prefix, <c>morphir.</c>, compared ordinally (extension ids are lowercase).</summary>
+    static member Prefix = "morphir."
+
+    /// <summary>True when the id starts with the reserved prefix. Null and empty text are not reserved.</summary>
+    static member IsReserved(id: string | null) : bool =
+        match id with
+        | null -> false
+        | text -> text.StartsWith(ReservedExtensionIds.Prefix, StringComparison.Ordinal)

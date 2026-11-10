@@ -21,8 +21,8 @@ let private tuple codec profile version : ModelTransportTuple =
       EnvelopeVersion = SemanticVersion.Create "0.1.0-draft.1"
       IrVersion = SemanticVersion.Create version }
 
-/// A guest with the real guest's identity and backend claim, the given tuples, and a generateModel handler.
-let private guestWith (tuples: ModelTransportTuple list) (handler: MethodHandler) =
+/// A guest with the given id, the real guest's backend claim, the given tuples, and a generateModel handler.
+let private guestNamed (id: string) (tuples: ModelTransportTuple list) (handler: MethodHandler) =
     let support = { FSharpGuest.support with Tuples = Array.ofList tuples }
 
     let capabilities =
@@ -33,7 +33,7 @@ let private guestWith (tuples: ModelTransportTuple list) (handler: MethodHandler
         { FSharpGuest.claims with
             Extension =
                 { FSharpGuest.extension with
-                    Id = "org.example.fake-backend" }
+                    Id = id }
             Capabilities =
                 readOnlyDict
                     [ "backend", JsonSerializer.SerializeToElement(FSharpGuest.backend, MepJson.Default.BackendCapability)
@@ -44,6 +44,9 @@ let private guestWith (tuples: ModelTransportTuple list) (handler: MethodHandler
           Capabilities = capabilities
           Methods = readOnlyDict [ Method.GenerateModel.WireValue, handler ] }
     )
+
+/// A guest with the fake id org.example.fake-backend.
+let private guestWith = guestNamed "org.example.fake-backend"
 
 let private json4 = tuple ModelCodec.MorphirJson "morphir-ir" "4.0.0"
 
@@ -70,6 +73,8 @@ let run (scenario: string) =
         | "ion-only" -> guestWith [ tuple ModelCodec.IonBinary "morphir-model" "4.0.0" ] (answer (result "[]"))
         // Claims only IR 4.0.0 and answers with one file.
         | "only-v4" -> guestWith [ json4 ] (answer (result """[{"path":"Only.fs","content":"module Only","binary":false}]"""))
+        // Reports an id reserved for built-ins, morphir.fake-backend.
+        | "reserved-id" -> guestNamed "morphir.fake-backend" [ json4 ] (answer (result "[]"))
         // Returns a path outside the output directory.
         | "unsafe-path" -> guestWith [ json4 ] (answer (result """[{"path":"../escape.fs","content":"x","binary":false}]"""))
         // Returns two paths that differ only in case.
