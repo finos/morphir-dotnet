@@ -349,3 +349,161 @@ module ClaimSetDocument =
             readAt (node value DocumentPath.root)
         with _ ->
             refuse ReaderCode.InvalidDocument DocumentPath.root
+
+/// How an extension artifact runs.
+[<RequireQualifiedAccess>]
+type ArtifactRuntime =
+    | Process
+    | Wasm
+
+/// <summary>What a descriptor states about an artifact's claims: <c>unchecked</c> when its writer did not run the
+/// artifact to read them, <c>probed</c> when it did. It says nothing about who published the bytes; a recipe digest
+/// authenticates those, and the two are separate facts.</summary>
+[<RequireQualifiedAccess>]
+type DescriptorClaimCheck =
+    | Unchecked
+    | Probed
+
+/// One artifact of an extension release descriptor.
+type DescribedArtifact =
+    { Runtime: ArtifactRuntime
+      /// The target triple of a process artifact; a WASM artifact has none.
+      Platform: string option
+      /// The file name, in the descriptor's own directory.
+      Filename: string
+      Sha256: Sha256
+      Claims: ClaimSet
+      ClaimCheck: DescriptorClaimCheck }
+
+/// An extension release descriptor, version 2, as far as the recipe binding checks read it.
+type ExtensionRelease =
+    { ExtensionId: ExtensionId
+      ShortId: Token
+      Version: SemVer
+      Artifacts: DescribedArtifact list }
+
+/// <summary>
+/// The reader of an extension release descriptor at <c>schemaVersion</c> <c>2.0.0-draft.2</c> only (extension
+/// distribution, "Release descriptor, version 2", at finos/morphir <c>9e1f853b7</c>); no earlier format is read or
+/// converted. Unknown members are ignored unless <c>critical</c> names them, as the extension formats say; a critical
+/// path this reader does not read is refused.
+/// </summary>
+/// <remarks>Left unread: <c>gitCommit</c> and <c>platformDifferences</c>, which no binding check uses. Provisional,
+/// the stricter readings: the bound is 1 MiB, as the v1 profile bounds a release descriptor; <c>requires.host</c>,
+/// at the top or on an artifact, is refused, because no binding check evaluates it; two artifacts with one filename
+/// are refused; an absent <c>claimCheck</c> is <c>unchecked</c>.</remarks>
+module ExtensionReleaseDocument =
+    open Reading
+
+    /// The one descriptor format read.
+    let schemaVersion = "2.0.0-draft.2"
+
+    /// The bound applied before parsing. Provisional: the distribution page states none.
+    let limit = 1024 * 1024
+
+    let private artifactPaths = [ "platform"; "runtime"; "filename"; "sha256"; "claims"; "claimCheck"; "critical" ]
+
+    /// The paths a critical list may name: the members read, and claims members under <c>claims.</c>.
+    let private understood (prefix: string) (paths: string list) (path: string) =
+        List.contains path (paths |> List.map (fun p -> prefix + p))
+        || (path.StartsWith(prefix + "claims.", System.StringComparison.Ordinal)
+            && ClaimSetDocument.understoodPaths.Contains(path.Substring(prefix.Length + 7)))
+
+    /// The critical list and requirement rules of one object.
+    let private criticalAndRequires (isUnderstood: string -> bool) (o: ObjectNode) : Read<unit> =
+        result {
+            let! critical = optional "critical" (distinctArray text) o
+
+            match defaultArg critical [] |> List.tryFind (isUnderstood >> not) with
+            | Some unknown -> return! refuse ReaderCode.UnsupportedCriticalMember (o.Path.Child unknown)
+            | None -> ()
+
+            match tryMember "requires" o with
+            | Some requires ->
+                let! r = asObject requires
+
+                if has "host" r then
+                    return! refuse ReaderCode.InconsistentDocument (o.Path.Child "critical")
+            | None -> ()
+        }
+
+    let private isFilename (text: string) =
+        not (text.Contains '/') && text <> "." && text <> ".." && Result.isOk (TargetPath.tryParse text)
+
+    let private artifact (n: Node) : Read<DescribedArtifact> =
+        result {
+            let! o = asObject n
+            do! criticalAndRequires (understood "" artifactPaths) o
+            let! runtime = required "runtime" (tag [ "process", ArtifactRuntime.Process; "wasm", ArtifactRuntime.Wasm ]) o
+            let! platform = optional "platform" text o
+
+            match runtime, platform with
+            | ArtifactRuntime.Process, None
+            | ArtifactRuntime.Wasm, Some _ -> return! refuse ReaderCode.InconsistentDocument (o.Path.Child "platform")
+            | ArtifactRuntime.Process, Some triple when System.String.IsNullOrWhiteSpace triple ->
+                return! refuse ReaderCode.InvalidValue (o.Path.Child "platform")
+            | _ -> ()
+
+            let! filename = required "filename" (validated (fun text -> if isFilename text then Ok text else Error ReaderCode.InvalidValue)) o
+            let! sha = required "sha256" sha256 o
+            let! claims = required "claims" ClaimSetDocument.readAt o
+
+            let! claimCheck =
+                optional "claimCheck" (tag [ "unchecked", DescriptorClaimCheck.Unchecked; "probed", DescriptorClaimCheck.Probed ]) o
+
+            return
+                { Runtime = runtime
+                  Platform = platform
+                  Filename = filename
+                  Sha256 = sha
+                  Claims = claims
+                  ClaimCheck = defaultArg claimCheck DescriptorClaimCheck.Unchecked }
+        }
+
+    let private body (o: ObjectNode) : Read<ExtensionRelease> =
+        result {
+            match tryMember "schemaVersion" o with
+            | Some { Value = Value.String version } when version = schemaVersion -> ()
+            | Some { Value = Value.String _; Path = path } -> return! refuse ReaderCode.UnsupportedContractVersion path
+            | _ -> return! refuse ReaderCode.InvalidDocument (o.Path.Child "schemaVersion")
+
+            let topPaths = [ "schemaVersion"; "extensionId"; "shortId"; "version"; "artifacts"; "critical" ]
+
+            let isUnderstood (path: string) =
+                List.contains path topPaths || understood "artifacts." artifactPaths path
+
+            do! criticalAndRequires isUnderstood o
+            let! extensionId = required "extensionId" extensionId o
+            let! shortId = required "shortId" token o
+            let! version = required "version" version o
+            let! artifactNodes = required "artifacts" items o
+
+            if artifactNodes.IsEmpty then
+                return! refuse ReaderCode.InconsistentDocument (o.Path.Child "artifacts")
+
+            let! artifacts = artifactNodes |> Result.traverse artifact
+
+            // One filename names one artifact in the descriptor's directory.
+            match artifacts |> List.indexed |> List.tryFind (fun (i, a) -> artifacts |> List.take i |> List.exists (fun e -> e.Filename = a.Filename)) with
+            | Some(index, _) -> return! refuse ReaderCode.InconsistentDocument (((o.Path.Child "artifacts").At index).Child "filename")
+            | None -> ()
+
+            return
+                { ExtensionId = extensionId
+                  ShortId = shortId
+                  Version = version
+                  Artifacts = artifacts }
+        }
+
+    /// <summary>Reads a descriptor from exact bytes, bounded at <see cref="limit"/> before parsing. No exception
+    /// leaves it.</summary>
+    let read (bytes: byte array) : Result<ExtensionRelease, ReaderRefusal> =
+        try
+            if bytes.Length > limit then
+                refuse ReaderCode.InvalidDocument DocumentPath.root
+            else
+                Syntax.parseJson bytes
+                |> Result.bind (fun root -> asObject (node root DocumentPath.root))
+                |> Result.bind body
+        with _ ->
+            refuse ReaderCode.InvalidDocument DocumentPath.root

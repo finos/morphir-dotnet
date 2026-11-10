@@ -204,3 +204,77 @@ let claimSetTests =
 
             Expect.isOk (readClaims edited) "read")
     ]
+
+let private frontendDescriptor () = valueOf "extensions/fsharp-frontend/0.6.0/release.json"
+let private readDescriptor (value: Value) = ExtensionReleaseDocument.read (bytesOf value)
+
+[<Tests>]
+let extensionReleaseTests =
+    testList "Extension release descriptors" [
+        testCase "every extension descriptor of the signed repository reads" (fun () ->
+            use repository = System.Text.Json.JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "repository.json")
+
+            for target in repository.RootElement.GetProperty("targetFiles").EnumerateObject() do
+                if target.Name.EndsWith "/release.json" && target.Name.StartsWith "extensions/" then
+                    match ExtensionReleaseDocument.read (SignedCaseTests.targetBytes target.Name) with
+                    | Ok release -> Expect.isNonEmpty release.Artifacts $"{target.Name}: artifacts"
+                    | Error refusal -> failtestf "%s: %A" target.Name refusal)
+
+        testCase "the frontend descriptor names its identity and six process artifacts" (fun () ->
+            match readDescriptor (frontendDescriptor ()) with
+            | Ok release ->
+                Expect.equal (release.ExtensionId.Text, release.ShortId.Text, release.Version.Text) ("morphir-fsharp-frontend", "fsharp-frontend", "0.6.0") "identity"
+                Expect.equal release.Artifacts.Length 6 "artifacts"
+                let first = release.Artifacts.Head
+                Expect.equal (first.Runtime, first.Platform, first.Filename) (ArtifactRuntime.Process, Some "x86_64-pc-windows-msvc", "win-x64.zip") "the first artifact"
+                // What the publisher states about the claims is its own fact; reading them is no probe.
+                Expect.equal first.ClaimCheck DescriptorClaimCheck.Unchecked "claim check"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "the WASM descriptor has one portable artifact" (fun () ->
+            match ExtensionReleaseDocument.read (SignedCaseTests.targetBytes "extensions/fsharp-frontend-wasm/0.6.0/release.json") with
+            | Ok release -> Expect.equal (release.Artifacts |> List.map (fun a -> a.Runtime, a.Platform)) [ ArtifactRuntime.Wasm, None ] "one WASM artifact"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "bytes that are not JSON, such as an archive, are refused" (fun () ->
+            refusedWith ReaderCode.InvalidDocument "" (ExtensionReleaseDocument.read (SignedCaseTests.targetBytes "extensions/fsharp-frontend/0.6.0/win-x64.zip")))
+
+        testList "a descriptor outside 2.0.0-draft.2 is refused" [
+            for name, edit, code, path in
+                [ "schemaVersion 2.0.0-draft.1", setAt [ "schemaVersion" ] (str "2.0.0-draft.1"), ReaderCode.UnsupportedContractVersion, "schemaVersion"
+                  "a version 1 descriptor", setAt [ "schemaVersion" ] (Value.Number "1"), ReaderCode.InvalidDocument, "schemaVersion"
+                  "a shortId that is not a portable token", setAt [ "shortId" ] (str "FSharp"), ReaderCode.InvalidValue, "shortId"
+                  "an extensionId that is not an id", setAt [ "extensionId" ] (str "Morphir FSharp"), ReaderCode.InvalidValue, "extensionId"
+                  "a version that is not SemVer", setAt [ "version" ] (str "0.6"), ReaderCode.InvalidValue, "version"
+                  "no artifacts", setAt [ "artifacts" ] (Value.Array []), ReaderCode.InconsistentDocument, "artifacts"
+                  "an unknown runtime", setAt [ "artifacts"; "0"; "runtime" ] (str "native"), ReaderCode.UnsupportedCase, "artifacts[0].runtime"
+                  "a process artifact without a platform", removeAt [ "artifacts"; "0"; "platform" ], ReaderCode.InconsistentDocument, "artifacts[0].platform"
+                  "a WASM artifact with a platform", setAt [ "artifacts"; "0"; "runtime" ] (str "wasm"), ReaderCode.InconsistentDocument, "artifacts[0].platform"
+                  "a filename with a directory", setAt [ "artifacts"; "0"; "filename" ] (str "x/win-x64.zip"), ReaderCode.InvalidValue, "artifacts[0].filename"
+                  "a filename of ..", setAt [ "artifacts"; "0"; "filename" ] (str ".."), ReaderCode.InvalidValue, "artifacts[0].filename"
+                  "a repeated filename", setAt [ "artifacts"; "1"; "filename" ] (str "win-x64.zip"), ReaderCode.InconsistentDocument, "artifacts[1].filename"
+                  "an artifact digest that is not SHA-256", setAt [ "artifacts"; "0"; "sha256" ] (str "abc"), ReaderCode.InvalidValue, "artifacts[0].sha256"
+                  "an artifact without claims", removeAt [ "artifacts"; "0"; "claims" ], ReaderCode.InvalidDocument, "artifacts[0].claims"
+                  "claims of another claimsVersion", setAt [ "artifacts"; "0"; "claims"; "claimsVersion" ] (str "0.1.0-draft.1"), ReaderCode.UnsupportedContractVersion, "artifacts[0].claims.claimsVersion"
+                  "an unknown claim check", setAt [ "artifacts"; "0"; "claimCheck" ] (str "trusted"), ReaderCode.UnsupportedCase, "artifacts[0].claimCheck"
+                  "a critical member this reader does not read", setAt [ "critical" ] (Value.Array [ str "gitCommit" ]), ReaderCode.UnsupportedCriticalMember, "gitCommit"
+                  "requires.host, which no binding check evaluates",
+                  (setAt [ "requires" ] (Value.Object [ "host", Value.Array [ str ">=0.4.0" ] ]) >> setAt [ "critical" ] (Value.Array [ str "requires.host" ])),
+                  ReaderCode.UnsupportedCriticalMember,
+                  "requires.host" ] ->
+                testCase name (fun () -> refusedWith code path (readDescriptor (edit (frontendDescriptor ()))))
+        ]
+
+        testCase "unknown members are ignored, and a critical member it reads is accepted" (fun () ->
+            let edited =
+                frontendDescriptor ()
+                |> setAt [ "gitCommit" ] (str (String.replicate 40 "a"))
+                |> setAt [ "note" ] (str "x")
+                |> setAt [ "artifacts"; "0"; "note" ] (str "x")
+                |> setAt [ "critical" ] (Value.Array [ str "artifacts.sha256"; str "artifacts.claims.capabilities.frontend.compile" ])
+
+            Expect.isOk (readDescriptor edited) "read")
+
+        testCase "a descriptor over 1 MiB is refused before it is parsed" (fun () ->
+            refusedWith ReaderCode.InvalidDocument "" (ExtensionReleaseDocument.read (Array.create (1024 * 1024 + 1) (byte ' '))))
+    ]
