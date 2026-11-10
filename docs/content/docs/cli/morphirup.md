@@ -242,6 +242,10 @@ The executable needs no .NET runtime, no ICU and no OpenSSL: it is built in inva
 - `unsupported_contract_version` at `schemaVersion`: this build reads `0.1.0-draft.1` documents only, never another draft or the released `0.1.0`.
 - `credential_in_document`: no toolchain document may hold a member such as `token`, `password` or `apiKey`, at any depth and in any letter case. The result names the member, never its value.
 
+## Repository metadata verification
+
+`Morphir.Toolchain` has the verification part of a TUF client for the tool release metadata v1 profile: it reads root, timestamp, snapshot and targets metadata, checks Ed25519 signature thresholds, follows root rotation, and checks rollback, links and expiry. No `morphirup` command uses it yet, and nothing in this release downloads or authenticates repository metadata. **This code has not had a security review. It must not be used to authenticate a production release until it has.**
+
 ## Related
 
 - [Toolchain acquisition contracts](https://github.com/finos/morphir/blob/1451c081f56cf5b74618302d315dcdbe573028a1/docs/spec/toolchain/index.md) in finos/morphir: a draft, in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to

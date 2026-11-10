@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Morphir.Toolchain`: the verification part of a TUF client for the tool release metadata v1 profile, as pure functions over supplied bytes and one trusted start time: strict readers for root, timestamp, snapshot and targets metadata, Ed25519 threshold verification with BouncyCastle, root rotation with both thresholds and a retry after 32 roots, timestamp, snapshot and targets checks with rollback, link and expiry, and typed failures mapped to the stable codes. It does no I/O and no command uses it. It has not had a security review and must not be used to authenticate a production release until it has. Where the profile is silent it takes the stricter reading, marked provisional ([#558](https://github.com/finos/morphir-dotnet/issues/558))
+
 ## [0.4.0-alpha.4] - 2026-11-10
 
 ### Added
