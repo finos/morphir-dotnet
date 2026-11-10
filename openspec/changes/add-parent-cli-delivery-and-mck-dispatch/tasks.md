@@ -56,9 +56,13 @@ Commands follow the repository's build settings: `dotnet build <project> -c Rele
 
 ## 4. Integration
 
-- [ ] 4.1 With the full-build slot from the root thread, compile the solution and run the affected test projects.
+- [x] 4.1 With the full-build slot from the root thread, compile the solution and run the affected test projects.
   Verify no failures beyond the known intermittent config-edit tests.
-- [ ] 4.2 Run `openspec validate add-parent-cli-delivery-and-mck-dispatch --strict` and `mise run openspec:verify`, and
+  - Done on win-arm64, 10 November 2026: the Release solution build has 0 errors and none of its warnings come from changed files.
+    Morphir.Tests 49 passed (2 Unix skips), Morphir.Managed.Tests 12 passed, Morphir.Tooling.Tests 1001 passed (1 Unix skip).
+    The Native AOT win-arm64 pack has no IL or AOT warning in changed files. Its produced morphir.exe routes mck,
+    exits with 127 without a tool, and its job object stops the tool and the tool's child. Linux and macOS were not run.
+- [x] 4.2 Run `openspec validate add-parent-cli-delivery-and-mck-dispatch --strict` and `mise run openspec:verify`, and
   verify both pass.
 
 ## Workflow follow-up

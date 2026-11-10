@@ -103,6 +103,9 @@ public class CliDeliveryWorkflowTests
         script.Should().Contain("--version").And.Contain("launchPath").And.Contain("dotnet tool install Morphir.Tool")
             .And.Contain("dotnet-morphir");
         script.Should().NotContain("dotnet exec");
+        // The executable prints the release with its commit as build metadata (0.4.0-alpha.4+<sha>), and the launch
+        // metadata names the release alone; the check compares the part before '+'.
+        script.Should().Contain("$version.Split('+')[0] -ne $launch.release");
 
         var upload = steps.Single(step => Uses(step).StartsWith("actions/upload-artifact", StringComparison.Ordinal));
         upload["with"]["path"].ToString().Should().Contain(".build-launch.json").And.Contain(".sha256");

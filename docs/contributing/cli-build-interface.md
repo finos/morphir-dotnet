@@ -68,7 +68,8 @@ The artifact holds the file, `<file>.build-launch.json`, `<file>.build-contents.
 4. The produced executable starts. The archive is extracted into a folder whose path has a space, and its launch path
    (`launchPath` in the launch metadata) runs with `--version`. For `dotnet-tool`, the package is installed with
    `dotnet tool install Morphir.Tool --tool-path` and the installed `dotnet-morphir` runs. The output must be the
-   release version. The workflow never runs `dotnet exec` on an assembly, so the apphost or Native AOT file that users
+   release version, which the executable prints with the commit as build metadata (`0.4.0-alpha.4+<sha>`); the part
+   before `+` must equal the `release` of the launch metadata. The workflow never runs `dotnet exec` on an assembly, so the apphost or Native AOT file that users
    run is what starts.
 
 This is a start check, not platform qualification. It runs on the runner's own machine with its .NET installation,

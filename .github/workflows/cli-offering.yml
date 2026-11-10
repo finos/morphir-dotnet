@@ -173,7 +173,8 @@ jobs:
 
                   $version = (& $executable --version | Out-String).Trim()
                   if ($LASTEXITCODE -ne 0) { throw "$executable --version exited with $LASTEXITCODE." }
-                  if ($version -ne $launch.release) { throw "$executable --version printed '$version', not the release version $($launch.release)." }
+                  # The executable prints the release with the commit as build metadata, for example 0.4.0-alpha.4+<sha>.
+                  if ($version.Split('+')[0] -ne $launch.release) { throw "$executable --version printed '$version', not the release version $($launch.release)." }
                   Write-Host "✓ $executable --version printed $version"
 
                   "$sha256  $($launch.artifact)" | Set-Content -NoNewline -LiteralPath "$artifact.sha256"
