@@ -85,6 +85,14 @@ type WasmRuntimeUnavailableReason =
         | EngineLoadFailed -> "engine_load_failed"
         | Disabled -> "disabled"
 
+    /// <summary>What the reason means, as a clause the runtime report and its diagnostics write after the wire value.</summary>
+    member this.Description =
+        match this with
+        | PlatformUnsupported -> "the engine has no build for this platform"
+        | EngineMissing -> "the engine's native library is not in this installation"
+        | EngineLoadFailed -> "the engine's native library is present but did not load"
+        | Disabled -> "the WASM runtime is turned off"
+
     /// <summary>The text that the runtime report writes.</summary>
     override this.ToString() = this.WireValue
 
@@ -378,14 +386,15 @@ type ExtensionEntry =
         && this.Delivery.CanRunWith wasmRuntime
 
     /// <summary>
-    /// True when the extension runs in the host without asking a runtime. A <c>wasm</c> entry is never available here;
-    /// use the overload that takes the WASM runtime availability.
+    /// For C# callers that read the runtime only when they need it: as the overload that takes the availability, but
+    /// <paramref name="wasmRuntime"/> is called only for a <c>wasm</c> entry of the host, so listing built-in entries never
+    /// probes the WASM engine.
     /// </summary>
-    member this.IsAvailableIn(host: MorphirHost) =
+    member this.IsAvailableIn(host: MorphirHost, wasmRuntime: Func<WasmRuntimeAvailability>) =
         this.Hosts.IsAvailableIn host
         && (match this.Delivery with
             | ExtensionDelivery.BuiltIn -> true
-            | ExtensionDelivery.Wasm -> false)
+            | ExtensionDelivery.Wasm -> wasmRuntime.Invoke().CanRunModules)
 
     /// <summary>For C# callers: the backend claim, or null when the extension is not a backend.</summary>
     member this.BackendClaimOrNull =

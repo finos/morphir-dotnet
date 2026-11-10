@@ -67,8 +67,8 @@ let tests =
 
         test "an entry for all hosts is available in both hosts" {
             let entry = backend "morphir.csharp"
-            Expect.isTrue (entry.IsAvailableIn MorphirHost.Native) "native"
-            Expect.isTrue (entry.IsAvailableIn MorphirHost.DotnetTool) "dotnet tool"
+            Expect.isTrue (entry.IsAvailableIn(MorphirHost.Native, WasmRuntimeAvailability.Available)) "native"
+            Expect.isTrue (entry.IsAvailableIn(MorphirHost.DotnetTool, WasmRuntimeAvailability.Available)) "dotnet tool"
 
             Expect.equal
                 (List.ofSeq entry.Hosts.WireValues)
@@ -82,8 +82,8 @@ let tests =
                     Hosts = HostAvailability.Only MorphirHost.DotnetTool
                 }
 
-            Expect.isFalse (entry.IsAvailableIn MorphirHost.Native) "not native"
-            Expect.isTrue (entry.IsAvailableIn MorphirHost.DotnetTool) "dotnet tool"
+            Expect.isFalse (entry.IsAvailableIn(MorphirHost.Native, WasmRuntimeAvailability.Available)) "not native"
+            Expect.isTrue (entry.IsAvailableIn(MorphirHost.DotnetTool, WasmRuntimeAvailability.Available)) "dotnet tool"
             Expect.equal (List.ofSeq entry.Hosts.WireValues) [ "dotnet-morphir" ] "one host"
         }
 

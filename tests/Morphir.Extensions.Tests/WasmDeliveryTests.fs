@@ -150,12 +150,63 @@ let tests =
                 "dotnet tool"
         }
 
-        test "without a runtime answer a WASM entry is not available" {
-            let entry = wasm "acme.python"
+        test "a WASM entry asks a lazy runtime, and a built-in entry never asks it" {
+            let asked = ref 0
+
+            let runtime =
+                Func<WasmRuntimeAvailability>(fun () ->
+                    asked.Value <-
+                        asked.Value
+                        + 1
+
+                    WasmRuntimeAvailability.Available
+                )
 
             for host in hosts do
-                Expect.isFalse (entry.IsAvailableIn host) $"wasm entry in {host}"
-                Expect.isTrue ((builtIn "morphir.csharp").IsAvailableIn host) $"built-in in {host}"
+                Expect.isTrue
+                    ((builtIn "morphir.csharp").IsAvailableIn(host, runtime))
+                    $"built-in in {host}"
+
+            Expect.equal asked.Value 0 "a built-in entry never asks the runtime"
+
+            Expect.isTrue
+                ((wasm "acme.python").IsAvailableIn(MorphirHost.Native, runtime))
+                "wasm entry with the engine"
+
+            Expect.equal asked.Value 1 "a wasm entry asks once"
+
+            for reason in reasons do
+                let unavailable =
+                    Func<WasmRuntimeAvailability>(fun () ->
+                        WasmRuntimeAvailability.Unavailable reason
+                    )
+
+                Expect.isFalse
+                    ((wasm "acme.python").IsAvailableIn(MorphirHost.Native, unavailable))
+                    $"wasm entry without the engine, {reason}"
+        }
+
+        test "a WASM entry for the other host does not ask the runtime" {
+            let entry =
+                (wasm "acme.python").WithHosts(HostAvailability.OnlyIn MorphirHost.DotnetTool)
+
+            let runtime =
+                Func<WasmRuntimeAvailability>(fun () -> failtest "the runtime was asked")
+
+            Expect.isFalse (entry.IsAvailableIn(MorphirHost.Native, runtime)) "native"
+        }
+
+        test "each unavailable reason has a description for the runtime report" {
+            Expect.equal
+                (reasons
+                 |> List.map (fun reason -> reason.Description))
+                [
+                    "the engine has no build for this platform"
+                    "the engine's native library is not in this installation"
+                    "the engine's native library is present but did not load"
+                    "the WASM runtime is turned off"
+                ]
+                "descriptions"
         }
 
         test "a catalog keeps a WASM entry beside the built-ins" {
