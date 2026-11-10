@@ -81,7 +81,9 @@ assembly locations, which a single-file bundle does not have. They stay untrimme
 ## Shipped sizes
 
 `PackRelease` writes `<artifact>.build-contents.json` (every shipped file with its size, read from the artifact) and
-regenerates `artifacts/release/size-report.md` over every artifact packed there. These are build outputs, not public
+regenerates `artifacts/release/size-report.md` over every artifact packed there. The report also counts each artifact's
+satellite resource folders: the managed offerings ship 13 (cs, de, es, fr, it, ja, ko, pl, pt-BR, ru, tr, zh-Hans and
+zh-Hant), which hold the translated messages of the F# compiler and FSharp.Core. These are build outputs, not public
 contracts, and there is no size target.
 
 ## Platform status

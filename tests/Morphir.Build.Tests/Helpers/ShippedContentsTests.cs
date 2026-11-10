@@ -90,16 +90,37 @@ public class ShippedContentsTests
         var aot = new ShippedContents("morphir-dotnet-1.2.3-native-aot-win-arm64.zip", "native-aot", "win-arm64", 10_494_982, 1, 28_162_560,
             [new ShippedFile("morphir.exe", 28_162_560)]);
         var managed = new ShippedContents("morphir-dotnet-1.2.3-self-contained-win-arm64.zip", "self-contained", "win-arm64", 56_278_921, 2, 30,
-            [new ShippedFile("morphir.exe", 10), new ShippedFile("de/x.dll", 20)]);
+            [new ShippedFile("morphir.exe", 10), new ShippedFile("de/x.resources.dll", 20)]);
 
         var report = ShippedContents.SizeReport([managed, aot]);
 
-        report.Should().Contain("| native-aot | win-arm64 | `morphir-dotnet-1.2.3-native-aot-win-arm64.zip` | 10,494,982 | 1 | 28,162,560 |");
-        report.Should().Contain("| self-contained | win-arm64 | `morphir-dotnet-1.2.3-self-contained-win-arm64.zip` | 56,278,921 | 2 | 30 |");
+        report.Should().Contain("| Deployment | Platform | Artifact | Archive bytes | Files | Extracted bytes | Satellite resource folders |");
+        report.Should().Contain("| native-aot | win-arm64 | `morphir-dotnet-1.2.3-native-aot-win-arm64.zip` | 10,494,982 | 1 | 28,162,560 | 0 |");
+        report.Should().Contain("| self-contained | win-arm64 | `morphir-dotnet-1.2.3-self-contained-win-arm64.zip` | 56,278,921 | 2 | 30 | 1 |");
         report.IndexOf("| native-aot |", StringComparison.Ordinal).Should().BeLessThan(report.IndexOf("| self-contained |", StringComparison.Ordinal),
             "rows follow the deployment order");
-        report.Should().Contain("| `de/x.dll` | 20 |").And.Contain("| `morphir.exe` | 28,162,560 |");
+        report.Should().Contain("| `de/x.resources.dll` | 20 |").And.Contain("| `morphir.exe` | 28,162,560 |");
         report.Should().Contain("not a size target");
+    }
+
+    [Test]
+    public void SatelliteResourceFoldersAreTheFoldersOfResourceAssemblies()
+    {
+        var contents = new ShippedContents("a.zip", "self-contained", "linux-x64", 1, 6, 6,
+        [
+            new ShippedFile("de/FSharp.Compiler.Service.resources.dll", 1),
+            new ShippedFile("de/FSharp.Core.resources.dll", 1),
+            new ShippedFile("zh-Hans/FSharp.Core.resources.dll", 1),
+            new ShippedFile("pt-BR/FSharp.Core.resources.dll", 1),
+            new ShippedFile("runtimes/linux-x64/native/libx.so", 1),
+            new ShippedFile("morphir", 1),
+        ]);
+        contents.SatelliteFolders.Should().Equal("de", "pt-BR", "zh-Hans");
+
+        // A tool package holds its satellite folders below tools/<tfm>/any/.
+        var tool = new ShippedContents("Morphir.Tool.1.2.3.nupkg", "dotnet-tool", "any", 1, 2, 2,
+            [new ShippedFile("tools/net10.0/any/cs/FSharp.Core.resources.dll", 1), new ShippedFile("tools/net10.0/any/dotnet-morphir.dll", 1)]);
+        tool.SatelliteFolders.Should().Equal("tools/net10.0/any/cs");
     }
 
     private static ReleaseArtifact Artifact(string rid) =>

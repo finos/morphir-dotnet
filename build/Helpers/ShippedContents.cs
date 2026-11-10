@@ -33,6 +33,17 @@ public sealed record ShippedContents(
         WriteIndented = true,
     };
 
+    /// <summary>
+    /// The folders that hold satellite resource assemblies (<c>*.resources.dll</c>, one folder per culture), in ordinal
+    /// order. They hold the translated messages of the F# compiler and FSharp.Core.
+    /// </summary>
+    public IReadOnlyList<string> SatelliteFolders =>
+        Files.Where(file => file.Path.EndsWith(".resources.dll", StringComparison.OrdinalIgnoreCase) && file.Path.Contains('/'))
+            .Select(file => file.Path[..file.Path.LastIndexOf('/')])
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
     /// <summary>The file name of the contents list beside an artifact.</summary>
     public static string FileNameFor(string artifact) => $"{artifact}.build-contents.json";
 
@@ -92,12 +103,12 @@ public sealed record ShippedContents(
         var report = new StringBuilder();
         report.AppendLine("# Shipped sizes");
         report.AppendLine();
-        report.AppendLine("Build output of morphir-dotnet, not a public contract and not a size target. Each artifact's files are read from the artifact. Extracted bytes are the sum of the shipped files.");
+        report.AppendLine("Build output of morphir-dotnet, not a public contract and not a size target. Each artifact's files are read from the artifact. Extracted bytes are the sum of the shipped files. Satellite resource folders hold the translated resources of one culture each.");
         report.AppendLine();
-        report.AppendLine("| Deployment | Platform | Artifact | Archive bytes | Files | Extracted bytes |");
-        report.AppendLine("|---|---|---|---|---|---|");
+        report.AppendLine("| Deployment | Platform | Artifact | Archive bytes | Files | Extracted bytes | Satellite resource folders |");
+        report.AppendLine("|---|---|---|---|---|---|---|");
         foreach (var contents in ordered)
-            report.AppendLine($"| {contents.Deployment} | {contents.Platform} | `{contents.Artifact}` | {Number(contents.ArchiveBytes)} | {contents.FileCount} | {Number(contents.ExtractedBytes)} |");
+            report.AppendLine($"| {contents.Deployment} | {contents.Platform} | `{contents.Artifact}` | {Number(contents.ArchiveBytes)} | {contents.FileCount} | {Number(contents.ExtractedBytes)} | {contents.SatelliteFolders.Count} |");
 
         foreach (var contents in ordered)
         {
