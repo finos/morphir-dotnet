@@ -105,20 +105,54 @@ module Nfc =
 
         output
 
-    /// Canonical ordering: a stable sort of each run of non-starters by combining class.
+    /// <summary>Canonical ordering: a stable sort of each run of non-starters by combining class. A short run is
+    /// sorted by insertion; a long one by counting over the 256 classes, so the cost is linear in the run whatever
+    /// the order of its classes.</summary>
     let private reorder (points: ResizeArray<int>) =
-        for index in 1 .. points.Count - 1 do
-            let mutable at = index
-            let current = points[at]
-            let currentClass = combiningClass current
+        let sortRun (start: int) (finish: int) =
+            if finish - start <= 32 then
+                for index in start + 1 .. finish - 1 do
+                    let current = points[index]
+                    let currentClass = combiningClass current
+                    let mutable at = index
 
-            if currentClass <> 0 then
-                while at > 0 && combiningClass points[at - 1] > currentClass do
-                    points[at] <- points[at - 1]
-                    at <- at - 1
+                    while at > start && combiningClass points[at - 1] > currentClass do
+                        points[at] <- points[at - 1]
+                        at <- at - 1
 
-                points[at] <- current
+                    points[at] <- current
+            else
+                let classes = Array.init (finish - start) (fun offset -> combiningClass points[start + offset])
+                let starts = Array.zeroCreate<int> 257
 
+                for c in classes do
+                    starts[c + 1] <- starts[c + 1] + 1
+
+                for c in 1..256 do
+                    starts[c] <- starts[c] + starts[c - 1]
+
+                let sorted = Array.zeroCreate<int> (finish - start)
+
+                for offset in 0 .. classes.Length - 1 do
+                    let c = classes[offset]
+                    sorted[starts[c]] <- points[start + offset]
+                    starts[c] <- starts[c] + 1
+
+                for offset in 0 .. sorted.Length - 1 do
+                    points[start + offset] <- sorted[offset]
+
+        let mutable index = 0
+
+        while index < points.Count do
+            if combiningClass points[index] = 0 then
+                index <- index + 1
+            else
+                let start = index
+
+                while index < points.Count && combiningClass points[index] <> 0 do
+                    index <- index + 1
+
+                sortRun start index
     /// Canonical composition, in place; returns the new length.
     let private composeAll (points: ResizeArray<int>) =
         if points.Count = 0 then

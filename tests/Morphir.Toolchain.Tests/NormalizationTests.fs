@@ -107,6 +107,30 @@ let tests =
             // characters compose, and no composition's second character is below U+0300.
             let low = NfcTables.compositionKeys |> Array.filter (fun key -> (key &&& 0x1FFFFFUL) < 0x300UL)
             Expect.isEmpty low "compositions whose second character is below U+0300")
+        testCase "canonical ordering is not quadratic in a long run of non-starters" (fun () ->
+            // A starter, n marks of class 230 and n of class 220: every 220 mark must move before every 230 mark. An
+            // insertion sort needs about n * n moves (about 25 s here at this size, four times more per doubling);
+            // the bound is generous so that only a quadratic sort fails it.
+            let n = 50_000
+            let acute = string (char 0x0301)
+            let graveBelow = string (char 0x0316)
+            // "x" composes with none of these marks, so the result is the reordering alone.
+            let text = "x" + String.replicate n acute + String.replicate n graveBelow
+            let watch = Diagnostics.Stopwatch.StartNew()
+            let result = Nfc.normalize text
+            watch.Stop()
+            Expect.equal result ("x" + String.replicate n graveBelow + String.replicate n acute) "class 220 before class 230"
+            Expect.isLessThan watch.Elapsed.TotalSeconds 10.0 $"took {watch.Elapsed.TotalSeconds:F1} s")
+
+        testCase "canonical ordering keeps the order of marks of the same class" (fun () ->
+            // U+0301 and U+0300 are both class 230, U+0316 and U+0317 both class 220; a stable sort keeps each pair's
+            // order, however long the run.
+            let marks (cps: int list) = cps |> List.map (char >> string) |> String.concat ""
+
+            for repeat in [ 1; 40 ] do
+                let run = marks (List.replicate repeat [ 0x0301; 0x0316; 0x0300; 0x0317 ] |> List.concat)
+                let expected = marks (List.replicate repeat [ 0x0316; 0x0317 ] |> List.concat) + marks (List.replicate repeat [ 0x0301; 0x0300 ] |> List.concat)
+                Expect.equal (Nfc.normalize ("x" + run)) ("x" + expected) $"{repeat} groups")
         testCase "unassigned code points pass through with combining class 0" (fun () ->
             // U+0378 is unassigned in 17.0.0, and U+FFFE and U+10FFFF are noncharacters.
             for cp in [ 0x0378; 0xFFFE; 0x10FFFF ] do
