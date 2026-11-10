@@ -100,4 +100,16 @@ let tests =
                 match SourceFormatVersion.parse text with
                 | Ok _ -> failtest "invalid version accepted"
                 | Error _ -> ()
+
+        test "Families and kinds name themselves for C# callers, as reports write them" {
+            Expect.equal [ ModelFamily.Classic.WireValue; ModelFamily.V4.WireValue ] [ "Classic"; "V4" ] "families"
+
+            Expect.equal
+                [ DistributionKind.Library.WireValue; DistributionKind.Specs.WireValue; DistributionKind.Application.WireValue ]
+                [ "Library"; "Specs"; "Application" ]
+                "kinds"
+
+            Expect.equal (string ModelFamily.V4) "V4" "ToString is the wire value"
+            Expect.equal (string DistributionKind.Specs) "Specs" "ToString is the wire value"
+        }
     ]

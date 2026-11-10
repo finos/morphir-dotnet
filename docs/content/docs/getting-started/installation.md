@@ -53,10 +53,11 @@ The operating system must still meet the .NET 10 runtime requirements. On
 Linux these include glibc and ICU (`libicu`), which the folder does not
 contain; this is not verified yet.
 
-Both hosts generate F# with their built-in backend. A separate F# backend
-extension, `Morphir.CodeGeneration.FSharp.Extension` (command
-`morphir-fsharp-backend`), is for other MEP hosts that have no built-in F#
-backend; `morphir generate` does not use it. See
+Both hosts generate F# with their built-in backend by default. A separate F#
+backend extension, `Morphir.CodeGeneration.FSharp.Extension` (command
+`morphir-fsharp-backend`), is for MEP hosts that have no built-in F# backend.
+`morphir generate` runs it only when you select it, with `--extension` or
+`[codegen.fsharp].extension`. See
 [F# generation]({{< relref "/docs/backends/fsharp" >}}).
 
 ### The morphirup toolchain manager
