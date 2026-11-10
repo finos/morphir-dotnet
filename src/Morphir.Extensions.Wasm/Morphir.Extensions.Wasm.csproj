@@ -5,7 +5,6 @@
     <Nullable>enable</Nullable>
     <IsAotCompatible>true</IsAotCompatible>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <IsPackable>false</IsPackable>
     <Description>The WASM extension runtime of morphir-dotnet: Wasmtime with the embedded Extism kernel module.</Description>
   </PropertyGroup>
   <ItemGroup>
@@ -18,7 +17,8 @@
   <ItemGroup>
     <!-- The Extism kernel module of moonrockz/extism; see Kernel/PROVENANCE.md. -->
     <EmbeddedResource Include="Kernel/extism-kernel.wasm" LogicalName="Morphir.Extensions.Wasm.Kernel.extism-kernel.wasm" />
-    <None Include="Kernel/LICENSE;Kernel/NOTICE;Kernel/PROVENANCE.md" />
+    <!-- The kernel is Apache-2.0: its licence, notice and provenance travel with the package that embeds it. -->
+    <None Include="Kernel/LICENSE;Kernel/NOTICE;Kernel/PROVENANCE.md" Pack="true" PackagePath="licenses/extism-kernel/" />
   </ItemGroup>
   <ItemGroup>
     <!--
