@@ -96,51 +96,16 @@ pack-tool-platform:
 pack-all: pack-libs pack-tool
     @echo "All packages created successfully"
 
-# Publish single-file executable for a specific platform
-# Usage: just publish-executable <RID> [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/executables]
-# This creates a self-contained executable that doesn't require .NET to be installed
+# Publish the Native AOT executable (the native-aot profile: no debug symbols, no documentation files)
+# Usage: just publish-executable <RID> [CONFIGURATION=Release] [OUTPUT_DIR=./artifacts/executables]
+# Runs the Nuke target PublishExecutable. The version comes from CHANGELOG.md. No .NET is needed to run the result.
 # Common RIDs: linux-x64, linux-arm64, win-x64, osx-x64, osx-arm64
 publish-executable RID:
     #!/usr/bin/env bash
-    set -e
-    CONFIG="${CONFIGURATION:-Release}"
-    VERSION="${VERSION:-}"
-    OUTPUT_DIR="${OUTPUT_DIR:-./artifacts/executables}"
-    
-    RID_OUTPUT_DIR="$OUTPUT_DIR/{{RID}}"
-    mkdir -p "$RID_OUTPUT_DIR"
-    
-    PUBLISH_ARGS=("--configuration" "$CONFIG" "--self-contained" "true" "--property:PublishSingleFile=true" "--property:PublishTrimmed=true" "--property:PublishAot=true")
-    if [ -n "$VERSION" ]; then
-        PUBLISH_ARGS+=("--property:Version=$VERSION")
-    fi
-    
-    echo "Publishing single-file executable for {{RID}}..."
-    dotnet publish src/Morphir/Morphir.csproj \
-        "${PUBLISH_ARGS[@]}" \
-        --runtime "{{RID}}" \
-        --output "$RID_OUTPUT_DIR"
-    
-    # Find the executable (uses lowercase assembly name)
-    if [[ "{{RID}}" == win-* ]]; then
-        EXE_NAME="morphir.exe"
-    else
-        EXE_NAME="morphir"
-    fi
-    
-    if [ -f "$RID_OUTPUT_DIR/$EXE_NAME" ]; then
-        echo "✓ Created: $RID_OUTPUT_DIR/$EXE_NAME"
-        ls -lh "$RID_OUTPUT_DIR/$EXE_NAME"
-        file "$RID_OUTPUT_DIR/$EXE_NAME"
-    else
-        echo "✗ Error: Executable not found at $RID_OUTPUT_DIR/$EXE_NAME"
-        echo "Contents of $RID_OUTPUT_DIR:"
-        ls -la "$RID_OUTPUT_DIR" 2>/dev/null || echo "Directory does not exist"
-        exit 1
-    fi
+    ./build.sh --target PublishExecutable --rid "{{RID}}" --configuration "${CONFIGURATION:-Release}" --executables-dir "${OUTPUT_DIR:-./artifacts/executables}"
 
-# Publish single-file executables for all platforms
-# Usage: just publish-executables [CONFIGURATION=Release] [VERSION=] [OUTPUT_DIR=./artifacts/executables]
+# Publish the Native AOT executable for all platforms
+# Usage: just publish-executables [CONFIGURATION=Release] [OUTPUT_DIR=./artifacts/executables]
 # This creates self-contained executables that don't require .NET to be installed
 # Note: Cross-compilation may not work on all systems. Use publish-executable for a specific platform.
 publish-executables:

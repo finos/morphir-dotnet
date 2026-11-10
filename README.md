@@ -364,7 +364,9 @@ build.cmd --target PackRelease --deployment native-aot --rid win-arm64
 ./build.sh --target PublishRelease --deployment self-contained --rid win-x64
 ```
 
-Platforms: `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`. Any other RID is refused. Beside each archive, `<archive>.build-launch.json` records its launch path, execution mode, bundled runtime, required runtime or SDK, F# frontend and SHA-256. It is a build output, not a public contract. Building a profile does not qualify a platform: no platform is release-qualified yet.
+Platforms: `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`. Any other RID is refused. Beside each archive, `<archive>.build-launch.json` records its launch path, execution mode, layout (`single-file`, `folder` or `tool-package`), bundled runtime, required runtime or SDK, F# frontend, prerequisites and SHA-256. The operating-system prerequisites are not declared yet; qualifying the artifact on each platform establishes them. It is a build output, not a public contract. `PackRelease` fails when the publish folder contradicts it, for example a `framework-dependent` folder that carries `coreclr`. Building a profile does not qualify a platform: no platform is release-qualified yet.
+
+The same publish folder always gives the same archive bytes. A publish for one RID writes its NuGet lock files under `obj/publish-lock/<rid>/`, so it leaves the committed `packages.lock.json` files alone. To check, run `git status --short` before and after `PackRelease`: it should list nothing new outside `artifacts/`, which is ignored.
 
 On Windows, the Native AOT link needs the Visual Studio C++ build tools for the target architecture, and the ILCompiler targets call `vswhere.exe`. If the link fails with "'vswhere.exe' is not recognized", put `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer` on `PATH` in that shell.
 
