@@ -61,7 +61,7 @@ public sealed class ExecutableExtensionListSteps(ScenarioContext scenarioContext
     public async Task WhenIRunWithTheOtherHost(string command)
     {
         var locator = new ExecutableLocator();
-        var other = ExecutableLocator.CurrentType == "tool" ? locator.GetNativeHostPath() : locator.GetToolPath();
+        var other = ExecutableLocator.IsToolHost(ExecutableLocator.CurrentType) ? locator.GetNativeHostPath() : locator.GetToolPath();
         other.Should().NotBeNull("the other host must be built: build src/Morphir.Tool, or publish or build morphir");
         scenarioContext[OtherResultKey] = await new ExecutableRunner(other!).ExecuteCommandAsync(new TestDataResolver().ResolvePath(command));
     }

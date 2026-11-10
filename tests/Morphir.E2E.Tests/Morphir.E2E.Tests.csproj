@@ -29,6 +29,8 @@
     <Content Include="**/*.feature"/>
     <!-- The worker's crafted guests (add-wasm-extension-host, task 4.1): WebAssembly text and its conversion. -->
     <None Update="TestData/Wasm/*" CopyToOutputDirectory="IfDifferent" />
+    <!-- Host trace fixtures of the infrastructure tests -->
+    <None Include="InfrastructureTests/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
