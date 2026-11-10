@@ -107,7 +107,8 @@ let tests =
 
             yield
                 testCase "command line results" (fun () ->
-                    let directory = CliTests.tempDirectory ()
+                    use directorySandbox = CliTests.tempDirectory ()
+                    let directory = directorySandbox.Work
 
                     for args in
                         [ CliTests.planArgs directory "request/approved.toml"

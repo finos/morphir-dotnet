@@ -54,7 +54,8 @@ let tests =
             | Ok request -> failtestf "morphir.toml was read as a request: %A" request)
 
         testCase "setup and doctor read .morphir/toolchain.toml and leave morphir.toml unchanged" (fun () ->
-            let directory = tempDirectory ()
+            use directorySandbox = tempDirectory ()
+            let directory = directorySandbox.Work
             let morphir = Path.Combine(directory, "morphir.toml")
             File.WriteAllText(morphir, morphirToml)
             let before = File.ReadAllBytes morphir
@@ -62,7 +63,8 @@ let tests =
             let dot = Directory.CreateDirectory(Path.Combine(directory, ".morphir"))
             File.Copy(fixture "request/approved.toml", Path.Combine(dot.FullName, "toolchain.toml"))
             File.Copy(fixture "lock/two-platforms-bound.json", Path.Combine(dot.FullName, "toolchain.lock.json"))
-            let sizes = sizesFile (tempDirectory ())
+            use sizesSandbox = tempDirectory ()
+            let sizes = sizesFile sizesSandbox.Work
 
             let plan =
                 runIn
@@ -85,7 +87,12 @@ let tests =
 
             let doctor = runIn directory Platform.WinX64 [ "doctor" ]
             Expect.equal doctor.Exit 0 $"doctor; stdout: {doctor.Stdout}"
-            Expect.isFalse (plan.Stderr.Contains "morphir.toml" && not (plan.Stderr.Contains "toolchain.toml")) "morphir.toml is not read"
+            // Every file morphirup reads is named on stderr: neither command names <dir>/morphir.toml.
+            for run in [ plan; doctor ] do
+                Expect.isFalse (run.Stderr.Contains morphir) $"{morphir} is not read: {run.Stderr}"
+                Expect.isFalse (run.Stdout.Contains morphir) "nor named in the result"
+
+            Expect.stringContains plan.Stderr (Path.Combine(directory, ".morphir", "toolchain.toml")) "the request that is read"
             Expect.sequenceEqual (File.ReadAllBytes morphir) before "morphir.toml bytes are unchanged"
             Expect.equal (File.GetLastWriteTimeUtc morphir) written "morphir.toml is not rewritten"
 

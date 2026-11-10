@@ -147,6 +147,9 @@
           "YamlDotNet": "[16.3.0, )"
         }
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "morphir.toolchain": {
         "type": "Project",
         "dependencies": {
