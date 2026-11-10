@@ -27,6 +27,8 @@
   <ItemGroup>
     <!-- Gherkin feature files -->
     <Content Include="**/*.feature"/>
+    <!-- Host trace fixtures of the infrastructure tests -->
+    <None Include="InfrastructureTests/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

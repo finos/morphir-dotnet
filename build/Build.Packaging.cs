@@ -177,16 +177,12 @@ partial class Build
             PublishExtensionProcess(FSharpFrontendExtensionProject, "morphir-fsharp-frontend", Rid!);
         });
 
-    /// <summary>
-    /// The MSBuild property that every RID-specific publish of the build sets to true. src/Directory.Build.props then
-    /// writes the publish's lock files under obj/publish-lock/&lt;rid&gt;/, so the committed packages.lock.json files
-    /// do not change. The same name is <c>TargetSettings.RidSpecificPublishProperty</c> on feat/release-profiles.
-    /// </summary>
-    const string RidSpecificPublishProperty = "MorphirRidSpecificPublish";
 
     /// <summary>
     /// Publishes an extension project with a publish profile (by default SelfContainedProcess, which the project
-    /// defines) for one runtime identifier, then archives the folder with its files at the archive root. The lock
+    /// defines) for one runtime identifier, then archives the folder with <see cref="ReleaseArchive"/>, the writer of the
+    /// release profiles, with its files at the archive root. The publish sets
+    /// <see cref="TargetSettings.RidSpecificPublishProperty"/>, so its lock files go under obj/publish-lock/. The lock
     /// file of the publish is kept beside the archive as <c>{name}-{version}-{rid}.packages.lock.json</c>. Returns the
     /// folder and the archive; logs the file count and sizes of both.
     /// </summary>
@@ -203,7 +199,7 @@ partial class Build
             .SetConfiguration(Configuration)
             .SetRuntime(rid)
             .SetProperty("PublishProfile", profile)
-            .SetProperty(RidSpecificPublishProperty, "true")
+            .SetProperty(TargetSettings.RidSpecificPublishProperty, "true")
             .SetOutput(folder));
 
         var executable = rid.StartsWith("win-", StringComparison.OrdinalIgnoreCase) ? $"{name}.exe" : name;
@@ -213,8 +209,9 @@ partial class Build
         }
 
         var stem = $"{name}-{versionString}-{rid}";
-        var archive = ExtensionProcessesDir / $"{stem}{ProcessArchive.ExtensionFor(rid)}";
-        ProcessArchive.Create(folder, archive, rid, ProcessArchive.ExecutablesFor(executable));
+        var format = ReleaseArchive.FormatFor(rid);
+        var archive = ExtensionProcessesDir / $"{stem}{ReleaseArchive.ExtensionFor(format)}";
+        ReleaseArchive.Create(folder, archive, format, ReleaseArchive.ExecutablesFor(executable));
 
         var lockFile = project.Parent / "obj" / "publish-lock" / rid / "packages.lock.json";
         if (!File.Exists(lockFile))
@@ -223,8 +220,9 @@ partial class Build
         }
         File.Copy(lockFile, ExtensionProcessesDir / $"{stem}.packages.lock.json", overwrite: true);
 
-        var (files, bytes) = ProcessArchive.Measure(folder);
-        Serilog.Log.Information($"✓ {folder}: {files} files, {bytes} bytes");
+        var files = ReleaseArchive.Files(folder);
+        var bytes = files.Sum(file => new FileInfo(folder / file).Length);
+        Serilog.Log.Information($"✓ {folder}: {files.Length} files, {bytes} bytes");
         Serilog.Log.Information($"✓ {archive}: {new FileInfo(archive).Length} bytes");
         return (folder, archive);
     }
