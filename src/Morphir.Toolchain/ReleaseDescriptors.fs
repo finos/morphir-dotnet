@@ -21,8 +21,9 @@ type ToolRelease =
       Version: SemVer
       Channels: Channel list
       Status: RecipeStatus
-      /// The requirement on the acquiring Morphir CLI, as written. A manager never evaluates it.
-      MorphirCli: NonBlankText
+      /// The requirement on the acquiring Morphir CLI, as written: text with a character outside ECMA-262 white space,
+      /// as the schema's <c>\S</c> requires. A manager never evaluates it.
+      MorphirCli: string
       Artifacts: ToolReleaseArtifact list }
 
 /// <summary>
@@ -32,9 +33,12 @@ type ToolRelease =
 /// binding check reports any of them as <c>release_descriptor_mismatch</c> at the offering.
 /// </summary>
 /// <remarks>Read but not used by the checks: <c>tool.name</c>, <c>channels</c>, <c>status</c>,
-/// <c>compatibility.morphirCli</c> (validated as non-blank text, never evaluated), and each artifact's
-/// <c>archive</c> and <c>launch</c> (validated in shape). No other version is read: <c>schemaVersion</c> is exactly
-/// <c>1</c>.</remarks>
+/// <c>compatibility.morphirCli</c> (validated as the schema's <c>\S</c>, never evaluated), and each artifact's
+/// <c>archive</c> and <c>launch</c> (validated in shape). No other version is read: <c>schemaVersion</c> is the number
+/// <c>1</c>, in any JSON spelling equal to it, as the schema's <c>const: 1</c> compares numbers (<c>1.0</c>,
+/// <c>1e0</c>). Where the v1 profile has no rule of its own the reader follows the schema (review of #583, A6); it
+/// keeps the bounds the toolchain contract states: a tool id of at most 182 characters and a version of at most 256
+/// characters, with numeric parts of at most 15 digits.</remarks>
 module ToolReleaseDocument =
     open Reading
 
@@ -47,7 +51,49 @@ module ToolReleaseDocument =
         | Some(name, _) -> refuse ReaderCode.InvalidDocument (o.Path.Child name)
         | None -> Ok()
 
-    let private nonBlank = validated (fun text -> NonBlankText.tryParse text |> Result.mapError (fun _ -> ReaderCode.InvalidValue))
+    /// ECMA-262 white space and line terminators, the <c>\s</c> of the schema's patterns: TAB, VT, FF, ZWNBSP, the
+    /// Zs category, LF, CR, LS and PS. NEL (U+0085) is not among them, though .NET counts it as white space.
+    let private isEcmaWhiteSpace (c: char) =
+        match int c with
+        | 0x09 | 0x0B | 0x0C | 0x20 | 0xA0 | 0xFEFF | 0x1680 | 0x202F | 0x205F | 0x3000 -> true
+        | 0x0A | 0x0D | 0x2028 | 0x2029 -> true
+        | code -> code >= 0x2000 && code <= 0x200A
+
+    /// The schema's <c>"pattern": "\\S"</c> with <c>minLength</c> 1: some character is not ECMA-262 white space.
+    let private schemaText =
+        validated (fun (text: string) -> if text |> Seq.exists (isEcmaWhiteSpace >> not) then Ok text else Error ReaderCode.InvalidValue)
+
+    /// <summary>Whether a JSON number spelling is the number 1, as JSON Schema's <c>const</c> compares numbers:
+    /// <c>1</c>, <c>1.0</c>, <c>1e0</c> and <c>10e-1</c> are, <c>1.5</c> and <c>-1</c> are not. The digits are compared
+    /// exactly, never through a floating-point value.</summary>
+    let internal isOne (spelling: string) =
+        let mantissa, exponent =
+            match spelling.IndexOfAny [| 'e'; 'E' |] with
+            | -1 -> spelling, "0"
+            | at -> spelling.Substring(0, at), spelling.Substring(at + 1)
+
+        let integer, fraction =
+            match mantissa.IndexOf '.' with
+            | -1 -> mantissa, ""
+            | at -> mantissa.Substring(0, at), mantissa.Substring(at + 1)
+
+        let negative, magnitude =
+            match exponent with
+            | e when e.StartsWith '-' -> true, e.Substring 1
+            | e when e.StartsWith '+' -> false, e.Substring 1
+            | e -> false, e
+
+        let magnitude = magnitude.TrimStart '0'
+        let digits = (integer + fraction).TrimStart '0'
+        let significant = digits.TrimEnd '0'
+
+        // The value is significant x 10^scale; it is 1 exactly when significant is "1" and scale is 0. A document is at
+        // most 1 MiB, so a scale of 0 needs an exponent of fewer than 8 digits.
+        not (integer.StartsWith '-')
+        && significant = "1"
+        && magnitude.Length < 8
+        && (let exponent = (if magnitude = "" then 0 else int magnitude) * (if negative then -1 else 1)
+            exponent - fraction.Length + (digits.Length - significant.Length) = 0)
 
     /// A string of the schema's <c>relativePath</c>: not empty, not absolute, no drive prefix, no empty, <c>.</c> or
     /// <c>..</c> segment, no backslash, no trailing <c>/</c>, and no NUL, line feed, carriage return, U+2028 or U+2029.
@@ -74,7 +120,8 @@ module ToolReleaseDocument =
         result {
             let! o = asObject n
             do! closed [ "os"; "arch" ] o
-            let! os = required "os" (validated (fun text -> if Token.isToken 64 text then Ok text else Error ReaderCode.InvalidValue)) o
+            // The schema's portableToken, which has no length bound; the toolchain contract states none for os.
+            let! os = required "os" (validated (fun text -> if Token.isToken System.Int32.MaxValue text then Ok text else Error ReaderCode.InvalidValue)) o
             let! arch = required "arch" (validated (fun text -> if isArch text then Ok text else Error ReaderCode.InvalidValue)) o
             return { Os = os; Arch = arch }
         }
@@ -111,7 +158,7 @@ module ToolReleaseDocument =
     let private body (o: ObjectNode) : Read<ToolRelease> =
         result {
             match tryMember "schemaVersion" o with
-            | Some { Value = Value.Number "1" } -> ()
+            | Some { Value = Value.Number spelling } when isOne spelling -> ()
             | Some { Value = Value.Number _; Path = path } -> return! refuse ReaderCode.UnsupportedContractVersion path
             | _ -> return! refuse ReaderCode.InvalidDocument (o.Path.Child "schemaVersion")
 
@@ -125,7 +172,7 @@ module ToolReleaseDocument =
             let! tool = objectMember "tool" o
             do! closed [ "id"; "name" ] tool
             let! toolId = required "id" (validated ToolId.tryParse) tool
-            let! _ = required "name" nonBlank tool
+            let! _ = required "name" schemaText tool
             let! version = required "version" version o
             let! channels = required "channels" (distinctArray (validated Channel.tryParse)) o
 
@@ -134,7 +181,7 @@ module ToolReleaseDocument =
 
             let! compatibility = objectMember "compatibility" o
             do! closed [ "morphirCli" ] compatibility
-            let! morphirCli = required "morphirCli" (validated (fun text -> NonBlankText.tryParse text |> Result.mapError (fun _ -> ReaderCode.InvalidValue))) compatibility
+            let! morphirCli = required "morphirCli" schemaText compatibility
 
             let! artifactNodes = required "artifacts" items o
             let! artifacts = artifactNodes |> Result.traverse artifact

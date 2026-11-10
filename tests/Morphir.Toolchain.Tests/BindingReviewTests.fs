@@ -208,7 +208,7 @@ let tupleTests =
         testCase "the same text binds" (fun () -> irVersion "4.0.0-K" |> expectOutcome "valid")
 
         testCase "KELVIN SIGN is not K, though NFC maps one to the other" (fun () ->
-            irVersion "4.0.0-K" |> expectOutcome "release_descriptor_mismatch @ providers[0].modelTuple")
+            irVersion ("4.0.0-" + string (char 0x212A)) |> expectOutcome "release_descriptor_mismatch @ providers[0].modelTuple")
 
         testCase "member order does not matter" (fun () ->
             let reversed (tuple: Value) =
@@ -618,4 +618,45 @@ let listingTests =
                 let artifacts = items (memberOf "artifacts" release)
                 let first = artifacts.Head |> setAt [ "platform"; "arch" ] (str "aarch64")
                 setAt [ "artifacts" ] (Value.Array(first :: artifacts)) release) ]
+    ]
+/// A string of the characters with these code points, written so that no editor normalizes them.
+let private chars (codes: int list) = codes |> List.map (char >> string) |> String.concat ""
+
+[<Tests>]
+let schemaReadingTests =
+    let readRelease (edit: Value -> Value) = ToolReleaseDocument.read (bytesOf (edit (valueOf nativeRelease))) |> readerOutcome
+
+    // Review of #583, A6: where the v1 profile has no rule of its own the reader matches tool-release-v1.schema.json;
+    // the bounds the toolchain contract states for tool ids and versions are kept.
+    testList "The v1 reader against tool-release-v1.schema.json" [
+        testCase "an os longer than 64 characters is read, as the schema reads it" (fun () ->
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "platform"; "os" ] (str (String.replicate 65 "w")))) "read" "65"
+            Expect.equal (readRelease (setAt [ "artifacts"; "0"; "platform"; "os" ] (str "Windows"))) "invalid_value @ artifacts[0].platform.os" "not a token")
+
+        testCase "a tool id over 182 characters and a version over 256 are refused, as the toolchain contract bounds them" (fun () ->
+            Expect.equal (readRelease (setAt [ "tool"; "id" ] (str (String.replicate 183 "t")))) "invalid_value @ tool.id" "183"
+            Expect.equal (readRelease (setAt [ "tool"; "id" ] (str (String.replicate 182 "t")))) "read" "182"
+            Expect.equal (readRelease (setAt [ "version" ] (str ("1.2.3-" + String.replicate 251 "a")))) "invalid_value @ version" "257"
+            Expect.equal (readRelease (setAt [ "version" ] (str "1234567890123456.0.0"))) "invalid_value @ version" "16 digits")
+
+        testCase "tool.name and morphirCli need a character outside ECMA-262 white space" (fun () ->
+            // ECMA-262 WhiteSpace and LineTerminator: TAB, VT, FF, ZWNBSP, the Zs category, LF, CR, LS and PS.
+            let ecma =
+                [ 0x09; 0x0B; 0x0C; 0xFEFF; 0x20; 0xA0; 0x1680; 0x2000; 0x2001; 0x2002; 0x2003; 0x2004; 0x2005; 0x2006
+                  0x2007; 0x2008; 0x2009; 0x200A; 0x202F; 0x205F; 0x3000; 0x0A; 0x0D; 0x2028; 0x2029 ]
+
+            for name, path in [ "tool.name", [ "tool"; "name" ]; "compatibility.morphirCli", [ "compatibility"; "morphirCli" ] ] do
+                Expect.equal (readRelease (setAt path (str (chars [ 0xFEFF ])))) $"invalid_value @ {name}" $"{name}: ZWNBSP"
+                Expect.equal (readRelease (setAt path (str (chars ecma)))) $"invalid_value @ {name}" $"{name}: ECMA white space only"
+
+                // NEL, the Mongolian vowel separator (Cf since Unicode 6.3) and ZWSP are not ECMA white space.
+                for code in [ 0x85; 0x180E; 0x200B; int 'x' ] do
+                    Expect.equal (readRelease (setAt path (str (chars [ code ])))) "read" $"{name}: U+{code:X4}")
+
+        testCase "a schemaVersion equal to 1 as a number is read, however it is spelled" (fun () ->
+            for spelling in [ "1"; "1.0"; "1e0"; "1E0"; "10e-1"; "0.1e1"; "1.000e+0"; "100E-2" ] do
+                Expect.equal (readRelease (setAt [ "schemaVersion" ] (Value.Number spelling))) "read" spelling
+
+            for spelling in [ "2"; "1.5"; "0"; "-1"; "-1.0"; "1e400"; "1e-400"; "11e-1"; "0.99999999999999999999999999999"; "1e99999999999" ] do
+                Expect.equal (readRelease (setAt [ "schemaVersion" ] (Value.Number spelling))) "unsupported_contract_version @ schemaVersion" spelling)
     ]
