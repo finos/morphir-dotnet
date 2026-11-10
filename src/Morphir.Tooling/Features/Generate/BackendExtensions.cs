@@ -47,7 +47,8 @@ public sealed class MepBackendExtensionConnector : IBackendExtensionConnector
     /// <inheritdoc />
     public async Task<Outcome<IExternalGenerationBackend>> ConnectAsync(BackendExtensionRequest request, CancellationToken ct)
     {
-        var (executable, arguments) = MepExtensionCommand.Resolve(request.Extension.Value, request.WorkingDirectory);
+        if (!MepExtensionCommand.TryResolve(request.Extension.Value, request.WorkingDirectory, out var executable, out var arguments, out var error))
+            return new Outcome<IExternalGenerationBackend>.Failure(GenerationFailure.One(GenerationFailureKind.Operational, "extension.unavailable", error));
         var options = new MepBackendOptions(executable, arguments, request.Target)
         {
             WorkingDirectory = request.WorkingDirectory,

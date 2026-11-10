@@ -102,9 +102,16 @@ extension = "morphir-fsharp-backend"
 
 The command reads the value as `compile` reads a frontend extension:
 
-- A name without a directory is a command on `PATH`.
+- A name without a directory is searched only in the absolute directories of `PATH`, in order, and the
+  command starts that absolute path. It is never taken from the invocation directory or from the directory of
+  `morphir` itself. Starting a bare name directly would look there first: CreateProcess searches the
+  application's directory and the current directory before `PATH` on Windows, and .NET does the same on Unix.
+  On Windows the name matches a `.exe` or `.com` file, in `PATHEXT` order, and batch files are not started. On
+  Unix the file must be executable. A name that is not on `PATH` fails with `extension.unavailable`; to run a
+  file in the current directory, give a path such as `./guest`.
 - A relative path is relative to the invocation directory.
-- A path that ends in `.dll` runs on the `dotnet` host (`DOTNET_HOST_PATH` when it is set).
+- A path that ends in `.dll` runs on the `dotnet` host: `DOTNET_HOST_PATH` when it is set, else `dotnet`
+  searched on `PATH` in the same way.
 
 `generate` loads the model first, then starts the guest with explicit arguments and no shell, and passes the
 guest's stderr to its own stderr. It agrees the session with `initialize` and offers JSON IR in the tuples

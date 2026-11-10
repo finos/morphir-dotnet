@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `compile --extension`: a frontend guest that never answers `compileModel` now fails with `extension.timeout` at the deadline, and a guest that does not answer `shutdown` or take `exit` within the deadline (for example one whose handler blocks its read loop) has its process tree stopped. Before, the host could wait indefinitely in both cases. The same holds for `generate --extension`, so a timed-out request ends within about two deadlines
 - A frontend or backend guest that fails to start or initialize no longer leaves its stderr reader or process handle behind
 
+### Security
+- `compile --extension`, `generate --extension` and the `extension` configuration keys: a command name without a directory (for example `morphir-fsharp-backend`) is now searched only in the absolute `PATH` directories, and the resolved absolute path starts. Before, process start also looked in the directory of `morphir` and in the current directory first (CreateProcess on Windows, and .NET on Unix), so a checkout could plant a binary of that name and have it run. A `.dll` extension's `dotnet` host is resolved the same way when `DOTNET_HOST_PATH` is not set. A name that is not on `PATH` now fails with `extension.unavailable` before any process starts. `MepFrontendExtensionConnector.Resolve` throws `FileNotFoundException` for such a name instead of returning it unchanged
+
 ## [0.4.0-alpha.3] - 2026-11-09
 
 ### Added

@@ -17,7 +17,8 @@ public sealed class MepFrontendExtensionConnector : IFrontendExtensionConnector
     /// <inheritdoc />
     public Task<Checked<IFrontend>> ConnectAsync(FrontendExtensionRequest request, CancellationToken ct)
     {
-        var (executable, arguments) = Resolve(request.Extension.Value, request.WorkingDirectory);
+        if (!MepExtensionCommand.TryResolve(request.Extension.Value, request.WorkingDirectory, out var executable, out var arguments, out var error))
+            return Task.FromResult(Checked<IFrontend>.Fail([Diagnostic.Create(DiagnosticSeverity.Error, MepFrontendCodes.Unavailable, error, null)]));
         var options = MepFrontendOptions.Create(executable, arguments, request.WorkingDirectory, Console.Error,
             MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
         return MepFrontend.ConnectCheckedAsync(options, ct);
@@ -25,7 +26,8 @@ public sealed class MepFrontendExtensionConnector : IFrontendExtensionConnector
 
     /// <summary>
     /// The executable and arguments for an extension setting, as <see cref="MepExtensionCommand.Resolve"/> gives
-    /// them for frontend and backend extensions alike.
+    /// them for frontend and backend extensions alike. A name without a directory is searched only on PATH, and a
+    /// name that is not there throws <see cref="FileNotFoundException"/>.
     /// </summary>
     public static (string Executable, string[] Arguments) Resolve(string extension, string workingDirectory) =>
         MepExtensionCommand.Resolve(extension, workingDirectory);
