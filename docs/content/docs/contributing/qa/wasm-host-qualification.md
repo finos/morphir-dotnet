@@ -39,7 +39,7 @@ opens a `HostSession` on the same `WasmChannel` in process. The reference is
 | The relay, the start-up order and the exit statuses | `src/Morphir.Tooling/Features/Extensions/ExtensionWorker.cs`, `WorkerMessage.cs` |
 | The stderr events | `src/Morphir.Tooling/Features/Extensions/WorkerReport.cs` |
 | The build identity, and the engine identity it covers | `WorkerBuildIdentity.cs`, `WasmRuntimeIdentity.cs` |
-| Stdio, Ctrl+C and the private directory | `ExtensionWorkerProcess.cs`, called from `Morphir.Program.Run` before the CLI host is built |
+| Stdio, Ctrl+C and the private directory | `ExtensionWorkerProcess.cs`, called from `MorphirApplication.Run`, where every entry point starts, before the CLI host is built |
 | Service tests | `tests/Morphir.Tooling.Tests/Features/Extensions/ExtensionWorker*Tests.cs` |
 | Process tests, both executables | `tests/Morphir.E2E.Tests/Features/ExecutableExtensionWorker.*` |
 

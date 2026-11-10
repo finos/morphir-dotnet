@@ -23,8 +23,9 @@ morphir extension worker --abi <profile> --module <path> --build-identity <hex>
 morphir extension worker --help [--json]
 ```
 
-Both executables have it: `morphir` and `dotnet-morphir`. Each starts the worker before it builds the
-rest of the command line, so the worker starts fast and nothing but MEP frames reaches stdout.
+Both executables have it: `morphir` and `dotnet-morphir`, and so does the managed `morphir` built from
+`src/Morphir.Managed`, which is not published yet. Each starts the worker before it builds the rest of the
+command line, so the worker starts fast and nothing but MEP frames reaches stdout.
 
 ## Description
 

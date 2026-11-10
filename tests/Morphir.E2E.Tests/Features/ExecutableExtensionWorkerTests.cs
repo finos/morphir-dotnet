@@ -10,7 +10,9 @@ namespace Morphir.E2E.Tests.Features;
 /// <summary>
 /// <c>extension worker</c> of the executable under test, driven through its process (task 4.1 of
 /// add-wasm-extension-host): cases of the pinned crafted corpus, and Ctrl+Break on Windows. Run the assembly once with
-/// <c>MORPHIR_EXECUTABLE_TYPE=tool</c> and once for <c>morphir</c> to cover both executables.
+/// <c>MORPHIR_EXECUTABLE_TYPE=tool</c> and once for <c>morphir</c> to cover both executables. The managed <c>morphir</c>
+/// (<c>src/Morphir.Managed</c>), which is not published yet, is covered by pointing <c>MORPHIR_EXECUTABLE_PATH</c> at its
+/// app host.
 /// </summary>
 public sealed class ExecutableExtensionWorkerTests
 {
