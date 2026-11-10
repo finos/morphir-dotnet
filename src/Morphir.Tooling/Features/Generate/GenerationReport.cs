@@ -19,6 +19,14 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? BackendVersion { get; init; }
 
+    /// <summary>
+    /// Whether the backend formatted the generated files: <c>applied</c>, <c>off</c> (the backend option turned it off) or
+    /// <c>unavailable</c> (formatting was asked for, but this host cannot run the formatter). Written only when the
+    /// backend reports it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Formatting { get; init; }
+
     public static GenerationReport From(Outcome<GenerationSuccess> outcome, GenerateOverrides invocation) => outcome switch
     {
         Outcome<GenerationSuccess>.Success success => new(true, 0, success.Value.Target, success.Value.Backend, success.Value.InputPath,
@@ -28,6 +36,7 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
         {
             BackendTransport = success.Value.BackendTransport,
             BackendVersion = success.Value.BackendVersion,
+            Formatting = success.Value.Formatting,
         },
         Outcome<GenerationSuccess>.Failure failure => new(false, Exit(failure.Error.Kind), invocation.Target, failure.Error.Backend, invocation.Input, invocation.Output,
             null, null, null, null, [], [], [], [], failure.Error.Diagnostics.ToArray(), failure.Error.Kind.ToString().ToLowerInvariant())

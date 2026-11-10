@@ -11,7 +11,7 @@ namespace Morphir.Tooling.Features.Generate;
 /// <summary>Static F# provider over semantic models. Publication belongs to its caller.</summary>
 public sealed class FSharpGenerationBackend : IGenerationBackend
 {
-    private sealed record Options(bool Optimize) : ValidatedBackendOptions;
+    private sealed record Options(bool Optimize, bool Format) : ValidatedBackendOptions;
 
     public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create("morphir.fsharp"), ExtensionName.Create("F# generator"), TargetId.Create("fsharp"),
     [
@@ -24,15 +24,19 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
 
     public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options)
     {
+        // optimize: exact constant folding. format: Fantomas formatting when the host can run it; false writes the
+        // emitter's own text with LF line endings and one final LF. Both are Boolean and true when absent.
         var optimize = true;
+        var format = true;
         foreach (var (key, value) in options.Values)
         {
-            if (key != "optimize" || value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            if (key is not ("optimize" or "format") || value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
                 return new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
-                    "invalid-backend-option", $"F# accepts only the Boolean option 'optimize'; received '{key}'."));
-            optimize = value.GetBoolean();
+                    "invalid-backend-option", $"F# accepts only the Boolean options 'optimize' and 'format'; received '{key}'."));
+            if (key == "optimize") optimize = value.GetBoolean();
+            else format = value.GetBoolean();
         }
-        return new Outcome<ValidatedBackendOptions>.Success(new Options(optimize));
+        return new Outcome<ValidatedBackendOptions>.Success(new Options(optimize, format));
     }
 
     public ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct)
@@ -46,7 +50,7 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
 
         var context = VFileModule.fromPath(request.Model.Original.SourcePath);
         context = VFileModule.set(Transpiler.requiredSemantics, SetModule.OfSeq(request.Model.Descriptor.RequiredSemantics), context);
-        var tree = Transpiler.generateModelWith(new GenerationOptions(options.Optimize, true), request.Model.Model, context);
+        var tree = Transpiler.generateModelWith(new GenerationOptions(options.Optimize, options.Format), request.Model.Model, context);
         var diagnostics = tree.Messages.Select(message => new GenerationDiagnostic(
             message.RuleId?.Value ?? "generation", message.Message, message.Path?.Value, message.Location?.Value,
             message.Severity.IsError || message.Severity.IsFatal ? "error" : message.Severity.IsWarning ? "warning" : "info")).ToImmutableArray();
@@ -54,6 +58,10 @@ public sealed class FSharpGenerationBackend : IGenerationBackend
             return ValueTask.FromResult(Fail(GenerationFailureKind.Cancelled, "cancelled", "Generation was cancelled."));
         return ValueTask.FromResult<Outcome<GenerationArtifacts>>(VFileTreeModule.hasErrors(tree)
             ? new Outcome<GenerationArtifacts>.Failure(new(GenerationFailureKind.Semantic, diagnostics))
-            : new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics)));
+            : new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics) { Formatting = FormattingOf(tree) }));
     }
+
+    /// <summary>What the generator recorded about formatting: applied, off or unavailable.</summary>
+    private static string? FormattingOf(VFileTree tree) =>
+        VFileTreeModule.tryGet(Transpiler.formatting, tree) is { } recorded ? recorded.Value : null;
 }

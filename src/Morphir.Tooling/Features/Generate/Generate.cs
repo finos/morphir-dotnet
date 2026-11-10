@@ -14,6 +14,9 @@ public sealed record GenerationSuccess(string Target, string Backend, string Inp
 
     /// <summary>The version of the external backend that ran, as the extension gave it; null for a built-in.</summary>
     public string? BackendVersion { get; init; }
+
+    /// <summary>Whether the backend formatted the files: <c>applied</c>, <c>off</c> or <c>unavailable</c>; null when it does not report it.</summary>
+    public string? Formatting { get; init; }
 }
 
 /// <summary>Coordinates generation through injectable application boundaries in the existing mediator.</summary>
@@ -136,7 +139,8 @@ public static class GenerationStages
             var receipt = ((Outcome<GenerationPublication>.Success)publication).Value;
             return new Outcome<GenerationSuccess>.Success(new(backend.Descriptor.Target.Value, backend.Descriptor.Id.Value, model.Original.SourcePath,
                 settings.Publication.OutputDirectory, model.Model.SourceVersion.Text, family, kind,
-                model.Representation.ToString(), receipt, artifacts.Diagnostics));
+                model.Representation.ToString(), receipt, artifacts.Diagnostics)
+            { Formatting = artifacts.Formatting });
         }
         catch (OperationCanceledException) { return Cancelled(backendIdentity); }
         catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))

@@ -51,8 +51,19 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
         return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(failure), new()), json);
     }
 
+    /// <summary>
+    /// The warnings of a report, for stderr only: today one, when the backend was asked to format (the default) but
+    /// this host cannot run the formatter, as the Native AOT <c>morphir</c> cannot run Fantomas.
+    /// </summary>
+    public static IReadOnlyList<string> Warnings(GenerationReport report) =>
+        report.Formatting == "unavailable"
+            ? [$"warning: {report.Backend ?? report.Target} did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unformatted text. Pass --option format=false to ask for that text explicitly, or use dotnet-morphir for formatted files."]
+            : [];
+
     private static int Render(GenerationReport report, bool json)
     {
+        // Warnings go to stderr in every mode; stdout holds only the report or the artifact paths.
+        foreach (var warning in Warnings(report)) Console.Error.WriteLine(warning);
         if (json) ConsoleOutputHelper.WriteLineToStdout(report.ToJson());
         else
         {

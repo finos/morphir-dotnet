@@ -206,6 +206,31 @@ let tests =
               finally
                   dispose backend
 
+          testCase "With format false the guest writes the same bytes as the built-in backend, and the adapter reports off"
+          <| fun _ ->
+              let backend = connect (realGuest ())
+
+              try
+                  for fixture in [ "daily-rate-v4.json"; "daily-rate-v3.json" ] do
+                      let model = load (irFixture fixture)
+                      let external = artifactsOf (generateWith backend model [ "format", "false" ])
+                      Expect.equal external.Formatting "off" $"{fixture}: the adapter reports off"
+
+                      let builtIn =
+                          artifactsOf (generateWith (FSharpGenerationBackend()) model [ "format", "false" ])
+
+                      Expect.equal builtIn.Formatting "off" $"{fixture}: the built-in reports off"
+
+                      let bytesOf (artifacts: GenerationArtifacts) =
+                          [ for path, text in filesOf artifacts.Tree -> path, Text.Encoding.UTF8.GetBytes(text: string) ]
+
+                      Expect.equal (bytesOf external) (bytesOf builtIn) $"{fixture}: the same paths, order and bytes"
+
+                      for path, text in filesOf external.Tree do
+                          Expect.isFalse (text.Contains '\r') $"{fixture}/{path}: LF only"
+              finally
+                  dispose backend
+
           testCase "The guest runs with the environment that the options give, not the host's"
           <| fun _ ->
               let writer = new StringWriter()

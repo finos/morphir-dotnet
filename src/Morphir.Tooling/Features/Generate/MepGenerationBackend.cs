@@ -264,7 +264,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
 
         var reply = await _guest.SendAsync(Method.GenerateModel, parameters, ct);
         return reply.Match(
-            result => FromResult(result, source),
+            result => FromResult(result, source, FormattingRequested(options.Values)),
             error => error.Code switch
             {
                 (int)ErrorCode.InvalidParams => Fail(GenerationFailureKind.Invocation, "extension.not_admitted", $"Extension {Identity} refused the request: {error.Message}"),
@@ -277,7 +277,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     }
 
     /// <summary>Maps a generate result: a failure with its diagnostics, or the artifacts after the path check.</summary>
-    private Outcome<GenerationArtifacts> FromResult(JsonElement element, string source)
+    private Outcome<GenerationArtifacts> FromResult(JsonElement element, string source, string? formatting)
     {
         Outcome<GenerationArtifacts> Fail(GenerationFailureKind kind, string code, string message) =>
             new Outcome<GenerationArtifacts>.Failure(GenerationFailure.One(kind, code, message, source));
@@ -320,7 +320,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
 
         var tree = VFileTreeModule.fromFileMap(MapModule.OfSeq(files));
         tree = VFileTreeModule.set(VFileTreeModule.declaredOrder, ListModule.OfSeq(files.Select(entry => entry.Item1)), tree);
-        return new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics));
+        return new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics) { Formatting = formatting });
     }
 
     /// <summary>
@@ -387,6 +387,14 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         var conflict = files.FirstOrDefault(directories.Contains);
         return conflict is null ? null : (conflict, "the path is both a file and a directory of another path.");
     }
+
+    /// <summary>
+    /// The formatting that the host can report for a guest: <c>off</c> when it sent the option <c>format</c> false and the guest
+    /// accepted it (a guest that does not know the option refuses the request). A MEP generate result does not say whether a
+    /// guest formatted, so otherwise the host reports nothing.
+    /// </summary>
+    private static string? FormattingRequested(ImmutableDictionary<string, JsonElement> options) =>
+        options.TryGetValue("format", out var format) && format.ValueKind == JsonValueKind.False ? "off" : null;
 
     /// <summary>The agreed tuple that a model needs: IR 4.0.0 for a v4 model, 3.0.0 for a classic version 3 model.</summary>
     private static ModelTransportTuple? TupleFor(ModelDescriptor model) => model.Version.Text switch

@@ -230,7 +230,15 @@ public sealed record BackendDescriptor
 
 /// <summary>Backends receive no output directory, configuration reader or publication service.</summary>
 public sealed record BackendGenerationRequest(LoadedModel Model, TargetId Target, ValidatedBackendOptions Options);
-public sealed record GenerationArtifacts(VFileTree Tree, ImmutableArray<GenerationDiagnostic> Diagnostics);
+public sealed record GenerationArtifacts(VFileTree Tree, ImmutableArray<GenerationDiagnostic> Diagnostics)
+{
+    /// <summary>
+    /// Whether the backend formatted the files: <c>applied</c>, <c>off</c> (its option turned formatting off) or
+    /// <c>unavailable</c> (formatting was asked for, but this host cannot run the formatter); null when the backend does
+    /// not report it.
+    /// </summary>
+    public string? Formatting { get; init; }
+}
 
 public sealed record GenerationPublication(ImmutableArray<string> Artifacts, ImmutableArray<string> Written,
     ImmutableArray<string> Unchanged, ImmutableArray<string> Removed);

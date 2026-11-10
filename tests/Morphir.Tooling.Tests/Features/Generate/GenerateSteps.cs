@@ -133,7 +133,7 @@ public sealed class GenerateSteps : IDisposable
         json.RootElement.GetProperty("backend").GetString().Should().Be("morphir.fsharp");
         json.RootElement.EnumerateObject().Select(member => member.Name).Should().Equal(
             "success", "exitCode", "target", "backend", "input", "output", "sourceVersion", "family", "distributionKind",
-            "representation", "artifacts", "written", "unchanged", "removed", "diagnostics", "failureKind");
+            "representation", "artifacts", "written", "unchanged", "removed", "diagnostics", "failureKind", "formatting");
     }
 
     [Then("generation exits with {int} and one JSON report")]
