@@ -133,12 +133,13 @@ module RecipeBindings =
             cache[key] <- value
             value
 
-    /// The bytes the source serves for an authenticated target. A source that has none, or fails, has not served
-    /// them: <c>repository_unavailable</c> at the binding member.
+    /// The bytes the source serves for an authenticated target. A source that has none, fails, or returns
+    /// <c>Some null</c> (a C# or reflection caller can) has not served them: <c>repository_unavailable</c> at the binding
+    /// member (review of #583, A4).
     let private fetch (bytesOf: string -> byte array option) (target: string) (at: DocumentPath) =
         match (try bytesOf target with _ -> None) with
-        | Some bytes -> Ok bytes
-        | None -> trust TrustCode.RepositoryUnavailable at
+        | Some bytes when not (isNull (box bytes)) -> Ok bytes
+        | _ -> trust TrustCode.RepositoryUnavailable at
 
     /// Served bytes against their authenticated entry, length before digest, refused at the binding member.
     let private read (entry: AuthenticatedTarget) (bytes: byte array) (at: DocumentPath) =

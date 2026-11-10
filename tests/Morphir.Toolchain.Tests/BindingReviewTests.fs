@@ -213,3 +213,31 @@ let tupleTests =
             |> editTarget frontendTarget (eachArtifact (fun artifact -> setAt tuplePath (reversed (valueAt tuplePath artifact)) artifact))
             |> expectOutcome "valid")
     ]
+[<Tests>]
+let servedBytesTests =
+    let releaseTarget = "releases/morphir-dotnet-native-aot/1.2.3.json"
+
+    let checkServing (target: string) (serve: unit -> byte array option) =
+        let bytesOf (name: string) =
+            if name = target then serve () else SignedCaseTests.tryTargetBytes name
+
+        let recipe = readRecipe (valueOf recipeTarget)
+
+        match RecipeBindings.check (SignedCaseTests.repository ()) (SignedCaseTests.authenticatedTargets "metadata") bytesOf recipe with
+        | Ok _ -> "valid"
+        | Error refusal -> $"{Code.name refusal.Code} @ {DocumentPath.render refusal.Path}"
+
+    // Review of #583, A4 (Some null) and B24 (a source that throws): neither may leave the check as an exception.
+    testList "A source that serves no bytes has not served the target" [
+        testCase "Some null for a descriptor" (fun () ->
+            Expect.equal (checkServing frontendTarget (fun () -> Some(Unchecked.defaultof<byte array>))) "repository_unavailable @ providers[0].descriptorTarget" "the outcome")
+
+        testCase "Some null for a host release" (fun () ->
+            Expect.equal (checkServing releaseTarget (fun () -> Some(Unchecked.defaultof<byte array>))) "repository_unavailable @ hosts[0].source" "the outcome")
+
+        testCase "a source that throws for a descriptor" (fun () ->
+            Expect.equal (checkServing frontendTarget (fun () -> failwith "the source failed")) "repository_unavailable @ providers[0].descriptorTarget" "the outcome")
+
+        testCase "a source that throws for a host release" (fun () ->
+            Expect.equal (checkServing releaseTarget (fun () -> raise (System.IO.IOException "the source failed"))) "repository_unavailable @ hosts[0].source" "the outcome")
+    ]
