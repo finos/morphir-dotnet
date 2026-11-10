@@ -63,7 +63,10 @@ backend; `morphir generate` does not use it. See
 Releases also attach `morphirup`, the standalone toolchain manager, as `morphirup-linux-x64`,
 `morphirup-linux-arm64`, `morphirup-osx-arm64` and `morphirup-win-x64.exe`, each also in a
 `morphirup-<rid>-v<version>.tar.gz` archive, with the checksum file `morphirup-v<version>.sha256`. It is one
-Native AOT file that needs neither .NET nor ICU. This first release reads toolchain documents and prints plans; it
+Native AOT file that needs neither .NET nor ICU. The Linux files need glibc 2.35 or later (Ubuntu 22.04, Debian 12 or
+later) and nothing else from the machine, and do not run on musl distributions such as Alpine. Each archive holds
+`LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES.txt` beside the executable, and the release carries the notices as
+`morphirup-v<version>-THIRD-PARTY-NOTICES.txt`. This first release reads toolchain documents and prints plans; it
 does not download, install, update or activate a toolchain, and it does not verify signed metadata. The files are not
 code-signed, and the macOS file is not notarized. See
 [Download and verify]({{< relref "/docs/cli/morphirup#download-and-verify" >}}) for the commands and for what the

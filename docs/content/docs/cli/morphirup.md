@@ -23,9 +23,15 @@ Releases of morphir-dotnet attach `morphirup` for four platforms, beside the `mo
 | Windows x64 | `morphirup-win-x64.exe` | `morphirup-win-x64-v<version>.tar.gz` |
 | macOS ARM64 | `morphirup-osx-arm64` | `morphirup-osx-arm64-v<version>.tar.gz` |
 
-Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`. The file
-`morphirup-v<version>.sha256` lists the SHA-256 of every `morphirup` asset of the release, in the format that
-`sha256sum -c` reads. It shows that the file you have is the file the release published. It is not a signature:
+A Linux executable needs glibc 2.35 or later from the machine, which Ubuntu 22.04, Debian 12 and later releases of both
+have, and nothing else: no .NET, no ICU and no OpenSSL. It does not run on musl distributions such as Alpine.
+
+Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`, with the repository's
+`LICENSE` and `NOTICE` and the executable's `THIRD-PARTY-NOTICES.txt` beside it. The release also carries that file as
+`morphirup-v<version>-THIRD-PARTY-NOTICES.txt`, for the bare executables: it lists the packages, the .NET runtime and
+the Unicode data that Native AOT compiled in, with their licenses and notices. The file
+`morphirup-v<version>.sha256` lists the SHA-256 of every `morphirup` asset of the release, the notices file included,
+in the format that `sha256sum -c` reads. It shows that the file you have is the file the release published. It is not a signature:
 verifying signed release metadata is later work.
 
 On Linux:
@@ -56,9 +62,15 @@ Select-String -Path ".\morphirup-v$version.sha256" -Pattern ' morphirup-win-x64.
 
 The release job checks each executable on a GitHub-hosted runner of its platform. It runs the published file from a
 folder whose path has a space, with `PATH` reduced to the system folders and no `DOTNET_*` variable. The file must
-print the release version and make a plan-only setup whose plan digest matches a recorded one. On Linux it runs the
-same commands in the `debian:12-slim` image, which has glibc 2.36 and neither .NET nor `libicu`. Nothing more is
-checked: no other distribution, glibc version or operating-system version is tested.
+print the release version and make a plan-only setup whose plan digest matches a recorded one.
+
+A Native AOT executable needs the glibc of the machine that linked it, or newer. So the Linux executables are linked
+in an `ubuntu:22.04` image pinned by digest, which has glibc 2.35, and not on the runner. The release job reads the
+glibc versions each Linux executable needs (`readelf --version-info`) and fails if one is above 2.35. It then runs the
+same commands in `debian:12-slim` (glibc 2.36) and in the `ubuntu:22.04` build image (glibc 2.35), after checking that
+neither image has .NET, `libicu`, `libssl` or `libcrypto`. It also checks that each archive holds exactly the four
+files above and that the notices name every package the compiler linked. Nothing more is checked: no other
+distribution, glibc version or operating-system version is tested.
 
 The executables are not code-signed, and the macOS executable is not notarized. On macOS, a file that a browser
 downloads carries the quarantine attribute, and Gatekeeper refuses to open it because Apple cannot check it for
@@ -96,18 +108,23 @@ Check in both `.morphir/toolchain.toml` and `.morphir/toolchain.lock.json`. The 
 
 ## Commands
 
-`setup --plan` and `doctor` write one manager result document (`0.1.0-draft.1`, see the [contract](https://github.com/finos/morphir/blob/main/docs/spec/toolchain/manager-result.md)) to standard output and their progress to standard error. `--version`, `--help` and a command line that cannot be parsed write no result document. JSON is the only output format of this build; `--json` is accepted.
+`setup --plan` and `doctor` write one manager result document (`0.1.0-draft.1`, see the [contract](https://github.com/finos/morphir/blob/1451c081f56cf5b74618302d315dcdbe573028a1/docs/spec/toolchain/manager-result.md), a draft in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to) to standard output and their progress to standard error. `--version`, `--help` and a command line that cannot be parsed write no result document. JSON is the only output format of this build; `--json` is accepted.
 
 | Exit code | Meaning |
 | --- | --- |
 | 0 | The result is `planned` or `succeeded` |
 | 1 | The result is `failed`: a document was refused or a check failed |
-| 2 | A command line that cannot be parsed: an unknown or repeated option, a missing value. Nothing is written to standard output; the message is on standard error |
+| 2 | A command line this build cannot run: an unknown or repeated option; a missing value; an invalid option value; `setup` without `--recipe` or `--repository-id`; a machine that is not one of the [supported platforms](#platforms-and-prerequisites); a downloaded artifact whose size is missing from `--artifact-sizes`. Nothing is written to standard output; the message is on standard error |
 | 3 | **Provisional.** Internal error. Nothing is written to standard output. The result contract defines exit codes 0, 1 and 2 only |
 
 A request, lock or recipe that is absent or cannot be read is not exit code 2: the command runs and fails with `document_unavailable` (`unsupported-contract`, naming the document, at the empty path), exit 1.
 
 An option value never starts with `--`: `--project --plan` is refused as a missing value rather than read as a folder named `--plan`.
+
+<!-- PENDING (manager-core worker, via the orchestrator): sentences on the plan digest and CRLF, `--repository-id`,
+     the nesting bound and the discovery boundary go here. Do not write them here; they come from fix/morphirup-prerelease-review. -->
+**Pending:** the sentences on the plan digest and CRLF line endings, `--repository-id`, the nesting bound and the
+discovery boundary are still to come.
 
 ### Files
 
@@ -196,5 +213,5 @@ The executable needs no .NET runtime and no ICU: it is built in invariant global
 
 ## Related
 
-- [Toolchain acquisition contracts](https://github.com/finos/morphir/blob/main/docs/spec/toolchain/index.md) in finos/morphir
+- [Toolchain acquisition contracts](https://github.com/finos/morphir/blob/1451c081f56cf5b74618302d315dcdbe573028a1/docs/spec/toolchain/index.md) in finos/morphir: a draft, in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to
 - `src/Morphir.Toolchain`, the document readers, resolution and planning this command uses
