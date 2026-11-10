@@ -11,10 +11,11 @@
       dynamic-runner     engine as libwasmtime.so beside the executable, linked on this runner
       static-jammy       engine linked in, linked inside the build image (ubuntu:22.04 pinned by digest, glibc 2.35)
       dynamic-jammy      engine as libwasmtime.so, linked inside the build image
-      static-jammy-managed-probe, static-jammy-managed-library
+      static-jammy-managed-probe, -library, -library-random, -library-random-icu
                          EXPERIMENT: static-jammy with SHA256.HashData replaced by BouncyCastle's managed digest in
-                         the probe only, or in Morphir.Extensions.Wasm (and so the probe); see
-                         scripts/wasm-engine-linux-floor/ManagedSha256.targets. No tracked file changes.
+                         the probe only, or in Morphir.Extensions.Wasm (and so the probe), then also
+                         RandomNumberGenerator from /dev/urandom, then that without invariant globalization; see
+                         scripts/wasm-engine-linux-floor/ManagedCrypto.targets. No tracked file changes.
 
     For each it records the shared libraries the executable needs (readelf -d, ldd), the highest GLIBC_ version it
     needs and the symbols that need it, and, for the static builds, which of those symbols libwasmtime.a references.
@@ -49,7 +50,7 @@ $WorkDirectory = (Resolve-Path $WorkDirectory).Path
 $probeDirectory = Join-Path $root 'tests/Morphir.Extensions.Wasm.AotProbe'
 $libraryDirectory = Join-Path $root 'src/Morphir.Extensions.Wasm'
 $project = Join-Path $probeDirectory 'Morphir.Extensions.Wasm.AotProbe.csproj'
-$experimentTargets = Join-Path $PSScriptRoot 'wasm-engine-linux-floor/ManagedSha256.targets'
+$experimentTargets = Join-Path $PSScriptRoot 'wasm-engine-linux-floor/ManagedCrypto.targets'
 $exeName = 'Morphir.Extensions.Wasm.AotProbe'
 $libraryName = 'libwasmtime.so'
 $glibcFloor = [version]::new(2, 35, 0)
@@ -123,7 +124,7 @@ function Get-Highest([object[]] $Imports) {
 
 function Get-Signal([int] $ExitCode) {
     if ($ExitCode -le 128 -or $ExitCode -gt 128 + 64) { return $null }
-    $names = @{ 4 = 'SIGILL'; 6 = 'SIGABRT'; 7 = 'SIGBUS'; 8 = 'SIGFPE'; 9 = 'SIGKILL'; 11 = 'SIGSEGV'; 15 = 'SIGTERM' }
+    $names = @{ 4 = 'SIGILL'; 5 = 'SIGTRAP'; 6 = 'SIGABRT'; 7 = 'SIGBUS'; 8 = 'SIGFPE'; 9 = 'SIGKILL'; 11 = 'SIGSEGV'; 15 = 'SIGTERM' }
     $number = $ExitCode - 128
     return $names.ContainsKey($number) ? "$($names[$number]) ($number)" : "signal $number"
 }
@@ -165,7 +166,7 @@ function New-BuilderImage {
     return "${name}:latest"
 }
 
-function Invoke-Publish([string] $Name, [bool] $Static, [string] $Place, [string] $Experiment = '') {
+function Invoke-Publish([string] $Name, [bool] $Static, [string] $Place, [string] $Experiment = '', [string[]] $Extra = @()) {
     Write-Step "publish $Name"
     $out = Join-Path $WorkDirectory "publish-$Name"
     $log = Join-Path $WorkDirectory "publish-$Name.log"
@@ -175,7 +176,8 @@ function Invoke-Publish([string] $Name, [bool] $Static, [string] $Place, [string
     $arguments = @('publish', $project, '-c', 'Release', '-r', $Rid, '-p:MorphirProbeAot=true', '-o', $out,
         '-nologo', '-tl:off', '-clp:Summary', '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false')
     if ($Static) { $arguments += '-p:MorphirWasmtimeStaticLink=true' }
-    if ($Experiment) { $arguments += @("-p:CustomAfterMicrosoftCommonTargets=$experimentTargets", "-p:MorphirExperimentManagedSha256=$Experiment") }
+    $arguments += $Extra
+    if ($Experiment) { $arguments += @("-p:CustomAfterMicrosoftCommonTargets=$experimentTargets", "-p:MorphirExperimentManagedCrypto=$Experiment") }
 
     $started = Get-Date
     if ($Place -eq 'runner') {
@@ -215,7 +217,8 @@ exit "$status"
         name            = $Name
         static          = $Static
         linkedIn        = $Place -eq 'runner' ? "runner ($RunnerLabel)" : $BuildImage
-        experiment      = $Experiment ? "managed SHA-256 in $Experiment" : $null
+        experiment      = $Experiment ? "managed crypto: $Experiment" : $null
+        extraArguments  = $Extra
         publishExitCode = $exitCode
         seconds         = [int]((Get-Date) - $started).TotalSeconds
         linkedOn        = @($lines | Where-Object { $_ -match '^Publishing in ' } | Select-Object -First 1)
@@ -398,6 +401,9 @@ $builds['static-jammy'] = Invoke-Publish 'static-jammy' $true 'jammy'
 $builds['dynamic-jammy'] = Invoke-Publish 'dynamic-jammy' $false 'jammy'
 $builds['static-jammy-managed-probe'] = Invoke-Publish 'static-jammy-managed-probe' $true 'jammy' 'probe'
 $builds['static-jammy-managed-library'] = Invoke-Publish 'static-jammy-managed-library' $true 'jammy' 'library'
+$builds['static-jammy-managed-library-random'] = Invoke-Publish 'static-jammy-managed-library-random' $true 'jammy' 'library-random'
+# The same without invariant globalization, as src/Morphir is published today: what ICU is needed for.
+$builds['static-jammy-managed-library-random-icu'] = Invoke-Publish 'static-jammy-managed-library-random-icu' $true 'jammy' 'library-random' @('-p:InvariantGlobalization=false')
 
 # Attribution: of the glibc symbols a static executable imports, those that libwasmtime.a references, and those the
 # dynamic executable of the same link place (the .NET runtime and the probe, no engine) imports too.

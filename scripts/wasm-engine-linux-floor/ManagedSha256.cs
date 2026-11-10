@@ -1,7 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 //
-// EXPERIMENT, not a product change: see ManagedSha256.targets beside this file. Compiled only into the publish that
+// EXPERIMENT, not a product change: see ManagedCrypto.targets beside this file. Compiled only into the publish that
 // passes that file; it shadows System.Security.Cryptography.SHA256 in one namespace with BouncyCastle's managed digest,
 // which needs no OpenSSL.
 using Org.BouncyCastle.Crypto.Digests;
