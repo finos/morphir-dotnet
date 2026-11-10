@@ -197,6 +197,15 @@ let tests =    testList "Generation options" [
 
             Expect.equal attribute (Some false) "[MaybeNullWhen(false)] on the out value, for C# flow analysis"
 
+        testCase "Every unformatted path renders with the unformatted rule, so the default without the formatter writes the bytes of Format false"
+        <| fun () ->
+            // Text the emitter does not write today (a CR, no final LF, extra final LFs): the paths must still agree.
+            for source in [ "module A\r\nlet x = 1"; "module A\nlet x = 1"; "module A\n\n\n"; "module A\rlet x = 1\r\n" ] do
+                let off = Morphir.CodeGeneration.FSharp.Emit.render FSharpFormatting.Off source
+                Expect.equal (Morphir.CodeGeneration.FSharp.Emit.render FSharpFormatting.Unavailable source) off "Unavailable is Off"
+                Expect.isFalse (off.Contains '\r') "LF only"
+                Expect.isTrue (off.EndsWith "\n" && not (off.EndsWith "\n\n")) "exactly one final LF"
+
         testCase "FSharpFormatting gives C# its wire values, and ToString is the wire value"
         <| fun () ->
             for value, wire in [ FSharpFormatting.Applied, "applied"; FSharpFormatting.Off, "off"; FSharpFormatting.Unavailable, "unavailable" ] do

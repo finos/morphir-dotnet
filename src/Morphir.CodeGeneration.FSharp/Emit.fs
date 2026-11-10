@@ -286,10 +286,12 @@ module internal Emit =
             // The check stays here, around the only call of Fantomas: Native AOT compiles IsDynamicCodeSupported to
             // false and removes this branch, so Fantomas and its reflection are not in the native image.
             | FSharpFormatting.Applied when System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported -> formatCore source
-            | FSharpFormatting.Applied -> source
-            | FSharpFormatting.Off -> unformatted source
-            // The default under Native AOT keeps the bytes that it wrote before formatting became a setting.
-            | FSharpFormatting.Unavailable -> source
+            // Every path that does not format applies the same rule, so the default without the formatter (Native AOT)
+            // writes the bytes of Format false by construction. The emitter's text already follows the rule (it joins
+            // with LF and ends with one LF), so these bytes are those the default wrote before.
+            | FSharpFormatting.Applied
+            | FSharpFormatting.Off
+            | FSharpFormatting.Unavailable -> unformatted source
         with error ->
             Decode.fail
                 "fsharp-generation"

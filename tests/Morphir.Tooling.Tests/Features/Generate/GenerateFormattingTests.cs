@@ -186,6 +186,27 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    public async Task OnAHostThatCannotFormatTheDefaultWritesTheBytesOfFormatFalse()
+    {
+        using var sandbox = TestSandbox.Create("morphir-format-host-");
+        foreach (var (name, model) in new[] { ("daily-rate", Model), ("case", Path.Combine(CaseDirectory, "expected", "ir-4.0.0.json")) })
+        {
+            var run = await RunWithoutDynamicCode(sandbox, "generate", "--input", model, "--target", "fsharp", "--output", sandbox.PathOf("default-" + name), "--json");
+            run.ExitCode.Should().Be(0, run.CombinedOutput);
+            JsonNode.Parse(run.StandardOutput)!["formatting"]!.GetValue<string>().Should().Be("unavailable");
+
+            var off = await RunWithoutDynamicCode(sandbox, "generate", "--input", model, "--target", "fsharp", "--output", sandbox.PathOf("off-" + name),
+                "--option", "format=false", "--json");
+            off.ExitCode.Should().Be(0, off.CombinedOutput);
+            var artifacts = JsonNode.Parse(off.StandardOutput)!["artifacts"]!.AsArray().Select(item => item!.GetValue<string>()).ToArray();
+            artifacts.Should().NotBeEmpty();
+            foreach (var path in artifacts)
+                (await File.ReadAllBytesAsync(sandbox.PathOf("default-" + name, path)))
+                    .Should().Equal(await File.ReadAllBytesAsync(sandbox.PathOf("off-" + name, path)), $"{name}/{path}");
+        }
+    }
+
+    [Test]
     public async Task OnAHostThatCannotFormatHumanModeKeepsStdoutToTheArtifactPaths()
     {
         using var sandbox = TestSandbox.Create("morphir-format-host-");
