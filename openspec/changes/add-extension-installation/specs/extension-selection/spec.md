@@ -2,15 +2,15 @@
 
 ## Purpose
 
-Decides which installed version of an extension a command uses, from the global catalog, .NET level pins and a toolchain generation overlay, and checks the installed bytes again before they run, without contacting any repository.
+Decides which installed version of an extension a command uses, from the shared catalog, the .NET global layer, .NET level pins and a toolchain generation overlay, and checks the installed bytes again before they run, without contacting any repository. The level pins and the overlay serve a contract that belongs in finos/morphir's toolchain specifications; until that contract exists, the requirements that define them are provisional.
 
 ## ADDED Requirements
 
 ### Requirement: Selection layers have a fixed precedence
-For each extension id a host SHALL use the first layer that selects it, in this order: the generation overlay, the project pin, the workspace pin, the global catalog, the system pin (Q-LEVELS, Q-OVERLAY). Project and workspace SHALL be found with the project system's discovery boundary.
+Provisional pending Q-LEVELS, Q-OVERLAY and the shared toolchain contract. For each id a host SHALL use the first layer that selects it: the generation overlay, the project pin, the workspace pin, the .NET global layer, the shared catalog, the system pin. Project and workspace SHALL be found with the project system's discovery boundary. A layer whose selection is broken SHALL stop resolution of that id.
 
 #### Scenario: Project pins a newer version
-- **WHEN** the global catalog selects `morphir-fsharp-backend` 0.1.0 and the project pin selects 0.2.0
+- **WHEN** the shared catalog selects `acme-backend` 0.1.0 and the project pin selects 0.2.0
 - **THEN** commands in that project use 0.2.0 and commands elsewhere use 0.1.0
 
 #### Scenario: Overlay wins
@@ -18,17 +18,17 @@ For each extension id a host SHALL use the first layer that selects it, in this 
 - **THEN** the command uses 0.3.0
 
 ### Requirement: Isolation omits machine layers
-When discovery is isolated, the host SHALL omit the system pin and the global catalog, and SHALL keep the overlay and the project and workspace pins, which still resolve against the inventory in Morphir Home.
+When discovery is isolated, the host SHALL omit the system pin, the .NET global layer and the shared catalog, and SHALL keep the overlay and the project and workspace pins, which still resolve against the inventory in Morphir Home.
 
 #### Scenario: Isolated test run
-- **WHEN** `MORPHIR_ISOLATED` is set and the global catalog selects an extension that no project pin names
+- **WHEN** `MORPHIR_ISOLATED` is set and the shared catalog selects an extension that no project pin names
 - **THEN** that extension is not selected
 
 ### Requirement: A pin file is portable
-A level pin file SHALL be `.morphir/extensions/selection.json` at its level, with `schemaVersion` `0.1.0-draft.1` and `extensions` sorted by id. Each entry SHALL have `extensionId`, `version`, `runtime`, and the digest per platform identifier, or one `portable` digest for WASM. It SHALL hold no absolute path and no credential.
+Provisional pending Q-LEVELS and the shared toolchain contract. A level pin file SHALL be `.morphir/extensions/selection.json` at its level, with `schemaVersion` `0.1.0-draft.1` and `extensions` sorted by id. Each entry SHALL have `extensionId`, `version`, `runtime`, and the digest per platform identifier, or one `portable` digest for WASM. It SHALL hold no absolute path and no credential.
 
 #### Scenario: Pin for two platforms
-- **WHEN** a project pins `morphir-fsharp-backend` 0.2.0 after installs on `win-x64` and `linux-x64`
+- **WHEN** a project pins `acme-backend` 0.2.0 after installs on `win-x64` and `linux-x64`
 - **THEN** its entry has `artifacts` with the members `linux-x64` and `win-x64`, each with a `sha256`, and no file system path
 
 #### Scenario: Unknown members
@@ -43,7 +43,7 @@ A host SHALL refuse a pin file whose `schemaVersion` is not exactly a draft it l
 - **THEN** the host refuses it and names the version
 
 ### Requirement: Pins resolve against the local inventory only
-A host SHALL resolve a pin through the .NET inventory by id and the digest for its platform. A pin with no installed record SHALL fail with `extension.not_installed`, naming the id, version and the install command. It SHALL NOT fetch content or fall back to a lower layer.
+A host SHALL resolve a pin through the .NET inventory by id and the digest for its platform. A pin with no installed record SHALL fail with `extension.not_installed`, naming the id, version and the install command, and a pin without a digest for the running platform SHALL fail with `extension.platform_not_pinned`. It SHALL NOT fetch content or fall back to a lower layer.
 
 #### Scenario: Cloned project on a new machine
 - **WHEN** a project pin names a version that this machine has not installed
@@ -55,7 +55,7 @@ A host SHALL resolve a pin through the .NET inventory by id and the digest for i
 - **THEN** the command fails with `extension.platform_not_pinned` naming `osx-arm64`
 
 ### Requirement: A generation overlay is supplied by its path
-A host SHALL read a generation overlay only when `MORPHIR_EXTENSION_OVERLAY` names an absolute directory below `toolchains/generations/` in Morphir Home that holds a pin file. Another path SHALL be refused with `extension.overlay_invalid`. The host and installer SHALL never write into an overlay.
+Provisional pending Q-OVERLAY and the shared toolchain contract. A host SHALL read a generation overlay only when `MORPHIR_EXTENSION_OVERLAY` names an absolute directory below `toolchains/generations/` in Morphir Home that holds a pin file. Another path SHALL be refused with `extension.overlay_invalid`. The host and installer SHALL never write into an overlay.
 
 #### Scenario: Overlay outside Morphir Home
 - **WHEN** `MORPHIR_EXTENSION_OVERLAY` names `/tmp/gen`
@@ -63,46 +63,46 @@ A host SHALL read a generation overlay only when `MORPHIR_EXTENSION_OVERLAY` nam
 
 #### Scenario: Global selection untouched
 - **WHEN** two projects run under overlays that select versions 0.2.0 and 0.3.0 of one id
-- **THEN** each uses its own version, and the global catalog still selects the version it selected before
+- **THEN** each uses its own version, and the global selection still names the version it named before
 
 ### Requirement: Old global catalogs stay readable under an overlay
-An overlay or pin SHALL NOT require a change to the global catalog or locks. A host SHALL read a global catalog written by any upstream release whose format this host reads, with or without an overlay.
+An overlay or pin SHALL NOT require a change to the shared catalog or locks. A host SHALL read a shared catalog written by any upstream release whose format this host reads, with or without an overlay.
 
 #### Scenario: Catalog from an older Rust CLI
-- **WHEN** the global catalog has `schemaVersion` `"1.0"` and entries converted from version 1 records, and an overlay is set
+- **WHEN** the shared catalog has `schemaVersion` `"1.0"` and entries converted from version 1 records, and an overlay is set
 - **THEN** ids that the overlay does not select resolve from that catalog
 
-### Requirement: One registry entry per id
-After precedence, each id SHALL appear once in the host's registry. Two entries with one id inside one layer, or an installed id equal to a built-in id, SHALL fail with `extension.duplicate_id`. A lower layer's entry for a selected id SHALL be reported as shadowed, not as a second entry.
-
-#### Scenario: Duplicate in a pin file
-- **WHEN** a project pin file lists `morphir-fsharp-backend` twice
-- **THEN** `extension list` fails with exit code 2 and `extension.duplicate_id`
-
-#### Scenario: Shadowed global version
-- **WHEN** the project pin and the global catalog both select `morphir-fsharp-backend`
-- **THEN** `extension list --json` has one entry for it, at level `project`, and `extension which` names the global selection as shadowed
-
 ### Requirement: Activation checks the installed bytes offline
-Before it starts a guest, a host SHALL load the selected record and its lock, check that they agree, check that the store path resolves inside Morphir Home, hash the bytes, check the executable mode on Unix, and check that a recorded MEP version is one it supports. Any failure SHALL stop before guest code runs. This is the parent contract's activation.
+Before it starts a guest, a host SHALL load the selected record and, for a shared entry, its lock, check that they agree, check that the store path resolves inside Morphir Home, check the executable mode on Unix, and check that a recorded MEP version is one it speaks. Any failure SHALL stop before guest code runs. This is the parent contract's activation.
 
 #### Scenario: Bytes changed after install
 - **WHEN** the store object of a selected extension was modified after install
 - **THEN** the command fails with `extension.digest_mismatch` and starts no process
 
 ### Requirement: Only verified bytes run
-A host SHALL launch a process extension from a private copy of the bytes it just verified, in a new directory below `tmp/extensions/` in Morphir Home, by absolute path, with the locked arguments exactly, an argument vector, no shell and no console window on Windows. It SHALL remove the copy after the process exits.
+A host SHALL hash the store object in the same read that produces its private copy, below `tmp/extensions/` in Morphir Home, and SHALL launch the copy only after that digest matched. It SHALL launch it by absolute path with the locked arguments, an argument vector, no shell and no console window on Windows, and SHALL remove the copy after the process exits.
 
 #### Scenario: Store object replaced during a run
 - **WHEN** another process changes the store object while the guest runs
 - **THEN** the running guest is the verified copy, and the next activation detects the change
 
+#### Scenario: Store object changed between hash and copy
+- **WHEN** a test seam changes the store object after the first bytes were read
+- **THEN** the digest of the copied bytes differs, the command fails with `extension.digest_mismatch`, and no process starts
+
 #### Scenario: Uninstall while running on Windows
 - **WHEN** a user uninstalls an extension while a compile runs it on Windows
 - **THEN** the uninstall succeeds, and the running compile is not affected
 
+### Requirement: An activated guest gets a filtered environment and an explicit directory
+A host SHALL start an activated process guest with a cleared environment holding only the variables the probe passes plus those the command documents for guests, and with an explicit working directory chosen by the command: the project directory for project commands and the private copy's directory otherwise.
+
+#### Scenario: Secret not inherited
+- **WHEN** the user's environment holds `GITHUB_TOKEN` and `morphir compile` starts an installed frontend
+- **THEN** the guest's environment has no `GITHUB_TOKEN`, and its working directory is the project directory
+
 ### Requirement: Windows launch paths fit the process API
-On Windows, a host SHALL refuse to launch a private copy whose absolute path is longer than the process creation API accepts, with `extension.path_too_long` naming the path and the limit, before it starts the process. Store and state files SHALL use paths that the .NET file APIs accept beyond 260 characters (Q-WINLAUNCH).
+Provisional: it rests on an assumption about the Windows process API that task 6.6 checks, and is dropped if the assumption is wrong (Q-WINLAUNCH). On Windows, a host SHALL refuse to launch a private copy whose absolute path is longer than the process creation API accepts, with `extension.path_too_long` naming the path and the limit, before it starts the process.
 
 #### Scenario: Deep Morphir Home
 - **WHEN** Morphir Home is so deep that the private copy's path exceeds the limit
@@ -120,10 +120,10 @@ A host SHALL compare the guest's initialization result with the installed claim 
 - **THEN** the host refuses the session and calls no operation
 
 ### Requirement: Configuration names an installed extension by id
-A frontend table SHALL name an installed extension with `[frontend.<language>] extension_id = "<id>"`, apart from the existing `extension` path. Setting both SHALL be a configuration error. A named id SHALL resolve through the selection layers, and an unresolved id SHALL fail with `extension.not_installed` (Q-CONFIGREF).
+Provisional pending Q-CONFIGREF. A frontend table SHALL name an installed extension with `[frontend.<language>] extension_id = "<id>"`, apart from the existing `extension` path. Setting both SHALL be a configuration error. A named id SHALL resolve through the selection layers, and an unresolved id SHALL fail with `extension.not_installed`.
 
 #### Scenario: Compile with an installed frontend
-- **WHEN** `morphir.toml` has `[frontend.fsharp] extension_id = "morphir-fsharp-frontend"` and that id is installed
+- **WHEN** `morphir.toml` has `[frontend.fsharp] extension_id = "acme-frontend"` and that id is installed
 - **THEN** `morphir compile` starts the verified private copy of the selected version
 
 #### Scenario: Path and id together
@@ -131,17 +131,17 @@ A frontend table SHALL name an installed extension with `[frontend.<language>] e
 - **THEN** configuration loading fails and names both members
 
 ### Requirement: Use writes a pin for an installed version
-`extension use <id> --version <semver> [--level project|workspace|global|system]` SHALL select an installed version at the level, default `project`. At the global level it SHALL replace the catalog entry and lock in one transaction. It SHALL refuse a version with no installed record for this platform.
+Provisional pending Q-LEVELS and Q-COMMANDS. `extension use <id> --version <semver> [--level project|workspace|global|system]` SHALL select an installed version at the level, default `project`. At the global level it SHALL replace the global selection in the place the shared catalog admission rule gives. It SHALL refuse a version with no installed record for this platform.
 
 #### Scenario: Use a version that is not installed
-- **WHEN** a user runs `morphir extension use morphir-fsharp-backend --version 9.9.9`
+- **WHEN** a user runs `morphir extension use acme-backend --version 9.9.9`
 - **THEN** the command fails with `extension.not_installed` and no pin changes
 
 ### Requirement: Which explains a selection
-`extension which <id>` SHALL report the layer that selects `<id>`, its version, digest, store path and claim check, and every lower layer that also selects it.
+Provisional pending Q-COMMANDS. `extension which <id>` SHALL report the layer that selects `<id>`, its version, digest, store path and claim check, and every lower layer that also selects it.
 
 #### Scenario: Which as JSON
-- **WHEN** a user runs `morphir extension which morphir-fsharp-backend --json` in a project with a pin
+- **WHEN** a user runs `morphir extension which acme-backend --json` in a project with a pin
 - **THEN** stdout has one JSON document with `level` `project`, `version`, `digest`, `storePath`, `claimCheck` and `shadowed`
 
 ### Requirement: Level pin writes are atomic and serialized
@@ -150,3 +150,4 @@ Writes of a pin file SHALL replace it atomically and SHALL be serialized by a lo
 #### Scenario: Two writers
 - **WHEN** two `extension use` commands change the same project pin file at once
 - **THEN** the file afterwards is the complete result of one of them followed by the other
+</content>
