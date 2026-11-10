@@ -99,7 +99,7 @@ public static class MepExtensionCommand
         "directory or the host's directory; give a path (for example ./" + name + ") to run a file there.";
 
     /// <summary>The first absolute PATH entry that holds the command, as an absolute path, or null.</summary>
-    private static string? FindOnPath(string name, string? searchPath, string? pathExtensions)
+    internal static string? FindOnPath(string name, string? searchPath, string? pathExtensions)
     {
         if (string.IsNullOrEmpty(searchPath)) return null;
         var candidates = OperatingSystem.IsWindows() && !Path.HasExtension(name)
@@ -123,7 +123,8 @@ public static class MepExtensionCommand
         return null;
     }
 
-    private static bool IsExecutable(string file) =>
+    /// <summary>On Unix, whether the file has an execute bit; on Windows always true.</summary>
+    internal static bool IsExecutable(string file) =>
         OperatingSystem.IsWindows()
         || (File.GetUnixFileMode(file) & (UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute)) != 0;
 }

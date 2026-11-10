@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using Microsoft.Extensions.DependencyInjection;
 using Morphir.Extensions;
+using Morphir.Tooling.Features.Mck;
 using Morphir.Tooling.Scenarios;
 
 namespace Morphir.Tooling;
@@ -21,6 +22,11 @@ public static class MorphirApplication
     /// <param name="extend">The host's own composition, applied after the shared composition.</param>
     public static int Run(string[] args, HostIdentity host, Action<MorphirCliBuilder>? extend = null)
     {
+        // MCK-1: "mck" routes the rest of the command line, unparsed, to the separately installed morphir-mck. This
+        // runs before the command tree is built, so no help, response-file expansion or console redirection applies.
+        if (args.Length > 0 && args[0] == MckTool.Command)
+            return MckTool.Run(args[1..]);
+
         // Handle --version flag explicitly to output only the version string
         // This must be done before creating the builder to avoid console redirection
         if (args.Length == 1 && (args[0] == "--version" || args[0] == "-v"))
@@ -54,7 +60,8 @@ public static class MorphirApplication
             .AddScenario<ConfigurationScenario>()
             .AddScenario<ProjectScenario>()
             .AddScenario<WorkspaceScenario>()
-            .AddCommand(CreateInfoCommand());
+            .AddCommand(CreateInfoCommand())
+            .AddCommand(CreateMckCommand());
         extend?.Invoke(builder);
         return builder.Build();
     }
@@ -70,5 +77,30 @@ public static class MorphirApplication
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout("Morphir command line info:");
         });
         return infoCommand;
+    }
+
+    /// <summary>
+    /// The 'mck' command, so that help lists it. <see cref="Run"/> routes <c>mck</c> before the command tree parses;
+    /// this action routes the same way when an app built with <see cref="CreateApp"/> runs <c>mck</c>.
+    /// </summary>
+    private static System.CommandLine.Command CreateMckCommand()
+    {
+        var arguments = new System.CommandLine.Argument<string[]>("arguments")
+        {
+            Arity = System.CommandLine.ArgumentArity.ZeroOrMore,
+            Description = "The arguments for morphir-mck, passed unchanged",
+        };
+        var mck = new System.CommandLine.Command(MckTool.Command,
+            "Run the separately installed Morphir Compatibility Kit (morphir-mck) with the arguments that follow")
+        {
+            arguments,
+        };
+        mck.TreatUnmatchedTokensAsErrors = false;
+        mck.SetAction((parseResult, cancellationToken) =>
+        {
+            var tokens = parseResult.Tokens.Select(token => token.Value).SkipWhile(value => value != MckTool.Command).Skip(1).ToArray();
+            return Task.FromResult(MckTool.Run(tokens, cancellationToken: cancellationToken));
+        });
+        return mck;
     }
 }

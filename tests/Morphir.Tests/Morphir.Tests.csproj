@@ -35,6 +35,8 @@
     <ProjectReference Include="..\..\src\Morphir.Tool\Morphir.Tool.csproj" />
     <ProjectReference Include="..\..\src\Morphir.Tooling.Managed\Morphir.Tooling.Managed.csproj" />
     <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
+    <!-- The stub morphir-mck, for the routing tests of morphir mck. -->
+    <ProjectReference Include="..\Morphir.Mck.Stub\Morphir.Mck.Stub.csproj" />
   </ItemGroup>
 
   <ItemGroup>
