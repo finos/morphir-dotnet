@@ -198,17 +198,30 @@ module BindingProblem =
         | BindingCode.ReceiptLockMismatch -> DocumentKind.Receipt
         | BindingCode.PlanChanged -> DocumentKind.Result
 
+/// <summary>The member of one document a diagnostic concerns: <c>document</c> and <c>path</c>, which come together
+/// (manager-result.md, Diagnostics).</summary>
+type DocumentMember = { Document: DocumentKind; Path: DocumentPath }
+
 /// A diagnostic's kind-specific members. The case is the diagnostic kind, so a code of another kind cannot be written.
 [<RequireQualifiedAccess>]
 type DiagnosticDetail =
-    | UnsupportedArtifact of problem: ArtifactProblem * on: Component * platform: Platform * alternatives: Alternative list option
+    /// <c>concerns</c> names the member a check of one document reported, such as a request's provider choice.
+    | UnsupportedArtifact of
+        problem: ArtifactProblem *
+        on: Component *
+        platform: Platform *
+        alternatives: Alternative list option *
+        concerns: DocumentMember option
     | MissingPrerequisite of on: Component * prerequisite: Prerequisite * alternatives: Alternative list option
+    /// <c>concerns</c> names the member a check of one document reported; a failure about no single document, such as
+    /// an expired timestamp, has none.
     | TrustFailure of
         code: TrustCode *
         repositoryId: Sha256 *
         role: TufRole option *
         target: TargetPath option *
-        mirror: Mirror option
+        mirror: Mirror option *
+        concerns: DocumentMember option
     | OfflineContentUnavailable of on: Component * target: TargetPath * sha256: Sha256
     | OwnershipConflict of on: Component * ownership: Ownership
     | ReadinessFailed of on: Component * check: CheckKind * reached: Readiness
@@ -221,13 +234,13 @@ type DiagnosticDetail =
 module DiagnosticDetail =
     let code (detail: DiagnosticDetail) =
         match detail with
-        | DiagnosticDetail.UnsupportedArtifact(problem, _, _, _) ->
+        | DiagnosticDetail.UnsupportedArtifact(problem, _, _, _, _) ->
             match problem with
             | ArtifactProblem.Unsupported -> Code.Artifact ArtifactCode.UnsupportedArtifact
             | ArtifactProblem.AbiUnavailable _ -> Code.Artifact ArtifactCode.AbiUnavailable
             | ArtifactProblem.NoCompatibleRelease -> Code.Artifact ArtifactCode.NoCompatibleRelease
         | DiagnosticDetail.MissingPrerequisite _ -> Code.MissingPrerequisite
-        | DiagnosticDetail.TrustFailure(code, _, _, _, _) -> Code.Trust code
+        | DiagnosticDetail.TrustFailure(code, _, _, _, _, _) -> Code.Trust code
         | DiagnosticDetail.OfflineContentUnavailable _ -> Code.OfflineContentUnavailable
         | DiagnosticDetail.OwnershipConflict _ -> Code.OwnershipConflict
         | DiagnosticDetail.ReadinessFailed _ -> Code.ReadinessFailed
@@ -438,6 +451,26 @@ module ResultDocument =
             | SelectionTag.UserDefault -> return SelectionSource.UserDefault
         }
 
+    let private documentKind = tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))
+
+    /// <summary>The optional <c>document</c> and <c>path</c> of an <c>unsupported-artifact</c> or <c>trust-failure</c>
+    /// diagnostic: together, or neither. One without the other is <c>inconsistent_document</c> at the one present.</summary>
+    let private concerns (o: ObjectNode) : Read<DocumentMember option> =
+        result {
+            let! document = optional "document" documentKind o
+            let! path = optional "path" text o
+
+            match document, path with
+            | Some document, Some path ->
+                return
+                    Some
+                        { Document = document
+                          Path = DocumentPath.verbatim path }
+            | None, None -> return None
+            | Some _, None -> return! refuse ReaderCode.InconsistentDocument (o.Path.Child "document")
+            | None, Some _ -> return! refuse ReaderCode.InconsistentDocument (o.Path.Child "path")
+        }
+
     let private diagnostic (n: Node) : Read<Diagnostic> =
         result {
             let! o = asObject n
@@ -488,7 +521,8 @@ module ResultDocument =
                                 | Some abi -> token abi |> Result.map ArtifactProblem.AbiUnavailable
 
                         let! alternatives = alternatives
-                        return DiagnosticDetail.UnsupportedArtifact(problem, on, platform, alternatives)
+                        let! concerns = concerns o
+                        return DiagnosticDetail.UnsupportedArtifact(problem, on, platform, alternatives, concerns)
                     }
                 | Code.MissingPrerequisite ->
                     result {
@@ -506,7 +540,8 @@ module ResultDocument =
 
                         let! target = optional "target" targetPath o
                         let! mirror = optional "mirror" (validated Mirror.tryParse) o
-                        return DiagnosticDetail.TrustFailure(trustCode, repositoryId, role, target, mirror)
+                        let! concerns = concerns o
+                        return DiagnosticDetail.TrustFailure(trustCode, repositoryId, role, target, mirror, concerns)
                     }
                 | Code.OfflineContentUnavailable ->
                     result {
@@ -538,13 +573,13 @@ module ResultDocument =
                     }
                 | Code.Reader readerCode ->
                     result {
-                        let! document = required "document" (tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))) o
+                        let! document = required "document" documentKind o
                         let! path = required "path" text o
                         return DiagnosticDetail.UnsupportedContract(readerCode, document, DocumentPath.verbatim path)
                     }
                 | Code.DocumentUnavailable ->
                     result {
-                        let! document = required "document" (tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))) o
+                        let! document = required "document" documentKind o
                         let! path = required "path" text o
 
                         // The document as a whole is unavailable, so the path is the empty path.
@@ -557,7 +592,7 @@ module ResultDocument =
                     required "source" selectionSource o |> Result.map DiagnosticDetail.SelectionUnavailable
                 | Code.Binding bindingCode ->
                     result {
-                        let! document = required "document" (tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))) o
+                        let! document = required "document" documentKind o
                         let! path = required "path" text o
 
                         if document <> BindingProblem.document bindingCode then
@@ -1011,23 +1046,31 @@ module ResultDocument =
                               | Some platform -> "platform", Value.String(Platform.name platform)
                               | None -> () ] ] ]
 
+    let private concernsMembers (concerns: DocumentMember option) =
+        match concerns with
+        | Some concerns ->
+            [ "document", Value.String(DocumentKind.name concerns.Document)
+              "path", Value.String(DocumentPath.render concerns.Path) ]
+        | None -> []
+
     let private diagnosticValue (diagnostic: Diagnostic) =
         let code = DiagnosticDetail.code diagnostic.Detail
 
         let detail =
             match diagnostic.Detail with
-            | DiagnosticDetail.UnsupportedArtifact(problem, on, platform, alternatives) ->
+            | DiagnosticDetail.UnsupportedArtifact(problem, on, platform, alternatives, concerns) ->
                 [ "component", componentValue on
                   "platform", Value.String(Platform.name platform)
                   match problem with
                   | ArtifactProblem.AbiUnavailable abi -> "abi", tokenValue abi
                   | _ -> ()
-                  yield! alternativesMembers alternatives ]
+                  yield! alternativesMembers alternatives
+                  yield! concernsMembers concerns ]
             | DiagnosticDetail.MissingPrerequisite(on, prerequisite, alternatives) ->
                 [ "component", componentValue on
                   "prerequisite", prerequisiteValue prerequisite
                   yield! alternativesMembers alternatives ]
-            | DiagnosticDetail.TrustFailure(_, repositoryId, role, target, mirror) ->
+            | DiagnosticDetail.TrustFailure(_, repositoryId, role, target, mirror, concerns) ->
                 [ "repositoryId", Value.String repositoryId.Text
                   match role with
                   | Some role ->
@@ -1045,7 +1088,8 @@ module ResultDocument =
                   | None -> ()
                   match mirror with
                   | Some mirror -> "mirror", Value.String mirror.Text
-                  | None -> () ]
+                  | None -> ()
+                  yield! concernsMembers concerns ]
             | DiagnosticDetail.OfflineContentUnavailable(on, target, sha) ->
                 [ "component", componentValue on
                   "target", Value.String target.Text
