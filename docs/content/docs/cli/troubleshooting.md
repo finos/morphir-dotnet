@@ -576,7 +576,7 @@ I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
 
 | Code | Cause | Fix |
 | --- | --- | --- |
-| `compile.frontend_unavailable` | No registered frontend reads the language. The AOT `morphir` has no built-in F# frontend. | Use `dotnet-morphir`, which has a built-in F# frontend, or configure the F# MEP guest with `--extension morphir-fsharp-frontend` or `[frontend.fsharp].extension`. |
+| `compile.frontend_unavailable` | No registered frontend reads the language. The Native AOT `morphir` has no built-in F# frontend. | Use `dotnet-morphir`, which has a built-in F# frontend, or configure the F# MEP guest with `--extension morphir-fsharp-frontend` or `[frontend.fsharp].extension`. |
 | `extension.unavailable` | The frontend extension did not start, or its session did not initialize. | Check the `--extension` or `[frontend.<language>].extension` value: a command on `PATH`, a path, or a `.dll`. Read the guest's stderr. |
 | `extension.not_admitted` | The agreed MEP session does not admit the request, for example its IR version or a file extension. | Request a version or documents that the message lists for the extension. |
 | `extension.tuple_unavailable` | The host and the extension agreed no `compileModel` tuple (profile `morphir-ir`, codec `morphir-json`). | Use an extension that serves JSON compile tuples for IR `4.0.0` or `3.0.0`. |

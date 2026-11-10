@@ -10,7 +10,10 @@ open Morphir.IR.Model
 /// <summary>A Morphir host. C# builds one with the generated properties <c>MorphirHost.Native</c> and <c>MorphirHost.DotnetTool</c>.</summary>
 [<RequireQualifiedAccess>]
 type MorphirHost =
-    /// <summary>The Native AOT executable <c>morphir</c>.</summary>
+    /// <summary>
+    /// The command <c>morphir</c>: the AOT-compatible executable and the managed one. The wire value names the command,
+    /// not the deployment offering.
+    /// </summary>
     | Native
     /// <summary>The JIT dotnet tool <c>dotnet-morphir</c>.</summary>
     | DotnetTool

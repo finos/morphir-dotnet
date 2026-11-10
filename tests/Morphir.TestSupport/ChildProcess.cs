@@ -170,14 +170,17 @@ public static class ChildProcess
     /// Runs a child and holds a conversation with it: <paramref name="converse"/> gets the stdin and stdout streams
     /// and the deadline token, so it can wait for a reply before it writes the next message. When it returns,
     /// stdin closes; the result holds the stdout that the conversation did not read, and all of stderr. The gate,
-    /// the timeout and the process-tree cleanup are the same as for <see cref="RunAsync"/>.
+    /// the timeout and the process-tree cleanup are the same as for <see cref="RunAsync"/>. <paramref name="started"/>
+    /// gets the process id of the child as soon as it starts (on Linux the setsid wrapper keeps the same id), so a
+    /// test can observe that exact process.
     /// </summary>
     public static async Task<ChildProcessResult> ConverseAsync(
         ProcessStartInfo startInfo,
         TimeSpan timeout,
         Func<Stream, Stream, CancellationToken, Task> converse,
         CancellationToken cancellationToken = default,
-        ProcessGate? gate = null)
+        ProcessGate? gate = null,
+        Action<int>? started = null)
     {
         startInfo.UseShellExecute = false;
         startInfo.CreateNoWindow = true;
@@ -199,6 +202,7 @@ public static class ChildProcess
 
         try
         {
+            started?.Invoke(process.Id);
             await converse(process.StandardInput.BaseStream, process.StandardOutput.BaseStream, deadline.Token).ConfigureAwait(false);
             process.StandardInput.Close();
             stdout = process.StandardOutput.ReadToEndAsync(CancellationToken.None);

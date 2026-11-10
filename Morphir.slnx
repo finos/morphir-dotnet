@@ -21,6 +21,7 @@
     <Project Path="src/Morphir.Conformance/Morphir.Conformance.fsproj" />
     <Project Path="src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj" />
     <Project Path="src/Morphir.CodeGeneration.FSharp/Morphir.CodeGeneration.FSharp.fsproj" />
+    <Project Path="src/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj" />
     <Project Path="src/Morphir.CodeGeneration.CSharp/Morphir.CodeGeneration.CSharp.fsproj" />
     <Project Path="src/Morphir.Myriad/Morphir.Myriad.fsproj" />
     <Project Path="src/Morphir.Myriad.Build/Morphir.Myriad.Build.csproj" />
@@ -45,6 +46,8 @@
     <Project Path="src/Morphir.IR.Pipeline/Morphir.IR.Pipeline.fsproj" />
     <Project Path="src/Morphir.IR.Pipeline.Plugins/Morphir.IR.Pipeline.Plugins.fsproj" />
     <Project Path="src/Morphir.Tool/Morphir.Tool.csproj" />
+    <Project Path="src/Morphir.Tooling.Managed/Morphir.Tooling.Managed.csproj" />
+    <Project Path="src/Morphir.Managed/Morphir.Managed.csproj" />
     <Project Path="src\Morphir.Live\Morphir.Live.fsproj" />
     <Project Path="src\Morphir.Core\Morphir.Core.csproj" />
     <Project Path="src\Morphir.Internal.CodeGeneration\Morphir.Internal.CodeGeneration.fsproj" />
@@ -64,6 +67,7 @@
     <Project Path="tests/Morphir.SDK.Conformance.Tests/Morphir.SDK.Conformance.Tests.csproj" />
     <Project Path="tests/Morphir.SDK.CSharp.Tests/Morphir.SDK.CSharp.Tests.csproj" />
     <Project Path="tests/Morphir.CodeGeneration.FSharp.Tests/Morphir.CodeGeneration.FSharp.Tests.fsproj" />
+    <Project Path="tests/Morphir.CodeGeneration.FSharp.Extension.Tests/Morphir.CodeGeneration.FSharp.Extension.Tests.fsproj" />
     <Project Path="tests/Morphir.CodeGeneration.CSharp.Tests/Morphir.CodeGeneration.CSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Myriad.Tests/Morphir.Myriad.Tests.fsproj" />
     <Project Path="tests/Morphir.Myriad.Integration.Tests/Morphir.Myriad.Integration.Tests.csproj" />
@@ -95,6 +99,7 @@
     <Project Path="tests\Morphir.Models.Tests\Morphir.Models.Tests.fsproj" />
     <Project Path="tests\Morphir.Build.Tests\Morphir.Build.Tests.csproj" />
     <Project Path="tests\Morphir.Tests\Morphir.Tests.csproj" />
+    <Project Path="tests\Morphir.Managed.Tests\Morphir.Managed.Tests.csproj" />
     <Project Path="tests\Morphir.Live.Tests\Morphir.Live.Tests.fsproj" />
     <Project Path="tests\Morphir.SDK.Tests\Morphir.SDK.Tests.fsproj" />
   </Folder>

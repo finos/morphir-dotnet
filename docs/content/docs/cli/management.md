@@ -294,7 +294,7 @@ The example leaves out the `morphir.fsharp` entry.
 
 | Field | Meaning |
 | --- | --- |
-| `host` | The host that wrote the list: `morphir` (the Native AOT executable) or `dotnet-morphir` (the dotnet tool). |
+| `host` | The command that wrote the list: `morphir` or `dotnet-morphir` (the dotnet tool). `morphir` is the Native AOT executable; a managed `morphir` built from `src/Morphir.Managed`, which is not published yet, also reports `morphir`. |
 | `id` | The extension id. See [Extension ids](#extension-ids). For a built-in generator, it is also the `backend` value in `morphir generate --json` reports. |
 | `version` | Canonical SemVer 2.0.0. |
 | `description` | Left out when the extension has none. |

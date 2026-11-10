@@ -94,27 +94,11 @@ let run (case: JsonNode) =
 
             match operation with
             | ModelOperation.GenerateModel ->
-                let input = decode MepJson.Default.ModelTransportTuple (parameters["input"] |> nonNull)
+                // The typed request and the shared guest check: the input tuple, then admission, then evidence.
+                let request = decode MepJson.Default.GenerateModelRequest parameters
 
-                ModelTransport.checkTuple agreed input
-                >>= fun input ->
-                    let model = decode MepJson.Default.MorphirModel (parameters["model"] |> nonNull)
-
-                    ModelTransport.admit input (limits ()) model
-                    >>= fun admitted ->
-                        let required =
-                            parameters["requiredGuarantees"]
-                            |> Option.ofObj
-                            |> Option.map (fun node ->
-                                node.AsArray()
-                                |> Seq.map (nonNull >> decode MepJson.Default.ModelGuaranteeRequirement)
-                                |> Array.ofSeq)
-                            |> Option.defaultValue [||]
-
-                        let context = Sha256Digest.Create(text parameters["contextDigest"])
-
-                        ModelTransport.establish (Option.get agreed) context required trustAll admitted
-                        >>= fun _ -> Accepted(Some admitted)
+                GenerateModel.admit agreed trustAll request
+                >>= fun admitted -> Accepted(Some admitted.Model)
             | ModelOperation.CompileModel ->
                 let output = decode MepJson.Default.ModelTransportTuple (parameters["output"] |> nonNull)
                 let irVersion = SemanticVersion.Create(textAt [ "options"; "irVersion" ] parameters)

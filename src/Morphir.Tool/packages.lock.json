@@ -340,18 +340,6 @@
         "resolved": "10.0.11",
         "contentHash": "OzKDcIRkeNJeC8qAsbn8yJXnfTLP1dtkWILe+T56Gf/z+IkAASi7sMqLqJQat08j5z/mRN5xVtoAwbkMNMoBUQ=="
       },
-      "morphir": {
-        "type": "Project",
-        "dependencies": {
-          "FluentValidation": "[11.12.0, )",
-          "Foundatio.Mediator": "[1.3.3, )",
-          "Morphir.Tooling": "[1.0.0, )",
-          "Serilog": "[4.4.0, )",
-          "Serilog.Extensions.Hosting": "[5.0.1, )",
-          "Serilog.Sinks.Console": "[6.1.1, )",
-          "System.CommandLine": "[2.0.14, )"
-        }
-      },
       "morphir.analyzers": {
         "type": "Project",
         "dependencies": {
@@ -517,6 +505,13 @@
           "Serilog.Sinks.Console": "[6.1.1, )",
           "Spectre.Console": "[0.57.2, )",
           "System.CommandLine": "[2.0.14, )"
+        }
+      },
+      "morphir.tooling.managed": {
+        "type": "Project",
+        "dependencies": {
+          "Morphir.Frontend.FSharp": "[1.0.0, )",
+          "Morphir.Tooling": "[1.0.0, )"
         }
       },
       "CsToml": {

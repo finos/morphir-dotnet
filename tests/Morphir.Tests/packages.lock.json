@@ -669,10 +669,9 @@
         "type": "Project",
         "dependencies": {
           "FluentValidation": "[11.12.0, )",
-          "Morphir": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
-          "Morphir.Frontend.FSharp": "[1.0.0, )",
           "Morphir.Tooling": "[1.0.0, )",
+          "Morphir.Tooling.Managed": "[1.0.0, )",
           "Serilog": "[4.4.0, )",
           "Serilog.Extensions.Hosting": "[5.0.1, )",
           "Serilog.Sinks.Console": "[6.1.1, )",
@@ -706,6 +705,13 @@
           "Serilog.Sinks.Console": "[6.1.1, )",
           "Spectre.Console": "[0.57.2, )",
           "System.CommandLine": "[2.0.14, )"
+        }
+      },
+      "morphir.tooling.managed": {
+        "type": "Project",
+        "dependencies": {
+          "Morphir.Frontend.FSharp": "[1.0.0, )",
+          "Morphir.Tooling": "[1.0.0, )"
         }
       },
       "CsToml": {

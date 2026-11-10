@@ -49,7 +49,7 @@ partial class Build
 
     /// <summary>
     /// Publish the Morphir CLI tool packages to NuGet.org
-    /// Publishes: Morphir.Tool and Morphir.Frontend.FSharp.Extension (dotnet tool packages)
+    /// Publishes: Morphir.Tool, Morphir.Frontend.FSharp.Extension and Morphir.CodeGeneration.FSharp.Extension (dotnet tool packages)
     /// Requires: --api-key parameter
     /// Parameters: --nuget-source (default: https://api.nuget.org/v3/index.json)
     /// </summary>
@@ -87,6 +87,17 @@ partial class Build
             Serilog.Log.Information($"Publishing Morphir.Frontend.FSharp.Extension tool: {extensionPackage}");
             DotNetNuGetPush(s => s
                 .SetTargetPath(extensionPackage)
+                .SetSource(NuGetSource)
+                .SetApiKey(ApiKey)
+                .SetSkipDuplicate(true));
+
+            var backendPackage = OutputDir.GlobFiles("Morphir.CodeGeneration.FSharp.Extension.*.nupkg")
+                .FirstOrDefault()
+                ?? throw new Exception($"Morphir.CodeGeneration.FSharp.Extension package not found in {OutputDir}");
+
+            Serilog.Log.Information($"Publishing Morphir.CodeGeneration.FSharp.Extension tool: {backendPackage}");
+            DotNetNuGetPush(s => s
+                .SetTargetPath(backendPackage)
                 .SetSource(NuGetSource)
                 .SetApiKey(ApiKey)
                 .SetSkipDuplicate(true));

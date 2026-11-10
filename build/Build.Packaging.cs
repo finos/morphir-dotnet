@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -102,15 +103,12 @@ partial class Build
             Serilog.Log.Information($"Packing tool with version: {versionString}");
 
             Serilog.Log.Information("Packing Morphir.Tool CLI as dotnet tool...");
-            DotNetPack(s => s
-                .SetProject(MorphirToolProject)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir)
-                .SetProperty("PackAsTool", "true")
-                .SetProperty("ToolCommandName", "dotnet-morphir")
-                .SetProperty("IsPackable", "true")
-                .SetProperty("DebugType", "none")  // Don't include PDB files in tool package
-                .SetProperty("IncludeSymbols", "false"));
+            // The dotnet-tool profile's pack properties: PackAsTool, the dotnet-morphir command, no PDB, no symbols.
+            DotNetPack(s => TargetSettings.PackTool.Aggregate(
+                s.SetProject(MorphirToolProject)
+                    .SetConfiguration(Configuration)
+                    .SetOutputDirectory(OutputDir),
+                (settings, property) => settings.SetProperty(property.Key, property.Value)));
 
             // The F# frontend extension: the MEP guest that the native morphir executable runs for F#.
             Serilog.Log.Information("Packing Morphir.Frontend.FSharp.Extension as dotnet tool...");
@@ -125,6 +123,21 @@ partial class Build
             if (!File.Exists(extensionPackagePath))
             {
                 throw new Exception($"Morphir.Frontend.FSharp.Extension package not found: {extensionPackagePath}");
+            }
+
+            // The F# backend extension: the MEP guest that serves generateModel for hosts without the built-in morphir.fsharp.
+            Serilog.Log.Information("Packing Morphir.CodeGeneration.FSharp.Extension as dotnet tool...");
+            DotNetPack(s => s
+                .SetProject(FSharpBackendExtensionProject)
+                .SetConfiguration(Configuration)
+                .SetOutputDirectory(OutputDir)
+                .SetProperty("DebugType", "none")
+                .SetProperty("IncludeSymbols", "false"));
+
+            var backendPackagePath = OutputDir / $"Morphir.CodeGeneration.FSharp.Extension.{versionString}.nupkg";
+            if (!File.Exists(backendPackagePath))
+            {
+                throw new Exception($"Morphir.CodeGeneration.FSharp.Extension package not found: {backendPackagePath}");
             }
 
             // Validate the tool package structure
@@ -147,6 +160,96 @@ partial class Build
                 Serilog.Log.Information("✓ Tool package structure validated successfully");
             }
         });
+
+    /// <summary>
+    /// Publish the F# frontend extension as a self-contained process for one runtime identifier: a folder with the
+    /// guest, the F# compiler service and its own .NET runtime, and a deterministic archive of that folder. The
+    /// framework-dependent dotnet tool from PackTool is unchanged.
+    /// Requires: --rid (e.g., win-arm64, linux-x64, osx-arm64)
+    /// Output: artifacts/extension-processes/morphir-fsharp-frontend/{rid}/ and
+    ///         artifacts/extension-processes/morphir-fsharp-frontend-{version}-{rid}.zip (win-*) or .tar.gz
+    /// </summary>
+    Target PublishFSharpFrontendProcess => _ => _
+        .Description("Publish the F# frontend extension as a self-contained process folder and archive (requires --rid)")
+        .Requires(() => Rid)
+        .Executes(() =>
+        {
+            PublishExtensionProcess(FSharpFrontendExtensionProject, "morphir-fsharp-frontend", Rid!);
+        });
+
+
+    /// <summary>
+    /// Publishes an extension project with a publish profile (by default SelfContainedProcess, which the project
+    /// defines) for one runtime identifier, then archives the folder with <see cref="ReleaseArchive"/>, the writer of the
+    /// release profiles, with its files at the archive root. The publish sets
+    /// <see cref="TargetSettings.RidSpecificPublishProperty"/>, so its lock files go under obj/publish-lock/. The lock
+    /// file of the publish is kept beside the archive as <c>{name}-{version}-{rid}.packages.lock.json</c>. Returns the
+    /// folder and the archive; logs the file count and sizes of both.
+    /// </summary>
+    (AbsolutePath Folder, AbsolutePath Archive) PublishExtensionProcess(
+        AbsolutePath project, string name, string rid, string profile = "SelfContainedProcess")
+    {
+        var versionString = Version.ToString();
+        var folder = ExtensionProcessesDir / name / rid;
+        folder.CreateOrCleanDirectory();
+
+        Serilog.Log.Information($"Publishing {name} {versionString} for {rid} with the {profile} profile...");
+        DotNetPublish(s => s
+            .SetProject(project)
+            .SetConfiguration(Configuration)
+            .SetRuntime(rid)
+            .SetProperty("PublishProfile", profile)
+            .SetProperty(TargetSettings.RidSpecificPublishProperty, "true")
+            .SetOutput(folder));
+
+        var executable = rid.StartsWith("win-", StringComparison.OrdinalIgnoreCase) ? $"{name}.exe" : name;
+        if (!File.Exists(folder / executable))
+        {
+            throw new Exception($"{name}: the executable {executable} is not in {folder}");
+        }
+
+        var stem = $"{name}-{versionString}-{rid}";
+        var format = ReleaseArchive.FormatFor(rid);
+        var archive = ExtensionProcessesDir / $"{stem}{ReleaseArchive.ExtensionFor(format)}";
+        ReleaseArchive.Create(folder, archive, format, ReleaseArchive.ExecutablesFor(executable));
+
+        var lockFile = project.Parent / "obj" / "publish-lock" / rid / "packages.lock.json";
+        if (!File.Exists(lockFile))
+        {
+            throw new Exception($"{name}: the publish wrote no lock file at {lockFile}");
+        }
+        File.Copy(lockFile, ExtensionProcessesDir / $"{stem}.packages.lock.json", overwrite: true);
+
+        var files = ReleaseArchive.Files(folder);
+        var bytes = files.Sum(file => new FileInfo(folder / file).Length);
+        Serilog.Log.Information($"✓ {folder}: {files.Length} files, {bytes} bytes");
+        Serilog.Log.Information($"✓ {archive}: {new FileInfo(archive).Length} bytes");
+        return (folder, archive);
+    }
+
+    /// <summary>
+    /// The portable runtime identifier of this machine (win-, linux- or osx- and the process architecture), not the
+    /// distribution-specific one that a source-built runtime can report.
+    /// </summary>
+    static string HostRid()
+    {
+        var os = OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : "linux";
+        return $"{os}-{RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()}";
+    }
+
+    /// <summary>
+    /// For the Test target: publishes the F# frontend as a self-contained process for this machine, once, outside the
+    /// test, and returns the folder that MORPHIR_FSHARP_FRONTEND_PROCESS_DIR names for the extension tests. The
+    /// self-contained test runs on Windows and Linux only, so other platforms publish nothing and get null.
+    /// </summary>
+    AbsolutePath? PublishFSharpFrontendProcessForTests()
+    {
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux()) return null;
+        var started = Stopwatch.StartNew();
+        var (folder, _) = PublishExtensionProcess(FSharpFrontendExtensionProject, "morphir-fsharp-frontend", HostRid());
+        Serilog.Log.Information($"✓ Published the self-contained F# frontend for the tests in {started.Elapsed.TotalSeconds:0}s");
+        return folder;
+    }
 
     /// <summary>
     /// Pack all projects (libraries and tool)
@@ -196,7 +299,7 @@ partial class Build
             foreach (var rid in ridDirs)
             {
                 var ridDir = singleFileDir / rid;
-                var tarballName = $"morphir-{rid}-v{versionString}.tar.gz";
+                var tarballName = LegacyAsset.TrimmedSingleFile.TarballName(rid, versionString);
                 var tarballPath = artifactsDir / tarballName;
 
                 Serilog.Log.Information($"Creating tarball for {rid}...");

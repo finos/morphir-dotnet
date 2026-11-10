@@ -5,6 +5,7 @@ This guide provides comprehensive guidance for building Native AOT, trimmed, and
 ## Table of Contents
 
 1. [Overview](#overview)
+   - [Entry points and the composition boundary](#entry-points-and-the-composition-boundary)
 2. [Native AOT Compilation](#native-aot-compilation)
 3. [Assembly Trimming](#assembly-trimming)
 4. [Single-File Executables](#single-file-executables)
@@ -49,6 +50,34 @@ Single-file executables bundle everything into one file:
 | Native AOT | Fast startup, small memory, self-contained | Larger size, no dynamic code, platform-specific |
 | Trimming | Smaller size, faster deployment | May break reflection, requires testing |
 | Single-File | Simple deployment | Larger initial size, extraction overhead |
+
+### Entry points and the composition boundary
+
+The command line has three entry points. All of them run the same command layer, `MorphirApplication` in `src/Morphir.Tooling`, which holds the scenarios, the `info` command and the `--version` path. Each entry point passes its host identity and its own composition, which runs after the shared one.
+
+| Entry point | Project | Command | Composition | Can be published with Native AOT |
+|---|---|---|---|---|
+| AOT-compatible `morphir` | `src/Morphir` | `morphir` | `Morphir.Program.NativeComposition`: no F# frontend; an F# compile says where to find one | Yes |
+| Managed `morphir` | `src/Morphir.Managed` | `morphir` | `ManagedComposition` in `src/Morphir.Tooling.Managed`: the in-process F# frontend | No, JIT only |
+| .NET tool | `src/Morphir.Tool` | `dotnet-morphir` | `ManagedComposition` | No, JIT only |
+
+The `morphir` downloads that releases ship today, `morphir-<rid>[.exe]` and `morphir-<rid>-v<version>.tar.gz`, are none of these three. The `PublishSingleFile` target builds them from `src/Morphir` as managed, trimmed (`TrimMode=partial`), self-contained single-file executables, so they have no F# frontend and are not Native AOT. The release profile model (`build/Helpers/ReleaseProfiles.cs`) names them `LegacyAsset.TrimmedSingleFile`, an alias with honest metadata that is not one of the four offerings. The `PackRelease` target builds the archives of the four offerings (`native-aot` from `src/Morphir`, `self-contained` and `framework-dependent` from `src/Morphir.Managed`, `dotnet-tool` from `src/Morphir.Tool`), which releases do not publish yet.
+
+The F# frontend uses FSharp.Compiler.Service, which is neither trim-safe nor AOT-safe. Only `src/Morphir.Tooling.Managed` references it. Keep these rules:
+
+- `src/Morphir` and `src/Morphir.Tooling` never reference `Morphir.Tooling.Managed`, `Morphir.Frontend.FSharp` or FSharp.Compiler.Service, directly or through another project.
+- Anything that only the managed entry points can contain goes into `ManagedComposition`, so the managed `morphir` and `dotnet-morphir` stay equal.
+- `src/Morphir` and `src/Morphir.Managed` both build an assembly named `morphir`. No project may reference both. Tests of the managed entry point live in `tests/Morphir.Managed.Tests`, apart from `tests/Morphir.Tests`.
+- Each entry point states who it is in one place, its `Program.Host` property.
+
+`tests/Morphir.Tests/Hosts/HostFrontendCompositionTests.cs` checks the assembly closures and that the compositions give the same command tree; `tests/Morphir.Managed.Tests` checks the managed entry point against `dotnet-morphir`. A closure test reads assembly references only. To check what Native AOT actually compiles, publish `src/Morphir` as the `PublishExecutable` target and the manual AOT workflow (`.github/workflows/manual-aot-test.yml`) do, and look at the ILCompiler inputs in `src/Morphir/obj/<configuration>/net10.0/<rid>/native/morphir.ilc.rsp`:
+
+```bash
+dotnet publish src/Morphir/Morphir.csproj -c Release -r <rid> --self-contained true \
+  -p:PublishSingleFile=true -p:PublishTrimmed=true -p:PublishAot=true -o <output>
+```
+
+On Windows the native link needs the Visual Studio C++ build tools for the target architecture, and the ILCompiler targets call `vswhere.exe`. If the link fails with "'vswhere.exe' is not recognized", put `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer` on `PATH`.
 
 ---
 
