@@ -189,7 +189,8 @@ module TufClient =
 
         // 5.3.7 to 5.3.9: each accepted root is trusted at once. 5.3.11: when the timestamp or snapshot keys differ
         // from the trusted root's, the trusted timestamp and snapshot are dropped, so a fast-forward attack on them can
-        // be recovered from.
+        // be recovered from. The trusted targets go with them: TUF checks targets only against the snapshot (5.6.4),
+        // so keeping them would make a targets fast-forward permanent (review of #581, T2).
         let accept (root: TufRoot) =
             let rotatedKeys =
                 roleKeys root TufRole.Timestamp <> roleKeys trusted.Root TufRole.Timestamp
@@ -197,7 +198,11 @@ module TufClient =
 
             current.Value <-
                 if rotatedKeys then
-                    { current.Value with Root = root; Timestamp = None; Snapshot = None }
+                    { current.Value with
+                        Root = root
+                        Timestamp = None
+                        Snapshot = None
+                        Targets = None }
                 else
                     { current.Value with Root = root }
 

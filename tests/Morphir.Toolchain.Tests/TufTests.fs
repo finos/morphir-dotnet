@@ -605,3 +605,73 @@ let reviewTotalTests =
                 for bytes in [ [||]; Encoding.UTF8.GetBytes "null"; Encoding.UTF8.GetBytes """{"signed":{},"signatures":[{"keyid":"x","sig":"0"}]}""" ] do
                     Expect.isError (read bytes) "refused")
     ]
+
+/// A metadata entry naming the canonical bytes of a role, as a parent lists it.
+let private entryOf (role: Value) =
+    let bytes = canonical role
+
+    Value.Object
+        [ "version", number (versionOf role)
+          "length", number (uint64 bytes.Length)
+          "hashes", Value.Object [ "sha256", text (Digest.ofBytes bytes) ] ]
+
+/// Root v2 giving the timestamp, snapshot and targets roles new keys, and the fixture's metadata re-signed by them:
+/// timestamp v1, snapshot v1 and targets v2.
+let private recoverySet () =
+    let set = metadataSet "metadata"
+    let timestampKey, snapshotKey, targetsKey = newTestKey "timestamp-2", newTestKey "snapshot-2", newTestKey "targets-2"
+    let role (key: TestKey) = Value.Object [ "keyids", Value.Array [ text key.KeyId ]; "threshold", number 1UL ]
+
+    let rootSigned =
+        memberOf "signed" set.Root
+        |> setAt [ "version" ] (number 2UL)
+        |> setAt [ "keys"; timestampKey.KeyId ] (keyValue timestampKey)
+        |> setAt [ "keys"; snapshotKey.KeyId ] (keyValue snapshotKey)
+        |> setAt [ "keys"; targetsKey.KeyId ] (keyValue targetsKey)
+        |> setAt [ "roles"; "timestamp" ] (role timestampKey)
+        |> setAt [ "roles"; "snapshot" ] (role snapshotKey)
+        |> setAt [ "roles"; "targets" ] (role targetsKey)
+
+    let targets = envelope (setAt [ "version" ] (number 2UL) (memberOf "signed" set.Targets)) [ targetsKey ]
+    let snapshot = envelope (memberOf "signed" set.Snapshot |> setAt [ "meta"; "targets.json" ] (entryOf targets)) [ snapshotKey ]
+    let timestamp = envelope (memberOf "signed" set.Timestamp |> setAt [ "meta"; "snapshot.json" ] (entryOf snapshot)) [ timestampKey ]
+    sourceOf { set with Timestamp = timestamp; Snapshot = snapshot; Targets = targets } [ envelope rootSigned (keysOf "root") ]
+
+[<Tests>]
+let reviewT2Tests =
+    // Review of #581, T2: TUF 5.3.11 drops the trusted timestamp and snapshot when their keys rotate, so a
+    // fast-forward can be recovered from. TUF has no rollback check against trusted targets (5.6 checks targets against
+    // the snapshot only), so the trusted targets are dropped with the snapshot.
+    testList "T2 a targets fast-forward is recovered from by rotating the timestamp and snapshot keys" [
+        testCase "recovery after a fast-forward to version 50" (fun () ->
+            let trusted = anchor ()
+            let ok = refreshed (refresh trusted (sourceOf (metadataSet "metadata") []))
+            let timestamp, snapshot, targets = Option.get ok.Timestamp, Option.get ok.Snapshot, Option.get ok.Targets
+
+            // The state an attacker with the old timestamp, snapshot and targets keys leaves.
+            let forwarded =
+                { ok with
+                    Timestamp = Some { timestamp with Version = 50UL; Snapshot = { timestamp.Snapshot with Version = 50UL } }
+                    Snapshot = Some { snapshot with Version = 50UL; Targets = { snapshot.Targets with Version = 50UL } }
+                    Targets = Some { targets with Version = 50UL } }
+
+            let recovered = refreshed (refresh forwarded (recoverySet ()))
+            Expect.equal (Option.get recovered.Targets).Version 2UL "targets v2 after the rotation")
+
+        testCase "control: the same recovery with no fast-forward" (fun () ->
+            let recovered = refreshed (refresh (anchor ()) (recoverySet ()))
+            Expect.equal (Option.get recovered.Targets).Version 2UL "targets v2")
+
+        testCase "control: without a key rotation, older targets are still a rollback" (fun () ->
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "learnedRevocation") []))
+            let older = metadataSet "metadata"
+            let newer = metadataSet "learnedRevocation"
+
+            let set =
+                relink
+                    { older with
+                        Snapshot = setAt [ "signed"; "version" ] (number 3UL) newer.Snapshot
+                        Timestamp = setAt [ "signed"; "version" ] (number 3UL) newer.Timestamp }
+
+            Expect.equal (refused (refresh trusted (sourceOf set []))) (TufFailure.Rollback TufRole.Snapshot) "targets v1 after v2")
+    ]
