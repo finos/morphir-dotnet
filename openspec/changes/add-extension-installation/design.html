@@ -61,7 +61,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <li><a href="#journey">A worked journey</a></li>
 <li><a href="#failures">Failure and recovery paths</a></li>
 <li><a href="#mapping">Mapping the parent contract to this codebase</a></li>
-<li><a href="#decisions">Decisions</a> (including <a href="#mep-1">MEP-1: MEP 0.1 is not supported</a>)</li>
+<li><a href="#decisions">Decisions</a> (including the maintainer decisions <a href="#mep-1">MEP-1: MEP 0.1 is not supported</a> and <a href="#doc-1">DOC-1: only the current contract drafts are read</a>)</li>
 <li><a href="#questions">Questions</a>: <a href="#needs-maintainer">needs the maintainer</a>, <a href="#divergence">deliberate divergence</a>, <a href="#follows-reference">follows the reference</a>, <a href="#settled">settled</a>, <a href="#upstream">raised upstream</a></li>
 <li><a href="#fsharp-frontend">The path to installing the F# frontend without .NET</a></li>
 <li><a href="#verifiable">What a .NET implementation can be verified against</a></li>
@@ -339,7 +339,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <tr><td>Repositories file</td><td>Parent README commands; format only in Rust</td><td><code>config/extensions/repositories.json</code>, integer <code>schemaVersion</code>, <code>deny_unknown_fields</code> (<code>repository.rs:149, 241-245</code>), own lock <code>locks/extensions.repositories.lock</code> (<code>morphir-common/src/home.rs:237-238</code>), canonical paths (<code>\\?\</code> form on Windows)</td><td>None</td><td>Spec <code>extension-installation</code></td></tr>
 <tr><td>Interprocess lock</td><td>PRD names the file; primitive only in Rust <code>state_io.rs:26-45</code></td><td><code>fs2</code> <code>lock_exclusive</code>, blocking, file opened read/write, created, not truncated</td><td><code>TaskLock</code> uses share modes on Windows, which a Rust holder does not see and which make a Rust opener fail</td><td><a href="#store-2">STORE-2</a>; <a href="#q-lockprim">Q-LOCKPRIM</a></td></tr>
 <tr><td>Transactions</td><td>Parent "staging and atomic publication"; journal only in Rust</td><td><code>&lt;id&gt;.json.transaction</code>, <code>deny_unknown_fields</code>, <code>schemaVersion</code> 1, <code>nextLock</code>/<code>nextCatalog</code> as byte arrays or <code>null</code> for delete (<code>state_io.rs:10-18, 288-293</code>); recovery applies the bytes it holds (<code>state_io.rs:249-252</code>)</td><td>Stage-then-move in <code>FileTree</code></td><td><a href="#store-3">STORE-3</a>; <a href="#q-journal">Q-JOURNAL</a></td></tr>
-<tr><td>Descriptor reading</td><td>Parent "Release descriptor, version 2"; PRD package archive</td><td>v1 integer or <code>"1.0"</code>, v2 exact drafts, claims per artifact, triple per process artifact, runtimes not mixed, undeclared differences refused; bundle directory requires <code>release.json</code> and <code>&lt;sha256&gt;  &lt;name&gt;\n</code> (<code>repository_authoring.rs:334-365</code>); publish refuses archives (<code>repository_authoring/process.rs:35-41</code>)</td><td>None</td><td>Spec <code>extension-package-archives</code>; <a href="#q-archive">Q-ARCHIVE</a></td></tr>
+<tr><td>Descriptor reading</td><td>Parent "Release descriptor, version 2"; PRD package archive</td><td>v1 integer or <code>"1.0"</code>, v2 exact drafts, claims per artifact, triple per process artifact, runtimes not mixed, undeclared differences refused; bundle directory requires <code>release.json</code> and <code>&lt;sha256&gt;  &lt;name&gt;\n</code> (<code>repository_authoring.rs:334-365</code>); publish refuses archives (<code>repository_authoring/process.rs:35-41</code>)</td><td>None</td><td>Only <code>2.0.0-draft.2</code> and #1149's drafts (<a href="#doc-1">DOC-1</a>); spec <code>extension-package-archives</code>; <a href="#q-archive">Q-ARCHIVE</a></td></tr>
 <tr><td>Index records and resolution</td><td>Parent repository architecture and channels; ordering only in Rust <code>resolver.rs:43-126</code>, <code>index.rs:27-89</code></td><td>Highest precedence; MEP filter; skip host-incompatible; refuse two artifacts for one platform; a WASM record refuses any <code>platform</code> member, even <code>null</code> (<code>domain/manifest.rs:312-318</code>)</td><td>None</td><td>Spec <code>extension-installation</code></td></tr>
 <tr><td>Platform selection</td><td>Toolchain <code>index.md:136-149</code> at <code>efdbc34da</code>: RID, "Tool release v1 platform" and triple columns; musl told no artifact exists</td><td><code>std::env::consts</code> spellings (<code>domain/manifest.rs:95-125</code>), which equal the v1 column</td><td><code>RuntimeIdentifier.GetCurrentRid()</code></td><td><a href="#q-platform">Q-PLATFORM</a></td></tr>
 <tr><td>Digest verification</td><td>Parent: verify before publishing; rehash at activation</td><td>Hash while copying into staging and again into the store; at activation read the whole file into memory, hash, and launch from those bytes (<code>store.rs:334-368</code>, <code>morphir-host-native/src/activate.rs:103-117</code>)</td><td>None (download unchecked)</td><td>Same: hash in the read that writes each copy</td></tr>
@@ -365,7 +365,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>A named repository, a package archive, a staged file and a <code>morphirup</code> hand-over each produce the same value: release record, selected artifact, selection, index provenance, and a separate source description for the .NET inventory and report. Staging, hashing, probing, storing and committing are then one code path (Figure 2). Alternative: separate pipelines per source, as the old handlers had. Rejected because checks drift.</p>
 
 <h3 id="store-1">STORE-1. Shared files are written with the upstream member sets and read with must-ignore</h3>
-<p>Writers emit exactly the members the Rust implementation writes, in its spelling, pretty-printed with a final newline. That includes <code>critical</code> and <code>requires</code> on an entry whose release has <code>requires.host</code>. It also includes no <code>claims</code>, <code>claimCheck</code> or <code>probeSource</code> on an entry whose claims were only converted from a version 1 record (<code>extension_format/claims.rs:82-87, 243-251</code>). Writing converted claims would also flip the catalog to <code>"2.0.0-draft.2"</code>.</p>
+<p>Writers emit exactly the members the Rust implementation writes, in its spelling, pretty-printed with a final newline. That includes <code>critical</code> and <code>requires</code> on an entry whose release has <code>requires.host</code>. This host never writes an entry converted from a version 1 record (<a href="#doc-1">DOC-1</a>). When it rewrites a catalog that holds one the Rust CLI wrote, it carries that entry through with its members and values unchanged, because the reference writes such entries without <code>claims</code>, <code>claimCheck</code> or <code>probeSource</code> (<code>extension_format/claims.rs:82-87, 243-251</code>).</p>
 <p>Readers keep unknown optional members and refuse unknown critical ones. .NET-only facts (true source kind, archive digest, level, layer) go to the .NET inventory, never into shared files. Byte-for-byte equality with Rust output is not required; member-set and value equality is. Tasks 2.7, 3.5 and 9.1 check it against the pinned Rust CLI.</p>
 
 <h3 id="store-2">STORE-2. The state lock uses the reference primitive</h3>
@@ -495,12 +495,24 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li><strong>No legacy code paths.</strong> The probe does not carry the reference's fallback for refusals that older guests signal only by message (PROBE-1). An extension that speaks only <code>0.1</code> is refused at install with <code>extension.no_compatible_mep_version</code>, and is listed as unavailable when the Rust CLI installed it. Both messages say that MEP <code>0.1</code> is not supported.</li>
 <li><strong>The path out is upstream.</strong> The ask is for the Rust host to move to <code>0.2.0-draft.1</code> and drop <code>0.1</code>, rather than keep both. Then both CLIs share global installs fully.</li>
 </ul>
-<p><strong>Reading kept.</strong> Two kinds of reading stay, because they are document compatibility, not protocol support:</p>
+<p>A shared entry this host cannot run, for example one the Rust CLI installed, is listed as unavailable instead of failing the listing. That is robustness, not protocol support. <a href="#doc-1">DOC-1</a> applies the same reasoning to old document formats.</p>
+
+<h3 id="doc-1">DOC-1. Only the current contract drafts are read (maintainer decision)</h3>
+<p><strong>Decision.</strong> On 9 November 2026 the maintainer decided to stop reading the older document formats, because "we are paying too much of a cost to support transient pre 1.0 contracts".</p>
+<p>What this host reads and writes:</p>
 <ul>
-<li>reading upstream documents in their released and draft formats: catalog <code>"1.0"</code>, version 1 index records and descriptors, and claim set <code>0.1.0-draft.1</code>;</li>
-<li>listing a Rust-written entry this host cannot run as unavailable, instead of failing.</li>
+<li>index records, release descriptors and catalog entries at exactly <code>2.0.0-draft.2</code>, plus the drafts finos/morphir#1149 adds for dotted ids;</li>
+<li>claim sets at <code>0.1.0-draft.2</code>;</li>
+<li>catalog and lock files at the versions the reference writes today: catalog <code>"1.0"</code> or <code>"2.0.0-draft.2"</code> (<a href="#q-catver">Q-CATVER</a>), and lock <code>"1.0"</code>, the only lock version there is.</li>
 </ul>
-<p>Whether to drop the version 1 document readers too is an open question below.</p>
+<p>What it no longer reads, and never converts: version 1 index records and descriptors (integer <code>1</code> or <code>"1.0"</code>), records and descriptors at <code>2.0.0-draft.1</code>, and claim sets at <code>0.1.0-draft.1</code> (<code>statement</code>, <code>statementSource</code>). Those formats mostly carried MEP <code>0.1</code>-era extensions, which MEP-1 already leaves out.</p>
+<p>Where old documents still appear, and what happens:</p>
+<ul>
+<li><strong>A history with old lines.</strong> A line at a version this host does not read takes part only through its <code>schemaVersion</code>, <code>id</code> and <code>version</code>, so the history checks still hold, and it is never selected. Asking for such a release gives <code>extension.unsupported_contract_version</code>.</li>
+<li><strong>A descriptor in an old format</strong> is refused with <code>extension.unsupported_contract_version</code>.</li>
+<li><strong>A Rust-written catalog entry this host does not read</strong> (converted from a version 1 record, or with claim set draft.1) is listed as unavailable with a reason, never activated, and carried through unchanged when this host rewrites the catalog. The file stays readable; only those entries are unavailable.</li>
+</ul>
+<p>The cost removed: no draft.1 conversion, no mixed-draft detection, no version 1 descriptor or record codecs, and no converted-entry writer.</p>
 ID-1. The id rule is chosen by document version, and dotted ids follow finos/morphir#1149</h3>
 <p>The registry keeps its dotted rule for built-ins. The installer parses ids with the rule of the version it reads. For <code>1.0</code>, <code>2.0.0-draft.1</code> and <code>2.0.0-draft.2</code>, an id is one token of at most 238 characters that is not a Windows device name by the reference rule (<code>domain/identity.rs:237-286</code>, which also refuses <code>CONIN$</code>, <code>CONOUT$</code> and superscript-digit forms).</p>
 <p>Dotted ids are read from the drafts #1149 introduces once it is approved: the descriptor, index record and catalog at <code>2.0.0-draft.3</code>, and the lock at <code>2.0.0-draft.1</code>. Dotted-id installs are written at those drafts, as #1149 finally decides. #1149 adds the device-name rule for the first segment, which morphir-dotnet adopts in its task 5.1.</p>
@@ -684,8 +696,8 @@ ID-1. The id rule is chosen by document version, and dotted ids follow finos/mor
 <table>
 <thead><tr><th>Behavior</th><th>Verifiable without reading Rust</th><th>Only in Rust code today</th></tr></thead>
 <tbody>
-<tr><td>Claim set shape, <code>describe</code>, agreement rule, critical members, draft conversion</td><td><code>protocol.md</code>, <code>distribution-and-acquisition.md</code>, <code>spec/mep</code></td><td>Typed projection and number equality (Q-NUMBERS); fallback by message; converted records written without claims</td></tr>
-<tr><td>Version 2 descriptor</td><td>Parent example and rules; toolchain recipe binding checks and signed fixtures</td><td>Exact member path lists; v1 descriptor; bundle file set and checksum format</td></tr>
+<tr><td>Claim set shape, <code>describe</code>, agreement rule, critical members</td><td><code>protocol.md</code>, <code>distribution-and-acquisition.md</code>, <code>spec/mep</code></td><td>Typed projection and number equality (Q-NUMBERS); fallback by message (omitted here); converted entries written without claims (carried through here, DOC-1)</td></tr>
+<tr><td>Version 2 descriptor</td><td>Parent example and rules; toolchain recipe binding checks and signed fixtures</td><td>Exact member path lists; bundle file set and checksum format</td></tr>
 <tr><td>Index records and resolution</td><td>Channel rules</td><td>JSONL history rules, precedence duplicates, MEP filter, ambiguity, host-requirement skipping, WASM <code>platform</code> absence</td></tr>
 <tr><td>Store, catalog, locks, journal, state lock, repositories file</td><td>Layout in the PRD; two Rust test fixtures</td><td>Member sets, <code>critical</code>/<code>requires</code>, version switching, strict lock reader, journal, lock primitive, repository identity spelling, the listing failure that MEP-1 accepts</td></tr>
 <tr><td>Identifiers, paths, platforms</td><td>Toolchain <code>index.md</code> identifiers, target path rules, platform table; #1149's id cases once approved</td><td>Device-name rule for single-token extension ids</td></tr>
@@ -759,6 +771,7 @@ ID-1. The id rule is chosen by document version, and dotted ids follow finos/mor
 <li><strong>requires.host across implementations.</strong> A provider's <code>requires.host</code> cannot say which implementation it targets (Q-REQHOST).</li>
 <li><strong>MEP 0.1-only extensions.</strong> MEP <code>0.1</code> is not supported (MEP-1). So the published process extensions pinned upstream resolve to <code>extension.no_compatible_mep_version</code>, and Rust-installed ones are listed as unavailable. The approved qualification matrix should drop them, and their publishers need releases that speak <code>0.2.0-draft.1</code>.</li>
 <li><strong>Two changes modify one registry requirement.</strong> This change's MODIFIED block for "An entry states its delivery and hosts" is now written against the adoption change's text on main, and adds <code>deployments</code> and <code>reason</code> for installed entries.</li>
+<li><strong>"Keeps old global catalogs readable" (approved UP-2, task 4.4) is narrowed by DOC-1.</strong> An old catalog file is still read, and the ids an overlay does not select still resolve. But a catalog entry converted from a version 1 record, or one carrying claim set draft.1, is now listed as unavailable and never activated. The approved wording should say "readable", not "usable in full".</li>
 </ol>
 
 <h2 id="risks">Risks and trade-offs</h2>
@@ -808,7 +821,6 @@ ID-1. The id rule is chosen by document version, and dotted ids follow finos/mor
 <li>The wording of the stderr notes and the text output columns.</li>
 <li>Whether the AOT probe for the library joins <code>TestMepAot</code> or gets its own target.</li>
 <li>The exact name of the interoperability gate's workflow, and whether it also runs on a schedule.</li>
-<li>Whether MEP-1 should also drop reading version 1 index records and descriptors, and the claim set draft.1 conversion, which mostly serve <code>0.1</code>-era extensions. This change keeps them, because Rust-written catalogs and locks at <code>"1.0"</code> exist and cost little to read.</li>
 </ul>
 
 <h2 id="references">References</h2>

@@ -52,7 +52,7 @@ The installer and the host SHALL refuse a store root, digest directory or stored
 - **THEN** an install or activation that uses it fails with `extension.path_escape` and writes nothing
 
 ### Requirement: The catalog holds one active record per extension
-The shared catalog SHALL be `catalog/extensions.json` below Morphir Home, with `schemaVersion` and `extensions` sorted by id, one entry per id, and the members the reference writer writes. `critical` and `requires` SHALL be written when the release has `requires.host`, with `critical` naming `requires.host`. An entry whose claims were only converted from a version 1 record SHALL have no `claims`, `claimCheck` or `probeSource`.
+The shared catalog SHALL be `catalog/extensions.json` below Morphir Home, with `schemaVersion` and `extensions` sorted by id, one entry per id, and the members the reference writer writes. `critical` and `requires` SHALL be written when the release has `requires.host`, with `critical` naming `requires.host`. An entry this host does not read, such as one the Rust CLI converted from a version 1 record, SHALL be carried through unchanged when the installer rewrites the catalog.
 
 #### Scenario: Catalog entry members
 - **WHEN** a process extension with a supplied claim set is installed and probed through `describe`
@@ -62,9 +62,9 @@ The shared catalog SHALL be `catalog/extensions.json` below Morphir Home, with `
 - **WHEN** the installed release has `requires.host` `>=0.4.0`
 - **THEN** the entry has `requires` with that range and `critical` `["requires.host"]`
 
-#### Scenario: A converted version 1 record
-- **WHEN** the installed record is a version 1 index record without a claim set, installed without a probe
-- **THEN** the entry has no `claims`, `claimCheck` or `probeSource` member
+#### Scenario: A Rust-written converted entry is carried through
+- **WHEN** the catalog holds an entry the Rust CLI converted from a version 1 record, and a user installs another id
+- **THEN** the converted entry keeps its members and values
 
 #### Scenario: Two ids in order
 - **WHEN** `zeta-backend` and then `alpha-frontend` are installed
@@ -73,8 +73,8 @@ The shared catalog SHALL be `catalog/extensions.json` below Morphir Home, with `
 ### Requirement: The catalog schema version follows its entries
 The installer SHALL write catalog `schemaVersion` `"2.0.0-draft.2"` when any entry carries a supplied claim set, and `"1.0"` otherwise, as the reference implementation does (Q-CATVER, follows the reference).
 
-#### Scenario: Only converted records
-- **WHEN** every installed entry came from a version 1 index record without a claim set
+#### Scenario: Only carried-through entries
+- **WHEN** every entry left in the catalog is a carried-through entry without a supplied claim set
 - **THEN** the catalog `schemaVersion` is `"1.0"`
 
 #### Scenario: A supplied claim set
@@ -96,8 +96,8 @@ For each catalog entry the installer SHALL write `locks/extensions/<id>.json` be
 - **WHEN** a WASM artifact is installed globally
 - **THEN** its lock has `"platform": null`, `"args": []` and `"executable": false`
 
-### Requirement: Upstream records are read with the parent compatibility rules
-The installer and the host SHALL read catalogs and records with the parent rules: ignore unknown optional members, refuse an unknown `critical` path and name it, accept released major 1 and the exact drafts `2.0.0-draft.1` and `2.0.0-draft.2`, convert a draft.1 record, and refuse a record that mixes draft.1 and draft.2 names.
+### Requirement: Only the current contract drafts are read
+The installer and the host SHALL read records, descriptors and catalog entries only at `2.0.0-draft.2` or the drafts finos/morphir#1149 adds, with claim sets at `0.1.0-draft.2`, and catalog and lock files at the versions the reference writes. They SHALL ignore unknown optional members and refuse an unknown `critical` path. Version 1 records, `2.0.0-draft.1` and claim set draft.1 SHALL NOT be read or converted (decision DOC-1).
 
 #### Scenario: A newer optional member
 - **WHEN** the catalog written by another CLI has an entry member this host does not know and that `critical` does not list
@@ -105,14 +105,14 @@ The installer and the host SHALL read catalogs and records with the parent rules
 
 #### Scenario: A draft.1 entry
 - **WHEN** a catalog entry has `statement` and `statementSource` `declared`
-- **THEN** the host reads it as `claims` with `claimCheck` `unchecked`
+- **THEN** the host lists it as unavailable, with a reason naming claim set draft.1, and does not convert it
 
-#### Scenario: Mixed drafts
-- **WHEN** a catalog entry has both `statement` and `claimCheck`
-- **THEN** reading fails and names the entry
+#### Scenario: A version 1 index record
+- **WHEN** a repository history line is a version 1 record
+- **THEN** it is never selected, and an install that would need it fails with `extension.unsupported_contract_version`
 
 ### Requirement: A shared entry this host cannot run does not hide the others
-When a shared catalog entry's `mepVersions` holds no version this host speaks, the host SHALL keep reading the catalog, list the entry as unavailable with a `reason` that names its MEP versions, and refuse to activate it with `extension.no_compatible_mep_version`. A reason for an entry that speaks only `0.1` SHALL say that MEP `0.1` is not supported. Other entries SHALL resolve as usual.
+A host SHALL keep reading the catalog past an entry it cannot run: one whose `mepVersions` holds no version it speaks, or that has no supplied claim set or a contract version it does not read. It SHALL list the entry as unavailable with a `reason`, and refuse to activate it with `extension.no_compatible_mep_version` or `extension.unsupported_contract_version`. A reason about MEP `0.1` SHALL say it is not supported.
 
 #### Scenario: A Rust-installed legacy extension
 - **WHEN** the Rust CLI installed `morphir-elm` with `mepVersions` `["0.1"]` and another entry speaks `0.2.0-draft.1`

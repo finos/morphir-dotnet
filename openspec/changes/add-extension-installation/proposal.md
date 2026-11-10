@@ -14,6 +14,8 @@ A developer on Windows adds a local extension repository and installs a process 
 
 MEP `0.1` is not supported (maintainer decision, 9 November 2026): "we don't have users to support the cost of maintaining 2 versions". This host and its guests speak only `0.2.0-draft.1`. Nothing here implements, bridges or protects `0.1`.
 
+The same day the maintainer decided to stop reading transient pre-1.0 document formats: "we are paying too much of a cost to support transient pre 1.0 contracts". This host reads index records, descriptors and catalog entries only at `2.0.0-draft.2` (and the drafts finos/morphir#1149 adds), with claim sets at `0.1.0-draft.2`. It does not read or convert version 1 records and descriptors, `2.0.0-draft.1` or claim set draft.1. A Rust-written catalog entry in those formats is listed as unavailable and carried through unchanged.
+
 The .NET and Rust CLIs share Morphir Home's formats, store and catalog, so a global install from either is a global install for both. That works fully once the Rust host speaks `0.2.0-draft.1`. Today the Rust host supports only `0.1`, and one catalog entry it cannot run makes every Rust `compile`, `generate` and `extension list` on that Morphir Home fail. Under the decision above, that cost is accepted: the install says so on stderr, the docs say so, and the upstream ask is for the Rust host to move to `0.2.0-draft.1`.
 
 ```text

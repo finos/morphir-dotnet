@@ -69,8 +69,8 @@ Provisional pending Q-OVERLAY and the shared toolchain contract. A host SHALL re
 An overlay or pin SHALL NOT require a change to the shared catalog or locks. A host SHALL read a shared catalog written by any upstream release whose format this host reads, with or without an overlay.
 
 #### Scenario: Catalog from an older Rust CLI
-- **WHEN** the shared catalog has `schemaVersion` `"1.0"` and entries converted from version 1 records, and an overlay is set
-- **THEN** ids that the overlay does not select resolve from that catalog
+- **WHEN** the shared catalog has `schemaVersion` `"1.0"` with entries the Rust CLI converted from version 1 records, and an overlay is set
+- **THEN** the catalog is read, the overlay's ids resolve, and the converted entries are listed as unavailable without being rewritten
 
 ### Requirement: Activation checks the installed bytes offline
 Before it starts a guest, a host SHALL load the selected record and, for a shared entry, its lock, check that they agree, check that the store path resolves inside Morphir Home, check the executable mode on Unix, and check that a recorded MEP version is one it speaks. Any failure SHALL stop before guest code runs. This is the parent contract's activation.

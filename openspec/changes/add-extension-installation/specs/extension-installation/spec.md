@@ -69,14 +69,18 @@ The installer SHALL canonicalize the history file and each artifact source path,
 - **THEN** the install fails with `extension.path_escape` and reads no bytes through the link
 
 ### Requirement: A release history is consistent
-The installer SHALL refuse a history whose records name different ids, repeat a version, or contain two versions of equal SemVer precedence, and SHALL record the SHA-256 of the exact history bytes as the index revision.
+The installer SHALL refuse a history whose records name different ids, repeat a version, or contain two versions of equal SemVer precedence, and SHALL record the SHA-256 of the exact history bytes as the index revision. A record at a version this host does not read SHALL take part only through its `schemaVersion`, `id` and `version`, and SHALL never be selected.
 
 #### Scenario: Two equal precedences
 - **WHEN** a history lists `1.0.0+a` and `1.0.0+b`
 - **THEN** resolution fails and names both versions
 
+#### Scenario: Old lines in a history
+- **WHEN** a history holds version 1 records for 0.1.0 and 0.2.0 and a `2.0.0-draft.2` record for 0.3.0
+- **THEN** a stable install selects 0.3.0, and `--version 0.2.0` fails with `extension.unsupported_contract_version`
+
 ### Requirement: The id rule is the rule of the contract version read
-The installer SHALL check an id with the rule of the document version it reads. For record and descriptor versions `1.0`, `2.0.0-draft.1` and `2.0.0-draft.2`, an id SHALL be one portable token of at most 238 characters that is not a Windows device name by the reference rule. Dotted ids SHALL be read only from the drafts that finos/morphir#1149 introduces, once that change is approved; this part is provisional.
+The installer SHALL check an id with the rule of the document version it reads. For record and descriptor version `2.0.0-draft.2`, an id SHALL be one portable token of at most 238 characters that is not a Windows device name by the reference rule. Dotted ids SHALL be read only from the drafts that finos/morphir#1149 introduces, once that change is approved; this part is provisional.
 
 #### Scenario: Dotted id in a draft.2 descriptor
 - **WHEN** a version `2.0.0-draft.2` descriptor has `extensionId` `org.finos.morphir.fsharp-frontend`

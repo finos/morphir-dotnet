@@ -93,7 +93,7 @@ The installer SHALL check the descriptor against its `.sha256` file, and each ar
 - **THEN** the install fails with `extension.digest_mismatch`
 
 ### Requirement: A descriptor is read with the parent descriptor rules
-The installer SHALL read the descriptor as version 1 or exact `2.0.0-draft.1` or `2.0.0-draft.2`, require claims on every version 2 artifact, require a platform triple for process artifacts and none for WASM, refuse a descriptor that mixes runtimes, and refuse claims that differ between artifacts unless `platformDifferences` is `declared`.
+The installer SHALL read the descriptor only at exactly `2.0.0-draft.2` or the drafts finos/morphir#1149 adds, refusing others with `extension.unsupported_contract_version` (decision DOC-1), require claims on every artifact, require a platform triple for process artifacts and none for WASM, refuse a descriptor that mixes runtimes, and refuse claims that differ between artifacts unless `platformDifferences` is `declared`.
 
 #### Scenario: Undeclared difference
 - **WHEN** two artifacts' claim sets differ and `platformDifferences` is `none`

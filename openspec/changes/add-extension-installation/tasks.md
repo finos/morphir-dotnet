@@ -55,12 +55,12 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 - [ ] 2.3 Add the platform table from the toolchain contracts: RID to descriptor triple to the "Tool release v1 platform" `os` and `arch`, with musl giving no index platform; verify the `Platforms` tests pass.
   - First failing test: each row of the table maps both ways; `linux-musl-x64` has no index platform, and resolution names it in `extension.no_matching_artifact`.
   - Command: `dotnet exec <inst> --filter-test-list "Platforms"` after the build above.
-- [ ] 2.4 Add claim sets that keep their JSON beside the typed `Morphir.Mep` view, compare over the typed projection with the reference number equality, convert draft.1, check `critical` and evaluate `requires.host`; verify the `Claims` tests pass.
+- [ ] 2.4 Add claim sets that keep their JSON beside the typed `Morphir.Mep` view, compare over the typed projection with the reference number equality, check `critical` and evaluate `requires.host`; verify the `Claims` tests pass.
   - First failing tests:
     - `{"a":1}` differs from `{"a":1.0}`, and `1.0` equals `1.00`;
     - key order is ignored and array order is not;
     - an unknown top-level member is ignored, and an absent `critical` equals `[]`;
-    - a draft.1 `statement` with `statementSource` `declared` reads as `claims` with `claimCheck` `unchecked`;
+    - a claim set at `0.1.0-draft.1` (`statement`, `statementSource`) is refused with `extension.unsupported_contract_version` and is not converted (DOC-1);
     - a mixed record is refused.
   - Command: `dotnet exec <inst> --filter-test-list "Claims"`.
 - [ ] 2.5 Add index records, JSONL histories and pure resolution; verify the `Resolution` tests pass.
@@ -71,9 +71,10 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - only-`0.1` releases give `extension.no_compatible_mep_version`;
     - two artifacts for one platform are refused;
     - a WASM record with `platform` `null` is refused, as the reference index reader refuses it.
+    - a history with version 1 lines for 0.1.0 and 0.2.0 and a `2.0.0-draft.2` line for 0.3.0 selects 0.3.0 on stable, and refuses `--version 0.2.0` with `extension.unsupported_contract_version`.
   - Command: `dotnet exec <inst> --filter-test-list "Resolution"`.
-- [ ] 2.6 Add release descriptor reading for version 1 and the exact version 2 drafts, with the platform-differences check; verify the `Descriptors` tests pass.
-  - First failing test: two artifacts whose claims differ at `capabilities.backend.targets` with `platformDifferences` `none` are refused naming that member; a descriptor mixing `wasm` and `process` is refused; integer `schemaVersion` 1 reads as version 1.
+- [ ] 2.6 Add release descriptor reading at exactly `2.0.0-draft.2`, with the platform-differences check; verify the `Descriptors` tests pass.
+  - First failing test: two artifacts whose claims differ at `capabilities.backend.targets` with `platformDifferences` `none` are refused naming that member; a descriptor mixing `wasm` and `process` is refused; integer `schemaVersion` 1, `"1.0"` and `2.0.0-draft.1` are refused with `extension.unsupported_contract_version` (DOC-1).
   - Command: `dotnet exec <inst> --filter-test-list "Descriptors"`.
 - [ ] 2.7 Add catalog and shared lock codecs that write the upstream member sets and read with must-ignore, including the catalog version switch, `critical` and `requires`; pin interoperability fixtures with provenance; verify the `StateCodecs` tests pass.
   - Fixtures: `tests/Fixtures/ExtensionAcquisition/` holds:
@@ -85,7 +86,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - the lock writer never adds a top-level member outside the upstream list;
     - a catalog with a supplied claim set is written as `"2.0.0-draft.2"`;
     - an entry for a release with `requires.host` is written with `critical` `["requires.host"]`;
-    - a converted version 1 entry is written with no `claims`, `claimCheck` or `probeSource`.
+    - a Rust-written entry converted from a version 1 record is carried through unchanged when .NET rewrites the catalog, and is listed as unavailable.
   - Command: `dotnet exec <inst> --filter-test-list "StateCodecs"`.
 - [ ] 2.8 Add the journal and repositories-file codecs; verify the `StateCodecs` tests pass.
   - Journal: `schemaVersion` 1, and `nextLock` and `nextCatalog` as byte arrays or `null`.
@@ -265,7 +266,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - First failing tests:
     - two overlays selecting 0.2.0 and 0.3.0 of one id resolve to their own versions, while the global selection still names 0.1.0;
     - an overlay of `/tmp/gen` fails with `extension.overlay_invalid`;
-    - a `"1.0"` shared catalog from the 2.7 fixtures resolves the other ids.
+    - a `"1.0"` shared catalog from the 2.7 fixtures is read: the overlay's ids resolve, and its converted entries are listed as unavailable and not rewritten.
   - Command: `dotnet exec <inst> --filter-test-list "Overlay"`.
   - Docs: the overlay contract for `morphirup` in `src/Morphir.Extensions.Installation/README.md`.
 - [ ] 6.5 Activate offline: pair agreement, containment, mode and MEP version checks; hash the store object in the read that writes the private copy; launch with the filtered environment and an explicit working directory; check the session against the installed claims. Verify the `Activation` tests pass on Windows and Linux.
