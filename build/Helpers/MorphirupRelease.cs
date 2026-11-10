@@ -32,33 +32,54 @@ public static class MorphirupRelease
     public static string ChecksumFileName(string version) => $"{Prefix}v{version}.sha256";
 
     /// <summary>
-    /// Writes the two assets of <paramref name="executable"/> into <paramref name="assets"/> and returns their names: a
-    /// copy named <see cref="ExecutableName"/>, and the tarball, written by <see cref="ReleaseArchive"/> with the
-    /// executable at <c>{rid}/{name}</c> and mode 0755.
+    /// The release's third-party notices of the executables, for example
+    /// <c>morphirup-v1.2.3-THIRD-PARTY-NOTICES.txt</c>: the bare executables have nothing beside them, so the release
+    /// carries the text that each archive holds as <see cref="NoticesEntry"/>.
     /// </summary>
-    public static IReadOnlyList<string> WriteAssets(string executable, string rid, string version, string assets)
+    public static string NoticesFileName(string version) => $"{Prefix}v{version}-THIRD-PARTY-NOTICES.txt";
+
+    /// <summary>The name of the third-party notices beside the executable in an archive.</summary>
+    public const string NoticesEntry = "THIRD-PARTY-NOTICES.txt";
+
+    /// <summary>
+    /// Every entry of the archive, sorted: the executable, the repository's <c>LICENSE</c> and <c>NOTICE</c>, and the
+    /// third-party notices, all under <c>{rid}/</c>.
+    /// </summary>
+    public static IReadOnlyList<string> ArchiveEntries(string rid) =>
+        [.. new[] { LaunchName(rid), "LICENSE", "NOTICE", NoticesEntry }.Select(name => $"{rid}/{name}").Order(StringComparer.Ordinal)];
+
+    /// <summary>
+    /// Writes the assets of <paramref name="executable"/> into <paramref name="assets"/> and returns their names: a copy
+    /// named <see cref="ExecutableName"/>; the tarball, written by <see cref="ReleaseArchive"/>, with the executable
+    /// (mode 0755), <paramref name="license"/>, <paramref name="notice"/> and the third-party notices under
+    /// <c>{rid}/</c> (see <see cref="ArchiveEntries"/>); and the third-party notices as <see cref="NoticesFileName"/>.
+    /// </summary>
+    public static IReadOnlyList<string> WriteAssets(string executable, string rid, string version, string assets, string license, string notice, string thirdPartyNotices)
     {
         Directory.CreateDirectory(assets);
         var bare = Path.Combine(assets, ExecutableName(rid));
         File.Copy(executable, bare, overwrite: true);
+        File.WriteAllText(Path.Combine(assets, NoticesFileName(version)), thirdPartyNotices, new UTF8Encoding(false));
 
         var staging = Path.Combine(assets, $".staging-{rid}");
         if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         try
         {
-            var entry = $"{rid}/{LaunchName(rid)}";
-            var staged = Path.Combine(staging, rid, LaunchName(rid));
-            Directory.CreateDirectory(Path.GetDirectoryName(staged)!);
-            File.Copy(executable, staged);
+            var folder = Directory.CreateDirectory(Path.Combine(staging, rid)).FullName;
+            File.Copy(executable, Path.Combine(folder, LaunchName(rid)));
+            File.Copy(license, Path.Combine(folder, "LICENSE"));
+            File.Copy(notice, Path.Combine(folder, "NOTICE"));
+            File.Copy(Path.Combine(assets, NoticesFileName(version)), Path.Combine(folder, NoticesEntry));
             // tar.gz on every platform, Windows included, as for the morphir tarballs.
-            ReleaseArchive.Create(staging, Path.Combine(assets, ArchiveName(rid, version)), ArchiveFormat.TarGz, ReleaseArchive.ExecutablesFor(entry));
+            ReleaseArchive.Create(staging, Path.Combine(assets, ArchiveName(rid, version)), ArchiveFormat.TarGz,
+                ReleaseArchive.ExecutablesFor($"{rid}/{LaunchName(rid)}"));
         }
         finally
         {
             Directory.Delete(staging, recursive: true);
         }
 
-        return [ExecutableName(rid), ArchiveName(rid, version)];
+        return [ExecutableName(rid), ArchiveName(rid, version), NoticesFileName(version)];
     }
 
     /// <summary>

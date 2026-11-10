@@ -23,6 +23,7 @@ public class MorphirupReleaseTests
         MorphirupRelease.ExecutableName("linux-arm64").Should().Be("morphirup-linux-arm64");
         MorphirupRelease.ArchiveName("osx-arm64", "0.4.0-alpha.4").Should().Be("morphirup-osx-arm64-v0.4.0-alpha.4.tar.gz");
         MorphirupRelease.ChecksumFileName("0.4.0-alpha.4").Should().Be("morphirup-v0.4.0-alpha.4.sha256");
+        MorphirupRelease.NoticesFileName("0.4.0-alpha.4").Should().Be("morphirup-v0.4.0-alpha.4-THIRD-PARTY-NOTICES.txt");
         MorphirupRelease.LaunchName("win-x64").Should().Be("morphirup.exe");
         MorphirupRelease.LaunchName("linux-x64").Should().Be("morphirup");
     }
@@ -138,33 +139,51 @@ public class MorphirupReleaseTests
         workflow.Should().Contain("./artifacts/release-assets/morphirup-*");
         workflow.Should().Contain("--target MorphirupChecksums");
         workflow.Should().Contain("pattern: morphir-*", "the morphir executables keep their own download");
+
+        var build = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", "morphirup-build.yml"));
+        build.Should().Contain("./artifacts/release-assets/morphirup-v*-THIRD-PARTY-NOTICES.txt",
+            "every platform uploads the notices file, which the release attaches with the morphirup-* assets");
     }
 
     [Test]
     [Arguments("linux-x64")]
     [Arguments("win-x64")]
-    public async Task TheArchiveHoldsTheExecutableUnderTheRidFolder(string rid)
+    public async Task TheArchiveHoldsTheExecutableAndItsNoticesUnderTheRidFolder(string rid)
     {
         await using var sandbox = TestSandbox.Create("morphirup-release-");
         var executable = sandbox.PathOf("published", MorphirupRelease.LaunchName(rid));
         Directory.CreateDirectory(Path.GetDirectoryName(executable)!);
         await File.WriteAllBytesAsync(executable, [1, 2, 3, 4]);
+        var license = sandbox.PathOf("LICENSE");
+        var notice = sandbox.PathOf("NOTICE");
+        await File.WriteAllTextAsync(license, "Apache License");
+        await File.WriteAllTextAsync(notice, "Morphir - FINOS");
         var assets = Directory.CreateDirectory(sandbox.PathOf("release assets")).FullName;
 
-        var written = MorphirupRelease.WriteAssets(executable, rid, "1.2.3", assets);
+        var written = MorphirupRelease.WriteAssets(executable, rid, "1.2.3", assets, license, notice, "notices\n");
 
-        written.Should().Equal(MorphirupRelease.ExecutableName(rid), MorphirupRelease.ArchiveName(rid, "1.2.3"));
+        written.Should().Equal(MorphirupRelease.ExecutableName(rid), MorphirupRelease.ArchiveName(rid, "1.2.3"), "morphirup-v1.2.3-THIRD-PARTY-NOTICES.txt");
         (await File.ReadAllBytesAsync(Path.Combine(assets, MorphirupRelease.ExecutableName(rid)))).Should().Equal(1, 2, 3, 4);
+        (await File.ReadAllTextAsync(Path.Combine(assets, "morphirup-v1.2.3-THIRD-PARTY-NOTICES.txt"))).Should().Be("notices\n");
 
         await using var gzip = new GZipStream(File.OpenRead(Path.Combine(assets, MorphirupRelease.ArchiveName(rid, "1.2.3"))), CompressionMode.Decompress);
         using var tar = new TarReader(gzip);
-        var entry = tar.GetNextEntry();
-        entry!.Name.Should().Be($"{rid}/{MorphirupRelease.LaunchName(rid)}");
-        entry.Mode.Should().Be(ReleaseArchive.ExecutableMode);
-        using var content = new MemoryStream();
-        await entry.DataStream!.CopyToAsync(content);
-        content.ToArray().Should().Equal(1, 2, 3, 4);
-        tar.GetNextEntry().Should().BeNull("the archive holds only the executable");
+        var entries = new Dictionary<string, (UnixFileMode Mode, byte[] Content)>();
+        while (tar.GetNextEntry() is { } entry)
+        {
+            using var content = new MemoryStream();
+            await entry.DataStream!.CopyToAsync(content);
+            entries[entry.Name] = (entry.Mode, content.ToArray());
+        }
+
+        entries.Keys.Order(StringComparer.Ordinal).Should().Equal(MorphirupRelease.ArchiveEntries(rid));
+        MorphirupRelease.ArchiveEntries(rid).Should().Equal(
+            $"{rid}/LICENSE", $"{rid}/NOTICE", $"{rid}/THIRD-PARTY-NOTICES.txt", $"{rid}/{MorphirupRelease.LaunchName(rid)}");
+        entries[$"{rid}/{MorphirupRelease.LaunchName(rid)}"].Mode.Should().Be(ReleaseArchive.ExecutableMode);
+        entries[$"{rid}/{MorphirupRelease.LaunchName(rid)}"].Content.Should().Equal(1, 2, 3, 4);
+        entries[$"{rid}/LICENSE"].Content.Should().Equal("Apache License"u8.ToArray());
+        entries[$"{rid}/NOTICE"].Content.Should().Equal("Morphir - FINOS"u8.ToArray());
+        entries[$"{rid}/THIRD-PARTY-NOTICES.txt"].Content.Should().Equal("notices\n"u8.ToArray());
     }
 
     [Test]

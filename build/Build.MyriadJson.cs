@@ -74,8 +74,9 @@ partial class Build
         }
 
         var output = work / "publish";
+        // A RID-specific publish writes its lock files under obj/publish-lock/<rid>/, not into the committed ones.
         var (publishExit, publishLog) = Capture("dotnet", "publish", project, "-c", configuration, "-r", rid,
-            "-p:MorphirProbeAot=true", "-o", output, "-nologo");
+            "-p:MorphirProbeAot=true", $"-p:{Morphir.Build.Helpers.TargetSettings.RidSpecificPublishProperty}=true", "-o", output, "-nologo");
         File.WriteAllText(work / "publish.log", publishLog);
         if (publishExit != 0)
         {
