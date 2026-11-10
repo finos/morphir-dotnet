@@ -4,7 +4,6 @@ namespace Morphir.Toolchain
 
 open System
 open System.Text
-open System.Text.RegularExpressions
 open Semver
 
 /// A lowercase portable token: <c>[a-z]</c>, then <c>[a-z0-9-]</c>, ending in a letter or digit, at most 64
@@ -175,20 +174,46 @@ module ContractVersion =
             Ok()
         else
             Error ReaderCode.UnsupportedContractVersion
-/// One SemVer comparator, such as <c>&gt;=10.0.0</c>, parsed by the Semver library's npm range syntax.
+/// The operator of a version comparator.
+[<RequireQualifiedAccess>]
+type ComparatorOperator =
+    | Equal
+    | Greater
+    | GreaterOrEqual
+    | Less
+    | LessOrEqual
+
+/// <summary>
+/// One version comparator: exactly one of <c>=</c>, <c>&gt;</c>, <c>&gt;=</c>, <c>&lt;</c> or <c>&lt;=</c>, then a complete
+/// version in canonical SemVer spelling, with no space. <c>^</c>, <c>~</c>, wildcards, partial versions and combined
+/// ranges are <c>invalid_value</c>, because Rust, TypeScript and .NET read them differently. This slice only reads and
+/// writes comparators; it never evaluates one.
+/// </summary>
 [<CustomEquality; NoComparison>]
 type Comparator =
     private
-    | Comparator of text: string * range: SemVersionRange
+    | Comparator of operator: ComparatorOperator * version: SemVer
+
+    member this.Operator =
+        let (Comparator(operator, _)) = this
+        operator
+
+    member this.Version =
+        let (Comparator(_, version)) = this
+        version
 
     member this.Text =
-        let (Comparator(text, _)) = this
-        text
+        let (Comparator(operator, version)) = this
 
-    /// The requirement as the Semver library models it.
-    member this.Range =
-        let (Comparator(_, range)) = this
-        range
+        let symbol =
+            match operator with
+            | ComparatorOperator.Equal -> "="
+            | ComparatorOperator.Greater -> ">"
+            | ComparatorOperator.GreaterOrEqual -> ">="
+            | ComparatorOperator.Less -> "<"
+            | ComparatorOperator.LessOrEqual -> "<="
+
+        symbol + version.Text
 
     override this.ToString() = this.Text
 
@@ -200,21 +225,21 @@ type Comparator =
     override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Text
 
 module Comparator =
-    // One comparator, never a range: an optional operator and one full or partial version, as the schemas state.
-    let private single =
-        Regex(
-            @"^(?:=|>=|<=|>|<|~|\^)?(0|[1-9][0-9]*)(?:\.(0|[1-9][0-9]*|\*)(?:\.(0|[1-9][0-9]*|\*)(?:-[0-9A-Za-z.-]+)?)?)?$",
-            RegexOptions.CultureInvariant
-        )
+    // Two-character operators first, so ">=1.0.0" is never read as ">" and "=1.0.0".
+    let private operators =
+        [ ">=", ComparatorOperator.GreaterOrEqual
+          "<=", ComparatorOperator.LessOrEqual
+          ">", ComparatorOperator.Greater
+          "<", ComparatorOperator.Less
+          "=", ComparatorOperator.Equal ]
 
     let tryParse (text: string) =
-        let mutable range = Unchecked.defaultof<SemVersionRange>
-
-        if single.IsMatch text && SemVersionRange.TryParseNpm(text, &range) then
-            Ok(Comparator(text, range))
-        else
-            Error ReaderCode.InvalidValue
-
+        operators
+        |> List.tryFind (fun (symbol, _) -> text.StartsWith(symbol, StringComparison.Ordinal))
+        |> Option.map (fun (symbol, operator) ->
+            SemVer.tryParse (text.Substring symbol.Length) |> Result.map (fun version -> Comparator(operator, version)))
+        |> Option.defaultValue (Error ReaderCode.InvalidValue)
+        |> Result.mapError (fun _ -> ReaderCode.InvalidValue)
 /// A platform, in .NET runtime identifier spelling.
 [<RequireQualifiedAccess>]
 type Platform =
@@ -329,7 +354,19 @@ module TargetPath =
         && segment.Length <= 255
         && not (isDeviceName segment)
 
-    /// The target path, or <c>non_portable_path</c>.
+    let private strictUtf8 = UTF8Encoding(false, true)
+
+    /// <summary>Whether text is well-formed (no lone surrogate) and in Unicode Normalization Form C.</summary>
+    let private isNfc (text: string) =
+        try
+            strictUtf8.GetByteCount text |> ignore
+            text.IsNormalized NormalizationForm.FormC
+        with :? ArgumentException ->
+            false
+
+    /// <summary>The target path, or <c>non_portable_path</c>. A target path is also NFC: canonical encoding normalizes
+    /// the keys of signed targets metadata, so a path in another form would be signed under one key and looked up
+    /// under another.</summary>
     let tryParse (text: string) =
         let hasForbiddenCharacter =
             text |> Seq.exists (fun c -> c <= '\u001F' || c = '\u2028' || c = '\u2029')
@@ -340,6 +377,7 @@ module TargetPath =
             && Encoding.UTF8.GetByteCount text <= 512
             && not hasForbiddenCharacter
             && text.Split('/') |> Array.forall isPortableComponent
+            && isNfc text
         then
             Ok(TargetPath text)
         else

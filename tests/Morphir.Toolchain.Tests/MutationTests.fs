@@ -102,7 +102,7 @@ let tests =
             with
             | Ok(digested, _) ->
                 match digested.Plan.Components |> List.last with
-                | PlannedComponent.Provider(_, _, PlannedDelivery.Wasm LocalProbe.InHost, _) as guest ->
+                | PlannedComponent.Provider(_, _, PlannedDelivery.Wasm, _) as guest ->
                     Expect.equal (PlannedComponent.probe guest) Probe.InHost "in-host"
                 | other -> failtestf "the guest is planned as %A" other
             | Error failure -> failtestf "no plan: %A" failure)

@@ -30,6 +30,8 @@ type BindingCode =
     | LockChanged
     | ReceiptLockMismatch
     | LockRecipeMismatch
+    /// <c>--expect-plan</c> named another digest than the plan the command made.
+    | PlanChanged
 
 /// The codes of the <c>unsupported-artifact</c> diagnostic kind.
 [<RequireQualifiedAccess>]
@@ -77,6 +79,9 @@ type Code =
     | Binding of binding: BindingCode
     | Artifact of artifact: ArtifactCode
     | Trust of trust: TrustCode
+    /// A document the command needs is absent or unreadable. Its kind is <c>unsupported-contract</c>, but no reader
+    /// reports it: a reader is only given bytes.
+    | DocumentUnavailable
     | MissingPrerequisite
     | OfflineContentUnavailable
     | OwnershipConflict
@@ -104,7 +109,8 @@ module Code =
           BindingCode.PlatformNotLocked, "platform_not_locked"
           BindingCode.LockChanged, "lock_changed"
           BindingCode.ReceiptLockMismatch, "receipt_lock_mismatch"
-          BindingCode.LockRecipeMismatch, "lock_recipe_mismatch" ]
+          BindingCode.LockRecipeMismatch, "lock_recipe_mismatch"
+          BindingCode.PlanChanged, "plan_changed" ]
 
     let private artifacts =
         [ ArtifactCode.UnsupportedArtifact, "unsupported_artifact"
@@ -130,6 +136,7 @@ module Code =
     /// Every stable code with its spelling, in the order of the overview page's table.
     let all: (Code * string) list =
         [ yield! readers |> List.map (fun (code, name) -> Code.Reader code, name)
+          Code.DocumentUnavailable, "document_unavailable"
           yield! bindings |> List.map (fun (code, name) -> Code.Binding code, name)
           yield! artifacts |> List.map (fun (code, name) -> Code.Artifact code, name)
           Code.MissingPrerequisite, "missing_prerequisite"
@@ -153,7 +160,8 @@ module Code =
     /// The one result diagnostic kind of a code.
     let kind (code: Code) =
         match code with
-        | Code.Reader _ -> DiagnosticKind.UnsupportedContract
+        | Code.Reader _
+        | Code.DocumentUnavailable -> DiagnosticKind.UnsupportedContract
         | Code.Binding _ -> DiagnosticKind.LockBinding
         | Code.Artifact _ -> DiagnosticKind.UnsupportedArtifact
         | Code.Trust _ -> DiagnosticKind.TrustFailure

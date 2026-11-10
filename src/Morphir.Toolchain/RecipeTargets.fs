@@ -171,3 +171,53 @@ module RecipeTargets =
             |> List.reduce (fun best next -> if SemVersion.ComparePrecedence(snd next, snd best) > 0 then next else best)
             |> fst
             |> Ok
+
+    /// <summary>
+    /// Launch and rollback against learned revocations (installation receipt page): before a generation is launched or
+    /// selected by rollback, its lock is checked against the trust state, in this order. The lock names the trust
+    /// state's repository (<c>repository_mismatch</c> at <c>recipe.repositoryId</c>); its recipe target is not revoked
+    /// (<c>release_revoked</c> at <c>recipe.target</c>); and, for a <c>tool-release</c> offering, its host release is
+    /// not revoked (<c>release_revoked</c> at <c>host.version</c>). A provider has no release status of its own:
+    /// revoking the recipe that binds it is how it is revoked. Keeping learned revocations durable is the caller's.
+    /// </summary>
+    let checkLockedGeneration
+        (repository: Sha256)
+        (targets: Map<string, AuthenticatedTarget>)
+        (recipe: Recipe)
+        (lock: Lock)
+        : Result<unit, TargetRefusal> =
+        let root = DocumentPath.root
+        let revoked = refuse (Code.Trust TrustCode.ReleaseRevoked)
+
+        // A tool release's state in its authenticated custom.morphir object (tool release metadata v1).
+        let releaseRevoked (toolId: string) (version: string) =
+            targets
+            |> Map.exists (fun _ target ->
+                match target.Custom |> Option.bind (member' "morphir") with
+                | Some morphir ->
+                    text "kind" morphir = Some "tool-release"
+                    && text "toolId" morphir = Some toolId
+                    && text "version" morphir = Some version
+                    && text "status" morphir = Some "revoked"
+                | None -> false)
+
+        result {
+            if lock.Recipe.RepositoryId <> repository then
+                return! refuse (Code.Trust TrustCode.RepositoryMismatch) ((root.Child "recipe").Child "repositoryId")
+
+            match targets.TryFind lock.Recipe.Target.Text |> Option.map state with
+            | Some(Ok state) when state.Status = RecipeStatus.Revoked -> return! revoked ((root.Child "recipe").Child "target")
+            | _ -> ()
+
+            let offering =
+                recipe.Hosts
+                |> List.tryFind (fun host ->
+                    host.Implementation = lock.Host.Implementation
+                    && host.Deployment = lock.Host.Deployment
+                    && host.Version = lock.Host.Version)
+
+            match offering |> Option.map _.Source with
+            | Some(HostSource.ToolRelease toolId) when releaseRevoked toolId.Text lock.Host.Version.Text ->
+                return! revoked ((root.Child "host").Child "version")
+            | _ -> ()
+        }

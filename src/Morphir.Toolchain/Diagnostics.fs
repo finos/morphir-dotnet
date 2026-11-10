@@ -53,15 +53,35 @@ module Diagnostics =
         | BindingFailure.Binding problem ->
             let text =
                 match problem with
-                | BindingProblem.RequestChanged ->
+                | BindingProblem.RequestChanged None ->
                     "The request bytes no longer hash to the lock's requestSha256. An explicit setup or update writes a new lock; this build does not implement them yet."
+                | BindingProblem.RequestChanged(Some RequestChangeCause.CrlfLineEndings) ->
+                    "The request bytes no longer hash to the lock's requestSha256, but they differ only by CRLF line endings, which a Git line-ending conversion usually introduces. Mark .morphir/toolchain.toml text eol=lf in .gitattributes and check it out again; a converted file is never accepted."
+                | BindingProblem.RequestChanged(Some RequestChangeCause.ByteOrderMark) ->
+                    "The request bytes no longer hash to the lock's requestSha256, but they differ only by a leading UTF-8 byte order mark, which some editors add. Save .morphir/toolchain.toml as UTF-8 without a byte order mark, and mark it text eol=lf in .gitattributes; a converted file is never accepted."
+                | BindingProblem.RequestChanged(Some RequestChangeCause.CrlfLineEndingsAndByteOrderMark) ->
+                    "The request bytes no longer hash to the lock's requestSha256, but they differ only by CRLF line endings and a leading UTF-8 byte order mark. Save .morphir/toolchain.toml as UTF-8 without a byte order mark, mark it text eol=lf in .gitattributes and check it out again; a converted file is never accepted."
                 | BindingProblem.PlatformNotLocked platform ->
                     $"The lock records no {Platform.name platform} closure. An explicit setup extends the lock; this build does not implement it yet (morphirup setup --plan --platform {Platform.name platform} shows the plan)."
                 | BindingProblem.LockChanged -> "The receipt was installed from other lock bytes."
                 | BindingProblem.ReceiptLockMismatch -> $"The receipt does not repeat the lock at {path}."
                 | BindingProblem.LockRecipeMismatch -> $"The lock is not a closure its recipe allows at {path}."
+                | BindingProblem.PlanChanged -> "--expect-plan named another plan. Nothing was changed."
 
             error (DiagnosticDetail.LockBinding(problem, refusal.Path)) text None
+    /// <summary><c>plan_changed</c>: <c>--expect-plan</c> named another digest than the plan the command made. Nothing
+    /// is changed before it is reported.</summary>
+    let planChanged (expected: Sha256) (actual: Sha256) =
+        error
+            (DiagnosticDetail.LockBinding(BindingProblem.PlanChanged, DocumentPath.root.Child "planSha256"))
+            $"--expect-plan named {expected.Text}, but the plan this setup would perform hashes to {actual.Text}. Nothing was changed."
+            None
+
+    /// <summary><c>document_unavailable</c>: a document the command needs is absent or cannot be read. The reason
+    /// names the file, never its contents.</summary>
+    let documentUnavailable (document: DocumentKind) (reason: string) =
+        error (DiagnosticDetail.DocumentUnavailable document) reason None
+
     /// <summary>A diagnostic for a recipe target refusal: <c>unsupported-contract</c> for the reader codes (document
     /// <c>recipe</c>), <c>trust-failure</c> naming <paramref name="repository"/> for the trust codes, and
     /// <c>unsupported-artifact</c> for a channel that selects nothing.</summary>

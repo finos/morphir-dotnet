@@ -19,12 +19,14 @@ type Execution =
     | NativeAot
     | Jit
 
-/// A provider compiled into a host.
+/// <summary>A provider compiled into a host, with the model it exchanges with the host: the model a <c>compile</c>
+/// built-in writes (<c>modelOutput</c>) or a <c>generate</c> built-in reads (<c>modelInput</c>). The operation names
+/// the member, so a built-in cannot carry the other one.</summary>
 type BuiltIn =
     { Operation: Operation
       ExtensionId: ExtensionId
       Version: SemVer
-      ModelInput: ModelInput }
+      Model: ModelInput }
 
 /// A host offering: one implementation, release and deployment, with its artifact for each supported platform.
 type HostOffering =
@@ -189,13 +191,13 @@ module RecipeDocument =
             let! operation = operation o
             let! extensionId = required "extensionId" extensionId o
             let! version = required "version" version o
-            let! modelInput = required "modelInput" modelInput o
+            let! model = builtInModel operation o
 
             return
                 { Operation = operation
                   ExtensionId = extensionId
                   Version = version
-                  ModelInput = modelInput }
+                  Model = model }
         }
 
     let private targetBinding targetName shaName (n: Node) : Read<TargetBinding> =

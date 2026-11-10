@@ -388,7 +388,7 @@ let tests =
                 Expect.equal run.Exit 1 "exit code"
 
                 match (readResult run).Diagnostics with
-                | [ { Detail = DiagnosticDetail.LockBinding(BindingProblem.RequestChanged, path) } ] ->
+                | [ { Detail = DiagnosticDetail.LockBinding(BindingProblem.RequestChanged None, path) } ] ->
                     Expect.equal (DocumentPath.render path) "requestSha256" "the lock member"
                 | other -> failtestf "unexpected diagnostics %A" other)
 

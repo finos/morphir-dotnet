@@ -31,19 +31,43 @@ let planFor (request: string) (platform: Platform) sizes =
           Sizes = sizes
           MetadataRefresh = MetadataRefresh.Required }
 
-/// A plan with the synthetic members masked: every SHA-256, and the sizes, which the fixture states and the recipe
-/// does not carry.
+/// <summary>A plan with the synthetic members masked: every SHA-256 (the fixture's are synthetic), the sizes, which the
+/// recipe does not carry, and the lock's request digest. The fixture's lock is <c>lock/two-platforms-bound.json</c>,
+/// which records another platform too, so only the plan's own platform's closure is compared.</summary>
 let rec masked (value: Value) =
     match value with
     | Value.Object members ->
         Value.Object
             [ for name, item in members ->
-                  match name with
-                  | "sha256" -> name, Value.String "<sha256>"
-                  | "downloadBytes"
-                  | "installedBytes" -> name, Value.Number "0"
+                  match name, item with
+                  | ("sha256" | "requestSha256"), _ -> name, Value.String "<sha256>"
+                  | name, Value.String _ when name.EndsWith "Sha256" -> name, Value.String "<sha256>"
+                  | ("downloadBytes" | "installedBytes"), _ -> name, Value.Number "0"
                   | _ -> name, masked item ]
     | Value.Array items -> Value.Array(items |> List.map masked)
+    | other -> other
+
+/// The plan with its lock reduced to the closure of the plan's own platform.
+let ownClosure (plan: Value) =
+    let platform =
+        match plan with
+        | Value.Object members -> members |> List.tryPick (function "platform", Value.String p -> Some p | _ -> None)
+        | _ -> None
+
+    match plan with
+    | Value.Object members ->
+        Value.Object
+            [ for name, item in members ->
+                  match name, item with
+                  | "lock", Value.Object lock ->
+                      name,
+                      Value.Object
+                          [ for key, member' in lock ->
+                                match key, member' with
+                                | "platforms", Value.Object closures ->
+                                    key, Value.Object(closures |> List.filter (fun (p, _) -> Some p = platform))
+                                | _ -> key, member' ]
+                  | _ -> name, item ]
     | other -> other
 
 let canonical value =
@@ -60,7 +84,7 @@ let fixturePlan (relative: string) =
 let prerequisiteNames (plan: Plan) =
     [ for planned in plan.Components ->
           match planned with
-          | PlannedComponent.Host(_, _, p, _)
+          | PlannedComponent.Host(_, _, p)
           | PlannedComponent.Provider(_, _, _, p) -> p.Prerequisites |> List.map _.Name.Text ]
 
 let planned request platform =
@@ -75,8 +99,8 @@ let tests =
             let digested, _ = planned "request/approved.toml" Platform.WinX64
 
             Expect.equal
-                (canonical (masked (ResultDocument.planValue digested.Plan)))
-                (canonical (masked (fixturePlan "result/setup-plan.json")))
+                (canonical (masked (ownClosure (ResultDocument.planValue digested.Plan))))
+                (canonical (masked (ownClosure (fixturePlan "result/setup-plan.json"))))
                 "every member the plan digest covers")
 
         testCase "a prerequisite limited to other platforms is not in the plan, and one for this platform is" (fun () ->
@@ -90,12 +114,12 @@ let tests =
             let digested, _ = planned "request/approved.toml" Platform.WinArm64
 
             let probes = digested.Plan.Components |> List.map PlannedComponent.probe
-            Expect.equal probes [ Probe.None; Probe.ProcessWithUserRights; Probe.InHost ] "the host is not probed; a process probe runs with the user's rights; a built-in is checked in the host"
+            Expect.equal probes [ Probe.ProcessWithUserRights; Probe.ProcessWithUserRights; Probe.InHost ] "readiness runs the staged host and the process guest with the user's rights; a built-in runs in the host"
 
             match digested.Plan.Components with
-            | [ PlannedComponent.Host(implementation, deployment, host, LocalProbe.None)
+            | [ PlannedComponent.Host(implementation, deployment, host)
                 PlannedComponent.Provider(Operation.Compile _, frontendId, PlannedDelivery.Process, frontend)
-                PlannedComponent.Provider(Operation.Generate _, generatorId, PlannedDelivery.BuiltIn LocalProbe.InHost, generator) ] ->
+                PlannedComponent.Provider(Operation.Generate _, generatorId, PlannedDelivery.BuiltIn, generator) ] ->
                 Expect.equal (implementation.Text, deployment.Text) ("dotnet", "native-aot") "the host offering"
 
                 Expect.equal

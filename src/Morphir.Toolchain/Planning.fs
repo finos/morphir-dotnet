@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 namespace Morphir.Toolchain
 
-/// The download and installed sizes of one artifact. The recipe does not carry them; authenticated target metadata
-/// gives the download length.
+/// <summary>The download and installed sizes of one artifact. <c>downloadBytes</c> is the authenticated length of the
+/// target, from the TUF targets metadata; the source of <c>installedBytes</c> is not settled in <c>0.1.0-draft.1</c>.
+/// Neither is in the recipe, so the caller supplies both.</summary>
 type ArtifactSize =
     { DownloadBytes: uint64
       InstalledBytes: uint64 }
@@ -39,7 +40,7 @@ module Planning =
         prerequisite.Platforms |> Option.forall (List.contains platform)
 
     let private on platform prerequisites =
-        prerequisites |> List.filter (appliesOn platform)
+        prerequisites |> List.filter (appliesOn platform) |> List.map PlannedPrerequisite.ofPrerequisite
 
     /// The component for one selected provider, with the artifact its locked form binds on the platform.
     let private plannedProvider (sizes: TargetPath -> ArtifactSize option) (platform: Platform) (selected: Selected, locked: LockedProvider) =
@@ -67,7 +68,7 @@ module Planning =
                 PlannedComponent.Provider(
                     builtIn.Operation,
                     builtIn.ExtensionId,
-                    PlannedDelivery.BuiltIn LocalProbe.InHost,
+                    PlannedDelivery.BuiltIn,
                     { Version = builtIn.Version
                       Source = ComponentSource.BuiltIn
                       DownloadBytes = 0UL
@@ -78,7 +79,7 @@ module Planning =
             )
         | Selected.Provider provider, LockedDelivery.Process(_, artifact, _) -> downloaded provider PlannedDelivery.Process artifact
         | Selected.Provider provider, LockedDelivery.Wasm(_, _, artifact, _) ->
-            downloaded provider (PlannedDelivery.Wasm LocalProbe.InHost) artifact
+            downloaded provider PlannedDelivery.Wasm artifact
         | Selected.Provider provider, LockedDelivery.DotnetTool(_, package, _) ->
             downloaded provider PlannedDelivery.DotnetTool { Target = package.Target; Sha256 = package.Sha256 }
         | Selected.Provider provider, LockedDelivery.BuiltIn _ ->
@@ -112,8 +113,7 @@ module Planning =
                       DownloadBytes = hostSize.DownloadBytes
                       InstalledBytes = hostSize.InstalledBytes
                       UpdateOwner = Ownership.ManagerOwned
-                      Prerequisites = on input.Platform offering.Prerequisites },
-                    LocalProbe.None
+                      Prerequisites = on input.Platform offering.Prerequisites }
                 )
 
             let! providers =
@@ -126,7 +126,8 @@ module Planning =
                   Platform = input.Platform
                   Recipe = lock.Recipe
                   MetadataRefresh = input.MetadataRefresh
-                  Components = host :: providers }
+                  Components = host :: providers
+                  Lock = lock }
 
             return ResultDocument.digest plan, lock
         }

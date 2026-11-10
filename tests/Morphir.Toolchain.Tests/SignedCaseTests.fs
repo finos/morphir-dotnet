@@ -276,6 +276,16 @@ let private trustTests () =
                   testCase name (fun () ->
                       let target = str action "recipe"
                       Expect.equal (recipeRows listed target (servedBytes case target)) (Manifest.expected name case) name)
+          | "check-locked-generation", _ ->
+              yield
+                  testCase name (fun () ->
+                      let lockFile = str action "lock"
+                      let lock = LockDocument.read (Fixtures.bytesIn Fixtures.signed lockFile) |> valid lockFile
+                      // The generation's recipe, as setup stored it: the authenticated bytes of the lock's recipe target.
+                      let recipe = signedRecipe lock.Recipe.Target.Text
+
+                      let actual = RecipeTargets.checkLockedGeneration (repository ()) listed recipe lock |> targetOutcome
+                      Expect.equal actual (Manifest.expected name case) name)
           | _ -> () ]
 
 let private channelTests () =
@@ -308,7 +318,7 @@ let private channelTests () =
 /// Why a trust case is not run, or None when it is.
 let trustSkipReason (op: string) (rule: string option) =
     match op, rule with
-    | ("read" | "authenticate"), _ -> None
+    | ("read" | "authenticate" | "check-locked-generation"), _ -> None
     | "check-recipe", Some rule when ranRecipeRules.Contains rule -> None
     | "check-recipe", Some rule -> skippedRecipeRules.TryFind rule |> Option.orElse (Some "unlisted")
     | _ -> skippedTrust.TryFind op |> Option.orElse (Some "unlisted")

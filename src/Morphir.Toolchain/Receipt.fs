@@ -24,8 +24,6 @@ type Authentication =
     | RepositoryTarget of repositoryId: Sha256 * targetsVersion: uint64
     /// By a digest in an authenticated recipe, which is the receipt's own recipe.
     | RecipeDigest of recipe: RecipeReference
-    /// By nothing: an unsigned developer artifact admitted by explicit developer policy.
-    | LocalDeveloper
     /// Not by the manager at all.
     | ExternalOwner
 
@@ -318,12 +316,9 @@ module ReceiptDocument =
 
                 return Authentication.RecipeDigest named
             | AuthenticationTag.LocalDeveloper ->
-                let! policy = required "policy" text o
-
-                if policy <> "developer" then
-                    return! refuse ReaderCode.InconsistentDocument (n.Path.Child "policy")
-
-                return Authentication.LocalDeveloper
+                // An unsigned developer artifact cannot equal a locked digest, so it is never part of a generation;
+                // bytes that do equal one were authenticated by that recipe digest (installation receipt page).
+                return! refuse ReaderCode.InconsistentDocument n.Path
             | AuthenticationTag.ExternalOwner -> return Authentication.ExternalOwner
         }
 
@@ -352,9 +347,6 @@ module ReceiptDocument =
             | Ownership.ManagerOwned, Authentication.ExternalOwner ->
                 // A manager-owned installation always says how the manager authenticated it.
                 return! refuse ReaderCode.InconsistentDocument (o.Path.Child "authentication")
-            | ownership, Authentication.LocalDeveloper when ownership <> Ownership.ManagerOwned ->
-                // A developer artifact is admitted only into manager-owned storage.
-                return! refuse ReaderCode.InconsistentDocument (o.Path.Child "ownership")
             | _ -> ()
 
             return
@@ -584,7 +576,6 @@ module ReceiptDocument =
                   "repositoryId", Value.String recipe.RepositoryId.Text
                   "recipeTarget", Value.String recipe.Target.Text
                   "recipeSha256", Value.String recipe.Sha256.Text ]
-        | Authentication.LocalDeveloper -> Value.Object [ "kind", Value.String "local-developer"; "policy", Value.String "developer" ]
         | Authentication.ExternalOwner -> Value.Object [ "kind", Value.String "external-owner" ]
 
     let private installationMembers (installation: Installation) =

@@ -59,6 +59,7 @@ let tests =
             match ResultDocument.read (Fixtures.bytes "result/setup-plan-escaping.json") |> Result.map _.Plan with
             | Ok(Some digested) ->
                 Expect.sequenceEqual digested.Canonical canonical "canonical bytes"
-                Expect.equal digested.Sha256.Text "5d4e4779706cc887c83cf3042285b71c6c1ef0cada1dee41634828e4f287a801" "planSha256"
+                // The reader already refused a planSha256 that is not this digest.
+                Expect.equal digested.Sha256 (Sha256.ofBytes canonical) "planSha256"
             | other -> failtestf "the escaping fixture does not read with a plan: %A" other)
     ]

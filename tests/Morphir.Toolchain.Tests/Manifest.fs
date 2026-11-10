@@ -34,6 +34,11 @@ type BindingCase =
     | ReceiptLock of name: string * receipt: string * lock: string * expected: Expected
     | Resolve of name: string * recipe: string * request: string * platform: string * expected: ResolveExpected
     | PlanCanonical of name: string * result: string * canonical: string * expected: Expected
+    /// A refused case may name the encoding change that is the likely cause.
+    | LockRequestBytes of name: string * lock: string * request: string * expected: Expected * cause: string option
+    | PlanLock of name: string * result: string * lock: string * expected: Expected
+    /// Files under one synthetic root, and the request discovery finds from start, if any.
+    | Discover of name: string * files: string list * boundary: string * start: string * request: string option
 
     member this.Name =
         match this with
@@ -41,7 +46,21 @@ type BindingCase =
         | LockPlatform(name, _, _, _)
         | ReceiptLock(name, _, _, _)
         | Resolve(name, _, _, _, _)
-        | PlanCanonical(name, _, _, _) -> name
+        | PlanCanonical(name, _, _, _)
+        | LockRequestBytes(name, _, _, _, _)
+        | PlanLock(name, _, _, _)
+        | Discover(name, _, _, _, _) -> name
+
+    member this.Kind =
+        match this with
+        | LockRequest _ -> "lock-request"
+        | LockPlatform _ -> "lock-platform"
+        | ReceiptLock _ -> "receipt-lock"
+        | Resolve _ -> "resolve"
+        | PlanCanonical _ -> "plan-canonical"
+        | LockRequestBytes _ -> "lock-request-bytes"
+        | PlanLock _ -> "plan-lock"
+        | Discover _ -> "discover"
 
 let private members (element: JsonElement) =
     element.EnumerateObject() |> Seq.map (fun p -> p.Name) |> Set.ofSeq
@@ -135,4 +154,35 @@ let bindings () : BindingCase list =
           | "plan-canonical" ->
               requireKnown name (common @ [ "result"; "canonical" ]) case
               PlanCanonical(name, str case "result", str case "canonical", expected name case)
+          | "lock-request-bytes" ->
+              requireKnown name (common @ [ "lock"; "request" ]) case
+              let value = case.GetProperty "expected"
+
+              let cause =
+                  if value.ValueKind = JsonValueKind.Object then
+                      requireKnown $"{name} expected" [ "code"; "path"; "cause" ] value
+                      optStr value "cause"
+                  else
+                      None
+
+              let outcome =
+                  if value.ValueKind = JsonValueKind.Object then Refused(str value "code", str value "path") else expected name case
+
+              LockRequestBytes(name, str case "lock", str case "request", outcome, cause)
+          | "plan-lock" ->
+              requireKnown name (common @ [ "result"; "lock" ]) case
+              PlanLock(name, str case "result", str case "lock", expected name case)
+          | "discover" ->
+              requireKnown name (common @ [ "files"; "boundary"; "start" ]) case
+              let value = case.GetProperty "expected"
+              requireKnown $"{name} expected" [ "request" ] value
+              let request = value.GetProperty "request"
+
+              Discover(
+                  name,
+                  [ for file in case.GetProperty("files").EnumerateArray() -> nonNull (file.GetString()) ],
+                  str case "boundary",
+                  str case "start",
+                  (if request.ValueKind = JsonValueKind.Null then None else Some(nonNull (request.GetString())))
+              )
           | other -> failwithf "binding %s has kind %s, which this suite does not run" name other ]

@@ -41,6 +41,7 @@
         <Compile Include="Resolution.fs" />
         <Compile Include="Planning.fs" />
         <Compile Include="Diagnostics.fs" />
+        <Compile Include="Discovery.fs" />
     </ItemGroup>
 
 </Project>

@@ -150,22 +150,43 @@ type ArtifactProblem =
 
 /// What a <c>lock-binding</c> diagnostic reports. Only <c>platform_not_locked</c> names a platform. Each code reports
 /// a fixed document: the one whose member its path names.
+/// <summary>The likely cause of a <c>request_changed</c> refusal, when the request bytes differ from the locked ones
+/// only by encoding: converting CRLF to LF, removing a leading UTF-8 byte order mark, or both, gives the locked
+/// bytes.</summary>
+[<RequireQualifiedAccess>]
+type RequestChangeCause =
+    | CrlfLineEndings
+    | ByteOrderMark
+    | CrlfLineEndingsAndByteOrderMark
+
+module RequestChangeCause =
+    let all =
+        [ RequestChangeCause.CrlfLineEndings, "crlf-line-endings"
+          RequestChangeCause.ByteOrderMark, "byte-order-mark"
+          RequestChangeCause.CrlfLineEndingsAndByteOrderMark, "crlf-line-endings-and-byte-order-mark" ]
+
+    let name (cause: RequestChangeCause) =
+        all |> List.find (fun (candidate, _) -> candidate = cause) |> snd
+
 [<RequireQualifiedAccess>]
 type BindingProblem =
-    | RequestChanged
+    /// Only <c>request_changed</c> may name a cause.
+    | RequestChanged of cause: RequestChangeCause option
     | PlatformNotLocked of platform: Platform
     | LockChanged
     | ReceiptLockMismatch
     | LockRecipeMismatch
+    | PlanChanged
 
 module BindingProblem =
     let code (problem: BindingProblem) =
         match problem with
-        | BindingProblem.RequestChanged -> BindingCode.RequestChanged
+        | BindingProblem.RequestChanged _ -> BindingCode.RequestChanged
         | BindingProblem.PlatformNotLocked _ -> BindingCode.PlatformNotLocked
         | BindingProblem.LockChanged -> BindingCode.LockChanged
         | BindingProblem.ReceiptLockMismatch -> BindingCode.ReceiptLockMismatch
         | BindingProblem.LockRecipeMismatch -> BindingCode.LockRecipeMismatch
+        | BindingProblem.PlanChanged -> BindingCode.PlanChanged
 
     /// The document whose member a binding code's path names.
     let document (code: BindingCode) =
@@ -175,6 +196,7 @@ module BindingProblem =
         | BindingCode.LockRecipeMismatch -> DocumentKind.Lock
         | BindingCode.LockChanged
         | BindingCode.ReceiptLockMismatch -> DocumentKind.Receipt
+        | BindingCode.PlanChanged -> DocumentKind.Result
 
 /// A diagnostic's kind-specific members. The case is the diagnostic kind, so a code of another kind cannot be written.
 [<RequireQualifiedAccess>]
@@ -191,6 +213,8 @@ type DiagnosticDetail =
     | OwnershipConflict of on: Component * ownership: Ownership
     | ReadinessFailed of on: Component * check: CheckKind * reached: Readiness
     | UnsupportedContract of code: ReaderCode * document: DocumentKind * path: DocumentPath
+    /// <c>document_unavailable</c>, always at the empty path.
+    | DocumentUnavailable of document: DocumentKind
     | SelectionUnavailable of source: SelectionSource
     | LockBinding of problem: BindingProblem * path: DocumentPath
 
@@ -208,6 +232,7 @@ module DiagnosticDetail =
         | DiagnosticDetail.OwnershipConflict _ -> Code.OwnershipConflict
         | DiagnosticDetail.ReadinessFailed _ -> Code.ReadinessFailed
         | DiagnosticDetail.UnsupportedContract(code, _, _) -> Code.Reader code
+        | DiagnosticDetail.DocumentUnavailable _ -> Code.DocumentUnavailable
         | DiagnosticDetail.SelectionUnavailable _ -> Code.GenerationNotInstalled
         | DiagnosticDetail.LockBinding(problem, _) -> Code.Binding(BindingProblem.code problem)
 
@@ -226,36 +251,47 @@ type ComponentSource =
     | BuiltIn
     | ExternalOwner
 
-/// Whether a component's readiness probe runs, and with what rights.
+/// <summary>How setup runs a component's code: the plan member <c>probe</c>. <c>none</c> names a component setup never
+/// runs; no component of a <c>0.1.0-draft.1</c> setup or update plan is one, so a plan never states it.</summary>
 [<RequireQualifiedAccess>]
 type Probe =
     | None
     | InHost
     | ProcessWithUserRights
 
-/// The probe of a component that runs no acquired process.
-[<RequireQualifiedAccess>]
-type LocalProbe =
-    | None
-    | InHost
-
-/// <summary>A planned provider's delivery. A <c>process</c> or <c>dotnet-tool</c> provider's readiness probe runs
-/// acquired code with the user's rights, so its probe is fixed; any other delivery carries a probe that does not, so
-/// no plan can state another combination.</summary>
+/// A planned provider's delivery. Its probe follows from it.
 [<RequireQualifiedAccess>]
 type PlannedDelivery =
-    | BuiltIn of probe: LocalProbe
+    | BuiltIn
     | Process
-    | Wasm of probe: LocalProbe
+    | Wasm
     | DotnetTool
 
 module PlannedDelivery =
     let delivery (planned: PlannedDelivery) =
         match planned with
-        | PlannedDelivery.BuiltIn _ -> Delivery.BuiltIn
+        | PlannedDelivery.BuiltIn -> Delivery.BuiltIn
         | PlannedDelivery.Process -> Delivery.Process
-        | PlannedDelivery.Wasm _ -> Delivery.Wasm
+        | PlannedDelivery.Wasm -> Delivery.Wasm
         | PlannedDelivery.DotnetTool -> Delivery.DotnetTool
+
+    let ofDelivery (delivery: Delivery) =
+        match delivery with
+        | Delivery.BuiltIn -> PlannedDelivery.BuiltIn
+        | Delivery.Process -> PlannedDelivery.Process
+        | Delivery.Wasm -> PlannedDelivery.Wasm
+        | Delivery.DotnetTool -> PlannedDelivery.DotnetTool
+
+/// <summary>A prerequisite of a planned component that applies on the plan's platform. A plan's prerequisites are
+/// already filtered, so a planned prerequisite names no platforms.</summary>
+type PlannedPrerequisite =
+    { Kind: PrerequisiteKind
+      Name: NonBlankText }
+
+module PlannedPrerequisite =
+    let ofPrerequisite (prerequisite: Prerequisite) : PlannedPrerequisite =
+        { Kind = prerequisite.Kind
+          Name = prerequisite.Name }
 
 /// What setup would do for one component.
 type ComponentPlan =
@@ -264,32 +300,29 @@ type ComponentPlan =
       DownloadBytes: uint64
       InstalledBytes: uint64
       UpdateOwner: Ownership
-      Prerequisites: Prerequisite list }
+      Prerequisites: PlannedPrerequisite list }
 
-/// A planned component: the host with its probe, or a provider with its identity and delivery.
+/// A planned component: the host, or a provider with its identity and delivery.
 [<RequireQualifiedAccess>]
 type PlannedComponent =
-    | Host of implementation: Token * deployment: Token * plan: ComponentPlan * probe: LocalProbe
+    | Host of implementation: Token * deployment: Token * plan: ComponentPlan
     | Provider of operation: Operation * extensionId: ExtensionId * delivery: PlannedDelivery * plan: ComponentPlan
 
 module PlannedComponent =
-    let private local (probe: LocalProbe) =
-        match probe with
-        | LocalProbe.None -> Probe.None
-        | LocalProbe.InHost -> Probe.InHost
-
-    /// The component's probe, as the plan states it.
+    /// <summary>The component's probe. Readiness runs the staged host to check it and its built-ins, so the host is
+    /// <c>process-with-user-rights</c>; so is every <c>process</c> and <c>dotnet-tool</c> guest, which installation
+    /// or readiness runs. A built-in or WASM provider runs inside the host.</summary>
     let probe (planned: PlannedComponent) =
         match planned with
-        | PlannedComponent.Host(_, _, _, probe)
-        | PlannedComponent.Provider(_, _, PlannedDelivery.BuiltIn probe, _)
-        | PlannedComponent.Provider(_, _, PlannedDelivery.Wasm probe, _) -> local probe
+        | PlannedComponent.Host _
         | PlannedComponent.Provider(_, _, PlannedDelivery.Process, _)
         | PlannedComponent.Provider(_, _, PlannedDelivery.DotnetTool, _) -> Probe.ProcessWithUserRights
+        | PlannedComponent.Provider(_, _, PlannedDelivery.BuiltIn, _)
+        | PlannedComponent.Provider(_, _, PlannedDelivery.Wasm, _) -> Probe.InHost
 
     let plan (planned: PlannedComponent) =
         match planned with
-        | PlannedComponent.Host(_, _, plan, _)
+        | PlannedComponent.Host(_, _, plan)
         | PlannedComponent.Provider(_, _, _, plan) -> plan
 
 [<RequireQualifiedAccess>]
@@ -297,15 +330,18 @@ type MetadataRefresh =
     | Required
     | NotRequired
 
-/// A setup or update plan.
+/// <summary>A setup or update plan: everything the command will do and write, so that its digest pins all of it,
+/// including <c>lock</c>, the complete lock the command writes when it succeeds.</summary>
 type Plan =
     { Implementation: Token
       Deployment: Token
       Platform: Platform
       Recipe: RecipeReference
       MetadataRefresh: MetadataRefresh
-      Components: PlannedComponent list }
-
+      /// What the plan installs for <c>Platform</c>: the host first, then one provider per provider of its closure.
+      Components: PlannedComponent list
+      /// Every platform's closure, not only <c>Platform</c>'s.
+      Lock: Lock }
 /// A plan with its canonical bytes and their SHA-256, the <c>planSha256</c> that <c>--expect-plan</c> compares.
 type DigestedPlan =
     { Plan: Plan
@@ -428,6 +464,7 @@ module ResultDocument =
 
             let abiPath = n.Path.Child "abi"
             let platformPath = n.Path.Child "platform"
+            let causePath = n.Path.Child "cause"
 
             if has "abi" o && code <> Code.Artifact ArtifactCode.AbiUnavailable then
                 return! refuse ReaderCode.InconsistentDocument abiPath
@@ -505,6 +542,17 @@ module ResultDocument =
                         let! path = required "path" text o
                         return DiagnosticDetail.UnsupportedContract(readerCode, document, DocumentPath.verbatim path)
                     }
+                | Code.DocumentUnavailable ->
+                    result {
+                        let! document = required "document" (tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))) o
+                        let! path = required "path" text o
+
+                        // The document as a whole is unavailable, so the path is the empty path.
+                        if path <> "" then
+                            return! refuse ReaderCode.InconsistentDocument (n.Path.Child "path")
+
+                        return DiagnosticDetail.DocumentUnavailable document
+                    }
                 | Code.GenerationNotInstalled ->
                     required "source" selectionSource o |> Result.map DiagnosticDetail.SelectionUnavailable
                 | Code.Binding bindingCode ->
@@ -520,10 +568,17 @@ module ResultDocument =
                             | BindingCode.PlatformNotLocked, Some p -> platform p |> Result.map BindingProblem.PlatformNotLocked
                             | BindingCode.PlatformNotLocked, None
                             | _, Some _ -> refuse ReaderCode.InconsistentDocument platformPath
-                            | BindingCode.RequestChanged, None -> Ok BindingProblem.RequestChanged
+                            | BindingCode.RequestChanged, None ->
+                                optional "cause" (tag (RequestChangeCause.all |> List.map (fun (cause, name) -> name, cause))) o
+                                |> Result.map BindingProblem.RequestChanged
                             | BindingCode.LockChanged, None -> Ok BindingProblem.LockChanged
                             | BindingCode.ReceiptLockMismatch, None -> Ok BindingProblem.ReceiptLockMismatch
                             | BindingCode.LockRecipeMismatch, None -> Ok BindingProblem.LockRecipeMismatch
+                            | BindingCode.PlanChanged, None -> Ok BindingProblem.PlanChanged
+
+                        // Only request_changed has a cause.
+                        if bindingCode <> BindingCode.RequestChanged && has "cause" o then
+                            return! refuse ReaderCode.InconsistentDocument causePath
 
                         return DiagnosticDetail.LockBinding(problem, DocumentPath.verbatim path)
                     }
@@ -568,6 +623,14 @@ module ResultDocument =
             | ComponentSourceTag.ExternalOwner -> return ComponentSource.ExternalOwner
         }
 
+    /// A plan prerequisite: already filtered to the plan's platform, so one that names platforms is inconsistent.
+    let private plannedPrerequisite (n: Node) : Read<PlannedPrerequisite> =
+        prerequisite n
+        |> Result.bind (fun read ->
+            match read.Platforms with
+            | Some _ -> refuse ReaderCode.InconsistentDocument (n.Path.Child "platforms")
+            | None -> Ok(PlannedPrerequisite.ofPrerequisite read))
+
     let private plannedComponent (n: Node) : Read<PlannedComponent> =
         result {
             let! o = asObject n
@@ -579,7 +642,7 @@ module ResultDocument =
             let! downloadBytes = required "downloadBytes" integer o
             let! installedBytes = required "installedBytes" integer o
             let! updateOwner = required "updateOwner" ownership o
-            let! prerequisites = required "prerequisites" (array prerequisite) o
+            let! prerequisites = required "prerequisites" (array plannedPrerequisite) o
 
             let! probe =
                 required "probe" (tag [ "none", Probe.None; "in-host", Probe.InHost; "process-with-user-rights", Probe.ProcessWithUserRights ]) o
@@ -594,37 +657,98 @@ module ResultDocument =
 
             let inconsistent name = refuse ReaderCode.InconsistentDocument (n.Path.Child name)
 
-            // A process or dotnet-tool provider's readiness probe runs acquired code with the user's rights, and no
-            // other component's does.
-            let local () =
-                match probe with
-                | Probe.None -> Ok LocalProbe.None
-                | Probe.InHost -> Ok LocalProbe.InHost
-                | Probe.ProcessWithUserRights -> inconsistent "probe"
-
-            let userRights () =
-                match probe with
-                | Probe.ProcessWithUserRights -> Ok()
-                | Probe.None
-                | Probe.InHost -> inconsistent "probe"
-
             let! planned =
                 match on, delivery, extensionId with
                 | Component.Host _, Some _, _ -> inconsistent "delivery"
                 | Component.Host _, None, Some _ -> inconsistent "extensionId"
-                | Component.Host(implementation, deployment), None, None ->
-                    local () |> Result.map (fun probe -> PlannedComponent.Host(implementation, deployment, plan, probe))
+                | Component.Host(implementation, deployment), None, None -> Ok(PlannedComponent.Host(implementation, deployment, plan))
                 | Component.Provider _, None, _ -> inconsistent "delivery"
                 | Component.Provider _, Some _, None -> inconsistent "extensionId"
                 | Component.Provider operation, Some delivery, Some id ->
-                    let provider planned = PlannedComponent.Provider(operation, id, planned, plan)
+                    Ok(PlannedComponent.Provider(operation, id, PlannedDelivery.ofDelivery delivery, plan))
 
-                    match delivery with
-                    | Delivery.BuiltIn -> local () |> Result.map (PlannedDelivery.BuiltIn >> provider)
-                    | Delivery.Wasm -> local () |> Result.map (PlannedDelivery.Wasm >> provider)
-                    | Delivery.Process -> userRights () |> Result.map (fun () -> provider PlannedDelivery.Process)
-                    | Delivery.DotnetTool -> userRights () |> Result.map (fun () -> provider PlannedDelivery.DotnetTool)
+            // The probe follows from the component; a plan states it so that its digest covers it.
+            if probe <> PlannedComponent.probe planned then
+                return! inconsistent "probe"
+
             return planned
+        }
+
+    /// <summary>The plan against its lock (manager result page, plans): the lock is for the plan's recipe, host and
+    /// platform, and the components are exactly that platform's closure, from the recipe's repository.</summary>
+    let private agreesWithLock (path: DocumentPath) (plan: Plan) : Read<unit> =
+        let lockPath = path.Child "lock"
+        let componentsPath = path.Child "components"
+        let lock = plan.Lock
+
+        result {
+            if lock.Recipe <> plan.Recipe then
+                return! refuse ReaderCode.InconsistentDocument (lockPath.Child "recipe")
+
+            if lock.Host.Implementation <> plan.Implementation || lock.Host.Deployment <> plan.Deployment then
+                return! refuse ReaderCode.InconsistentDocument (lockPath.Child "host")
+
+            let! closure =
+                Lock.closure plan.Platform lock
+                |> Option.map Ok
+                |> Option.defaultWith (fun () -> refuse ReaderCode.InconsistentDocument (lockPath.Child "platforms"))
+
+            let hosts = plan.Components |> List.filter (function PlannedComponent.Host _ -> true | _ -> false)
+
+            let operations =
+                plan.Components
+                |> List.choose (function
+                    | PlannedComponent.Provider(operation, _, _, _) -> Some operation
+                    | PlannedComponent.Host _ -> None)
+
+            if
+                List.length hosts <> 1
+                || List.length operations <> List.length closure.Providers
+                || set operations <> set (closure.Providers |> List.map _.Operation)
+            then
+                return! refuse ReaderCode.InconsistentDocument componentsPath
+
+            // A bound source names the expected bytes, from the recipe's repository.
+            let boundTo (at: DocumentPath) (expected: TargetBinding) (source: ComponentSource) =
+                match source with
+                | ComponentSource.RepositoryTarget(repositoryId, target, sha)
+                | ComponentSource.RecipeDigest(repositoryId, target, sha) ->
+                    if target <> expected.Target || sha <> expected.Sha256 then
+                        refuse ReaderCode.InconsistentDocument (at.Child "source")
+                    elif repositoryId <> plan.Recipe.RepositoryId then
+                        refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "repositoryId")
+                    else
+                        Ok()
+                | ComponentSource.ExternalOwner -> Ok()
+                | ComponentSource.BuiltIn -> refuse ReaderCode.InconsistentDocument (at.Child "source")
+
+            for index, planned in List.indexed plan.Components do
+                let at = componentsPath.At index
+
+                match planned with
+                | PlannedComponent.Host(_, _, host) ->
+                    if host.Version <> lock.Host.Version then
+                        return! refuse ReaderCode.InconsistentDocument at
+
+                    do! boundTo at closure.Host host.Source
+                | PlannedComponent.Provider(operation, id, delivery, provider) ->
+                    let locked = closure.Providers |> List.find (fun p -> p.Operation = operation)
+
+                    if
+                        id <> locked.ExtensionId
+                        || provider.Version <> locked.Version
+                        || PlannedDelivery.delivery delivery <> LockedProvider.delivery locked
+                    then
+                        return! refuse ReaderCode.InconsistentDocument at
+
+                    match locked.Delivery with
+                    | LockedDelivery.BuiltIn _ ->
+                        if provider.Source <> ComponentSource.BuiltIn then
+                            return! refuse ReaderCode.InconsistentDocument (at.Child "source")
+                    | LockedDelivery.Process(_, artifact, _)
+                    | LockedDelivery.Wasm(_, _, artifact, _) -> do! boundTo at artifact provider.Source
+                    | LockedDelivery.DotnetTool(_, package, _) ->
+                        do! boundTo at { Target = package.Target; Sha256 = package.Sha256 } provider.Source
         }
 
     let private plan (n: Node) : Read<Plan> =
@@ -639,16 +763,20 @@ module ResultDocument =
                 required "metadataRefresh" (tag [ "required", MetadataRefresh.Required; "not-required", MetadataRefresh.NotRequired ]) o
 
             let! components = required "components" (array plannedComponent) o
+            let! lock = required "lock" LockDocument.readNested o
 
-            return
+            let plan =
                 { Implementation = implementation
                   Deployment = deployment
                   Platform = platform
                   Recipe = recipe
                   MetadataRefresh = metadataRefresh
-                  Components = components }
-        }
+                  Components = components
+                  Lock = lock }
 
+            do! agreesWithLock n.Path plan
+            return plan
+        }
     let private selection (n: Node) : Read<Selection> =
         result {
             let! o = asObject n
@@ -748,17 +876,17 @@ module ResultDocument =
         | Component.Provider operation ->
             Value.Object [ "role", Value.String "provider"; yield! LockedProviderDocument.operationMembers operation ]
 
-    let internal prerequisiteValue (prerequisite: Prerequisite) =
+    let private prerequisiteMembers (kind: PrerequisiteKind) (name: NonBlankText) (platforms: Platform list option) =
         let versions (comparators: Comparator list) =
             "versions", Value.Array(comparators |> List.map (fun c -> Value.String c.Text))
 
         Value.Object
-            [ match prerequisite.Kind with
+            [ match kind with
               | PrerequisiteKind.Runtime _ -> "kind", Value.String "runtime"
               | PrerequisiteKind.Sdk _ -> "kind", Value.String "sdk"
               | PrerequisiteKind.Native _ -> "kind", Value.String "native"
-              "name", Value.String prerequisite.Name.Text
-              match prerequisite.Kind with
+              "name", Value.String name.Text
+              match kind with
               | PrerequisiteKind.Runtime list -> versions list
               | PrerequisiteKind.Sdk(list, phase) ->
                   versions list
@@ -771,9 +899,15 @@ module ResultDocument =
                   )
               | PrerequisiteKind.Native(Some list) -> versions list
               | PrerequisiteKind.Native None -> ()
-              match prerequisite.Platforms with
+              match platforms with
               | Some platforms -> "platforms", Value.Array(platforms |> List.map (Platform.name >> Value.String))
               | None -> () ]
+
+    let internal prerequisiteValue (prerequisite: Prerequisite) =
+        prerequisiteMembers prerequisite.Kind prerequisite.Name prerequisite.Platforms
+
+    let private plannedPrerequisiteValue (prerequisite: PlannedPrerequisite) =
+        prerequisiteMembers prerequisite.Kind prerequisite.Name None
 
     let private sourceValue (source: ComponentSource) =
         let bound kind (repositoryId: Sha256) (target: TargetPath) (sha: Sha256) =
@@ -797,7 +931,7 @@ module ResultDocument =
               "downloadBytes", Value.Number(string plan.DownloadBytes)
               "installedBytes", Value.Number(string plan.InstalledBytes)
               "updateOwner", ReceiptDocument.ownershipValue plan.UpdateOwner
-              "prerequisites", Value.Array(plan.Prerequisites |> List.map prerequisiteValue)
+              "prerequisites", Value.Array(plan.Prerequisites |> List.map plannedPrerequisiteValue)
               "probe",
               Value.String(
                   match probe with
@@ -807,7 +941,7 @@ module ResultDocument =
               ) ]
 
         match planned with
-        | PlannedComponent.Host(implementation, deployment, plan, _) ->
+        | PlannedComponent.Host(implementation, deployment, plan) ->
             Value.Object
                 [ "component", componentValue (Component.Host(implementation, deployment))
                   "version", Value.String plan.Version.Text
@@ -833,7 +967,8 @@ module ResultDocument =
                   | MetadataRefresh.Required -> "required"
                   | MetadataRefresh.NotRequired -> "not-required"
               )
-              "components", Value.Array(plan.Components |> List.map plannedValue) ]
+              "components", Value.Array(plan.Components |> List.map plannedValue)
+              "lock", LockDocument.value plan.Lock ]
 
     /// A plan with its canonical bytes and digest.
     let digest (plan: Plan) : DigestedPlan =
@@ -924,6 +1059,9 @@ module ResultDocument =
             | DiagnosticDetail.UnsupportedContract(_, document, path) ->
                 [ "document", Value.String(DocumentKind.name document)
                   "path", Value.String(DocumentPath.render path) ]
+            | DiagnosticDetail.DocumentUnavailable document ->
+                [ "document", Value.String(DocumentKind.name document)
+                  "path", Value.String "" ]
             | DiagnosticDetail.SelectionUnavailable source -> [ "source", selectionSourceValue source ]
             | DiagnosticDetail.LockBinding(problem, path) ->
                 [ "document", Value.String(DocumentKind.name (BindingProblem.document (BindingProblem.code problem)))
@@ -945,7 +1083,12 @@ module ResultDocument =
               yield! detail
               match diagnostic.Instruction with
               | Some args -> "instruction", Value.Array(args.Items |> List.map Value.String)
-              | None -> () ]
+              | None -> ()
+              // After the instruction, in the member order of the request_changed fixture.
+              match diagnostic.Detail with
+              | DiagnosticDetail.LockBinding(BindingProblem.RequestChanged(Some cause), _) ->
+                  "cause", Value.String(RequestChangeCause.name cause)
+              | _ -> () ]
 
     /// The result as a document value.
     let value (result: ManagerResult) =

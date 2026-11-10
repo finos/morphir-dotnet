@@ -146,13 +146,14 @@ module internal Reading =
     // ---- the document envelope ---------------------------------------------------------------------------------
 
     /// <summary>
-    /// Checks 2 to 4 of the order of checks on a parsed root: <c>schemaVersion</c>, then <c>critical</c>, then the
-    /// credential scan. The body (check 5) is the caller's.
+    /// Checks 2 to 4 of the order of checks on a document's node: <c>schemaVersion</c>, then <c>critical</c>, then the
+    /// credential scan. The body (check 5) is the caller's. A document nested in another, such as the lock inside a
+    /// plan, reports its refusals under its own path.
     /// </summary>
-    let envelope (understood: Set<string>) (root: Value) : Read<ObjectNode> =
+    let envelopeAt (understood: Set<string>) (n: Node) : Read<ObjectNode> =
         result {
-            let! o = asObject (node root DocumentPath.root)
-            let versionPath = DocumentPath.root.Child "schemaVersion"
+            let! o = asObject n
+            let versionPath = n.Path.Child "schemaVersion"
 
             match tryMember "schemaVersion" o with
             | Some { Value = Value.String version } ->
@@ -172,15 +173,21 @@ module internal Reading =
                     return! refuse ReaderCode.InconsistentDocument critical.Path
 
                 match entries |> List.tryFind (understood.Contains >> not) with
-                | Some unknown -> return! refuse ReaderCode.UnsupportedCriticalMember (DocumentPath.verbatim unknown)
+                | Some unknown ->
+                    let at = if n.Path.Segments.IsEmpty then DocumentPath.verbatim unknown else n.Path.Child unknown
+                    return! refuse ReaderCode.UnsupportedCriticalMember at
                 | None -> ()
 
-            match firstCredential DocumentPath.root root with
+            match firstCredential n.Path n.Value with
             | Some path -> return! refuse ReaderCode.CredentialInDocument path
             | None -> ()
 
             return o
         }
+
+    /// The envelope checks on a parsed document root.
+    let envelope (understood: Set<string>) (root: Value) : Read<ObjectNode> =
+        envelopeAt understood (node root DocumentPath.root)
 
     // ---- shared member shapes ----------------------------------------------------------------------------------
 
@@ -223,6 +230,24 @@ module internal Reading =
                   Codec = codec
                   IrVersion = irVersion }
         }
+
+    /// <summary>The member a built-in uses for the model it exchanges with its host: <c>modelOutput</c> for a
+    /// <c>compile</c> built-in, which writes the model, and <c>modelInput</c> for a <c>generate</c> built-in.</summary>
+    let builtInModelMember (operation: Operation) =
+        match operation with
+        | Operation.Compile _ -> "modelOutput"
+        | Operation.Generate _ -> "modelInput"
+
+    /// <summary>A built-in's model: the member its operation names, required; the other member present is
+    /// <c>inconsistent_document</c> at that member.</summary>
+    let builtInModel (operation: Operation) (o: ObjectNode) : Read<ModelInput> =
+        let wanted = builtInModelMember operation
+        let other = if wanted = "modelInput" then "modelOutput" else "modelInput"
+
+        if has other o then
+            refuse ReaderCode.InconsistentDocument (o.Path.Child other)
+        else
+            required wanted modelInput o
 
     let modelTuple (n: Node) : Read<ModelTuple> =
         result {

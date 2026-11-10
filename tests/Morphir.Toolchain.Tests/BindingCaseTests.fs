@@ -85,6 +85,35 @@ let run (case: BindingCase) =
         | Some digested ->
             Expect.sequenceEqual digested.Canonical (Fixtures.bytes canonical) $"{name}: canonical bytes"
             Expect.equal digested.Sha256 (Sha256.ofBytes (Fixtures.bytes canonical)) $"{name}: planSha256"
+    | LockRequestBytes(name, lock, request, expected, cause) ->
+        let actual = Bindings.lockBindsRequest (lockAt lock) (Fixtures.bytes request)
+        Expect.equal (bindingOutcome actual) expected name
+
+        let actualCause =
+            match actual with
+            | Error { Failure = BindingFailure.Binding(BindingProblem.RequestChanged(Some cause)) } -> Some(RequestChangeCause.name cause)
+            | _ -> None
+
+        Expect.equal actualCause cause $"{name}: cause"
+    | PlanLock(name, result, lock, expected) ->
+        Expect.equal expected Valid $"{name}: only valid plan-lock cases are defined"
+        let read = ResultDocument.read (Fixtures.bytes result) |> valid result
+
+        match read.Plan with
+        | None -> failtestf "%s has no plan" name
+        | Some digested ->
+            // Equal as parsed values: the same members with the same values, in any order.
+            let canonical lock =
+                match Canonical.bytes (LockDocument.value lock) with
+                | Ok bytes -> bytes
+                | Error _ -> failtest "not canonical"
+
+            Expect.sequenceEqual (canonical digested.Plan.Lock) (canonical (lockAt lock)) $"{name}: the plan's lock"
+    | Discover(name, files, boundary, start, request) ->
+        let segments (path: string) = path.Split('/', System.StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
+        let present = files |> List.map segments |> set
+        let found = Discovery.request (segments boundary) (segments start) present.Contains
+        Expect.equal (found |> Option.map (String.concat "/")) request name
 
 [<Tests>]
 let tests =
@@ -92,17 +121,12 @@ let tests =
 
     testList "Unsigned binding cases" [
         testCase "the manifest lists binding cases of every kind" (fun () ->
-            let kinds =
-                cases
-                |> List.map (function
-                    | LockRequest _ -> "lock-request"
-                    | LockPlatform _ -> "lock-platform"
-                    | ReceiptLock _ -> "receipt-lock"
-                    | Resolve _ -> "resolve"
-                    | PlanCanonical _ -> "plan-canonical")
-                |> set
+            let kinds = cases |> List.map _.Kind |> set
 
-            Expect.equal kinds (set [ "lock-request"; "lock-platform"; "receipt-lock"; "resolve"; "plan-canonical" ]) "every kind")
+            Expect.equal
+                kinds
+                (set [ "lock-request"; "lock-platform"; "receipt-lock"; "resolve"; "plan-canonical"; "lock-request-bytes"; "plan-lock"; "discover" ])
+                "every kind")
 
         testList "cases" [ for case in cases -> testCase case.Name (fun () -> run case) ]
     ]

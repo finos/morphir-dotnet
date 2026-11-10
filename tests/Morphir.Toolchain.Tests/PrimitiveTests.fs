@@ -56,6 +56,13 @@ let tests =
             for path in refused do
                 Expect.equal (TargetPath.tryParse path |> Result.map ignore) (Error ReaderCode.NonPortablePath) $"refused: {path}")
 
+        testCase "a target path is in Unicode Normalization Form C" (fun () ->
+            // "cafe" with a precomposed e-acute, and the same name with e and a combining acute accent.
+            let precomposed = "notes/caf\u00e9-na\u00efve-\u5b57.txt"
+            let decomposed = "notes/cafe\u0301.txt"
+            Expect.equal (TargetPath.tryParse precomposed |> Result.map _.Text) (Ok precomposed) "non-ASCII NFC is portable"
+            Expect.equal (TargetPath.tryParse decomposed |> Result.map ignore) (Error ReaderCode.NonPortablePath) "NFD is not"
+            Expect.equal (TargetPath.tryParse ("a/" + string (char 0xD800) + ".txt") |> Result.map ignore) (Error ReaderCode.NonPortablePath) "a lone surrogate is not text")
         testCase "target path limits count UTF-8 bytes and UTF-16 code units" (fun () ->
             // 字 is 3 bytes and 1 code unit; 𝄞 is 4 bytes and 2 code units.
             let bytes255 = String.replicate 85 "字"
@@ -113,12 +120,14 @@ let tests =
             // The schemas say "const": "0.1.0-draft.1": build metadata is another text, so it is refused.
             Expect.equal (ContractVersion.check "0.1.0-draft.1+meta") (Error ReaderCode.UnsupportedContractVersion) "build metadata")
 
-        testCase "comparators are single SemVer comparators" (fun () ->
-            for valid in [ ">=10.0.0"; "<11.0.0"; ">=2.28.0"; "=1.2.3"; "^1.2"; "~1.2.3"; "10" ] do
-                Expect.isTrue (isOk (Comparator.tryParse valid)) valid
+        testCase "a comparator is one of = > >= < <= and a complete canonical version" (fun () ->
+            for valid in [ ">=10.0.0"; "<11.0.0"; ">=2.28.0"; "=1.2.3"; ">1.2.3-rc.1"; "<=1.2.3+build.5" ] do
+                Expect.equal (Comparator.tryParse valid |> Result.map _.Text) (Ok valid) valid
 
-            for invalid in [ ">=10.0.0 <11.0.0"; ">=1.0.0 || <0.5.0"; "1.0.0 - 2.0.0"; "latest"; "" ] do
-                Expect.isFalse (isOk (Comparator.tryParse invalid)) invalid)
+            for invalid in
+                [ "^1.2.0"; "~1.2.3"; "1.2.3"; ">=10"; ">=1.2"; "*"; ">=1.x.0"; ">= 1.2.3"; ">=01.2.3"; "==1.2.3"
+                  ">=10.0.0 <11.0.0"; ">=1.0.0 || <0.5.0"; "1.0.0 - 2.0.0"; "latest"; "" ] do
+                Expect.equal (Comparator.tryParse invalid |> Result.map ignore) (Error ReaderCode.InvalidValue) invalid)
 
         testCase "credential names match ASCII case-insensitively and nothing else" (fun () ->
             for name in [ "token"; "TOKEN"; "Authorization"; "APIKEY"; "Api_Key"; "cookie" ] do

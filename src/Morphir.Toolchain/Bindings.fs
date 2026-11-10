@@ -27,7 +27,7 @@ module Locked =
         { Operation = builtIn.Operation
           ExtensionId = builtIn.ExtensionId
           Version = builtIn.Version
-          Delivery = LockedDelivery.BuiltIn builtIn.ModelInput }
+          Delivery = LockedDelivery.BuiltIn builtIn.Model }
 
     /// The provider as a lock records it on a platform; <c>None</c> for a process provider without an artifact there.
     let ofProvider (platform: Platform) (provider: RecipeProvider) : LockedProvider option =
@@ -70,13 +70,41 @@ module Bindings =
 
     let private root = DocumentPath.root
 
-    /// <summary>Frozen restore, first check: the SHA-256 of the exact request bytes equals the lock's
-    /// <c>requestSha256</c>. Nothing is canonicalized, so a reformatted request is <c>request_changed</c>.</summary>
+    let private byteOrderMark = [| 0xEFuy; 0xBBuy; 0xBFuy |]
+
+    let private withoutByteOrderMark (bytes: byte array) =
+        if bytes.Length >= 3 && bytes[0..2] = byteOrderMark then Some bytes[3..] else None
+
+    /// CRLF converted to LF, when the bytes have any CRLF.
+    let private withLf (bytes: byte array) =
+        let converted = ResizeArray(bytes.Length)
+
+        for index in 0 .. bytes.Length - 1 do
+            if not (bytes[index] = 13uy && index + 1 < bytes.Length && bytes[index + 1] = 10uy) then
+                converted.Add bytes[index]
+
+        if converted.Count < bytes.Length then Some(converted.ToArray()) else None
+
+    /// <summary>Why request bytes that differ from the locked ones probably do: only by CRLF line endings, a leading
+    /// UTF-8 byte order mark, or both. The bytes are still refused; the cause only names the likely fix.</summary>
+    let requestChangeCause (locked: Sha256) (requestBytes: byte array) =
+        let gives (bytes: byte array option) = bytes |> Option.exists (fun b -> Sha256.ofBytes b = locked)
+        let lf = withLf requestBytes
+        let unmarked = withoutByteOrderMark requestBytes
+
+        if gives lf then Some RequestChangeCause.CrlfLineEndings
+        elif gives unmarked then Some RequestChangeCause.ByteOrderMark
+        elif gives (unmarked |> Option.bind withLf) then Some RequestChangeCause.CrlfLineEndingsAndByteOrderMark
+        else None
+
+    /// <summary>Frozen restore, first check: the SHA-256 of the exact request bytes, hashed as read, equals the lock's
+    /// <c>requestSha256</c>; the request need not parse. Nothing is canonicalized, so a reformatted or converted
+    /// request is <c>request_changed</c>, whose cause is named when the bytes differ only by encoding.</summary>
     let lockBindsRequest (lock: Lock) (requestBytes: byte array) =
         if Sha256.ofBytes requestBytes = lock.RequestSha256 then
             Ok()
         else
-            refuse BindingProblem.RequestChanged (root.Child "requestSha256")
+            refuse (BindingProblem.RequestChanged(requestChangeCause lock.RequestSha256 requestBytes)) (root.Child "requestSha256")
 
     /// <summary>Frozen restore, second check: the lock records a closure for the platform. A musl machine never takes a
     /// glibc closure.</summary>
@@ -111,7 +139,6 @@ module Bindings =
                 match installation.Authentication with
                 | Authentication.RepositoryTarget(repositoryId, _) -> Some repositoryId
                 | Authentication.RecipeDigest _
-                | Authentication.LocalDeveloper
                 | Authentication.ExternalOwner -> None
 
             let authenticationPath (owner: DocumentPath) =

@@ -5,7 +5,8 @@ namespace Morphir.Toolchain
 /// A locked provider's delivery with exactly the identities that delivery requires.
 [<RequireQualifiedAccess>]
 type LockedDelivery =
-    | BuiltIn of input: ModelInput
+    /// The model the built-in writes (compile) or reads (generate); the operation names the member.
+    | BuiltIn of model: ModelInput
     | Process of release: ReleaseBinding * artifact: TargetBinding * protocol: Protocol
     | Wasm of abi: Token * release: ReleaseBinding * artifact: TargetBinding * protocol: Protocol
     /// The release's extension descriptor, whose claims describe the guest, and the package bytes.
@@ -149,7 +150,7 @@ module LockedProviderDocument =
 
             let! locked =
                 match delivery with
-                | Delivery.BuiltIn -> required "modelInput" modelInput o |> Result.map LockedDelivery.BuiltIn
+                | Delivery.BuiltIn -> builtInModel operation o |> Result.map LockedDelivery.BuiltIn
                 | Delivery.Process ->
                     result {
                         let! release = release o
@@ -231,7 +232,7 @@ module LockedProviderDocument =
               "extensionId", Value.String provider.ExtensionId.Text
               "version", Value.String provider.Version.Text
               match provider.Delivery with
-              | LockedDelivery.BuiltIn input -> "modelInput", modelInputValue input
+              | LockedDelivery.BuiltIn model -> builtInModelMember provider.Operation, modelInputValue model
               | LockedDelivery.Process(release, artifact, protocol) ->
                   yield! releaseMembers release
                   yield! artifactMembers artifact
@@ -280,7 +281,11 @@ module LockDocument =
           "modelInput"
           "modelInput.profile"
           "modelInput.codec"
-          "modelInput.irVersion" ]
+          "modelInput.irVersion"
+          "modelOutput"
+          "modelOutput.profile"
+          "modelOutput.codec"
+          "modelOutput.irVersion" ]
 
     /// The critical paths a 0.1.0-draft.1 lock reader understands.
     let understoodCriticalPaths =
@@ -412,3 +417,10 @@ module LockDocument =
 
     /// The bytes a manager writes for a lock.
     let write (lock: Lock) = JsonText.toBytes (value lock)
+
+    /// <summary>A lock nested in another document, such as a plan's <c>lock</c>: the same checks, with refusals under
+    /// its path. It has no bytes of its own, so its identity is that of the lock it would be written as.</summary>
+    let internal readNested (n: Node) : Read<Lock> =
+        envelopeAt understoodCriticalPaths n
+        |> Result.bind (body (Sha256.ofBytes [||]))
+        |> Result.map (fun lock -> { lock with Identity = Sha256.ofBytes (write lock) })
