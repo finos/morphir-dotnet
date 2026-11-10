@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Spike: evaluate the NuGet package Tuf as morphirup's TUF client. Evaluation only: no product project
+    references it. See docs/content/contributing/design/spikes/tuf-client.md.
+
+    The probe opts out of central package management and lock files, so that it builds the same way inside
+    and outside the repository.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Native AOT at publish time, with the trim, AOT and single-file analyzers on. -->
+    <PublishAot Condition="'$(ProbeAot)' == 'true'">true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <!-- One warning per call site, not one warning per package. -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+  </PropertyGroup>
+  <!-- ProbeVariant=baseline builds the same console without the library, to size what the library adds. -->
+  <PropertyGroup Condition="'$(ProbeVariant)' == 'baseline'">
+    <DefineConstants>$(DefineConstants);PROBE_BASELINE</DefineConstants>
+  </PropertyGroup>
+  <!-- ProbeVariant=ed25519 is the baseline plus BouncyCastle's Ed25519 used directly: the primitive a direct implementation needs. -->
+  <PropertyGroup Condition="'$(ProbeVariant)' == 'ed25519'">
+    <DefineConstants>$(DefineConstants);PROBE_BASELINE;PROBE_ED25519</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(ProbeVariant)' == 'ed25519'">
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.7.0" />
+  </ItemGroup>
+  <!-- ProbeVariant=refresh builds only the refresh command, so its size is the library's cost without the conformance harness. -->
+  <PropertyGroup Condition="'$(ProbeVariant)' == 'refresh'">
+    <DefineConstants>$(DefineConstants);PROBE_REFRESH_ONLY</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(ProbeVariant)' != 'baseline' And '$(ProbeVariant)' != 'ed25519'">
+    <PackageReference Include="Tuf" Version="1.1.1" />
+  </ItemGroup>
+</Project>
