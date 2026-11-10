@@ -9,6 +9,7 @@ namespace Morphir.Build.Tests;
 
 /// <summary>
 /// DEP-1 build guards. The managed morphir holds FSharp.Compiler.Service, so its build refuses Native AOT and trimming.
+/// morphirup must run where no .NET is installed, so its publish refuses anything but Native AOT.
 /// The AOT-compatible and the managed entry points both build an assembly named morphir, so a project whose resolved
 /// references hold two different morphir.dll files fails instead of keeping whichever copy came last.
 /// </summary>
@@ -17,6 +18,8 @@ public class EntryPointGuardTests
     private const string ManagedProject = "src/Morphir.Managed/Morphir.Managed.csproj";
     private const string AotGuard = "MorphirRefuseAotAndTrimming";
     private const string AssemblyGuard = "MorphirRefuseTwoMorphirAssemblies";
+    private const string MorphirupProject = "src/Morphirup/Morphirup.fsproj";
+    private const string MorphirupGuard = "MorphirupRequireNativeAot";
 
     [Test]
     [Arguments("PublishAot")]
@@ -35,6 +38,30 @@ public class EntryPointGuardTests
         // The self-contained and framework-dependent profiles publish it untrimmed and without Native AOT.
         var result = await MsBuild(Path.Combine(TestFixture.GetRepositoryRoot(), ManagedProject), AotGuard,
             "-p:PublishTrimmed=false", "-p:PublishSingleFile=false", "-p:SelfContained=true");
+
+        result.ExitCode.Should().Be(0, result.CombinedOutput);
+    }
+
+    [Test]
+    [Arguments("")]
+    [Arguments("-p:PublishAot=false")]
+    [Arguments("-p:SelfContained=true -p:PublishTrimmed=true -p:PublishSingleFile=true")]
+    public async Task MorphirupRefusesAPublishWithoutNativeAot(string properties)
+    {
+        var result = await MsBuild(Path.Combine(TestFixture.GetRepositoryRoot(), MorphirupProject), MorphirupGuard,
+            properties.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+        result.ExitCode.Should().NotBe(0, result.CombinedOutput);
+        result.CombinedOutput.Should().Contain("src/Morphirup ships only as a Native AOT executable");
+    }
+
+    [Test]
+    [Arguments("-p:PublishAot=true")]
+    [Arguments("-p:MorphirProbeAot=true")]
+    public async Task MorphirupAcceptsANativeAotPublish(string property)
+    {
+        // -p:MorphirProbeAot=true is how the Nuke probe publishes it.
+        var result = await MsBuild(Path.Combine(TestFixture.GetRepositoryRoot(), MorphirupProject), MorphirupGuard, property);
 
         result.ExitCode.Should().Be(0, result.CombinedOutput);
     }

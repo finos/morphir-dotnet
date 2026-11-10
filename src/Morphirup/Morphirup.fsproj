@@ -48,6 +48,15 @@
         <Compile Include="Program.fs" />
     </ItemGroup>
 
+    <!--
+      morphirup bootstraps machines that have no .NET, so a publish without Native AOT would ship a binary that cannot
+      run where it is needed. The publish refuses it, as src/Morphir.Managed refuses the opposite. An ordinary build,
+      which the tests use under JIT, is unaffected.
+    -->
+    <Target Name="MorphirupRequireNativeAot" BeforeTargets="PrepareForPublish" Condition="'$(PublishAot)' != 'true'">
+        <Error Text="src/Morphirup ships only as a Native AOT executable and cannot be published without it (PublishAot='$(PublishAot)'). Publish it with -p:PublishAot=true and a runtime identifier." />
+    </Target>
+
     <!-- The version constant, as the morphir entry points generate theirs. -->
     <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">
         <PropertyGroup>
