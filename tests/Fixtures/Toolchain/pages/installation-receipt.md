@@ -31,6 +31,8 @@ A receipt describes one installed toolchain generation on one machine. It lives 
   | `self-contained` | `jit`, runtime `bundled` |
   | `framework-dependent`, `dotnet-tool` | `jit`, runtime `system` |
 
+  These are the only four deployment values. The legacy `morphir-{rid}` release names carry the Native AOT executable, so a host installed under one of them reports `native-aot` (decided 9 November 2026, [finos/morphir#1146](https://github.com/finos/morphir/issues/1146#issuecomment-6759878937)).
+
 - `installation`, `readiness` and `checks`.
 
 Each provider has `identity`, the lock's provider entry exactly, and `readiness` and `checks`. Every provider except a built-in also has `installation`; a built-in is part of the host and has none.
@@ -49,11 +51,12 @@ The manager updates or removes only `manager-owned` installations. For another o
 Publisher authentication and the claim check are separate facts. `authentication` says how the manager authenticated the bytes: directly by TUF target metadata, by a digest in an authenticated recipe, or not at all, because an external owner installed them. `claimCheck` says whether the installed artifact was run to compare its capability claims. An authenticated artifact installed with `--no-probe` is still `unchecked`, and a manager-owned installation always says how the manager authenticated it.
 
 **Developer artifacts are never part of a generation.** A receipt always binds a lock, and a lock names only artifacts that an authenticated recipe binds by digest. So bytes whose digest equals a locked digest were authenticated by that recipe digest, and are labelled `recipe-digest`, whoever built them. An unsigned developer artifact cannot equal a locked digest, so it is never part of a toolchain generation. It is installed outside generations, under the extension installer's explicit developer policy, and a receipt that labels a provider `local-developer` is refused (`receipt/negative/developer-artifact-in-generation.json`).
+
 ### Readiness
 
 Readiness is ordered: `acquired`, `integrity-verified`, `capability-checked`, `workflow-qualified`. A component records exactly one `integrity` and one `capability` check. A generation records exactly one `workflow` check, naming its `workflow`. A check's `status` is `passed`, `failed`, `skipped` or `unsupported`; anything other than `passed` states its `reason`, so a skipped or unsupported check stays visible.
 
-Only a workflow check names a `workflow`. A built-in provider is part of the host's bytes, so its integrity check has the same outcome as the host's; a different outcome is `inconsistent_document` at the provider's `checks`.
+`workflow` is a member of the workflow case: a workflow check without it is `invalid_document` at its `workflow`, a required member being absent (`receipt/negative/workflow-check-without-workflow.json`), and any other check with it is `inconsistent_document` there. In the same way, a `probed` claim check without `probeSource` is `invalid_document` at `probeSource` (`probed-without-probe-source.json`). A component's checks that are not exactly one integrity and one capability check are `inconsistent_document` at its `checks` (`component-checks-not-one-of-each.json`). `workflow-qualified` is the readiness of a generation, so a component that records it names a known state in the wrong place, `inconsistent_document` at its `readiness` (`component-workflow-qualified.json`). A built-in provider is part of the host's bytes, so its integrity check has the same outcome as the host's; a different outcome is `inconsistent_document` at the provider's `checks`.
 
 The capability check differs by delivery:
 
@@ -63,7 +66,7 @@ The capability check differs by delivery:
 
 All three run the staged host with the user's rights, which is why the plan's host component has `probe` `process-with-user-rights` ([manager result](./manager-result.md#plans)).
 
-> **Maintainer question M5: what readiness must a staged generation reach before setup activates it?** **Recommended default:** no check `failed`, and every component `capability-checked`. A `skipped` or `unsupported` workflow check is allowed, `show` and `doctor` report it, and the generation is never called qualified. While the readiness workflow's generate step is pending (M1), every workflow check is `skipped`, so this default is what lets setup activate anything. The activation rule is **provisional** until M5 is answered: setup publishes a staged generation only when no check failed and every component is `capability-checked`.
+**Activation (decided 9 November 2026, [finos/morphir#1146](https://github.com/finos/morphir/issues/1146#issuecomment-6760284288)).** Setup activates a staged generation when no check failed and every component is `capability-checked`. The workflow check runs whenever it can. When it is `skipped`, because the toolset has no fixed case or the case has pending steps, the receipt and `show` say `skipped`, and the generation is never reported as `workflow-qualified`. A failed check at any level, including a workflow check that ran and failed, prevents activation and leaves the prior selection in place. `receipt/workflow-skipped.json` is a generation that activates as `capability-checked` with a skipped workflow check; `receipt/negotiation-failed.json` is one that does not activate.
 
 Readiness is derived, never asserted:
 
@@ -101,18 +104,22 @@ Before `run` launches a generation, and before `rollback` selects one, the manag
 | Check | Code | Path | Cases |
 | --- | --- | --- | --- |
 | The lock's `recipe.repositoryId` is the repository the trust state belongs to | `repository_mismatch` | `recipe.repositoryId` | `generation-repository` |
+| The trust state lists the lock's recipe target, so its status can be known | `target_not_authenticated` | `recipe.target` | `generation-recipe-unlisted` |
 | The lock's recipe target has no learned revocation | `release_revoked` | `recipe.target` | `generation-recipe-revoked` |
 | The lock's host release has no learned revocation (a `tool-release` offering) | `release_revoked` | `host.version` | `generation-host-revoked` |
+
+The host release is found by the [tool release metadata v1 layout](../tool-release-metadata/index.md#repository-layout): the release descriptor target `releases/<toolId>/<version>.json`, with `toolId` from the `source` of the offering in the generation's recipe that has the lock's host implementation, deployment and version, and its status from that target's `custom.morphir`. A host whose offering has a `dotnet-tool` source has no version 1 release status, and the row does not apply to it. A `yanked` recipe is still launched: yanking only stops new resolution. A generation without its recipe in the trust state is not launched, because its revocation status cannot be known (`signed/negative/lock-recipe-unlisted.lock.json`).
 
 A provider has no version 1 release status, so revoking the recipe that binds it is how a provider is revoked. A learned recipe revocation therefore refuses every generation bound to that recipe, whatever its offering, as the `recipeRevocation` metadata set of the signed fixtures shows. Paths name the lock's members; a result reports these as `trust-failure` diagnostics.
 
 ## Fixtures
 
-`fixtures/0.1.0-draft.1/receipt/` holds a workflow-qualified Windows generation bound to `lock/two-platforms-bound.json`, a generation whose frontend failed negotiation, and an externally owned global .NET tool host bound to `lock/dotnet-tool-host.json`. `receipt/binding/` holds valid receipts that do not bind their lock: a substituted provider artifact, a substituted host release, a platform the lock does not record, another recipe, a missing provider, a host authenticated by another repository, and another recipe together with another host release, which is refused at `recipe` because the recipe is compared first. `receipt/negative/` covers:
+`fixtures/0.1.0-draft.1/receipt/` holds a workflow-qualified Windows generation bound to `lock/two-platforms-bound.json`, a generation whose frontend failed negotiation, a generation that activates as `capability-checked` with a skipped workflow check (`workflow-skipped.json`), and an externally owned global .NET tool host bound to `lock/dotnet-tool-host.json`. `receipt/binding/` holds valid receipts that do not bind their lock: a substituted provider artifact, a substituted host release, a platform the lock does not record, another recipe, a missing provider, a host authenticated by another repository, and another recipe together with another host release, which is refused at `recipe` because the recipe is compared first. `receipt/negative/` covers:
 
 - a later draft and an unknown critical member;
 - readiness above its checks, a qualified generation with a failed workflow, an unknown readiness state, a non-passed check without a reason, a workflow name on a component check, two workflow checks, and a built-in whose integrity differs from its host's;
-- a provider without a claim check and a probe source on an unchecked claim set;
+- a workflow check without `workflow`, a component recording `workflow-qualified`, and a component with two integrity checks and no capability check;
+- a provider without a claim check, a probe source on an unchecked claim set, and a probed claim set without its probe source;
 - a process provider without `installation`, and a provider identity without its `modelTuple`;
 - Native AOT with a bundled runtime, and a deployment whose execution disagrees;
 - an unknown owner, a built-in with an installation, a provider labelled `local-developer` although it binds the locked digest, an external owner for a manager-owned installation, and `recipe-digest` authentication naming another recipe;
