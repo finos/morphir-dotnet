@@ -1,0 +1,91 @@
+name: "morphirup build"
+
+# The one definition of "build and check morphirup for a RID". The pull request workflow morphirup.yml and the release
+# workflow deployment.yml both call it, so a pull request runs the exact release path. It publishes morphirup with
+# Native AOT (PackMorphirup), checks the produced release assets, not a source build (CheckMorphirup), and uploads them
+# as the artifact morphirup-<rid>.
+
+on:
+    workflow_call:
+        inputs:
+            rid:
+                description: "The runtime identifier to build, for example linux-x64"
+                required: true
+                type: string
+            os:
+                description: "The runner for the RID; Native AOT does not cross-compile between operating systems"
+                required: true
+                type: string
+            configuration:
+                description: "The build configuration"
+                required: false
+                default: "Release"
+                type: string
+            retention-days:
+                description: "How long the uploaded assets are kept"
+                required: false
+                default: 1
+                type: number
+
+permissions:
+    contents: read
+
+jobs:
+    build:
+        name: morphirup ${{ inputs.rid }}
+        runs-on: ${{ inputs.os }}
+        timeout-minutes: 45
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+              with:
+                  # The version comes from CHANGELOG.md and the commit; the build reads both.
+                  fetch-depth: 0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            # CheckMorphirup reads the glibc versions a Linux executable needs with readelf, from binutils.
+            - name: Install readelf
+              if: runner.os == 'Linux'
+              run: command -v readelf || { sudo apt-get update && sudo apt-get install -y --no-install-recommends binutils; }
+
+            # The Native AOT link on Windows needs vswhere.exe, which the ILCompiler targets call by name.
+            - name: Put vswhere on PATH
+              if: runner.os == 'Windows'
+              shell: bash
+              run: echo "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer" >> "$GITHUB_PATH"
+
+            # A Native AOT executable needs the glibc of the machine that linked it, or newer. So on Linux the publish
+            # runs in Ubuntu 22.04 (glibc 2.35), pinned by digest (MorphirupRelease.LinuxBuildImage), not on the
+            # runner's own glibc, which moves with the ubuntu-latest label. The image gets clang and the zlib headers
+            # there. CheckMorphirup then refuses an executable that needs a glibc above 2.35 and runs it in
+            # debian:12-slim (glibc 2.36) and in the build image itself, the floor, after checking that neither image
+            # has .NET, libicu, libssl or libcrypto: a Linux executable needs glibc and nothing else. ubuntu:22.04 ships
+            # libssl3, which the check purges in a derived image first.
+            - name: Build and check morphirup for ${{ inputs.rid }}
+              shell: bash
+              env:
+                  MORPHIRUP_LINUX: ${{ runner.os == 'Linux' && 'true' || '' }}
+              run: |
+                  set -euo pipefail
+                  linux=()
+                  if [ -n "$MORPHIRUP_LINUX" ]; then
+                      linux=(--morphirup-build-image ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11
+                          --morphirup-containers debian:12-slim ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11)
+                  fi
+                  ./build.sh --target PackMorphirup CheckMorphirup --rid "${{ inputs.rid }}" --configuration "${{ inputs.configuration }}" ${linux[@]+"${linux[@]}"}
+
+            - name: Upload the morphirup release assets
+              uses: actions/upload-artifact@v6
+              with:
+                  name: morphirup-${{ inputs.rid }}
+                  path: |
+                      ./artifacts/release-assets/morphirup-${{ inputs.rid }}
+                      ./artifacts/release-assets/morphirup-${{ inputs.rid }}.exe
+                      ./artifacts/release-assets/morphirup-${{ inputs.rid }}-v*.tar.gz
+                      ./artifacts/release-assets/morphirup-v*-THIRD-PARTY-NOTICES.txt
+                  if-no-files-found: error
+                  retention-days: ${{ inputs.retention-days }}

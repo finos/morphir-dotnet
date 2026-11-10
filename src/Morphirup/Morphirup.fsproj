@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <AssemblyName>morphirup</AssemblyName>
+        <RootNamespace>Morphirup</RootNamespace>
+        <Description>morphirup, the standalone Morphir toolchain manager. This slice reads and checks toolchain documents and makes plan-only setups over local files; it acquires, installs and activates nothing.</Description>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!--
+          The manager ships as a Native AOT executable: it must run where neither .NET nor Morphir is installed. As for
+          the morphir entry points, AOT is switched on at publish time (-p:PublishAot=true, or -p:MorphirProbeAot=true
+          from the Nuke probe), so an ordinary restore adds no runtime identifier section to packages.lock.json.
+        -->
+        <PublishAot Condition="'$(MorphirProbeAot)' == 'true'">true</PublishAot>
+        <IsAotCompatible>true</IsAotCompatible>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+        <!-- The FSharp.Core summary warnings every F# AOT application has; the Nuke probe rejects every other IL diagnostic. -->
+        <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2104;IL3053</WarningsNotAsErrors>
+        <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+        <StripSymbols>true</StripSymbols>
+        <OptimizationPreference>Size</OptimizationPreference>
+        <!--
+          Invariant: morphirup needs no ICU. The plan digest normalizes strings to NFC with Morphir.Toolchain's own
+          Unicode 17.0.0 tables, not String.Normalize, so it is the same on every machine, including one without
+          libicu. Every comparison and format in this code is ordinal or invariant. tests/Morphir.Toolchain.Tests
+          GlobalizationTests fails if a globalization dependency comes back.
+        -->
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Toolchain\Morphir.Toolchain.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="$(IntermediateOutputPath)VersionInfo.g.fs" />
+        <Compile Include="Cli.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <!--
+      morphirup bootstraps machines that have no .NET, so a publish without Native AOT would ship a binary that cannot
+      run where it is needed. The publish refuses it, as src/Morphir.Managed refuses the opposite. An ordinary build,
+      which the tests use under JIT, is unaffected.
+    -->
+    <Target Name="MorphirupRequireNativeAot" BeforeTargets="PrepareForPublish" Condition="'$(PublishAot)' != 'true'">
+        <Error Text="src/Morphirup ships only as a Native AOT executable and cannot be published without it (PublishAot='$(PublishAot)'). Publish it with -p:PublishAot=true and a runtime identifier." />
+    </Target>
+
+    <!-- The version constant, as the morphir entry points generate theirs. -->
+    <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">
+        <PropertyGroup>
+            <MorphirupVersionString Condition="'$(InformationalVersion)' != ''">$(InformationalVersion)</MorphirupVersionString>
+            <MorphirupVersionString Condition="'$(MorphirupVersionString)' == '' AND '$(Version)' != ''">$(Version)</MorphirupVersionString>
+            <MorphirupVersionString Condition="'$(MorphirupVersionString)' == ''">0.0.0-dev</MorphirupVersionString>
+        </PropertyGroup>
+        <ItemGroup>
+            <VersionFileLines Include="// &lt;auto-generated/&gt;" />
+            <VersionFileLines Include="module internal Morphirup.VersionInfo" />
+            <VersionFileLines Include=" " />
+            <VersionFileLines Include="[&lt;Literal&gt;]" />
+            <VersionFileLines Include="let Version = &quot;$(MorphirupVersionString)&quot;" />
+        </ItemGroup>
+        <WriteLinesToFile File="$(IntermediateOutputPath)VersionInfo.g.fs" Lines="@(VersionFileLines)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    </Target>
+
+</Project>
