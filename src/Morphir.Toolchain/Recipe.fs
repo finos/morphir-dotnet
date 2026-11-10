@@ -369,22 +369,34 @@ module RecipeDocument =
     /// <summary>
     /// The index of the first operation that some offering can perform with neither a built-in nor a provider that
     /// fits it on some platform, or None. Whether a provider fits an offering depends only on the offering's MEP
-    /// versions, WASM ABIs and platforms, and on the provider's MEP version, ABI and platforms. So offerings with the
-    /// same three sets form one class, providers with the same fit key behave alike, and each class is checked once per
-    /// key, never once per offering. An operation passes when the offerings its candidates' classes cover, with those
-    /// that have a built-in for it, are every offering. Checking every offering for every operation was quadratic in
-    /// offerings (review of #583, B1).
+    /// versions, WASM ABIs and platforms, and on the provider's MEP version, delivery, ABI and platforms
+    /// (<see cref="Fit.onSomePlatform"/>). So offerings with the same three sets form one class, providers with the same
+    /// fit key behave alike, and each key's classes are found once.
     /// </summary>
-    let private firstUnperformed (recipe: Recipe) : int option =
+    /// <remarks>
+    /// A key finds its classes through an index, never by checking every class: only classes that speak its MEP
+    /// version can fit it, and for a WASM key only those that also list its ABI, so it scans the shorter of the two
+    /// lists. Each key's classes are a bit set, and an operation passes when its candidates' sets, with the classes
+    /// whose every offering has a built-in for it, hold every class. The work is linear in the recipe, apart from keys
+    /// that share a MEP version: one <c>dotnet-tool</c> key and at most 255 process keys (one per set of platforms)
+    /// per version. Checking every class for every key was quadratic: 10,000 distinct classes and keys took 18 s
+    /// (root's benchmark of #582, 10 November 2026). Checking every offering for every operation, before classes, was
+    /// quadratic too (review of #582, B1).
+    /// </remarks>
+    let internal firstUnperformed (recipe: Recipe) : int option =
         let hosts = Array.ofList recipe.Hosts
+        let mask (platforms: (Platform * 'T) list) = platforms |> List.fold (fun bits (platform, _) -> bits ||| (1 <<< Platform.order platform)) 0
 
         let signature (host: HostOffering) =
             (host.ProtocolVersions |> List.map ProtocolVersion.text |> List.distinct |> List.sort),
             (host.WasmAbis |> List.map _.Text |> List.distinct |> List.sort),
-            (host.Platforms |> List.map (fst >> Platform.order) |> List.distinct |> List.sort)
+            mask host.Platforms
 
+        // The classes: each one's MEP versions, ABIs, platforms and number of offerings.
         let classOf = System.Collections.Generic.Dictionary<_, int>(HashIdentity.Structural)
-        let representative = ResizeArray<HostOffering>()
+        let versions = ResizeArray<System.Collections.Generic.HashSet<string>>()
+        let abis = ResizeArray<System.Collections.Generic.HashSet<string>>()
+        let platforms = ResizeArray<int>()
         let size = ResizeArray<int>()
 
         let hostClass =
@@ -397,22 +409,46 @@ module RecipeDocument =
                     size[c] <- size[c] + 1
                     c
                 | false, _ ->
-                    let c = representative.Count
+                    let c = size.Count
+                    let spoken, listed, bits = key
                     classOf[key] <- c
-                    representative.Add host
+                    versions.Add(System.Collections.Generic.HashSet<string>(spoken, System.StringComparer.Ordinal))
+                    abis.Add(System.Collections.Generic.HashSet<string>(listed, System.StringComparer.Ordinal))
+                    platforms.Add bits
                     size.Add 1
                     c)
+
+        let classes = size.Count
+        let words = (classes + 63) / 64
+
+        let index (members: int -> seq<string>) =
+            let byText = System.Collections.Generic.Dictionary<string, ResizeArray<int>>(System.StringComparer.Ordinal)
+
+            for c in 0 .. classes - 1 do
+                for text in members c do
+                    match byText.TryGetValue text with
+                    | true, list -> list.Add c
+                    | false, _ -> byText[text] <- ResizeArray [ c ]
+
+            byText
+
+        let speakers = index (fun c -> versions[c])
+        let listers = index (fun c -> abis[c])
+
+        let classesWith (byText: System.Collections.Generic.Dictionary<string, ResizeArray<int>>) (text: string) =
+            match byText.TryGetValue text with
+            | true, list -> list
+            | false, _ -> ResizeArray()
 
         let fitKey (provider: RecipeProvider) =
             ProtocolVersion.text provider.Protocol.Version,
             match provider.Delivery with
             | RecipeDelivery.Wasm(abi, _) -> "wasm " + abi.Text
-            | RecipeDelivery.Process platforms ->
-                "process " + (platforms |> List.map (fst >> Platform.order >> string) |> List.distinct |> List.sort |> String.concat ",")
+            | RecipeDelivery.Process platforms -> "process " + string (mask platforms)
             | RecipeDelivery.DotnetTool _ -> "dotnet-tool"
 
-        // For each fit key, the classes it fits and how many offerings they hold, computed once.
-        let fitting = System.Collections.Generic.Dictionary<_, int list * int>(HashIdentity.Structural)
+        // For each fit key, the classes it fits as a bit set and how many offerings they hold, computed once.
+        let fitting = System.Collections.Generic.Dictionary<_, uint64 array * int>(HashIdentity.Structural)
 
         let fits (provider: RecipeProvider) =
             let key = fitKey provider
@@ -420,21 +456,73 @@ module RecipeDocument =
             match fitting.TryGetValue key with
             | true, found -> found
             | false, _ ->
-                let classes = [ for c in 0 .. representative.Count - 1 do if Fit.onSomePlatform representative[c] provider then c ]
-                let found = classes, classes |> List.sumBy (fun c -> size[c])
+                let version = ProtocolVersion.text provider.Protocol.Version
+
+                // Fit.onSomePlatform for a class that speaks the version: an offering lists at least one platform, a
+                // process provider shares one with it, and a WASM provider's ABI is one it lists.
+                let candidates, fitsClass =
+                    match provider.Delivery with
+                    | RecipeDelivery.Wasm(abi, _) ->
+                        let bySpeaking = classesWith speakers version
+                        let byListing = classesWith listers abi.Text
+
+                        if bySpeaking.Count <= byListing.Count then
+                            bySpeaking, (fun c -> platforms[c] <> 0 && abis[c].Contains abi.Text)
+                        else
+                            byListing, (fun c -> platforms[c] <> 0 && versions[c].Contains version)
+                    | RecipeDelivery.Process delivered ->
+                        let bits = mask delivered
+                        classesWith speakers version, (fun c -> platforms[c] &&& bits <> 0)
+                    | RecipeDelivery.DotnetTool _ -> classesWith speakers version, (fun c -> platforms[c] <> 0)
+
+                let set = Array.zeroCreate<uint64> words
+                let mutable offerings = 0
+
+                for c in candidates do
+                    if fitsClass c then
+                        set[c / 64] <- set[c / 64] ||| (1UL <<< (c % 64))
+                        offerings <- offerings + size[c]
+
+                let found = set, offerings
                 fitting[key] <- found
                 found
 
-        let builtIns = System.Collections.Generic.Dictionary<Operation, ResizeArray<int>>(HashIdentity.Structural)
+        // For each operation, the classes whose every offering has a built-in for it: an offering is counted once per
+        // operation, and a class is built in when its count reaches its size.
+        let builtIn = System.Collections.Generic.Dictionary<Operation, uint64 array>(HashIdentity.Structural)
+        let builtInCount = System.Collections.Generic.Dictionary<Operation * int, int>(HashIdentity.Structural)
 
         hosts
         |> Array.iteri (fun index host ->
-            for builtIn in host.BuiltIns do
-                match builtIns.TryGetValue builtIn.Operation with
-                | true, list -> list.Add index
-                | false, _ -> builtIns[builtIn.Operation] <- ResizeArray [ index ])
+            let c = hostClass[index]
+
+            for operation in host.BuiltIns |> List.map _.Operation |> List.distinct do
+                let count =
+                    match builtInCount.TryGetValue((operation, c)) with
+                    | true, n -> n + 1
+                    | false, _ -> 1
+
+                builtInCount[(operation, c)] <- count
+
+                if count = size[c] then
+                    let set =
+                        match builtIn.TryGetValue operation with
+                        | true, set -> set
+                        | false, _ ->
+                            let set = Array.zeroCreate<uint64> words
+                            builtIn[operation] <- set
+                            set
+
+                    set[c / 64] <- set[c / 64] ||| (1UL <<< (c % 64)))
 
         let providersFor = recipe.Providers |> List.groupBy _.Operation |> dict
+
+        let full (set: uint64 array) =
+            let rest = classes % 64
+
+            set
+            |> Array.mapi (fun w bits -> if w = words - 1 && rest <> 0 then bits = (1UL <<< rest) - 1UL else bits = System.UInt64.MaxValue)
+            |> Array.forall id
 
         let performedByAll (operation: Operation) =
             let candidates =
@@ -445,23 +533,20 @@ module RecipeDocument =
             if candidates |> List.exists (fun provider -> snd (fits provider) = hosts.Length) then
                 true
             else
-                let covered = System.Collections.Generic.HashSet<int>()
+                let covered =
+                    match builtIn.TryGetValue operation with
+                    | true, set -> Array.copy set
+                    | false, _ -> Array.zeroCreate words
 
                 for provider in candidates do
-                    for c in fst (fits provider) do
-                        covered.Add c |> ignore
+                    let set, _ = fits provider
 
-                let byClass = covered |> Seq.sumBy (fun c -> size[c])
+                    for w in 0 .. words - 1 do
+                        covered[w] <- covered[w] ||| set[w]
 
-                let byBuiltIn =
-                    match builtIns.TryGetValue operation with
-                    | true, list -> list |> Seq.filter (fun h -> not (covered.Contains hostClass[h])) |> Seq.length
-                    | false, _ -> 0
-
-                byClass + byBuiltIn = hosts.Length
+                full covered
 
         recipe.Operations |> List.tryFindIndex (performedByAll >> not)
-
     /// The consistency rules marked "after reading", in the order of their table.
     let private consistency (path: DocumentPath) (recipe: Recipe) : Read<Recipe> =
         let operations = path.Child "operations"
