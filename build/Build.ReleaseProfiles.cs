@@ -118,13 +118,22 @@ partial class Build
                 ReleaseArchive.Create(publishDirectory, output, artifact.Platform!.ArchiveFormat, ReleaseArchive.ExecutablesFor(artifact.Launch.LaunchPath));
             }
 
+            // The WASM engine the artifact carries, read from it and checked against the restored Wasmtime package and the
+            // pinned C API archives (add-wasm-extension-host tasks 5.2 and 5.3). A contradiction removes the artifact.
+            var engines = PackagedEngines.Check(artifact, PackagedEngines.Read(output), EnginePin.Load(RootDirectory, artifact.Deployment.Project));
+            if (engines.Problems.Count > 0)
+            {
+                File.Delete(output);
+                throw new Exception($"The WASM engine in {artifact.FileName} contradicts the pinned engine:\n  {string.Join("\n  ", engines.Problems)}");
+            }
+
             var sha256 = ReleaseArchive.Sha256(output);
             File.WriteAllText(ReleaseDir / BuildLaunchInfo.FileNameFor(artifact.FileName), BuildLaunchInfo.ToJson(artifact.Launch, sha256));
             Serilog.Log.Information($"✓ {artifact.FileName}: {new FileInfo(output).Length:N0} bytes, sha256 {sha256}");
 
             // Every file the artifact contains, read from the artifact, with the commit it was packed from, and the size
             // report over every artifact packed so far (task 2.4). Artifacts of another release are shown apart.
-            var contents = PackagedContents.Read(artifact, output, CurrentPackOrigin());
+            var contents = PackagedContents.Read(artifact, output, CurrentPackOrigin()) with { Engines = engines.Engines };
             File.WriteAllText(ReleaseDir / PackagedContents.FileNameFor(artifact.FileName), PackagedContents.ToJson(contents));
             var all = Directory.GetFiles(ReleaseDir, "*.build-contents.json").Select(path => PackagedContents.Parse(File.ReadAllText(path)));
             File.WriteAllText(ReleaseDir / "size-report.md", PackagedContents.SizeReport(all, artifact.Release));

@@ -167,6 +167,34 @@ public sealed class WasmHostCommandTests
     }
 
     [Test]
+    public async Task ReportCheckRefusesAReportCitedForAnotherOfferingOrPlatform()
+    {
+        // add-wasm-extension-host task 5.3: "the release check rejects a report cited for another offering".
+        await using var sandbox = TestSandbox.Create("morphir-mck-run-");
+        var kit = OneCaseKit(sandbox, "classification/unknown-namespace");
+        var report = sandbox.PathOf("out", "wasm-host.json");
+        var run = await InvokeAsync([
+            "mck", "wasm-host", "run", "--kit", kit, .. FakeHost(sandbox, Refusal()), "--offering", "native-aot", "--platform", "win-arm64", "--engine", "wasmtime 50.0.1", "--report", report
+        ]);
+        run.ExitCode.Should().Be(0, run.Stderr);
+
+        var same = await InvokeAsync("mck", "wasm-host", "report-check", "--kit", kit, "--report", report, "--expect-offering", "native-aot", "--expect-platform", "win-arm64");
+        same.ExitCode.Should().Be(0, same.Stderr);
+        Document(same)["valid"]!.GetValue<bool>().Should().BeTrue();
+
+        var offering = await InvokeAsync("mck", "wasm-host", "report-check", "--kit", kit, "--report", report, "--expect-offering", "dotnet-tool");
+        offering.ExitCode.Should().Be(1, offering.Stderr);
+        Document(offering)["valid"]!.GetValue<bool>().Should().BeFalse();
+        Document(offering)["problems"]!.AsArray().Select(problem => problem!.GetValue<string>())
+            .Should().Contain(problem => problem.Contains("it is cited for dotnet-tool"));
+
+        var platform = await InvokeAsync("mck", "wasm-host", "report-check", "--kit", kit, "--report", report, "--expect-offering", "native-aot", "--expect-platform", "linux-x64");
+        platform.ExitCode.Should().Be(1, platform.Stderr);
+        Document(platform)["problems"]!.AsArray().Select(problem => problem!.GetValue<string>())
+            .Should().Contain(problem => problem.Contains("it is cited for linux-x64"));
+    }
+
+    [Test]
     public async Task RunOfTheWholeKitExitsOneWhenCasesFailAndReportCheckRecomputesIt()
     {
         await using var sandbox = TestSandbox.Create("morphir-mck-run-");
