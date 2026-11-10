@@ -278,3 +278,91 @@ let extensionReleaseTests =
         testCase "a descriptor over 1 MiB is refused before it is parsed" (fun () ->
             refusedWith ReaderCode.InvalidDocument "" (ExtensionReleaseDocument.read (Array.create (1024 * 1024 + 1) (byte ' '))))
     ]
+
+/// A synthetic authenticated tool-release target for the resolver's own cases.
+let private release (version: string) (channels: string list) (status: string) (cli: string) (platforms: (string * string) list) =
+    $"releases/tool/{version}.json",
+    { Length = 1UL
+      Sha256 = (match Sha256.tryParse (String.replicate 64 "a") with Ok s -> s | Error _ -> failwith "sha")
+      Custom =
+        Some(
+            Value.Object
+                [ "morphir",
+                  Value.Object
+                      [ "schemaVersion", Value.Number "1"
+                        "kind", str "tool-release"
+                        "toolId", str "tool"
+                        "version", str version
+                        "channels", Value.Array(channels |> List.map str)
+                        "status", str status
+                        "compatibility", Value.Object [ "morphirCli", str cli ]
+                        "platforms", Value.Array [ for os, arch in platforms -> Value.Object [ "os", str os; "arch", str arch ] ] ] ]
+        ) }
+
+let private windows = [ "windows", "x86_64" ]
+let private semver (text: string) = match SemVer.tryParse text with Ok v -> v | Error _ -> failwith text
+let private toolId = match ToolId.tryParse "tool" with Ok id -> id | Error _ -> failwith "tool"
+let private channel (text: string) = match Channel.tryParse text with Ok c -> c | Error _ -> failwith text
+
+let private resolve (targets: (string * AuthenticatedTarget) list) (request: ToolRequest) (cli: string) =
+    ToolResolver.resolve (Map.ofList targets) toolId request { Os = "windows"; Arch = "x86_64" } (semver cli)
+    |> Result.map (fun selection -> selection.Version.Text)
+    |> Result.mapError (fun refusal -> Code.name refusal.Code)
+
+[<Tests>]
+let toolResolverTests =
+    testList "Tool release metadata v1 resolution" [
+        testCase "stable selects the greatest final version on stable" (fun () ->
+            let targets =
+                [ release "1.0.0" [ "stable" ] "active" ">=0.4.0" windows
+                  release "1.1.0" [ "stable" ] "active" ">=0.4.0" windows
+                  release "2.0.0-rc.1" [ "stable" ] "active" ">=0.4.0" windows ]
+
+            Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Stable) "0.4.0") (Ok "1.1.0") "1.1.0")
+
+        testCase "preview and insiders select the preview family; a named preview only its own channel" (fun () ->
+            let targets =
+                [ release "1.0.0" [ "stable" ] "active" ">=0.4.0" windows
+                  release "2.0.0-preview.1" [ "preview/fast" ] "active" ">=0.4.0" windows
+                  release "2.0.0-preview.2" [ "insiders" ] "active" ">=0.4.0" windows ]
+
+            Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Preview) "0.4.0") (Ok "2.0.0-preview.2") "preview"
+            Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Insiders) "0.4.0") (Ok "2.0.0-preview.2") "insiders"
+            Expect.equal (resolve targets (ToolRequest.OnChannel(channel "preview/fast")) "0.4.0") (Ok "2.0.0-preview.1") "named")
+
+        testCase "a yanked release is skipped by channels and selected exactly; a revoked one is refused exactly" (fun () ->
+            let targets =
+                [ release "1.0.0" [ "stable" ] "active" ">=0.4.0" windows
+                  release "1.1.0" [] "yanked" ">=0.4.0" windows
+                  release "1.2.0" [] "revoked" ">=0.4.0" windows ]
+
+            Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Stable) "0.4.0") (Ok "1.0.0") "channel"
+            Expect.equal (resolve targets (ToolRequest.Exact(semver "1.1.0")) "0.4.0") (Ok "1.1.0") "exact yanked"
+            Expect.equal (resolve targets (ToolRequest.Exact(semver "1.2.0")) "0.4.0") (Error "release_revoked") "exact revoked")
+
+        testCase "the CLI requirement filters releases, comparator by comparator" (fun () ->
+            let targets =
+                [ release "1.0.0" [ "stable" ] "active" ">=0.4.0-alpha.5, <0.5.0" windows
+                  release "1.1.0" [ "stable" ] "active" ">=0.5.0" windows ]
+
+            Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Stable) "0.4.2") (Ok "1.0.0") "0.4.2"
+            Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Stable) "0.5.1") (Ok "1.1.0") "0.5.1"
+            // <0.0.0-0 matches no version, so no CLI selects such a release.
+            let offering = [ release "1.2.3" [ "stable" ] "active" "<0.0.0-0" windows ]
+            Expect.equal (resolve offering (ToolRequest.OnChannel Channel.Stable) "0.4.0") (Error "no_compatible_release") "no CLI")
+
+        testCase "a release without the platform is not selected" (fun () ->
+            let targets = [ release "1.0.0" [ "stable" ] "active" ">=0.4.0" [ "linux", "x86_64" ] ]
+            Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Stable) "0.4.0") (Error "no_compatible_release") "no artifact")
+
+        testCase "two releases of one precedence are refused" (fun () ->
+            let targets =
+                [ release "1.0.0+a" [ "stable" ] "active" ">=0.4.0" windows
+                  release "1.0.0+b" [ "stable" ] "active" ">=0.4.0" windows ]
+
+            Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Stable) "0.4.0") (Error "release_descriptor_mismatch") "ambiguous")
+
+        testCase "a CLI requirement outside the comparator grammar is refused (provisional)" (fun () ->
+            let targets = [ release "1.0.0" [ "stable" ] "active" "^0.4" windows ]
+            Expect.equal (resolve targets (ToolRequest.OnChannel Channel.Stable) "0.4.0") (Error "release_descriptor_mismatch") "^0.4")
+    ]

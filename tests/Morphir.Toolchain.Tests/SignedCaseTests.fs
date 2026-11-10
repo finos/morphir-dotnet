@@ -17,19 +17,15 @@ open Morphir.Toolchain.Tests.Manifest
 open Morphir.Toolchain.Tests.BindingCaseTests
 
 /// Sections this suite runs, in whole or in part.
-let ranSections = [ "selection"; "frozen"; "lockRecipe"; "recipeChecks"; "trust"; "channelSelection"; "v1Descriptors" ]
+let ranSections = [ "selection"; "frozen"; "lockRecipe"; "recipeChecks"; "trust"; "channelSelection"; "v1Descriptors"; "v1Client" ]
 
 /// Parts of a section this suite runs that it does not run, each with its reason.
 let notRunClauses =
     [ "v1Descriptors",
       "Validation against tool-release-v1.schema.json, which this pin does not hold: the v1 reader checks the schema's rules, written from it by hand." ]
 
-let private noV1Client =
-    "needs the tool release metadata v1 client, which does not exist in morphir-dotnet yet (task 4.2)"
-
-/// Sections this suite does not run, each with its reason.
-let notRunSections =
-    [ "v1Client", $"Selects artifacts by tool id, channel and v1 platform: {noV1Client}." ]
+/// Sections this suite does not run, each with its reason. Every section is run.
+let notRunSections: (string * string) list = []
 
 /// Members of the signed manifest that are data, not case sections.
 let metadataMembers = [ "contractVersion"; "repository"; "referenceClient" ]
@@ -374,6 +370,62 @@ let private v1DescriptorTests () =
           Expect.equal others [ "releases/morphir-dotnet-not-a-release/1.2.3.json" ] "the one release not listed"
           Expect.isError (ToolReleaseDocument.read (targetBytes others.Head)) "it does not read as a v1 descriptor") ]
 
+let private v1ClientTests () =
+    use document = manifest ()
+    let section = document.RootElement.GetProperty "v1Client"
+    requireKnown "v1Client" [ "note"; "recipe"; "selections" ] section
+    let cli = str (document.RootElement.GetProperty "referenceClient") "cliVersion"
+    let recipe = signedRecipe (str section "recipe")
+    let listed = authenticatedTargets "metadata"
+    let selections = [ for s in section.GetProperty("selections").EnumerateArray() -> s.Clone() ]
+
+    [ for selection in selections do
+          let toolId = str selection "toolId"
+          let recipePlatform = str selection "recipePlatform"
+          requireKnown toolId [ "toolId"; "channel"; "platform"; "deployment"; "recipePlatform"; "recipeBinding"; "expected" ] selection
+
+          yield
+              testCase $"{toolId} on {recipePlatform}" (fun () ->
+                  let platform = selection.GetProperty "platform"
+                  requireKnown $"{toolId} platform" [ "os"; "arch" ] platform
+                  let expected = selection.GetProperty "expected"
+                  requireKnown $"{toolId} expected" [ "selected" ] expected
+
+                  let request =
+                      match Channel.tryParse (str selection "channel") with
+                      | Ok channel -> ToolRequest.OnChannel channel
+                      | Error _ -> failtest "channel"
+
+                  let id = match ToolId.tryParse toolId with Ok id -> id | Error _ -> failtest "tool id"
+                  let cliVersion = match SemVer.tryParse cli with Ok v -> v | Error _ -> failtest "cli version"
+
+                  let resolved =
+                      ToolResolver.resolve listed id request { Os = str platform "os"; Arch = str platform "arch" } cliVersion
+
+                  Expect.equal (Result.isOk resolved) (expected.GetProperty("selected").GetBoolean()) "the v1 client's selection"
+
+                  // Not selected because no CLI version meets the offering's requirement, not because a state is malformed.
+                  match resolved with
+                  | Error refusal -> Expect.equal (Code.name refusal.Code) "no_compatible_release" "why nothing is selected"
+                  | Ok _ -> ()
+
+                  // The recipe still binds the offering's artifact for that platform, with its authenticated digest.
+                  let target = str (selection.GetProperty "recipeBinding") "targetPath"
+
+                  let host =
+                      recipe.Hosts |> List.find (fun host -> host.Deployment.Text = str selection "deployment")
+
+                  let binding = host.Platforms |> List.find (fun (p, _) -> Platform.name p = recipePlatform) |> snd
+                  Expect.equal binding.Target.Text target "the recipe binds the target"
+                  Expect.equal (Some binding.Sha256) (listed.TryFind target |> Option.map _.Sha256) "with its authenticated digest")
+
+      yield
+          testCase "the 18 bound digests are distinct" (fun () ->
+              let digests =
+                  [ for selection in selections -> listed[str (selection.GetProperty "recipeBinding") "targetPath"].Sha256.Text ]
+
+              Expect.equal (List.length (List.distinct digests)) 18 "distinct") ]
+
 let private channelTests () =
     let listed = authenticatedTargets "metadata" |> Map.toList
 
@@ -462,6 +514,7 @@ let tests =
         testList "trust" (trustTests ())
         testList "channelSelection" (channelTests ())
         testList "v1Descriptors" (v1DescriptorTests ())
+        testList "v1Client" (v1ClientTests ())
 
         testCase "every part of a run section that is not run names its section" (fun () ->
             for section, _ in notRunClauses do
