@@ -319,6 +319,28 @@ let tests =
                 | { Detail = DiagnosticDetail.DocumentUnavailable DocumentKind.Request; Message = message } :: _ ->
                     Expect.stringContains message.Text "is not a regular file" $"a link to {device}"
                 | other -> failtestf "expected document_unavailable for a link to %s, got %A" device other)
+        testCase "a file that keeps sending data is read even when the whole read takes over five seconds (Linux and macOS)" (fun () ->
+            if OperatingSystem.IsWindows() then
+                skiptest "mkfifo"
+
+            use sandbox = tempDirectory ()
+            let fifo = Path.Combine(sandbox.Work, "slow.toml")
+            let made = ChildProcess.RunAsync(ChildProcess.StartInfo("mkfifo", fifo), TimeSpan.FromSeconds 30.0).GetAwaiter().GetResult()
+            Expect.equal made.ExitCode 0 "mkfifo"
+            let bytes = File.ReadAllBytes(fixture "request/approved.toml")
+
+            // Half the request, then a pause longer than the open timeout, then the rest.
+            let writer =
+                Threading.Tasks.Task.Run(fun () ->
+                    use stream = new FileStream(fifo, FileMode.Open, FileAccess.Write)
+                    stream.Write(bytes, 0, bytes.Length / 2)
+                    stream.Flush()
+                    Threading.Thread.Sleep(TimeSpan.FromSeconds 6.0)
+                    stream.Write(bytes, bytes.Length / 2, bytes.Length - bytes.Length / 2))
+
+            let run = runIn sandbox.Work Platform.OsxArm64 [ "doctor"; "--request"; fifo; "--lock"; fixture "lock/two-platforms-bound.json" ]
+            writer.Wait(TimeSpan.FromSeconds 30.0) |> ignore
+            Expect.equal run.Exit 0 $"the request, read in two parts; stdout: {run.Stdout}")
         testCase "a non-portable recipe target is non_portable_path at the recipe, checked before any file is read" (fun () ->
             use sandbox = tempDirectory ()
 

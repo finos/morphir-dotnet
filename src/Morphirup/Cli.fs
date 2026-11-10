@@ -172,32 +172,41 @@ let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array,
             elif isDeviceName target.FullName || target.Attributes.HasFlag FileAttributes.Device then
                 Error $"{full} is not a regular file"
             else
-                // At most limit + 1 bytes are read, so an endless file stops one byte past the limit.
-                let read =
-                    Task.Run<byte array>(
-                        Func<byte array>(fun () ->
-                            use stream = new FileStream(target.FullName, FileMode.Open, FileAccess.Read, FileShare.Read)
-                            use output = new MemoryStream()
-                            let chunk = Array.zeroCreate<byte> 81920
-                            let mutable reading = true
-
-                            while reading && output.Length <= limit do
-                                let wanted = int (min (int64 chunk.Length) (limit + 1L - output.Length))
-                                let count = stream.Read(chunk, 0, wanted)
-                                if count = 0 then reading <- false else output.Write(chunk, 0, count)
-
-                            output.ToArray())
+                // Opening a FIFO blocks until a writer comes, so the open has five seconds. After that each read has
+                // thirty: a slow file that keeps sending data is read in full, and one that stops is refused.
+                let opening =
+                    Task.Run<FileStream>(
+                        Func<FileStream>(fun () -> new FileStream(target.FullName, FileMode.Open, FileAccess.Read, FileShare.Read))
                     )
 
-                if not (read.Wait(TimeSpan.FromSeconds 5.0)) then
+                if not (opening.Wait(TimeSpan.FromSeconds 5.0)) then
+                    // A late open still gets its stream closed.
+                    opening.ContinueWith(fun (opened: Task<FileStream>) -> if opened.IsCompletedSuccessfully then opened.Result.Dispose())
+                    |> ignore
+
                     Error $"{full} is not a regular file: it did not open within five seconds"
                 else
-                    let bytes = read.Result
+                    use stream = opening.Result
+                    use output = new MemoryStream()
+                    let chunk = Array.zeroCreate<byte> 81920
+                    let mutable outcome = None
 
-                    if int64 bytes.Length > limit then
-                        Error $"{full} is larger than the provisional limit of {limit} bytes"
-                    else
-                        Ok bytes
+                    // At most limit + 1 bytes are read, so an endless file stops one byte past the limit.
+                    while outcome.IsNone do
+                        if output.Length > limit then
+                            outcome <- Some(Error $"{full} is larger than the provisional limit of {limit} bytes")
+                        else
+                            let wanted = int (min (int64 chunk.Length) (limit + 1L - output.Length))
+                            let reading = Task.Run<int>(Func<int>(fun () -> stream.Read(chunk, 0, wanted)))
+
+                            if not (reading.Wait(TimeSpan.FromSeconds 30.0)) then
+                                outcome <- Some(Error $"{full} is not a regular file: it sent no data for thirty seconds")
+                            elif reading.Result = 0 then
+                                outcome <- Some(Ok(output.ToArray()))
+                            else
+                                output.Write(chunk, 0, reading.Result)
+
+                    outcome.Value
         with
         | :? AggregateException as error when (error.InnerException :? IOException || error.InnerException :? UnauthorizedAccessException) ->
             Error $"{full} {unreadable (nonNull error.InnerException)}"
