@@ -4,7 +4,6 @@ namespace Morphir.Toolchain
 
 open System
 open System.Globalization
-open System.Text.RegularExpressions
 
 /// <summary>
 /// Why TUF metadata or a refresh was refused. Each case maps to one stable code (<c>TufFailure.code</c>).
@@ -143,11 +142,27 @@ module TufMetadata =
         | TufRole.Snapshot -> "snapshot"
         | TufRole.Targets -> "targets"
 
-    let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)
-    let private hex128 = Regex("^[0-9a-f]{128}$", RegexOptions.CultureInvariant)
+    // The spellings are checked character by character, never with a regular expression: .NET's $ also matches
+    // before a final line feed, so "^[0-9a-f]{128}$" accepts 128 digits and a line feed (review of #581, T1).
 
-    // TUF's expires: exactly YYYY-MM-DDTHH:MM:SSZ, in UTC, without fractions or an offset.
-    let private expiresPattern = Regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", RegexOptions.CultureInvariant)
+    /// Exactly <paramref name="length"/> lowercase hexadecimal digits.
+    let private isLowerHex (length: int) (s: string) =
+        s.Length = length && s |> Seq.forall (fun c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))
+
+    /// TUF's expires: exactly YYYY-MM-DDTHH:MM:SSZ, in UTC, without fractions or an offset.
+    let private isExpiresSpelling (s: string) =
+        s.Length = 20
+        && s
+           |> Seq.indexed
+           |> Seq.forall (fun (index, c) ->
+               match index with
+               | 4
+               | 7 -> c = '-'
+               | 10 -> c = 'T'
+               | 13
+               | 16 -> c = ':'
+               | 19 -> c = 'Z'
+               | _ -> c >= '0' && c <= '9')
 
     type private Reader<'T> = Result<'T, TufFailure>
 
@@ -182,10 +197,10 @@ module TufMetadata =
         integer role name value
         |> Result.bind (fun n -> if n = 0UL then Error(TufFailure.MetadataInvalid(role, $"{name} is 0")) else Ok n)
 
-    let private hexBytes (role: TufRole) (name: string) (pattern: Regex) (value: Value) : Reader<byte array> =
+    let private hexBytes (role: TufRole) (name: string) (digits: int) (value: Value) : Reader<byte array> =
         text role name value
         |> Result.bind (fun s ->
-            if pattern.IsMatch s then Ok(Convert.FromHexString s)
+            if isLowerHex digits s then Ok(Convert.FromHexString s)
             else Error(TufFailure.MetadataInvalid(role, $"{name} is not lowercase hexadecimal of the right length")))
 
     let private sha256 (role: TufRole) (value: Value) : Reader<Sha256> =
@@ -236,10 +251,10 @@ module TufMetadata =
                                 do! exactMembers role "a signature" [ "keyid"; "sig" ] fields
                                 let! keyId = required role "keyid" fields |> Result.bind (text role "keyid")
 
-                                if not (hex64.IsMatch keyId) then
+                                if not (isLowerHex 64 keyId) then
                                     return! Error(TufFailure.MetadataInvalid(role, "a signature's keyid is not 64 lowercase hexadecimal digits"))
 
-                                let! value = required role "sig" fields |> Result.bind (hexBytes role "sig" hex128)
+                                let! value = required role "sig" fields |> Result.bind (hexBytes role "sig" 128)
                                 return { KeyId = keyId; Value = value }
                             })
 
@@ -269,7 +284,7 @@ module TufMetadata =
 
             let! expires =
                 match
-                    expiresPattern.IsMatch expiresText,
+                    isExpiresSpelling expiresText,
                     DateTimeOffset.TryParseExact(
                         expiresText,
                         "yyyy-MM-dd'T'HH:mm:ss'Z'",
@@ -301,7 +316,7 @@ module TufMetadata =
         let role = TufRole.Root
 
         result {
-            if not (hex64.IsMatch keyId) then
+            if not (isLowerHex 64 keyId) then
                 return! Error(TufFailure.MetadataInvalid(role, "a key id is not 64 lowercase hexadecimal digits"))
 
             let! fields = members role "a key" value
@@ -314,7 +329,7 @@ module TufMetadata =
 
             let! keyval = required role "keyval" fields |> Result.bind (members role "keyval")
             do! exactMembers role "keyval" [ "public" ] keyval
-            let! publicKey = required role "public" keyval |> Result.bind (hexBytes role "public" hex64)
+            let! publicKey = required role "public" keyval |> Result.bind (hexBytes role "public" 64)
 
             let! canonicalKey =
                 Canonical.bytes value |> Result.mapError (fun _ -> TufFailure.MetadataInvalid(role, "a key has no canonical form"))

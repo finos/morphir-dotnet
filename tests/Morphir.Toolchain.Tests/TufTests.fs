@@ -479,3 +479,58 @@ let spikeProfileTests =
             let target = (Option.get trusted.Targets).Targets[path]
             Expect.equal (TufClient.consistentTargetPath path target.Sha256) $"artifacts/morphir-dotnet-native-aot/1.2.3/{target.Sha256.Text}.win-x64.zip" "the path")
     ]
+
+/// The first signature object of an envelope.
+let private firstSignatureOf (envelopeValue: Value) =
+    match at [ "signatures" ] envelopeValue with
+    | Value.Array(first :: _) -> first
+    | _ -> failwith "signatures"
+
+let private textOf (value: Value) =
+    match value with
+    | Value.String s -> s
+    | _ -> failwith "not a string"
+
+/// A source whose root N + 1 is the given bytes.
+let private withRoot2 (set: MetadataSet) (bytes: byte array) =
+    { sourceOf set [] with
+        Root = fun version -> if version = 1UL then Some(canonical set.Root) elif version = 2UL then Some bytes else None }
+
+[<Tests>]
+let reviewT1Tests =
+    // Review of #581, T1: .NET's $ also matches before a final line feed. The inputs are written with JsonText.toBytes,
+    // which escapes the line feed as \n, so they are JSON.
+    testList "T1 a trailing line feed in a hex or time field is refused, never thrown" [
+        testCase "a signature's sig" (fun () ->
+            let set = metadataSet "metadata"
+            let signature = firstSignatureOf set.Timestamp
+            let served = setAt [ "signatures" ] (Value.Array [ setAt [ "sig" ] (text (textOf (memberOf "sig" signature) + "\n")) signature ]) set.Timestamp
+            let bytes = JsonText.toBytes served
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp bytes)
+            refused (refresh (anchor ()) { sourceOf set [] with Timestamp = fun () -> Some bytes }) |> ignore)
+
+        testCase "a signature's keyid" (fun () ->
+            let set = metadataSet "metadata"
+            let signature = firstSignatureOf set.Timestamp
+            let served = setAt [ "signatures" ] (Value.Array [ setAt [ "keyid" ] (text (textOf (memberOf "keyid" signature) + "\n")) signature ]) set.Timestamp
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp (JsonText.toBytes served)))
+
+        testCase "a key's public in a rotated root" (fun () ->
+            let set = metadataSet "metadata"
+
+            let keyObject =
+                Value.Object
+                    [ "keytype", text "ed25519"
+                      "scheme", text "ed25519"
+                      "keyval", Value.Object [ "public", text ((newTestKey "line feed").Public + "\n") ] ]
+
+            // The key id is the SHA-256 of the canonical key object, so only the public key's spelling is wrong.
+            let keyId = Digest.ofBytes (canonical keyObject)
+            let signed = setAt [ "keys"; keyId ] keyObject (memberOf "signed" (rootVersion 2UL (keysOf "root") 2 []))
+            let bytes = JsonText.toBytes (envelope signed (keysOf "root"))
+            invalid TufRole.Root (TufMetadata.readRoot bytes)
+            refused (refresh (anchor ()) (withRoot2 set bytes)) |> ignore)
+
+        testCase "a root's expires" (fun () ->
+            invalid TufRole.Root (TufMetadata.readRoot (JsonText.toBytes (setAt [ "signed"; "expires" ] (text "2999-01-01T00:00:00Z\n") (root ())))))
+    ]
