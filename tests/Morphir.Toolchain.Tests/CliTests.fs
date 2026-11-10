@@ -127,9 +127,13 @@ let tests =
             Expect.equal result.Outcome Outcome.Failed "failed"
 
             match result.Diagnostics with
-            | [ { Detail = DiagnosticDetail.UnsupportedContract(ReaderCode.InconsistentDocument, DocumentKind.Result, path) } ] ->
-                Expect.equal (DocumentPath.render path) "planSha256" "the plan digest"
-            | other -> failtestf "unexpected diagnostics %A" other)
+            | [ { Detail = DiagnosticDetail.LockBinding(BindingProblem.PlanChanged, path); Message = message } ] ->
+                Expect.equal (DocumentPath.render path) "planSha256" "plan_changed at the plan digest"
+                Expect.stringContains message.Text digest "the message names the plan's digest"
+                Expect.stringContains message.Text (String.replicate 64 "0") "and the expected one"
+            | other -> failtestf "unexpected diagnostics %A" other
+
+            Expect.isNone result.Plan "nothing is planned when the plan changed")
 
         testCase "the selector options give the same plan as the approved request file" (fun () ->
             use directorySandbox = tempDirectory ()
@@ -216,17 +220,11 @@ let tests =
                   (fun _ -> [ "setup"; "--plan"; "--request"; "--json" ]),
                   "--request needs a value"
                   "an option given twice", (fun _ -> [ "setup"; "--plan"; "--plan" ]), "--plan is given twice"
-                  "a missing request file",
+                  "a missing sizes file, which is not a contract document",
                   (fun directory ->
-                      [ "setup"; "--plan"; "--request"; Path.Combine(directory, "absent.toml"); "--recipe"; "x"; "--repository-id"; repositoryText ]),
-                  "absent.toml does not exist"
-                  "a directory as the recipe",
-                  (fun directory ->
-                      [ "setup"; "--plan"; "--request"; fixture "request/approved.toml"; "--recipe"; directory; "--repository-id"; repositoryText ]),
-                  "is a directory, not a file"
-                  "a Windows device path",
-                  (fun _ -> [ "doctor"; "--request"; @"\\.\pipe\morphirup-test"; "--lock"; fixture "lock/two-platforms-bound.json" ]),
-                  "is not a regular file"
+                      planArgs directory "request/approved.toml"
+                      |> List.map (fun a -> if a.EndsWith "sizes.json" then Path.Combine(directory, "absent.json") else a)),
+                  "absent.json does not exist"
                   "an unknown command", (fun _ -> [ "install" ]), "install is not a command of this build"
                   "no command", (fun _ -> []), "no command given"
                   "doctor --recipe without --repository-id",
@@ -247,16 +245,46 @@ let tests =
                     Expect.stringContains run.Stderr message "the message")
         ]
 
-        testCase "a file over its provisional limit is refused before it is parsed" (fun () ->
-            use sandbox = tempDirectory ()
-            let big = Path.Combine(sandbox.Work, "toolchain.toml")
-            File.WriteAllBytes(big, Array.create (int Cli.Limits.request + 1) (byte '#'))
+        testList "a document that cannot be read is document_unavailable, naming the file" [
+            for name, args, document, message in
+                [ "a missing request file",
+                  (fun directory ->
+                      [ "setup"; "--plan"; "--request"; Path.Combine(directory, "absent.toml"); "--recipe"; fixture "recipe/fsharp-synthetic.json"; "--repository-id"; repositoryText ]),
+                  DocumentKind.Request,
+                  "absent.toml does not exist"
+                  "a directory as the recipe",
+                  (fun directory ->
+                      [ "setup"; "--plan"; "--request"; fixture "request/approved.toml"; "--recipe"; directory; "--repository-id"; repositoryText ]),
+                  DocumentKind.Recipe,
+                  "is a directory, not a file"
+                  "a Windows device path as the request",
+                  (fun _ -> [ "doctor"; "--request"; @"\\.\pipe\morphirup-test"; "--lock"; fixture "lock/two-platforms-bound.json" ]),
+                  DocumentKind.Request,
+                  "is not a regular file"
+                  "a missing lock",
+                  (fun directory -> [ "doctor"; "--request"; fixture "request/approved.toml"; "--lock"; Path.Combine(directory, "absent.json") ]),
+                  DocumentKind.Lock,
+                  "absent.json does not exist"
+                  "a request over its provisional limit, refused before it is parsed",
+                  (fun directory ->
+                      let big = Path.Combine(directory, "big.toml")
+                      File.WriteAllBytes(big, Array.create (int Cli.Limits.request + 1) (byte '#'))
+                      [ "doctor"; "--request"; big; "--lock"; fixture "lock/two-platforms-bound.json" ]),
+                  DocumentKind.Request,
+                  $"is larger than the provisional limit of {Cli.Limits.request} bytes" ] ->
+                testCase name (fun () ->
+                    use sandbox = tempDirectory ()
+                    let run = runIn sandbox.Work Platform.WinX64 (args sandbox.Work)
+                    Expect.equal run.Exit 1 $"a failed result; stderr: {run.Stderr}"
 
-            let run =
-                runIn sandbox.Work Platform.WinX64 [ "doctor"; "--request"; big; "--lock"; fixture "lock/two-platforms-bound.json" ]
+                    let unavailable =
+                        (readResult run).Diagnostics
+                        |> List.filter (fun d -> d.Detail = DiagnosticDetail.DocumentUnavailable document)
 
-            Expect.equal run.Exit 2 "exit code"
-            Expect.stringContains run.Stderr $"is larger than the provisional limit of {Cli.Limits.request} bytes" "the message")
+                    match unavailable with
+                    | [ diagnostic ] -> Expect.stringContains diagnostic.Message.Text message "the message names the file and why"
+                    | other -> failtestf "expected one document_unavailable for %A, got %A" document other)
+        ]
 
         testCase "a non-portable recipe target is non_portable_path at the recipe, checked before any file is read" (fun () ->
             use sandbox = tempDirectory ()
@@ -310,14 +338,6 @@ let tests =
                 Expect.equal repository.Text (String.replicate 64 "c") "the repository the check ran against"
             | other -> failtestf "unexpected diagnostics %A" other)
 
-        testCase "the --expect-plan mismatch diagnostic says it is provisional" (fun () ->
-            use sandbox = tempDirectory ()
-            let run = runIn sandbox.Work Platform.WinX64 (planArgs sandbox.Work "request/approved.toml" @ [ "--expect-plan"; String.replicate 64 "0" ])
-            Expect.equal run.Exit 1 "exit code"
-
-            match (readResult run).Diagnostics with
-            | [ { Message = message } ] -> Expect.stringContains message.Text "Provisional: the contract has no code" "provisional"
-            | other -> failtestf "unexpected diagnostics %A" other)
         testCase "the AOT probe's plan normalizes its decomposed character and has the recorded digest" (fun () ->
             // build/Build.MyriadJson.cs TestMorphirupAot runs this command under JIT and Native AOT with --expect-plan.
             let probe = Path.Combine(__SOURCE_DIRECTORY__, "AotProbe")
@@ -389,8 +409,55 @@ let tests =
 
                 match (readResult run).Diagnostics with
                 | [ { Detail = DiagnosticDetail.LockBinding(BindingProblem.RequestChanged None, path) } ] ->
-                    Expect.equal (DocumentPath.render path) "requestSha256" "the lock member"
+                    Expect.equal (DocumentPath.render path) "requestSha256" "the lock member, with no encoding cause"
                 | other -> failtestf "unexpected diagnostics %A" other)
+
+            testCase "a CRLF checkout of the request is request_changed naming the line endings" (fun () ->
+                use sandbox = project "request/approved-crlf.toml"
+                let run = runIn sandbox.Work Platform.OsxArm64 [ "doctor" ]
+                Expect.equal run.Exit 1 "exit code"
+
+                match (readResult run).Diagnostics with
+                | [ { Detail = DiagnosticDetail.LockBinding(BindingProblem.RequestChanged(Some RequestChangeCause.CrlfLineEndings), _)
+                      Message = message } ] ->
+                    Expect.stringContains message.Text "text eol=lf" "the message names the .gitattributes entry"
+                | other -> failtestf "unexpected diagnostics %A" other
+
+                Expect.stringContains run.Stdout "\"cause\": \"crlf-line-endings\"" "the result carries the cause")
+
+            testCase "the project request is discovered from a subdirectory" (fun () ->
+                use sandbox = project "request/approved.toml"
+                let nested = Directory.CreateDirectory(Path.Combine(sandbox.Work, "src", "pricing")).FullName
+                let run = runIn nested Platform.OsxArm64 [ "doctor"; "--boundary"; sandbox.Work ]
+                Expect.equal run.Exit 0 $"the project's own request and lock; stdout: {run.Stdout}"
+                Expect.stringContains run.Stderr (Path.Combine(sandbox.Work, ".morphir", "toolchain.toml")) "read from the project")
+
+            testCase "--project names where discovery starts" (fun () ->
+                use sandbox = project "request/approved.toml"
+                let nested = Directory.CreateDirectory(Path.Combine(sandbox.Work, "src")).FullName
+                let run = runIn sandbox.Home Platform.OsxArm64 [ "doctor"; "--project"; nested; "--boundary"; sandbox.Work ]
+                Expect.equal run.Exit 0 $"found above the start, within the boundary; stdout: {run.Stdout}")
+
+            testCase "a request above the discovery boundary is never read" (fun () ->
+                use sandbox = project "request/approved.toml"
+                let member' = Directory.CreateDirectory(Path.Combine(sandbox.Work, "member")).FullName
+                let run = runIn member' Platform.OsxArm64 [ "doctor"; "--boundary"; member' ]
+                Expect.equal run.Exit 1 "a failed result"
+
+                match (readResult run).Diagnostics |> List.map _.Detail with
+                | DiagnosticDetail.DocumentUnavailable DocumentKind.Request :: _ -> ()
+                | other -> failtestf "expected document_unavailable for the request, got %A" other
+
+                Expect.isFalse (run.Stderr.Contains(Path.Combine(sandbox.Work, ".morphir"))) "nothing above the boundary is read")
+
+            testCase "a start outside the boundary has no project request" (fun () ->
+                use sandbox = project "request/approved.toml"
+                let run = runIn sandbox.Work Platform.OsxArm64 [ "doctor"; "--boundary"; sandbox.Home ]
+                Expect.equal run.Exit 1 "a failed result"
+
+                match (readResult run).Diagnostics |> List.map _.Detail with
+                | DiagnosticDetail.DocumentUnavailable DocumentKind.Request :: _ -> ()
+                | other -> failtestf "expected document_unavailable for the request, got %A" other)
 
             testCase "a lock checked against another recipe's bytes is lock_recipe_mismatch" (fun () ->
                 use sandbox = project "request/approved.toml"

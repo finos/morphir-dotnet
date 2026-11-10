@@ -19,14 +19,15 @@ type Io =
       CurrentDirectory: string
       Platform: Platform option }
 
-/// Exit codes. 0 and 1 follow the result's outcome; 2 and 3 write no result document (provisional: the result contract
-/// has no code for an invocation error or an internal failure).
+/// <summary>Exit codes (manager result page): 0 and 1 follow the result's outcome, and 2 is a command line that cannot
+/// be parsed, with no result. 3, an internal failure with no result, is provisional: the contract has no exit code for
+/// it.</summary>
 module ExitCode =
     /// A planned or succeeded result.
     let ok = 0
     /// A failed result: a document was refused or a check failed.
     let failed = 1
-    /// An invocation or file error; no result document is written.
+    /// A command line that cannot be parsed, or this build's own sizes file unreadable; no result document is written.
     let usage = 2
     /// An internal error in morphirup; no result document is written.
     let internalError = 3
@@ -61,18 +62,20 @@ installs and activates nothing.
 Usage:
   morphirup --version
   morphirup setup --plan --recipe <file> --repository-id <sha256> --artifact-sizes <file> [request] [options]
-  morphirup doctor [--project <dir>] [--request <file>] [--lock <file>] [--platform <rid>]
+  morphirup doctor [--project <dir>] [--boundary <dir>] [--request <file>] [--lock <file>] [--platform <rid>]
                    [--recipe <file> --repository-id <sha256>]
 
 Request, one of:
-  --project <dir>         (provisional) Read <dir>/.morphir/toolchain.toml; default the current directory, no discovery
+  --project <dir>         (provisional) Start discovery here instead of the current directory: the nearest
+                          .morphir/toolchain.toml in it or a parent, up to and including the boundary
+  --boundary <dir>        (provisional) The discovery boundary; by default the root of the start path
   --request <file>        (provisional) Read this request file
   --implementation <id> --deployment <id> --preset <id> (--channel <channel> | --version <version>)
 
 setup options:
   --plan                  Required: report the plan. Without it, or with --yes, setup refuses
   --platform <rid>        Plan for this platform instead of the current one
-  --expect-plan <sha256>  Refuse a plan whose planSha256 differs (exit 1; the diagnostic is provisional)
+  --expect-plan <sha256>  Refuse a plan whose planSha256 differs: plan_changed, exit 1, nothing changed
   --recipe <file>         (provisional) The recipe document; nothing authenticates it in this build
   --repository-id <sha256> (provisional) The repository the recipe and its artifacts come from
   --recipe-target <path>  (provisional) The recipe's target path; default toolchains/recipes/<preset>/<version>.json
@@ -80,12 +83,14 @@ setup options:
   --json                  Accepted; JSON is the only output format of this build
 
 doctor options:
-  --lock <file>           (provisional) Read this lock file; default <project>/.morphir/toolchain.lock.json
+  --lock <file>           (provisional) Read this lock file; by default the one beside the project request
   --recipe <file>, --repository-id <sha256>  Also check the lock against this recipe and repository
 
-Exit codes: 0 planned or succeeded, 1 failed (one result document on stdout either way). Provisional: 2 for an
-invocation or file error and 3 for an internal error, with nothing on stdout. Files are read only when they are regular
-files, up to 1 MiB for a request, lock or sizes file and 16 MiB for a recipe (provisional bounds).
+Exit codes: 0 planned or succeeded, 1 failed (one result document on stdout either way), 2 for a command line that
+cannot be parsed, with nothing on stdout. Provisional: 3 for an internal error, with nothing on stdout. A request, lock
+or recipe that cannot be read is document_unavailable (exit 1). Files are read only when they are regular files, up to
+1 MiB for a request, lock or sizes file and 16 MiB for a recipe (provisional bounds); a sizes file that cannot be read
+is an invocation error (exit 2).
 """
 
 /// Parsed options: flags and single-valued options, each at most once.
@@ -114,12 +119,12 @@ let private parse (known: string list) (flags: string list) (args: string list) 
     go { Flags = Set.empty; Values = Map.empty } args
 
 /// <summary>
-/// Reads a file the way repository content must be read: the path, after following links, must be a regular file
+/// Reads a file the way repository content must be read, or says why it cannot: the path, after following links, must be a regular file
 /// (not a directory, a device or a pipe), and at most <paramref name="limit"/> bytes are read. Windows device paths and
 /// Unix device trees are refused by name; anything else that does not open within five seconds, such as a FIFO, is
 /// refused as not a regular file.
 /// </summary>
-let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array, Usage> =
+let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array, string> =
     let full = Path.GetFullPath(path, io.CurrentDirectory)
     io.Error.WriteLine $"morphirup: reading {full}"
 
@@ -129,7 +134,7 @@ let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array,
             && [ "/dev/"; "/proc/"; "/sys/" ] |> List.exists (fun prefix -> full.StartsWith(prefix, StringComparison.Ordinal)))
 
     if deviceName then
-        usage $"{full} is not a regular file"
+        Error $"{full} is not a regular file"
     else
         try
             let info = FileInfo full
@@ -143,11 +148,11 @@ let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array,
                     info
 
             if Directory.Exists full || Directory.Exists target.FullName then
-                usage $"{full} is a directory, not a file"
+                Error $"{full} is a directory, not a file"
             elif not target.Exists then
-                usage $"{full} does not exist"
+                Error $"{full} does not exist"
             elif target.Attributes.HasFlag FileAttributes.Device then
-                usage $"{full} is not a regular file"
+                Error $"{full} is not a regular file"
             else
                 // At most limit + 1 bytes are read, so an endless file stops one byte past the limit.
                 let read =
@@ -167,20 +172,20 @@ let private readFile (io: Io) (limit: int64) (path: string) : Result<byte array,
                     )
 
                 if not (read.Wait(TimeSpan.FromSeconds 5.0)) then
-                    usage $"{full} is not a regular file: it did not open within five seconds"
+                    Error $"{full} is not a regular file: it did not open within five seconds"
                 else
                     let bytes = read.Result
 
                     if int64 bytes.Length > limit then
-                        usage $"{full} is larger than the provisional limit of {limit} bytes"
+                        Error $"{full} is larger than the provisional limit of {limit} bytes"
                     else
                         Ok bytes
         with
         | :? AggregateException as error when (error.InnerException :? IOException || error.InnerException :? UnauthorizedAccessException) ->
             let inner = error.InnerException |> Option.ofObj |> Option.map _.Message |> Option.defaultValue error.Message
-            usage $"{full} cannot be read: {inner}"
+            Error $"{full} cannot be read: {inner}"
         | :? IOException
-        | :? UnauthorizedAccessException as error -> usage $"{full} cannot be read: {error.Message}"
+        | :? UnauthorizedAccessException as error -> Error $"{full} cannot be read: {error.Message}"
 
 let private platformOption (io: Io) (options: Options) : Result<Platform, Usage> =
     match options.TryGet "--platform", io.Platform with
@@ -205,12 +210,47 @@ let private requiredOption name parse options (why: string) : Result<'T, Usage> 
         | Some value -> Ok value
         | None -> usage $"{name} is required {why}")
 
-let private projectFile (io: Io) (options: Options) (relative: string) =
-    let project = defaultArg (options.TryGet "--project") "."
-    Path.Combine(Path.GetFullPath(project, io.CurrentDirectory), ".morphir", relative)
+/// A full path as path segments: its root, then each directory name.
+let private segments (full: string) =
+    let root = nonNull (Path.GetPathRoot full)
+    root :: (full.Substring(root.Length).Split([| '\\'; '/' |], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
 
-/// The request bytes, from a file or from the selector options.
-let private requestBytes (io: Io) (options: Options) : Result<byte array, Usage> =
+let private pathOf (segments: string list) = Path.Combine(Array.ofList segments)
+
+/// <summary>Finds the project request by discovery (toolchain request page): from <c>--project</c>, or the working
+/// directory, up through its parents to the discovery boundary, <c>--boundary</c> or by default the root of the start
+/// path, as morphir's own configuration discovery does. The result is the request path, or why there is none.</summary>
+let private discover (io: Io) (options: Options) : Result<string, string> =
+    let start = Path.GetFullPath(defaultArg (options.TryGet "--project") ".", io.CurrentDirectory)
+
+    let boundary =
+        match options.TryGet "--boundary" with
+        | Some given -> Path.GetFullPath(given, io.CurrentDirectory)
+        | None -> nonNull (Path.GetPathRoot start)
+
+    let startSegments = segments start
+    let boundarySegments = segments boundary
+    let depth = List.length boundarySegments
+
+    // Windows paths compare without case: take the boundary in the start's spelling when they agree.
+    let boundarySegments =
+        if
+            OperatingSystem.IsWindows()
+            && List.length startSegments >= depth
+            && List.forall2 (fun a b -> String.Equals(a, b, StringComparison.OrdinalIgnoreCase)) (List.take depth startSegments) boundarySegments
+        then
+            List.take depth startSegments
+        else
+            boundarySegments
+
+    match Discovery.request boundarySegments startSegments (pathOf >> File.Exists) with
+    | Some found -> Ok(pathOf found)
+    | None when List.length startSegments < depth || List.take depth startSegments <> boundarySegments ->
+        Error $"{start} is outside the discovery boundary {boundary}, so it has no project request"
+    | None -> Error $"no .morphir/toolchain.toml was found in {start} or its parents up to the discovery boundary {boundary}"
+
+/// The request bytes, from a file, from discovery or from the selector options, or why the request cannot be read.
+let private requestBytes (io: Io) (options: Options) : Result<Result<byte array, string>, Usage> =
     let selectors = [ "--implementation"; "--deployment"; "--preset"; "--channel"; "--version" ]
     let given = selectors |> List.filter (options.TryGet >> Option.isSome)
     let project = options.TryGet "--project" |> Option.isSome
@@ -218,8 +258,8 @@ let private requestBytes (io: Io) (options: Options) : Result<byte array, Usage>
     match options.TryGet "--request", given with
     | Some _, _ :: _ -> usage "give either --request or the selector options, not both"
     | Some _, [] when project -> usage "give either --request or --project, not both"
-    | Some file, [] -> readFile io Limits.request file
-    | None, [] -> readFile io Limits.request (projectFile io options "toolchain.toml")
+    | Some file, [] -> Ok(readFile io Limits.request file)
+    | None, [] -> Ok(discover io options |> Result.bind (readFile io Limits.request))
     | None, _ :: _ when project -> usage "give either --project or the selector options, not both"
     | None, _ :: _ ->
         invocation {
@@ -238,12 +278,14 @@ let private requestBytes (io: Io) (options: Options) : Result<byte array, Usage>
                 | None, None -> usage "give exactly one of --channel and --version"
 
             return
-                RequestDocument.write
-                    { Implementation = implementation
-                      Deployment = deployment
-                      Release = release }
-                    preset
-                    None
+                Ok(
+                    RequestDocument.write
+                        { Implementation = implementation
+                          Deployment = deployment
+                          Release = release }
+                        preset
+                        None
+                )
         }
 
 let private writeResult (io: Io) (result: ManagerResult) =
@@ -270,7 +312,8 @@ let private artifactSizes (io: Io) (options: Options) : Result<TargetPath -> Art
     | None -> Ok(fun _ -> None)
     | Some file ->
         invocation {
-            let! bytes = readFile io Limits.sizes file
+            // The sizes file is this build's own input, not a contract document, so it cannot be document_unavailable.
+            let! bytes = readFile io Limits.sizes file |> Result.mapError Usage
 
             let number (target: string) (fields: (string * Value) list) name =
                 match fields |> List.tryFind (fst >> (=) name) with
@@ -302,24 +345,12 @@ let private artifactSizes (io: Io) (options: Options) : Result<TargetPath -> Art
             return fun (target: TargetPath) -> entries.TryFind target.Text
         }
 
-/// The diagnostic for a plan that differs from --expect-plan (provisional: the contract has no code for it).
-let private expectPlanMismatch (expected: Sha256) (actual: Sha256) =
-    let refusal =
-        { Code = ReaderCode.InconsistentDocument
-          Path = DocumentPath.root.Child "planSha256" }
-
-    let message =
-        $"The plan's digest is {actual.Text}, not the expected {expected.Text}. Nothing was changed. Provisional: the contract has no code for a plan that differs from --expect-plan, so this build reports inconsistent_document at planSha256."
-
-    match NonBlankText.tryParse message with
-    | Ok text -> { Diagnostics.ofReaderRefusal DocumentKind.Result refusal with Message = text }
-    | Error _ -> Diagnostics.ofReaderRefusal DocumentKind.Result refusal
-
 let private setup (io: Io) (args: string list) : Result<int, Usage> =
     invocation {
         let! options =
             parse
                 [ "--project"
+                  "--boundary"
                   "--request"
                   "--implementation"
                   "--deployment"
@@ -355,60 +386,85 @@ let private setup (io: Io) (args: string list) : Result<int, Usage> =
         | Some(Error _) -> return recipeTargetRefusal ()
         | given ->
             let! requestBytes = requestBytes io options
-            let! recipeBytes = readFile io Limits.recipe recipeFile
+            let recipeBytes = readFile io Limits.recipe recipeFile
             let! sizes = artifactSizes io options
 
-            match RequestDocument.read requestBytes, RecipeDocument.read recipeBytes with
-            | Error refusal, _ -> return failedWith io Command.Setup [ Diagnostics.ofReaderRefusal DocumentKind.Request refusal ]
-            | _, Error refusal -> return failedWith io Command.Setup [ Diagnostics.ofReaderRefusal DocumentKind.Recipe refusal ]
-            | Ok request, Ok recipe ->
-                let target =
-                    match given with
-                    | Some(Ok target) -> Ok target
-                    | Some(Error code) -> Error code
-                    | None -> TargetPath.tryParse $"toolchains/recipes/{recipe.Preset.Text}/{recipe.Version.Text}.json"
+            match requestBytes, recipeBytes with
+            | Error _, _
+            | _, Error _ ->
+                return
+                    failedWith
+                        io
+                        Command.Setup
+                        [ match requestBytes with
+                          | Error reason -> Diagnostics.documentUnavailable DocumentKind.Request $"The request cannot be read: {reason}."
+                          | Ok _ -> ()
+                          match recipeBytes with
+                          | Error reason -> Diagnostics.documentUnavailable DocumentKind.Recipe $"The recipe cannot be read: {reason}."
+                          | Ok _ -> () ]
+            | Ok requestBytes, Ok recipeBytes ->
+                match RequestDocument.read requestBytes, RecipeDocument.read recipeBytes with
+                | Error refusal, _ -> return failedWith io Command.Setup [ Diagnostics.ofReaderRefusal DocumentKind.Request refusal ]
+                | _, Error refusal -> return failedWith io Command.Setup [ Diagnostics.ofReaderRefusal DocumentKind.Recipe refusal ]
+                | Ok request, Ok recipe ->
+                    let target =
+                        match given with
+                        | Some(Ok target) -> Ok target
+                        | Some(Error code) -> Error code
+                        | None -> TargetPath.tryParse $"toolchains/recipes/{recipe.Preset.Text}/{recipe.Version.Text}.json"
 
-                match target, Bindings.recipeProvidersInRepository recipe repository with
-                | Error _, _ -> return recipeTargetRefusal ()
-                | _, Error refusal -> return failedWith io Command.Setup [ Diagnostics.ofBindingRefusal refusal ]
-                | Ok recipeTarget, Ok() ->
-                    io.Error.WriteLine $"morphirup: planning {Platform.name platform} from recipe {recipe.Preset.Text} {recipe.Version.Text}"
+                    match target, Bindings.recipeProvidersInRepository recipe repository with
+                    | Error _, _ -> return recipeTargetRefusal ()
+                    | _, Error refusal -> return failedWith io Command.Setup [ Diagnostics.ofBindingRefusal refusal ]
+                    | Ok recipeTarget, Ok() ->
+                        io.Error.WriteLine $"morphirup: planning {Platform.name platform} from recipe {recipe.Preset.Text} {recipe.Version.Text}"
 
-                    let planned =
-                        Planning.plan
-                            { Recipe = recipe
-                              RecipeRepository = repository
-                              RecipeTarget = recipeTarget
-                              Request = request
-                              Platform = platform
-                              Sizes = sizes
-                              // Provisional: planning from a local recipe file has no authenticated metadata yet.
-                              MetadataRefresh = MetadataRefresh.Required }
+                        let planned =
+                            Planning.plan
+                                { Recipe = recipe
+                                  RecipeRepository = repository
+                                  RecipeTarget = recipeTarget
+                                  Request = request
+                                  Platform = platform
+                                  Sizes = sizes
+                                  // Provisional: planning from a local recipe file has no authenticated metadata yet.
+                                  MetadataRefresh = MetadataRefresh.Required }
 
-                    match planned with
-                    | Error(PlanFailure.Unresolved failure) ->
-                        return failedWith io Command.Setup [ Diagnostics.ofResolutionFailure failure ]
-                    | Error(PlanFailure.SizeUnknown target) ->
-                        return!
-                            usage $"the size of {target.Text} is unknown; give it in --artifact-sizes until authenticated metadata provides it"
-                    | Ok(digested, _) ->
-                        match expectPlan with
-                        | Some expected when expected <> digested.Sha256 ->
-                            return emit io Command.Setup Outcome.Failed (Some digested) [ expectPlanMismatch expected digested.Sha256 ]
-                        | Some _
-                        | None -> return emit io Command.Setup Outcome.Planned (Some digested) []
+                        match planned with
+                        | Error(PlanFailure.Unresolved failure) ->
+                            return failedWith io Command.Setup [ Diagnostics.ofResolutionFailure failure ]
+                        | Error(PlanFailure.SizeUnknown target) ->
+                            return!
+                                usage $"the size of {target.Text} is unknown; give it in --artifact-sizes until authenticated metadata provides it"
+                        | Ok(digested, _) ->
+                            match expectPlan with
+                            | Some expected when expected <> digested.Sha256 ->
+                                return failedWith io Command.Setup [ Diagnostics.planChanged expected digested.Sha256 ]
+                            | Some _
+                            | None -> return emit io Command.Setup Outcome.Planned (Some digested) []
     }
 
 let private doctor (io: Io) (args: string list) : Result<int, Usage> =
     invocation {
         let! options =
-            parse [ "--project"; "--request"; "--lock"; "--recipe"; "--repository-id"; "--platform" ] [ "--json" ] args
+            parse [ "--project"; "--boundary"; "--request"; "--lock"; "--recipe"; "--repository-id"; "--platform" ] [ "--json" ] args
 
         let! platform = platformOption io options
-        let requestFile = defaultArg (options.TryGet "--request") (projectFile io options "toolchain.toml")
-        let lockFile = defaultArg (options.TryGet "--lock") (projectFile io options "toolchain.lock.json")
-        let! requestBytes = readFile io Limits.request requestFile
-        let! lockBytes = readFile io Limits.lock lockFile
+        let project = lazy (discover io options)
+
+        let requestBytes =
+            match options.TryGet "--request" with
+            | Some file -> readFile io Limits.request file
+            | None -> project.Value |> Result.bind (readFile io Limits.request)
+
+        // The project lock is beside the project request.
+        let lockBytes =
+            match options.TryGet "--lock" with
+            | Some file -> readFile io Limits.lock file
+            | None ->
+                project.Value
+                |> Result.mapError (fun reason -> $"the project lock is beside the project request, and {reason}")
+                |> Result.bind (fun request -> readFile io Limits.lock (Path.Combine(nonNull (Path.GetDirectoryName request), "toolchain.lock.json")))
 
         let! recipe =
             match options.TryGet "--recipe" with
@@ -416,34 +472,45 @@ let private doctor (io: Io) (args: string list) : Result<int, Usage> =
             | Some file ->
                 invocation {
                     let! repository = requiredOption "--repository-id" Sha256.tryParse options "with --recipe, naming the repository the recipe was read from"
-                    let! bytes = readFile io Limits.recipe file
-                    return Some(RecipeDocument.read bytes, repository)
+                    let read =
+                        readFile io Limits.recipe file
+                        |> Result.mapError (fun reason -> Diagnostics.documentUnavailable DocumentKind.Recipe $"The recipe cannot be read: {reason}.")
+                        |> Result.bind (RecipeDocument.read >> Result.mapError (Diagnostics.ofReaderRefusal DocumentKind.Recipe))
+
+                    return Some(read, repository)
                 }
 
-        let request = RequestDocument.read requestBytes
-        let lock = LockDocument.read lockBytes
+        let readDocument kind (bytes: Result<byte array, string>) read =
+            bytes
+            |> Result.mapError (fun reason -> Diagnostics.documentUnavailable kind $"The {DocumentKind.name kind} cannot be read: {reason}.")
+            |> Result.bind (read >> Result.mapError (Diagnostics.ofReaderRefusal kind))
+
+        let request = readDocument DocumentKind.Request requestBytes RequestDocument.read
+        let lock = readDocument DocumentKind.Lock lockBytes LockDocument.read
 
         let diagnostics =
             [ match request with
-              | Error refusal -> Diagnostics.ofReaderRefusal DocumentKind.Request refusal
+              | Error diagnostic -> diagnostic
               | Ok _ -> ()
 
               match lock with
-              | Error refusal -> Diagnostics.ofReaderRefusal DocumentKind.Lock refusal
+              | Error diagnostic -> diagnostic
               | Ok _ -> ()
 
               // A refused recipe is reported whether or not the lock reads.
               match recipe with
-              | Some(Error refusal, _) -> Diagnostics.ofReaderRefusal DocumentKind.Recipe refusal
+              | Some(Error diagnostic, _) -> diagnostic
               | Some(Ok _, _)
               | None -> ()
 
-              match lock with
-              | Error _ -> ()
-              | Ok lock ->
-                  match Bindings.lockBindsRequest lock requestBytes with
-                  | Error refusal -> Diagnostics.ofBindingRefusal refusal
-                  | Ok() -> ()
+              match lock, requestBytes with
+              | Error _, _ -> ()
+              | Ok lock, requestBytes ->
+                  // The lock binds the request bytes as read, even a request that does not parse.
+                  match requestBytes |> Result.map (Bindings.lockBindsRequest lock) with
+                  | Ok(Error refusal) -> Diagnostics.ofBindingRefusal refusal
+                  | Ok(Ok())
+                  | Error _ -> ()
 
                   match Bindings.lockedClosure lock platform with
                   | Error refusal -> Diagnostics.ofBindingRefusal refusal
