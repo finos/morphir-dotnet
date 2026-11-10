@@ -48,6 +48,9 @@ public class ToolPackageInstallTests
         root.GetProperty("install").GetProperty("arguments").EnumerateArray().Select(argument => argument.GetString())
             .Should().Contain("--configfile").And.Contain("--tool-path").And.NotContain("--add-source");
         root.GetProperty("invocation").GetProperty("file").GetString().Should().Be(command);
+        root.GetProperty("invocation").GetProperty("arguments").ValueKind.Should().Be(JsonValueKind.Array, "callers pass it through, not a shell string");
+        root.GetProperty("invocation").GetProperty("arguments").GetArrayLength().Should().Be(0);
+        root.GetProperty("invocation").GetProperty("environment").ValueKind.Should().Be(JsonValueKind.Object);
 
         // The command runs the built bytes: the stub reports the folder it ran from.
         var run = await ChildProcess.RunAsync(conflict.Contained(ChildProcess.StartInfo(command, "a", "b c")), Timeout);
@@ -145,6 +148,59 @@ public class ToolPackageInstallTests
 
         check.ExitCode.Should().NotBe(0);
         check.CombinedOutput.Should().Contain("planted.dll");
+    }
+
+    [Test]
+    public async Task EveryPathInTheResultIsAbsoluteWhenTheArgumentsAreRelative()
+    {
+        await using var sandbox = TestSandbox.Create("tool-install-");
+        var conflict = await Conflict.CreateAsync(sandbox);
+        var start = conflict.Contained(ChildProcess.StartInfo("pwsh", "-NoProfile", "-NonInteractive", "-File", Script,
+            "-Package", Path.Combine("built", $"{Id}.{Version}.nupkg"), "-ToolPath", "manifest", "-WorkDir", "nuget work", "-Local", "-ResultFile", "result.json"));
+        start.WorkingDirectory = sandbox.Root;
+
+        var result = await ChildProcess.RunAsync(start, Timeout);
+
+        result.ExitCode.Should().Be(0, result.CombinedOutput);
+        using var evidence = JsonDocument.Parse(await File.ReadAllTextAsync(sandbox.PathOf("result.json")));
+        var root = evidence.RootElement;
+        var invocation = root.GetProperty("invocation");
+        string?[] paths =
+        [
+            root.GetProperty("package").GetProperty("path").GetString(),
+            root.GetProperty("toolPath").GetString(),
+            root.GetProperty("packageFolder").GetString(),
+            root.GetProperty("install").GetProperty("workingDirectory").GetString(),
+            root.GetProperty("install").GetProperty("configFile").GetString(),
+            root.GetProperty("install").GetProperty("feed").GetString(),
+            .. root.GetProperty("caches").EnumerateObject().Select(cache => cache.Value.GetString()),
+            .. root.GetProperty("stored").EnumerateArray().Select(archive => archive.GetProperty("path").GetString()),
+            invocation.GetProperty("workingDirectory").GetString(),
+            invocation.GetProperty("manifest").GetString(),
+            invocation.GetProperty("resolverCache").GetString(),
+            invocation.GetProperty("entryAssembly").GetString(),
+            .. invocation.GetProperty("environment").EnumerateObject().Select(variable => variable.Value.GetString()),
+        ];
+        foreach (var path in paths)
+            Path.IsPathFullyQualified(path!).Should().BeTrue($"{path} must not depend on a later working directory");
+        invocation.GetProperty("arguments").ValueKind.Should().Be(JsonValueKind.Array);
+        invocation.GetProperty("environment").ValueKind.Should().Be(JsonValueKind.Object);
+    }
+
+    [Test]
+    public async Task AFailedRunLeavesNoResultFile()
+    {
+        await using var sandbox = TestSandbox.Create("tool-install-");
+        var conflict = await Conflict.CreateAsync(sandbox);
+        var resultFile = sandbox.PathOf("result.json");
+        await File.WriteAllTextAsync(resultFile, """{ "mode": "tool-path", "stale": true }""");
+        // An existing tool path makes the run fail.
+        var tools = Directory.CreateDirectory(sandbox.PathOf("tools")).FullName;
+
+        var result = await RunScript(conflict, "-Package", conflict.Built, "-ToolPath", tools, "-WorkDir", sandbox.PathOf("nuget work"), "-ResultFile", resultFile);
+
+        result.ExitCode.Should().NotBe(0);
+        File.Exists(resultFile).Should().BeFalse("a stale or partial result must not be read as success");
     }
 
     private static Task<ChildProcessResult> RunScript(Conflict conflict, params string[] arguments) =>

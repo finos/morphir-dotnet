@@ -26,7 +26,10 @@
 # tools/ file; the store or global-packages folder holds no other package. With -Local, the manifest names exactly this
 # tool, version and command, and the resolver cache sends the command to the built entry assembly in that folder.
 #
-# -ResultFile writes this run's evidence as JSON: internal qualification evidence for the caller, not a contract.
+# -ResultFile writes this run's evidence as JSON: internal qualification evidence for the caller, not a contract. An
+# existing file is deleted first, and the new one is written only after every check has passed, so it exists only
+# after a successful run. Every path in it is absolute; invocation.arguments is an array and invocation.environment
+# an object, to be applied as they are.
 # Everything except the stdout line goes to the host. Exit code 0 on success, 1 on any failure (under pwsh -File).
 # Dot-source it (. ./install-tool-package.ps1) to load the functions without running the install.
 
@@ -165,6 +168,11 @@ function Assert-LocalToolPackage([string] $Package, [string] $ManifestFolder, [s
 }
 
 function Install-ToolPackage([string] $Package, [string] $ToolPath, [string] $WorkDir, [switch] $Local, [string] $ResultFile) {
+    # A result file exists only after a run whose checks all passed: an old one goes first, whatever happens next.
+    if ($ResultFile) {
+        $ResultFile = [IO.Path]::GetFullPath($ResultFile)
+        if (Test-Path -LiteralPath $ResultFile) { [IO.File]::Delete($ResultFile) }
+    }
     $Package = (Resolve-Path -LiteralPath $Package).Path
     $ToolPath = [IO.Path]::GetFullPath($ToolPath)
     $WorkDir = [IO.Path]::GetFullPath($WorkDir)
@@ -266,7 +274,9 @@ function Install-ToolPackage([string] $Package, [string] $ToolPath, [string] $Wo
             packageFolder = $verified.PackageFolder
             stored     = @($verified.Stored)
             invocation = $invocation
-        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ResultFile -Encoding utf8NoBOM
+        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath "$ResultFile.partial" -Encoding utf8NoBOM
+        # Written whole, then moved into place, so a reader never sees a partial file.
+        Move-Item -LiteralPath "$ResultFile.partial" -Destination $ResultFile -Force
     }
 
     $printed
