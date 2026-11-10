@@ -30,22 +30,73 @@ internal static class PublishedGuest
     /// <summary>Where the release serves the module.</summary>
     public static Uri DownloadUrl => new($"https://github.com/{Repository}/releases/download/{Tag}/{FileName}");
 
-    static readonly Lazy<Task<Fetch>> Fetched = new(FetchAsync, LazyThreadSafetyMode.ExecutionAndPublication);
+    static readonly PinnedGuestModule Module = new($"The published Python guest {FileName} ({Repository} {Tag})", DownloadUrl, FileName, Sha256);
 
     /// <summary>
     /// The bytes of the module. A cached or downloaded file whose digest is not <see cref="Sha256"/> fails the
     /// test, in every environment. When the module cannot be downloaded, the test is skipped unless the
     /// environment variable <c>CI</c> is set, and fails when it is.
     /// </summary>
-    public static async Task<byte[]> BytesAsync()
+    public static Task<byte[]> BytesAsync() => Module.BytesAsync();
+
+    /// <summary>The cache directory: <c>artifacts/wasm-guests/</c> at the repository root, which <c>.gitignore</c>
+    /// excludes (<c>artifacts/</c>).</summary>
+    public static string CacheDirectory => PinnedGuestModule.CacheDirectory;
+}
+
+/// <summary>
+/// The SDK fixture guest that the generic guest kit's README names (task 3.5): a test fixture of finos/morphir-moonbit,
+/// built in Rust with <c>morphir-extension-sdk</c>, committed there with a build receipt. It is not committed here; it
+/// is fetched at a pinned commit and checked against the SHA-256 of its build receipt, as
+/// <see cref="PublishedGuest"/> fetches the Python guest.
+/// </summary>
+internal static class SdkFixtureGuest
+{
+    /// <summary>The repository that holds the fixture.</summary>
+    public const string Repository = "finos/morphir-moonbit";
+
+    /// <summary>The commit: <c>origin/main</c> on 9 November 2026, the commit the MepWasm pin cites for the MoonBit
+    /// worker.</summary>
+    public const string Commit = "89f892468649bc6fef6acc40e5bfb2e9800c16da";
+
+    /// <summary>The path of the module in that repository.</summary>
+    public const string RepositoryPath = "apps/morphir/fixtures/sdk-guest/morphir-sdk-fixture-guest.wasm";
+
+    /// <summary>The cache file name; it carries the commit, so another pin is another file.</summary>
+    public const string FileName = "morphir-sdk-fixture-guest-89f89246.wasm";
+
+    /// <summary>The SHA-256 of the module, as <c>build-receipt.json</c> beside it records it.</summary>
+    public const string Sha256 = "f5e1c9cd7a3472b6261c2c3ebfe2c39aeae14da5287dac6cd6ca87ce854901f1";
+
+    /// <summary>Where GitHub serves the file at the pinned commit.</summary>
+    public static Uri DownloadUrl => new($"https://raw.githubusercontent.com/{Repository}/{Commit}/{RepositoryPath}");
+
+    static readonly PinnedGuestModule Module = new($"The SDK fixture guest ({Repository} {Commit[..7]} {RepositoryPath})", DownloadUrl, FileName, Sha256);
+
+    /// <summary>The bytes of the module, with the rules of <see cref="PublishedGuest.BytesAsync"/>.</summary>
+    public static Task<byte[]> BytesAsync() => Module.BytesAsync();
+}
+
+/// <summary>A guest module the tests download once, check against a pinned SHA-256 and cache under
+/// <c>artifacts/wasm-guests/</c>.</summary>
+internal sealed class PinnedGuestModule(string description, Uri downloadUrl, string fileName, string sha256)
+{
+    readonly Lazy<Task<Fetch>> fetched = new(() => FetchAsync(downloadUrl, fileName, sha256), LazyThreadSafetyMode.ExecutionAndPublication);
+
+    /// <summary>
+    /// The bytes of the module. A cached or downloaded file whose digest is not the pinned one fails the test, in
+    /// every environment. When the module cannot be downloaded, the test is skipped unless the environment variable
+    /// <c>CI</c> is set, and fails when it is.
+    /// </summary>
+    public async Task<byte[]> BytesAsync()
     {
-        var fetch = await Fetched.Value;
+        var fetch = await fetched.Value;
         if (fetch.Bytes is { } bytes)
         {
             return bytes;
         }
 
-        var reason = $"The published Python guest {FileName} ({Repository} {Tag}) could not be downloaded from {DownloadUrl}: {fetch.Unavailable}";
+        var reason = $"{description} could not be downloaded from {downloadUrl}: {fetch.Unavailable}";
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")))
         {
             throw new InvalidOperationException($"{reason}. CI is set, so a test that needs the guest fails.");
@@ -61,12 +112,12 @@ internal static class PublishedGuest
 
     sealed record Fetch(byte[]? Bytes, string? Unavailable);
 
-    static async Task<Fetch> FetchAsync()
+    static async Task<Fetch> FetchAsync(Uri downloadUrl, string fileName, string sha256)
     {
-        var cached = Path.Combine(CacheDirectory, FileName);
+        var cached = Path.Combine(CacheDirectory, fileName);
         if (File.Exists(cached))
         {
-            return new Fetch(Checked(await File.ReadAllBytesAsync(cached), cached), null);
+            return new Fetch(Checked(await File.ReadAllBytesAsync(cached), cached, fileName, sha256), null);
         }
 
         byte[] downloaded;
@@ -74,29 +125,29 @@ internal static class PublishedGuest
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
             client.DefaultRequestHeaders.UserAgent.ParseAdd("morphir-dotnet-tests");
-            downloaded = await client.GetByteArrayAsync(DownloadUrl);
+            downloaded = await client.GetByteArrayAsync(downloadUrl);
         }
         catch (Exception failure) when (failure is HttpRequestException or TaskCanceledException or IOException)
         {
             return new Fetch(null, failure.Message);
         }
 
-        Checked(downloaded, DownloadUrl.ToString());
+        Checked(downloaded, downloadUrl.ToString(), fileName, sha256);
         Directory.CreateDirectory(CacheDirectory);
-        var partial = Path.Combine(CacheDirectory, $"{FileName}.{Guid.NewGuid():N}.partial");
+        var partial = Path.Combine(CacheDirectory, $"{fileName}.{Guid.NewGuid():N}.partial");
         await File.WriteAllBytesAsync(partial, downloaded);
         File.Move(partial, cached, overwrite: true);
         return new Fetch(downloaded, null);
     }
 
     /// <summary>A wrong digest is a hard failure: the bytes are not the pinned guest.</summary>
-    static byte[] Checked(byte[] bytes, string source)
+    static byte[] Checked(byte[] bytes, string source, string fileName, string sha256)
     {
         var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
-        return digest == Sha256
+        return digest == sha256
             ? bytes
             : throw new InvalidDataException(
-                $"{source} has SHA-256 {digest}, not the pinned {Sha256} of {FileName}. Delete the file if it is a stale cache entry.");
+                $"{source} has SHA-256 {digest}, not the pinned {sha256} of {fileName}. Delete the file if it is a stale cache entry.");
     }
 
     static string RepositoryRoot()
