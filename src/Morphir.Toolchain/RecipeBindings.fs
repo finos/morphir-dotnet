@@ -219,6 +219,78 @@ module RecipeBindings =
                       Artifacts = artifacts }
             })
 
+    /// <summary>The descriptor rows of one provider: <c>descriptorTarget</c> is authenticated with
+    /// <c>descriptorSha256</c>, its bytes have the authenticated length and digest, they read as an extension release
+    /// descriptor, its <c>extensionId</c> and <c>version</c> are the provider's, and every artifact's claims name the
+    /// descriptor's identity, as publication already requires.</summary>
+    let private descriptor
+        (repository: Sha256)
+        (targets: Map<string, AuthenticatedTarget>)
+        (bytesOf: string -> byte array option)
+        (at: DocumentPath)
+        (provider: RecipeProvider)
+        : Result<RecipeDigest * ExtensionRelease, TargetRefusal> =
+        result {
+            let release = provider.Release
+            let targetPath = at.Child "descriptorTarget"
+
+            let! entry, digest =
+                bound
+                    repository
+                    targets
+                    at
+                    "descriptorTarget"
+                    "descriptorSha256"
+                    { Target = release.DescriptorTarget
+                      Sha256 = release.DescriptorSha256 }
+
+            let! bytes = fetch bytesOf release.DescriptorTarget.Text targetPath
+            let! _ = read entry bytes targetPath
+
+            let! described =
+                ExtensionReleaseDocument.read bytes
+                |> Result.mapError (fun _ -> { Code = Code.Trust TrustCode.ReleaseDescriptorMismatch; Path = targetPath })
+
+            if described.ExtensionId.Text <> provider.ExtensionId.Text then
+                return! trust TrustCode.ReleaseDescriptorMismatch (at.Child "extensionId")
+
+            if described.Version <> provider.Version then
+                return! trust TrustCode.ReleaseDescriptorMismatch (at.Child "version")
+
+            let namesDescriptor (artifact: DescribedArtifact) =
+                artifact.Claims.Extension.Id.Text = described.ExtensionId.Text
+                && artifact.Claims.Extension.Version = described.Version
+
+            if not (List.forall namesDescriptor described.Artifacts) then
+                return! trust TrustCode.ReleaseDescriptorMismatch targetPath
+
+            return digest, described
+        }
+
+    /// <summary>The provider binding rows for one provider, in the page's order: its repository first, before its
+    /// descriptor is read.</summary>
+    let private checkProvider
+        (repository: Sha256)
+        (targets: Map<string, AuthenticatedTarget>)
+        (bytesOf: string -> byte array option)
+        (index: int)
+        (provider: RecipeProvider)
+        : Result<BoundProvider, TargetRefusal> =
+        result {
+            let at = (DocumentPath.root.Child "providers").At index
+
+            if provider.Release.RepositoryId <> repository then
+                return! trust TrustCode.RepositoryMismatch (at.Child "repositoryId")
+
+            let! digest, release = descriptor repository targets bytesOf at provider
+
+            return
+                { Provider = provider
+                  Descriptor = digest
+                  Release = release
+                  Artifacts = [] }
+        }
+
     /// <summary>
     /// Every host and provider binding of a recipe, against the repository whose metadata authenticated it: the host
     /// rows for each offering, then the provider rows for each provider. No exception leaves it.
@@ -232,10 +304,8 @@ module RecipeBindings =
         result {
             let! hosts = checkHosts repository targets bytesOf recipe
 
-            // The first provider row: the provider names the repository the checks run against.
-            match recipe.Providers |> List.tryFindIndex (fun provider -> provider.Release.RepositoryId <> repository) with
-            | Some index -> return! trust TrustCode.RepositoryMismatch (((DocumentPath.root.Child "providers").At index).Child "repositoryId")
-            | None -> ()
+            let! providers =
+                recipe.Providers |> List.indexed |> Result.traverse (fun (index, provider) -> checkProvider repository targets bytesOf index provider)
 
-            return { Hosts = hosts; Providers = [] }
+            return { Hosts = hosts; Providers = providers }
         }

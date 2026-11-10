@@ -49,7 +49,13 @@ let ranRecipeRules =
           "host-target-listed"
           "host-target-platform"
           "host-target-metadata"
-          "provider-repository" ]
+          "provider-repository"
+          "provider-descriptor-bound"
+          "provider-descriptor-read"
+          "provider-descriptor-parses"
+          "provider-descriptor-identity"
+          "provider-descriptor-version"
+          "provider-claims-identity" ]
 
 let private bindingRows =
     "a host or provider binding row after the provider repository row; the host release and extension descriptor readers and the claims checks are task 4.3 and not implemented in this slice"
@@ -57,13 +63,7 @@ let private bindingRows =
 /// Recipe check rules this suite does not run, each with its reason.
 let skippedRecipeRules =
     [ for rule in
-          [ "provider-descriptor-bound"
-            "provider-descriptor-read"
-            "provider-descriptor-parses"
-            "provider-descriptor-identity"
-            "provider-descriptor-version"
-            "provider-claims-identity"
-            "provider-artifact-bound"
+          [ "provider-artifact-bound"
             "provider-artifact-listed"
             "provider-artifact-runtime"
             "provider-artifact-digest-listed"
