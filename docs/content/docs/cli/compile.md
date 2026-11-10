@@ -315,7 +315,8 @@ $ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --
       "Totals.fs"
     ],
     "unchanged": [],
-    "removed": []
+    "removed": [],
+    "formatting": "applied"
   }
 }
 ```
