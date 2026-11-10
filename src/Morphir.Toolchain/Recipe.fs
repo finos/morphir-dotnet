@@ -234,8 +234,8 @@ module RecipeDocument =
             let! deployment = required "deployment" token o
             let! execution = required "execution" (tag [ "native-aot", Execution.NativeAot; "jit", Execution.Jit ]) o
             let! source = required "source" source o
-            let! protocolVersions = required "protocolVersions" (array (validated ProtocolVersion.tryParse)) o
-            let! wasmAbis = optional "wasmAbis" (array token) o
+            let! protocolVersions = required "protocolVersions" (distinctArray (validated ProtocolVersion.tryParse)) o
+            let! wasmAbis = optional "wasmAbis" (distinctArray token) o
             let! prerequisites = optional "prerequisites" (array prerequisite) o
             let! builtIns = optional "builtIns" (array builtIn) o
 

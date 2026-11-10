@@ -124,6 +124,20 @@ module internal Reading =
     let array (read: Node -> Read<'T>) (n: Node) : Read<'T list> =
         items n |> Result.bind (Result.traverse read)
 
+    /// <summary>An array whose elements are read in index order and listed once each: an element equal to an earlier
+    /// one is <c>inconsistent_document</c> at the repetition, checked as it is read.</summary>
+    let distinctArray (read: Node -> Read<'T>) (n: Node) : Read<'T list> =
+        let rec go (earlier: 'T list) (rest: Node list) =
+            match rest with
+            | [] -> Ok(List.rev earlier)
+            | element :: rest ->
+                match read element with
+                | Error refusal -> Error refusal
+                | Ok value when List.contains value earlier -> refuse ReaderCode.InconsistentDocument element.Path
+                | Ok value -> go (value :: earlier) rest
+
+        items n |> Result.bind (go [])
+
     /// <summary>A map keyed by platform ids. Every key is checked first: the first invalid key in UTF-8 byte order is
     /// <c>invalid_value</c> at that key. The entries are then read in platform table order.</summary>
     let platformMap (read: Platform -> Node -> Read<'T>) (n: Node) : Read<(Platform * 'T) list> =
