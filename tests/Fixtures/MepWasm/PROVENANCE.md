@@ -2,7 +2,7 @@
 
 Repository: https://github.com/finos/morphir
 
-Commit: `48d10706f1feea2131f76ef5deca9017efc0df97`
+Commit: `8d678d2b888a6d5eaa075172a020f7ebef06fc72`
 
 Branch: `t3/design-file-based-layout`, the branch of the draft pull request
 [finos/morphir#1148](https://github.com/finos/morphir/pull/1148). The commit is on
@@ -12,7 +12,9 @@ Pinned: 9 November 2026 at `7b049c223`, for task 0.2 of the OpenSpec change
 `add-wasm-extension-host` (design PIN-1). Moved: 10 November 2026, to
 `48d10706f`, which applies the .NET host's findings to the profile contract
 (`c0c1096b3`) and makes the memory-growth modules reach the ceiling in about a
-dozen growths.
+dozen growths. Moved again the same day, to `8d678d2b`, which applies the memory
+rule to a trap only and adds the case `bounds/error-at-ceiling` and its module
+`extism-grow-then-error`.
 
 The upstream files below are copied without edits from that one commit: the WASM
 execution profile contract, the crafted WASM host qualification corpus, every
@@ -37,7 +39,7 @@ directory. The corpus's `contract.path` member (`spec/mep/wasm-execution-profile
 is relative to the root of finos/morphir; here that file is
 `wasm-execution-profiles.json`, beside the corpus.
 
-At this commit the corpus holds 58 cases and 50 modules. Every module in
+At this commit the corpus holds 59 cases and 51 modules. Every module in
 `spec/mep/mck/fixtures/wasm/` is named by the corpus and every module the corpus
 names is present. The corpus references no other file by path: its frames and
 matcher conventions are inline. The kit's checker,
@@ -67,9 +69,9 @@ parent is corrected, rather than changing a file here.
 | --- | --- | --- |
 | `LICENSE` | `LICENSE` | `b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1` |
 | `NOTICE` | `NOTICE` | `02a20174dd6ff4d866cad7d04ce8d61503306f3266f3c03261418d5011805889` |
-| `wasm-execution-profiles.md` | `spec/mep/wasm-execution-profiles.md` | `b2f84f668aafaea0503ea42fd409409329c139e6d02e7f60945c05a3f7170567` |
-| `wasm-execution-profiles.json` | `spec/mep/wasm-execution-profiles.json` | `f5451395c6f6e729ff3ed93bc0636a452bc43bfef19b22f676f072fe24b7f9b5` |
-| `wasm-host.cases.json` | `spec/mep/mck/wasm-host.cases.json` | `6f1196b37dcf484780f2adaf276fa8f833f8388d8a9dd861c892e2ccf493c120` |
+| `wasm-execution-profiles.md` | `spec/mep/wasm-execution-profiles.md` | `d256eb7dd7f8c8c4f9a4d563dae07aa16d939587c520403793f4b0aca468e18c` |
+| `wasm-execution-profiles.json` | `spec/mep/wasm-execution-profiles.json` | `529db3dd2747cddde56d9b279ca284814597f494d16f555172772e879a0b85fe` |
+| `wasm-host.cases.json` | `spec/mep/mck/wasm-host.cases.json` | `e10040a734ed484d11675b3e26fc451d7880615eaab5012c90203a60e4f5a7ab` |
 | `fixtures/wasm/bytes-echo.wasm` | `spec/mep/mck/fixtures/wasm/bytes-echo.wasm` | `49a87314af3cb02860dc6c4bc3e84dc3b4ec1330609f0d4fad88de7491afaa76` |
 | `fixtures/wasm/bytes-echo.wat` | `spec/mep/mck/fixtures/wasm/bytes-echo.wat` | `84995b32cca3bc83bccbf9b795d82db61142894d72be7bec12bf1909d4d1d8e0` |
 | `fixtures/wasm/bytes-exit.wasm` | `spec/mep/mck/fixtures/wasm/bytes-exit.wasm` | `49c946c1f69ebfe6b4440acf7b9390c8d949199e7d0a43fd35f41b4c89e93f47` |
@@ -106,6 +108,8 @@ parent is corrected, rather than changing a file here.
 | `fixtures/wasm/extism-full-surface.wat` | `spec/mep/mck/fixtures/wasm/extism-full-surface.wat` | `3d7d27b7b91e4dba62cfe152a6b0d07da523d73bf8362b36997c6b362bf3fd50` |
 | `fixtures/wasm/extism-grow-below-ceiling.wasm` | `spec/mep/mck/fixtures/wasm/extism-grow-below-ceiling.wasm` | `db6338d3fa18fc323540beab4080bb08f78b0f16b7c2c2952a84ff73946c318c` |
 | `fixtures/wasm/extism-grow-below-ceiling.wat` | `spec/mep/mck/fixtures/wasm/extism-grow-below-ceiling.wat` | `790468fd7f283958494fb5739cdcfde40ab5d6ae143c9b1f8f00e8f168276ac9` |
+| `fixtures/wasm/extism-grow-then-error.wasm` | `spec/mep/mck/fixtures/wasm/extism-grow-then-error.wasm` | `51cc22230dcdd741d725f32f297fde0b4f616eedcd3d74adfda264aa2763fcb2` |
+| `fixtures/wasm/extism-grow-then-error.wat` | `spec/mep/mck/fixtures/wasm/extism-grow-then-error.wat` | `bd76be942740e703b4bca8ccf6224fda4a6109adaf9ca1196af270c48d463f77` |
 | `fixtures/wasm/extism-grow-then-respond.wasm` | `spec/mep/mck/fixtures/wasm/extism-grow-then-respond.wasm` | `e3826d6d858eca51a0ccf78ed9e4ae14786b2d1530ee51427cb7db4614951e0c` |
 | `fixtures/wasm/extism-grow-then-respond.wat` | `spec/mep/mck/fixtures/wasm/extism-grow-then-respond.wat` | `1acb1a62f499a83fc4da78d1fb5413ed50c00880106a3d24a2fcd0fa19a5e898` |
 | `fixtures/wasm/extism-grow-then-trap.wasm` | `spec/mep/mck/fixtures/wasm/extism-grow-then-trap.wasm` | `17243e24c0ac33d48c901b4a7e399cc073e2c1250c46830d9cf410d20f0d4083` |

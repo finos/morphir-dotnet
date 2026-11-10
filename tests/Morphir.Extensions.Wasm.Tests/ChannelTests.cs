@@ -121,34 +121,107 @@ public class ChannelTests
         await Assert.That(thrown.Memory.CeilingBytes).IsEqualTo(SessionLimits.Default.MemoryCeilingBytes);
     }
 
-    [Test]
-    public async Task A_non_zero_result_with_the_kernel_memory_at_its_ceiling_is_the_memory_limit()
+    /// <summary>A guest that allocates kernel blocks until the kernel cannot grow (64 KiB, then 1 KiB), so that the
+    /// kernel's memory, which holds its input and output, is at its ceiling, then does <paramref name="then"/>.
+    /// <c>$out</c> is a 64-byte block allocated before the kernel filled.</summary>
+    private static WasmChannel OpenFillingTheKernel(string then)
     {
-        // The guest allocates kernel blocks until the kernel cannot grow (64 KiB, then 1 KiB), then returns 1: a
-        // failure while the kernel's memory, which holds its input and output, is at its ceiling (contract memory
-        // rule at-ceiling).
-        var module = CraftedGuest.AdmitWat("""
+        var module = CraftedGuest.AdmitWat($$"""
             (module
               (import "extism:host/env" "alloc" (func $alloc (param i64) (result i64)))
+              (import "extism:host/env" "output_set" (func $output_set (param i64 i64)))
               (func (export "handle") (result i32)
+                (local $out i64)
+                (local.set $out (call $alloc (i64.const 64)))
                 (block $big (loop $more (br_if $big (i64.eqz (call $alloc (i64.const 65536)))) (br $more)))
                 (block $small (loop $more (br_if $small (i64.eqz (call $alloc (i64.const 1024)))) (br $more)))
-                (i32.const 1)))
+                {{then}}))
             """);
-        var ceiling = 32 * 65536L;
-        using var channel = WasmChannel.Open(module, SessionLimits.Default with { MemoryCeilingBytes = ceiling }).Match(
+        return WasmChannel.Open(module, SessionLimits.Default with { MemoryCeilingBytes = 32 * 65536L, ResponseFrameBytes = 64 }).Match(
             opened => opened,
             failure => throw new InvalidOperationException($"The channel did not open: {failure.Message}"));
+    }
+
+    [Test]
+    public async Task A_non_zero_result_with_the_kernel_memory_at_its_ceiling_stays_a_failure()
+    {
+        // Contract memory rule guest-reported: a call the guest ended itself is failure, also at the ceiling.
+        using var channel = OpenFillingTheKernel("(i32.const 1)");
 
         var thrown = await Assert.That(async () => await channel.RequestAsync(Initialize, Request(1), CancellationToken.None))
             .Throws<WasmChannelException>();
 
         await Assert.That(thrown!.Failure).IsTypeOf<WasmChannelFailure.NonZeroResult>();
         await Assert.That(thrown.Memory.KernelAtCeiling).IsTrue();
-        await Assert.That(thrown.Code).IsEqualTo("extension.memory_limit");
-        await Assert.That(thrown.Failure.FaultKind).IsEqualTo("memory-limit");
+        await Assert.That(thrown.Code).IsEqualTo("extension.incomplete_session");
+        await Assert.That(thrown.Failure.FaultKind).IsEqualTo("failure");
         await Assert.That(thrown.Message).Contains("handle returned 1");
-        await Assert.That(thrown.Message).Contains("the kernel's memory at its ceiling");
+        await Assert.That(thrown.Message).Contains("kernel memory 2 MiB");
+        await Assert.That(thrown.Message).Contains("ceiling 2 MiB");
+    }
+
+    [Test]
+    public async Task A_response_over_the_limit_with_the_kernel_memory_at_its_ceiling_keeps_its_code()
+    {
+        // A failure the host detected keeps its own code at the ceiling: 64 bytes of output, over a 64-byte response
+        // frame limit once the Content-Length header is counted.
+        using var channel = OpenFillingTheKernel("(call $output_set (local.get $out) (i64.const 64)) (i32.const 0)");
+
+        var thrown = await Assert.That(async () => await channel.RequestAsync(Initialize, Request(1), CancellationToken.None))
+            .Throws<WasmChannelException>();
+
+        await Assert.That(thrown!.Failure).IsTypeOf<WasmChannelFailure.ResponseOverLimit>();
+        await Assert.That(thrown.Memory.KernelAtCeiling).IsTrue();
+        await Assert.That(thrown.Code).IsEqualTo(WasmProfileContract.Pinned.ResponseLimitCode);
+        await Assert.That(thrown.Failure.FaultKind).IsEqualTo("failure");
+        await Assert.That(thrown.Message).Contains("kernel memory 2 MiB");
+        await Assert.That(thrown.Message).Contains("ceiling 2 MiB");
+    }
+
+    [Test]
+    public async Task An_Extism_error_with_the_guest_at_the_ceiling_stays_a_failure()
+    {
+        // The module of bounds/error-at-ceiling: it grows its memory to the ceiling, sets the Extism error "boom" and
+        // returns 1. The guest ended the call itself (contract memory rule guest-reported).
+        using var channel = Open("extism-grow-then-error");
+
+        var thrown = await Assert.That(async () => await channel.RequestAsync(Initialize, Request(1), CancellationToken.None))
+            .Throws<WasmChannelException>();
+
+        var error = thrown!.Failure as WasmChannelFailure.ExtismError;
+        await Assert.That(error).IsNotNull();
+        await Assert.That(error!.Text).IsEqualTo("boom");
+        await Assert.That(error.ReturnCode).IsEqualTo(1);
+        await Assert.That(thrown.Memory.GuestAtCeiling).IsTrue();
+        await Assert.That(thrown.Memory.GuestBytes).IsEqualTo(SessionLimits.Default.MemoryCeilingBytes);
+        await Assert.That(thrown.Code).IsEqualTo("extension.incomplete_session");
+        await Assert.That(thrown.Failure.FaultKind).IsEqualTo("failure");
+        await Assert.That(thrown.Message).Contains("guest memory 256 MiB");
+        await Assert.That(thrown.Message).Contains("ceiling 256 MiB");
+        await Assert.That(channel.InstanceEnded).IsTrue();
+    }
+
+    public static IEnumerable<Func<WasmChannelFailure>> GuestReportedFailuresAtTheCeiling()
+    {
+        var full = new MemoryUse(256L * 1024 * 1024, 256L * 1024 * 1024, 256L * 1024 * 1024);
+        yield return () => new WasmChannelFailure.ExtismError("boom", 1, full);
+        yield return () => new WasmChannelFailure.NonZeroResult(1, 0, full);
+        yield return () => new WasmChannelFailure.NoOutput(full);
+        yield return () => new WasmChannelFailure.AnsweredNotification(2, full);
+        yield return () => new WasmChannelFailure.ResponseOverLimit(100, 64, full);
+    }
+
+    [Test]
+    [MethodDataSource(nameof(GuestReportedFailuresAtTheCeiling))]
+    public async Task A_channel_failure_with_both_memories_at_the_ceiling_keeps_its_own_code(WasmChannelFailure failure)
+    {
+        await Assert.That(failure.Memory.GuestAtCeiling).IsTrue();
+        await Assert.That(failure.Memory.KernelAtCeiling).IsTrue();
+        await Assert.That(failure.FaultKind).IsEqualTo("failure");
+        await Assert.That(failure.Code).IsEqualTo("extension.incomplete_session");
+        await Assert.That(failure.Message).Contains("guest memory 256 MiB");
+        await Assert.That(failure.Message).Contains("kernel memory 256 MiB");
+        await Assert.That(failure.Message).Contains("ceiling 256 MiB");
     }
 
     [Test]

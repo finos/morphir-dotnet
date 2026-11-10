@@ -59,7 +59,7 @@ public sealed record MemoryUse(long? GuestBytes, long KernelBytes, long CeilingB
     public bool KernelAtCeiling => Full(KernelBytes);
 
     /// <summary>Whether the guest's memory or the kernel's is at its ceiling, which the contract's <c>at-ceiling</c>
-    /// memory rule asks of a call that ends in a trap or a failure.</summary>
+    /// memory rule asks of a call that ends in a trap.</summary>
     public bool AtCeiling => GuestAtCeiling || KernelAtCeiling;
 
     /// <summary>Which memory is at its ceiling, as a diagnostic states it, or null when neither is.</summary>
@@ -95,7 +95,7 @@ public sealed record MemoryUse(long? GuestBytes, long KernelBytes, long CeilingB
 /// A failed guest call, or a session that failed before any request, with what the contract makes of it and the
 /// memory sizes that every failure states (parent decision BND-2).
 /// </summary>
-/// <param name="Kind">The failure, after the memory rule: a trap or a failure becomes <see cref="GuestFailureKind.MemoryLimit"/> when the guest's memory or the kernel's is at its ceiling.</param>
+/// <param name="Kind">The failure, after the memory rule: a trap becomes <see cref="GuestFailureKind.MemoryLimit"/> when the guest's memory or the kernel's is at its ceiling.</param>
 /// <param name="Signal">What the engine or the host observed before the memory rule; equal to <paramref name="Kind"/> when the rule did not apply.</param>
 /// <param name="Detail">What the engine or the host reported, such as the trap message.</param>
 /// <param name="Memory">The memory sizes when the call ended.</param>

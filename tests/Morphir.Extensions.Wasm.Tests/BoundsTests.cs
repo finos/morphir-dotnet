@@ -7,14 +7,15 @@ namespace Morphir.Extensions.Wasm.Tests;
 /// <summary>
 /// Task 2.5 of add-wasm-extension-host (parent decisions BND-1 and BND-2): the instruction budget, the call
 /// deadline, cancellation and the memory ceiling, each mapped to the contract's failure, with the memory sizes
-/// on every failure. The crafted <c>bounds/</c> cases are run in-process by calling <c>handle</c> with the
-/// case's request frames as raw bytes; no MEP session exists at this level.
+/// on every failure. The crafted <c>bounds/</c> cases are run in-process through <see cref="WasmChannel"/>, which
+/// applies the Extism profile's <c>handle</c> results, with the case's request frames as raw bytes; no MEP session
+/// exists at this level. The other checks call the session store directly.
 /// </summary>
 public class BoundsTests
 {
-    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 48d10706f (MepWasmFixtures.PinnedCommit).
+    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 8d678d2b (MepWasmFixtures.PinnedCommit).
     // Change them only when the pin moves.
-    private const int PinnedBoundsCaseCount = 9;
+    private const int PinnedBoundsCaseCount = 10;
     private const int PinnedLimitsCaseCount = 2;
 
     private const string BoundsGroup = "bounds/";
@@ -68,7 +69,7 @@ public class BoundsTests
     /// Each <c>bounds/</c> case gives its expected observation in-process, under the contract's default bounds and
     /// the case's <c>worker</c> members (<c>instructions</c> is <see cref="SessionLimits.InstructionBudget"/>). A
     /// case for <c>morphir-bytes-v1</c> is <c>not_applicable</c> to this host; its in-process equivalent is that
-    /// this host refuses the module naming the profile. For the others the session opens (the <c>started</c>
+    /// this host refuses the module naming the profile. For the others the channel opens (the <c>started</c>
     /// event) or fails before any request (a fault with no <c>started</c>), each request frame is one
     /// <c>handle</c> call, the first failure has the expected fault kind within the expected time, and a run
     /// without a fault answers each request with the frame it names. A run with several matching alternatives
@@ -112,7 +113,7 @@ public class BoundsTests
 
             // Whether the session opens is the same for every alternative of a run; the corpus never mixes them.
             var startedInEvery = alternatives.Select(alternative => alternative.ExpectsStarted).Distinct().Single();
-            var opening = SessionStore.Open(module, limits);
+            var opening = WasmChannel.Open(module, limits);
             if (!startedInEvery)
             {
                 // A fault before any request: no started event, so the session does not open.
@@ -126,12 +127,12 @@ public class BoundsTests
                 continue;
             }
 
-            using var session = opening.Match(
+            using var channel = opening.Match(
                 opened => opened,
                 failed => throw new InvalidOperationException($"{caseId}: the session did not open: {failed.Message}"));
             var frames = runs[run];
             var answers = new List<(int Frame, byte[] Output)>();
-            GuestFailure? first = null;
+            WasmChannelFailure? first = null;
             var clock = Stopwatch.StartNew();
             for (var index = 0; index < frames.Count && first is null; index++)
             {
@@ -141,12 +142,25 @@ public class BoundsTests
                 }
 
                 clock.Restart();
-                var outcome = session.CallHandle(CraftedCorpus.FrameBody(frames[index]));
-                clock.Stop();
-                outcome.Match<object?>(
-                    completed => { answers.Add((index, completed.Result.Output)); return null; },
-                    failed => first = failed,
-                    notRun => throw new InvalidOperationException($"{caseId}: a call did not run: {notRun.Message}"));
+                try
+                {
+                    var reply = await channel.RequestAsync(CraftedCorpus.FrameMethod(frames[index]), CraftedCorpus.FrameBody(frames[index]), CancellationToken.None);
+                    clock.Stop();
+                    if (reply is null)
+                    {
+                        // No output for a request: the channel records the failure and returns no reply.
+                        first = channel.Failure;
+                    }
+                    else
+                    {
+                        answers.Add((index, reply));
+                    }
+                }
+                catch (WasmChannelException failed)
+                {
+                    clock.Stop();
+                    first = failed.Failure;
+                }
             }
 
             var elapsed = clock.Elapsed;
@@ -306,7 +320,7 @@ public class BoundsTests
     }
 
     [Test]
-    public async Task A_guest_that_grows_to_the_ceiling_and_fails_gives_the_memory_limit_with_both_sizes()
+    public async Task A_guest_that_grows_to_the_ceiling_and_traps_gives_the_memory_limit_with_both_sizes()
     {
         using var session = Open("extism-grow-then-trap", SessionLimits.Default);
 
@@ -388,19 +402,37 @@ public class BoundsTests
     }
 
     [Test]
-    public async Task A_failure_with_the_guest_at_the_ceiling_is_the_memory_limit()
+    public async Task A_cancellation_with_the_guest_at_the_ceiling_stays_cancelled()
     {
-        // proc_exit with a code that is not 0 is the contract's failure; at the ceiling it is memory-limit.
+        using var session = Open(GrowThen("(loop $spin (br $spin)) (i32.const 0)"), SmallCeiling with { InstructionBudget = ulong.MaxValue });
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+
+        var failure = Failed(session.CallHandle(Initialize, cancellation.Token));
+
+        await Assert.That(failure.Memory.GuestAtCeiling).IsTrue();
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.Cancelled);
+        await Assert.That(failure.Signal).IsEqualTo(GuestFailureKind.Cancelled);
+        await Assert.That(failure.Outcome).IsEqualTo("cancelled");
+    }
+
+    [Test]
+    public async Task A_failure_with_the_guest_at_the_ceiling_stays_a_failure()
+    {
+        // Contract memory rule guest-reported: proc_exit with a code that is not 0 is the contract's failure, also at
+        // the ceiling. Only a trap at the ceiling is memory-limit.
         var module = GrowThen("(call $exit (i32.const 1)) (i32.const 0)", """(import "wasi_snapshot_preview1" "proc_exit" (func $exit (param i32)))""");
         using var session = Open(module, SmallCeiling);
 
         var failure = Failed(session.CallHandle(Initialize));
 
         await Assert.That(failure.Memory.GuestAtCeiling).IsTrue();
-        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.MemoryLimit);
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.IncompleteSession);
         await Assert.That(failure.Signal).IsEqualTo(GuestFailureKind.IncompleteSession);
-        await Assert.That(failure.Code).IsEqualTo("extension.memory_limit");
-        await Assert.That(failure.Message).Contains("the guest's memory at its ceiling");
+        await Assert.That(failure.Code).IsEqualTo("extension.incomplete_session");
+        await Assert.That(failure.FaultKind).IsEqualTo("failure");
+        await Assert.That(failure.Message).Contains("guest memory 2 MiB");
+        await Assert.That(failure.Message).Contains("kernel memory 1 MiB");
+        await Assert.That(failure.Message).Contains("ceiling 2 MiB");
     }
 
     [Test]

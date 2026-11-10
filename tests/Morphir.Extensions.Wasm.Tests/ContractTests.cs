@@ -67,6 +67,22 @@ public class ContractTests
     }
 
     [Test]
+    public async Task The_contract_gives_the_memory_rules_the_library_applies()
+    {
+        // The reader refuses a contract whose memory rules are not these, in this order, so a changed rule set
+        // fails the load instead of passing unread.
+        using var contract = System.Text.Json.JsonDocument.Parse(await File.ReadAllBytesAsync(MepWasmFixtures.Contract));
+        var rules = contract.RootElement.GetProperty("memory").EnumerateArray()
+            .Select(rule => rule.GetProperty("id").GetString()!)
+            .ToList();
+
+        await Assert.That(rules).IsEquivalentTo(WasmProfileContract.MemoryRules, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(WasmProfileContract.MemoryRules).IsEquivalentTo(
+            new[] { "at-ceiling", "guest-reported", "observed-refusal", "initial-above-ceiling" },
+            TUnit.Assertions.Enums.CollectionOrdering.Matching);
+    }
+
+    [Test]
     public async Task The_contract_says_a_cancelled_call_is_an_outcome_without_a_fault_kind()
     {
         // The hostSession rule cancelled, which the library's GuestFailureKind.Cancelled follows.

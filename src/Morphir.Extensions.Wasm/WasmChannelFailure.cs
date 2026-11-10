@@ -14,23 +14,17 @@ public abstract record WasmChannelFailure
 {
     private WasmChannelFailure() { }
 
-    /// <summary>The contract's fault kind of every failure that is not a store failure: <c>failure</c>.</summary>
+    /// <summary>
+    /// The contract's fault kind of every failure that is not a store failure: <c>failure</c>, also when the guest's
+    /// memory or the kernel's is at its ceiling (contract memory rule <c>guest-reported</c>). A call the guest ended
+    /// itself (an Extism error, a result that is not 0, no output for a request, output for a notification) and a
+    /// failure the host detected (a frame over its limit) keep their own code; only a trap at the ceiling is
+    /// <c>memory-limit</c>, and the store reports it (<see cref="Guest"/>).
+    /// </summary>
     const string FailureKind = "failure";
-
-    /// <summary>The contract's fault kind when the memory rule applies: <c>memory-limit</c>.</summary>
-    const string MemoryLimitKind = "memory-limit";
 
     /// <summary>The memory sizes when the instance ended.</summary>
     public abstract MemoryUse Memory { get; }
-
-    /// <summary>
-    /// Whether the contract's <c>at-ceiling</c> memory rule makes this failure <c>memory-limit</c>: a call whose
-    /// <c>handle</c> result is a failure (an Extism error, a result that is not 0, no output for a request, output
-    /// for a notification) while the guest's memory or the kernel's is at its ceiling. The frame limits are the host
-    /// session's own rules, with their own codes, and keep them.
-    /// </summary>
-    public bool AtMemoryCeiling =>
-        this is ExtismError or NonZeroResult or NoOutput or AnsweredNotification && Memory.AtCeiling;
 
     /// <summary>The contract's code, such as <c>extension.incomplete_session</c>, or null for an outcome.</summary>
     public string? Code => this switch
@@ -49,7 +43,6 @@ public abstract record WasmChannelFailure
     public string? FaultKind => this switch
     {
         Guest guest => guest.Failure.FaultKind,
-        _ when AtMemoryCeiling => MemoryLimitKind,
         _ => FailureKind,
     };
 
@@ -57,7 +50,6 @@ public abstract record WasmChannelFailure
     public string Message => this switch
     {
         Guest guest => guest.Failure.Message,
-        _ when AtMemoryCeiling => $"{Code}: {Describe()}, with {Memory.AtCeilingText}; {Memory}",
         _ => $"{Code}: {Describe()}; {Memory}",
     };
 
