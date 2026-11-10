@@ -238,16 +238,16 @@ module internal Reading =
         | Operation.Compile _ -> "modelOutput"
         | Operation.Generate _ -> "modelInput"
 
-    /// <summary>A built-in's model: the member its operation names, required; the other member present is
-    /// <c>inconsistent_document</c> at that member.</summary>
+    /// <summary>A built-in's model: the member its operation names, required. A built-in has no MEP session, so
+    /// <c>protocolVersion</c>, <c>modelTuple</c> and the other model member are each <c>inconsistent_document</c> at
+    /// that member, checked in that order before the model member (index.md, order of checks).</summary>
     let builtInModel (operation: Operation) (o: ObjectNode) : Read<ModelFormat> =
         let wanted = builtInModelMember operation
         let other = if wanted = "modelInput" then "modelOutput" else "modelInput"
 
-        if has other o then
-            refuse ReaderCode.InconsistentDocument (o.Path.Child other)
-        else
-            required wanted modelFormat o
+        match [ "protocolVersion"; "modelTuple"; other ] |> List.tryFind (fun name -> has name o) with
+        | Some name -> refuse ReaderCode.InconsistentDocument (o.Path.Child name)
+        | None -> required wanted modelFormat o
 
     let modelTuple (n: Node) : Read<ModelTuple> =
         result {
