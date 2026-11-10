@@ -17,6 +17,8 @@
     <Compile Include="Report.fs" />
     <Compile Include="FrontendAdapter.fs" />
     <Compile Include="CliAdapter.fs" />
+    <Compile Include="WasmHost/Model.fs" />
+    <Compile Include="WasmHost/CorpusJson.fs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />
