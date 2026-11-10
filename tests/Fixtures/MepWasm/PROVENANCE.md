@@ -2,14 +2,17 @@
 
 Repository: https://github.com/finos/morphir
 
-Commit: `7b049c223d2fc7309eec5ac81976f9cae845b522`
+Commit: `48d10706f1feea2131f76ef5deca9017efc0df97`
 
 Branch: `t3/design-file-based-layout`, the branch of the draft pull request
 [finos/morphir#1148](https://github.com/finos/morphir/pull/1148). The commit is on
 `origin/t3/design-file-based-layout`; it is not yet on `main`.
 
-Pinned: 9 November 2026, for task 0.2 of the OpenSpec change
-`add-wasm-extension-host` (design PIN-1).
+Pinned: 9 November 2026 at `7b049c223`, for task 0.2 of the OpenSpec change
+`add-wasm-extension-host` (design PIN-1). Moved: 10 November 2026, to
+`48d10706f`, which applies the .NET host's findings to the profile contract
+(`c0c1096b3`) and makes the memory-growth modules reach the ceiling in about a
+dozen growths.
 
 The upstream files below are copied without edits from that one commit: the WASM
 execution profile contract, the crafted WASM host qualification corpus, every
@@ -34,7 +37,7 @@ directory. The corpus's `contract.path` member (`spec/mep/wasm-execution-profile
 is relative to the root of finos/morphir; here that file is
 `wasm-execution-profiles.json`, beside the corpus.
 
-At this commit the corpus holds 56 cases and 49 modules. Every module in
+At this commit the corpus holds 58 cases and 50 modules. Every module in
 `spec/mep/mck/fixtures/wasm/` is named by the corpus and every module the corpus
 names is present. The corpus references no other file by path: its frames and
 matcher conventions are inline. The kit's checker,
@@ -64,15 +67,15 @@ parent is corrected, rather than changing a file here.
 | --- | --- | --- |
 | `LICENSE` | `LICENSE` | `b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1` |
 | `NOTICE` | `NOTICE` | `02a20174dd6ff4d866cad7d04ce8d61503306f3266f3c03261418d5011805889` |
-| `wasm-execution-profiles.md` | `spec/mep/wasm-execution-profiles.md` | `bc99b4384470b96db9ebe436f8f4c4549bfdc5a3eedc115cf0a23759e39ea96e` |
-| `wasm-execution-profiles.json` | `spec/mep/wasm-execution-profiles.json` | `58a16dc2a8489adc1dbfefef4980b43bceb39aaca2704fcb3ad4f2a7f016cccf` |
-| `wasm-host.cases.json` | `spec/mep/mck/wasm-host.cases.json` | `67efed87fcb8aeed0524becb4b092d5090b4abceed4fa36fc5c39cd013e72232` |
+| `wasm-execution-profiles.md` | `spec/mep/wasm-execution-profiles.md` | `b2f84f668aafaea0503ea42fd409409329c139e6d02e7f60945c05a3f7170567` |
+| `wasm-execution-profiles.json` | `spec/mep/wasm-execution-profiles.json` | `f5451395c6f6e729ff3ed93bc0636a452bc43bfef19b22f676f072fe24b7f9b5` |
+| `wasm-host.cases.json` | `spec/mep/mck/wasm-host.cases.json` | `6f1196b37dcf484780f2adaf276fa8f833f8388d8a9dd861c892e2ccf493c120` |
 | `fixtures/wasm/bytes-echo.wasm` | `spec/mep/mck/fixtures/wasm/bytes-echo.wasm` | `49a87314af3cb02860dc6c4bc3e84dc3b4ec1330609f0d4fad88de7491afaa76` |
 | `fixtures/wasm/bytes-echo.wat` | `spec/mep/mck/fixtures/wasm/bytes-echo.wat` | `84995b32cca3bc83bccbf9b795d82db61142894d72be7bec12bf1909d4d1d8e0` |
 | `fixtures/wasm/bytes-exit.wasm` | `spec/mep/mck/fixtures/wasm/bytes-exit.wasm` | `49c946c1f69ebfe6b4440acf7b9390c8d949199e7d0a43fd35f41b4c89e93f47` |
 | `fixtures/wasm/bytes-exit.wat` | `spec/mep/mck/fixtures/wasm/bytes-exit.wat` | `f32d66cd117fe07512ca81acbe0531056848cf2de274907bd410e4a86b94f422` |
-| `fixtures/wasm/bytes-grow-then-respond.wasm` | `spec/mep/mck/fixtures/wasm/bytes-grow-then-respond.wasm` | `c2ddf9e271a23cdc7b7cc58d5bb054f6ac127201414036f4afdc3c1b49811570` |
-| `fixtures/wasm/bytes-grow-then-respond.wat` | `spec/mep/mck/fixtures/wasm/bytes-grow-then-respond.wat` | `24d76be3f930afe3fb48e30464c58b0f28093845d7895ae232a34322fa7d8e1c` |
+| `fixtures/wasm/bytes-grow-then-respond.wasm` | `spec/mep/mck/fixtures/wasm/bytes-grow-then-respond.wasm` | `04d4a0c459466316f54231d392b9397cd067410310a40516b16dd41295d50621` |
+| `fixtures/wasm/bytes-grow-then-respond.wat` | `spec/mep/mck/fixtures/wasm/bytes-grow-then-respond.wat` | `063c648547e17631539005f3b3c11fc1f773a44ec320998462d584482e16b39a` |
 | `fixtures/wasm/bytes-imports-wasi.wasm` | `spec/mep/mck/fixtures/wasm/bytes-imports-wasi.wasm` | `7f4a2dd3b06dfaa926fa0cb9dbfcc9c125b9268dc7410d237a9703b8102a5c29` |
 | `fixtures/wasm/bytes-imports-wasi.wat` | `spec/mep/mck/fixtures/wasm/bytes-imports-wasi.wat` | `1d7cf75701f0e0235c644930fc0c98d587c4ba883bd9204ee5e46cf960dd2a09` |
 | `fixtures/wasm/bytes-input-byte-i64.wasm` | `spec/mep/mck/fixtures/wasm/bytes-input-byte-i64.wasm` | `6ea50a7f4c76d4dbf3eab91880b4dbae1c763bfea29136d10138a5802f77026b` |
@@ -105,8 +108,8 @@ parent is corrected, rather than changing a file here.
 | `fixtures/wasm/extism-grow-below-ceiling.wat` | `spec/mep/mck/fixtures/wasm/extism-grow-below-ceiling.wat` | `790468fd7f283958494fb5739cdcfde40ab5d6ae143c9b1f8f00e8f168276ac9` |
 | `fixtures/wasm/extism-grow-then-respond.wasm` | `spec/mep/mck/fixtures/wasm/extism-grow-then-respond.wasm` | `e3826d6d858eca51a0ccf78ed9e4ae14786b2d1530ee51427cb7db4614951e0c` |
 | `fixtures/wasm/extism-grow-then-respond.wat` | `spec/mep/mck/fixtures/wasm/extism-grow-then-respond.wat` | `1acb1a62f499a83fc4da78d1fb5413ed50c00880106a3d24a2fcd0fa19a5e898` |
-| `fixtures/wasm/extism-grow-then-trap.wasm` | `spec/mep/mck/fixtures/wasm/extism-grow-then-trap.wasm` | `806a853b28bfa8ab884637b6a944a942fb77cefef74159ad9b707046f15b3557` |
-| `fixtures/wasm/extism-grow-then-trap.wat` | `spec/mep/mck/fixtures/wasm/extism-grow-then-trap.wat` | `26560ccd3f60b66ee4d20b12df4a16cdd7c703ce3d043c6d325bbcb66248f94e` |
+| `fixtures/wasm/extism-grow-then-trap.wasm` | `spec/mep/mck/fixtures/wasm/extism-grow-then-trap.wasm` | `17243e24c0ac33d48c901b4a7e399cc073e2c1250c46830d9cf410d20f0d4083` |
+| `fixtures/wasm/extism-grow-then-trap.wat` | `spec/mep/mck/fixtures/wasm/extism-grow-then-trap.wat` | `08192453f5463ec35afcb7ee39265399dd2afade81c9b1d1d50ccc57c79d5e22` |
 | `fixtures/wasm/extism-handle-i64.wasm` | `spec/mep/mck/fixtures/wasm/extism-handle-i64.wasm` | `9f39cf8ea1e70ac53bef96ea9be509989847e02bc99c7dbefaa4920c51ca581c` |
 | `fixtures/wasm/extism-handle-i64.wat` | `spec/mep/mck/fixtures/wasm/extism-handle-i64.wat` | `d270144baef44643dd982d76fcdb5b0029c4a29314e46ee319c5833033297f7b` |
 | `fixtures/wasm/extism-http-status.wasm` | `spec/mep/mck/fixtures/wasm/extism-http-status.wasm` | `f37686d570a6992f3d59f9724407139ed3992aca1ff2a44b3e537089d9aef9ce` |
@@ -129,16 +132,18 @@ parent is corrected, rather than changing a file here.
 | `fixtures/wasm/extism-nonzero.wat` | `spec/mep/mck/fixtures/wasm/extism-nonzero.wat` | `c1925e7880b62f483512e6a645274827f3375feb2d34cc5e175a3e1ba0d34e94` |
 | `fixtures/wasm/extism-not-object.wasm` | `spec/mep/mck/fixtures/wasm/extism-not-object.wasm` | `ca4fccff6e89decc0ad4d465a09b949cffdf3bb47f592ae137939d5838c02880` |
 | `fixtures/wasm/extism-not-object.wat` | `spec/mep/mck/fixtures/wasm/extism-not-object.wat` | `4f028459c09f20cec713183abf0aca4f6d31c7bac85d477618a57e2285a19529` |
-| `fixtures/wasm/extism-notify-accept.wasm` | `spec/mep/mck/fixtures/wasm/extism-notify-accept.wasm` | `0ef013265d21039afa869b13c0927594afd983461f97965eccfbb90c30cc7dd7` |
-| `fixtures/wasm/extism-notify-accept.wat` | `spec/mep/mck/fixtures/wasm/extism-notify-accept.wat` | `02f17a5be55c8ee793b54c6d5e237b91b25cd1f10e4d870bbcc0b999bfbcd855` |
-| `fixtures/wasm/extism-notify-answer.wasm` | `spec/mep/mck/fixtures/wasm/extism-notify-answer.wasm` | `098b782d5454e2c6376a2082aede9fa6fffd6c83609d0335719f598fa982685f` |
-| `fixtures/wasm/extism-notify-answer.wat` | `spec/mep/mck/fixtures/wasm/extism-notify-answer.wat` | `96174ed8c229c22973b238a6925df0ebfafcc143b82565f6f03c2e0d99713527` |
+| `fixtures/wasm/extism-notify-accept.wasm` | `spec/mep/mck/fixtures/wasm/extism-notify-accept.wasm` | `2fbe22665b6eab79245310e984287891305b372252995928a6a354c59b547826` |
+| `fixtures/wasm/extism-notify-accept.wat` | `spec/mep/mck/fixtures/wasm/extism-notify-accept.wat` | `9ff1d7b0e8fc857fddeea72b21e20476fd20a15c0e61e0a578d90b0987761522` |
+| `fixtures/wasm/extism-notify-answer.wasm` | `spec/mep/mck/fixtures/wasm/extism-notify-answer.wasm` | `6c343f491df44d43516b2711da486f77f164cb987209220ef1d7fbc7309f14da` |
+| `fixtures/wasm/extism-notify-answer.wat` | `spec/mep/mck/fixtures/wasm/extism-notify-answer.wat` | `0f34c4534ff3a1f6a582af6bec1cb1203d99de2a023a43d6693084579015ba6c` |
+| `fixtures/wasm/extism-notify-unlisted.wasm` | `spec/mep/mck/fixtures/wasm/extism-notify-unlisted.wasm` | `7dfce08dcf370b9550dc36e03d03ce30f4fe666f76a82261e9abcf95fd9f5414` |
+| `fixtures/wasm/extism-notify-unlisted.wat` | `spec/mep/mck/fixtures/wasm/extism-notify-unlisted.wat` | `ad97e0e61b83f6f0ad51bf17a84ec98939614a9f3053470152b50cccb46563a8` |
 | `fixtures/wasm/extism-path-open.wasm` | `spec/mep/mck/fixtures/wasm/extism-path-open.wasm` | `c46b195beba466bbe4eea6b0d179dcaaf4ae979a811a50f587bad568cbe6fe59` |
 | `fixtures/wasm/extism-path-open.wat` | `spec/mep/mck/fixtures/wasm/extism-path-open.wat` | `88b5802a2d8462dffce2f233c60c1b1c282e00a9b50b8b09ddd30bf701c9e507` |
 | `fixtures/wasm/extism-proc-exit.wasm` | `spec/mep/mck/fixtures/wasm/extism-proc-exit.wasm` | `235f6ee9511fcb6d1ed294ed1d3606f40f09fb004da11887816f3081fdf9e578` |
 | `fixtures/wasm/extism-proc-exit.wat` | `spec/mep/mck/fixtures/wasm/extism-proc-exit.wat` | `390e2531e613cdcae52476bb7b97dbbd98efeac79ddefd24e2aad6c05d7109ed` |
 | `fixtures/wasm/extism-spin.wasm` | `spec/mep/mck/fixtures/wasm/extism-spin.wasm` | `013df84b7cdecce0386f1b20b6395d663df1533c01fcac16141019ce87d3e11e` |
-| `fixtures/wasm/extism-spin.wat` | `spec/mep/mck/fixtures/wasm/extism-spin.wat` | `791499d931b73bf05f506a133341988a271eab815545c4cab4b20995babe88d8` |
+| `fixtures/wasm/extism-spin.wat` | `spec/mep/mck/fixtures/wasm/extism-spin.wat` | `7c6088c55d78939ab9e5e13083664f34745070875e9f8780037f22ff1bc8d412` |
 | `fixtures/wasm/extism-trap.wasm` | `spec/mep/mck/fixtures/wasm/extism-trap.wasm` | `bfc9709481aa4d8a5ae6109c5a7ecb0c61eac230384b9971c3524976155ecf6b` |
 | `fixtures/wasm/extism-trap.wat` | `spec/mep/mck/fixtures/wasm/extism-trap.wat` | `7651e00d7cf198170ce7bd0ea51c1a19e5efe71aee2018683bbe6f0385e73ef1` |
 | `fixtures/wasm/extism-var-over-limit.wasm` | `spec/mep/mck/fixtures/wasm/extism-var-over-limit.wasm` | `c2c068fe57cd814fba0bdf7285df61fcb69647d2c3ec8d896b0909e1cf52d8c3` |

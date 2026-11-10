@@ -29,15 +29,16 @@ namespace Morphir.Extensions.Wasm;
 /// <c>Content-Length</c> header included, as the contract's <c>hostSession.frameLimits.counted</c> says.
 /// </para>
 /// <para>
-/// <b>Notifications.</b> A guest receives a notification only after its <c>morphir.initialize</c> result advertised
-/// that it accepts them. The member that advertises it is not fixed in the pinned contract (design NTFY-1), so
-/// <see cref="AdvertisesNotifications"/> reads nothing and every notification is withheld: it returns null without
-/// a call. Task 3.2 reads the advertisement there; a guest that advertised then gets each notification as one
-/// <c>handle</c> call through the same path as a request.
+/// <b>Notifications</b> (task 3.2, design NTFY-1). A guest receives a notification only after its
+/// <c>morphir.initialize</c> result gave the string member <c>capabilities.notificationDelivery</c> the value
+/// <c>call</c>, read from the reply bytes the channel carried (<see cref="AdvertisesCallDelivery"/>). Such a guest
+/// gets each later notification, <c>morphir.initialized</c> included, as one <c>handle</c> call through the same
+/// path as a request, and output for one fails the session. Every other guest, every published bundle among them,
+/// gets none: the notification is withheld and null is returned without a call.
 /// </para>
 /// <para>
 /// <b><c>morphir.exit</c></b> ends the instance: the store is disposed and no later call runs. A guest that
-/// advertised nothing gets no call for it; a guest that advertised gets it as one call first.
+/// advertised <c>call</c> gets it as one call first; any other guest gets no call for it.
 /// </para>
 /// <para>
 /// <b>Where the call runs.</b> <c>handle</c> is synchronous and can run for seconds. Each call runs on a new thread
@@ -117,8 +118,8 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
     /// <summary>How many <c>handle</c> calls the channel has made.</summary>
     public int HandleCalls => Volatile.Read(ref handleCalls);
 
-    /// <summary>Whether the guest receives notifications: false until its <c>morphir.initialize</c> result advertises
-    /// that it accepts them, which task 3.2 reads (design NTFY-1).</summary>
+    /// <summary>Whether the guest receives notifications: false until its <c>morphir.initialize</c> result gives
+    /// <c>capabilities.notificationDelivery</c> the value <c>call</c> (design NTFY-1).</summary>
     public bool DeliversNotifications
     {
         get
@@ -158,9 +159,16 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
         return Call(method, message, isRequest: true, cancellation);
     }
 
-    /// <summary>Withholds the notification from a guest that has not advertised that it accepts notifications, and
-    /// returns null without a call. <c>morphir.exit</c> then ends the instance.</summary>
-    /// <exception cref="WasmChannelException">An earlier call had failed.</exception>
+    /// <summary>
+    /// Passes one notification to a guest that advertised <c>call</c> delivery as one <c>handle</c> call, and returns
+    /// null when the call gave no output. Output for a notification fails the session: the channel records
+    /// <see cref="WasmChannelFailure.AnsweredNotification"/>, ends the instance and returns the output, for which the
+    /// host session fails the session. A guest that has not advertised <c>call</c> gets no call, and null is returned.
+    /// <c>morphir.exit</c> ends the instance either way: after its one call for a guest that takes notifications,
+    /// without a call for any other.
+    /// </summary>
+    /// <exception cref="WasmChannelException">The call failed (an Extism error or a result that is not 0), the
+    /// notification frame is over the request limit, or an earlier call had failed.</exception>
     /// <exception cref="ObjectDisposedException">The instance ended at <c>morphir.exit</c> or the channel was disposed.</exception>
     public Task<byte[]?> NotifyAsync(string method, ReadOnlyMemory<byte> message, CancellationToken cancellation)
     {
@@ -187,13 +195,20 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
         return Call(method, message, isRequest: false, cancellation);
     }
 
+    /// <summary>The contract's advertisement of notification delivery for an Extism guest.</summary>
+    static readonly WasmNotificationDelivery Advertisement =
+        WasmProfileContract.Pinned.Profile(WasmAbi.ExtismKernel).NotificationDelivery
+        ?? throw new InvalidOperationException("The pinned contract gives no notification advertisement for extism-kernel-v1.");
+
     /// <summary>
-    /// Whether a <c>morphir.initialize</c> result advertises that the guest accepts notifications. The member is not
-    /// fixed in the pinned contract (design NTFY-1, the contract's <c>notificationAdvertisement</c> is
-    /// <c>provisional</c>), so no result advertises it: every published bundle advertises nothing, and the contract
-    /// delivers nothing to such a guest. Task 3.2 reads the fixed member here.
+    /// Whether the guest's reply to <c>morphir.initialize</c> asks for <c>call</c> delivery: its result's string
+    /// member <c>capabilities.notificationDelivery</c>, as the contract's <c>notificationDelivery</c> names it, is
+    /// <c>call</c> (design NTFY-1). An absent member, <c>none</c> and a value the contract does not list, the reserved
+    /// <c>poll</c> among them, are no delivery, as is a reply that is not a JSON object with a result, which the host
+    /// session judges.
     /// </summary>
-    static bool AdvertisesNotifications(ReadOnlySpan<byte> initializeResult) => false;
+    static bool AdvertisesCallDelivery(byte[] initializeReply) =>
+        Advertisement.ReadFrom(initializeReply) == Advertisement.Delivering;
 
     /// <summary>The exception for a message after the instance ended, or null while it runs. Holds the gate.</summary>
     Exception? Refusal(string method) => state switch
@@ -352,7 +367,7 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
 
         if (method == Method.Initialize.WireValue)
         {
-            deliversNotifications = AdvertisesNotifications(result.Output);
+            deliversNotifications = AdvertisesCallDelivery(result.Output);
         }
 
         return (result.Output, null);

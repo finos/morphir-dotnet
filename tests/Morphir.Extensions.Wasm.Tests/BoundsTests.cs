@@ -12,9 +12,9 @@ namespace Morphir.Extensions.Wasm.Tests;
 /// </summary>
 public class BoundsTests
 {
-    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 7b049c223 (MepWasmFixtures.PinnedCommit).
+    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 48d10706f (MepWasmFixtures.PinnedCommit).
     // Change them only when the pin moves.
-    private const int PinnedBoundsCaseCount = 8;
+    private const int PinnedBoundsCaseCount = 9;
     private const int PinnedLimitsCaseCount = 2;
 
     private const string BoundsGroup = "bounds/";
@@ -65,13 +65,15 @@ public class BoundsTests
     }
 
     /// <summary>
-    /// Each <c>bounds/</c> case gives its expected observation in-process, under the contract's default bounds. A
+    /// Each <c>bounds/</c> case gives its expected observation in-process, under the contract's default bounds and
+    /// the case's <c>worker</c> members (<c>instructions</c> is <see cref="SessionLimits.InstructionBudget"/>). A
     /// case for <c>morphir-bytes-v1</c> is <c>not_applicable</c> to this host; its in-process equivalent is that
     /// this host refuses the module naming the profile. For the others the session opens (the <c>started</c>
     /// event) or fails before any request (a fault with no <c>started</c>), each request frame is one
     /// <c>handle</c> call, the first failure has the expected fault kind within the expected time, and a run
-    /// without a fault answers each request with the frame it names. Notifications, stdout bytes and exit
-    /// statuses belong to the session and the worker (tasks 3.1, 3.2 and 4.1).
+    /// without a fault answers each request with the frame it names. A run with several matching alternatives
+    /// passes when its one observation satisfies one of them. Notifications, stdout bytes and exit statuses belong
+    /// to the session and the worker (tasks 3.1, 3.2 and 4.1).
     /// </summary>
     [Test]
     [MethodDataSource(nameof(BoundsCaseIds))]
@@ -98,19 +100,29 @@ public class BoundsTests
             notWasm => throw new InvalidOperationException(notWasm));
 
         var expectations = @case.ExpectationsFor(HostProfiles, EnforcedBounds);
+        var limits = @case.LimitsFor(SessionLimits.Default);
         var runs = @case.RunFrames;
         for (var run = 0; run < runs.Count; run++)
         {
-            var expectation = expectations[run];
-            await Assert.That(expectation.RefusedCode).IsNull();
-            var opening = SessionStore.Open(module, SessionLimits.Default);
-            if (!expectation.ExpectsStarted)
+            var alternatives = expectations[run];
+            foreach (var alternative in alternatives)
+            {
+                await Assert.That(alternative.RefusedCode).IsNull();
+            }
+
+            // Whether the session opens is the same for every alternative of a run; the corpus never mixes them.
+            var startedInEvery = alternatives.Select(alternative => alternative.ExpectsStarted).Distinct().Single();
+            var opening = SessionStore.Open(module, limits);
+            if (!startedInEvery)
             {
                 // A fault before any request: no started event, so the session does not open.
-                await Assert.That(expectation.NoEvents).Contains("started");
                 var failure = opening.Match<GuestFailure?>(_ => null, failed => failed);
-                await Assert.That(failure).IsNotNull();
-                await Assert.That(failure!.FaultKind).IsEqualTo(expectation.FaultKind);
+                await CaseExpectation.SatisfyOneAsync(alternatives, async expectation =>
+                {
+                    await Assert.That(expectation.NoEvents).Contains("started");
+                    await Assert.That(failure).IsNotNull();
+                    await Assert.That(failure!.FaultKind).IsEqualTo(expectation.FaultKind);
+                });
                 continue;
             }
 
@@ -137,30 +149,50 @@ public class BoundsTests
                     notRun => throw new InvalidOperationException($"{caseId}: a call did not run: {notRun.Message}"));
             }
 
-            if (expectation.ExpectsFault)
+            var elapsed = clock.Elapsed;
+            await CaseExpectation.SatisfyOneAsync(alternatives, async expectation =>
             {
-                await Assert.That(first).IsNotNull();
-                if (expectation.FaultKind is { } kind)
+                if (expectation.ExpectsFault)
                 {
-                    await Assert.That(first!.FaultKind).IsEqualTo(kind);
-                }
+                    await Assert.That(first).IsNotNull();
+                    if (expectation.FaultKind is { } kind)
+                    {
+                        await Assert.That(first!.FaultKind).IsEqualTo(kind);
+                    }
 
-                if (expectation.WithinSeconds is { Until: "fault" } within)
-                {
-                    await Assert.That(clock.Elapsed.TotalSeconds).IsGreaterThanOrEqualTo(within.Low);
-                    await Assert.That(clock.Elapsed.TotalSeconds).IsLessThanOrEqualTo(within.High);
+                    if (expectation.WithinSeconds is { Until: "fault" } within)
+                    {
+                        await Assert.That(elapsed.TotalSeconds).IsGreaterThanOrEqualTo(within.Low);
+                        await Assert.That(elapsed.TotalSeconds).IsLessThanOrEqualTo(within.High);
+                    }
                 }
-            }
-            else
-            {
-                await Assert.That(first).IsNull();
-                for (var frame = 0; frame < expectation.SameAsFrames.Count; frame++)
+                else
                 {
-                    var expected = CraftedCorpus.FrameBody(frames[expectation.SameAsFrames[frame]]);
-                    await Assert.That(JsonElementText(answers[frame].Output)).IsEqualTo(JsonElementText(expected));
+                    await Assert.That(first).IsNull();
+                    for (var frame = 0; frame < expectation.SameAsFrames.Count; frame++)
+                    {
+                        var expected = CraftedCorpus.FrameBody(frames[expectation.SameAsFrames[frame]]);
+                        await Assert.That(JsonElementText(answers[frame].Output)).IsEqualTo(JsonElementText(expected));
+                    }
                 }
-            }
+            });
         }
+    }
+
+    [Test]
+    public async Task The_small_budget_case_runs_with_its_worker_instructions_as_the_budget()
+    {
+        // bounds/small-budget passes --instructions 1000000 to a worker; in-process that is the session's budget.
+        var @case = CraftedCorpus.Case("bounds/small-budget");
+        var limits = @case.LimitsFor(SessionLimits.Default);
+        using var session = Open(@case.Module, limits);
+
+        var failure = Failed(session.CallHandle(Initialize));
+
+        await Assert.That(@case.WorkerInstructions).IsEqualTo(1_000_000UL);
+        await Assert.That(limits.InstructionBudget).IsEqualTo(1_000_000UL);
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.BudgetExhausted);
+        await Assert.That(failure.FuelUsed).IsEqualTo(1_000_000UL);
     }
 
     private static string JsonElementText(byte[] json)
@@ -288,6 +320,135 @@ public class BoundsTests
         await Assert.That(failure.Memory.KernelBytes).IsEqualTo(1 * MiB);
         await Assert.That(failure.Memory.CeilingBytes).IsEqualTo(256 * MiB);
         await Assert.That(failure.Memory.GuestAtCeiling).IsTrue();
+    }
+
+    /// <summary>A guest with a memory of its own that grows it one page at a time until a growth is refused, then
+    /// does <paramref name="then"/>.</summary>
+    private static ExtismModule GrowThen(string then, string imports = "") =>
+        CraftedGuest.AdmitWat($$"""
+            (module
+              (import "extism:host/env" "input_length" (func (result i64)))
+              {{imports}}
+              (memory 1)
+              (func (export "handle") (result i32)
+                (block $full
+                  (loop $grow
+                    (br_if $full (i32.eq (memory.grow (i32.const 1)) (i32.const -1)))
+                    (br $grow)))
+                {{then}}))
+            """);
+
+    private static SessionStore Open(ExtismModule module, SessionLimits limits) =>
+        SessionStore.Open(module, limits).Match(
+            session => session,
+            failure => throw new InvalidOperationException($"The session did not open: {failure.Message}"));
+
+    /// <summary>A ceiling of 32 pages: above the kernel's initial 16 pages, and small enough to fill quickly.</summary>
+    private static SessionLimits SmallCeiling => SessionLimits.Default with { MemoryCeilingBytes = 32 * Page };
+
+    /// <summary>Allocates kernel blocks from the host until the kernel cannot grow its memory any more: 64 KiB blocks,
+    /// then 1 KiB blocks, so that the last refusal is a growth of one page. The blocks are freed at the next call's
+    /// reset; the memory keeps its size.</summary>
+    private static void FillKernel(SessionStore session)
+    {
+        while (session.Alloc(Page) != 0)
+        {
+        }
+
+        while (session.Alloc(1024) != 0)
+        {
+        }
+    }
+
+    [Test]
+    public async Task An_exhausted_budget_with_the_guest_at_the_ceiling_stays_budget_exhausted()
+    {
+        // Contract memory rule at-ceiling: a call the host stopped for the instruction budget keeps that result.
+        using var session = Open(GrowThen("(loop $spin (br $spin)) (i32.const 0)"), SmallCeiling with { InstructionBudget = 10_000_000 });
+
+        var failure = Failed(session.CallHandle(Initialize));
+
+        await Assert.That(failure.Memory.GuestAtCeiling).IsTrue();
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.BudgetExhausted);
+        await Assert.That(failure.Signal).IsEqualTo(GuestFailureKind.BudgetExhausted);
+        await Assert.That(failure.Code).IsEqualTo("extension.budget_exhausted");
+    }
+
+    [Test]
+    public async Task A_deadline_with_the_guest_at_the_ceiling_stays_the_deadline()
+    {
+        using var session = Open(GrowThen("(loop $spin (br $spin)) (i32.const 0)"),
+            SmallCeiling with { InstructionBudget = ulong.MaxValue, CallDeadline = TimeSpan.FromMilliseconds(100) });
+
+        var failure = Failed(session.CallHandle(Initialize));
+
+        await Assert.That(failure.Memory.GuestAtCeiling).IsTrue();
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.CallDeadline);
+        await Assert.That(failure.Outcome).IsEqualTo("deadline");
+    }
+
+    [Test]
+    public async Task A_failure_with_the_guest_at_the_ceiling_is_the_memory_limit()
+    {
+        // proc_exit with a code that is not 0 is the contract's failure; at the ceiling it is memory-limit.
+        var module = GrowThen("(call $exit (i32.const 1)) (i32.const 0)", """(import "wasi_snapshot_preview1" "proc_exit" (func $exit (param i32)))""");
+        using var session = Open(module, SmallCeiling);
+
+        var failure = Failed(session.CallHandle(Initialize));
+
+        await Assert.That(failure.Memory.GuestAtCeiling).IsTrue();
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.MemoryLimit);
+        await Assert.That(failure.Signal).IsEqualTo(GuestFailureKind.IncompleteSession);
+        await Assert.That(failure.Code).IsEqualTo("extension.memory_limit");
+        await Assert.That(failure.Message).Contains("the guest's memory at its ceiling");
+    }
+
+    [Test]
+    public async Task A_trap_with_the_kernel_memory_at_its_ceiling_is_the_memory_limit()
+    {
+        // extism-trap has no memory of its own, so only the kernel's memory, where an Extism guest's input and
+        // output live, can be at its ceiling.
+        using var session = Open("extism-trap", SmallCeiling);
+        FillKernel(session);
+
+        var failure = Failed(session.CallHandle(Initialize));
+
+        await Assert.That(failure.Memory.GuestBytes).IsNull();
+        await Assert.That(failure.Memory.KernelBytes).IsGreaterThan(SmallCeiling.MemoryCeilingBytes - Page);
+        await Assert.That(failure.Memory.KernelAtCeiling).IsTrue();
+        await Assert.That(failure.Memory.AtCeiling).IsTrue();
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.MemoryLimit);
+        await Assert.That(failure.Signal).IsEqualTo(GuestFailureKind.GuestTrap);
+        await Assert.That(failure.Code).IsEqualTo("extension.memory_limit");
+        await Assert.That(failure.Message).Contains("the kernel's memory at its ceiling");
+        await Assert.That(failure.Message).Contains("kernel memory 2 MiB");
+    }
+
+    [Test]
+    [Arguments(32 * Page, 32 * Page, true)]
+    [Arguments(31 * Page, 32 * Page, false)]
+    [Arguments(20 * Page, 20 * Page + 1000, true)]
+    public async Task Each_memory_is_at_its_ceiling_when_it_cannot_grow_by_one_more_page(long bytes, long ceiling, bool atCeiling)
+    {
+        var kernel = new MemoryUse(null, bytes, ceiling);
+        var guest = new MemoryUse(bytes, 16 * Page, ceiling);
+
+        await Assert.That(kernel.KernelAtCeiling).IsEqualTo(atCeiling);
+        await Assert.That(kernel.GuestAtCeiling).IsFalse();
+        await Assert.That(kernel.AtCeiling).IsEqualTo(atCeiling);
+        await Assert.That(guest.GuestAtCeiling).IsEqualTo(atCeiling);
+        await Assert.That(guest.AtCeiling).IsEqualTo(atCeiling || guest.KernelAtCeiling);
+    }
+
+    [Test]
+    public async Task A_trap_with_the_kernel_memory_below_its_ceiling_is_a_guest_trap()
+    {
+        using var session = Open("extism-trap", SmallCeiling);
+
+        var failure = Failed(session.CallHandle(Initialize));
+
+        await Assert.That(failure.Memory.KernelAtCeiling).IsFalse();
+        await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.GuestTrap);
     }
 
     [Test]
@@ -451,13 +612,15 @@ public class BoundsTests
     }
 
     [Test]
-    public async Task The_one_instruction_budget_is_the_contract_budget_of_MEP_0_2_0_draft_1()
+    public async Task The_one_instruction_budget_is_the_contract_session_budget()
     {
-        // Design MEP-1: the host speaks 0.2.0-draft.1 only, so it reads that budget and no other.
+        // The contract gives a budget for a session and one for a probe. A host session reads the session budget and
+        // no other (design MEP-1: one budget, read from the contract); the probe budget is not this host's.
         using var contract = JsonDocument.Parse(await File.ReadAllBytesAsync(MepWasmFixtures.Contract));
-        var budget = contract.RootElement.GetProperty("bounds").GetProperty("instructionBudget").GetProperty("0.2.0-draft.1").GetUInt64();
+        var budgets = contract.RootElement.GetProperty("bounds").GetProperty("instructionBudget");
+        var budget = budgets.GetProperty("session").GetUInt64();
 
-        await Assert.That(WasmProfileContract.SessionProtocol).IsEqualTo("0.2.0-draft.1");
+        await Assert.That(budgets.EnumerateObject().Select(entry => entry.Name)).IsEquivalentTo(new[] { "session", "probe" });
         await Assert.That(WasmProfileContract.Pinned.InstructionBudget).IsEqualTo(budget);
         await Assert.That(SessionLimits.Default.InstructionBudget).IsEqualTo(budget);
         await Assert.That(SessionLimits.Default.InstructionBudget).IsEqualTo(5_000_000_000UL);
@@ -468,7 +631,8 @@ public class BoundsTests
     [Test]
     public async Task No_budget_is_chosen_by_protocol_version()
     {
-        // The MEP 0.1 budget of the contract has no reader: SessionLimits has no member that takes a version.
+        // No budget depends on the MEP version: SessionLimits has no member that takes a version, and the contract
+        // has no budget for one.
         var members = typeof(SessionLimits).GetMembers().Select(member => member.Name).ToList();
 
         await Assert.That(members).DoesNotContain("ForProtocol");

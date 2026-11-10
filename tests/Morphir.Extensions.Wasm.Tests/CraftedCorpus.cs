@@ -20,6 +20,9 @@ namespace Morphir.Extensions.Wasm.Tests;
 /// <param name="StdoutBytes">The expected byte count of all of stdout, or null when it is not constrained.</param>
 /// <param name="SameAsFrames">For each expected stdout frame that is <c>sameAsFrame</c>, the index of the run's frame it equals.</param>
 /// <param name="WithinSeconds">The <c>withinSeconds</c> range and what it is measured until, or null.</param>
+/// <param name="StdoutFrames">The expected stdout frames as written: each a <c>sameAsFrame</c>, <c>json</c> or
+/// <c>pointers</c> matcher. Empty when the expectation lists none.</param>
+/// <param name="Expect">The <c>expect</c> object itself, for the members this record does not reduce.</param>
 internal sealed record CaseExpectation(
     string? RefusedCode,
     IReadOnlyList<string> MessageIncludes,
@@ -32,7 +35,41 @@ internal sealed record CaseExpectation(
     int? ExitCode,
     int? StdoutBytes,
     IReadOnlyList<int> SameAsFrames,
-    (string Until, double Low, double High)? WithinSeconds);
+    (string Until, double Low, double High)? WithinSeconds,
+    IReadOnlyList<JsonElement> StdoutFrames,
+    JsonElement Expect)
+{
+    /// <summary>
+    /// Passes when the observation satisfies one of <paramref name="alternatives"/>, as the corpus's
+    /// <c>alternatives</c> convention says: <paramref name="check"/> is the assertions of one alternative against
+    /// an observation made once. With one alternative its failure is the test's failure; with several, each is
+    /// tried in turn and the test fails, naming every failure, when none is satisfied.
+    /// </summary>
+    public static async Task SatisfyOneAsync(IReadOnlyList<CaseExpectation> alternatives, Func<CaseExpectation, Task> check)
+    {
+        if (alternatives.Count == 1)
+        {
+            await check(alternatives[0]);
+            return;
+        }
+
+        var failures = new List<string>();
+        foreach (var alternative in alternatives)
+        {
+            try
+            {
+                await check(alternative);
+                return;
+            }
+            catch (TUnit.Assertions.Exceptions.AssertionException failure)
+            {
+                failures.Add(failure.Message);
+            }
+        }
+
+        Assert.Fail($"No alternative is satisfied:{Environment.NewLine}{string.Join(Environment.NewLine, failures)}");
+    }
+}
 
 /// <summary>A crafted case of the pinned corpus with the module it runs.</summary>
 internal sealed record CraftedCase(
@@ -55,14 +92,32 @@ internal sealed record CraftedCase(
     /// <summary>The case's <c>worker.responseBytes</c>, or null when the run uses the default.</summary>
     public long? WorkerResponseBytes { get; init; }
 
-    /// <summary>The expected stdout frames of each run's <c>expect</c>, as written: each a <c>sameAsFrame</c>,
-    /// <c>json</c> or <c>pointers</c> matcher.</summary>
-    public IReadOnlyList<IReadOnlyList<JsonElement>> StdoutFrameMatchers =>
-        Runs.EnumerateArray()
-            .Select(run => run.TryGetProperty("expect", out var expect) && expect.TryGetProperty("stdoutFrames", out var frames)
-                ? (IReadOnlyList<JsonElement>)frames.EnumerateArray().ToList()
-                : [])
-            .ToList();
+    /// <summary>The case's <c>worker.instructions</c>, the worker's <c>--instructions</c>, or null when the run uses
+    /// the default. In-process it is <see cref="SessionLimits.InstructionBudget"/>.</summary>
+    public ulong? WorkerInstructions { get; init; }
+
+    /// <summary>The session limits of the case's runs: <paramref name="defaults"/> with the case's
+    /// <c>worker</c> members, each the in-process value of the worker argument it names.</summary>
+    public SessionLimits LimitsFor(SessionLimits defaults)
+    {
+        var limits = defaults;
+        if (WorkerRequestBytes is { } request)
+        {
+            limits = limits with { RequestFrameBytes = request };
+        }
+
+        if (WorkerResponseBytes is { } response)
+        {
+            limits = limits with { ResponseFrameBytes = response };
+        }
+
+        if (WorkerInstructions is { } instructions)
+        {
+            limits = limits with { InstructionBudget = instructions };
+        }
+
+        return limits;
+    }
 
     /// <summary>The frame names of each run, in run order.</summary>
     public IReadOnlyList<IReadOnlyList<string>> RunFrames =>
@@ -71,33 +126,36 @@ internal sealed record CraftedCase(
             .ToList();
 
     /// <summary>
-    /// The expectations of every run for a host that declares <paramref name="hostProfiles"/>, as the corpus
-    /// conventions select them: a run's <c>expect</c>, or the alternative whose <c>when</c> matches. A
-    /// <c>{bound, enforced}</c> alternative is selected by <paramref name="enforcedBounds"/>, the bounds the
-    /// host declares enforced; without it such an alternative cannot be selected.
+    /// For each run, in run order, the expectations that apply to a host that declares
+    /// <paramref name="hostProfiles"/>, as the corpus conventions select them: a run's <c>expect</c>, or every
+    /// alternative whose <c>when</c> matches. Two alternatives may have the same <c>when</c>; the run passes when the
+    /// observation satisfies one of them (<see cref="CaseExpectation.SatisfyOneAsync"/>). A <c>{bound, enforced}</c>
+    /// alternative is selected by <paramref name="enforcedBounds"/>, the bounds the host declares enforced; without
+    /// it such an alternative cannot be selected. A run with no matching alternative is a defect of the corpus or
+    /// of this reader, and throws.
     /// </summary>
-    public IReadOnlyList<CaseExpectation> ExpectationsFor(IReadOnlySet<string> hostProfiles, IReadOnlySet<string>? enforcedBounds = null)
+    public IReadOnlyList<IReadOnlyList<CaseExpectation>> ExpectationsFor(IReadOnlySet<string> hostProfiles, IReadOnlySet<string>? enforcedBounds = null)
     {
-        var expectations = new List<CaseExpectation>();
+        var expectations = new List<IReadOnlyList<CaseExpectation>>();
         foreach (var run in Runs.EnumerateArray())
         {
             if (run.TryGetProperty("expect", out var expect))
             {
-                expectations.Add(Read(expect));
+                expectations.Add([Read(expect)]);
                 continue;
             }
 
             var chosen = run.GetProperty("alternatives").EnumerateArray()
                 .Where(alternative => Matches(alternative.GetProperty("when"), hostProfiles, enforcedBounds))
-                .Select(alternative => alternative.GetProperty("expect"))
+                .Select(alternative => Read(alternative.GetProperty("expect")))
                 .ToList();
-            if (chosen.Count != 1)
+            if (chosen.Count == 0)
             {
                 throw new InvalidOperationException(
-                    $"{CaseId}: {chosen.Count} alternatives match the host profiles {string.Join(", ", hostProfiles)}.");
+                    $"{CaseId}: no alternative matches the host profiles {string.Join(", ", hostProfiles)}.");
             }
 
-            expectations.Add(Read(chosen[0]));
+            expectations.Add(chosen);
         }
 
         return expectations;
@@ -174,9 +232,11 @@ internal sealed record CraftedCase(
 
         var guestRun = new List<string>();
         var sameAs = new List<int>();
+        var stdoutFrames = new List<JsonElement>();
         if (expect.TryGetProperty("stdoutFrames", out var frames))
         {
             guestRun.Add("stdoutFrames");
+            stdoutFrames.AddRange(frames.EnumerateArray());
             sameAs.AddRange(frames.EnumerateArray()
                 .Where(frame => frame.TryGetProperty("sameAsFrame", out _))
                 .Select(frame => frame.GetProperty("sameAsFrame").GetInt32()));
@@ -200,7 +260,7 @@ internal sealed record CraftedCase(
         }
 
         return new CaseExpectation(refusedCode, includes, startedAbi, guestRun, started, fault, faultKind, noEvents,
-            exitCode, stdoutBytes, sameAs, within);
+            exitCode, stdoutBytes, sameAs, within, stdoutFrames, expect);
     }
 }
 
@@ -277,6 +337,9 @@ internal static class CraftedCorpus
                         : null,
                     WorkerResponseBytes = @case.TryGetProperty("worker", out var limits) && limits.TryGetProperty("responseBytes", out var response)
                         ? response.GetInt64()
+                        : null,
+                    WorkerInstructions = @case.TryGetProperty("worker", out var budget) && budget.TryGetProperty("instructions", out var instructions)
+                        ? instructions.GetUInt64()
                         : null,
                 };
             })

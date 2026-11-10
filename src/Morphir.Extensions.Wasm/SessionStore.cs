@@ -30,9 +30,10 @@ public sealed record HandleCallResult(int ReturnCode, long OutputOffset, byte[] 
 /// thread of the call, stops the call when its <see cref="CancellationToken"/> is cancelled
 /// (<see cref="GuestFailureKind.Cancelled"/>) or its deadline has passed (<see cref="GuestFailureKind.CallDeadline"/>),
 /// so a spinning guest stops within one tick of either. The store limit caps each memory at the ceiling; the
-/// engine refuses a growth past it without telling the host, so a call that fails with the guest's memory at the
-/// ceiling is <see cref="GuestFailureKind.MemoryLimit"/>, and a module whose initial memory is above the ceiling
-/// fails <see cref="Open"/> the same way. Every failure carries the memory sizes.
+/// engine refuses a growth past it without telling the host, so a call that ends in a trap or a failure with the
+/// guest's memory or the kernel's at its ceiling is <see cref="GuestFailureKind.MemoryLimit"/>, a call the host
+/// stopped keeps its result, and a module whose initial memory is above the ceiling fails <see cref="Open"/> with
+/// <see cref="GuestFailureKind.MemoryLimit"/>. Every failure carries both memory sizes and the ceiling.
 /// </para>
 /// <para>
 /// After a failed call the session is finished: <see cref="Failure"/> holds the failure, and every later call
@@ -283,19 +284,19 @@ public sealed class SessionStore : IDisposable
     }
 
     /// <summary>
-    /// Finishes the session with a failure. The memory rule (contract <c>at-ceiling</c>, parent decision BND-2)
-    /// applies to every failure that has a code: a trap, a failure and an exhausted budget become
-    /// <see cref="GuestFailureKind.MemoryLimit"/> when the guest's memory is at the ceiling. The outcomes
-    /// <c>deadline</c> and <c>cancelled</c> are kept, since the host itself stopped the call.
+    /// Finishes the session with a failure. The memory rule (contract <c>at-ceiling</c>, parent decision BND-2): a
+    /// call that ends in a trap or a failure while the guest's memory or the kernel's is at its ceiling
+    /// (<see cref="MemoryUse.AtCeiling"/>) becomes <see cref="GuestFailureKind.MemoryLimit"/>. A call the host
+    /// stopped keeps its result: an exhausted budget, the deadline and a cancellation, since the host knows why the
+    /// call ended.
     /// </summary>
     HandleOutcome.Failed Fail(GuestFailureKind signal, string detail)
     {
         callClock.Stop();
         var memory = Memory;
-        var kind = signal is GuestFailureKind.GuestTrap or GuestFailureKind.IncompleteSession or GuestFailureKind.BudgetExhausted
-            && memory.GuestAtCeiling
-                ? GuestFailureKind.MemoryLimit
-                : signal;
+        var kind = signal is GuestFailureKind.GuestTrap or GuestFailureKind.IncompleteSession && memory.AtCeiling
+            ? GuestFailureKind.MemoryLimit
+            : signal;
         var failure = new GuestFailure(kind, signal, detail, memory, FuelUsed, callClock.Elapsed);
         Failure = failure;
         // The session is finished, so its workspace goes now, not when the store is disposed.

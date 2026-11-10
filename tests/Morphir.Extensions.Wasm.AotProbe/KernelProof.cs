@@ -121,6 +121,7 @@ public static partial class KernelProof
         var claim1 = Check(output, "claim 1", () => CheckNoTrimWarnings(output, publishLog, sources));
         var bounds = spinPath is null ? Verdict.NotChecked : Check(output, "bounds", () => CheckBounds(output, spinPath));
         var sandbox = sandboxModules is null ? Verdict.NotChecked : Check(output, "sandbox", () => CheckSandbox(output, sandboxModules));
+        var notifications = sandboxModules is null ? Verdict.NotChecked : Check(output, "notifications", () => CheckNotifications(output, sandboxModules));
 
         output.WriteLine("summary:");
         output.WriteLine($"claim 1, no IL warning but the FSharp.Core summary baseline (so zero IL2026 and IL3050), and no suppressions: {Text(claim1)}");
@@ -129,8 +130,71 @@ public static partial class KernelProof
         output.WriteLine($"session (task 3.1), a whole HostSession through the WASM channel: {Text(session)}");
         output.WriteLine($"bounds (task 2.5), budget, deadline and cancellation stop a spinning guest: {Text(bounds)}");
         output.WriteLine($"sandbox (tasks 3.3 and 3.4), host functions and WASI callbacks answer as the contract says: {Text(sandbox)}");
+        output.WriteLine($"notifications (task 3.2), a guest that asks for call delivery gets each notification as one call: {Text(notifications)}");
         return claim1 == Verdict.Holds && claim2 == Verdict.Holds && claim3 == Verdict.Holds && session == Verdict.Holds
-            && bounds != Verdict.Fails && sandbox != Verdict.Fails ? 0 : 1;
+            && bounds != Verdict.Fails && sandbox != Verdict.Fails && notifications != Verdict.Fails ? 0 : 1;
+    }
+
+    /// <summary>
+    /// Task 3.2 under the same executable: the advertisement is read from the guest's <c>morphir.initialize</c> reply
+    /// with <c>JsonDocument</c>, and delivery runs through <see cref="WasmChannel"/>. The pinned
+    /// <c>extism-notify-accept</c> asks for <c>call</c> delivery and answers its second request with its call count;
+    /// <c>extism-notify-answer</c> gives output for a notification, which fails the session. Each module's digest is
+    /// checked against the pinned corpus first.
+    /// </summary>
+    static Verdict CheckNotifications(TextWriter output, string directory)
+    {
+        using var corpus = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(directory, "..", "..", "wasm-host.cases.json")));
+        var modules = corpus.RootElement.GetProperty("modules");
+        var ok = true;
+        void Expect(bool condition, string what)
+        {
+            output.WriteLine($"  {(condition ? "ok" : "FAILED")}: {what}");
+            ok &= condition;
+        }
+
+        WasmChannel Open(string name)
+        {
+            var bytes = File.ReadAllBytes(Path.Combine(directory, name + ".wasm"));
+            var recorded = modules.GetProperty(name).GetProperty("sha256").GetString();
+            Expect(Convert.ToHexStringLower(SHA256.HashData(bytes)) == recorded, $"{name}.wasm has the corpus digest {recorded}");
+            var module = WasmEngine.Shared.Load(bytes).Match(
+                compiled => WasmHost.Admit(compiled, WasmAbi.ExtismKernel).Match(m => m, r => throw new InvalidOperationException(r.Message)),
+                refused => throw new InvalidOperationException(refused.Message),
+                invalid => throw new InvalidOperationException(invalid));
+            return WasmChannel.Open(module, SessionLimits.Default).Match(channel => channel, failure => throw new InvalidOperationException(failure.Message));
+        }
+
+        static byte[] Message(string json) => Encoding.UTF8.GetBytes(json);
+        var initialize = Message("""{"jsonrpc":"2.0","id":1,"method":"morphir.initialize","params":{}}""");
+        var initialized = Message("""{"jsonrpc":"2.0","method":"morphir.initialized"}""");
+        var shutdown = Message("""{"jsonrpc":"2.0","id":2,"method":"morphir.shutdown","params":{}}""");
+        var exit = Message("""{"jsonrpc":"2.0","method":"morphir.exit"}""");
+
+        using (var accepting = Open("extism-notify-accept"))
+        {
+            var advertised = accepting.RequestAsync("morphir.initialize", initialize, CancellationToken.None).GetAwaiter().GetResult();
+            output.WriteLine($"  extism-notify-accept: {Encoding.UTF8.GetString(advertised ?? [])}");
+            Expect(accepting.DeliversNotifications, "the reply's capabilities.notificationDelivery \"call\" turns delivery on");
+            var notified = accepting.NotifyAsync("morphir.initialized", initialized, CancellationToken.None).GetAwaiter().GetResult();
+            Expect(notified is null && accepting.HandleCalls == 2, $"morphir.initialized is one handle call with no output (calls: {accepting.HandleCalls})");
+            var counted = accepting.RequestAsync("morphir.shutdown", shutdown, CancellationToken.None).GetAwaiter().GetResult();
+            var count = counted is null ? "none" : Encoding.UTF8.GetString(counted);
+            Expect(count == """{"jsonrpc":"2.0","id":2,"result":3}""", $"the guest counted the notification: {count}");
+            accepting.NotifyAsync("morphir.exit", exit, CancellationToken.None).GetAwaiter().GetResult();
+            Expect(accepting.HandleCalls == 4 && accepting.InstanceEnded && accepting.Failure is null,
+                $"morphir.exit is one call, then the instance ends (calls: {accepting.HandleCalls})");
+        }
+
+        using (var answering = Open("extism-notify-answer"))
+        {
+            answering.RequestAsync("morphir.initialize", initialize, CancellationToken.None).GetAwaiter().GetResult();
+            var answer = answering.NotifyAsync("morphir.initialized", initialized, CancellationToken.None).GetAwaiter().GetResult();
+            Expect(answer is not null && answering.Failure is WasmChannelFailure.AnsweredNotification && answering.InstanceEnded,
+                $"output for a notification fails the session: {answering.Failure?.Message ?? "no failure"}");
+        }
+
+        return ok ? Verdict.Holds : Verdict.Fails;
     }
 
     /// <summary>The pinned crafted modules the sandbox check runs, each with

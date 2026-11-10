@@ -122,6 +122,36 @@ public class ChannelTests
     }
 
     [Test]
+    public async Task A_non_zero_result_with_the_kernel_memory_at_its_ceiling_is_the_memory_limit()
+    {
+        // The guest allocates kernel blocks until the kernel cannot grow (64 KiB, then 1 KiB), then returns 1: a
+        // failure while the kernel's memory, which holds its input and output, is at its ceiling (contract memory
+        // rule at-ceiling).
+        var module = CraftedGuest.AdmitWat("""
+            (module
+              (import "extism:host/env" "alloc" (func $alloc (param i64) (result i64)))
+              (func (export "handle") (result i32)
+                (block $big (loop $more (br_if $big (i64.eqz (call $alloc (i64.const 65536)))) (br $more)))
+                (block $small (loop $more (br_if $small (i64.eqz (call $alloc (i64.const 1024)))) (br $more)))
+                (i32.const 1)))
+            """);
+        var ceiling = 32 * 65536L;
+        using var channel = WasmChannel.Open(module, SessionLimits.Default with { MemoryCeilingBytes = ceiling }).Match(
+            opened => opened,
+            failure => throw new InvalidOperationException($"The channel did not open: {failure.Message}"));
+
+        var thrown = await Assert.That(async () => await channel.RequestAsync(Initialize, Request(1), CancellationToken.None))
+            .Throws<WasmChannelException>();
+
+        await Assert.That(thrown!.Failure).IsTypeOf<WasmChannelFailure.NonZeroResult>();
+        await Assert.That(thrown.Memory.KernelAtCeiling).IsTrue();
+        await Assert.That(thrown.Code).IsEqualTo("extension.memory_limit");
+        await Assert.That(thrown.Failure.FaultKind).IsEqualTo("memory-limit");
+        await Assert.That(thrown.Message).Contains("handle returned 1");
+        await Assert.That(thrown.Message).Contains("the kernel's memory at its ceiling");
+    }
+
+    [Test]
     public async Task A_non_zero_result_ends_the_session_and_its_output_is_not_passed_on()
     {
         using var channel = Open("extism-nonzero");

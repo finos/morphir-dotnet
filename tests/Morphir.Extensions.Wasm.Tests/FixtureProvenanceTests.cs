@@ -9,10 +9,10 @@ namespace Morphir.Extensions.Wasm.Tests;
 /// </summary>
 public partial class FixtureProvenanceTests
 {
-    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 7b049c223 (MepWasmFixtures.PinnedCommit).
+    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 48d10706f (MepWasmFixtures.PinnedCommit).
     // Change them only when the pin moves; a smaller number here means the corpus was truncated.
-    private const int PinnedCaseCount = 56;
-    private const int PinnedModuleCount = 49;
+    private const int PinnedCaseCount = 58;
+    private const int PinnedModuleCount = 50;
 
     [GeneratedRegex(@"(?m)^\| `([^`]+)` \| `[^`]+` \| `([0-9a-f]{64})` \|\r?$")]
     private static partial Regex ProvenanceRow();

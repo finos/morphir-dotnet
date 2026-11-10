@@ -4,9 +4,10 @@ using Morphir.Mep;
 namespace Morphir.Extensions.Wasm.Tests;
 
 /// <summary>
-/// Task 3.1 of add-wasm-extension-host: the <c>extism/</c> and <c>limits/</c> cases of the pinned crafted corpus,
-/// run in-process through <see cref="WasmChannel"/>. Each run's frames are passed as raw bytes, a request through
-/// <c>RequestAsync</c> and a notification through <c>NotifyAsync</c>, with the case's <c>worker</c> frame limits.
+/// Tasks 3.1 and 3.2 of add-wasm-extension-host: the <c>extism/</c> and <c>limits/</c> cases of the pinned crafted
+/// corpus, the notification cases among them, run in-process through <see cref="WasmChannel"/>. Each run's frames are
+/// passed as raw bytes, a request through <c>RequestAsync</c> and a notification through <c>NotifyAsync</c>, with
+/// the case's <c>worker</c> frame limits.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,49 +30,49 @@ namespace Morphir.Extensions.Wasm.Tests;
 /// </remarks>
 public class ChannelCorpusTests
 {
-    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 7b049c223 (MepWasmFixtures.PinnedCommit).
+    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 48d10706f (MepWasmFixtures.PinnedCommit).
     // Change them only when the pin moves.
-    private const int PinnedExtismCaseCount = 8;
+    private const int PinnedExtismCaseCount = 9;
     private const int PinnedLimitsCaseCount = 2;
 
-    /// <summary>
-    /// The cases that need a guest that receives notifications: task 3.2 (design NTFY-1). Each has a guest that
-    /// advertises acceptance, and its expectation holds only for a host that delivers. Task 3.1 delivers no
-    /// notification to any guest.
-    /// </summary>
-    private static readonly IReadOnlySet<string> DeliveryCases = new HashSet<string>(StringComparer.Ordinal)
+    /// <summary>The notification cases (task 3.2, design NTFY-1): a guest that advertises <c>call</c>, one that
+    /// answers a notification, one that advertises nothing and one that advertises a value the contract does not
+    /// list. They run here with every other case of the two groups.</summary>
+    private static readonly IReadOnlySet<string> NotificationCases = new HashSet<string>(StringComparer.Ordinal)
     {
+        "extism/notifications-not-delivered",
         "extism/notifications-accepted",
         "extism/notification-answered",
+        "extism/notification-delivery-unlisted",
     };
 
     private static IEnumerable<CraftedCase> ChannelCases() =>
         CraftedCorpus.Cases.Where(@case =>
             @case.CaseId.StartsWith("extism/", StringComparison.Ordinal) || @case.CaseId.StartsWith("limits/", StringComparison.Ordinal));
 
-    public static IEnumerable<string> CheckedCaseIds() =>
-        ChannelCases().Select(@case => @case.CaseId).Where(id => !DeliveryCases.Contains(id));
-
-    public static IEnumerable<string> DeliveryCaseIds() => DeliveryCases.Order(StringComparer.Ordinal);
+    public static IEnumerable<string> CheckedCaseIds() => ChannelCases().Select(@case => @case.CaseId);
 
     [Test]
-    public async Task Every_extism_and_limits_case_is_checked_here_or_waits_for_delivery()
+    public async Task Every_extism_and_limits_case_is_checked_here()
     {
         var ids = ChannelCases().Select(@case => @case.CaseId).ToList();
 
         await Assert.That(ids.Count(id => id.StartsWith("extism/", StringComparison.Ordinal))).IsEqualTo(PinnedExtismCaseCount);
         await Assert.That(ids.Count(id => id.StartsWith("limits/", StringComparison.Ordinal))).IsEqualTo(PinnedLimitsCaseCount);
-        await Assert.That(DeliveryCases.All(ids.Contains)).IsTrue();
-        await Assert.That(CheckedCaseIds().Count() + DeliveryCases.Count).IsEqualTo(ids.Count);
+        await Assert.That(NotificationCases.All(ids.Contains)).IsTrue();
+        await Assert.That(CheckedCaseIds().Count()).IsEqualTo(PinnedExtismCaseCount + PinnedLimitsCaseCount);
     }
 
-    /// <summary>What one run gave through the channel.</summary>
+    /// <summary>What one run gave through the channel. <paramref name="RequestsSent"/> counts the requests passed to
+    /// the guest, not one refused over the request limit. <paramref name="NotificationsAfterARequest"/> counts the
+    /// notifications sent after a request had been answered, which a guest that advertised <c>call</c> receives.</summary>
     private sealed record RunObservation(
         IReadOnlyList<byte[]> StdoutFrames,
         WasmChannelException? Thrown,
         bool RefusedReply,
         int HandleCalls,
         int RequestsSent,
+        int NotificationsAfterARequest,
         WasmChannelFailure? Failure,
         bool InstanceEnded);
 
@@ -83,31 +84,16 @@ public class ChannelCorpusTests
             refused => throw new InvalidOperationException(refused.Message),
             notWasm => throw new InvalidOperationException(notWasm));
 
-    private static SessionLimits LimitsFor(CraftedCase @case)
-    {
-        var limits = SessionLimits.Default;
-        if (@case.WorkerRequestBytes is { } request)
-        {
-            limits = limits with { RequestFrameBytes = request };
-        }
-
-        if (@case.WorkerResponseBytes is { } response)
-        {
-            limits = limits with { ResponseFrameBytes = response };
-        }
-
-        return limits;
-    }
-
     private static async Task<RunObservation> RunAsync(CraftedCase @case, IReadOnlyList<string> frames)
     {
-        using var channel = WasmChannel.Open(Admit(@case), LimitsFor(@case)).Match(
+        using var channel = WasmChannel.Open(Admit(@case), @case.LimitsFor(SessionLimits.Default)).Match(
             opened => opened,
             failed => throw new InvalidOperationException($"{@case.CaseId}: the channel did not open: {failed.Message}"));
         var stdout = new List<byte[]>();
         WasmChannelException? thrown = null;
         var refused = false;
         var requests = 0;
+        var notifications = 0;
         foreach (var frame in frames)
         {
             var method = CraftedCorpus.FrameMethod(frame);
@@ -133,6 +119,11 @@ public class ChannelCorpusTests
                 }
                 else
                 {
+                    if (stdout.Count > 0)
+                    {
+                        notifications++;
+                    }
+
                     var reply = await channel.NotifyAsync(method, body, CancellationToken.None);
                     if (reply is not null)
                     {
@@ -143,12 +134,18 @@ public class ChannelCorpusTests
             }
             catch (WasmChannelException failure)
             {
+                if (failure.Failure is WasmChannelFailure.RequestOverLimit)
+                {
+                    // Refused before the guest was called: not a handle call.
+                    requests--;
+                }
+
                 thrown = failure;
                 break;
             }
         }
 
-        return new RunObservation(stdout, thrown, refused, channel.HandleCalls, requests, channel.Failure, channel.InstanceEnded);
+        return new RunObservation(stdout, thrown, refused, channel.HandleCalls, requests, notifications, channel.Failure, channel.InstanceEnded);
     }
 
     private static string Canonical(JsonElement json) => JsonSerializer.Serialize(json);
@@ -171,86 +168,87 @@ public class ChannelCorpusTests
         var runs = @case.RunFrames;
         for (var run = 0; run < runs.Count; run++)
         {
-            var expectation = expectations[run];
             var frames = runs[run];
-            await Assert.That(expectation.ExpectsStarted).IsTrue();
-            await Assert.That(expectation.RefusedCode).IsNull();
-
             var observed = await RunAsync(@case, frames);
 
-            // A notification is never a handle call: the guest advertises nothing in task 3.1.
-            await Assert.That(observed.HandleCalls).IsLessThanOrEqualTo(observed.RequestsSent);
-            if (expectation.ExpectsFault)
-            {
-                var failed = observed.Thrown is not null || observed.RefusedReply || observed.Failure is WasmChannelFailure.NoOutput;
-                await Assert.That(failed).IsTrue();
-                if (observed.Thrown is { } thrown)
-                {
-                    await Assert.That(thrown.Failure.FaultKind).IsEqualTo(expectation.FaultKind);
-                    await Assert.That(thrown.Failure).IsEqualTo(observed.Failure);
-                    await Assert.That(observed.InstanceEnded).IsTrue();
-                }
-
-                if (observed.Failure is { } failure)
-                {
-                    var code = failure is WasmChannelFailure.RequestOverLimit
-                        ? WasmProfileContract.Pinned.RequestLimitCode
-                        : WasmProfileContract.Pinned.Fault(expectation.FaultKind!).HostCode;
-                    await Assert.That(failure.Code).IsEqualTo(code);
-                    await Assert.That(failure.FaultKind).IsEqualTo(expectation.FaultKind);
-                }
-
-                if (expectation.StdoutBytes == 0)
-                {
-                    await Assert.That(observed.StdoutFrames.Count).IsEqualTo(0);
-                }
-            }
-            else
-            {
-                await Assert.That(observed.Thrown).IsNull();
-                await Assert.That(observed.RefusedReply).IsFalse();
-                await Assert.That(observed.Failure).IsNull();
-                await Assert.That(expectation.NoEvents).Contains("fault");
-            }
-
-            if (expectation.ExitCode == 0)
-            {
-                // Served until the instance ended: morphir.exit was the last frame and ended it without a failure.
-                await Assert.That(CraftedCorpus.FrameMethod(frames[^1])).IsEqualTo("morphir.exit");
-                await Assert.That(observed.InstanceEnded).IsTrue();
-                await Assert.That(observed.Failure).IsNull();
-            }
-
-            var matchers = @case.StdoutFrameMatchers[run];
-            await Assert.That(observed.StdoutFrames.Count).IsEqualTo(matchers.Count);
-            for (var index = 0; index < matchers.Count; index++)
-            {
-                var expected = matchers[index].TryGetProperty("sameAsFrame", out var same)
-                    ? Canonical(CraftedCorpus.FrameBody(frames[same.GetInt32()]))
-                    : Canonical(matchers[index].GetProperty("json"));
-                await Assert.That(Canonical(observed.StdoutFrames[index])).IsEqualTo(expected);
-            }
+            await CaseExpectation.SatisfyOneAsync(expectations[run], expectation => ExpectObservation(observed, frames, expectation));
         }
     }
 
     /// <summary>
-    /// The cases of a guest that advertises acceptance wait for task 3.2. Until then the channel withholds every
-    /// notification, so the first reply is the guest's own <c>morphir.initialize</c> result and no notification
-    /// reaches the guest. The rest of each expectation (a delivered <c>morphir.initialized</c>, a failure for an
-    /// answered notification) is task 3.2's to meet.
+    /// Whether the expectation's first stdout frame, the guest's <c>morphir.initialize</c> result as the corpus writes
+    /// it, gives <c>capabilities.notificationDelivery</c> the value <c>call</c>: read from the corpus, not from the
+    /// channel.
     /// </summary>
-    [Test]
-    [MethodDataSource(nameof(DeliveryCaseIds))]
-    public async Task Delivery_case_waits_for_task_3_2_and_receives_no_notification(string caseId)
+    private static bool AdvertisesCall(CaseExpectation expectation) =>
+        expectation.StdoutFrames.Count > 0
+        && expectation.StdoutFrames[0].TryGetProperty("json", out var json)
+        && json.TryGetProperty("result", out var result)
+        && result.ValueKind == JsonValueKind.Object
+        && result.TryGetProperty("capabilities", out var capabilities)
+        && capabilities.ValueKind == JsonValueKind.Object
+        && capabilities.TryGetProperty("notificationDelivery", out var delivery)
+        && delivery.ValueKind == JsonValueKind.String
+        && delivery.GetString() == "call";
+
+    /// <summary>The assertions of one expectation against one run's observation.</summary>
+    private static async Task ExpectObservation(RunObservation observed, IReadOnlyList<string> frames, CaseExpectation expectation)
     {
-        var @case = CraftedCorpus.Case(caseId);
-        var frames = @case.RunFrames[0];
+        await Assert.That(expectation.ExpectsStarted).IsTrue();
+        await Assert.That(expectation.RefusedCode).IsNull();
+        // Each request is one handle call, and so is each notification after the advertisement for a guest that
+        // advertised call. A guest that advertised anything else gets no call for a notification.
+        var delivered = AdvertisesCall(expectation) ? observed.NotificationsAfterARequest : 0;
+        await Assert.That(observed.HandleCalls).IsEqualTo(observed.RequestsSent + delivered);
+        if (expectation.ExpectsFault)
+        {
+            var failed = observed.Thrown is not null || observed.RefusedReply || observed.Failure is WasmChannelFailure.NoOutput;
+            await Assert.That(failed).IsTrue();
+            if (observed.Thrown is { } thrown)
+            {
+                await Assert.That(thrown.Failure.FaultKind).IsEqualTo(expectation.FaultKind);
+                await Assert.That(thrown.Failure).IsEqualTo(observed.Failure);
+                await Assert.That(observed.InstanceEnded).IsTrue();
+            }
 
-        var observed = await RunAsync(@case, frames);
+            if (observed.Failure is { } failure)
+            {
+                var code = failure is WasmChannelFailure.RequestOverLimit
+                    ? WasmProfileContract.Pinned.RequestLimitCode
+                    : WasmProfileContract.Pinned.Fault(expectation.FaultKind!).HostCode;
+                await Assert.That(failure.Code).IsEqualTo(code);
+                await Assert.That(failure.FaultKind).IsEqualTo(expectation.FaultKind);
+            }
 
-        await Assert.That(observed.Thrown).IsNull();
-        await Assert.That(observed.HandleCalls).IsEqualTo(observed.RequestsSent);
-        var first = @case.StdoutFrameMatchers[0][0].GetProperty("json");
-        await Assert.That(Canonical(observed.StdoutFrames[0])).IsEqualTo(Canonical(first));
+            if (expectation.StdoutBytes == 0)
+            {
+                await Assert.That(observed.StdoutFrames.Count).IsEqualTo(0);
+            }
+        }
+        else
+        {
+            await Assert.That(observed.Thrown).IsNull();
+            await Assert.That(observed.RefusedReply).IsFalse();
+            await Assert.That(observed.Failure).IsNull();
+            await Assert.That(expectation.NoEvents).Contains("fault");
+        }
+
+        if (expectation.ExitCode == 0)
+        {
+            // Served until the instance ended: morphir.exit was the last frame and ended it without a failure.
+            await Assert.That(CraftedCorpus.FrameMethod(frames[^1])).IsEqualTo("morphir.exit");
+            await Assert.That(observed.InstanceEnded).IsTrue();
+            await Assert.That(observed.Failure).IsNull();
+        }
+
+        var matchers = expectation.StdoutFrames;
+        await Assert.That(observed.StdoutFrames.Count).IsEqualTo(matchers.Count);
+        for (var index = 0; index < matchers.Count; index++)
+        {
+            var expected = matchers[index].TryGetProperty("sameAsFrame", out var same)
+                ? Canonical(CraftedCorpus.FrameBody(frames[same.GetInt32()]))
+                : Canonical(matchers[index].GetProperty("json"));
+            await Assert.That(Canonical(observed.StdoutFrames[index])).IsEqualTo(expected);
+        }
     }
 }

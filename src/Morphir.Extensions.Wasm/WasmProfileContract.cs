@@ -101,17 +101,30 @@ public sealed class WasmProfileContract
     /// <summary>The import surface and call rules of <paramref name="profile"/>.</summary>
     public WasmProfileSurface Profile(WasmAbi profile) => profiles[profile];
 
-    /// <summary>
-    /// The one MEP version this host speaks (design MEP-1), whose instruction budget is the host's only budget.
-    /// </summary>
-    public const string SessionProtocol = "0.2.0-draft.1";
+    /// <summary>The key of the session budget in the contract's <c>bounds.instructionBudget</c>.</summary>
+    const string SessionBudget = "session";
+
+    /// <summary>The key of the probe budget, which a host session never uses.</summary>
+    const string ProbeBudget = "probe";
 
     /// <summary>
-    /// The per-call instruction budget of a session: the contract's budget for MEP <see cref="SessionProtocol"/>
-    /// (5,000,000,000 at the pin). The contract also gives budgets for MEP <c>0.1</c> and for a probe; this host
-    /// speaks neither, so it does not read them (design MEP-1).
+    /// The per-call instruction budget of a session: the contract's <c>bounds.instructionBudget.session</c>
+    /// (5,000,000,000 at the pin), the host's only budget (design MEP-1). The contract also gives a budget for a
+    /// <c>probe</c>; a host session does not use it.
     /// </summary>
     public ulong InstructionBudget { get; }
+
+    /// <summary>
+    /// The classification checks in the order this library makes them, which the contract's
+    /// <c>classification.order</c> must give: the profile, the imports, the <c>handle</c> export, the declared ABI
+    /// (all <see cref="ModuleClassifier.Classify"/>) and last whether this host runs the profile
+    /// (<see cref="WasmHost.Admit"/>).
+    /// </summary>
+    public static IReadOnlyList<string> ClassificationOrder { get; } =
+        ["profile", "imports", "handle-export", "declared-abi", "host-runs-profile"];
+
+    /// <summary>The number of functions of WASI preview 1, whose signatures the engine's own definitions give.</summary>
+    const int WasiPreview1Functions = 46;
 
     /// <summary>The host session's request frame limit, in bytes, counted over the whole frame, its
     /// <c>Content-Length</c> header included (6 MiB at the pin).</summary>
@@ -156,10 +169,17 @@ public sealed class WasmProfileContract
             throw Invalid($"it does not define the profile {abi}");
         }
 
-        var defaultId = root.GetProperty("classification").GetProperty("defaultProfile").GetString();
+        var classification = root.GetProperty("classification");
+        var defaultId = classification.GetProperty("defaultProfile").GetString();
         if (!WasmAbi.TryParse(defaultId, out var defaultProfile))
         {
             throw Invalid($"its default profile {defaultId} is not a profile");
+        }
+
+        var order = classification.GetProperty("order").EnumerateArray().Select(step => step.GetString()).ToArray();
+        if (!order.SequenceEqual(ClassificationOrder))
+        {
+            throw Invalid($"its classification order is {string.Join(", ", order)}, and this library checks {string.Join(", ", ClassificationOrder)}");
         }
 
         var bounds = root.GetProperty("bounds");
@@ -171,9 +191,15 @@ public sealed class WasmProfileContract
             throw Invalid($"its kernel memory ceiling {kernelCeiling} differs from the memory ceiling {memoryCeiling}, which one store limit cannot apply");
         }
 
-        if (!bounds.GetProperty("instructionBudget").TryGetProperty(SessionProtocol, out var sessionBudget))
+        var budgets = bounds.GetProperty("instructionBudget");
+        foreach (var entry in budgets.EnumerateObject().Where(entry => entry.Name is not (SessionBudget or ProbeBudget)))
         {
-            throw Invalid($"it gives no instruction budget for MEP {SessionProtocol}");
+            throw Invalid($"it gives an instruction budget for {entry.Name}, and this library knows a {SessionBudget} and a {ProbeBudget} budget");
+        }
+
+        if (!budgets.TryGetProperty(SessionBudget, out var sessionBudget))
+        {
+            throw Invalid($"it gives no instruction budget for a {SessionBudget}");
         }
 
         var budget = sessionBudget.GetUInt64();
@@ -232,6 +258,14 @@ public sealed class WasmProfileContract
                 .Select(entry => entry.GetProperty("code").GetString())
                 .SingleOrDefault() ?? throw Invalid($"it has no code for the host-session rule {rule}");
 
+        // A cancelled call is an outcome with no fault kind and no code (GuestFailureKind.Cancelled).
+        var cancelled = hostSession.GetProperty("rules").EnumerateArray()
+            .SingleOrDefault(entry => entry.GetProperty("id").GetString() == "cancelled");
+        if (cancelled.ValueKind != JsonValueKind.Object || cancelled.TryGetProperty("code", out _))
+        {
+            throw Invalid("its host-session rules do not make a cancelled call an outcome without a code");
+        }
+
         return new HostSessionLimits(
             limits.GetProperty("requestBytes").GetInt64(),
             limits.GetProperty("responseBytes").GetInt64(),
@@ -253,8 +287,92 @@ public sealed class WasmProfileContract
             JsonValueKind.False => null,
             _ => throw Invalid($"the wasi member of {abi} is neither a namespace nor false"),
         };
+        var wasiFunctions = ReadWasiSurface(abi, profile, wasiNamespace);
         var deadline = TimeSpan.FromSeconds(profile.GetProperty("callDeadlineSeconds").GetInt32());
-        return new WasmProfileSurface(abi, profile.GetProperty("status").GetString()!, namespaces, imports, wasiNamespace, deadline);
+        var delivery = profile.TryGetProperty("notificationDelivery", out var advertisement)
+            ? ReadNotificationDelivery(abi, profile, advertisement)
+            : null;
+        if (abi == WasmAbi.ExtismKernel && delivery is null)
+        {
+            throw Invalid($"it does not say how a {abi} guest advertises notification delivery");
+        }
+
+        return new WasmProfileSurface(abi, profile.GetProperty("status").GetString()!, namespaces, imports, wasiNamespace, deadline)
+        {
+            WasiFunctions = wasiFunctions,
+            NotificationDelivery = delivery,
+        };
+    }
+
+    /// <summary>
+    /// The number of WASI functions the profile admits: 0 without WASI, else the 46 of preview 1, named by the
+    /// contract's <c>wasiSurface</c> through its witx definition. The classifier reads their signatures from the
+    /// engine's own preview 1 definitions, so the contract must name that definition and its whole surface.
+    /// </summary>
+    static int ReadWasiSurface(WasmAbi abi, JsonElement profile, string? wasiNamespace)
+    {
+        var listed = profile.TryGetProperty("wasiSurface", out var surface);
+        if (wasiNamespace is null)
+        {
+            return listed ? throw Invalid($"{abi} admits no WASI and still gives a WASI surface") : 0;
+        }
+
+        if (!listed)
+        {
+            throw Invalid($"{abi} admits {wasiNamespace} and gives no WASI surface");
+        }
+
+        var functions = surface.GetProperty("functions").GetInt32();
+        var signatures = surface.GetProperty("signatures").GetString();
+        if (functions != WasiPreview1Functions || signatures != $"{wasiNamespace}.witx")
+        {
+            throw Invalid($"the WASI surface of {abi} is {functions} functions of {signatures}, and this library admits the {WasiPreview1Functions} functions of {wasiNamespace}.witx");
+        }
+
+        return functions;
+    }
+
+    /// <summary>
+    /// The profile's <c>notificationDelivery</c> object: the string member of the <c>morphir.initialize</c> result
+    /// that advertises delivery, its default and its values. This library implements the values <c>none</c> and
+    /// <c>call</c> and the four notification rules of the Extism profile; any other listed value, a default that is
+    /// not <c>none</c>, or a missing rule fails the load.
+    /// </summary>
+    static WasmNotificationDelivery ReadNotificationDelivery(WasmAbi abi, JsonElement profile, JsonElement delivery)
+    {
+        if (delivery.GetProperty("of").GetString() is not "morphir.initialize result" and var of)
+        {
+            throw Invalid($"the notification advertisement of {abi} is a member of {of}, and this library reads the morphir.initialize result");
+        }
+
+        if (delivery.GetProperty("type").GetString() is not "string" and var type)
+        {
+            throw Invalid($"the notification advertisement of {abi} is a {type}, and this library reads a string");
+        }
+
+        var member = delivery.GetProperty("member").GetString()!.Split('.');
+        if (member.Any(string.IsNullOrEmpty))
+        {
+            throw Invalid($"the notification advertisement of {abi} names the member {string.Join('.', member)}");
+        }
+
+        var defaultValue = delivery.GetProperty("default").GetString();
+        var values = delivery.GetProperty("values").EnumerateArray().Select(value => value.GetProperty("value").GetString()!).ToArray();
+        if (defaultValue != WasmNotificationDelivery.None
+            || values.Length != 2
+            || !values.ToHashSet(StringComparer.Ordinal).SetEquals([WasmNotificationDelivery.None, WasmNotificationDelivery.Call]))
+        {
+            throw Invalid($"the notification delivery of {abi} has the values {string.Join(", ", values)} with the default {defaultValue}, and this library implements {WasmNotificationDelivery.None} (the default) and {WasmNotificationDelivery.Call}");
+        }
+
+        var rules = profile.GetProperty("notifications").EnumerateArray().Select(rule => rule.GetProperty("id").GetString()!).ToHashSet(StringComparer.Ordinal);
+        string[] implemented = ["advertised", "output-fails", "unadvertised", "unlisted-value"];
+        if (!rules.SetEquals(implemented))
+        {
+            throw Invalid($"the notification rules of {abi} are {string.Join(", ", rules)}, and this library implements {string.Join(", ", implemented)}");
+        }
+
+        return new WasmNotificationDelivery(member);
     }
 
     static WasmFunctionType ReadType(JsonElement function) =>
@@ -297,4 +415,74 @@ public sealed record WasmProfileSurface(
     IReadOnlyList<string> Namespaces,
     IReadOnlyDictionary<WasmImportName, WasmFunctionType> Imports,
     string? WasiNamespace,
-    TimeSpan CallDeadline);
+    TimeSpan CallDeadline)
+{
+    /// <summary>How many WASI preview 1 functions the profile admits, each with the signature of its witx
+    /// definition (the contract's <c>wasiSurface</c>): 46, or 0 when the profile admits no WASI.</summary>
+    public int WasiFunctions { get; init; }
+
+    /// <summary>How a guest of the profile advertises notification delivery (the contract's
+    /// <c>notificationDelivery</c>), or null when the profile delivers every message without one.</summary>
+    public WasmNotificationDelivery? NotificationDelivery { get; init; }
+}
+
+/// <summary>
+/// How an <c>extism-kernel-v1</c> guest asks for notifications (the contract's <c>notificationDelivery</c>): a
+/// string member of its <c>morphir.initialize</c> result. <see cref="Call"/> asks for each notification as one
+/// <c>handle</c> call; <see cref="None"/>, an absent member and any value the contract does not list, the reserved
+/// <c>poll</c> among them, mean no delivery.
+/// </summary>
+/// <param name="Member">The path of the member inside the result, such as <c>capabilities</c>,
+/// <c>notificationDelivery</c>.</param>
+public sealed record WasmNotificationDelivery(IReadOnlyList<string> Member)
+{
+    /// <summary>The value that asks for no delivery, and the default.</summary>
+    public const string None = "none";
+
+    /// <summary>The value that asks for each notification as one <c>handle</c> call.</summary>
+    public const string Call = "call";
+
+    /// <summary>The delivery when the member is absent or holds a value the contract does not list.</summary>
+    public string Default => None;
+
+    /// <summary>The value under which the host delivers notifications.</summary>
+    public string Delivering => Call;
+
+    /// <summary>
+    /// The delivery a guest's reply to <c>morphir.initialize</c> asks for: <see cref="Call"/> or
+    /// <see cref="None"/>. A reply that is not a JSON object with an object <c>result</c> is not this reader's to
+    /// judge (the host session checks the reply) and advertises nothing; nor does a member that is absent, not a
+    /// string or a value the contract does not list.
+    /// </summary>
+    public string ReadFrom(ReadOnlyMemory<byte> initializeReply)
+    {
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(initializeReply);
+        }
+        catch (JsonException)
+        {
+            return Default;
+        }
+
+        using (document)
+        {
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("result", out var current))
+            {
+                return Default;
+            }
+
+            foreach (var name in Member)
+            {
+                if (current.ValueKind != JsonValueKind.Object || !current.TryGetProperty(name, out current))
+                {
+                    return Default;
+                }
+            }
+
+            return current.ValueKind == JsonValueKind.String && current.GetString() is Call or None ? current.GetString()! : Default;
+        }
+    }
+}

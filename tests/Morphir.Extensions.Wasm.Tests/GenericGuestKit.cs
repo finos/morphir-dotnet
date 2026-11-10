@@ -5,7 +5,8 @@ namespace Morphir.Extensions.Wasm.Tests;
 
 /// <summary>
 /// The few documents of the generic guest kit's <c>0.2.0-draft.1</c> tier that a session on the Python guest needs,
-/// pinned from finos/morphir at <c>7b049c223</c> (<see cref="MepWasmFixtures.PinnedCommit"/>). The inputs are those of
+/// pinned from finos/morphir at <c>48d10706f</c> (<see cref="MepWasmFixtures.PinnedCommit"/>; the kit is unchanged since
+/// <c>7b049c223</c>). The inputs are those of
 /// <c>spec/mep/mck/guest-generic-json.json</c> (the <c>python</c> language, the package and the context digest), and
 /// each request is built as <c>crates/morphir-mck/src/mep/generic.rs</c> builds it: <c>offer</c> and <c>limits</c> for
 /// the <c>model-initialize</c> offer, and <c>compile_params</c> with <c>model</c> set for <c>compile-model-vthree</c>

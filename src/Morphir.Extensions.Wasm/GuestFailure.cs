@@ -46,12 +46,32 @@ public sealed record MemoryUse(long? GuestBytes, long KernelBytes, long CeilingB
     public const long PageBytes = 65536;
 
     /// <summary>
-    /// Whether the guest's memory is at the ceiling: it cannot grow by one more page without passing the ceiling.
+    /// Whether the guest's memory is at its ceiling: it cannot grow by one more page without passing the ceiling.
     /// A ceiling that is not a whole number of pages is reached one partial page below it. A guest without a
-    /// memory is never at the ceiling. Only the guest's memory counts, as the contract's <c>at-ceiling</c> rule
-    /// says; the kernel's memory is reported and does not decide.
+    /// memory is never at the ceiling.
     /// </summary>
-    public bool GuestAtCeiling => GuestBytes is { } guest && guest > CeilingBytes - PageBytes;
+    public bool GuestAtCeiling => GuestBytes is { } guest && Full(guest);
+
+    /// <summary>
+    /// Whether the Extism kernel's memory, where the guest's input, output and allocations live, is at its ceiling:
+    /// it cannot grow by one more page. The kernel's ceiling is the same store limit as the guest's.
+    /// </summary>
+    public bool KernelAtCeiling => Full(KernelBytes);
+
+    /// <summary>Whether the guest's memory or the kernel's is at its ceiling, which the contract's <c>at-ceiling</c>
+    /// memory rule asks of a call that ends in a trap or a failure.</summary>
+    public bool AtCeiling => GuestAtCeiling || KernelAtCeiling;
+
+    /// <summary>Which memory is at its ceiling, as a diagnostic states it, or null when neither is.</summary>
+    public string? AtCeilingText => (GuestAtCeiling, KernelAtCeiling) switch
+    {
+        (true, true) => "the guest's memory and the kernel's memory at their ceiling",
+        (true, false) => "the guest's memory at its ceiling",
+        (false, true) => "the kernel's memory at its ceiling",
+        _ => null,
+    };
+
+    bool Full(long bytes) => bytes > CeilingBytes - PageBytes;
 
     /// <summary>The sizes as a diagnostic states them, for example
     /// <c>guest memory 100 MiB (104857600 bytes), kernel memory 1 MiB (1048576 bytes), ceiling 256 MiB (268435456 bytes)</c>.</summary>
@@ -75,7 +95,7 @@ public sealed record MemoryUse(long? GuestBytes, long KernelBytes, long CeilingB
 /// A failed guest call, or a session that failed before any request, with what the contract makes of it and the
 /// memory sizes that every failure states (parent decision BND-2).
 /// </summary>
-/// <param name="Kind">The failure, after the memory rule: a failure with a code becomes <see cref="GuestFailureKind.MemoryLimit"/> when the guest's memory is at the ceiling.</param>
+/// <param name="Kind">The failure, after the memory rule: a trap or a failure becomes <see cref="GuestFailureKind.MemoryLimit"/> when the guest's memory or the kernel's is at its ceiling.</param>
 /// <param name="Signal">What the engine or the host observed before the memory rule; equal to <paramref name="Kind"/> when the rule did not apply.</param>
 /// <param name="Detail">What the engine or the host reported, such as the trap message.</param>
 /// <param name="Memory">The memory sizes when the call ended.</param>
@@ -107,7 +127,7 @@ public sealed record GuestFailure(
         get
         {
             var name = Code ?? $"outcome {Outcome}";
-            var rule = Kind != Signal ? $" ({Describe(Signal)}, with the guest's memory at the ceiling)" : string.Empty;
+            var rule = Kind != Signal ? $" ({Describe(Signal)}, with {Memory.AtCeilingText})" : string.Empty;
             return $"{name}: {Describe(Kind)}{rule}: {Detail}; {Memory}";
         }
     }

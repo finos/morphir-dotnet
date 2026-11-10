@@ -17,8 +17,20 @@ public abstract record WasmChannelFailure
     /// <summary>The contract's fault kind of every failure that is not a store failure: <c>failure</c>.</summary>
     const string FailureKind = "failure";
 
+    /// <summary>The contract's fault kind when the memory rule applies: <c>memory-limit</c>.</summary>
+    const string MemoryLimitKind = "memory-limit";
+
     /// <summary>The memory sizes when the instance ended.</summary>
     public abstract MemoryUse Memory { get; }
+
+    /// <summary>
+    /// Whether the contract's <c>at-ceiling</c> memory rule makes this failure <c>memory-limit</c>: a call whose
+    /// <c>handle</c> result is a failure (an Extism error, a result that is not 0, no output for a request, output
+    /// for a notification) while the guest's memory or the kernel's is at its ceiling. The frame limits are the host
+    /// session's own rules, with their own codes, and keep them.
+    /// </summary>
+    public bool AtMemoryCeiling =>
+        this is ExtismError or NonZeroResult or NoOutput or AnsweredNotification && Memory.AtCeiling;
 
     /// <summary>The contract's code, such as <c>extension.incomplete_session</c>, or null for an outcome.</summary>
     public string? Code => this switch
@@ -26,19 +38,26 @@ public abstract record WasmChannelFailure
         Guest guest => guest.Failure.Code,
         RequestOverLimit => WasmProfileContract.Pinned.RequestLimitCode,
         ResponseOverLimit => WasmProfileContract.Pinned.ResponseLimitCode,
-        _ => WasmProfileContract.Pinned.Fault(FailureKind).HostCode,
+        _ => WasmProfileContract.Pinned.Fault(FaultKind!).HostCode,
     };
 
     /// <summary>The host outcome, <c>deadline</c> or <c>cancelled</c>, or null for a failure with a code.</summary>
     public string? Outcome => this is Guest guest ? guest.Failure.Outcome : null;
 
-    /// <summary>The fault kind a worker reports, such as <c>trap</c> or <c>failure</c>, or null for a cancelled call.</summary>
-    public string? FaultKind => this is Guest guest ? guest.Failure.FaultKind : FailureKind;
+    /// <summary>The fault kind a worker reports, such as <c>trap</c>, <c>memory-limit</c> or <c>failure</c>, or null
+    /// for a cancelled call.</summary>
+    public string? FaultKind => this switch
+    {
+        Guest guest => guest.Failure.FaultKind,
+        _ when AtMemoryCeiling => MemoryLimitKind,
+        _ => FailureKind,
+    };
 
     /// <summary>The diagnostic: the code or outcome, what happened, and the memory sizes.</summary>
     public string Message => this switch
     {
         Guest guest => guest.Failure.Message,
+        _ when AtMemoryCeiling => $"{Code}: {Describe()}, with {Memory.AtCeilingText}; {Memory}",
         _ => $"{Code}: {Describe()}; {Memory}",
     };
 
@@ -97,7 +116,7 @@ public abstract record WasmChannelFailure
     }
 
     /// <summary>The guest gave output for a delivered notification. The channel returns it, and the host session
-    /// fails the session for it. No notification is delivered before task 3.2.</summary>
+    /// fails the session for it.</summary>
     /// <param name="OutputBytes">The bytes of output.</param>
     /// <param name="Memory">The memory sizes after the call.</param>
     public sealed record AnsweredNotification(int OutputBytes, MemoryUse Memory) : WasmChannelFailure

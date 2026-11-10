@@ -6,7 +6,7 @@ namespace Morphir.Extensions.Wasm.Tests;
 /// </summary>
 public class ClassificationTests
 {
-    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 7b049c223 (MepWasmFixtures.PinnedCommit).
+    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 48d10706f (MepWasmFixtures.PinnedCommit).
     // Change it only when the pin moves.
     private const int PinnedClassificationCaseCount = 14;
 
@@ -51,9 +51,9 @@ public class ClassificationTests
         var admitted = HostOutcome.Admit(bytes, @case.DeclaredAbi);
         if (HostProfiles.Contains(@case.AppliesTo))
         {
-            foreach (var expectation in @case.ExpectationsFor(HostProfiles))
+            foreach (var alternatives in @case.ExpectationsFor(HostProfiles))
             {
-                await ExpectOutcome(admitted, expectation);
+                await CaseExpectation.SatisfyOneAsync(alternatives, expectation => ExpectOutcome(admitted, expectation));
             }
 
             return;
@@ -61,9 +61,9 @@ public class ClassificationTests
 
         var classified = HostOutcome.Classify(bytes, @case.DeclaredAbi);
         var hostRunningTheProfile = HostProfiles.Append(@case.AppliesTo).ToHashSet(StringComparer.Ordinal);
-        foreach (var expectation in @case.ExpectationsFor(hostRunningTheProfile))
+        foreach (var alternatives in @case.ExpectationsFor(hostRunningTheProfile))
         {
-            await ExpectOutcome(classified, expectation);
+            await CaseExpectation.SatisfyOneAsync(alternatives, expectation => ExpectOutcome(classified, expectation));
         }
 
         if (classified.RefusalCode is not null)
@@ -97,6 +97,32 @@ public class ClassificationTests
         {
             await Assert.That(outcome.Profile!.Id).IsEqualTo(abi);
         }
+    }
+
+    [Test]
+    public async Task A_byte_profile_module_with_a_bad_import_is_refused_naming_the_import_and_not_the_profile()
+    {
+        // Contract rule classification:order: the import check comes before the check of whether this host runs
+        // the profile, so an Extism-only host names the import (the parent's scenario "Byte-profile module with a
+        // bad import on an Extism-only host").
+        var outcome = HostOutcome.Admit(CraftedCorpus.ModuleBytes("bytes-input-byte-i64"), "morphir-bytes-v1");
+
+        await Assert.That(outcome.RefusalCode).IsEqualTo("extension.abi_unsupported");
+        await Assert.That(outcome.Message!).Contains("morphir_bytes_v1.input_byte");
+        await Assert.That(outcome.Message!).DoesNotContain("this host runs Extism modules");
+    }
+
+    [Test]
+    public async Task The_classifier_makes_its_checks_in_the_contract_order()
+    {
+        // The order the classifier and WasmHost.Admit implement, which the contract reader requires the pin to give.
+        using var contract = System.Text.Json.JsonDocument.Parse(await File.ReadAllBytesAsync(MepWasmFixtures.Contract));
+        var order = contract.RootElement.GetProperty("classification").GetProperty("order").EnumerateArray()
+            .Select(step => step.GetString()!)
+            .ToList();
+
+        await Assert.That(order).IsEquivalentTo(WasmProfileContract.ClassificationOrder, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(WasmProfileContract.Pinned.Id).IsNotNull();
     }
 
     [Test]

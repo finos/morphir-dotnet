@@ -23,13 +23,13 @@ var session = new HostSession(channel, host, offer);   // Morphir.Mep; a publish
 var initialized = await session.InitializeAsync(cancellation);
 var compiled = await session.RequestAsync(Method.CompileModel, parameters, cancellation);  // one handle call
 await session.ShutdownAsync(cancellation);
-await session.ExitAsync();                             // ends the instance; no call for a guest that advertised nothing
+await session.ExitAsync();                             // ends the instance; one call only for a guest that asked for call delivery
 ```
 
-`SessionLimits.Default` has the contract's bounds: the 256 MiB ceiling, the instruction budget of MEP
-`0.2.0-draft.1` (5,000,000,000), the 30 second call deadline, and the frame limits of 6 MiB for a request and
-16 MiB for a response. There is one budget: the contract's budget for MEP `0.1` has no reader in this host. The
-store underneath can be driven directly, as the bounds tests do:
+`SessionLimits.Default` has the contract's bounds: the 256 MiB ceiling, the contract's `session` instruction
+budget (5,000,000,000), the 30 second call deadline, and the frame limits of 6 MiB for a request and 16 MiB for a
+response. There is one budget: the contract's `probe` budget has no reader in this host. The store underneath can
+be driven directly, as the bounds tests do:
 
 ```csharp
 using var store = SessionStore.Open(module, SessionLimits.Default).Match(opened => opened, failure => throw ...);
@@ -47,7 +47,7 @@ outcome.Match(
 | Classification | `ModuleClassifier`, `WasmHost` | `Classify` applies the contract's rules in the contract's order: the first profile import decides the profile, every import must be in that profile's table with its exact type, `handle` must be `() -> i32`, and a declared ABI must equal the classified profile. `WasmHost.Admit` then refuses a profile this host does not run. Refusals are `WasmRefusal` values with the contract's codes. |
 | Session | `SessionStore`, `SessionLimits` | A new store per session, holding its own kernel instance, guest instance, memory ceiling, fuel budget and call deadline. Each call starts with the full budget and a new deadline. |
 | Bounds | `HandleOutcome`, `GuestFailure`, `MemoryUse`, `SessionOpening` | Every call ends as a value. A failure has the contract's fault kind and host code or outcome, and the memory sizes. After a failure the session runs no more guest code. |
-| Channel | `WasmChannel`, `WasmChannelOpening`, `WasmChannelFailure`, `WasmChannelException` | The Extism adapter: `Morphir.Mep`'s `ISingleMessageChannel` on one store. One `handle` call per request, the contract's `handle` results and frame limits, no notification for a guest that advertised nothing, and `morphir.exit` ending the instance. |
+| Channel | `WasmChannel`, `WasmChannelOpening`, `WasmChannelFailure`, `WasmChannelException`, `WasmNotificationDelivery` | The Extism adapter: `Morphir.Mep`'s `ISingleMessageChannel` on one store. One `handle` call per request, the contract's `handle` results and frame limits, one call per notification for a guest that asked for `call` delivery and none for any other, and `morphir.exit` ending the instance. |
 | Sandbox | `ExtismHostFunctions`, `WasiSandbox`, `SessionWorkspace` (internal); `GuestOutputTail`, `GuestOutput`, `RefusedHttpRequest`, `WasmHostPolicy` | The contract's host-function policy and WASI preview 1 for one session, the bounded guest output, what the guest attempted and did not get, and the private workspace. |
 
 ## Bounds and how they are reported
@@ -57,7 +57,7 @@ host's own outcome.
 
 | Bound | Mechanism | `GuestFailure.Kind` | Code or outcome |
 | --- | --- | --- | --- |
-| Instruction budget | Fuel set before each call: the contract's budget for MEP `0.2.0-draft.1`, `WasmProfileContract.InstructionBudget`. | `BudgetExhausted` | `extension.budget_exhausted` |
+| Instruction budget | Fuel set before each call: the contract's `session` budget, `WasmProfileContract.InstructionBudget`. | `BudgetExhausted` | `extension.budget_exhausted` |
 | Call deadline | The epoch advances every 10 ms. The store's epoch callback runs at each tick on the call's thread and stops the call once `CallDeadline` has passed. | `CallDeadline` | outcome `deadline` |
 | Cancellation | The same callback stops the call at the first tick after the `CancellationToken` passed to `CallHandle` is cancelled. A token cancelled before the call stops it before any guest code runs. | `Cancelled` | outcome `cancelled` |
 | Memory ceiling | The store limit caps each memory, the kernel's and the guest's. The engine refuses growth past it without telling the host. | `MemoryLimit` | `extension.memory_limit` |
@@ -65,13 +65,19 @@ host's own outcome.
 
 The memory rules:
 
-- **At the ceiling.** A failure that has a code (a trap, a failure or an exhausted budget) becomes
-  `MemoryLimit` when the guest's memory is at the ceiling. `GuestFailure.Signal` keeps what was observed before
-  the rule applied. The outcomes `deadline` and `cancelled` are kept as they are, because the host stopped
-  those calls itself.
-- **What "at the ceiling" means.** Only the guest's own memory counts; the kernel's memory is reported but does
-  not decide. A memory is at the ceiling when it cannot grow by one more page. If the ceiling is not a whole
-  number of pages, that is less than one page below it. A guest that defines no memory is never at the ceiling.
+- **At the ceiling.** A call that ends in a trap or a failure while the guest's memory or the Extism kernel's
+  memory is at its ceiling becomes `MemoryLimit` (contract rule `at-ceiling`, as the parent corrected it on
+  10 November 2026). `GuestFailure.Signal` keeps what was observed before the rule applied, and `Message` says
+  which memory was at its ceiling. A call the host stopped keeps its result: an exhausted budget stays
+  `BudgetExhausted`, and the outcomes `deadline` and `cancelled` stay, because the host knows why the call ended.
+  The kernel's memory counts because an Extism guest's input, output and allocations live there.
+- **What "at the ceiling" means.** Each memory is at its ceiling when it cannot grow by one more page
+  (`MemoryUse.GuestAtCeiling`, `KernelAtCeiling`, and `AtCeiling` for either). If the ceiling is not a whole number
+  of pages, that is less than one page below it. A guest that defines no memory has only the kernel's.
+- **The channel's own failures.** The same rule applies to a `handle` result that the Extism profile makes a
+  failure: an Extism error, a result that is not 0, no output for a request, output for a notification. At the
+  ceiling, `WasmChannelFailure.Code` is `extension.memory_limit` and `FaultKind` is `memory-limit`. The frame
+  limits are the host session's own rules and keep their codes.
 - **Initial memory above the ceiling.** `Open` does not instantiate such a guest and returns
   `SessionOpening.Failed` with `MemoryLimit`. This is a fault, not a refusal.
 - **Sizes on every failure.** Every `GuestFailure` has `Memory`: the guest's memory, the kernel's memory and
@@ -100,9 +106,11 @@ What each call gives, from the contract's `extism-kernel-v1` call table and host
 | The guest | The channel | `WasmChannelFailure` | Code |
 | --- | --- | --- | --- |
 | `handle` returns 0 with output and no error | Returns the output | none | |
-| Sets an Extism error, whatever `handle` returns | Throws `WasmChannelException` with the error text | `ExtismError` | `extension.incomplete_session` |
-| Returns a result that is not 0, with no error | Throws; the output is not passed on | `NonZeroResult` | `extension.incomplete_session` |
-| Returns 0 with no output for a request | Returns null; `HostSession` fails the session with `NoReply` | `NoOutput` | `extension.incomplete_session` |
+| Sets an Extism error, whatever `handle` returns | Throws `WasmChannelException` with the error text | `ExtismError` | `extension.incomplete_session`, or `extension.memory_limit` at the ceiling |
+| Returns a result that is not 0, with no error | Throws; the output is not passed on | `NonZeroResult` | `extension.incomplete_session`, or `extension.memory_limit` at the ceiling |
+| Returns 0 with no output for a request | Returns null; `HostSession` fails the session with `NoReply` | `NoOutput` | `extension.incomplete_session`, or `extension.memory_limit` at the ceiling |
+| Returns 0 with no output for a delivered notification | Returns null | none | |
+| Gives output for a delivered notification | Returns the output; `HostSession` fails the session with `AnsweredNotification` | `AnsweredNotification` | `extension.incomplete_session`, or `extension.memory_limit` at the ceiling |
 | A failed store call: a bound, a trap, a host function that stops the call | Throws | `Guest` (the `GuestFailure`) | its code, or outcome `deadline` |
 | A call cancelled by its token | Throws `OperationCanceledException` after the call has stopped | `Guest` (`Cancelled`) | outcome `cancelled` |
 | A request frame over `SessionLimits.RequestFrameBytes` | Throws before `handle` runs | `RequestOverLimit` | `extension.request_limit` |
@@ -114,22 +122,32 @@ What each call gives, from the contract's `extism-kernel-v1` call table and host
 - **The frame limits count the whole frame**, its `Content-Length` header included, as the contract's
   `hostSession.frameLimits.counted` says. A request frame exactly at the limit is passed. `HostSession` applies
   only its own 64 MiB message limit.
-- **Notifications.** A guest receives a notification only after its `morphir.initialize` result advertises that
-  it accepts them. The member is not fixed in the pinned contract (design NTFY-1), so the channel reads no
-  advertisement and `NotifyAsync` returns null without a call for every notification. `DeliversNotifications` is
-  false.
-- **`morphir.exit` ends the instance.** For a guest that advertised nothing it ends without a call, as the contract
-  says. Later calls throw `ObjectDisposedException`.
+- **Notifications** (task 3.2, design NTFY-1). The guest says how it wants them in its `morphir.initialize`
+  result, with the string member the contract's `notificationDelivery` names, `capabilities.notificationDelivery`:
+
+  ```json
+  {"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "0.2.0-draft.1", "capabilities": {"notificationDelivery": "call"}}}
+  ```
+
+  The channel reads it from the reply bytes it carried (`WasmNotificationDelivery.ReadFrom`, with `JsonDocument`).
+  `call` sets `DeliversNotifications`, and each later notification, `morphir.initialized` included, is one `handle`
+  call that should give no output. `none`, an absent member, a value that is not a string and any value the
+  contract does not list, the reserved `poll` among them, mean no delivery: `NotifyAsync` returns null without a
+  call. A reply that is not a JSON object with a result advertises nothing; judging it is `HostSession`'s job. A
+  notification sent before the `morphir.initialize` reply is withheld. Every published bundle advertises nothing;
+  the Python `0.6.0` guest gets no notification.
+- **Output for a notification fails the session.** The channel records `AnsweredNotification`, ends the instance
+  and returns the output, and `HostSession` fails the session with `AnsweredNotification`. An Extism error or a
+  result that is not 0 for a notification throws, as for a request.
+- **`morphir.exit` ends the instance.** For a guest that asked for `call` delivery it is one call first; for any
+  other guest it ends the instance without a call. Later calls throw `ObjectDisposedException`.
 - **Where the call runs.** Each call runs on a thread the channel starts for it, which ends with the call, never on a
   thread-pool thread: a guest that spins holds its thread, and held pool threads starve the pool (see
   `WasmEngine`). The channel completes the returned task from that thread, so it never waits for the pool. Calls on
   one channel never overlap; a call made while another runs is refused with `InvalidOperationException`.
-- `HandleCalls` counts the `handle` calls the channel made.
-
-What task 3.2 changes: `WasmChannel.AdvertisesNotifications` reads the fixed member from the `morphir.initialize`
-result. A guest that advertised then gets each notification as one `handle` call through the same path as a
-request; output for one ends the instance as `AnsweredNotification` and is returned for `HostSession` to fail,
-and `morphir.exit` is one call before the instance ends.
+- `HandleCalls` counts the `handle` calls the channel made, delivered notifications included. A session on a guest
+  that asked for `call` delivery makes one call for `morphir.initialize`, one for `morphir.initialized`, one per
+  request and one for `morphir.exit`.
 
 ## The sandbox
 
@@ -252,8 +270,13 @@ that every other policy leaf names the behaviour this library implements, so a p
 load. That file is
 embedded from `tests/Fixtures/MepWasm/`, where it is pinned unchanged (see that directory's `PROVENANCE.md`),
 and parsed with `JsonDocument`. A test checks that the embedded copy has the pinned file's SHA-256. WASI
-preview 1 imports are checked against the standard types that Wasmtime's own WASI definitions give, because the
-contract admits every WASI preview 1 function and does not list them.
+preview 1 imports are checked against the standard types that Wasmtime's own WASI definitions give: the contract's
+`wasiSurface` names the 46 functions of `wasi_snapshot_preview1.witx` instead of a table, and the reader refuses any
+other surface. The reader also requires, and refuses to load without: the `session` instruction budget (and no
+budget key other than `session` and `probe`), the classification order this library implements (profile, imports,
+`handle` export, declared ABI, host profile), a `cancelled` host-session rule without a code, and an Extism
+`notificationDelivery` of a string member of the `morphir.initialize` result with the values `none` (the default)
+and `call` and the four notification rules.
 
 ## Loading a configured module
 
@@ -264,7 +287,8 @@ them, and then calls `WasmEngine.Load` and `WasmHost.Admit` with the declared `a
 
 ## Left for later tasks
 
-- Task 3.2 turns on notification delivery for a guest that advertised (above).
+- Task 4.1 delivers notifications through the worker the same way, from the same `WasmChannel`, and reports the
+  notification cases' exit statuses and `fault` events, which only the worker process shows.
 - Task 4.1 joins Ctrl+C to the `CancellationToken` of the running call and exits with status 130, and drives
   `WasmChannel` from the worker with `--request-bytes` and `--response-bytes` as `SessionLimits.RequestFrameBytes`
   and `ResponseFrameBytes`.
@@ -279,7 +303,8 @@ decision MEP-1"). With `--bounds <extism-spin.wasm>` it also stops the crafted s
 and cancellation (task 2.5 evidence: `evidence/2.5-bounds.md`). With `--sandbox tests/Fixtures/MepWasm/fixtures/wasm`
 it runs six pinned crafted modules whose calls reach the host functions and the WASI callbacks (`extism-log`,
 `extism-var-round-trip`, `extism-fd-write`, `extism-wasi-empty`, `extism-clock-random`, `extism-http`), each checked
-against the corpus digest.
+against the corpus digest, and the notification check (task 3.2): `extism-notify-accept` through `WasmChannel` gets
+`morphir.initialized` and `morphir.exit` as one call each, and `extism-notify-answer` fails the session.
 
 The tests that need the Python guest get it from `artifacts/wasm-guests/` (git-ignored), or download it from its
 release and check its SHA-256 (`tests/Morphir.Extensions.Wasm.Tests/PublishedGuest.cs` holds the pin). Without a
