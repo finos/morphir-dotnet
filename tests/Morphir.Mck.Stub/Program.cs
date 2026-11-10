@@ -29,6 +29,8 @@ using (var json = new Utf8JsonWriter(stdout))
     foreach (var argument in args) json.WriteStringValue(argument);
     json.WriteEndArray();
     json.WriteString("cwd", Environment.CurrentDirectory);
+    // The folder this stub runs from, so a test can tell which installed copy ran.
+    json.WriteString("base", AppContext.BaseDirectory);
     if (input is null) json.WriteNull("stdin");
     else json.WriteString("stdin", input);
     json.WriteEndObject();

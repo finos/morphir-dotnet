@@ -72,7 +72,16 @@ The artifact holds the file, `<file>.build-launch.json`, `<file>.build-contents.
    package, with new global-packages, HTTP and plugin caches, so the same id and version on nuget.org or in a machine
    cache cannot be chosen. It then checks that the package in the tool store
    (`.store/<id>/<version>/<id>/<version>/<id>.<version>.nupkg`) has the built package's SHA-256, and that every
-   extracted `tools/` file equals the built package's entry. The output must be the
+   extracted `tools/` file equals the built package's entry, with no other file and no other package.
+
+   The script has two optional switches for callers such as the parent's release qualification. `-Local` installs
+   into a new tool manifest instead of a tool path. The SDK then extracts the package into the new global-packages
+   folder and records the command's entry assembly in its resolver cache under a new `DOTNET_CLI_HOME`, and the same
+   checks apply there. The tool then runs as `dotnet morphir` from the manifest folder, with `NUGET_PACKAGES` and
+   `DOTNET_CLI_HOME` set as recorded. `-ResultFile <path>` writes what was run and checked as JSON (internal
+   evidence, not a contract): the install command and its working directory, the package and cache folders, the built
+   SHA-256, the verified archive paths with their SHA-256, and the invocation. The full rules are in the script's
+   header. The output must be the
    release version, which the executable prints with the commit as build metadata (`0.4.0-alpha.4+<sha>`); the part
    before `+` must equal the `release` of the launch metadata. The workflow never runs `dotnet exec` on an assembly, so the apphost or Native AOT file that users
    run is what starts.
