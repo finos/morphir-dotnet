@@ -280,7 +280,18 @@ module RecipeDocument =
             let! operation = operation o
 
             let! delivery =
-                required "delivery" (tag [ "process", Delivery.Process; "wasm", Delivery.Wasm; "dotnet-tool", Delivery.DotnetTool ]) o
+                required
+                    "delivery"
+                    (tag
+                        [ "process", Delivery.Process
+                          "wasm", Delivery.Wasm
+                          "dotnet-tool", Delivery.DotnetTool
+                          "built-in", Delivery.BuiltIn ])
+                    o
+
+            // Built-ins belong to a host, so built-in is a known case in the wrong place (toolset-recipe.md, Providers).
+            if delivery = Delivery.BuiltIn then
+                return! refuse ReaderCode.InconsistentDocument (n.Path.Child "delivery")
 
             let! extensionId = required "extensionId" extensionId o
             let! version = required "version" version o
@@ -303,8 +314,8 @@ module RecipeDocument =
                         let! artifact = targetBinding "artifactTarget" "artifactSha256" n
                         return RecipeDelivery.Wasm(abi, artifact)
                     }
-                // The tag offers no built-in: built-ins belong to a host.
-                | Delivery.BuiltIn -> refuse ReaderCode.UnsupportedCase (n.Path.Child "delivery")
+                // Refused above.
+                | Delivery.BuiltIn -> refuse ReaderCode.InconsistentDocument (n.Path.Child "delivery")
                 | Delivery.DotnetTool ->
                     result {
                         let! packageId = required "packageId" packageId o
