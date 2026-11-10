@@ -46,6 +46,14 @@ public static class Program
     /// <param name="extend">The host's own composition, applied after the shared composition.</param>
     public static int Run(string[] args, HostIdentity host, Action<MorphirCliBuilder>? extend = null)
     {
+        // morphir extension worker (add-wasm-extension-host, task 4.1, design WRK-2) runs before the CLI host is
+        // built: stdout carries only MEP frames, the worker starts fast, and its Ctrl+C handler is the only one.
+        // dotnet-morphir reaches this through its own Main, so both executables register the worker here.
+        if (Tooling.Features.Extensions.ExtensionWorkerProcess.IsInvocation(args))
+        {
+            return Tooling.Features.Extensions.ExtensionWorkerProcess.Run(args, host);
+        }
+
         // Handle --version flag explicitly to output only the version string
         // This must be done before creating the builder to avoid console redirection
         if (args.Length == 1 && (args[0] == "--version" || args[0] == "-v"))

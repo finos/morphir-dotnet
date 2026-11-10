@@ -223,6 +223,10 @@ morphir extension which <name> [--platform <rid>]                               
 `install`, `use`, `remove` and `which` fail with exit code 1 and a link to
 [issue #492](https://github.com/finos/morphir-dotnet/issues/492). They arrive with step 3 of the PRD.
 
+`morphir extension worker` is internal and experimental, and is not in this list or in the help: it serves one
+WASM module over stdio for a conformance runner, and no product command uses it. See
+[morphir extension worker](../extension-worker/).
+
 ### extension list
 
 List the extensions that this host knows. Today these are the built-in generators of `morphir generate` and the

@@ -17,5 +17,10 @@ internal static class Program
     /// <summary>The application of the dotnet tool, for tests.</summary>
     internal static MorphirCliApp CreateApp(string[] args) => Morphir.Program.CreateApp(args, Host, Compose);
 
+    /// <summary>
+    /// Runs the CLI as <c>dotnet-morphir</c>. <c>Morphir.Program.Run</c> dispatches <c>extension worker</c> (task 4.1
+    /// of add-wasm-extension-host) before it builds the CLI host or applies <see cref="Compose"/>, so the worker of
+    /// this executable runs with this host's identity and none of its composition.
+    /// </summary>
     private static int Main(string[] args) => Morphir.Program.Run(args, Host, Compose);
 }

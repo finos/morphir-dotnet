@@ -69,7 +69,7 @@ Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencie
   - A module that does not export its memory runs as a copy with one added export, as the parent requirement "Reading a memory the module does not export" allows (design MEM-1).
   - The Ctrl+C check has its own parent requirement now, "Worker interruption": stop the guest within one second, exit status 130, no `fault` event. It is verified through the worker in task 4.1. This task checks cancellation in-process.
   - Evidence goes in `openspec/changes/add-wasm-extension-host/evidence/`.
-- [ ] 2.6 Load a module from `extensions.<name>.path` by content, with an optional declared ABI and digest, and separate guest output from command results. Verify a text file at the path, a replaced module and a guest that logs 10 MiB under `--json`, and document the configuration beside the existing extension settings.
+- [x] 2.6 Load a module from `extensions.<name>.path` by content, with an optional declared ABI and digest, and separate guest output from command results. Verify a text file at the path, a replaced module and a guest that logs 10 MiB under `--json`, and document the configuration beside the existing extension settings.
   - Files: `src/Morphir.Configuration/Schema.fs` and its generator `scripts/configuration/generate-schema.py` (the `abi` and `sha256` amendments), `src/Morphir.Tooling/Features/Extensions/` (the loader), the configuration reference under `docs/content/docs/`.
   - No product command reaches the loader in this change. Verify at the service level, and through the worker for the output bound. Confirm and document how a relative `path` resolves today.
   - Design: CFG-1, and review questions 4 and 5.
@@ -92,7 +92,7 @@ Parent tasks 1.1 to 1.4, 1.6 and 1.7 belong to finos/morphir and are dependencie
 
 ## 4. Worker mode and runtime report, morphir-dotnet
 
-- [ ] 4.1 Add `morphir extension worker` to both executables with MoonBit's argument shape, joining a stream channel to a WASM channel through the shared session code. Verify stdout carries only MEP frames, a refused module yields a `refused` line on stderr with no stdout bytes and a non-zero exit status, and a stale `--build-identity` exits before the module is read.
+- [x] 4.1 Add `morphir extension worker` to both executables with MoonBit's argument shape, joining a stream channel to a WASM channel through the shared session code. Verify stdout carries only MEP frames, a refused module yields a `refused` line on stderr with no stdout bytes and a non-zero exit status, and a stale `--build-identity` exits before the module is read.
   - Files: `src/Morphir.Tooling/Features/Extensions/`, `src/Morphir/Program.cs`, `src/Morphir.Tool/Program.cs`, `tests/Morphir.E2E.Tests` for both executables.
   - The worker relays messages and is registered before the CLI host is built (design WRK-2). It takes every argument the contract lists, as the parent requirement "Worker mode" now names them: `--abi`, `--module`, `--build-identity`, `--request-bytes`, `--response-bytes`, `--call-ms`, `--instructions`, `--memory-pages`, `--json` and `--help`.
   - Interrupted while a guest is inside `handle`, the worker stops the guest within one second, writes no `fault` event and exits with 130 (parent requirement "Worker interruption"). `cancelled` is a host-session outcome only and has no fault kind.

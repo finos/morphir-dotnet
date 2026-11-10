@@ -50,6 +50,8 @@
       ../Fixtures/MepWasm/PROVENANCE.md. IfDifferent, as in Morphir.Extensions.Wasm.Tests, so restored bytes replace a stale copy.
     -->
     <None Include="../Fixtures/MepWasm/**/*" Link="Fixtures/MepWasm/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
+    <!-- The worker's own crafted guests (add-wasm-extension-host, task 4.1), shared with the end-to-end tests. -->
+    <None Include="../Morphir.E2E.Tests/TestData/Wasm/*" Link="WorkerGuests/%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
     <Content Include="**/*.feature"/>
   </ItemGroup>
 
