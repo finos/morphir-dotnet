@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Morphir.Build.Helpers;
 using Nuke.Common;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
@@ -275,7 +277,7 @@ partial class Build : NukeBuild
     Target PublishExecutable => _ => _
         .Description("Publish the Native AOT executable for a specific platform (requires --rid parameter)")
         .Executes(() => PublishLegacyLayout(Morphir.Build.Helpers.Deployment.NativeAot.Project,
-            Morphir.Build.Helpers.Deployment.NativeAot.BuildProperties, ExecutablesDir, "Native AOT"));
+            TargetSettings.PublishExecutable, ExecutablesDir, "Native AOT"));
 
     /// <summary>
     /// Publish the legacy release asset: a single-file executable without AOT (managed .NET runtime) with trimming.
@@ -288,7 +290,7 @@ partial class Build : NukeBuild
         .DependsOn(Compile)
         .Description("Publish the legacy single-file executable (managed, trimmed) that releases ship (requires --rid parameter)")
         .Executes(() => PublishLegacyLayout(Morphir.Build.Helpers.LegacyAsset.TrimmedSingleFile.Project,
-            Morphir.Build.Helpers.LegacyAsset.TrimmedSingleFile.BuildProperties, SingleFileDir, "managed, trimmed"));
+            TargetSettings.PublishSingleFile, SingleFileDir, "managed, trimmed"));
 
     /// <summary>
     /// Publish single-file executable without AOT and without trimming: the manual AOT workflow's baseline, never released
@@ -300,13 +302,14 @@ partial class Build : NukeBuild
         .DependsOn(Compile)
         .Description("Publish single-file executable without AOT and without trimming (requires --rid parameter)")
         .Executes(() => PublishLegacyLayout(Morphir.Build.Helpers.LegacyAsset.UntrimmedSingleFile.Project,
-            Morphir.Build.Helpers.LegacyAsset.UntrimmedSingleFile.BuildProperties, SingleFileUntrimmedDir, "managed, untrimmed"));
+            TargetSettings.PublishSingleFileUntrimmed, SingleFileUntrimmedDir, "managed, untrimmed"));
 
     /// <summary>
     /// Publishes <paramref name="project"/> for <see cref="Rid"/> into <c>{outputRoot}/{rid}</c> with the given MSBuild
-    /// properties and the release version, then checks that the <c>morphir</c> executable is there.
+    /// properties and the release version, then checks that the <c>morphir</c> executable is there. The publish is
+    /// RID-specific, so it writes its NuGet lock files under obj/publish-lock/ (see TargetSettings.RidSpecificPublishProperty).
     /// </summary>
-    void PublishLegacyLayout(string project, IReadOnlyDictionary<string, string> properties, AbsolutePath outputRoot, string kind)
+    void PublishLegacyLayout(string project, ImmutableSortedDictionary<string, string> properties, AbsolutePath outputRoot, string kind)
     {
         if (string.IsNullOrEmpty(Rid))
         {
@@ -319,7 +322,7 @@ partial class Build : NukeBuild
         var publishSettings = ApplyBuildProperties(new DotNetPublishSettings()
                 .SetProject(RootDirectory / project)
                 .SetConfiguration(Configuration)
-                .SetRuntime(Rid), properties)
+                .SetRuntime(Rid), TargetSettings.ForRidSpecificPublish(properties))
             .SetProperty("Version", Version.ToString())
             .SetOutput(ridOutputDir);
 

@@ -102,15 +102,12 @@ partial class Build
             Serilog.Log.Information($"Packing tool with version: {versionString}");
 
             Serilog.Log.Information("Packing Morphir.Tool CLI as dotnet tool...");
-            DotNetPack(s => s
-                .SetProject(MorphirToolProject)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(OutputDir)
-                .SetProperty("PackAsTool", "true")
-                .SetProperty("ToolCommandName", "dotnet-morphir")
-                .SetProperty("IsPackable", "true")
-                .SetProperty("DebugType", "none")  // Don't include PDB files in tool package
-                .SetProperty("IncludeSymbols", "false"));
+            // The dotnet-tool profile's pack properties: PackAsTool, the dotnet-morphir command, no PDB, no symbols.
+            DotNetPack(s => TargetSettings.PackTool.Aggregate(
+                s.SetProject(MorphirToolProject)
+                    .SetConfiguration(Configuration)
+                    .SetOutputDirectory(OutputDir),
+                (settings, property) => settings.SetProperty(property.Key, property.Value)));
 
             // The F# frontend extension: the MEP guest that the native morphir executable runs for F#.
             Serilog.Log.Information("Packing Morphir.Frontend.FSharp.Extension as dotnet tool...");

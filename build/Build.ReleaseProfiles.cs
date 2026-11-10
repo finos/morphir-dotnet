@@ -72,7 +72,7 @@ partial class Build
                 var publish = ApplyBuildProperties(new DotNetPublishSettings()
                         .SetProject(RootDirectory / artifact.Deployment.Project)
                         .SetConfiguration(Configuration)
-                        .SetRuntime(platform.Rid), artifact.Deployment.BuildProperties)
+                        .SetRuntime(platform.Rid), TargetSettings.ForRidSpecificPublish(artifact.Deployment.BuildProperties))
                     .SetOutput(publishDirectory)
                     .AddProcessAdditionalArguments("-m:1", "-p:UseSharedCompilation=false", "-nodeReuse:false");
                 Serilog.Log.Information($"Publishing {artifact.Deployment.Id} for {platform.Rid}...");
@@ -86,7 +86,8 @@ partial class Build
     /// <summary>
     /// Pack one published release profile: the archive (zip on Windows, tar.gz elsewhere, files at its root) or the tool
     /// package, and its build-side launch metadata beside it. The launch metadata is a build output, not a public
-    /// contract; task 2.5 maps it into the tool release metadata v1 release descriptor.
+    /// contract; task 2.5 maps it into the tool release metadata v1 release descriptor. A publish folder that
+    /// contradicts the metadata, or a tool package that fails the PackTool structure check, fails the target.
     /// </summary>
     Target PackRelease => _ => _
         .DependsOn(PublishRelease)
@@ -102,13 +103,19 @@ partial class Build
             {
                 var package = publishDirectory / artifact.FileName;
                 if (!File.Exists(package)) throw new Exception($"{artifact.FileName} not found in {publishDirectory}");
+                // The same structure check as the PackTool target: tool settings, entry point and command name.
+                var validation = PackageValidator.ValidateToolPackage(package);
+                if (!validation.IsValid)
+                    throw new Exception($"{artifact.FileName} is not a valid tool package:\n  {string.Join("\n  ", validation.Errors)}");
                 File.Copy(package, output, overwrite: true);
             }
             else
             {
-                var launcher = publishDirectory / artifact.Launch.LaunchPath;
-                if (!File.Exists(launcher)) throw new Exception($"The launch path {artifact.Launch.LaunchPath} is not in {publishDirectory}");
-                ReleaseArchive.Create(publishDirectory, output, artifact.Platform!.ArchiveFormat, artifact.Launch.LaunchPath);
+                // The launch metadata must describe the bytes that ship: runtime, framework reference, F# compiler, native code.
+                var problems = PublishedLayout.Check(artifact, publishDirectory);
+                if (problems.Count > 0)
+                    throw new Exception($"{publishDirectory} contradicts the launch metadata of {artifact.FileName}:\n  {string.Join("\n  ", problems)}");
+                ReleaseArchive.Create(publishDirectory, output, artifact.Platform!.ArchiveFormat, ReleaseArchive.ExecutablesFor(artifact.Launch.LaunchPath));
             }
 
             var sha256 = ReleaseArchive.Sha256(output);
@@ -132,12 +139,11 @@ partial class Build
                 $"--deployment must be one of {string.Join(", ", Morphir.Build.Helpers.Deployment.All.Select(candidate => candidate.Id))}; got '{DeploymentId}'.");
         }
 
-        // The tool package is portable: every first-delivery platform resolves to the same package.
-        var rid = deployment!.IsPortable && string.IsNullOrEmpty(Rid) ? TargetPlatform.All[0].Rid : Rid ?? "";
-        return ReleaseArtifacts.Resolve(deployment, rid, Version.ToString()) switch
+        // The tool package is portable and needs no --rid; every other deployment does.
+        return ReleaseArtifacts.Resolve(deployment!, string.IsNullOrEmpty(Rid) ? null : Rid, Version.ToString()) switch
         {
-            ArtifactResolution.Supported supported => supported.Artifact,
-            ArtifactResolution.Unsupported unsupported => throw new Exception(unsupported.Reason),
+            ArtifactResolution.Defined defined => defined.Artifact,
+            ArtifactResolution.NotDefined notDefined => throw new Exception(notDefined.Reason),
             _ => throw new InvalidOperationException("Unknown artifact resolution."),
         };
     }

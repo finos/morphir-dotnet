@@ -3,6 +3,7 @@
 using System.Formats.Tar;
 using System.IO.Compression;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using Morphir.Build.Helpers;
 using TUnit.Core;
@@ -57,7 +58,7 @@ public class ReleaseProfilesTests
     {
         foreach (var platform in TargetPlatform.All)
         {
-            var artifact = Supported(Deployment.DotnetTool, platform.Rid, "1.2.3");
+            var artifact = Defined(Deployment.DotnetTool, platform.Rid, "1.2.3");
             artifact.FileName.Should().Be("Morphir.Tool.1.2.3.nupkg");
             artifact.Platform.Should().BeNull("one portable package serves every platform");
             artifact.Launch.LaunchPath.Should().Be("dotnet-morphir");
@@ -109,8 +110,8 @@ public class ReleaseProfilesTests
         foreach (var deployment in Deployment.All)
         {
             var resolution = ReleaseArtifacts.Resolve(deployment, rid, "1.2.3");
-            resolution.Should().BeOfType<ArtifactResolution.Unsupported>();
-            var unsupported = (ArtifactResolution.Unsupported)resolution;
+            resolution.Should().BeOfType<ArtifactResolution.NotDefined>();
+            var unsupported = (ArtifactResolution.NotDefined)resolution;
             unsupported.Deployment.Should().Be(deployment);
             unsupported.Rid.Should().Be(rid);
             unsupported.Reason.Should().Contain(rid.Length == 0 ? "no platform" : rid);
@@ -120,43 +121,43 @@ public class ReleaseProfilesTests
 
     [Test]
     public void AnInvalidReleaseIsRefused() =>
-        FluentActions.Invoking(() => ReleaseArtifacts.Resolve(Deployment.NativeAot, "win-x64", "1.2")).Should().Throw<ArgumentException>();
+        FluentActions.Invoking(() => ReleaseArtifacts.Resolve(Deployment.NativeAot, "win-x64", "1.2")).Should().Throw<ArgumentException>().WithMessage("*exact SemVer*");
 
     [Test]
     public void TheLaunchPathIsTheMorphirExecutableOfThePlatform()
     {
         foreach (var deployment in new[] { Deployment.NativeAot, Deployment.SelfContained, Deployment.FrameworkDependent })
         {
-            Supported(deployment, "win-arm64", "1.2.3").Launch.LaunchPath.Should().Be("morphir.exe");
-            Supported(deployment, "linux-x64", "1.2.3").Launch.LaunchPath.Should().Be("morphir");
-            Supported(deployment, "osx-arm64", "1.2.3").Launch.LaunchPath.Should().Be("morphir");
+            Defined(deployment, "win-arm64", "1.2.3").Launch.LaunchPath.Should().Be("morphir.exe");
+            Defined(deployment, "linux-x64", "1.2.3").Launch.LaunchPath.Should().Be("morphir");
+            Defined(deployment, "osx-arm64", "1.2.3").Launch.LaunchPath.Should().Be("morphir");
         }
     }
 
     [Test]
     public void EachDeploymentStatesHowItRuns()
     {
-        var aot = Supported(Deployment.NativeAot, "win-x64", "1.2.3").Launch;
+        var aot = Defined(Deployment.NativeAot, "win-x64", "1.2.3").Launch;
         aot.Execution.Should().Be("native");
         aot.BundledRuntime.Should().BeTrue();
         aot.RequiredRuntime.Should().BeNull();
         aot.RequiredSdk.Should().BeNull();
         aot.InProcessFSharpFrontend.Should().BeFalse();
 
-        var selfContained = Supported(Deployment.SelfContained, "win-x64", "1.2.3").Launch;
+        var selfContained = Defined(Deployment.SelfContained, "win-x64", "1.2.3").Launch;
         selfContained.Execution.Should().Be("managed");
         selfContained.BundledRuntime.Should().BeTrue();
         selfContained.RequiredRuntime.Should().BeNull();
         selfContained.InProcessFSharpFrontend.Should().BeTrue();
 
-        var frameworkDependent = Supported(Deployment.FrameworkDependent, "win-x64", "1.2.3").Launch;
+        var frameworkDependent = Defined(Deployment.FrameworkDependent, "win-x64", "1.2.3").Launch;
         frameworkDependent.Execution.Should().Be("managed");
         frameworkDependent.BundledRuntime.Should().BeFalse();
         frameworkDependent.RequiredRuntime.Should().Be("Microsoft.NETCore.App 10.0");
         frameworkDependent.RequiredSdk.Should().BeNull();
         frameworkDependent.InProcessFSharpFrontend.Should().BeTrue();
 
-        var tool = Supported(Deployment.DotnetTool, "win-x64", "1.2.3").Launch;
+        var tool = Defined(Deployment.DotnetTool, "win-x64", "1.2.3").Launch;
         tool.Execution.Should().Be("managed");
         tool.BundledRuntime.Should().BeFalse();
         tool.RequiredRuntime.Should().Be("Microsoft.NETCore.App 10.0");
@@ -228,14 +229,29 @@ public class ReleaseProfilesTests
     [Test]
     public void TheLegacyAliasDescribesWhatTheReleaseWorkflowShips()
     {
-        var workflow = File.ReadAllLines(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", "deployment.yml"));
-        var rids = workflow.Select(line => line.Trim()).Where(line => line.StartsWith("- rid: ", StringComparison.Ordinal))
-            .Select(line => line["- rid: ".Length..]).ToList();
-        rids.Should().BeEquivalentTo(LegacyAsset.TrimmedSingleFile.ReleasedPlatforms.Select(platform => platform.Rid));
+        var workflow = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", "deployment.yml"));
+        var expected = LegacyAsset.TrimmedSingleFile.ReleasedPlatforms.Select(platform => platform.Rid).ToList();
 
-        var text = string.Join('\n', workflow);
-        text.Should().Contain("--target PublishSingleFile", "releases build the legacy asset with the PublishSingleFile target");
-        text.Should().Contain("morphir-$rid$suffix").And.Contain("morphir-$rid-v$VERSION.tar.gz");
+        // The build-executables matrix builds the asset for these RIDs ...
+        var matrix = Regex.Matches(workflow, @"^\s*- rid: (\S+)\s*$", RegexOptions.Multiline).Select(match => match.Groups[1].Value).ToList();
+        matrix.Should().BeEquivalentTo(expected);
+        workflow.Should().Contain("--target PublishSingleFile", "releases build the legacy asset with the PublishSingleFile target");
+
+        // ... and the create-github-release loop picks the assets for these RIDs, under names that its templates write.
+        var loop = Regex.Match(workflow, @"for rid in ([a-z0-9 -]+); do");
+        loop.Success.Should().BeTrue("the create-github-release job loops over the released RIDs");
+        loop.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Should().BeEquivalentTo(expected);
+
+        var executable = Regex.Match(workflow, "release-assets/(morphir-\\$rid\\$suffix)\"").Groups[1].Value;
+        var tarball = Regex.Match(workflow, "release-assets/(morphir-\\$rid-v\\$VERSION\\.tar\\.gz)").Groups[1].Value;
+        executable.Should().NotBeEmpty();
+        tarball.Should().NotBeEmpty();
+        foreach (var rid in expected)
+        {
+            var suffix = rid.StartsWith("win-", StringComparison.Ordinal) ? ".exe" : "";
+            executable.Replace("$rid", rid).Replace("$suffix", suffix).Should().Be(LegacyAsset.TrimmedSingleFile.ExecutableName(rid));
+            tarball.Replace("$rid", rid).Replace("$VERSION", "1.2.3").Should().Be(LegacyAsset.TrimmedSingleFile.TarballName(rid, "1.2.3"));
+        }
     }
 
     [Test]
@@ -248,7 +264,7 @@ public class ReleaseProfilesTests
     [Test]
     public void TheLaunchInfoSaysItIsNotThePublicContract()
     {
-        var json = JsonDocument.Parse(BuildLaunchInfo.ToJson(Supported(Deployment.FrameworkDependent, "win-arm64", "1.2.3").Launch, "ab12"));
+        var json = JsonDocument.Parse(BuildLaunchInfo.ToJson(Defined(Deployment.FrameworkDependent, "win-arm64", "1.2.3").Launch, "ab12"));
         var root = json.RootElement;
         root.GetProperty("note").GetString().Should().Contain("not a public contract").And.Contain("tool release metadata");
         root.TryGetProperty("schemaVersion", out _).Should().BeFalse("the build-side file has no contract version");
@@ -272,7 +288,7 @@ public class ReleaseProfilesTests
             await File.WriteAllTextAsync(Path.Combine(source.FullName, "sub", "data.json"), "{}");
             var archive = Path.Combine(root.FullName, "a.tar.gz");
 
-            ReleaseArchive.Create(source.FullName, archive, ArchiveFormat.TarGz, "morphir");
+            ReleaseArchive.Create(source.FullName, archive, ArchiveFormat.TarGz, ReleaseArchive.ExecutablesFor("morphir"));
 
             await using var gzip = new GZipStream(File.OpenRead(archive), CompressionMode.Decompress);
             using var reader = new TarReader(gzip);
@@ -300,7 +316,7 @@ public class ReleaseProfilesTests
             await File.WriteAllTextAsync(Path.Combine(source.FullName, "sub", "data.json"), "{}");
             var archive = Path.Combine(root.FullName, "a.zip");
 
-            ReleaseArchive.Create(source.FullName, archive, ArchiveFormat.Zip, "morphir.exe");
+            ReleaseArchive.Create(source.FullName, archive, ArchiveFormat.Zip, ReleaseArchive.ExecutablesFor("morphir.exe"));
 
             using var zip = ZipFile.OpenRead(archive);
             zip.Entries.Select(entry => entry.FullName).Should().BeEquivalentTo("morphir.exe", "sub/data.json");
@@ -311,18 +327,183 @@ public class ReleaseProfilesTests
         }
     }
 
+    [Test]
+    public async Task ATarArchiveKeepsCreatedumpExecutable()
+    {
+        var root = Directory.CreateTempSubdirectory("morphir-release-archive-");
+        try
+        {
+            var source = Directory.CreateDirectory(Path.Combine(root.FullName, "publish dir"));
+            foreach (var name in new[] { "morphir", "createdump", "libcoreclr.so", "morphir.dll" })
+                await File.WriteAllTextAsync(Path.Combine(source.FullName, name), name);
+            var archive = Path.Combine(root.FullName, "a.tar.gz");
+
+            ReleaseArchive.Create(source.FullName, archive, ArchiveFormat.TarGz, ReleaseArchive.ExecutablesFor("morphir"));
+
+            var modes = TarEntries(archive).ToDictionary(entry => entry.Name, entry => entry.Mode);
+            modes["morphir"].Should().Be(ReleaseArchive.ExecutableMode);
+            modes["createdump"].Should().Be(ReleaseArchive.ExecutableMode, "the runtime runs createdump to write crash dumps");
+            modes["libcoreclr.so"].Should().Be(ReleaseArchive.RegularMode, "a shared library is loaded, not run");
+            modes["morphir.dll"].Should().Be(ReleaseArchive.RegularMode);
+        }
+        finally
+        {
+            root.Delete(true);
+        }
+    }
+
+    [Test]
+    [Arguments(ArchiveFormat.Zip)]
+    [Arguments(ArchiveFormat.TarGz)]
+    public async Task OneFolderGivesTheSameArchiveBytes(ArchiveFormat format)
+    {
+        var root = Directory.CreateTempSubdirectory("morphir-release-archive-");
+        try
+        {
+            var source = Directory.CreateDirectory(Path.Combine(root.FullName, "publish"));
+            Directory.CreateDirectory(Path.Combine(source.FullName, "de"));
+            await File.WriteAllTextAsync(Path.Combine(source.FullName, "morphir"), "launcher");
+            await File.WriteAllTextAsync(Path.Combine(source.FullName, "de", "x.resources.dll"), "resources");
+            var first = Path.Combine(root.FullName, "first");
+            var second = Path.Combine(root.FullName, "second");
+
+            ReleaseArchive.Create(source.FullName, first, format, ReleaseArchive.ExecutablesFor("morphir"));
+            foreach (var file in Directory.GetFiles(source.FullName, "*", SearchOption.AllDirectories))
+                File.SetLastWriteTimeUtc(file, DateTime.UtcNow.AddDays(-3));
+            await Task.Delay(1100);
+            ReleaseArchive.Create(source.FullName, second, format, ReleaseArchive.ExecutablesFor("morphir"));
+
+            (await File.ReadAllBytesAsync(second)).Should().Equal(await File.ReadAllBytesAsync(first), "a release identity names one set of bytes");
+            if (format == ArchiveFormat.TarGz)
+                TarEntries(first).Should().OnlyContain(entry => entry.ModificationTime == ReleaseArchive.Timestamp);
+            else
+            {
+                // A zip entry holds a clock time with no time zone, so compare the clock time.
+                using var zip = ZipFile.OpenRead(first);
+                zip.Entries.Should().OnlyContain(entry => entry.LastWriteTime.DateTime == ReleaseArchive.Timestamp.DateTime);
+            }
+        }
+        finally
+        {
+            root.Delete(true);
+        }
+    }
+
+    [Test]
+    [Arguments("1.2.3+b.1")]
+    [Arguments("1.2.3-alpha.1+sha.5114f85")]
+    public void BuildMetadataIsRefused(string release) =>
+        FluentActions.Invoking(() => ReleaseArtifacts.Resolve(Deployment.SelfContained, "linux-x64", release))
+            .Should().Throw<ArgumentException>().WithMessage("*build metadata*");
+
+    [Test]
+    [Arguments("1.2.3-01")]
+    [Arguments("1.2.3-alpha..1")]
+    [Arguments("01.2.3")]
+    [Arguments("1.2.3.4")]
+    [Arguments("*")]
+    [Arguments("1.2.3\n")]
+    public void AnInexactReleaseIsRefused(string release) =>
+        FluentActions.Invoking(() => ReleaseArtifacts.Resolve(Deployment.SelfContained, "linux-x64", release))
+            .Should().Throw<ArgumentException>().WithMessage("*exact SemVer*");
+
+    [Test]
+    public void ThePortableToolNeedsNoPlatform()
+    {
+        var resolution = ReleaseArtifacts.Resolve(Deployment.DotnetTool, null, "1.2.3");
+        var artifact = resolution.Should().BeOfType<ArtifactResolution.Defined>().Subject.Artifact;
+        artifact.Platform.Should().BeNull();
+        artifact.FileName.Should().Be("Morphir.Tool.1.2.3.nupkg");
+        artifact.Launch.Platform.Should().Be("any");
+    }
+
+    [Test]
+    public void APlatformSpecificDeploymentNeedsAPlatform()
+    {
+        foreach (var deployment in Deployment.All.Where(deployment => !deployment.IsPortable))
+            ReleaseArtifacts.Resolve(deployment, null, "1.2.3").Should().BeOfType<ArtifactResolution.NotDefined>()
+                .Which.Reason.Should().Contain("needs a platform");
+    }
+
+    [Test]
+    public void ArtifactsAreMadeOnlyByResolve()
+    {
+        foreach (var type in new[] { typeof(ReleaseArtifact), typeof(BuildLaunchInfo), typeof(ArtifactResolution.Defined), typeof(ArtifactResolution.NotDefined) })
+            type.GetConstructors().Should().BeEmpty($"{type.Name} has no public constructor");
+    }
+
+    [Test]
+    public void BuildPropertiesAreImmutable()
+    {
+        foreach (var properties in Deployment.All.Select(deployment => deployment.BuildProperties)
+                     .Concat([LegacyAsset.TrimmedSingleFile.BuildProperties, LegacyAsset.UntrimmedSingleFile.BuildProperties]))
+            properties.Should().BeAssignableTo<System.Collections.Immutable.IImmutableDictionary<string, string>>();
+    }
+
+    [Test]
+    public void TheLaunchMetadataStatesWhatIsNotDeclaredAndTheLayout()
+    {
+        string Json(Deployment deployment, string? rid) => BuildLaunchInfo.ToJson(Defined(deployment, rid, "1.2.3").Launch, "ab12");
+
+        using var aot = JsonDocument.Parse(Json(Deployment.NativeAot, "linux-x64"));
+        aot.RootElement.GetProperty("layout").GetString().Should().Be("single-file", "native-aot is one native file");
+        var prerequisites = aot.RootElement.GetProperty("prerequisites");
+        prerequisites.GetProperty("runtime").GetString().Should().Contain("none").And.Contain("carries");
+        prerequisites.GetProperty("installation").GetString().Should().Contain("none");
+        prerequisites.GetProperty("operatingSystem").GetString().Should().Contain("not declared yet");
+
+        using var fd = JsonDocument.Parse(Json(Deployment.FrameworkDependent, "win-arm64"));
+        fd.RootElement.GetProperty("layout").GetString().Should().Be("folder");
+        fd.RootElement.GetProperty("prerequisites").GetProperty("runtime").GetString().Should().Be("Microsoft.NETCore.App 10.0");
+
+        using var tool = JsonDocument.Parse(Json(Deployment.DotnetTool, null));
+        tool.RootElement.GetProperty("layout").GetString().Should().Be("tool-package");
+        tool.RootElement.GetProperty("prerequisites").GetProperty("installation").GetString().Should().Be(".NET SDK 10.0");
+
+        foreach (var document in new[] { aot, fd, tool })
+            Regex.IsMatch(document.RootElement.GetProperty("note").GetString()!, @"\btask\b|\b\d+\.\d+\b").Should().BeFalse("a build output names no plan tasks");
+    }
+
+    [Test]
+    public void TheLegacyTargetsUseTheLegacyAliasAndNotTheLeanProperties()
+    {
+        TargetSettings.PublishSingleFile.Should().BeSameAs(LegacyAsset.TrimmedSingleFile.BuildProperties);
+        TargetSettings.PublishSingleFileUntrimmed.Should().BeSameAs(LegacyAsset.UntrimmedSingleFile.BuildProperties);
+        foreach (var legacy in new[] { TargetSettings.PublishSingleFile, TargetSettings.PublishSingleFileUntrimmed })
+            legacy.Keys.Should().NotContain(["DebugType", "DebugSymbols", "CopyOutputSymbolsToPublishDirectory", "PublishDocumentationFile", "PublishReferencesDocumentationFiles"]);
+        TargetSettings.PublishExecutable.Should().BeSameAs(Deployment.NativeAot.BuildProperties);
+        TargetSettings.PackTool.Should().BeSameAs(Deployment.DotnetTool.BuildProperties);
+    }
+
+    [Test]
+    public void ARidSpecificPublishRedirectsTheLockFileAndKeepsTheProfile()
+    {
+        var properties = TargetSettings.ForRidSpecificPublish(Deployment.SelfContained.BuildProperties);
+        properties.Should().Contain(TargetSettings.RidSpecificPublishProperty, "true");
+        properties.Where(pair => pair.Key != TargetSettings.RidSpecificPublishProperty).Should().BeEquivalentTo(Deployment.SelfContained.BuildProperties);
+    }
+
     private static IEnumerable<ReleaseArtifact> Matrix() =>
         from release in Releases
         from deployment in Deployment.All
         from platform in TargetPlatform.All
-        select Supported(deployment, platform.Rid, release);
+        select Defined(deployment, platform.Rid, release);
 
-    private static string Name(Deployment deployment, string rid, string release) => Supported(deployment, rid, release).FileName;
+    private static string Name(Deployment deployment, string rid, string release) => Defined(deployment, rid, release).FileName;
 
-    private static ReleaseArtifact Supported(Deployment deployment, string rid, string release)
+    private static IEnumerable<TarEntry> TarEntries(string archive)
+    {
+        using var gzip = new GZipStream(File.OpenRead(archive), CompressionMode.Decompress);
+        using var reader = new TarReader(gzip);
+        var entries = new List<TarEntry>();
+        while (reader.GetNextEntry() is { } entry) entries.Add(entry);
+        return entries;
+    }
+
+    private static ReleaseArtifact Defined(Deployment deployment, string? rid, string release)
     {
         var resolution = ReleaseArtifacts.Resolve(deployment, rid, release);
-        resolution.Should().BeOfType<ArtifactResolution.Supported>($"{deployment.Id} on {rid} is a first-delivery pair");
-        return ((ArtifactResolution.Supported)resolution).Artifact;
+        resolution.Should().BeOfType<ArtifactResolution.Defined>($"the build defines {deployment.Id} on {rid}");
+        return ((ArtifactResolution.Defined)resolution).Artifact;
     }
 }

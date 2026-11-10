@@ -14,7 +14,11 @@ work=$(mktemp -d)
 python=$(command -v python3 || command -v python)
 trap 'rm -rf "$work"' EXIT
 
-dotnet publish "$root/src/Morphir/Morphir.csproj" -c Release -r "$rid" -p:PublishAot=true -p:PublishTrimmed=true \
+# The native-aot release profile (TargetSettings.PublishExecutable): no debug symbols and no documentation files,
+# so the size is the size that PublishExecutable and PackRelease ship.
+dotnet publish "$root/src/Morphir/Morphir.csproj" -c Release -r "$rid" --self-contained true -p:PublishAot=true -p:PublishTrimmed=true \
+  -p:PublishSingleFile=true -p:DebugType=none -p:DebugSymbols=false -p:CopyOutputSymbolsToPublishDirectory=false \
+  -p:PublishDocumentationFile=false -p:PublishReferencesDocumentationFiles=false -p:MorphirRidSpecificPublish=true \
   -o "$work/out" > "$work/publish.log" 2>&1
 exe="$work/out/morphir"
 [ -f "$exe" ] || exe="$work/out/morphir.exe"

@@ -28,7 +28,7 @@ public class ShippedContentsTests
             await File.WriteAllBytesAsync(Path.Combine(source.FullName, "de", "strings.resources.dll"), new byte[56]);
             await File.WriteAllBytesAsync(Path.Combine(source.FullName, "empty.txt"), []);
             var archive = Path.Combine(root.FullName, format == ArchiveFormat.Zip ? "a.zip" : "a.tar.gz");
-            ReleaseArchive.Create(source.FullName, archive, format, "morphir");
+            ReleaseArchive.Create(source.FullName, archive, format, ReleaseArchive.ExecutablesFor("morphir"));
 
             var contents = ShippedContents.Read(Artifact("linux-x64"), archive);
 
@@ -59,7 +59,7 @@ public class ShippedContentsTests
                 zip.CreateEntry("tools/net10.0/any/"); // a folder entry is not a file
             }
 
-            var tool = ((ArtifactResolution.Supported)ReleaseArtifacts.Resolve(Deployment.DotnetTool, "win-x64", "1.2.3")).Artifact;
+            var tool = ((ArtifactResolution.Defined)ReleaseArtifacts.Resolve(Deployment.DotnetTool, null, "1.2.3")).Artifact;
             var contents = ShippedContents.Read(tool, package);
 
             contents.Files.Select(file => file.Path).Should().Equal("Morphir.Tool.nuspec", "tools/net10.0/any/dotnet-morphir.dll");
@@ -103,5 +103,5 @@ public class ShippedContentsTests
     }
 
     private static ReleaseArtifact Artifact(string rid) =>
-        ((ArtifactResolution.Supported)ReleaseArtifacts.Resolve(Deployment.SelfContained, rid, "1.2.3")).Artifact;
+        ((ArtifactResolution.Defined)ReleaseArtifacts.Resolve(Deployment.SelfContained, rid, "1.2.3")).Artifact;
 }

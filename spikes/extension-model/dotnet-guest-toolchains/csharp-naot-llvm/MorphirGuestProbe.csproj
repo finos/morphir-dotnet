@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="RestoreConfigFile">
   <!--
     Spike: a morphir-bytes-v1 guest compiled with NativeAOT-LLVM to a core WASM module.
     See docs/content/contributing/design/spikes/extension-model/dotnet-guest-toolchains.md.
@@ -14,6 +14,14 @@
     <IsPackable>false</IsPackable>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <!--
+      Always restore with the NuGet config of this spike: only it has the feed of the
+      NativeAOT-LLVM packages. TreatAsLocalProperty on the Project element lets this value
+      replace a config file from the command line (the configfile option of dotnet restore).
+      Renovate restores each project in the repository with a config file made from the
+      root NuGet.config, whose package source mapping permits only nuget.org.
+    -->
+    <RestoreConfigFile>$(MSBuildThisFileDirectory)nuget.config</RestoreConfigFile>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
     <InvariantGlobalization>true</InvariantGlobalization>
