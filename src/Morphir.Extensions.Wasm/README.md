@@ -60,24 +60,29 @@ host's own outcome.
 | Instruction budget | Fuel set before each call: the contract's `session` budget, `WasmProfileContract.InstructionBudget`. | `BudgetExhausted` | `extension.budget_exhausted` |
 | Call deadline | The epoch advances every 10 ms. The store's epoch callback runs at each tick on the call's thread and stops the call once `CallDeadline` has passed. | `CallDeadline` | outcome `deadline` |
 | Cancellation | The same callback stops the call at the first tick after the `CancellationToken` passed to `CallHandle` is cancelled. A token cancelled before the call stops it before any guest code runs. | `Cancelled` | outcome `cancelled` |
-| Memory ceiling | The store limit caps each memory, the kernel's and the guest's. The engine refuses growth past it without telling the host. | `MemoryLimit` | `extension.memory_limit` |
+| Memory ceiling | The store limit caps each memory, the kernel's and the guest's. The engine refuses growth past it without telling the host, so a trap at the ceiling is the memory limit. | `MemoryLimit` | `extension.memory_limit` |
 | Anything else | A trap, a host function that stops the call, `proc_exit` with a code that is not 0 | `GuestTrap`, `IncompleteSession` | `extension.guest_trap`, `extension.incomplete_session` |
 
 The memory rules:
 
-- **At the ceiling.** A call that ends in a trap or a failure while the guest's memory or the Extism kernel's
-  memory is at its ceiling becomes `MemoryLimit` (contract rule `at-ceiling`, as the parent corrected it on
-  10 November 2026). `GuestFailure.Signal` keeps what was observed before the rule applied, and `Message` says
-  which memory was at its ceiling. A call the host stopped keeps its result: an exhausted budget stays
-  `BudgetExhausted`, and the outcomes `deadline` and `cancelled` stay, because the host knows why the call ended.
-  The kernel's memory counts because an Extism guest's input, output and allocations live there.
+- **A trap at the ceiling.** A call that ends in a trap while the guest's memory or the Extism kernel's memory
+  is at its ceiling becomes `MemoryLimit` (contract rule `at-ceiling`, as the parent corrected it a second time
+  on 10 November 2026). A trap carries no cause, so the host infers one from the memory. `GuestFailure.Signal`
+  keeps `GuestTrap`, and `Message` says which memory was at its ceiling. The kernel's memory counts because an
+  Extism guest's input, output and allocations live there.
+- **Every other end keeps its result** (contract rule `guest-reported`), also at the ceiling. A failure stays
+  `IncompleteSession`: a `proc_exit` with a code that is not 0, a host function that stops the call, or a
+  kernel with no room for the input. A call the host stopped keeps its result: an exhausted budget stays
+  `BudgetExhausted`, and the outcomes `deadline` and `cancelled` stay. The contract's `observed-refusal` rule is
+  for a host that observes refused growth; Wasmtime does not tell this host, so the rule adds nothing here.
 - **What "at the ceiling" means.** Each memory is at its ceiling when it cannot grow by one more page
   (`MemoryUse.GuestAtCeiling`, `KernelAtCeiling`, and `AtCeiling` for either). If the ceiling is not a whole number
   of pages, that is less than one page below it. A guest that defines no memory has only the kernel's.
-- **The channel's own failures.** The same rule applies to a `handle` result that the Extism profile makes a
-  failure: an Extism error, a result that is not 0, no output for a request, output for a notification. At the
-  ceiling, `WasmChannelFailure.Code` is `extension.memory_limit` and `FaultKind` is `memory-limit`. The frame
-  limits are the host session's own rules and keep their codes.
+- **The channel's own failures.** A `handle` result that the Extism profile makes a failure is a call the
+  guest ended itself: an Extism error, a result that is not 0, no output for a request, output for a
+  notification. It is `extension.incomplete_session` with `FaultKind` `failure`, also at the ceiling. So is a
+  response frame over its limit, a failure the host detected. A request frame over its limit is
+  `extension.request_limit`. Each diagnostic still states both memory sizes and the ceiling.
 - **Initial memory above the ceiling.** `Open` does not instantiate such a guest and returns
   `SessionOpening.Failed` with `MemoryLimit`. This is a fault, not a refusal.
 - **Sizes on every failure.** Every `GuestFailure` has `Memory`: the guest's memory, the kernel's memory and
@@ -106,11 +111,11 @@ What each call gives, from the contract's `extism-kernel-v1` call table and host
 | The guest | The channel | `WasmChannelFailure` | Code |
 | --- | --- | --- | --- |
 | `handle` returns 0 with output and no error | Returns the output | none | |
-| Sets an Extism error, whatever `handle` returns | Throws `WasmChannelException` with the error text | `ExtismError` | `extension.incomplete_session`, or `extension.memory_limit` at the ceiling |
-| Returns a result that is not 0, with no error | Throws; the output is not passed on | `NonZeroResult` | `extension.incomplete_session`, or `extension.memory_limit` at the ceiling |
-| Returns 0 with no output for a request | Returns null; `HostSession` fails the session with `NoReply` | `NoOutput` | `extension.incomplete_session`, or `extension.memory_limit` at the ceiling |
+| Sets an Extism error, whatever `handle` returns | Throws `WasmChannelException` with the error text | `ExtismError` | `extension.incomplete_session` |
+| Returns a result that is not 0, with no error | Throws; the output is not passed on | `NonZeroResult` | `extension.incomplete_session` |
+| Returns 0 with no output for a request | Returns null; `HostSession` fails the session with `NoReply` | `NoOutput` | `extension.incomplete_session` |
 | Returns 0 with no output for a delivered notification | Returns null | none | |
-| Gives output for a delivered notification | Returns the output; `HostSession` fails the session with `AnsweredNotification` | `AnsweredNotification` | `extension.incomplete_session`, or `extension.memory_limit` at the ceiling |
+| Gives output for a delivered notification | Returns the output; `HostSession` fails the session with `AnsweredNotification` | `AnsweredNotification` | `extension.incomplete_session` |
 | A failed store call: a bound, a trap, a host function that stops the call | Throws | `Guest` (the `GuestFailure`) | its code, or outcome `deadline` |
 | A call cancelled by its token | Throws `OperationCanceledException` after the call has stopped | `Guest` (`Cancelled`) | outcome `cancelled` |
 | A request frame over `SessionLimits.RequestFrameBytes` | Throws before `handle` runs | `RequestOverLimit` | `extension.request_limit` |
@@ -274,7 +279,9 @@ preview 1 imports are checked against the standard types that Wasmtime's own WAS
 `wasiSurface` names the 46 functions of `wasi_snapshot_preview1.witx` instead of a table, and the reader refuses any
 other surface. The reader also requires, and refuses to load without: the `session` instruction budget (and no
 budget key other than `session` and `probe`), the classification order this library implements (profile, imports,
-`handle` export, declared ABI, host profile), a `cancelled` host-session rule without a code, and an Extism
+`handle` export, declared ABI, host profile), the memory rules this library applies (`at-ceiling`,
+`guest-reported`, `observed-refusal`, `initial-above-ceiling`, in that order), a `cancelled` host-session rule
+without a code, and an Extism
 `notificationDelivery` of a string member of the `morphir.initialize` result with the values `none` (the default)
 and `call` and the four notification rules.
 
