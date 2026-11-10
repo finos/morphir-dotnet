@@ -282,6 +282,131 @@ let tests =
                     $"{name} is a host assembly, not a reference"
         }
 
+        test "the framework assemblies come from the runtime pack or the shared framework entry of a deps file" {
+            let selfContained =
+                """{"targets":{".NETCoreApp,Version=v10.0/win-arm64":{
+                     "morphir-fsharp-frontend/1.0.0":{"runtime":{"morphir-fsharp-frontend.dll":{}}},
+                     "runtimepack.Microsoft.NETCore.App.Runtime.win-arm64/10.0.14":{"runtime":{"System.Runtime.dll":{},"System.Private.CoreLib.dll":{}}},
+                     "Morphir.Mep/1.0.0":{"runtime":{"Morphir.Mep.dll":{}}}}}}"""
+
+            let sharedFramework =
+                """{"targets":{".NETCoreApp,Version=v10.0/linux-x64":{
+                     "Microsoft.NETCore.App.Runtime.linux-x64/10.0.14":{"runtime":{"runtimes/linux-x64/lib/net10.0/System.Runtime.dll":{},"System.Collections.dll":{}}}}}}"""
+
+            let application =
+                """{"targets":{".NETCoreApp,Version=v10.0":{"Morphir.Mep/1.0.0":{"runtime":{"lib/net10.0/Morphir.Mep.dll":{}}}}}}"""
+
+            Expect.equal
+                (CompilerEdge.frameworkAssemblies [ selfContained ])
+                (set [ "System.Private.CoreLib.dll"; "System.Runtime.dll" ])
+                "the runtime pack of a self-contained application"
+
+            Expect.equal
+                (CompilerEdge.frameworkAssemblies [ application; sharedFramework ])
+                (set [ "System.Collections.dll"; "System.Runtime.dll" ])
+                "the shared framework of a framework-dependent application, by file name"
+
+            Expect.isEmpty (CompilerEdge.frameworkAssemblies [ application ]) "an application deps file alone names no framework"
+        }
+
+        test "in a self-contained folder the references are the framework, FSharp.Core and the attributes, not the application's assemblies" {
+            let folder = Path.Combine(Path.GetTempPath(), "morphir app", "frontend")
+            let inFolder name = Path.Combine(folder, name)
+
+            let layout: CompilerEdge.ReferenceLayout = {
+                RuntimeDirectory = folder
+                ApplicationDirectory = folder
+                Trusted = [
+                    "System.Runtime.dll"
+                    "Morphir.Mep.dll"
+                    "System.Private.CoreLib.dll"
+                    "Morphir.FSharp.Annotations.dll"
+                    "FSharp.Core.dll"
+                    "FSharp.Compiler.Service.dll"
+                    "morphir-fsharp-frontend.dll"
+                    "Morphir.Compilation.dll"
+                  ]
+                  |> List.map inFolder
+                Framework = set [ "System.Runtime.dll"; "System.Private.CoreLib.dll" ]
+                FSharpCore = inFolder "FSharp.Core.dll"
+                Annotations = inFolder "Morphir.FSharp.Annotations.dll"
+            }
+
+            Expect.equal
+                (CompilerEdge.selectReferences layout)
+                (Ok [|
+                    inFolder "System.Private.CoreLib.dll"
+                    inFolder "System.Runtime.dll"
+                    inFolder "FSharp.Core.dll"
+                    inFolder "Morphir.FSharp.Annotations.dll"
+                |])
+                "framework in ordinal order, then FSharp.Core and the attributes, once each"
+
+            match CompilerEdge.selectReferences { layout with Framework = Set.empty } with
+            | Error message -> Expect.stringContains message "framework" "a self-contained folder without a framework list is refused"
+            | Ok references -> failtest $"Without the framework list the application assemblies would be references: {references}"
+
+            match CompilerEdge.selectReferences { layout with FSharpCore = "" } with
+            | Error message -> Expect.stringContains message "single-file" "an assembly without a location is refused"
+            | Ok references -> failtest $"An empty location is not a reference: {references}"
+        }
+
+        test "for a framework-dependent host the selection is the same as the runtime-directory rule" {
+            let shared = Path.Combine(Path.GetTempPath(), "dotnet", "shared", "Microsoft.NETCore.App", "10.0.14")
+            let application = Path.Combine(Path.GetTempPath(), "tools", "frontend")
+
+            let layout: CompilerEdge.ReferenceLayout = {
+                RuntimeDirectory = shared
+                ApplicationDirectory = application
+                Trusted = [
+                    Path.Combine(application, "Morphir.Mep.dll")
+                    Path.Combine(shared, "System.Runtime.dll")
+                    Path.Combine(application, "FSharp.Core.dll")
+                    Path.Combine(shared, "System.Collections.dll")
+                ]
+                Framework = set [ "System.Runtime.dll"; "System.Collections.dll" ]
+                FSharpCore = Path.Combine(application, "FSharp.Core.dll")
+                Annotations = Path.Combine(application, "Morphir.FSharp.Annotations.dll")
+            }
+
+            let expected = [|
+                Path.Combine(shared, "System.Collections.dll")
+                Path.Combine(shared, "System.Runtime.dll")
+                Path.Combine(application, "FSharp.Core.dll")
+                Path.Combine(application, "Morphir.FSharp.Annotations.dll")
+            |]
+
+            Expect.equal (CompilerEdge.selectReferences layout) (Ok expected) "with the framework list"
+
+            Expect.equal
+                (CompilerEdge.selectReferences { layout with Framework = Set.empty })
+                (Ok expected)
+                "without one, as before"
+        }
+
+        test "in this framework-dependent test host the references are the runtime-directory rule of earlier releases" {
+            // The rule before self-contained support: every trusted assembly in the runtime directory except
+            // FSharp.*, in ordinal order, then FSharp.Core and the Morphir attributes.
+            let runtime = Path.TrimEndingDirectorySeparator(Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory())
+
+            let earlier =
+                Array.append
+                    ((AppContext.GetData "TRUSTED_PLATFORM_ASSEMBLIES" :?> string)
+                        .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+                     |> Array.filter (fun path ->
+                         String.Equals(
+                             Path.TrimEndingDirectorySeparator(Path.GetDirectoryName path |> nonNull),
+                             runtime,
+                             StringComparison.OrdinalIgnoreCase
+                         )
+                         && not ((Path.GetFileName path |> nonNull).StartsWith("FSharp.", StringComparison.OrdinalIgnoreCase)))
+                     |> Array.sortWith (fun left right -> String.CompareOrdinal(left, right)))
+                    [| typeof<unit>.Assembly.Location; typeof<Morphir.MorphirNameAttribute>.Assembly.Location |]
+
+            Expect.isNonEmpty (CompilerEdge.frameworkAssemblies (CompilerEdge.depsFiles ())) "the host deps files name the framework"
+            Expect.equal (CompilerEdge.references.Force()) earlier "the same references, in the same order"
+        }
+
         test "the frontend identity names the compiler, core, runtime and evidence revisions" {
             let identity = CompilerEdge.identity.Force()
             Expect.stringContains identity "FSharp.Compiler.Service 43.12.403" "compiler service"

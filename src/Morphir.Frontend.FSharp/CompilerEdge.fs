@@ -118,38 +118,120 @@ module internal CompilerEdge =
 
              $"FSharp.Compiler.Service {compiler}; FSharp.Core {core}; Morphir.FSharp.Annotations {annotations}; {RuntimeInformation.FrameworkDescription}; evidence {EvidenceRevision}")
 
-    let private references =
+    /// <summary>
+    /// The file names of the framework's runtime assemblies (Microsoft.NETCore.App), from the texts of deps files.
+    /// A self-contained application lists them under its runtime pack
+    /// (<c>runtimepack.Microsoft.NETCore.App.Runtime.&lt;rid&gt;</c>); the shared framework of a framework-dependent
+    /// application lists them in its own deps file (<c>Microsoft.NETCore.App.Runtime.&lt;rid&gt;</c>). An
+    /// application deps file alone names none.
+    /// </summary>
+    let frameworkAssemblies (depsFiles: string seq) : Set<string> =
+        let isFramework (library: string) =
+            library.StartsWith("runtimepack.Microsoft.NETCore.App.Runtime.", StringComparison.OrdinalIgnoreCase)
+            || library.StartsWith("Microsoft.NETCore.App.Runtime.", StringComparison.OrdinalIgnoreCase)
+
+        set [
+            for text in depsFiles do
+                use document = JsonDocument.Parse text
+
+                match document.RootElement.TryGetProperty "targets" with
+                | true, targets when targets.ValueKind = JsonValueKind.Object ->
+                    for target in targets.EnumerateObject() do
+                        if target.Value.ValueKind = JsonValueKind.Object then
+                            for library in target.Value.EnumerateObject() do
+                                match library.Value.TryGetProperty "runtime" with
+                                | true, runtime when isFramework library.Name && runtime.ValueKind = JsonValueKind.Object ->
+                                    for asset in runtime.EnumerateObject() do
+                                        yield asset.Name.Substring(asset.Name.LastIndexOf '/' + 1)
+                                | _ -> ()
+                | _ -> ()
+        ]
+
+    /// <summary>The texts of the deps files that the host loaded (APP_CONTEXT_DEPS_FILES), or none.</summary>
+    let depsFiles () : string list =
+        match AppContext.GetData "APP_CONTEXT_DEPS_FILES" with
+        | :? string as paths ->
+            [
+                for path in paths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) do
+                    if File.Exists path then
+                        yield File.ReadAllText path
+            ]
+        | _ -> []
+
+    /// <summary>What the reference selection reads from the hosting process.</summary>
+    type ReferenceLayout = {
+        /// <summary>The runtime directory: the shared framework folder, or the application folder when self-contained.</summary>
+        RuntimeDirectory: string
+        /// <summary>The application folder.</summary>
+        ApplicationDirectory: string
+        /// <summary>The trusted platform assemblies, as full paths.</summary>
+        Trusted: string list
+        /// <summary>The file names of the framework's runtime assemblies; empty when no deps file names them.</summary>
+        Framework: Set<string>
+        /// <summary>The location of the FSharp.Core that the host loaded.</summary>
+        FSharpCore: string
+        /// <summary>The location of the Morphir F# annotations.</summary>
+        Annotations: string
+    }
+
+    /// <summary>
+    /// The compiler references: the trusted framework assemblies of the runtime directory in ordinal path order, then
+    /// FSharp.Core and the Morphir attributes. The framework assemblies are the trusted assemblies in the runtime
+    /// directory, except FSharp.*, that the framework list names. For a framework-dependent host every such assembly
+    /// is a framework assembly, so the list changes nothing. For a self-contained folder the runtime directory is
+    /// the application folder, and the list keeps the application's own assemblies (Morphir.*, the compiler service)
+    /// out. A self-contained folder without a framework list, and an assembly without a location (a single-file
+    /// bundle), are refused rather than given a guessed reference set.
+    /// </summary>
+    let selectReferences (layout: ReferenceLayout) : Result<string array, string> =
+        let trim (path: string) = Path.TrimEndingDirectorySeparator path
+
+        let sameDirectory (left: string) (right: string) =
+            String.Equals(trim left, trim right, StringComparison.OrdinalIgnoreCase)
+
+        if String.IsNullOrEmpty layout.FSharpCore || String.IsNullOrEmpty layout.Annotations then
+            Error
+                "FSharp.Core or the Morphir F# annotations have no file location, as in a single-file bundle; the F# frontend needs its references as files."
+        elif Set.isEmpty layout.Framework && sameDirectory layout.RuntimeDirectory layout.ApplicationDirectory then
+            Error
+                "The runtime directory is the application folder (a self-contained application), and no deps file lists the framework assemblies, so the framework references cannot be told from the application's own assemblies."
+        else
+            let framework =
+                layout.Trusted
+                |> List.filter (fun path ->
+                    match Path.GetDirectoryName path, Path.GetFileName path with
+                    | null, _
+                    | _, null -> false
+                    | directory, name ->
+                        sameDirectory directory layout.RuntimeDirectory
+                        && not (name.StartsWith("FSharp.", StringComparison.OrdinalIgnoreCase))
+                        && (Set.isEmpty layout.Framework || layout.Framework.Contains name))
+                |> List.sortWith (fun left right -> String.CompareOrdinal(left, right))
+
+            // FSharp.Core and the Morphir attributes (MorphirNameAttribute) are the only non-framework references.
+            Ok(Array.ofList (framework @ [ layout.FSharpCore; layout.Annotations ]))
+
+    /// <summary>The compiler references of this process (see <c>selectReferences</c>).</summary>
+    let references =
         lazy
-            (let runtime =
-                Path.TrimEndingDirectorySeparator(RuntimeEnvironment.GetRuntimeDirectory())
+            (let trusted =
+                match AppContext.GetData "TRUSTED_PLATFORM_ASSEMBLIES" with
+                | :? string as paths ->
+                    paths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
+                | _ -> invalidOp "The host runtime does not list its trusted platform assemblies."
 
-             let trusted =
-                 match AppContext.GetData "TRUSTED_PLATFORM_ASSEMBLIES" with
-                 | :? string as paths ->
-                     paths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-                 | _ -> invalidOp "The host runtime does not list its trusted platform assemblies."
+             let layout = {
+                 RuntimeDirectory = RuntimeEnvironment.GetRuntimeDirectory()
+                 ApplicationDirectory = AppContext.BaseDirectory
+                 Trusted = trusted
+                 Framework = frameworkAssemblies (depsFiles ())
+                 FSharpCore = typeof<unit>.Assembly.Location
+                 Annotations = typeof<Morphir.MorphirNameAttribute>.Assembly.Location
+             }
 
-             let framework =
-                 trusted
-                 |> Array.filter (fun path ->
-                     match Path.GetDirectoryName path, Path.GetFileName path with
-                     | null, _
-                     | _, null -> false
-                     | directory, name ->
-                         String.Equals(
-                             Path.TrimEndingDirectorySeparator directory,
-                             runtime,
-                             StringComparison.OrdinalIgnoreCase
-                         )
-                         && not (name.StartsWith("FSharp.", StringComparison.OrdinalIgnoreCase))
-                 )
-                 |> Array.sortWith (fun left right -> String.CompareOrdinal(left, right))
-
-             // FSharp.Core and the Morphir attributes (MorphirNameAttribute) are the only non-framework references.
-             Array.append framework [|
-                 typeof<unit>.Assembly.Location
-                 typeof<Morphir.MorphirNameAttribute>.Assembly.Location
-             |])
+             match selectReferences layout with
+             | Ok references -> references
+             | Error message -> invalidOp message)
 
     let private options = [|
         "--targetprofile:netcore"
