@@ -220,7 +220,14 @@ public static class NativeCheck
     {
         string? signal = (exitCode - 128) switch
         {
-            4 => "SIGILL", 5 => "SIGTRAP", 6 => "SIGABRT", 7 => "SIGBUS", 8 => "SIGFPE", 9 => "SIGKILL", 11 => "SIGSEGV", 15 => "SIGTERM",
+            4 => "SIGILL",
+            5 => "SIGTRAP",
+            6 => "SIGABRT",
+            7 => "SIGBUS",
+            8 => "SIGFPE",
+            9 => "SIGKILL",
+            11 => "SIGSEGV",
+            15 => "SIGTERM",
             _ => null,
         };
         return signal is null ? $"{exitCode}" : $"{exitCode} ({signal})";
