@@ -41,7 +41,9 @@ public sealed record PackagedArtifact(
         var candidates = Directory.Exists(releaseDirectory)
             ? Directory.GetFiles(releaseDirectory, "*.build-launch.json").Select(Read).ToList()
             : [];
-        var matches = candidates.Where(artifact => artifact.Deployment == deployment && (artifact.Platform == rid || artifact.Platform == "any")).ToList();
+        // In ordinal order, so the refusal of two artifacts names them the same way on every file system.
+        var matches = candidates.Where(artifact => artifact.Deployment == deployment && (artifact.Platform == rid || artifact.Platform == "any"))
+            .OrderBy(artifact => artifact.Artifact, StringComparer.Ordinal).ToList();
         return matches.Count switch
         {
             1 => matches[0],
