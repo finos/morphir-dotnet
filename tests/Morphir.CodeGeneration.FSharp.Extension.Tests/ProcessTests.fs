@@ -115,7 +115,7 @@ let private read (element: JsonElement) =
 
 /// The files that the built-in backend generates through its public seams: the generate model loader and
 /// FSharpGenerationBackend, the provider that morphir generate selects for the target fsharp.
-let private builtIn (path: string) (options: (string * string) list) : Map<string, string> =
+let private builtIn (path: string) (options: (string * string) list) : (string * string) list =
     let loader = GenerationModelLoader(BoundedModelCapture())
 
     let loaded =
@@ -139,11 +139,18 @@ let private builtIn (path: string) (options: (string * string) list) : Map<strin
         backend.GenerateAsync(BackendGenerationRequest(loaded, backend.Descriptor.Target, validated), CancellationToken.None).AsTask().Result
     with
     | :? Outcome<GenerationArtifacts>.Success as success ->
-        Morphir.IR.Pipeline.VFileTree.toFileMap success.Value.Tree
-        |> Map.map (fun location file ->
-            match Morphir.IR.Pipeline.VFile.readText file with
-            | Ok text -> text
-            | Error failure -> failtest $"{location} reads as text: {failure}")
+        // The order of the published manifest and the generate report: the declared order, else by path.
+        let tree = success.Value.Tree
+        let files = Morphir.IR.Pipeline.VFileTree.toFileMap tree
+
+        let order =
+            Morphir.IR.Pipeline.VFileTree.tryGet Morphir.IR.Pipeline.VFileTree.declaredOrder tree
+            |> Option.defaultWith (fun () -> files |> Map.keys |> List.ofSeq)
+
+        [ for location in order ->
+              match Morphir.IR.Pipeline.VFile.readText files[location] with
+              | Ok text -> location, text
+              | Error failure -> failtest $"{location} reads as text: {failure}" ]
     | failure -> failtest $"The built-in generates {path}: {failure}"
 
 [<Tests>]
@@ -216,12 +223,17 @@ let tests =
 
               Expect.equal run.ExitCode 0 "exit code"
 
-          testCase "The guest process generates the same files as the built-in backend for the same checked-in IR"
+          testCase "The guest process generates the same files, in the same order, as the managed built-in backend, with and without optimize where folding applies"
           <| fun _ ->
+              let fixture name = irFixture name
+
               let cases =
-                  [ "3.0.0", []
-                    "4.0.0", []
-                    "4.0.0", [ "optimize", "false" ] ]
+                  [ "daily-rate-v3.json", "3.0.0", []
+                    "daily-rate-v4.json", "4.0.0", []
+                    "constant-folding-v3.json", "3.0.0", [ "optimize", "true" ]
+                    "constant-folding-v3.json", "3.0.0", [ "optimize", "false" ]
+                    "constant-folding-v4.json", "4.0.0", [ "optimize", "true" ]
+                    "constant-folding-v4.json", "4.0.0", [ "optimize", "false" ] ]
 
               let run =
                   withGuest (offerOf [ generateTuple "4.0.0"; generateTuple "3.0.0" ]) (fun host cancellation ->
@@ -229,32 +241,124 @@ let tests =
                           let! _ = initialize host cancellation
                           let results = ResizeArray()
 
-                          for version, options in cases do
-                              let request =
-                                  requestOf (generateTuple version) (File.ReadAllBytes(fixtureFor version)) options
-
+                          for name, version, options in cases do
+                              let request = requestOf (generateTuple version) (File.ReadAllBytes(fixture name)) options
                               let! reply = generate host request cancellation
                               results.Add reply
 
                           return List.ofSeq results
                       })
 
-              for (version, options), reply in List.zip cases run.Value do
-                  let label = $"IR {version} with options {options}"
+              let outputs =
+                  [ for (name, version, options), reply in List.zip cases run.Value ->
+                        let label = $"{name} (IR {version}) with options {options}"
 
-                  let guest =
-                      match reply with
-                      | Ok element ->
-                          let result = read element
-                          Expect.isTrue result.Success $"{label}: the guest succeeds: {result}"
-                          filesOf result
-                      | Error error -> failtest $"{label}: {error}"
+                        let guest =
+                            match reply with
+                            | Ok element ->
+                                let result = read element
+                                Expect.isTrue result.Success $"{label}: the guest succeeds: {result}"
+                                [ for artifact in result.Artifacts -> artifact.Path, artifact.Content ]
+                            | Error error -> failtest $"{label}: {error}"
 
-                  let expected = builtIn (fixtureFor version) options
-                  Expect.isNonEmpty expected $"{label}: the built-in generates files"
-                  Expect.equal (guest |> Map.keys |> List.ofSeq) (expected |> Map.keys |> List.ofSeq) $"{label}: the same paths"
+                        let expected = builtIn (fixture name) options
+                        Expect.isNonEmpty expected $"{label}: the built-in generates files"
 
-                  for KeyValue(location, text) in expected do
-                      Expect.equal guest[location] text $"{label}: {location} has the same text"
+                        // Over MEP the artifact order is the only order a host gets, so it must be the built-in's order.
+                        Expect.sequenceEqual (List.map fst guest) (List.map fst expected) $"{label}: the same paths in the same order"
+                        Expect.sequenceEqual guest expected $"{label}: the same text for each file"
+                        (name, options), guest ]
 
-              Expect.equal run.ExitCode 0 "exit code" ]
+              let text name optimize =
+                  outputs
+                  |> List.find (fun ((fixtureName, options), _) -> fixtureName = name && options = [ "optimize", optimize ])
+                  |> snd
+                  |> List.map snd
+                  |> String.concat "\n"
+
+              for name in [ "constant-folding-v3.json"; "constant-folding-v4.json" ] do
+                  let folded = text name "true"
+                  let plain = text name "false"
+                  Expect.notEqual folded plain $"{name}: optimize reaches the generator"
+                  Expect.stringContains folded "42" $"{name}: optimize=true folds 20 + 22"
+                  Expect.stringContains plain "20" $"{name}: optimize=false keeps the addition"
+
+                  let paths =
+                      outputs |> List.find (fun ((fixtureName, _), _) -> fixtureName = name) |> snd |> List.map fst
+
+                  Expect.isTrue
+                      ((paths |> List.findIndex (fun path -> path.Contains "Zeta")) < (paths |> List.findIndex (fun path -> path.Contains "Alpha")))
+                      $"{name}: dependency order, not path order: {paths}"
+
+              Expect.equal run.ExitCode 0 "exit code"
+
+          testCase "A ping sent right after a large generateModel is answered before the generation ends"
+          <| fun _ ->
+              // Before the reply to generateModel, the guest can answer only frames that it read during generation.
+              // A guest that generates on its read loop reads the ping only afterwards, so its ping reply always
+              // comes second; this test cannot pass by luck. The model is large, so generation takes much longer
+              // than a ping.
+              let request = requestOf (generateTuple "4.0.0") (largeModel 400) []
+
+              let run =
+                  withGuest (offerOf [ generateTuple "4.0.0" ]) (fun host cancellation ->
+                      task {
+                          let! _ = initialize host cancellation
+                          let generation = generate host request cancellation
+                          let ping = host.PingAsync cancellation
+                          let! first = Task.WhenAny(generation :> Task, ping :> Task)
+                          let pingFirst = Object.ReferenceEquals(first, ping)
+                          let! generated = generation
+                          let! pinged = ping
+                          return pingFirst, generated, pinged
+                      })
+
+              let pingFirst, generated, pinged = run.Value
+              Expect.isOk pinged "ping"
+
+              match generated with
+              | Ok element -> Expect.isTrue (read element).Success "The large model generates"
+              | Error error -> failtest $"generateModel: {error}"
+
+              Expect.isTrue pingFirst "The ping reply arrives before the generateModel reply"
+              Expect.equal run.ExitCode 0 "exit code"
+
+          testCase "A model nested just under the agreed maxDepth gets a reply and the guest keeps running; one just over is refused"
+          <| fun _ ->
+              // The agreed maxDepth is the smaller of the host's 4096 and the guest's 1024.
+              let agreedDepth = FSharpGuest.limits.MaxDepth
+
+              let rec levelsFor (levels: int) =
+                  if jsonDepth (deepModel levels) >= agreedDepth - 8 then levels else levelsFor (levels + 1)
+
+              let near = deepModel (levelsFor 400)
+              let over = deepModel (levelsFor 400 + 20)
+              Expect.isLessThanOrEqual (jsonDepth near) agreedDepth "The near model is within the limit"
+              Expect.isGreaterThan (jsonDepth over) agreedDepth "The over model is beyond the limit"
+
+              let run =
+                  withGuest (offerOf [ generateTuple "4.0.0" ]) (fun host cancellation ->
+                      task {
+                          let! _ = initialize host cancellation
+                          let! nearReply = generate host (requestOf (generateTuple "4.0.0") near []) cancellation
+                          let! pingAfterNear = host.PingAsync cancellation
+                          let! overReply = generate host (requestOf (generateTuple "4.0.0") over []) cancellation
+                          return nearReply, pingAfterNear, overReply
+                      })
+
+              let nearReply, pingAfterNear, overReply = run.Value
+
+              // A success or a protocol error is a reply. A crashed guest would give no ping reply and no clean exit.
+              match nearReply with
+              | Ok element -> Expect.isNotNull (box (read element)) "a result"
+              | Error error -> Expect.notEqual error.Message "The connection closed." $"The guest did not end the connection: {error}"
+
+              Expect.isOk pingAfterNear $"The guest still answers after the deep model: {run.StandardError}"
+
+              match overReply with
+              | Error error ->
+                  Expect.equal error.Code -32602 "-32602"
+                  Expect.equal error.Message "Model admission refused: depth_limit_exceeded" "The admission code"
+              | Ok element -> failtest $"A model over the depth limit is not served: {element}"
+
+              Expect.equal run.ExitCode 0 $"exit code: {run.StandardError}" ]

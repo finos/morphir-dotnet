@@ -132,3 +132,56 @@ let filesOf (result: GenerateResult) =
         Expect.isFalse artifact.Binary $"{artifact.Path} is text"
 
     result.Artifacts |> Seq.map (fun artifact -> artifact.Path, artifact.Content) |> Map.ofSeq
+
+let private v4Model (values: (string * string) list) =
+    let members =
+        [ for name, body in values ->
+              JsonSerializer.Serialize name
+              + """:{"access":"Public","ExpressionBody":{"inputTypes":{},"outputType":"morphir/SDK:basics#int","body":"""
+              + body
+              + "}}" ]
+
+    let text =
+        """{"formatVersion":4,"distribution":{"Library":{"packageName":"car/rental","dependencies":{},"def":{"modules":{"inventory":{"access":"Public","types":{},"values":{"""
+        + String.Join(",", members)
+        + "}}}}}}}"
+
+    Encoding.UTF8.GetBytes text
+
+let private literal (value: int) =
+    """{"Literal":{"WholeNumberLiteral":""" + string value + "}}"
+
+/// A name word of letters only for a number (1 is a, 27 is aa): the generator refuses words that start with a digit.
+let private letters (number: int) =
+    let rec go (n: int) (acc: string) =
+        if n <= 0 then acc else go ((n - 1) / 26) (string (char (int 'a' + (n - 1) % 26)) + acc)
+
+    go number ""
+
+/// basics.add of two IR v4 values.
+let private add (left: string) (right: string) =
+    """{"Apply":{"function":{"Apply":{"function":{"Reference":"morphir/SDK:basics#add"},"argument":"""
+    + left
+    + """}},"argument":"""
+    + right
+    + "}}"
+
+/// An IR v4 library with one module of <c>count</c> values, each a sum of five literals: generation takes long.
+let largeModel (count: int) =
+    v4Model
+        [ for index in 1..count ->
+              $"rate-{letters index}", List.fold (fun body step -> add body (literal (index + step))) (literal index) [ 1..4 ] ]
+
+/// An IR v4 library with one value nested <c>levels</c> additions deep: about two JSON levels for each addition.
+let deepModel (levels: int) =
+    v4Model [ "deep", List.fold (fun body level -> add (literal level) body) (literal 0) [ 1..levels ] ]
+
+/// The deepest JSON nesting of a document, counting the root as 1.
+let jsonDepth (bytes: byte array) =
+    let mutable reader = Utf8JsonReader(ReadOnlySpan bytes, JsonReaderOptions(MaxDepth = Int32.MaxValue))
+    let mutable deepest = 0
+
+    while reader.Read() do
+        deepest <- max deepest (reader.CurrentDepth + 1)
+
+    deepest
