@@ -215,6 +215,28 @@ module TufMetadata =
             | Ok digest -> Ok digest
             | Error _ -> Error(TufFailure.MetadataInvalid(role, "sha256 is not 64 lowercase hexadecimal digits")))
 
+    /// <summary>The first string or member name inside a value that is not already NFC. The signature input is the
+    /// NFC canonical form, so a document with such text would share its input with another (review of #581, T4).</summary>
+    let rec private firstNotNfc (value: Value) : string option =
+        match value with
+        | Value.Object members ->
+            members
+            |> List.tryPick (fun (name, item) -> if Nfc.isNormalized name then firstNotNfc item else Some $"the member name {name}")
+        | Value.Array items -> items |> List.tryPick firstNotNfc
+        | Value.String s when not (Nfc.isNormalized s) -> Some "a string"
+        | _ -> None
+
+    /// <summary>Refuses a member whose name differs from a known member of the object only in ASCII letter case, such
+    /// as <c>Version</c> beside <c>version</c>: unknown members are ignored as TUF says, but one that a consumer matching
+    /// names without case would read instead of the real member is refused (review of #581, T4).</summary>
+    let private noCaseVariants (role: TufRole) (what: string) (known: string list) (items: (string * Value) list) : Reader<unit> =
+        match
+            items
+            |> List.tryFind (fun (name, _) -> not (List.contains name known) && known |> List.exists (equalsAsciiIgnoreCase name))
+        with
+        | Some(name, _) -> Error(TufFailure.MetadataInvalid(role, $"{what} has the member {name}, which differs from a known member only in letter case"))
+        | None -> Ok()
+
     let private exactMembers (role: TufRole) (what: string) (allowed: string list) (items: (string * Value) list) : Reader<unit> =
         match items |> List.tryFind (fun (name, _) -> not (List.contains name allowed)) with
         | Some(name, _) -> Error(TufFailure.MetadataInvalid(role, $"{what} has the member {name}, which the profile does not define"))
@@ -237,6 +259,10 @@ module TufMetadata =
                     do! exactMembers role "the envelope" [ "signatures"; "signed" ] top
                     let! signed = required role "signed" top
                     let! signedMembers = members role "signed" signed
+
+                    match firstNotNfc signed with
+                    | Some what -> return! Error(TufFailure.MetadataInvalid(role, $"{what} inside signed is not NFC"))
+                    | None -> ()
 
                     let! canonical =
                         Canonical.bytes signed
@@ -273,6 +299,15 @@ module TufMetadata =
     /// a positive <c>version</c> and the exact <c>expires</c> format.</summary>
     let private common (role: TufRole) (signed: (string * Value) list) : Reader<uint64 * DateTimeOffset> =
         result {
+            let own =
+                match role with
+                | TufRole.Root -> [ "consistent_snapshot"; "keys"; "roles" ]
+                | TufRole.Timestamp
+                | TufRole.Snapshot -> [ "meta" ]
+                | TufRole.Targets -> [ "targets"; "delegations" ]
+
+            do! noCaseVariants role "signed" ([ "_type"; "spec_version"; "version"; "expires" ] @ own) signed
+
             let! kind = required role "_type" signed |> Result.bind (text role "_type")
 
             if kind <> roleName role then
@@ -404,9 +439,11 @@ module TufMetadata =
     let private metaFile (role: TufRole) (value: Value) : Reader<TufMetaFile> =
         result {
             let! fields = members role "a meta entry" value
+            do! noCaseVariants role "a meta entry" [ "version"; "length"; "hashes" ] fields
             let! version = required role "version" fields |> Result.bind (positive role "version")
             let! length = required role "length" fields |> Result.bind (integer role "length")
             let! hashes = required role "hashes" fields |> Result.bind (members role "hashes")
+            do! noCaseVariants role "hashes" [ "sha256" ] hashes
             let! sha = required role "sha256" hashes |> Result.bind (sha256 role)
 
             return
@@ -448,14 +485,19 @@ module TufMetadata =
             | Ok _ -> ()
 
             let! fields = members role "a target" value
+            do! noCaseVariants role "a target" [ "length"; "hashes"; "custom" ] fields
             let! length = required role "length" fields |> Result.bind (integer role "length")
             let! hashes = required role "hashes" fields |> Result.bind (members role "hashes")
+            do! noCaseVariants role "hashes" [ "sha256" ] hashes
             let! sha = required role "sha256" hashes |> Result.bind (sha256 role)
 
             let! custom =
                 match find "custom" fields with
                 | None -> Ok None
                 | Some(Value.Object customMembers as custom) ->
+                    match noCaseVariants role "custom" [ "morphir" ] customMembers with
+                    | Error failure -> Error failure
+                    | Ok() ->
                     match find "morphir" customMembers with
                     | None
                     | Some(Value.Object _) -> Ok(Some custom)

@@ -749,3 +749,62 @@ let reviewT3Tests =
             Expect.equal trusted.Root.Version 2UL "v2"
             Expect.equal trusted.Purpose TrustAnchorPurpose.TestOnly "still TEST-ONLY")
     ]
+
+/// The fixture's targets signed by the targets key with custom.morphir.preset = signedText, then served with the same
+/// signature and preset = servedText, written without normalization; snapshot and timestamp are linked to the served
+/// bytes and signed again with their own keys only.
+let private servedTargets (signedText: string) (servedText: string) =
+    let set = metadataSet "metadata"
+    let path = [ "targets"; "toolchains/recipes/fsharp/1.0.0.json"; "custom"; "morphir"; "preset" ]
+    let signed = setAt path (text signedText) (memberOf "signed" set.Targets)
+    let signatures = memberOf "signatures" (envelope signed (keysOf "targets"))
+    let served = Value.Object [ "signatures", signatures; "signed", setAt path (text servedText) signed ]
+    let bytes = JsonText.toBytes served
+
+    let entry =
+        Value.Object
+            [ "version", number (versionOf set.Targets)
+              "length", number (uint64 bytes.Length)
+              "hashes", Value.Object [ "sha256", text (Digest.ofBytes bytes) ] ]
+
+    let snapshot = resign "snapshot" (setAt [ "signed"; "meta"; "targets.json" ] entry set.Snapshot)
+    let timestamp = resign "timestamp" (setAt [ "signed"; "meta"; "snapshot.json" ] (entryOf snapshot) set.Timestamp)
+
+    { sourceOf { set with Snapshot = snapshot; Timestamp = timestamp } [] with
+        Targets = fun version -> if version = versionOf set.Targets then Some bytes else None }
+
+[<Tests>]
+let reviewT4Tests =
+    // Review of #581, T4: the signature input normalizes to NFC, so it was many-to-one. A string or member name inside
+    // signed that is not already NFC is refused, so the input is one-to-one on the documents the readers accept.
+    testList "T4 signed text that is not NFC is refused" [
+        for name, signedText, servedText in
+            [ "KELVIN SIGN for K", "Kfsharp", string (char 0x212A) + "fsharp"
+              "GREEK QUESTION MARK for ;", "a;b", "a" + string (char 0x037E) + "b"
+              "a decomposed e and U+0301 for é", "caf" + string (char 0x00E9), "cafe" + string (char 0x0301) ] ->
+            testCase name (fun () ->
+                match refused (refresh (anchor ()) (servedTargets signedText servedText)) with
+                | TufFailure.MetadataInvalid(TufRole.Targets, _) -> ()
+                | other -> failtestf "expected the targets to be refused as invalid, got %A" other)
+
+        yield testCase "control: other text under the same signature is SignatureInvalid" (fun () ->
+            Expect.equal (refused (refresh (anchor ()) (servedTargets "x" "y"))) (TufFailure.SignatureInvalid TufRole.Targets) "signature")
+
+        yield testCase "control: the same text signed and served refreshes" (fun () ->
+            refreshed (refresh (anchor ()) (servedTargets "fsharp" "fsharp")) |> ignore)
+
+        yield testCase "a member name that is not NFC is refused" (fun () ->
+            let set = metadataSet "metadata"
+            let timestamp = resign "timestamp" (setAt [ "signed"; "note" + string (char 0x212A) ] (text "x") set.Timestamp)
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp (JsonText.toBytes timestamp)))
+
+        yield testCase "a member that differs from a known member only in letter case is refused" (fun () ->
+            let set = metadataSet "metadata"
+            let timestamp = resign "timestamp" (setAt [ "signed"; "Version" ] (number 99UL) set.Timestamp)
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp (canonical timestamp)))
+
+        yield testCase "control: an unknown member is still ignored, as TUF says" (fun () ->
+            let set = metadataSet "metadata"
+            let timestamp = resign "timestamp" (setAt [ "signed"; "note" ] (text "x") set.Timestamp)
+            refreshed (refresh (anchor ()) { sourceOf set [] with Timestamp = fun () -> Some(canonical timestamp) }) |> ignore)
+    ]
