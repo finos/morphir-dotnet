@@ -37,7 +37,7 @@ public sealed class ExtensionCatalogInteropTests
         entry.Types.Select(type => type.WireValue).Should().Equal("backend");
         entry.Delivery.WireValue.Should().Be("built-in");
         entry.Hosts.WireValues.Should().Equal("morphir", "dotnet-morphir");
-        entry.IsAvailableIn(MorphirHost.DotnetTool).Should().BeTrue();
+        entry.IsAvailableIn(MorphirHost.DotnetTool, NoRuntime).Should().BeTrue();
         entry.BackendClaimOrNull!.Targets.Select(target => target.Value).Should().Equal("csharp");
         entry.Identity.DescriptionOrNull.Should().BeNull();
     }
@@ -46,7 +46,11 @@ public sealed class ExtensionCatalogInteropTests
     public void AnEntryForOneHostIsNotAvailableInTheOther()
     {
         var entry = Backend("acme.frontend").WithHosts(HostAvailability.OnlyIn(MorphirHost.DotnetTool));
-        entry.IsAvailableIn(MorphirHost.Native).Should().BeFalse();
-        entry.IsAvailableIn(MorphirHost.DotnetTool).Should().BeTrue();
+        entry.IsAvailableIn(MorphirHost.Native, NoRuntime).Should().BeFalse();
+        entry.IsAvailableIn(MorphirHost.DotnetTool, NoRuntime).Should().BeTrue();
     }
+
+    /// <summary>A runtime a built-in entry must never ask: its availability does not depend on the WASM runtime.</summary>
+    private static readonly Func<WasmRuntimeAvailability> NoRuntime =
+        () => throw new InvalidOperationException("a built-in entry asked the WASM runtime");
 }
