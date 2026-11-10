@@ -602,3 +602,20 @@ let resolverRuleTests =
 
             Expect.equal (resolveIn [ withCli ">=0.4.0, <0.5.0" "1.0.0" ] (onChannel "stable")) "releases/tool/1.0.0.json = 1.0.0" "two comparators")
     ]
+[<Tests>]
+let listingTests =
+    // A1 indexes a release's artifacts by target path; a target listed twice is still bound by its first listing, as
+    // List.tryFind did before.
+    testList "A release that lists a target twice" [
+        case "binds by its first listing" "valid" [
+            editTarget nativeRelease (fun release ->
+                let artifacts = items (memberOf "artifacts" release)
+                let second = artifacts.Head |> setAt [ "platform"; "arch" ] (str "aarch64")
+                setAt [ "artifacts" ] (Value.Array(artifacts.Head :: second :: artifacts.Tail)) release) ]
+
+        case "refuses when its first listing is for another platform" "artifact_platform_mismatch @ hosts[0].platforms.win-x64.target" [
+            editTarget nativeRelease (fun release ->
+                let artifacts = items (memberOf "artifacts" release)
+                let first = artifacts.Head |> setAt [ "platform"; "arch" ] (str "aarch64")
+                setAt [ "artifacts" ] (Value.Array(first :: artifacts)) release) ]
+    ]
