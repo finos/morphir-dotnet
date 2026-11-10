@@ -55,7 +55,12 @@ let ranRecipeRules =
           "provider-descriptor-parses"
           "provider-descriptor-identity"
           "provider-descriptor-version"
-          "provider-claims-identity" ]
+          "provider-claims-identity"
+          "provider-artifact-bound"
+          "provider-artifact-listed"
+          "provider-artifact-runtime"
+          "provider-artifact-digest-listed"
+          "provider-artifact-platform" ]
 
 let private bindingRows =
     "a host or provider binding row after the provider repository row; the host release and extension descriptor readers and the claims checks are task 4.3 and not implemented in this slice"
@@ -63,12 +68,7 @@ let private bindingRows =
 /// Recipe check rules this suite does not run, each with its reason.
 let skippedRecipeRules =
     [ for rule in
-          [ "provider-artifact-bound"
-            "provider-artifact-listed"
-            "provider-artifact-runtime"
-            "provider-artifact-digest-listed"
-            "provider-artifact-platform"
-            "provider-claims-kind"
+          [ "provider-claims-kind"
             "provider-claims-protocol"
             "provider-claims-operand"
             "provider-claims-model" ] ->
@@ -78,8 +78,7 @@ let skippedRecipeRules =
 /// Trust operations, and the check-recipe rules, that this suite does not run, with their reasons.
 let skippedTrust =
     Map.ofList
-        [ "load", "loads the mutated repository through a TUF client: signatures, snapshot links and expiry are metadata verification"
-          "check-recipe-bindings", bindingRows ]
+        [ "load", "loads the mutated repository through a TUF client: signatures, snapshot links and expiry are metadata verification" ]
 
 let private manifest () = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "cases.json")
 
@@ -152,6 +151,25 @@ let private recipeRows (listed: Map<string, AuthenticatedTarget>) (target: strin
     RecipeTargets.check target (listed.TryFind target) (defaultArg (bytesOf target) [||])
     |> Result.bind (fun (recipe, _) -> RecipeBindings.check (repository ()) listed bytesOf recipe)
     |> targetOutcome
+
+/// A value with the member or element a JSON pointer names replaced (RFC 6901: ~1 is /, ~0 is ~).
+let private setAtPointer (pointer: string) (replacement: Value) (value: Value) =
+    let tokens =
+        pointer.Split '/'
+        |> Array.skip 1
+        |> Array.map (fun token -> token.Replace("~1", "/").Replace("~0", "~"))
+        |> List.ofArray
+
+    let rec set (path: string list) (value: Value) =
+        match path, value with
+        | [], _ -> replacement
+        | head :: rest, Value.Object members when members |> List.exists (fst >> (=) head) ->
+            Value.Object(members |> List.map (fun (name, item) -> if name = head then name, set rest item else name, item))
+        | head :: rest, Value.Array items ->
+            Value.Array(items |> List.mapi (fun index item -> if string index = head then set rest item else item))
+        | _ -> failtestf "the pointer %s names nothing" pointer
+
+    set tokens value
 
 /// The served bytes of a target after the case's target mutations.
 let private servedBytes (case: JsonElement) (target: string) =
@@ -284,6 +302,29 @@ let private trustTests () =
                   testCase name (fun () ->
                       let target = str action "recipe"
                       Expect.equal (recipeRows listed target (tryServedBytes case)) (Manifest.expected name case) name)
+          | "check-recipe-bindings", _ ->
+              yield
+                  testCase name (fun () ->
+                      // The recipe document edited by JSON pointer, then only its bindings checked: the edited bytes are
+                      // no longer the authenticated recipe target.
+                      let target = str action "recipe"
+
+                      let original =
+                          match Syntax.parseJson (targetBytes target) with
+                          | Ok value -> value
+                          | Error _ -> failtest "the recipe does not parse"
+
+                      let edited =
+                          [ for m in action.GetProperty("documentMutations").EnumerateArray() -> m ]
+                          |> List.fold
+                              (fun (value: Value) m ->
+                                  requireKnown $"{name} mutation" [ "pointer"; "value" ] m
+                                  setAtPointer (str m "pointer") (Value.String(str m "value")) value)
+                              original
+
+                      let recipe = RecipeDocument.read (JsonText.toBytes edited) |> valid target
+                      let actual = RecipeBindings.check (repository ()) listed (tryServedBytes case) recipe |> targetOutcome
+                      Expect.equal actual (Manifest.expected name case) name)
           | "check-locked-generation", _ ->
               yield
                   testCase name (fun () ->
@@ -327,7 +368,7 @@ let private channelTests () =
 /// Why a trust case is not run, or None when it is.
 let trustSkipReason (op: string) (rule: string option) =
     match op, rule with
-    | ("read" | "authenticate" | "check-locked-generation"), _ -> None
+    | ("read" | "authenticate" | "check-locked-generation" | "check-recipe-bindings"), _ -> None
     | "check-recipe", Some rule when ranRecipeRules.Contains rule -> None
     | "check-recipe", Some rule -> skippedRecipeRules.TryFind rule |> Option.orElse (Some "unlisted")
     | _ -> skippedTrust.TryFind op |> Option.orElse (Some "unlisted")

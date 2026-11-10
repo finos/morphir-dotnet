@@ -267,6 +267,71 @@ module RecipeBindings =
             return digest, described
         }
 
+    /// <summary>The descriptor's entry for a bound artifact: the descriptor lists it in its own directory, with the
+    /// delivery's runtime and the bound digest.</summary>
+    let private listedArtifact
+        (release: ExtensionRelease)
+        (descriptorTarget: TargetPath)
+        (runtime: ArtifactRuntime)
+        (binding: TargetBinding)
+        (owner: DocumentPath)
+        : Result<DescribedArtifact, TargetRefusal> =
+        let directory =
+            match descriptorTarget.Text.LastIndexOf '/' with
+            | -1 -> ""
+            | at -> descriptorTarget.Text.Substring(0, at + 1)
+
+        match release.Artifacts |> List.tryFind (fun artifact -> directory + artifact.Filename = binding.Target.Text) with
+        | None -> trust TrustCode.ReleaseDescriptorMismatch (owner.Child "artifactTarget")
+        | Some artifact when artifact.Runtime <> runtime -> trust TrustCode.ReleaseDescriptorMismatch (owner.Child "artifactTarget")
+        | Some artifact when artifact.Sha256 <> binding.Sha256 -> trust TrustCode.TargetDigestMismatch (owner.Child "artifactSha256")
+        | Some artifact -> Ok artifact
+
+    let private claimsOf (artifact: DescribedArtifact) =
+        { Claims = artifact.Claims
+          ClaimCheck = artifact.ClaimCheck }
+
+    /// <summary>The artifact rows of a provider's delivery: each bound artifact or package is authenticated with its
+    /// digest; a process or WASM artifact is listed by the descriptor in its own directory, with the delivery's runtime
+    /// and the bound digest; and a process artifact's target triple is the bound platform's. Process platforms are
+    /// checked in platform table order. A <c>dotnet-tool</c> package is described by every artifact's claims.</summary>
+    let private artifacts
+        (repository: Sha256)
+        (targets: Map<string, AuthenticatedTarget>)
+        (at: DocumentPath)
+        (provider: RecipeProvider)
+        (release: ExtensionRelease)
+        : Result<(RecipeDigest * BoundClaims list) list, TargetRefusal> =
+        let descriptorTarget = provider.Release.DescriptorTarget
+
+        match provider.Delivery with
+        | RecipeDelivery.Process platforms ->
+            platforms
+            |> Result.traverse (fun (platform, binding) ->
+                result {
+                    let owner = (at.Child "platforms").Child(Platform.name platform)
+                    let! _, digest = bound repository targets owner "artifactTarget" "artifactSha256" binding
+                    let! artifact = listedArtifact release descriptorTarget ArtifactRuntime.Process binding owner
+
+                    if artifact.Platform <> Some(targetTriple platform) then
+                        return! trust TrustCode.ArtifactPlatformMismatch (owner.Child "artifactTarget")
+
+                    return digest, [ claimsOf artifact ]
+                })
+        | RecipeDelivery.Wasm(_, binding) ->
+            result {
+                let! _, digest = bound repository targets at "artifactTarget" "artifactSha256" binding
+                let! artifact = listedArtifact release descriptorTarget ArtifactRuntime.Wasm binding at
+                return [ digest, [ claimsOf artifact ] ]
+            }
+        | RecipeDelivery.DotnetTool package ->
+            result {
+                let! _, digest =
+                    bound repository targets at "packageTarget" "packageSha256" { Target = package.Target; Sha256 = package.Sha256 }
+
+                return [ digest, release.Artifacts |> List.map claimsOf ]
+            }
+
     /// <summary>The provider binding rows for one provider, in the page's order: its repository first, before its
     /// descriptor is read.</summary>
     let private checkProvider
@@ -283,12 +348,13 @@ module RecipeBindings =
                 return! trust TrustCode.RepositoryMismatch (at.Child "repositoryId")
 
             let! digest, release = descriptor repository targets bytesOf at provider
+            let! bound = artifacts repository targets at provider release
 
             return
                 { Provider = provider
                   Descriptor = digest
                   Release = release
-                  Artifacts = [] }
+                  Artifacts = bound }
         }
 
     /// <summary>
