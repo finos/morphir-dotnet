@@ -46,7 +46,8 @@ static string GetCurrentRid()
 
 static string GetExecutableName(string rid, bool isAot = false)
 {
-    var baseName = isAot ? "Morphir" : "morphir";
+    // Every morphir executable is named morphir, AOT included; "Morphir" never matched on Linux and macOS.
+    var baseName = "morphir";
     if (rid.StartsWith("win-"))
     {
         return $"{baseName}.exe";
