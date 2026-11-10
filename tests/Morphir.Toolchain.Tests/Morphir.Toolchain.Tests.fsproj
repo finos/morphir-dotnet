@@ -15,6 +15,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Toolchain/Morphir.Toolchain.fsproj" />
+    <ProjectReference Include="../../src/Morphirup/Morphirup.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Configuration.IO/Morphir.Configuration.IO.csproj" />
     <Compile Include="Fixtures.fs" />
     <Compile Include="ProvenanceTests.fs" />
     <Compile Include="Manifest.fs" />
@@ -26,6 +28,8 @@
     <Compile Include="PrimitiveTests.fs" />
     <Compile Include="PlanningTests.fs" />
     <Compile Include="WriterTests.fs" />
+    <Compile Include="CliTests.fs" />
+    <Compile Include="ConfigurationAdapterTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
