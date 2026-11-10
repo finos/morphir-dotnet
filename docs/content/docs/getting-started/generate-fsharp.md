@@ -25,3 +25,8 @@ Use the report's artifact order when adding files to an F# project. Generation
 does not create the project or compile it. Keep handwritten files separate
 from owned artifact paths. See the [command reference](../../cli/generate/) for
 the supported profile, options, exit codes and publication guarantees.
+
+`morphir generate --target fsharp` uses the built-in backend `morphir.fsharp`.
+The same generator is also published as the MEP extension
+`morphir-fsharp-backend` for hosts without that built-in; see
+[F# generation](../../backends/fsharp/).

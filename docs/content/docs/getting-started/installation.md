@@ -31,6 +31,12 @@ F# frontend extension:
 dotnet tool install --global Morphir.Frontend.FSharp.Extension --prerelease
 ```
 
+Both hosts generate F# with their built-in backend. A separate F# backend
+extension, `Morphir.CodeGeneration.FSharp.Extension` (command
+`morphir-fsharp-backend`), is for other MEP hosts that have no built-in F#
+backend; `morphir generate` does not use it. See
+[F# generation]({{< relref "/docs/backends/fsharp" >}}).
+
 ### Local Project Installation
 
 Add the Morphir libraries to your project:

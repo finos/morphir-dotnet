@@ -150,7 +150,7 @@ let tests =
                   let cases = suite.Value.Cases |> List.filter (fun case -> case.Exclusion.IsNone)
                   Expect.isNonEmpty cases "The corpus has cases"
 
-                  let observe (adapter: Adapter) case =
+                  let observe (adapter: Adapter) (case: ConformanceCase) =
                       adapter.Observe case.Input CancellationToken.None |> fun task -> task.GetAwaiter().GetResult()
 
                   for case in cases do
