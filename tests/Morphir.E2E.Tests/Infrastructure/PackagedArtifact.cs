@@ -23,6 +23,15 @@ public sealed record PackagedArtifact(
     bool InProcessFSharpFrontend,
     string ArchivePath)
 {
+    /// <summary>The <c>&lt;artifact&gt;.build-contents.json</c> that PackRelease wrote beside the artifact.</summary>
+    public string BuildContentsPath => Path.Combine(Path.GetDirectoryName(ArchivePath)!, $"{Artifact}.build-contents.json");
+
+    /// <summary>The engines that the build contents record, or null when they record none.</summary>
+    public IReadOnlyList<RecordedEngine>? RecordedEngines() =>
+        File.Exists(BuildContentsPath)
+            ? RecordedEngine.ReadAll(File.ReadAllText(BuildContentsPath))
+            : throw new InvalidOperationException($"{BuildContentsPath} is missing. Pack the artifact again with PackRelease.");
+
     /// <summary>
     /// The artifact of <paramref name="deployment"/> for <paramref name="rid"/> (or the portable <c>any</c>) in
     /// <paramref name="releaseDirectory"/>. Fails with the command that builds it when there is none.

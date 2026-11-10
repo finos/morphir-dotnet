@@ -43,9 +43,9 @@ public sealed class WorkerProcess : IAsyncDisposable
     public TimeSpan Elapsed => clock.Elapsed;
 
     /// <summary>Starts <c>executable extension worker arguments...</c>, with <paramref name="environment"/> added to the
-    /// inherited environment.</summary>
+    /// inherited environment and then <paramref name="configure"/> applied, for example a working directory or a sandbox.</summary>
     public static async Task<WorkerProcess> StartAsync(string executable, IEnumerable<string> arguments,
-        IReadOnlyDictionary<string, string>? environment = null)
+        IReadOnlyDictionary<string, string>? environment = null, Action<ProcessStartInfo>? configure = null)
     {
         var info = new ProcessStartInfo(executable)
         {
@@ -60,6 +60,7 @@ public sealed class WorkerProcess : IAsyncDisposable
         info.ArgumentList.Add("worker");
         foreach (var argument in arguments) info.ArgumentList.Add(argument);
         foreach (var (name, value) in environment ?? new Dictionary<string, string>()) info.Environment[name] = value;
+        configure?.Invoke(info);
 
         var slot = await ProcessGate.Shared.EnterAsync();
         var process = new Process { StartInfo = info };

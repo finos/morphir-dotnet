@@ -40,6 +40,10 @@ public static class WorkerCorpus
     public static string ModulePath(string module) =>
         Path.Combine(Fixtures, Document.Value.GetProperty("modules").GetProperty(module).GetProperty("wasm").GetString()!);
 
+    /// <summary>The SHA-256 that the corpus pins for a module.</summary>
+    public static string ModuleSha256(string module) =>
+        Document.Value.GetProperty("modules").GetProperty(module).GetProperty("sha256").GetString()!;
+
     /// <summary>A named frame of the corpus as the conventions write it: compact, with members in the order written.</summary>
     public static byte[] FrameBody(string name)
     {

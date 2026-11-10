@@ -20,11 +20,12 @@ public sealed class PackagedInstallation
     // through the /var link, and a Windows TEMP can be a short name.
     private static readonly string RunRoot = CanonicalPath.Of(Path.Combine(Path.GetTempPath(), $"morphir packaged e2e {Guid.NewGuid():N}"));
 
-    private PackagedInstallation(PackagedArtifact artifact, string directory, string launchPath)
+    private PackagedInstallation(PackagedArtifact artifact, string directory, string launchPath, string artifactRoot)
     {
         Artifact = artifact;
         Directory = directory;
         LaunchPath = launchPath;
+        ArtifactRoot = artifactRoot;
     }
 
     public PackagedArtifact Artifact { get; }
@@ -35,19 +36,36 @@ public sealed class PackagedInstallation
     /// <summary>The absolute path of the executable to launch.</summary>
     public string LaunchPath { get; }
 
+    /// <summary>
+    /// The folder whose paths, relative to it, are the artifact's entry paths: the installation directory for an
+    /// archive, the tool store's package folder for the tool package.
+    /// </summary>
+    public string ArtifactRoot { get; }
+
     /// <summary>The installation of the packaged executable type <paramref name="type"/>, installed on first use.</summary>
     public static PackagedInstallation For(string type)
     {
         if (!ExecutableLocator.IsPackaged(type))
             throw new InvalidOperationException(
                 $"'{type}' is not a packaged executable type. Set MORPHIR_EXECUTABLE_TYPE to one of {string.Join(", ", ExecutableLocator.PackagedTypes)}.");
-        return Installed.GetOrAdd(type, key => new Lazy<PackagedInstallation>(() => Install(key))).Value;
+        return Installed.GetOrAdd(type, key => new Lazy<PackagedInstallation>(() => Install(key, $"{key} install"))).Value;
+    }
+
+    /// <summary>
+    /// A second installation of the packaged executable type <paramref name="type"/>, made the same way into its own
+    /// directory <c>&lt;type&gt; &lt;name&gt;</c>, for a scenario that changes it. It is never shared, and it is removed
+    /// with the others after the test run.
+    /// </summary>
+    public static PackagedInstallation InstallAnother(string type, string name)
+    {
+        For(type);
+        return Install(type, $"{type} {name}");
     }
 
     /// <summary>Removes every installation of this test run.</summary>
     public static void RemoveAll() => TolerantDirectory.TryDelete(RunRoot);
 
-    private static PackagedInstallation Install(string deployment)
+    private static PackagedInstallation Install(string deployment, string directoryName)
     {
         var locator = new ExecutableLocator();
         var artifact = PackagedArtifact.Find(locator.ReleaseDirectory, deployment, locator.CurrentRid);
@@ -55,11 +73,13 @@ public sealed class PackagedInstallation
         if (sha256 != artifact.Sha256)
             throw new InvalidOperationException($"{artifact.ArchivePath} has SHA-256 {sha256}, not the {artifact.Sha256} of its launch metadata.");
 
-        var directory = Path.Combine(RunRoot, $"{deployment} install");
+        var directory = Path.Combine(RunRoot, directoryName);
+        if (System.IO.Directory.Exists(directory))
+            throw new InvalidOperationException($"{directory} is already installed in this test run.");
         System.IO.Directory.CreateDirectory(directory);
 
         if (deployment == "dotnet-tool")
-            return InstallTool(artifact, directory);
+            return InstallTool(artifact, directory, directoryName);
 
         if (artifact.ArchivePath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
         {
@@ -71,7 +91,7 @@ public sealed class PackagedInstallation
             ZipFile.ExtractToDirectory(artifact.ArchivePath, directory);
         }
 
-        return new PackagedInstallation(artifact, directory, Path.Combine(directory, artifact.LaunchPath.Replace('/', Path.DirectorySeparatorChar)));
+        return new PackagedInstallation(artifact, directory, Path.Combine(directory, artifact.LaunchPath.Replace('/', Path.DirectorySeparatorChar)), directory);
     }
 
     /// <summary>
@@ -80,12 +100,12 @@ public sealed class PackagedInstallation
     /// in the same kind of sandbox as the runs, with its own NuGet packages folder, and the package that the tool store
     /// keeps must be the packed file.
     /// </summary>
-    private static PackagedInstallation InstallTool(PackagedArtifact artifact, string directory)
+    private static PackagedInstallation InstallTool(PackagedArtifact artifact, string directory, string directoryName)
     {
         using var sandbox = TestSandbox.Create("morphir-packaged-install-");
-        var feed = System.IO.Directory.CreateDirectory(Path.Combine(RunRoot, "tool feed")).FullName;
+        var feed = System.IO.Directory.CreateDirectory(Path.Combine(RunRoot, $"{directoryName} feed")).FullName;
         File.Copy(artifact.ArchivePath, Path.Combine(feed, artifact.Artifact), overwrite: true);
-        var config = Path.Combine(RunRoot, "nuget.tool.config");
+        var config = Path.Combine(RunRoot, $"{directoryName}.nuget.config");
         File.WriteAllText(config,
             "<?xml version=\"1.0\" encoding=\"utf-8\"?><configuration><packageSources><clear />" +
             $"<add key=\"morphir-release\" value=\"{System.Security.SecurityElement.Escape(feed)}\" /></packageSources></configuration>");
@@ -104,7 +124,15 @@ public sealed class PackagedInstallation
             throw new InvalidOperationException(problem);
 
         var launch = Path.Combine(directory, OperatingSystem.IsWindows() ? "dotnet-morphir.exe" : "dotnet-morphir");
-        return new PackagedInstallation(artifact, directory, launch);
+        return new PackagedInstallation(artifact, directory, launch, StorePackageFolder(directory, "Morphir.Tool", artifact.Release));
+    }
+
+    /// <summary>The tool store's folder of the extracted package: <c>.store/&lt;id&gt;/&lt;version&gt;/&lt;id&gt;/&lt;version&gt;</c>, in lowercase.</summary>
+    public static string StorePackageFolder(string toolPath, string packageId, string version)
+    {
+        var id = packageId.ToLowerInvariant();
+        var lower = version.ToLowerInvariant();
+        return Path.Combine(toolPath, ".store", id, lower, id, lower);
     }
 
     /// <summary>
