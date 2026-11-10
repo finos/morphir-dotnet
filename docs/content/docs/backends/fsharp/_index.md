@@ -158,7 +158,11 @@ by the Native AOT host) give the same single file, `Pricing.fs`, 112 bytes.
 The test project pins those bytes, and its compile step (the case's F# source to
 its expected IR) runs through the compatibility kit.
 
-The guest is not qualified with the shared compatibility runner of
-`finos/morphir` yet: the case's expected generated files are not frozen yet, and
-the runner cannot observe generated files yet. See
+The case's expected generated file is frozen at finos/morphir `9e1f853b7`: its
+`case.json` has `"status": "frozen"` and `"formatting": "off"`, and names
+`expected/generated/Pricing.fs` with those 112 bytes. This repository's pin moves
+to that commit separately; until then the test compares the size and SHA-256 of
+the frozen file, and once the pin has the file, its bytes. The guest is not
+qualified with the shared compatibility runner of `finos/morphir` yet, because the
+runner cannot observe generated files yet. See
 [deviations](https://github.com/finos/morphir-dotnet/blob/main/conformance/deviations.md).
