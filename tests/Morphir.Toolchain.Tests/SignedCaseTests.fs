@@ -148,27 +148,61 @@ let private recipeRows (listed: Map<string, AuthenticatedTarget>) (target: strin
         |> Result.mapError (fun refusal -> { Code = refusal.Code; Path = refusal.Path }))
     |> targetOutcome
 
-/// The served bytes of a target after the case's target mutations.
-let private servedBytes (case: JsonElement) (target: string) =
+/// <summary>A case's target mutations, applied to the bytes served for each target. A mutation of another op, or one
+/// that is never applied, fails the case, so no case passes with a mutation the runner ignored (review of #582,
+/// R4).</summary>
+type TargetMutations(case: JsonElement) =
+    let name = optStr case "name" |> Option.defaultValue "a case"
+
     let mutations =
         match case.TryGetProperty "mutations" with
         | true, m when m.ValueKind = JsonValueKind.Array -> [ for x in m.EnumerateArray() -> x ]
         | true, m when m.ValueKind = JsonValueKind.Object -> [ m ]
-        | _ -> []
+        | true, _ -> failtestf "%s: mutations is not an array" name
+        | false, _ -> []
 
-    let mutable bytes = targetBytes target
-
-    for m in mutations do
-        if optStr m "target" = Some target then
+    do
+        for m in mutations do
             match str m "op" with
-            | "replace-target-bytes" -> bytes <- targetBytes (str m "with")
-            | "replace-target-text" ->
-                let text = Encoding.UTF8.GetString bytes
-                let find = str m "find"
-                let at = text.IndexOf(find, System.StringComparison.Ordinal)
-                bytes <- Encoding.UTF8.GetBytes(text.Substring(0, at) + str m "replace" + text.Substring(at + find.Length))
-            | other -> failtestf "mutation %s on a target" other
+            | "replace-target-bytes" -> requireKnown $"{name} mutation" [ "op"; "target"; "with" ] m
+            | "replace-target-text" -> requireKnown $"{name} mutation" [ "op"; "target"; "find"; "replace" ] m
+            | other -> failtestf "%s: the mutation %s is not one this runner applies to a target" name other
 
+    let applied = System.Collections.Generic.HashSet<int>()
+
+    /// The bytes served for a target after the mutations of that target.
+    member _.Served(target: string) =
+        let mutable bytes = targetBytes target
+
+        for index, m in List.indexed mutations do
+            if str m "target" = target then
+                match str m "op" with
+                | "replace-target-bytes" -> bytes <- targetBytes (str m "with")
+                | _ ->
+                    let text = Encoding.UTF8.GetString bytes
+                    let find = str m "find"
+                    let at = text.IndexOf(find, System.StringComparison.Ordinal)
+
+                    if at < 0 then
+                        failtestf "%s: the mutation's text %s is not in %s" name find target
+
+                    bytes <- Encoding.UTF8.GetBytes(text.Substring(0, at) + str m "replace" + text.Substring(at + find.Length))
+
+                applied.Add index |> ignore
+
+        bytes
+
+    /// Fails unless every mutation was applied to a target the case read.
+    member _.ExpectAllApplied() =
+        for index, m in List.indexed mutations do
+            if not (applied.Contains index) then
+                failtestf "%s: the mutation %s of %s was never applied" name (str m "op") (str m "target")
+
+/// The served bytes of a target after the case's target mutations; every mutation must be applied.
+let private servedBytes (case: JsonElement) (target: string) =
+    let mutations = TargetMutations case
+    let bytes = mutations.Served target
+    mutations.ExpectAllApplied()
     bytes
 
 let private selectionTests () =
@@ -376,4 +410,25 @@ let tests =
         testList "recipeChecks" (recipeCheckTests ())
         testList "trust" (trustTests ())
         testList "channelSelection" (channelTests ())
+
+        testList "a target mutation the runner does not apply fails its case" [
+            let caseOf (json: string) = (JsonDocument.Parse json).RootElement.Clone()
+
+            yield testCase "the reviewer's made-up mutation" (fun () ->
+                let case = caseOf """{"name":"made up","mutations":[{"op":"made-up-mutation","target":"nothing"}]}"""
+                Expect.throwsT<AssertException> (fun () -> TargetMutations case |> ignore) "an unknown op fails")
+
+            yield testCase "a mutation of a target the case never reads" (fun () ->
+                let case =
+                    caseOf
+                        """{"name":"other target","mutations":[{"op":"replace-target-bytes","target":"releases/morphir-dotnet-native-aot/1.2.3.json","with":"releases/morphir-dotnet-self-contained/1.2.3.json"}]}"""
+
+                Expect.throwsT<AssertException> (fun () -> servedBytes case "toolchains/recipes/fsharp/1.0.0.json" |> ignore) "never applied")
+
+            yield testCase "a text mutation whose text is not in the target" (fun () ->
+                let case =
+                    caseOf """{"name":"absent text","mutations":[{"op":"replace-target-text","target":"toolchains/recipes/fsharp/1.0.0.json","find":"no such text","replace":"x"}]}"""
+
+                Expect.throwsT<AssertException> (fun () -> servedBytes case "toolchains/recipes/fsharp/1.0.0.json" |> ignore) "not applied")
+        ]
     ]
