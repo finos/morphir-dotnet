@@ -111,8 +111,9 @@ public sealed class WorkerReport
             () => message is null ? $"fault {kind}" : $"fault {kind}: {Cut(message)}");
 
     /// <summary>
-    /// The worker refused to serve before any request, with the contract's refusal code, or with
-    /// <c>extension.runtime_unavailable</c>, which the host capability defines for a host without its WASM runtime.
+    /// The worker refused to serve before any request, with one of the contract's refusal codes: a module refusal
+    /// (<c>refusals</c>) or one of the worker's own (<c>worker.refusals</c>: another build identity, or a host without
+    /// a usable engine).
     /// </summary>
     public void Refused(string code, string message) =>
         Emit("refused",

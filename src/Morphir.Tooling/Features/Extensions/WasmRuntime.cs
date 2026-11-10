@@ -63,8 +63,8 @@ public sealed class WasmRuntime
 /// is there. .NET on Linux and macOS reports every <c>dlopen</c> failure as <see cref="DllNotFoundException"/>, and on
 /// Windows a library whose own dependency is missing; the file then decides between the two.</item>
 /// </list>
-/// <c>disabled</c> is a reason of the runtime report, but no switch that turns the runtime off is defined yet, so this
-/// probe never gives it.
+/// These are the three reasons of the requirement "Unavailable runtime fails by name". No switch turns the runtime off,
+/// so there is no fourth.
 /// </summary>
 public static class WasmRuntimeProbe
 {
@@ -177,13 +177,17 @@ public static class WasmRuntimeProbe
 /// <summary>The failure <c>extension.runtime_unavailable</c> (requirement "Unavailable runtime fails by name").</summary>
 public static class WasmRuntimeUnavailable
 {
-    /// <summary>The code of a command that needs the WASM runtime in a host without it.</summary>
-    public const string Code = "extension.runtime_unavailable";
+    /// <summary>
+    /// The code of a command that needs the WASM runtime in a host without it, and of a worker's refusal in such a
+    /// host: one of the pinned contract's <c>worker.refusals</c>.
+    /// </summary>
+    public const string Code = WasmWorkerRefusal.RuntimeUnavailableCode;
 
     /// <summary>
-    /// The clause that names the host, its platform and the reason, for example <c>the WASM runtime of morphir 0.4.0 on
-    /// linux-musl-x64 is unavailable (platform_unsupported): the engine has no build for this platform</c>. No build
-    /// identity of the deployment offering exists at run time yet, so the host stands for it.
+    /// The clause that names the host, its platform and the reason, as the requirement "Unavailable runtime fails by
+    /// name" asks, for example <c>the WASM runtime of morphir 0.4.0 on linux-musl-x64 is unavailable
+    /// (platform_unsupported): the engine has no build for this platform</c>. It does not name the offering, which a
+    /// .NET executable does not know at run time.
     /// </summary>
     public static string Clause(HostIdentity host, string platform, WasmRuntimeUnavailableReason reason)
     {

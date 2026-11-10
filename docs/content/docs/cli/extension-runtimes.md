@@ -103,8 +103,9 @@ wasm: unavailable (engine_missing)
 | `runtimes[].bounds` | Only when available: `memoryBytes` is the ceiling of each linear memory of a session, and `deadline` and `budget` say that the call deadline and the instruction budget are enforced. The values are the defaults of the pinned WASM execution profile contract. |
 
 The report has no member for the deployment offering (`native-aot`, `self-contained`,
-`framework-dependent` or `dotnet-tool`) yet. The executable has no record of how it was published, and
-the report does not guess one from the file name or path.
+`framework-dependent` or `dotnet-tool`). A .NET executable does not know at run time how it was
+published, and the report does not guess one from the file name or path. A runner that needs the
+offering is given it as an input.
 
 ## Reasons
 
@@ -113,15 +114,24 @@ the report does not guess one from the file name or path.
 | `platform_unsupported` | The engine has no build for this platform, for example Linux with musl (Alpine). | Use a supported platform for WASM extensions. Every other command works here. |
 | `engine_missing` | The engine's native library (`wasmtime.dll`, `libwasmtime.so` or `libwasmtime.dylib`) is not where the host looks for it. A copy, an archive or a package lost the file. | Reinstall or extract the release again, keeping every file beside the executable, including the `runtimes` folder of the dotnet tool. |
 | `engine_load_failed` | The library is there but did not load: it is for another architecture, it is damaged or of another version, or one of its own dependencies is missing. | Reinstall the release for your platform and architecture. If that does not help, report it with the output of this command. |
-| `disabled` | The WASM runtime is turned off. | No release turns it off today. The reason is reserved for a release-level switch. |
+
+There are no other reasons. No setting or release switch turns the WASM runtime off: if an engine
+defect is found after a release, it is fixed in a patch release, and until then you avoid it by not
+configuring a WASM extension. No other command loads the engine.
+
+The host decides the reason the first time something needs the engine: this report, loading a module,
+or listing a WASM extension. `--version`, `--help` and the worker's argument and build-identity checks
+never load it.
 
 ## Commands that need the runtime
 
 A command that needs the WASM runtime in a host without it fails with `extension.runtime_unavailable`
 before it reads the module, and names the host, the platform and the reason. It never shows a native
 library loading error. Today the only such command is the internal
-[`morphir extension worker`](../extension-worker/), which writes one `refused` event with the code
-`extension.runtime_unavailable` on stderr, nothing on stdout, and exits with 3:
+[`morphir extension worker`](../extension-worker/). It checks its arguments, then the build identity,
+then the engine, then the module, and reports the first that fails. Without a usable engine it writes
+one `refused` event with the code `extension.runtime_unavailable` on stderr, nothing on stdout, and
+exits with 3:
 
 ```json
 {"profile":"morphir/command-event","contractVersion":"0.1.0","command":"extension worker","sequence":1,"event":"refused","error":{"code":"extension.runtime_unavailable","message":"The WASM module of extension 'python' at '/work/python.wasm' cannot be loaded with extension.runtime_unavailable: the WASM runtime of dotnet-morphir 0.4.0 on linux-musl-x64 is unavailable (platform_unsupported): the engine has no build for this platform."}}

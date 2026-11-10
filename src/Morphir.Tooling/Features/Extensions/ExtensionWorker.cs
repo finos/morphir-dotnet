@@ -30,7 +30,8 @@ public sealed record WorkerContext(string BuildIdentity, string WorkspaceRoot, I
 /// negotiate and does not read the protocol version (design MEP-1).
 /// </summary>
 /// <remarks>
-/// <para>The order of a run, which the pinned contract's worker rules fix:</para>
+/// <para>The order of a run, which the pinned contract's worker rules fix (<c>start-order</c> for the first four,
+/// <see cref="WasmProfileContract.WorkerStartOrder"/>):</para>
 /// <list type="number">
 /// <item>The arguments. Invalid ones serve nothing and exit with 2; <c>--help</c> writes the help and exits with 0.</item>
 /// <item>The build identity, before the module file is read: another identity is <c>refused</c>
@@ -73,8 +74,8 @@ public static class ExtensionWorker
     /// <summary>Exit status: the worker was interrupted (parent requirement "Worker interruption"): 128 + SIGINT.</summary>
     public const int Interrupted = 130;
 
-    /// <summary>The contract's refusal code for another build identity.</summary>
-    public const string RuntimeMismatchCode = "extension.worker_runtime_mismatch";
+    /// <summary>The contract's refusal code for another build identity, one of its <c>worker.refusals</c>.</summary>
+    public const string RuntimeMismatchCode = WasmWorkerRefusal.RuntimeMismatchCode;
 
     const string FailureKind = "failure";
 

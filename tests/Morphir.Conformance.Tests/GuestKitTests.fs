@@ -340,7 +340,7 @@ let comparisonTests =
 let private notRunReason (step: KitStep) =
     match step.Outcome with
     | StepOutcome.NotRun reason -> reason
-    | _ -> failtest $"{step.Id} ran: {outcome step}"
+    | _ -> failtest $"{step.Id} ran: {step.Outcome}"
 
 let private modelStepIds (versions: string list) = [
     "model-initialize"
@@ -375,7 +375,7 @@ let runnerTests =
             Expect.equal ids ("describe" :: modelStepIds [ "3.0.0"; "4.0.0" ]) "the plan"
 
             for step in result.Steps do
-                Expect.equal (outcome step) "passed" step.Id
+                Expect.equal (step.Outcome.ToString()) "passed" step.Id
 
             Expect.sequenceEqual result.IrVersions [ "3.0.0"; "4.0.0" ] "IR versions"
             Expect.sequenceEqual result.ModelIrVersions [ "3.0.0"; "4.0.0" ] "model IR versions"
@@ -525,12 +525,12 @@ let runnerTests =
                                     expected
                 }
 
-            let failed = outcome (step "compile-model-vfour" result)
+            let failed = (step "compile-model-vfour" result).Outcome.ToString()
             Expect.stringStarts failed "failed: " "fails"
             Expect.stringContains failed "BoolLiteral" "names the member"
             Expect.stringContains failed "true" "quotes the expected value"
-            Expect.equal (outcome (step "compile-model-vthree" result)) "passed" "v3 still passes"
-            Expect.equal (outcome (step "generate-model-vfour" result)) "passed" "generation from the compiled model still runs"
+            Expect.equal ((step "compile-model-vthree" result).Outcome.ToString()) "passed" "v3 still passes"
+            Expect.equal ((step "generate-model-vfour" result).Outcome.ToString()) "passed" "generation from the compiled model still runs"
         }
 
         test "A guest that accepts a wrong payload digest fails bad-digest" {
@@ -540,7 +540,7 @@ let runnerTests =
                         AcceptBadDigest = true
                 }
 
-            Expect.stringStarts (outcome (step "bad-digest" result)) "failed: " "fails"
+            Expect.stringStarts ((step "bad-digest" result).Outcome.ToString()) "failed: " "fails"
         }
 
         test "An initialize result whose extension differs from describe fails model-initialize" {
@@ -550,7 +550,7 @@ let runnerTests =
                         InitializeVersion = "0.2.0"
                 }
 
-            Expect.stringStarts (outcome (step "model-initialize" result)) "failed: " "fails"
+            Expect.stringStarts ((step "model-initialize" result).Outcome.ToString()) "failed: " "fails"
         }
 
         test "A guest that claims no model tuples has no model tier, and the result says why" {
@@ -649,5 +649,39 @@ let runnerTests =
                 |> Array.map _.Name
 
             Expect.equal verdicts [| "ModelTierOnly" |] "no boolean verdict"
+        }
+    ]
+
+[<Tests>]
+let textTests =
+    testList "Generic guest kit result text (task 3.5)" [
+        test "A step outcome's text starts with its wire value" {
+            Expect.equal (StepOutcome.Passed.ToString()) "passed" "passed"
+            Expect.equal ((StepOutcome.Failed "a difference").ToString()) "failed: a difference" "failed"
+            Expect.equal ((StepOutcome.NotRun "a reason").ToString()) "not-run: a reason" "not run"
+
+            for outcome in [ StepOutcome.Passed; StepOutcome.Failed "d"; StepOutcome.NotRun "r" ] do
+                Expect.stringStarts (outcome.ToString()) outcome.WireValue outcome.WireValue
+        }
+
+        test "An issue of the whole kit file is written at /" {
+            Expect.equal ({ Path = ""; Message = "No kit bytes were given." }.ToString()) "/: No kit bytes were given." "root"
+            Expect.equal ({ Path = "/languages"; Message = "m" }.ToString()) "/languages: m" "member"
+
+            match GuestKit.TryParse(null) with
+            | false, _, failure -> Expect.equal failure "/: No kit bytes were given." "TryParse writes each issue's text"
+            | true, _, _ -> failtest "null bytes parsed"
+        }
+
+        test "RequiredStep gives the step with its id and names a missing id" {
+            let result, _ = run faithful
+
+            Expect.isTrue (Object.ReferenceEquals((result.RequiredStep "describe"), (result.Step "describe"))) "the same step"
+
+            try
+                result.RequiredStep "no-such-step" |> ignore
+                failtest "a missing step was returned"
+            with :? ArgumentException as error ->
+                Expect.stringContains error.Message "no-such-step" "the message names the id"
         }
     ]

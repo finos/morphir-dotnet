@@ -17,8 +17,11 @@ open Morphir.Conformance.WasmHost
 /// legacy tier on MEP 0.1, which this host does not run.
 [<RequireQualifiedAccess>]
 type KitTier =
+    /// The describe case, whose claim plans both tiers.
     | Describe
+    /// A case of the model tier, on MEP 0.2.0-draft.1.
     | Model
+    /// A case of the legacy tier, on MEP 0.1; this host never runs one.
     | Legacy
 
     /// The wire value: describe, model or legacy.
@@ -55,38 +58,57 @@ type StepOutcome =
         | Failed difference -> failed.Invoke difference
         | NotRun reason -> notRun.Invoke reason
 
-    /// Stable text for diagnostics.
+    /// Stable text for diagnostics: the wire value, then the difference or the reason, such as not-run: <reason>.
     override this.ToString() =
         match this with
-        | Passed -> "passed"
-        | Failed difference -> $"failed: {difference}"
-        | NotRun reason -> $"not run: {reason}"
+        | Passed -> this.WireValue
+        | Failed difference -> $"{this.WireValue}: {difference}"
+        | NotRun reason -> $"{this.WireValue}: {reason}"
 
-/// One step of the kit: a case of its plan, what was sent and returned, and its outcome.
-type KitStep =
-    {
-        /// The kit's case id, such as compile-model-vthree.
-        Id: string
-        /// The tier of the case.
-        Tier: KitTier
-        /// The MEP method of the case.
-        Method: string
-        /// How many requests the step sent to the guest.
-        Requests: int
-        /// How many notifications the step passed to the session; the channel decides whether one reaches the guest.
-        Notifications: int
-        /// The params the step sent, as compact JSON, or null when the step built none itself.
-        Request: string | null
-        /// The result or error the step received, as compact JSON, or null when it received none.
-        Response: string | null
-        /// The outcome.
-        Outcome: StepOutcome
-        /// How long the step took.
-        Elapsed: TimeSpan
-    }
+/// One step of the kit: a case of its plan, what was sent and returned, and its outcome. Only the runner builds one.
+[<Sealed>]
+type KitStep
+    internal
+    (
+        id: string,
+        tier: KitTier,
+        method: string,
+        requests: int,
+        notifications: int,
+        request: string | null,
+        response: string | null,
+        outcome: StepOutcome,
+        elapsed: TimeSpan
+    ) =
+    /// The kit's case id, such as compile-model-vthree.
+    member _.Id = id
+
+    /// The tier of the case.
+    member _.Tier = tier
+
+    /// The MEP method of the case.
+    member _.Method = method
+
+    /// How many requests the step sent to the guest.
+    member _.Requests = requests
+
+    /// How many notifications the step passed to the session; the channel decides whether one reaches the guest.
+    member _.Notifications = notifications
+
+    /// The params the step sent, as compact JSON, or null when the step built none itself.
+    member _.Request = request
+
+    /// The result or error the step received, as compact JSON, or null when it received none.
+    member _.Response = response
+
+    /// The outcome.
+    member _.Outcome = outcome
+
+    /// How long the step took.
+    member _.Elapsed = elapsed
 
     /// Stable text for diagnostics.
-    override this.ToString() = $"{this.Id} ({this.Tier}): {this.Outcome}"
+    override _.ToString() = $"{id} ({tier}): {outcome}"
 
 /// What a session is for: describe only, or the model tier.
 [<RequireQualifiedAccess>]
@@ -126,39 +148,66 @@ type KitSessionRequest internal (purpose: KitSessionPurpose, offer: ModelTranspo
         | None -> $"{purpose} session offering no model transport"
 
 /// The result of a model-tier run of the generic guest kit. It is never a run of the whole kit: the legacy tier is
-/// listed as not run, and the result holds no verdict for the kit.
-type ModelTierRun =
-    {
-        /// The kit profile.
-        KitProfile: string
-        /// The SHA-256 of the kit file.
-        KitSha256: string
-        /// The guest as its describe result names it, id and version, or null when describe gave no identity.
-        Guest: string | null
-        /// The kit language the plan selected, or null when none was selected.
-        Language: string | null
-        /// The IR versions the plan selected for both tiers.
-        IrVersions: IReadOnlyList<string>
-        /// The IR versions of the model tier; empty when the plan has no model tier.
-        ModelIrVersions: IReadOnlyList<string>
-        /// Why the plan has no model tier, or null when it has one.
-        ModelTierReason: string | null
-        /// The describe step and the model tier's steps, in the order they ran.
-        Steps: IReadOnlyList<KitStep>
-        /// The legacy tier's cases of the plan, each not run.
-        LegacyTier: IReadOnlyList<KitStep>
-        /// Why the legacy tier was not run.
-        LegacyTierReason: string
-    }
+/// listed as not run, and the result holds no verdict for the kit. Only ModelTierRunner builds one.
+[<Sealed>]
+type ModelTierRun
+    internal
+    (
+        kitSha256: string,
+        guest: string | null,
+        language: string | null,
+        irVersions: IReadOnlyList<string>,
+        modelIrVersions: IReadOnlyList<string>,
+        modelTierReason: string | null,
+        steps: IReadOnlyList<KitStep>,
+        legacyTier: IReadOnlyList<KitStep>
+    ) =
+    /// The kit profile: generic-json-library-v1, the one profile the kit reader reads.
+    member _.KitProfile = KitReader.Profile
+
+    /// The SHA-256 of the kit file.
+    member _.KitSha256 = kitSha256
+
+    /// The guest as its describe result names it, id and version, or null when describe gave no identity.
+    member _.Guest = guest
+
+    /// The kit language the plan selected, or null when none was selected.
+    member _.Language = language
+
+    /// The IR versions the plan selected for both tiers.
+    member _.IrVersions = irVersions
+
+    /// The IR versions of the model tier; empty when the plan has no model tier.
+    member _.ModelIrVersions = modelIrVersions
+
+    /// Why the plan has no model tier, or null when it has one.
+    member _.ModelTierReason = modelTierReason
+
+    /// The describe step and the model tier's steps, in the order they ran.
+    member _.Steps = steps
+
+    /// The legacy tier's cases of the plan, each not run.
+    member _.LegacyTier = legacyTier
+
+    /// Why the legacy tier was not run: this host does not negotiate MEP 0.1 (design MEP-1).
+    member _.LegacyTierReason =
+        "This host speaks MEP 0.2.0-draft.1 only and does not negotiate MEP 0.1 (design MEP-1), so the kit's legacy tier was not run. The describe case's check that the guest claims MEP 0.1 belongs to that tier and was not applied."
 
     /// Always true: this runner runs the model tier only, so a result is never a complete run of the kit.
     member _.ModelTierOnly = true
 
     /// The step with this id, or null.
-    member this.Step(id: string) : KitStep | null =
-        this.Steps
+    member _.Step(id: string) : KitStep | null =
+        steps
         |> Seq.tryFind (fun step -> step.Id = id)
         |> Option.toObj
+
+    /// For C# callers that know the step exists: the step with this id. Throws an ArgumentException that names the id
+    /// when the run has no such step.
+    member this.RequiredStep(id: string) : KitStep =
+        match this.Step id with
+        | null -> raise (ArgumentException($"The run has no step {id}.", nameof id))
+        | step -> step
 
     /// A one-line summary. It counts the steps of describe and the model tier and says that the run is not a
     /// complete run of the kit.
@@ -769,21 +818,8 @@ module internal ModelTierSession =
     let LegacyCaseReason =
         "The legacy tier negotiates MEP 0.1, which this host does not speak (design MEP-1)."
 
-    /// Why the legacy tier was not run.
-    [<Literal>]
-    let LegacyTierReason =
-        "This host speaks MEP 0.2.0-draft.1 only and does not negotiate MEP 0.1 (design MEP-1), so the kit's legacy tier was not run. The describe case's check that the guest claims MEP 0.1 belongs to that tier and was not applied."
-
     let private step id tier method requests notifications request response outcome (elapsed: TimeSpan) =
-        { Id = id
-          Tier = tier
-          Method = method
-          Requests = requests
-          Notifications = notifications
-          Request = request
-          Response = response
-          Outcome = outcome
-          Elapsed = elapsed }
+        KitStep(id, tier, method, requests, notifications, request, response, outcome, elapsed)
 
     let private notRun id tier method reason =
         step id tier method 0 0 null null (StepOutcome.NotRun reason) TimeSpan.Zero
@@ -1226,15 +1262,17 @@ type ModelTierRunner =
                 | Some selection ->
                     ModelTierPlan.legacyCases selection
                     |> List.map (fun (id, method) ->
-                        { Id = id
-                          Tier = KitTier.Legacy
-                          Method = method
-                          Requests = 0
-                          Notifications = 0
-                          Request = null
-                          Response = null
-                          Outcome = StepOutcome.NotRun ModelTierSession.LegacyCaseReason
-                          Elapsed = TimeSpan.Zero })
+                        KitStep(
+                            id,
+                            KitTier.Legacy,
+                            method,
+                            0,
+                            0,
+                            null,
+                            null,
+                            StepOutcome.NotRun ModelTierSession.LegacyCaseReason,
+                            TimeSpan.Zero
+                        ))
                 | None -> []
 
             let versions (pick: Selection -> IrVersion list) =
@@ -1245,14 +1283,14 @@ type ModelTierRunner =
                 :> IReadOnlyList<_>
 
             return
-                { KitProfile = kit.Profile
-                  KitSha256 = kit.Sha256
-                  Guest = Option.toObj guest
-                  Language = selection |> Option.map _.Language.Id |> Option.toObj
-                  IrVersions = versions _.Versions
-                  ModelIrVersions = versions _.ModelVersions
-                  ModelTierReason = reason
-                  Steps = (describeStep :: modelSteps) |> List.toArray :> IReadOnlyList<_>
-                  LegacyTier = legacy |> List.toArray :> IReadOnlyList<_>
-                  LegacyTierReason = ModelTierSession.LegacyTierReason }
+                ModelTierRun(
+                    kit.Sha256,
+                    Option.toObj guest,
+                    selection |> Option.map _.Language.Id |> Option.toObj,
+                    versions _.Versions,
+                    versions _.ModelVersions,
+                    reason,
+                    (describeStep :: modelSteps) |> List.toArray :> IReadOnlyList<_>,
+                    legacy |> List.toArray :> IReadOnlyList<_>
+                )
         }

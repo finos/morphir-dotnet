@@ -338,9 +338,3 @@ let step (id: string) (run: ModelTierRun) =
         failtest $"""no step {id}; steps: {run.Steps |> Seq.map _.Id |> String.concat ", "}"""
     )
 
-/// The outcome of a step as text: passed, failed: <difference> or not-run: <reason>.
-let outcome (step: KitStep) =
-    match step.Outcome with
-    | StepOutcome.Passed -> "passed"
-    | StepOutcome.Failed difference -> $"failed: {difference}"
-    | StepOutcome.NotRun reason -> $"not-run: {reason}"

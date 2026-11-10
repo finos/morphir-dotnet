@@ -176,7 +176,7 @@ public sealed class WasmHostCommandTests
         ]);
         run.ExitCode.Should().Be(1);
         var totals = Document(run)["totals"]!;
-        totals["cases"]!.GetValue<int>().Should().Be(59, "the corpus at finos/morphir 8b3c4c35 has 59 cases");
+        totals["cases"]!.GetValue<int>().Should().Be(59, "the corpus at finos/morphir 938f798 has 59 cases");
         totals["notApplicable"]!.GetValue<int>().Should().BeGreaterThan(0, "the byte-profile cases, since the host declares only Extism");
         totals["failed"]!.GetValue<int>().Should().BeGreaterThan(0);
         File.Exists(report).Should().BeTrue();

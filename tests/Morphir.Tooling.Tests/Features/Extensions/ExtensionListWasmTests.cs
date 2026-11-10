@@ -52,7 +52,6 @@ public sealed class ExtensionListWasmTests
         WasmRuntimeUnavailableReason.PlatformUnsupported,
         WasmRuntimeUnavailableReason.EngineMissing,
         WasmRuntimeUnavailableReason.EngineLoadFailed,
-        WasmRuntimeUnavailableReason.Disabled,
     ];
 
     [Test]
@@ -77,11 +76,9 @@ public sealed class ExtensionListWasmTests
     [Arguments(false, 0)]
     [Arguments(false, 1)]
     [Arguments(false, 2)]
-    [Arguments(false, 3)]
     [Arguments(true, 0)]
     [Arguments(true, 1)]
     [Arguments(true, 2)]
-    [Arguments(true, 3)]
     public void HostWithoutTheEngineListsTheWasmEntryAsNotAvailable(bool tool, int reason)
     {
         var host = tool ? Tool : Native;
@@ -116,9 +113,9 @@ public sealed class ExtensionListWasmTests
     {
         var delivery = WasmEntry().Delivery.Match(builtIn: () => "built-in case", wasm: () => "wasm case");
         delivery.Should().Be("wasm case");
-        var reason = WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.Disabled)
+        var reason = WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.EngineLoadFailed)
             .Match(available: () => "available", unavailable: why => why.WireValue);
-        reason.Should().Be("disabled");
+        reason.Should().Be("engine_load_failed");
         WasmRuntimeAvailability.Available.CanRunModules.Should().BeTrue();
         WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.EngineMissing).CanRunModules.Should().BeFalse();
     }

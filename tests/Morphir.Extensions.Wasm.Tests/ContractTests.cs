@@ -99,6 +99,39 @@ public class ContractTests
     }
 
     [Test]
+    public async Task The_worker_refusal_codes_are_read_from_the_contract()
+    {
+        // worker.refusals lists the codes a worker refuses with besides the module refusals; the reader refuses a
+        // contract whose list is not the library's, so a code added upstream fails the load instead of passing unread.
+        using var contract = System.Text.Json.JsonDocument.Parse(await File.ReadAllBytesAsync(MepWasmFixtures.Contract));
+        var codes = contract.RootElement.GetProperty("worker").GetProperty("refusals").EnumerateArray()
+            .Select(refusal => refusal.GetProperty("code").GetString()!)
+            .ToList();
+
+        await Assert.That(WasmProfileContract.Pinned.WorkerRefusalCodes).IsEquivalentTo(codes);
+        await Assert.That(WasmProfileContract.Pinned.WorkerRefusalCodes).IsEquivalentTo(WasmWorkerRefusal.Codes);
+        await Assert.That(WasmWorkerRefusal.Codes).IsEquivalentTo(
+            new[] { "extension.worker_runtime_mismatch", "extension.runtime_unavailable" },
+            TUnit.Assertions.Enums.CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task The_contract_states_the_worker_start_order_the_library_implements()
+    {
+        // The rule start-order is prose, not data, so the reader holds its text word for word: an upstream change to
+        // the order fails the load, and the worker is reviewed against the new text before the pin moves.
+        using var contract = System.Text.Json.JsonDocument.Parse(await File.ReadAllBytesAsync(MepWasmFixtures.Contract));
+        var rule = contract.RootElement.GetProperty("worker").GetProperty("rules").EnumerateArray()
+            .Single(entry => entry.GetProperty("id").GetString() == "start-order")
+            .GetProperty("rule").GetString();
+
+        await Assert.That(rule).IsEqualTo(WasmProfileContract.WorkerStartOrderRule);
+        await Assert.That(WasmProfileContract.WorkerStartOrder).IsEquivalentTo(
+            new[] { "arguments", "build-identity", "engine", "module" },
+            TUnit.Assertions.Enums.CollectionOrdering.Matching);
+    }
+
+    [Test]
     public async Task The_contract_says_a_cancelled_call_is_an_outcome_without_a_fault_kind()
     {
         // The hostSession rule cancelled, which the library's GuestFailureKind.Cancelled follows.

@@ -111,7 +111,7 @@ A usage error serves nothing. With `--json` it is one `morphir/command-result` f
 
 ## A host without its WASM runtime
 
-When this executable cannot run WASM modules, the worker checks that after the arguments and the build identity and before it reads the module. It writes one `refused` event with `extension.runtime_unavailable`, whose message names the host, the platform and the reason, writes nothing on stdout and exits with 3. `--help` and the identity check never load the engine. The reasons are those of [morphir extension runtimes](../extension-runtimes/#reasons). The pinned profile contract lists no such refusal code; the code comes from this host's capability.
+When this executable cannot run WASM modules, the worker checks that after the arguments and the build identity and before it reads the module. It writes one `refused` event with `extension.runtime_unavailable`, whose message names the host, the platform and the reason, writes nothing on stdout and exits with 3. `--help` and the identity check never load the engine. The reasons are those of [morphir extension runtimes](../extension-runtimes/#reasons). The pinned profile contract lists the code among the worker's refusals, and its worker rule `start-order` fixes this order: the arguments, the build identity, a usable engine, then the module.
 
 ## Faults before started
 

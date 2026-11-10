@@ -2,7 +2,7 @@
 
 Repository: https://github.com/finos/morphir
 
-Commit: `8b3c4c35430dfb313cf439e4df1a9c0bb7e1834d`
+Commit: `938f798da71d97d5b06018e7ec2b3fe92cf1fe2b`
 
 Branch: `t3/design-file-based-layout`, the branch of the draft pull request
 [finos/morphir#1148](https://github.com/finos/morphir/pull/1148). The commit is on
@@ -18,7 +18,12 @@ rule to a trap only and adds the case `bounds/error-at-ceiling` and its module
 only the worker section of the profile contract (`wasm-execution-profiles.md` and
 `.json`): where the engine identity is reported, what `started` states of a bound,
 what `--memory-pages` sets, and the range of `--instructions`. The corpus and its
-modules are unchanged.
+modules are unchanged. Moved again the same day, to `938f798`, which adds the
+refusal `extension.runtime_unavailable` to the worker section of the profile
+contract with the worker rule `start-order`, and adds both to the corpus's
+`withoutCase` list. No case, module, expectation or convention changed. The
+parent's next commit, `970dce7b`, changes only its planning files, so the pin
+stays at `938f798`.
 
 The upstream files below are copied without edits from that one commit: the WASM
 execution profile contract, the crafted WASM host qualification corpus, every
@@ -73,9 +78,9 @@ parent is corrected, rather than changing a file here.
 | --- | --- | --- |
 | `LICENSE` | `LICENSE` | `b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1` |
 | `NOTICE` | `NOTICE` | `02a20174dd6ff4d866cad7d04ce8d61503306f3266f3c03261418d5011805889` |
-| `wasm-execution-profiles.md` | `spec/mep/wasm-execution-profiles.md` | `92dd869db1f36988aa53fe1645967b4e1efdf7067ee3c22ee405ef52f097bcb9` |
-| `wasm-execution-profiles.json` | `spec/mep/wasm-execution-profiles.json` | `43ff8eb5024841f09399c64bcf17011d65ca17c99fe642fbf827fee05a270287` |
-| `wasm-host.cases.json` | `spec/mep/mck/wasm-host.cases.json` | `e10040a734ed484d11675b3e26fc451d7880615eaab5012c90203a60e4f5a7ab` |
+| `wasm-execution-profiles.md` | `spec/mep/wasm-execution-profiles.md` | `717f6bfd20a704eb509a09c5b563494038098f3a1efd7650c711d98e4680cb5e` |
+| `wasm-execution-profiles.json` | `spec/mep/wasm-execution-profiles.json` | `fa74189809390dfcc03fd25b380a14ea1de2bf3c654ecceecf5bbcfc5a13cb99` |
+| `wasm-host.cases.json` | `spec/mep/mck/wasm-host.cases.json` | `b97f18174214aac8a0a4d972db38564fcbea0b780ebcf6e1120d13bb145e9e19` |
 | `fixtures/wasm/bytes-echo.wasm` | `spec/mep/mck/fixtures/wasm/bytes-echo.wasm` | `49a87314af3cb02860dc6c4bc3e84dc3b4ec1330609f0d4fad88de7491afaa76` |
 | `fixtures/wasm/bytes-echo.wat` | `spec/mep/mck/fixtures/wasm/bytes-echo.wat` | `84995b32cca3bc83bccbf9b795d82db61142894d72be7bec12bf1909d4d1d8e0` |
 | `fixtures/wasm/bytes-exit.wasm` | `spec/mep/mck/fixtures/wasm/bytes-exit.wasm` | `49c946c1f69ebfe6b4440acf7b9390c8d949199e7d0a43fd35f41b4c89e93f47` |

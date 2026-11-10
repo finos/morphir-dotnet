@@ -13,7 +13,7 @@ namespace Morphir.Extensions.Wasm.Tests;
 /// </summary>
 public class BoundsTests
 {
-    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 8b3c4c35 (MepWasmFixtures.PinnedCommit).
+    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 938f798 (MepWasmFixtures.PinnedCommit).
     // Change them only when the pin moves.
     private const int PinnedBoundsCaseCount = 10;
     private const int PinnedLimitsCaseCount = 2;

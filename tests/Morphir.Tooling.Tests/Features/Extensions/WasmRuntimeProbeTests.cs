@@ -69,6 +69,36 @@ public sealed class WasmRuntimeProbeTests
         WasmRuntimeProbe.Probe(Supported, Throws(new BadImageFormatException("not a valid Win32 application")), Present)
             .Should().Be(Unavailable(WasmRuntimeUnavailableReason.EngineLoadFailed));
 
+    /// <summary>
+    /// Scenario "Engine library cannot be loaded": the engine library of the same operating system for another
+    /// architecture, which the build copies under <c>runtimes/</c>, really loaded by the probe. The failure is
+    /// <c>engine_load_failed</c>, whichever exception the platform's loader throws.
+    /// </summary>
+    [Test]
+    public void ARealLibraryBuiltForAnotherArchitectureIsEngineLoadFailed()
+    {
+        var platform = WasmRuntimeProbe.CurrentPlatform;
+        var system = platform[..platform.LastIndexOf('-')];
+        var other = WasmRuntimeProbe.EnginePlatforms.FirstOrDefault(candidate =>
+            candidate != platform && candidate[..candidate.LastIndexOf('-')] == system);
+        if (other is null || WasmRuntimeProbe.EngineLibraryFileName(other) is not { } name)
+        {
+            Skip.Test($"the engine ships no library for another architecture of {platform}");
+            return;
+        }
+
+        var library = Path.Combine(AppContext.BaseDirectory, "runtimes", other, "native", name);
+        if (!File.Exists(library))
+        {
+            Skip.Test($"the build output has no {other} engine library at {library}");
+            return;
+        }
+
+        var availability = WasmRuntimeProbe.Probe(platform, () => NativeLibrary.Free(NativeLibrary.Load(library)), () => File.Exists(library));
+
+        availability.Should().Be(Unavailable(WasmRuntimeUnavailableReason.EngineLoadFailed), $"{library} is built for {other}");
+    }
+
     [Test]
     public void ALibraryOfAnotherVersionFailedToLoad() =>
         WasmRuntimeProbe.Probe(Supported, Throws(new EntryPointNotFoundException("wasm_engine_new_with_config")), Present)

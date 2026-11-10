@@ -35,8 +35,14 @@ type KitIssue =
         Message: string
     }
 
-    /// Stable text for diagnostics.
-    override this.ToString() = $"{this.Path}: {this.Message}"
+    /// Stable text for diagnostics: the pointer, written / for the whole file, then the message.
+    override this.ToString() =
+        let path =
+            match this.Path with
+            | "" -> "/"
+            | path -> path
+
+        $"{path}: {this.Message}"
 
 /// One source document of a kit language.
 type internal KitDocument = { Uri: string; Text: string }
@@ -311,7 +317,7 @@ type GuestKit
     ) =
 
     /// The profile: generic-json-library-v1.
-    member _.Profile = "generic-json-library-v1"
+    member _.Profile = KitReader.Profile
 
     /// The kit contract version: 0.1.0-draft.1.
     member _.ContractVersion = "0.1.0-draft.1"
@@ -387,7 +393,7 @@ type GuestKit
             true
         | Error issues ->
             kit <- Unchecked.defaultof<_>
-            failure <- issues |> Seq.map string |> String.concat Environment.NewLine
+            failure <- issues |> Seq.map (fun issue -> issue.ToString()) |> String.concat Environment.NewLine
             false
 
     /// Stable text for diagnostics.

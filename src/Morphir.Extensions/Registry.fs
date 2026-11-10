@@ -65,7 +65,7 @@ type HostAvailability =
     /// <summary>The command names of the hosts.</summary>
     override this.ToString() = String.Join(", ", this.WireValues)
 
-/// <summary>Why the WASM runtime of a host is unavailable, with the reasons of the runtime report.</summary>
+/// <summary>Why the WASM runtime of a host is unavailable: the three reasons of the runtime report. Nothing turns the runtime off, so no reason says it is.</summary>
 [<RequireQualifiedAccess>]
 type WasmRuntimeUnavailableReason =
     /// <summary>The engine has no build for this platform.</summary>
@@ -74,8 +74,6 @@ type WasmRuntimeUnavailableReason =
     | EngineMissing
     /// <summary>The engine library is present but did not load.</summary>
     | EngineLoadFailed
-    /// <summary>The runtime is turned off.</summary>
-    | Disabled
 
     /// <summary>The text that the runtime report writes.</summary>
     member this.WireValue =
@@ -83,7 +81,6 @@ type WasmRuntimeUnavailableReason =
         | PlatformUnsupported -> "platform_unsupported"
         | EngineMissing -> "engine_missing"
         | EngineLoadFailed -> "engine_load_failed"
-        | Disabled -> "disabled"
 
     /// <summary>What the reason means, as a clause the runtime report and its diagnostics write after the wire value.</summary>
     member this.Description =
@@ -91,7 +88,6 @@ type WasmRuntimeUnavailableReason =
         | PlatformUnsupported -> "the engine has no build for this platform"
         | EngineMissing -> "the engine's native library is not in this installation"
         | EngineLoadFailed -> "the engine's native library is present but did not load"
-        | Disabled -> "the WASM runtime is turned off"
 
     /// <summary>The text that the runtime report writes.</summary>
     override this.ToString() = this.WireValue

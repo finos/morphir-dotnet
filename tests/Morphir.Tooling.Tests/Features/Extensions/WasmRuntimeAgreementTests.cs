@@ -33,7 +33,7 @@ public sealed class WasmRuntimeAgreementTests
 
     private static IExtensionSource BuiltIns() => new BackendExtensionSource([new FSharpGenerationBackend(), new CSharpGenerationBackend()], Native);
 
-    public static IEnumerable<string?> States() => [null, "platform_unsupported", "engine_missing", "engine_load_failed", "disabled"];
+    public static IEnumerable<string?> States() => [null, "platform_unsupported", "engine_missing", "engine_load_failed"];
 
     private static WasmRuntimeAvailability Availability(string? reason) => reason switch
     {
@@ -41,7 +41,6 @@ public sealed class WasmRuntimeAgreementTests
         "platform_unsupported" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.PlatformUnsupported),
         "engine_missing" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.EngineMissing),
         "engine_load_failed" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.EngineLoadFailed),
-        "disabled" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.Disabled),
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
     };
 

@@ -62,9 +62,9 @@ public sealed class LoadedWasmModule
 /// <summary>
 /// Why a configured module was not loaded. <see cref="Message"/> names the extension and the path, and, once the
 /// bytes are read, their SHA-256. Only <see cref="Refused"/> and <see cref="RuntimeUnavailable"/> have a
-/// <see cref="Code"/>: the pinned profile contract defines refusal codes for a module, the host capability defines
-/// <c>extension.runtime_unavailable</c>, and neither defines one for a file that is missing, cannot be read, is not a
-/// module or has another digest than the declared one.
+/// <see cref="Code"/>: the pinned profile contract defines refusal codes for a module, and
+/// <c>extension.runtime_unavailable</c> for a host without a usable engine; it defines none for a file that is
+/// missing, cannot be read, is not a module or has another digest than the declared one.
 /// </summary>
 public abstract record WasmModuleFailure
 {

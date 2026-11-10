@@ -104,7 +104,7 @@ runtime identifier.
 `add-wasm-extension-host`, task 1.5). Each case names one module that does one
 thing, the frames to send to a worker that runs it, and what the worker must
 show: its exit status, its stdout frames and its stderr events. The suite uses
-[vocabulary 1.3](steps/steps-1.3.md). At the pin, finos/morphir `8b3c4c35`, it
+[vocabulary 1.3](steps/steps-1.3.md). At the pin, finos/morphir `938f798`, it
 has 59 cases and 51 modules: 49 cases for `extism-kernel-v1`, which apply to
 every host, and 10 for `morphir-bytes-v1`.
 

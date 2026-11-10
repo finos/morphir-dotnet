@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using FluentAssertions;
 using Morphir.Extensions;
+using Morphir.Extensions.Wasm;
 using Morphir.TestSupport;
 using Morphir.Tooling.Features.Extensions;
 
@@ -34,7 +35,6 @@ public sealed class ExtensionWorkerRuntimeTests
         ("platform_unsupported", "linux-musl-x64"),
         ("engine_missing", "win-arm64"),
         ("engine_load_failed", "linux-x64"),
-        ("disabled", "osx-arm64"),
     ];
 
     private static WasmRuntimeAvailability Unavailable(string reason) => WasmRuntimeAvailability.UnavailableBecause(reason switch
@@ -42,7 +42,6 @@ public sealed class ExtensionWorkerRuntimeTests
         "platform_unsupported" => WasmRuntimeUnavailableReason.PlatformUnsupported,
         "engine_missing" => WasmRuntimeUnavailableReason.EngineMissing,
         "engine_load_failed" => WasmRuntimeUnavailableReason.EngineLoadFailed,
-        "disabled" => WasmRuntimeUnavailableReason.Disabled,
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
     });
 
@@ -125,6 +124,61 @@ public sealed class ExtensionWorkerRuntimeTests
 
         run.ExitCode.Should().Be(ExtensionWorker.Usage, run.Describe());
         loader.Probes.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Each row of the contract's worker rule <c>start-order</c> (<see cref="WasmProfileContract.WorkerStartOrder"/>)
+    /// with that check and every later one failing, so that only the order decides which failure is reported.
+    /// </summary>
+    public static IEnumerable<(string FirstFailing, int ExitCode, string? Code)> StartOrder() =>
+    [
+        ("arguments", ExtensionWorker.Usage, null),
+        ("build-identity", ExtensionWorker.Refused, "extension.worker_runtime_mismatch"),
+        ("engine", ExtensionWorker.Refused, "extension.runtime_unavailable"),
+        ("module", ExtensionWorker.Faulted, null),
+    ];
+
+    [Test]
+    [MethodDataSource(nameof(StartOrder))]
+    public async Task TheWorkerReportsTheFirstFailingCheckInTheContractStartOrder(string firstFailing, int exitCode, string? code)
+    {
+        using var sandbox = TestSandbox.Create();
+        var order = WasmProfileContract.WorkerStartOrder;
+        var failing = order.SkipWhile(check => check != firstFailing).ToHashSet(StringComparer.Ordinal);
+        failing.Should().Contain(firstFailing, "every row names a check of the contract's order");
+        var loader = new CountingLoader(failing.Contains("engine") ? Unavailable("engine_missing") : WasmRuntimeAvailability.Available);
+        var module = failing.Contains("module") ? Path.Combine(sandbox.Work, "no-such-module.wasm") : WorkerHarness.Corpus("extism-echo");
+        List<string> arguments = failing.Contains("arguments")
+            ? ["--module", module, "--json"]
+            : ["--abi", "extism-kernel-v1", "--module", module, "--build-identity", failing.Contains("build-identity") ? new string('0', 64) : WorkerHarness.Identity, "--json"];
+
+        var run = await Run(arguments, loader.Loader);
+
+        run.ExitCode.Should().Be(exitCode, run.Describe());
+        run.Stdout.Should().BeEmpty();
+        if (code is null)
+            run.EventNames.Should().NotContain("refused", run.Describe());
+        else
+            run.Single("refused").Text("error.code").Should().Be(code);
+        if (firstFailing == "module") run.Single("fault").Text("fault.kind").Should().Be("failure");
+        var position = order.ToList();
+        loader.Probes.Should().Be(position.IndexOf(firstFailing) >= position.IndexOf("engine") ? 1 : 0,
+            "the arguments and the build identity are checked without the engine");
+    }
+
+    [Test]
+    public void EveryCodeARefusedEventCanCarryIsARefusalOfTheContract()
+    {
+        // ExtensionWorker writes refused with RuntimeMismatchCode or with the code of the loader's failure: a
+        // RuntimeUnavailable failure, or a module refused with one of WasmRefusal.Codes. The contract lists the module
+        // refusals in refusals and the worker's own in worker.refusals.
+        var unavailable = new WasmModuleFailure.RuntimeUnavailable("worker", "module.wasm", WorkerHarness.Host, "win-arm64",
+            WasmRuntimeUnavailableReason.EngineMissing);
+        string[] codes = [ExtensionWorker.RuntimeMismatchCode, unavailable.Code!, .. WasmRefusal.Codes];
+        var contract = WasmProfileContract.Pinned;
+
+        codes.Should().OnlyHaveUniqueItems().And.BeEquivalentTo([.. contract.RefusalCodes, .. contract.WorkerRefusalCodes]);
+        contract.WorkerRefusalCodes.Should().BeEquivalentTo([ExtensionWorker.RuntimeMismatchCode, WasmRuntimeUnavailable.Code]);
     }
 
     [Test]

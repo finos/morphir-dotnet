@@ -36,7 +36,6 @@ let private reasons = [
     WasmRuntimeUnavailableReason.PlatformUnsupported
     WasmRuntimeUnavailableReason.EngineMissing
     WasmRuntimeUnavailableReason.EngineLoadFailed
-    WasmRuntimeUnavailableReason.Disabled
 ]
 
 let private hosts = [ MorphirHost.Native; MorphirHost.DotnetTool ]
@@ -71,10 +70,37 @@ let tests =
             Expect.equal
                 (reasons
                  |> List.map (fun reason -> reason.WireValue))
-                [ "platform_unsupported"; "engine_missing"; "engine_load_failed"; "disabled" ]
+                [ "platform_unsupported"; "engine_missing"; "engine_load_failed" ]
                 "wire values"
 
             Expect.equal (string WasmRuntimeUnavailableReason.EngineMissing) "engine_missing" "text"
+        }
+
+        test "the host can report exactly the three reasons the requirement lists" {
+            // Requirement "Unavailable runtime fails by name" (finos/morphir 938f798): platform_unsupported,
+            // engine_missing or engine_load_failed. The parent dropped disabled with the switch that would give it.
+            let cases =
+                Microsoft.FSharp.Reflection.FSharpType.GetUnionCases(
+                    typeof<WasmRuntimeUnavailableReason>
+                )
+                |> Array.map (fun case ->
+                    nonNull (Microsoft.FSharp.Reflection.FSharpValue.MakeUnion(case, [||]))
+                    :?> WasmRuntimeUnavailableReason
+                )
+                |> Array.map (fun reason -> reason.WireValue)
+                |> Set.ofArray
+
+            Expect.equal
+                cases
+                (set [ "platform_unsupported"; "engine_missing"; "engine_load_failed" ])
+                "every case of the union is a reason the requirement lists, and every listed reason is a case"
+
+            Expect.equal
+                (reasons
+                 |> List.map (fun reason -> reason.WireValue)
+                 |> Set.ofList)
+                cases
+                "the test's list holds every reason"
         }
 
         test "a runtime availability says whether it is available and why not" {
@@ -204,7 +230,6 @@ let tests =
                     "the engine has no build for this platform"
                     "the engine's native library is not in this installation"
                     "the engine's native library is present but did not load"
-                    "the WASM runtime is turned off"
                 ]
                 "descriptions"
         }

@@ -9,7 +9,7 @@ namespace Morphir.Extensions.Wasm.Tests;
 internal static class MepWasmFixtures
 {
     /// <summary>The finos/morphir commit every pinned file is copied from.</summary>
-    public const string PinnedCommit = "8b3c4c35430dfb313cf439e4df1a9c0bb7e1834d";
+    public const string PinnedCommit = "938f798da71d97d5b06018e7ec2b3fe92cf1fe2b";
 
     public static string Root => Path.Combine(AppContext.BaseDirectory, "Fixtures", "MepWasm");
 

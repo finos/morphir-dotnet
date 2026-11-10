@@ -34,6 +34,7 @@ public sealed class WasmProfileContract
         WorkerArgumentRange workerInstructionRange,
         HostSessionLimits hostSession,
         FrozenSet<string> refusalCodes,
+        FrozenSet<string> workerRefusalCodes,
         FrozenDictionary<string, ContractFault> faults,
         FrozenDictionary<WasmAbi, WasmProfileSurface> profiles,
         WasmHostPolicy policy)
@@ -55,6 +56,7 @@ public sealed class WasmProfileContract
         RequestLimitCode = hostSession.RequestCode;
         ResponseLimitCode = hostSession.ResponseCode;
         RefusalCodes = refusalCodes;
+        WorkerRefusalCodes = workerRefusalCodes;
         this.profiles = profiles;
     }
 
@@ -93,6 +95,26 @@ public sealed class WasmProfileContract
 
     /// <summary>The refusal codes the contract defines for a module that is refused before any request.</summary>
     public IReadOnlySet<string> RefusalCodes { get; }
+
+    /// <summary>
+    /// The codes a worker refuses with that are not about the module (the contract's <c>worker.refusals</c>): exactly
+    /// <see cref="WasmWorkerRefusal.Codes"/>, which the reader requires.
+    /// </summary>
+    public IReadOnlySet<string> WorkerRefusalCodes { get; }
+
+    /// <summary>
+    /// The checks a worker makes before any request, in the order of the contract's worker rule <c>start-order</c>: its
+    /// arguments, the build identity, that the host has a usable engine, then the module. The first that fails is
+    /// reported. The rule states the order in prose, so the reader holds its text, <see cref="WorkerStartOrderRule"/>.
+    /// </summary>
+    public static IReadOnlyList<string> WorkerStartOrder { get; } = ["arguments", "build-identity", "engine", "module"];
+
+    /// <summary>
+    /// The text of the contract's worker rule <c>start-order</c> that <see cref="WorkerStartOrder"/> implements. A
+    /// contract with another text fails the load, so that a changed order is reviewed before the worker reads it.
+    /// </summary>
+    public const string WorkerStartOrderRule =
+        "Before any request a worker checks its arguments, then the build identity, then that the host has a usable engine, then the module, and reports the first that fails. A worker without a usable engine refuses with extension.runtime_unavailable, exits with 3 and does not read the module.";
 
     /// <summary>The fault kinds the contract defines, each with its host code or host outcome.</summary>
     public IReadOnlyCollection<ContractFault> Faults => faults.Values;
@@ -241,6 +263,10 @@ public sealed class WasmProfileContract
             throw Invalid($"it lacks the refusal code {code}");
         }
 
+        var worker = root.GetProperty("worker");
+        var workerRefusalCodes = ReadWorkerRefusals(worker);
+        ReadWorkerStartOrder(worker);
+
         var faults = root.GetProperty("faults").EnumerateArray()
             .Select(fault => new ContractFault(
                 fault.GetProperty("kind").GetString()!,
@@ -263,9 +289,10 @@ public sealed class WasmProfileContract
             memoryCeiling,
             kernelCeiling,
             budget,
-            ReadWorkerInstructionRange(root.GetProperty("worker"), budget),
+            ReadWorkerInstructionRange(worker, budget),
             hostSession,
             refusalCodes,
+            workerRefusalCodes,
             faults,
             profiles.ToFrozenDictionary(),
             WasmHostPolicy.Read(root.GetProperty("policy"), Invalid));
@@ -300,6 +327,38 @@ public sealed class WasmProfileContract
             limits.GetProperty("responseBytes").GetInt64(),
             Code("request-limit"),
             Code("response-limit"));
+    }
+
+    /// <summary>
+    /// The codes of <c>worker.refusals</c>: each one string, none twice, and together exactly
+    /// <see cref="WasmWorkerRefusal.Codes"/>. A code the library does not give, or one of its codes the contract lacks,
+    /// fails the load.
+    /// </summary>
+    static FrozenSet<string> ReadWorkerRefusals(JsonElement worker)
+    {
+        var codes = worker.GetProperty("refusals").EnumerateArray()
+            .Select(refusal => refusal.GetProperty("code").GetString() ?? throw Invalid("a worker refusal has no code"))
+            .ToList();
+        var set = codes.ToFrozenSet(StringComparer.Ordinal);
+        if (set.Count != codes.Count || !set.SetEquals(WasmWorkerRefusal.Codes))
+        {
+            throw Invalid($"its worker refusals are {string.Join(", ", codes)}, and the worker refuses with {string.Join(", ", WasmWorkerRefusal.Codes)}");
+        }
+
+        return set;
+    }
+
+    /// <summary>The worker rule <c>start-order</c>, which must say <see cref="WorkerStartOrderRule"/> word for word.</summary>
+    static void ReadWorkerStartOrder(JsonElement worker)
+    {
+        var rules = worker.GetProperty("rules").EnumerateArray()
+            .Where(entry => entry.GetProperty("id").GetString() == "start-order")
+            .Select(entry => entry.GetProperty("rule").GetString())
+            .ToList();
+        if (rules is not [WorkerStartOrderRule])
+        {
+            throw Invalid("its worker rule start-order is missing or says something other than the order the worker follows; review the worker against the new text");
+        }
     }
 
     /// <summary>

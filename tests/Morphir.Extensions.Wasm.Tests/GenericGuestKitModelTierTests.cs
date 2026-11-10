@@ -26,8 +26,6 @@ public class GenericGuestKitModelTierTests
             refused => throw new InvalidOperationException(refused.Message),
             notWasm => throw new InvalidOperationException(notWasm));
 
-    static string Outcome(KitStep step) =>
-        step.Outcome.Match(() => "passed", difference => $"failed: {difference}", reason => $"not-run: {reason}");
 
     /// <summary>Opens one <see cref="WasmChannel"/> for each session the runner asks for, so each session is a new
     /// guest instance, as each tier of the kit is a new guest process.</summary>
@@ -73,18 +71,18 @@ public class GenericGuestKitModelTierTests
 
         foreach (var suffix in new[] { "vthree", "vfour" })
         {
-            await Assert.That(Outcome(run.Step($"compile-model-{suffix}")!)).IsEqualTo("passed");
-            await Assert.That(Outcome(run.Step($"roundtrip-model-{suffix}")!)).IsEqualTo("passed");
-            await Assert.That(Outcome(run.Step($"roundtrip-model-independent-{suffix}")!)).IsEqualTo("passed");
+            await Assert.That(run.RequiredStep($"compile-model-{suffix}").Outcome.ToString()).IsEqualTo("passed");
+            await Assert.That(run.RequiredStep($"roundtrip-model-{suffix}").Outcome.ToString()).IsEqualTo("passed");
+            await Assert.That(run.RequiredStep($"roundtrip-model-independent-{suffix}").Outcome.ToString()).IsEqualTo("passed");
         }
 
-        var notPassed = run.Steps.Where(step => Outcome(step) != "passed").Select(step => $"{step.Id}: {Outcome(step)}").ToList();
+        var notPassed = run.Steps.Where(step => step.Outcome.ToString() != "passed").Select(step => $"{step.Id}: {step.Outcome.ToString()}").ToList();
         await Assert.That(notPassed).IsEmpty();
 
         await Assert.That(run.LegacyTier).IsNotEmpty();
         foreach (var step in run.LegacyTier)
         {
-            await Assert.That(Outcome(step)).StartsWith("not-run: ");
+            await Assert.That(step.Outcome.ToString()).StartsWith("not-run: ");
         }
 
         // Two guest instances: one for describe, one for the model tier. Each request was one handle call, and no
@@ -120,10 +118,10 @@ public class GenericGuestKitModelTierTests
 
         var run = await ModelTierRunner.RunAsync(Kit(), sessions.OpenAsync, CancellationToken.None);
         Console.WriteLine(run.Report());
-        var describe = run.Step("describe")!;
+        var describe = run.RequiredStep("describe");
         Console.WriteLine($"describe response: {describe.Response}");
 
-        await Assert.That(Outcome(describe)).StartsWith("failed: expected a result, got RPC error -32011");
+        await Assert.That(describe.Outcome.ToString()).StartsWith("failed: expected a result, got RPC error -32011");
         await Assert.That(describe.Response).Contains("\"extensionVersions\":[\"0.1\"]");
         await Assert.That(run.Language).IsNull();
         await Assert.That(run.ModelIrVersions).IsEmpty();

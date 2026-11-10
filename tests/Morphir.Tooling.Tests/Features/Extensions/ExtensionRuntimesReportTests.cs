@@ -23,7 +23,6 @@ public sealed class ExtensionRuntimesReportTests
         ("platform_unsupported", "linux-musl-x64"),
         ("engine_missing", "win-arm64"),
         ("engine_load_failed", "linux-x64"),
-        ("disabled", "osx-arm64"),
     ];
 
     private static WasmRuntimeUnavailableReason Reason(string wire) => wire switch
@@ -31,7 +30,6 @@ public sealed class ExtensionRuntimesReportTests
         "platform_unsupported" => WasmRuntimeUnavailableReason.PlatformUnsupported,
         "engine_missing" => WasmRuntimeUnavailableReason.EngineMissing,
         "engine_load_failed" => WasmRuntimeUnavailableReason.EngineLoadFailed,
-        "disabled" => WasmRuntimeUnavailableReason.Disabled,
         _ => throw new ArgumentOutOfRangeException(nameof(wire), wire, null),
     };
 
