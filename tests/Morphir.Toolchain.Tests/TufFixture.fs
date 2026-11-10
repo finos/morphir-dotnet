@@ -161,6 +161,16 @@ let relink (set: MetadataSet) =
     let timestamp = resign "timestamp" (setAt [ "signed"; "meta"; "snapshot.json" ] (entry snapshot) set.Timestamp)
     { set with Snapshot = snapshot; Timestamp = timestamp }
 
+/// The source a refresh reads: the trusted root as 1.root.json, any further roots, and the set's other roles at the
+/// versions their envelopes state.
+let sourceOf (set: MetadataSet) (laterRoots: Value list) : MetadataSource =
+    let roots = (set.Root :: laterRoots) |> List.map (fun root -> versionOf root, canonical root) |> Map.ofList
+
+    { Root = fun version -> roots.TryFind version
+      Timestamp = fun () -> Some(canonical set.Timestamp)
+      Snapshot = fun version -> if version = versionOf set.Snapshot then Some(canonical set.Snapshot) else None
+      Targets = fun version -> if version = versionOf set.Targets then Some(canonical set.Targets) else None }
+
 /// The fixture's reference time, the trusted start time of every refresh in these tests.
 let referenceTime = DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero)
 
