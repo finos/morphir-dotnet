@@ -55,6 +55,7 @@
     <Project Path="src\Morphir.SDK.FSharp\Morphir.SDK.FSharp.fsproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Morphir.Conformance.FakeWorker/Morphir.Conformance.FakeWorker.csproj" />
     <Project Path="tests/Morphir.Conformance.Smoke/Morphir.Conformance.Smoke.fsproj" />
     <Project Path="tests/Morphir.Conformance.Tests/Morphir.Conformance.Tests.fsproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Tests/Morphir.Frontend.FSharp.Tests.fsproj" />
