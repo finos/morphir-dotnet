@@ -405,7 +405,7 @@ module internal ConfigurationSchema =
                 )
                 Additional(
                     [ "targets"; "template_dir"; "output_format" ],
-                    [ Reference "codegenTarget" ]
+                    [ Any [ [ Reference "codegenTarget" ]; [ Not [ Kind "object" ] ] ] ]
                 )
             ]
         )

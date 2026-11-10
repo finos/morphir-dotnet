@@ -33,13 +33,17 @@ def amend(schema):
     frontend['properties']['elm'] = {'allOf': [{'$ref': '#/definitions/frontendLanguage'}, elm]}
     frontend['additionalProperties'] = {'$ref': '#/definitions/frontendLanguage'}
     # 3. Every [codegen.<target>] table has the member extension: the backend extension of that target, as
-    #    [frontend.<language>].extension names a frontend extension (generate --extension).
+    #    [frontend.<language>].extension names a frontend extension (generate --extension). Upstream has
+    #    additionalProperties: true for [codegen], so only an object-valued member is a target table; any other
+    #    member stays unconstrained.
     codegen = schema['properties']['codegen']
     schema['definitions']['codegenTarget'] = {
         'type': 'object',
         'properties': {'extension': dict(extension)},
     }
-    codegen['additionalProperties'] = {'$ref': '#/definitions/codegenTarget'}
+    codegen['additionalProperties'] = {
+        'anyOf': [{'$ref': '#/definitions/codegenTarget'}, {'not': {'type': 'object'}}],
+    }
     return schema
 
 
