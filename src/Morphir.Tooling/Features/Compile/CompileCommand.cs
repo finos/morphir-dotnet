@@ -102,7 +102,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
             // A note, not a diagnostic: it goes to stderr in every mode, so stdout and the JSON output stay as they were.
             if (compiled.Settings?.IgnoredBackendExtension is { } ignored && generation?.Target is Morphir.Tooling.Features.Generate.RequestedTarget.Valid requested)
                 await output.StandardError.WriteLineAsync(
-                    $"note: compile --target {requested.Id.Value} runs the built-in backend. {ProjectCompileSettingsResolver.Describe(ignored.Origin)} sets [codegen.{requested.Id.Value}].extension = {ignored.Value}, which only morphir generate runs.");
+                    $"note: compile --target {requested.Id.Value} runs the built-in backend. {ProjectCompileSettingsResolver.Describe(ignored.Origin)} sets {ProjectCompileSettingsResolver.CodegenExtensionKey(requested.Id.Value)} = {ignored.Value}, which only morphir generate runs.");
             await RenderAsync(output, report, mode, CancellationToken.None);
             return report.ExitCode;
         });

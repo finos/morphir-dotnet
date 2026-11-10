@@ -134,7 +134,7 @@ public sealed class GenerationExtensionSelectionTests
         public ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct)
         {
             Generated = true;
-            var tree = VFileTreeModule.fromFileMap(Microsoft.FSharp.Collections.MapModule.OfSeq([Tuple.Create("Stub.fs", VFileModule.ofText("Stub.fs", "module Stub"))]));
+            var tree = VFileTree.OfFiles([KeyValuePair.Create("Stub.fs", VFileModule.ofText("Stub.fs", "module Stub"))]);
             return ValueTask.FromResult<Outcome<GenerationArtifacts>>(new Outcome<GenerationArtifacts>.Success(new(tree, [])));
         }
         public ValueTask DisposeAsync()
@@ -276,6 +276,17 @@ public sealed class GenerationExtensionSelectionTests
     }
 
     [Test]
+    public async Task TheWarningNamesTheQuotedTableOfADottedTarget()
+    {
+        var (workspace, resolver, warnings) = Broken();
+        using var _ = workspace;
+        var overrides = new GenerateOverrides(workspace.PathOf("model.json"), "acme.codegen", workspace.PathOf("gen"));
+
+        await resolver.ResolveAsync(overrides, Invocation(workspace), default);
+        warnings.ToString().Should().Contain("[codegen.\"acme.codegen\"].extension", "a dotted target id is one quoted TOML key");
+    }
+
+    [Test]
     public async Task WithProjectOrConfigABrokenConfigurationStillFails()
     {
         var (workspace, resolver, warnings) = Broken();
@@ -300,5 +311,28 @@ public sealed class GenerationExtensionSelectionTests
         using var workspace = Workspace("\n[codegen.fsharp]\nextension = \"configured-guest\"\n");
         var overrides = new GenerateOverrides(workspace.PathOf("model.json"), "fsharp", workspace.PathOf("gen"));
         (await Settings(workspace, overrides)).Extension!.Value.Should().Be("configured-guest");
+    }
+
+    [Test]
+    public async Task ADottedTargetSelectsTheExtensionOfItsQuotedCodegenTable()
+    {
+        // TargetId accepts dotted ids. In TOML the id is one quoted key: [codegen."acme.codegen"].
+        using var workspace = Workspace("\n[codegen.\"acme.codegen\"]\nextension = \"dotted-guest\"\n");
+        var overrides = new GenerateOverrides(workspace.PathOf("model.json"), "acme.codegen", workspace.PathOf("gen")) { Project = workspace.Root };
+
+        var extension = (await Settings(workspace, overrides)).Extension;
+        extension.Should().NotBeNull("the configured guest of the dotted target is selected");
+        extension!.Value.Should().Be("dotted-guest");
+        extension.Origin.Should().BeOfType<SettingOrigin.Configuration>()
+            .Which.Key.Should().Be("codegen.\"acme.codegen\".extension", "the key names the target as one quoted segment");
+    }
+
+    [Test]
+    public async Task ADottedTargetDoesNotReadTheTableOfItsSegments()
+    {
+        // [codegen.acme.codegen] is the table codegen > acme > codegen, not the target acme.codegen.
+        using var workspace = Workspace("\n[codegen.acme.codegen]\nextension = \"segment-guest\"\n");
+        var overrides = new GenerateOverrides(workspace.PathOf("model.json"), "acme.codegen", workspace.PathOf("gen")) { Project = workspace.Root };
+        (await Settings(workspace, overrides)).Extension.Should().BeNull();
     }
 }

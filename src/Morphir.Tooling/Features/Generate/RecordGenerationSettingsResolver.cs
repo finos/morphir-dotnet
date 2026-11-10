@@ -54,7 +54,7 @@ public sealed class RecordGenerationSettingsResolver(
                 // unrelated discovered one does not fail the command. It is a warning on stderr, never on stdout.
                 if (overrides.Project is null && overrides.Config is null)
                 {
-                    var key = settings.Target is RequestedTarget.Valid warnedTarget ? $"[codegen.{warnedTarget.Id.Value}].extension" : "[codegen.<target>].extension";
+                    var key = settings.Target is RequestedTarget.Valid warnedTarget ? ProjectCompileSettingsResolver.CodegenExtensionKey(warnedTarget.Id.Value) : "[codegen.<target>].extension";
                     _warnings.WriteLine($"warning: The project configuration was not loaded, so {key} was not read and the built-in backend runs: "
                         + string.Join(" ", loadFailure.Error.Diagnostics.Select(diagnostic => diagnostic.Message)));
                     return explicitSettings;
@@ -128,7 +128,7 @@ public sealed class RecordGenerationSettingsResolver(
     private static Outcome<GenerationSettings> WithConfiguredExtension(GenerationSettings settings, LoadedCompileConfiguration loaded)
     {
         if (settings.Target is not RequestedTarget.Valid target) return new Outcome<GenerationSettings>.Success(settings);
-        var configured = new ProjectCompileSettingsResolver.ConfigurationView(loaded).String($"codegen.{target.Id.Value}.extension");
+        var configured = new ProjectCompileSettingsResolver.ConfigurationView(loaded).String("codegen", target.Id.Value, "extension");
         if (configured is null) return new Outcome<GenerationSettings>.Success(settings);
         if (string.IsNullOrWhiteSpace(configured.Value))
             return Fail(GenerationFailure.One(GenerationFailureKind.Invocation, "invalid-extension",

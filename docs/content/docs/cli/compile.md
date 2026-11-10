@@ -75,6 +75,9 @@ language = "fsharp"
 project_file = "src/Acme.CarRental.fsproj"   # the same key in every [frontend.<language>] table
 ```
 
+A language id can contain a dot; then the id is one quoted TOML key, `[frontend."acme.lang"]`. Without
+the quotes, `[frontend.acme.lang]` is a table `lang` inside a table `acme`, which no language reads.
+
 The upstream default of `frontend.language` is not a selection. If you do not set the language, the
 extensions of the documents select it.
 

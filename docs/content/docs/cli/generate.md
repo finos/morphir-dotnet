@@ -118,6 +118,10 @@ morphir generate --input model.json --target fsharp --output gen --extension mor
 extension = "morphir-fsharp-backend"
 ```
 
+The table is named by the target id. A target id can contain a dot; then the id is one quoted TOML key,
+`[codegen."acme.codegen"]`. Without the quotes, `[codegen.acme.codegen]` is a table `codegen` inside a table
+`acme`, which no target reads.
+
 The command reads the value as `compile` reads a frontend extension:
 
 - A name without a directory is searched only in the absolute directories of `PATH`, in order, and the

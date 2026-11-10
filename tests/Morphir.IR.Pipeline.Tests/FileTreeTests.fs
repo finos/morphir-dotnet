@@ -417,6 +417,24 @@ let vfileTreeConversionTests =
             Expect.equal (mapKeys (VFileTree.toFileMap tree)) [ "/abs/a.fs" ] "rooted path should be kept"
         }
 
+        test "OfFiles, for C# callers, keeps the files and declares their given order" {
+            let files =
+                [ System.Collections.Generic.KeyValuePair("src/Zeta.fs", VFile.create "src/Zeta.fs" "zeta")
+                  System.Collections.Generic.KeyValuePair("Alpha.fs", VFile.create "Alpha.fs" "alpha")
+                  System.Collections.Generic.KeyValuePair("src/Domain/Orders.fs", VFile.create "src/Domain/Orders.fs" "orders") ]
+
+            let tree = VFileTree.OfFiles files
+
+            Expect.equal (VFileTree.fileCount tree) 3 "should keep all files"
+
+            Expect.equal
+                (VFileTree.tryGet VFileTree.declaredOrder tree)
+                (Some [ "src/Zeta.fs"; "Alpha.fs"; "src/Domain/Orders.fs" ])
+                "the given order is the declared order, not path order"
+
+            Expect.equal (stringMap tree |> Map.find "Alpha.fs") "alpha" "the file's content"
+        }
+
         test "fromFileMap should infer nested directories from key segments" {
             let fileMap =
                 Map.ofList [

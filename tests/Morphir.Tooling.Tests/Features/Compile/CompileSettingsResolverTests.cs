@@ -230,4 +230,54 @@ public sealed class CompileSettingsResolverTests
         flagged.Extension!.Value.Should().Be("/opt/guest");
         flagged.Extension.Origin.Should().Be(new SettingOrigin.CommandLine("--extension"));
     }
+
+    [Test]
+    public void ADottedLanguageReadsItsExtensionAndProjectFileFromItsQuotedTable()
+    {
+        // LanguageId accepts dotted ids. In TOML the id is one quoted key: [frontend."acme.lang"].
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml",
+            "[project]\nname = \"acme/car-rental\"\n\n[frontend]\nlanguage = \"acme.lang\"\n\n[frontend.\"acme.lang\"]\nextension = \"dotted-frontend\"\nproject_file = \"src/Acme.lang\"\n");
+        var settings = Passed(Resolver.Resolve(new CompileOverrides(), workspace.Context()));
+
+        settings.Extension.Should().NotBeNull("the quoted table of the selected language is read");
+        settings.Extension!.Value.Should().Be("dotted-frontend");
+        settings.Extension.Origin.Should().BeOfType<SettingOrigin.Configuration>().Which.Key.Should().Be("frontend.\"acme.lang\".extension");
+        var source = settings.Sources.Should().BeOfType<SourceRequest.ProjectFile>().Which;
+        source.Path.Should().Be(workspace.PathOf("src/Acme.lang"));
+        source.Origin.Should().BeOfType<SettingOrigin.Configuration>().Which.Key.Should().Be("frontend.\"acme.lang\".project_file");
+    }
+
+    [Test]
+    public void ADottedLanguageDoesNotReadTheTableOfItsSegments()
+    {
+        // [frontend.acme.lang] is the table frontend > acme > lang, not the language acme.lang.
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml",
+            "[project]\nname = \"acme/car-rental\"\n\n[frontend]\nlanguage = \"acme.lang\"\n\n[frontend.acme.lang]\nextension = \"segment-frontend\"\n");
+        var settings = Passed(Resolver.Resolve(new CompileOverrides(), workspace.Context()));
+        settings.Extension.Should().BeNull("[frontend.acme.lang] is not the table of the language acme.lang");
+    }
+
+    [Test]
+    public void WithoutALanguageTheUnreadProjectFileKeyOfADottedLanguageIsQuoted()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml",
+            "[project]\nname = \"acme/car-rental\"\n\n[frontend.\"acme.lang\"]\nproject_file = \"src/Acme.lang\"\n");
+        var settings = Passed(Resolver.Resolve(new CompileOverrides(), workspace.Context()));
+        settings.UnreadProjectFileKeys.Should().Equal("frontend.\"acme.lang\".project_file");
+    }
+
+    [Test]
+    public void CompileTargetReadsTheIgnoredExtensionOfADottedTargetFromItsQuotedTable()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", "[project]\nname = \"acme/car-rental\"\n\n[codegen.\"acme.codegen\"]\nextension = \"dotted-guest\"\n");
+        CompileTarget.Parse("acme.codegen", "gen", [], workspace.Root).TryGetValue(out var target).Should().BeTrue();
+
+        var settings = Passed(Resolver.Resolve(new CompileOverrides { Target = target }, workspace.Context()));
+        settings.IgnoredBackendExtension.Should().NotBeNull("compile --target notes the dotted target's configured extension");
+        settings.IgnoredBackendExtension!.Value.Should().Be("dotted-guest");
+    }
 }
