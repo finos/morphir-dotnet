@@ -11,6 +11,7 @@ open System.IO
 open System.Text.Json
 open System.Threading
 open Expecto
+open Morphir.CodeGeneration.FSharp.Extension
 open Morphir.CodeGeneration.FSharp.Extension.Tests.GuestSupport
 open Morphir.Extensions
 open Morphir.TestSupport
@@ -110,10 +111,10 @@ let tests =
               let backend = connect (realGuest ())
 
               try
-                  Expect.equal backend.Descriptor.Id.Value "org.finos.morphir.fsharp-backend" "The guest's extension id, not morphir.fsharp"
+                  Expect.equal backend.Descriptor.Id.Value FSharpGuest.extension.Id "The guest's extension id, not morphir.fsharp"
                   Expect.equal backend.Descriptor.Target.Value "fsharp" "The target"
                   Expect.isNotEmpty backend.ExtensionVersion "The guest's version"
-                  Expect.equal backend.Identity $"org.finos.morphir.fsharp-backend {backend.ExtensionVersion}" "id and version"
+                  Expect.equal backend.Identity $"{FSharpGuest.extension.Id} {backend.ExtensionVersion}" "id and version"
 
                   let declared =
                       [ for capability in backend.Descriptor.Capabilities ->
@@ -194,7 +195,7 @@ let tests =
 
                   match outcome with
                   | :? Outcome<GenerationSuccess>.Success as success ->
-                      Expect.equal success.Value.Backend "org.finos.morphir.fsharp-backend" "The report names the external backend"
+                      Expect.equal success.Value.Backend FSharpGuest.extension.Id "The report names the external backend"
                       Expect.isNonEmpty success.Value.Publication.Written "The files are published"
                   | failure -> failtest $"generate succeeds: {failure}"
               finally
@@ -219,7 +220,7 @@ let tests =
                   let failure = failureOf (generateWith backend (load (irFixture "daily-rate-v4.json")) [ "optimize", "\"no\"" ])
                   Expect.equal failure.Kind GenerationFailureKind.Invocation "invocation"
                   Expect.contains (codes failure) "extension.not_admitted" "the code"
-                  Expect.stringContains (messages failure) "org.finos.morphir.fsharp-backend" "the guest is named"
+                  Expect.stringContains (messages failure) FSharpGuest.extension.Id "the guest is named"
               finally
                   dispose backend
 
