@@ -61,7 +61,8 @@ installs and activates nothing.
 
 Usage:
   morphirup --version
-  morphirup setup --plan --recipe <file> --repository-id <sha256> --artifact-sizes <file> [request] [options]
+  morphirup setup (--plan | --dry-run) --recipe <file> --repository-id <sha256> --artifact-sizes <file> [request]
+                  [options]
   morphirup doctor [--project <dir>] [--boundary <dir>] [--request <file>] [--lock <file>] [--platform <rid>]
                    [--recipe <file> --repository-id <sha256>]
 
@@ -73,7 +74,9 @@ Request, one of:
   --implementation <id> --deployment <id> --preset <id> (--channel <channel> | --version <version>)
 
 setup options:
-  --plan                  Required: report the plan. Without it, or with --yes, setup refuses
+  --plan                  Required, or --dry-run: report the plan. Without either, or with --yes, setup refuses
+  --dry-run               The same as --plan: the same plan, result and exit code, and nothing created, changed or
+                          removed. Both may be given; neither permits --yes
   --platform <rid>        Plan for this platform instead of the current one
   --expect-plan <sha256>  Refuse a plan whose planSha256 differs: plan_changed, exit 1, nothing changed
   --recipe <file>         (provisional) The recipe document; nothing authenticates it in this build
@@ -402,11 +405,14 @@ let private setup (io: Io) (args: string list) : Result<int, Usage> =
                   "--recipe-target"
                   "--artifact-sizes"
                   "--expect-plan" ]
-                [ "--plan"; "--json"; "--yes" ]
+                [ "--plan"; "--dry-run"; "--json"; "--yes" ]
                 args
 
-        if options.Has "--yes" || not (options.Has "--plan") then
-            return! usage "this build plans only: acquisition, installation and activation are not implemented yet; pass --plan"
+        // --dry-run is --plan under the name the maintainer's rule gives a run that changes nothing: this build only
+        // plans, so the two take the one planning path, and neither lets --yes apply anything.
+        if options.Has "--yes" || not (options.Has "--plan" || options.Has "--dry-run") then
+            return!
+                usage "this build plans only: acquisition, installation and activation are not implemented yet; pass --plan or --dry-run"
 
         let! platform = platformOption io options
         let! repository = requiredOption "--repository-id" Sha256.tryParse options "until authenticated acquisition exists"
