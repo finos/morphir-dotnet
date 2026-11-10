@@ -34,9 +34,11 @@ public sealed class WasmProfileContract
         HostSessionLimits hostSession,
         FrozenSet<string> refusalCodes,
         FrozenDictionary<string, ContractFault> faults,
-        FrozenDictionary<WasmAbi, WasmProfileSurface> profiles)
+        FrozenDictionary<WasmAbi, WasmProfileSurface> profiles,
+        WasmHostPolicy policy)
     {
         this.faults = faults;
+        Policy = policy;
         Id = id;
         Version = version;
         Sha256 = sha256;
@@ -83,6 +85,9 @@ public sealed class WasmProfileContract
 
     /// <summary>The ceiling of the Extism kernel's own memory, in bytes.</summary>
     public long KernelMemoryCeilingBytes { get; }
+
+    /// <summary>The host-function and WASI policy: the limits of the session stores and what each call returns.</summary>
+    public WasmHostPolicy Policy { get; }
 
     /// <summary>The refusal codes the contract defines for a module that is refused before any request.</summary>
     public IReadOnlySet<string> RefusalCodes { get; }
@@ -207,7 +212,8 @@ public sealed class WasmProfileContract
             hostSession,
             refusalCodes,
             faults,
-            profiles.ToFrozenDictionary());
+            profiles.ToFrozenDictionary(),
+            WasmHostPolicy.Read(root.GetProperty("policy"), Invalid));
     }
 
     /// <summary>The frame limits of the host session, counted over the whole frame, and the codes of its

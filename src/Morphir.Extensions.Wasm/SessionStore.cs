@@ -39,27 +39,38 @@ public sealed record HandleCallResult(int ReturnCode, long OutputOffset, byte[] 
 /// returns <see cref="HandleOutcome.NotRun"/> with it, without running guest or kernel code.
 /// </para>
 /// <para>
-/// The Extism adapter, <see cref="WasmChannel"/>, is built on <see cref="CallHandle"/>. Tasks 3.3 and 3.4
-/// replace the trapping callbacks of the host functions and the empty WASI configuration.
+/// The Extism adapter, <see cref="WasmChannel"/>, is built on <see cref="CallHandle"/>.
+/// </para>
+/// <para>
+/// The sandbox (tasks 3.3 and 3.4). The Extism host functions and the Morphir functions do what the contract's policy
+/// says (<see cref="ExtismHostFunctions"/>): no configuration, a variable store and an IR cache that belong to this
+/// session and enforce their limits, logs as guest output, and <c>http_request</c> refused with no connection. WASI
+/// preview 1 is the managed sandbox (<see cref="WasiSandbox"/>). Guest output is bounded in <see cref="GuestOutput"/>;
+/// what the guest attempted and did not get is in <see cref="RefusedHttpRequests"/> and
+/// <see cref="RefusedWasiCalls"/>; the private workspace is created on the guest's first request for it and removed
+/// when the session fails or is disposed.
 /// </para>
 /// </remarks>
 public sealed class SessionStore : IDisposable
 {
-    const string WasiModule = "wasi_snapshot_preview1";
-
     readonly Store store;
     readonly Linker linker;
     readonly Dictionary<string, Function> kernelFunctions;
-    readonly List<string> unprovidedCalls = [];
+    readonly ExtismHostFunctions hostFunctions;
+    readonly WasiSandbox wasi;
     readonly Stopwatch callClock = new();
     CancellationToken callCancellation;
     Instance? guest;
     bool initialized;
 
-    SessionStore(ExtismModule module, SessionLimits limits, Store store, Linker linker)
+    SessionStore(ExtismModule module, SessionLimits limits, Store store, Linker linker, SessionWorkspace workspace)
     {
         Module = module;
         Limits = limits;
+        Workspace = workspace;
+        var policy = WasmProfileContract.Pinned.Policy;
+        hostFunctions = new ExtismHostFunctions(this, policy);
+        wasi = new WasiSandbox(policy, GuestOutput, module.Compiled.GuestMemoryName);
         this.store = store;
         this.linker = linker;
         store.SetEpochDeadlineCallback(OnEpochDeadline);
@@ -82,13 +93,19 @@ public sealed class SessionStore : IDisposable
     /// whose initial memory is above the ceiling is not instantiated: the session fails with
     /// <see cref="GuestFailureKind.MemoryLimit"/> before any request (the contract's <c>initial-above-ceiling</c> rule).
     /// </summary>
-    public static SessionOpening Open(ExtismModule module, SessionLimits limits)
+    /// <param name="module">The admitted module.</param>
+    /// <param name="limits">The session's bounds.</param>
+    /// <param name="workspaceRoot">The absolute directory below which the session's private workspace is created
+    /// when the guest first asks for it, or null for the system's temporary directory.</param>
+    /// <exception cref="ArgumentException"><paramref name="workspaceRoot"/> is not an absolute path.</exception>
+    public static SessionOpening Open(ExtismModule module, SessionLimits limits, string? workspaceRoot = null)
     {
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(limits);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(limits.MemoryCeilingBytes, 0);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(limits.CallDeadline, TimeSpan.Zero);
 
+        var workspace = new SessionWorkspace(workspaceRoot);
         var engine = module.Compiled.Engine.Engine;
         var store = new Store(engine);
         Linker? linker = null;
@@ -97,7 +114,7 @@ public sealed class SessionStore : IDisposable
         {
             store.SetLimits(memorySize: limits.MemoryCeilingBytes, tableElements: null, instances: null, tables: null, memories: null);
             linker = new Linker(engine);
-            session = new SessionStore(module, limits, store, linker);
+            session = new SessionStore(module, limits, store, linker, workspace);
             if (session.InitialMemoryAboveCeiling() is { } failure)
             {
                 session.Dispose();
@@ -145,8 +162,28 @@ public sealed class SessionStore : IDisposable
     /// <summary>Which start-up export of the guest ran before its first call, or "not yet".</summary>
     public string Initialization { get; private set; } = "not yet";
 
-    /// <summary>Imports outside the kernel and WASI that the guest called. Each such call stops the call.</summary>
-    public IReadOnlyList<string> UnprovidedCalls => unprovidedCalls;
+    /// <summary>
+    /// What the guest wrote to WASI stdout and stderr and logged, and the <c>http_request</c> calls the host refused,
+    /// bounded (<see cref="GuestOutputTail"/>). None of it is part of a reply, and the library never writes it to the
+    /// process's streams. The worker (task 4.1) drains it after each call for its <c>output</c> events. It stays
+    /// readable after the session ends.
+    /// </summary>
+    public GuestOutputTail GuestOutput { get; } = new();
+
+    /// <summary>The <c>http_request</c> calls the host refused, each with the method and URL the guest asked for.
+    /// No connection was made for any of them. A refused request ends the session, so there is at most one.</summary>
+    public IReadOnlyList<RefusedHttpRequest> RefusedHttpRequests => hostFunctions.HttpRequests;
+
+    /// <summary>The WASI functions the guest called and was refused, errno 8 (<c>badf</c>) or 76
+    /// (<c>notcapable</c>), with how many times each.</summary>
+    public IReadOnlyDictionary<string, long> RefusedWasiCalls => wasi.RefusedCalls;
+
+    /// <summary>The session's private workspace, the <c>root</c> that <c>morphir_get_workspace_info</c> gives, or
+    /// null when the guest has not asked for it. The directory exists from the guest's first request for it until the
+    /// session fails or is disposed; the path stays readable afterwards.</summary>
+    public string? WorkspaceDirectory => Workspace.Directory;
+
+    internal SessionWorkspace Workspace { get; }
 
     /// <summary>The failure that finished this session, or null while calls can still run the guest.</summary>
     public GuestFailure? Failure { get; private set; }
@@ -216,9 +253,10 @@ public sealed class SessionStore : IDisposable
             var returnCode = handle.Invoke() is int code ? code : 0;
             return Complete(returnCode);
         }
-        catch (WasmtimeException exited) when (exited.ExitCode == 0)
+        catch (WasmtimeException exited) when (Cause<GuestExited>(exited) is { Code: 0 })
         {
-            // WASI proc_exit(0): the contract's policy makes the call succeed (wasi.procExitZero).
+            // WASI proc_exit(0): the contract's policy makes the call succeed, with the output set before it
+            // (wasi.procExitZero).
             return Complete(0);
         }
         catch (WasmtimeException failure)
@@ -260,7 +298,25 @@ public sealed class SessionStore : IDisposable
                 : signal;
         var failure = new GuestFailure(kind, signal, detail, memory, FuelUsed, callClock.Elapsed);
         Failure = failure;
+        // The session is finished, so its workspace goes now, not when the store is disposed.
+        Workspace.Remove();
         return new HandleOutcome.Failed(failure);
+    }
+
+    /// <summary>The first exception of type <typeparamref name="T"/> in <paramref name="failure"/>'s chain of inner
+    /// exceptions: what a host callback threw, which Wasmtime returns as the call's inner exception.</summary>
+    static T? Cause<T>(Exception failure)
+        where T : Exception
+    {
+        for (Exception? cause = failure; cause is not null; cause = cause.InnerException)
+        {
+            if (cause is T found)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     ulong FuelUsed => Limits.InstructionBudget - Math.Min(store.Fuel, Limits.InstructionBudget);
@@ -275,8 +331,10 @@ public sealed class SessionStore : IDisposable
             {
                 case CallStopped stopped:
                     return (stopped.Kind, stopped.Message);
-                case HostFunctionStopped host:
+                case HostCallStopped host:
                     return (GuestFailureKind.IncompleteSession, host.Message);
+                case GuestExited exited:
+                    return (GuestFailureKind.IncompleteSession, exited.Message);
             }
         }
 
@@ -290,9 +348,7 @@ public sealed class SessionStore : IDisposable
             };
         }
 
-        return failure.ExitCode is { } exitCode
-            ? (GuestFailureKind.IncompleteSession, $"the guest called proc_exit with code {exitCode} during a call")
-            : (GuestFailureKind.GuestTrap, FirstLine(failure.Message));
+        return (GuestFailureKind.GuestTrap, FirstLine(failure.Message));
     }
 
     static string FirstLine(string message) => message.Split('\n', 2)[0].TrimEnd('\r');
@@ -364,18 +420,17 @@ public sealed class SessionStore : IDisposable
         public GuestFailureKind Kind { get; } = kind;
     }
 
-    /// <summary>Thrown by the callback of an import this host does not provide yet: a host function that stops the call.</summary>
-    sealed class HostFunctionStopped(string message) : Exception(message);
-
     /// <summary>
-    /// Instantiates <paramref name="guest"/> in this store. Its kernel imports are linked to the kernel instance,
-    /// its WASI imports to Wasmtime's WASI with an empty configuration (no arguments, environment, preopens or
-    /// standard streams), and any other function import to a callback that records the call and stops it.
-    /// Classification has already refused every import outside the contract's surface.
+    /// Instantiates <paramref name="guest"/> in this store. Its kernel imports are linked to the kernel instance, its
+    /// Extism and Morphir host function imports to <see cref="ExtismHostFunctions"/>, and its WASI imports to the
+    /// managed sandbox, <see cref="WasiSandbox"/>; the engine's own WASI is not linked, so the guest has no preopened
+    /// directory, arguments, environment or stdin, and nothing reaches the host's streams. Every callback is an
+    /// untyped Wasmtime callback with the import's own type, which classification has checked against the contract.
+    /// Classification has already refused every import outside the contract's surface, so an import with no
+    /// callback here is a defect of this library, not of the guest.
     /// </summary>
     Instance Link(Module guest)
     {
-        var wasi = false;
         foreach (var import in guest.Imports)
         {
             if (import is not FunctionImport function)
@@ -388,31 +443,68 @@ public sealed class SessionStore : IDisposable
                 && kernelFunctions.TryGetValue(function.Name, out var exported))
             {
                 linker.Define(function.ModuleName, function.Name, exported);
+                continue;
             }
-            else if (function.ModuleName == WasiModule)
-            {
-                wasi = true;
-            }
-            else
-            {
-                var label = $"{function.ModuleName} {function.Name}";
-                linker.DefineFunction(function.ModuleName, function.Name,
-                    (Caller _, ReadOnlySpan<ValueBox> _, Span<ValueBox> _) =>
-                    {
-                        unprovidedCalls.Add(label);
-                        throw new HostFunctionStopped($"the guest called {label}, which this host does not provide yet");
-                    },
-                    function.Parameters, function.Results);
-            }
-        }
 
-        if (wasi)
-        {
-            linker.DefineWasi();
-            store.SetWasiConfiguration(new WasiConfiguration());
+            var callback = function.ModuleName == WasiSandbox.Module
+                ? wasi.Callback(function.Name)
+                : hostFunctions.Callback(function.ModuleName, function.Name)
+                    ?? throw new NotSupportedException(
+                        $"The guest imports {function.ModuleName}.{function.Name}, which classification admitted and this host does not define.");
+            linker.DefineFunction(function.ModuleName, function.Name, callback, function.Parameters, function.Results);
         }
 
         return linker.Instantiate(store, guest);
+    }
+
+    /// <summary>The size of the kernel block at <paramref name="handle"/>, or null when the handle is 0 or names no
+    /// block: the kernel's <c>length</c> gives 0 for a handle that is not the start of an allocated block.</summary>
+    internal long? TryBlockLength(long handle)
+    {
+        if (handle == 0)
+        {
+            return null;
+        }
+
+        var length = CallI64("length", handle);
+        return length > 0 ? length : null;
+    }
+
+    /// <summary>The size of the kernel block at <paramref name="handle"/>; a handle that names no block stops the
+    /// call of <paramref name="function"/>.</summary>
+    internal long BlockLength(string function, long handle) =>
+        TryBlockLength(handle) ?? throw new HostCallStopped($"{function}: no block at handle {handle}");
+
+    /// <summary>The bytes of the kernel block at <paramref name="handle"/>; a handle that names no block stops the
+    /// call.</summary>
+    internal byte[] ReadBlock(string function, long handle)
+    {
+        var length = BlockLength(function, handle);
+        return Read(handle, length);
+    }
+
+    /// <summary>The text of the kernel block at <paramref name="handle"/>, at most
+    /// <see cref="GuestOutputTail.PayloadBytes"/> of it with bytes that are not UTF-8 replaced, and how many bytes
+    /// after those were not read.</summary>
+    internal (string Text, long Elided) ReadText(string function, long handle)
+    {
+        var length = BlockLength(function, handle);
+        var read = Math.Min(length, GuestOutputTail.PayloadBytes);
+        return (System.Text.Encoding.UTF8.GetString(KernelMemory.GetSpan(handle, (int)read)), length - read);
+    }
+
+    /// <summary>A new kernel block holding <paramref name="bytes"/>: its handle. A kernel with no room for it stops
+    /// the call of <paramref name="function"/>.</summary>
+    internal long NewBlock(string function, ReadOnlySpan<byte> bytes)
+    {
+        var handle = CallI64("alloc", (long)bytes.Length);
+        if (handle == 0)
+        {
+            throw new HostCallStopped($"{function}: the kernel has no room for {bytes.Length} bytes");
+        }
+
+        bytes.CopyTo(KernelMemory.GetSpan(handle, bytes.Length));
+        return handle;
     }
 
     /// <summary>Runs the guest's start-up export once, as upstream Extism does: <c>_initialize</c> and
@@ -478,5 +570,6 @@ public sealed class SessionStore : IDisposable
     {
         linker.Dispose();
         store.Dispose();
+        Workspace.Remove();
     }
 }

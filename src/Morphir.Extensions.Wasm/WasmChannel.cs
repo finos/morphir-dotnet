@@ -81,9 +81,11 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
     /// Opens a channel on <paramref name="module"/> with <paramref name="limits"/>: a new store, with the kernel and
     /// the guest instantiated in it. No guest export runs. When the store cannot open, the failure is returned as a
     /// value: a guest whose initial memory is above the ceiling (the contract's <c>initial-above-ceiling</c> rule).
+    /// <paramref name="workspaceRoot"/> is the absolute directory below which the session's private workspace is
+    /// created, or null for the system's temporary directory (<see cref="SessionStore.Open"/>).
     /// </summary>
-    public static WasmChannelOpening Open(ExtismModule module, SessionLimits limits) =>
-        SessionStore.Open(module, limits).Match<WasmChannelOpening>(
+    public static WasmChannelOpening Open(ExtismModule module, SessionLimits limits, string? workspaceRoot = null) =>
+        SessionStore.Open(module, limits, workspaceRoot).Match<WasmChannelOpening>(
             store => new WasmChannelOpening.Opened(new WasmChannel(store)),
             failure => new WasmChannelOpening.Failed(failure));
 
@@ -92,6 +94,25 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
 
     /// <summary>The bounds and frame limits of this channel.</summary>
     public SessionLimits Limits { get; }
+
+    /// <summary>The guest's output: what it wrote to WASI stdout and stderr and logged, and the <c>http_request</c>
+    /// calls the host refused, bounded (<see cref="SessionStore.GuestOutput"/>). It is never part of a reply. The
+    /// worker (task 4.1) drains it after each call for its <c>output</c> events; it stays readable after the instance
+    /// ends.</summary>
+    public GuestOutputTail GuestOutput => store.GuestOutput;
+
+    /// <summary>The <c>http_request</c> calls the host refused, with the method and URL each asked for
+    /// (<see cref="SessionStore.RefusedHttpRequests"/>).</summary>
+    public IReadOnlyList<RefusedHttpRequest> RefusedHttpRequests => store.RefusedHttpRequests;
+
+    /// <summary>The WASI functions the guest was refused, with how many times each
+    /// (<see cref="SessionStore.RefusedWasiCalls"/>).</summary>
+    public IReadOnlyDictionary<string, long> RefusedWasiCalls => store.RefusedWasiCalls;
+
+    /// <summary>The session's private workspace, or null when the guest has not asked for it
+    /// (<see cref="SessionStore.WorkspaceDirectory"/>). It is removed when the instance ends, at <c>morphir.exit</c>,
+    /// at a failure or when the channel is disposed.</summary>
+    public string? WorkspaceDirectory => store.WorkspaceDirectory;
 
     /// <summary>How many <c>handle</c> calls the channel has made.</summary>
     public int HandleCalls => Volatile.Read(ref handleCalls);

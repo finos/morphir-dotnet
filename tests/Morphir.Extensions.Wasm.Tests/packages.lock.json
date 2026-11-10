@@ -147,6 +147,9 @@
       "morphir.myriad.systemtextjson.annotations": {
         "type": "Project"
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "FSharp.Core": {
         "type": "CentralTransitive",
         "requested": "[10.1.403, )",

@@ -48,6 +48,7 @@ outcome.Match(
 | Session | `SessionStore`, `SessionLimits` | A new store per session, holding its own kernel instance, guest instance, memory ceiling, fuel budget and call deadline. Each call starts with the full budget and a new deadline. |
 | Bounds | `HandleOutcome`, `GuestFailure`, `MemoryUse`, `SessionOpening` | Every call ends as a value. A failure has the contract's fault kind and host code or outcome, and the memory sizes. After a failure the session runs no more guest code. |
 | Channel | `WasmChannel`, `WasmChannelOpening`, `WasmChannelFailure`, `WasmChannelException` | The Extism adapter: `Morphir.Mep`'s `ISingleMessageChannel` on one store. One `handle` call per request, the contract's `handle` results and frame limits, no notification for a guest that advertised nothing, and `morphir.exit` ending the instance. |
+| Sandbox | `ExtismHostFunctions`, `WasiSandbox`, `SessionWorkspace` (internal); `GuestOutputTail`, `GuestOutput`, `RefusedHttpRequest`, `WasmHostPolicy` | The contract's host-function policy and WASI preview 1 for one session, the bounded guest output, what the guest attempted and did not get, and the private workspace. |
 
 ## Bounds and how they are reported
 
@@ -130,9 +131,125 @@ result. A guest that advertised then gets each notification as one `handle` call
 request; output for one ends the instance as `AnsweredNotification` and is returned for `HostSession` to fail,
 and `morphir.exit` is one call before the instance ends.
 
+## The sandbox
+
+Tasks 3.3 and 3.4, parent decision SBX-1: accept the imports, bound the calls. Every import the classifier admits is
+linked to a callback that does what the contract's policy says this host does, and nothing more. No callback reaches
+the network, the file system (beyond creating and removing the session's own workspace), the environment, the
+process's arguments or streams, or any host configuration. The library references no `System.Net` assembly, which a
+test checks. Every callback is an untyped Wasmtime callback (`Linker.DefineFunction` with `UntypedCallbackDelegate`),
+which gives no AOT warning.
+
+```csharp
+using var channel = WasmChannel.Open(module, SessionLimits.Default, workspaceRoot).Match(...);  // root: absolute, or null for the temp directory
+var reply = await channel.RequestAsync(method, message, cancellation);   // never contains guest output
+var tail = channel.GuestOutput.Drain();       // the outputs of the calls so far, and the bytes dropped
+var refused = channel.RefusedHttpRequests;    // method and URL of each refused http_request
+var denied = channel.RefusedWasiCalls;        // WASI function -> calls answered with errno 8 or 76
+```
+
+### Host functions
+
+A text argument or result is a handle to a kernel block, and handle 0 means no block. The callbacks read and write
+blocks through the session's own kernel instance, as an Extism host does: the kernel's `length` gives a block's size
+(0 for a handle that names no block), the bytes are read from kernel memory, and a result is a new block from the
+kernel's `alloc`. A handle that names no block where a block is needed, or a kernel with no room for a result, stops
+the call. "Stops the call" is the contract's "a host function that stops the call": fault kind `failure`,
+`extension.incomplete_session`, and the session is finished.
+
+| Function | What this host does | Limit | Tests |
+| --- | --- | --- | --- |
+| `config_get(key) -> i64` | Handle 0 for every key; the key is not read | none | `sandbox/config-get`, `Config_get_gives_handle_0` |
+| `var_get(key) -> i64` | A new block with the session's value, or handle 0 for a missing key | | `sandbox/var-round-trip`, `The_variable_store_holds_exactly_its_limit_of_keys_and_values` |
+| `var_set(key, value)` | Stores the value for the session; value handle 0 deletes the key | 1 MiB of keys and values (`var.storeBytes`); a write over it stops the call and changes nothing; replacing a value counts its new size only | `sandbox/var-over-limit`, `The_variable_store_holds_exactly_its_limit_of_keys_and_values`, `A_variable_one_byte_over_the_limit_fails_the_call` |
+| `log_info`, `log_warn`, `log_error` | The text becomes guest output, `log <level>: <text>` | the output bound | `sandbox/logging`, `Logging_records_info_and_above_and_every_morphir_log` |
+| `log_trace`, `log_debug` | Nothing; the text is not read (`logging.dropped`) | | `sandbox/logging` |
+| `get_log_level() -> i32` | 2, `info` (`logging.getLogLevel`) | | `sandbox/logging` |
+| `http_request(req, body) -> i64` | No connection. Records the request's `method` (default `GET`) and `url` (default empty) as guest output `refused http_request <method> <url>: the guest has no network access` and in `RefusedHttpRequests`, then stops the call | at most 64 KiB of the request block is read; method and URL cut to 4 KiB | `sandbox/http-request`, `Http_request_fails_the_session_and_records_the_method_and_the_URL`, `Http_request_makes_no_connection_attempt`, `The_library_has_no_network_API_to_reach` |
+| `http_status_code() -> i32` | 0 | | `sandbox/http-no-request`, `Http_status_code_and_headers_give_0_and_handle_0` |
+| `http_headers() -> i64` | Handle 0 | | the same |
+| `morphir_get_workspace_info() -> i64` | A new block with `{"root": <private empty directory>, "output_dir": ""}`; the same directory for every call of a session | | `sandbox/workspace-info`, the workspace tests |
+| `morphir_cache_ir(key, ir)` | Stores the value for the session; value handle 0 is no block and stops the call | 16 MiB of keys and values and 1,024 entries; a write over either stops the call and changes nothing; replacing an entry adds none | `sandbox/ir-cache-over-bytes`, `sandbox/ir-cache-over-entries`, `The_IR_cache_holds_exactly_its_byte_limit`, `The_IR_cache_holds_exactly_its_entry_limit` |
+| `morphir_get_cached_ir(key) -> i64` | A new block with the cached value, or with the text `null` | | `sandbox/ir-cache-round-trip`, `A_missing_IR_cache_entry_is_the_text_null` |
+| `morphir_log(level, message)` | The message becomes guest output whatever the level, `morphir_log <level>: <message>` | the output bound | `sandbox/logging` |
+
+Keys are compared as bytes, and a store's size is the bytes of its keys plus the bytes of its values, as the MoonBit
+host counts them. The variable store and the IR cache belong to one session: a second session of the same module
+starts empty (`A_second_session_starts_empty`, and the second run of each round-trip case).
+
+**The private workspace.** `SessionWorkspace` creates the directory the first time the guest calls
+`morphir_get_workspace_info`, below the workspace root given to `Open` (the system's temporary directory when none is
+given), named `morphir-wasm-session-<32 hex digits>`, and readable only by the user on Unix. It is removed when the
+session fails (in `SessionStore`'s failure path, before the failure is returned), when the store is disposed, and so
+when a `WasmChannel` ends its instance at `morphir.exit`, at a failure or at `Dispose`. A session that never asks has
+no directory. The guest cannot open it: the sandbox has no preopened directory.
+
+### WASI
+
+**Decision (the design's open question, task 3.4): managed host functions supply WASI preview 1, not the engine's
+WASI.** The engine's WASI was the first choice if it could capture stdout and stderr into a bounded buffer and
+return an error code for every other call. It can capture the streams: Wasmtime .NET 50.0.1 has
+`WasiConfiguration.WithStandardOutputCallback` and `WithStandardErrorCallback`, which hand the bytes to a callback on
+a Wasmtime thread, with no file. It fails on the other half, which the crafted cases decide:
+
+| The contract requires | The engine's WASI, with an empty configuration | Evidence |
+| --- | --- | --- |
+| `poll_oneoff` gives errno 76 at once; no call can block | Sleeps for the requested timeout and succeeds | `sandbox/wasi-unsupported` took 10.0 s and answered `ff` in the red run; `WasiDecisionTests` measures a 200 ms sleep |
+| `path_open` on fd 0 gives errno 76 | Another errno | `sandbox/wasi-unsupported` (`ff`), `WasiDecisionTests` |
+| Any other function gives errno 76 | Real answers: `fd_fdstat_get` on stdout, `sched_yield` and `args_get` succeed | `WasiDecisionTests` |
+
+So `WasiSandbox` defines each WASI import the guest makes, by name, with the type the classifier has already checked
+against the engine's own WASI definitions (the classifier still reads the types from there, so no second table of
+signatures exists). The engine's WASI is never linked, and a store gets no `WasiConfiguration`. Managed callbacks are
+the same untyped callbacks as the host functions, so the choice adds no AOT warning; the probe runs them under
+Native AOT.
+
+| The guest calls | It gets (policy `wasi`) |
+| --- | --- |
+| `args_sizes_get`, `environ_sizes_get` | Success, a count and a size of 0, whatever the host process has |
+| `fd_read` on fd 0 | Success, 0 bytes read |
+| A function on an fd above 2 (`fd_*`, `path_*`, `sock_*`; for `fd_renumber`, `path_link`, `path_rename` and `path_symlink` any of their fds) | Errno 8 (`badf`) |
+| `clock_time_get`, `clock_res_get` | The realtime clock (id 0) in nanoseconds since 1970, or the monotonic clock (ids 1 to 3); a resolution of 100 ns or the timestamp's |
+| `random_get` | Bytes from the system's cryptographic generator |
+| `fd_write` on fd 1 or 2 | Success with every byte written; the text becomes guest output `stdout: <text>` or `stderr: <text>` |
+| `proc_exit(0)` | The call succeeds with the output set before it; another code fails the session |
+| Anything else: `args_get`, `environ_get`, `poll_oneoff`, `sched_yield`, `fd_read` on 1 or 2, `fd_write` on 0, `path_open` on 0 | Errno 76 (`notcapable`), at once |
+
+Where the contract is silent the sandbox answers as WASI does: a pointer outside the guest's memory is errno 21
+(`fault`), a clock id above 3 is errno 28 (`inval`), and a write of more than 4 GiB in one call is errno 28. The process
+and thread CPU-time clocks read the monotonic clock, as the MoonBit sandbox does. Calls answered with errno 8 or 76
+are counted by function in `RefusedWasiCalls`.
+
+### Guest output
+
+Guest output is WASI stdout and stderr, the recorded `log_*` and `morphir_log` messages, and refused HTTP requests.
+It is never part of a reply: the reply is the Extism output and nothing else. The library never writes it to the
+process's stdout or stderr.
+
+`GuestOutputTail` bounds it per session, with the MoonBit worker's rule, which task 4.1's `output` events follow:
+
+- **Each output** is cut to 4 KiB of reported text (`MessageBytes`, MoonBit's `EVENT_MESSAGE_BYTES`) at a character
+  boundary and ends with `…`; `GuestOutput.Cut` says so.
+- **The tail** keeps the newest outputs whose reported text is at most 64 KiB (`TailBytes`, MoonBit's
+  `OUTPUT_TAIL_BYTES`) and drops the oldest.
+- **Dropped bytes** are counted in `DroppedBytes`: the UTF-8 bytes of the cut ends and of every dropped output. The
+  worker reports them as one `output` event with `droppedBytes`, the contract's member.
+- Reported text is counted as JSON string text: a quote or a backslash takes 2 bytes and a control character 6.
+- The host reads at most 4 KiB of one payload (one `fd_write`, one log block), so a guest that writes 200 MiB at once
+  costs no more memory than one that writes 4 KiB; the unread bytes count as dropped.
+- `Drain()` takes the kept outputs and the dropped count and empties the tail. The worker drains it after each call,
+  as MoonBit does; a session that is never drained keeps the newest 64 KiB of all its calls.
+
+A guest that writes 10 MiB in one call, through `fd_write` or `log_info` in 10,240 writes of 1 KiB, gives its reply
+unchanged, keeps at most 64 KiB, counts the rest as dropped, and moves the managed heap by less than 4 MiB
+(`A_guest_that_writes_10_MiB_keeps_a_bounded_tail_and_its_reply`).
+
 ## The contract is read, not copied
 
-The import table, the bounds and the refusal codes come from `wasm-execution-profiles.json`. That file is
+The import table, the bounds, the refusal codes and the host-function policy come from `wasm-execution-profiles.json`.
+`WasmHostPolicy` reads the policy's numbers (the store and cache limits, the log level, the two errnos) and checks
+that every other policy leaf names the behaviour this library implements, so a pin that changes a behaviour fails to
+load. That file is
 embedded from `tests/Fixtures/MepWasm/`, where it is pinned unchanged (see that directory's `PROVENANCE.md`),
 and parsed with `JsonDocument`. A test checks that the embedded copy has the pinned file's SHA-256. WASI
 preview 1 imports are checked against the standard types that Wasmtime's own WASI definitions give, because the
@@ -151,14 +268,18 @@ them, and then calls `WasmEngine.Load` and `WasmHost.Admit` with the declared `a
 - Task 4.1 joins Ctrl+C to the `CancellationToken` of the running call and exits with status 130, and drives
   `WasmChannel` from the worker with `--request-bytes` and `--response-bytes` as `SessionLimits.RequestFrameBytes`
   and `ResponseFrameBytes`.
-- Tasks 3.3 and 3.4 replace the trapping callbacks for the Extism and Morphir host functions, and the empty
-  WASI configuration.
+- Task 4.1 reports `GuestOutput` as `output` events after each call (draining the tail, then one `droppedBytes`
+  event) and may name the refused URL and WASI calls in its diagnostics; the workspace root is the worker's own
+  private directory.
 
 The Native AOT probe in `tests/Morphir.Extensions.Wasm.AotProbe` runs this library on the published Python
 `0.6.0` guest: the kernel proof with a MEP `0.2.0-draft.1` initialize, and one whole `HostSession` through
 `WasmChannel` (evidence: `openspec/changes/add-wasm-extension-host/evidence/2.2-kernel-proof.md`, section "After
 decision MEP-1"). With `--bounds <extism-spin.wasm>` it also stops the crafted spinning guest by budget, deadline
-and cancellation (task 2.5 evidence: `evidence/2.5-bounds.md`).
+and cancellation (task 2.5 evidence: `evidence/2.5-bounds.md`). With `--sandbox tests/Fixtures/MepWasm/fixtures/wasm`
+it runs six pinned crafted modules whose calls reach the host functions and the WASI callbacks (`extism-log`,
+`extism-var-round-trip`, `extism-fd-write`, `extism-wasi-empty`, `extism-clock-random`, `extism-http`), each checked
+against the corpus digest.
 
 The tests that need the Python guest get it from `artifacts/wasm-guests/` (git-ignored), or download it from its
 release and check its SHA-256 (`tests/Morphir.Extensions.Wasm.Tests/PublishedGuest.cs` holds the pin). Without a

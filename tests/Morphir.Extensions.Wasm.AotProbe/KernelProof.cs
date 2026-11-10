@@ -64,12 +64,13 @@ public static partial class KernelProof
         NotChecked,
     }
 
-    /// <summary>Runs the proof. Arguments: <c>&lt;guest.wasm&gt; [--publish-log &lt;file&gt;] [--source &lt;path&gt;]... [--bounds &lt;extism-spin.wasm&gt;]</c>.</summary>
+    /// <summary>Runs the proof. Arguments: <c>&lt;guest.wasm&gt; [--publish-log &lt;file&gt;] [--source &lt;path&gt;]...
+    /// [--bounds &lt;extism-spin.wasm&gt;] [--sandbox &lt;directory of the pinned crafted modules&gt;]</c>.</summary>
     public static int Run(string[] args, TextWriter output)
     {
-        if (!TryParse(args, out var guestPath, out var publishLog, out var sources, out var spinPath))
+        if (!TryParse(args, out var guestPath, out var publishLog, out var sources, out var spinPath, out var sandboxModules))
         {
-            output.WriteLine("usage: Morphir.Extensions.Wasm.AotProbe <guest.wasm> [--publish-log <file>] [--source <path>]... [--bounds <extism-spin.wasm>]");
+            output.WriteLine("usage: Morphir.Extensions.Wasm.AotProbe <guest.wasm> [--publish-log <file>] [--source <path>]... [--bounds <extism-spin.wasm>] [--sandbox <fixtures/wasm directory>]");
             return 2;
         }
 
@@ -119,6 +120,7 @@ public static partial class KernelProof
         var session = Check(output, "session", () => CheckSession(output, guest));
         var claim1 = Check(output, "claim 1", () => CheckNoTrimWarnings(output, publishLog, sources));
         var bounds = spinPath is null ? Verdict.NotChecked : Check(output, "bounds", () => CheckBounds(output, spinPath));
+        var sandbox = sandboxModules is null ? Verdict.NotChecked : Check(output, "sandbox", () => CheckSandbox(output, sandboxModules));
 
         output.WriteLine("summary:");
         output.WriteLine($"claim 1, no IL warning but the FSharp.Core summary baseline (so zero IL2026 and IL3050), and no suppressions: {Text(claim1)}");
@@ -126,7 +128,75 @@ public static partial class KernelProof
         output.WriteLine($"claim 3, the host reads the result of handle directly: {Text(claim3)}");
         output.WriteLine($"session (task 3.1), a whole HostSession through the WASM channel: {Text(session)}");
         output.WriteLine($"bounds (task 2.5), budget, deadline and cancellation stop a spinning guest: {Text(bounds)}");
-        return claim1 == Verdict.Holds && claim2 == Verdict.Holds && claim3 == Verdict.Holds && session == Verdict.Holds && bounds != Verdict.Fails ? 0 : 1;
+        output.WriteLine($"sandbox (tasks 3.3 and 3.4), host functions and WASI callbacks answer as the contract says: {Text(sandbox)}");
+        return claim1 == Verdict.Holds && claim2 == Verdict.Holds && claim3 == Verdict.Holds && session == Verdict.Holds
+            && bounds != Verdict.Fails && sandbox != Verdict.Fails ? 0 : 1;
+    }
+
+    /// <summary>The pinned crafted modules the sandbox check runs, each with
+    /// the reply it must give to <c>morphir.initialize</c>, or null for a call that must fail.</summary>
+    static readonly (string Module, string? Reply, string[] Output)[] SandboxModules =
+    [
+        ("extism-log", """{"jsonrpc":"2.0","id":1,"result":"level-2"}""", ["log info: kit-info--marker", "morphir_log trace: kit-morph-marker"]),
+        ("extism-var-round-trip", """{"jsonrpc":"2.0","id":1,"result":"stored"}""", []),
+        ("extism-fd-write", """{"jsonrpc":"2.0","id":1,"result":"printed"}""", ["stdout: kit-stdout-marker\n", "stderr: kit-stderr-marker\n"]),
+        ("extism-wasi-empty", """{"jsonrpc":"2.0","id":1,"result":"tttt"}""", []),
+        ("extism-clock-random", """{"jsonrpc":"2.0","id":1,"result":"ttt"}""", []),
+        ("extism-http", null, ["refused http_request GET https://example.org/"]),
+    ];
+
+    /// <summary>
+    /// Tasks 3.3 and 3.4 under the same executable: the untyped callbacks of the Extism host functions, the Morphir
+    /// functions and the managed WASI sandbox run on pinned crafted modules, so a trimming or AOT defect in them
+    /// shows here. Each module's digest is checked against the pinned corpus first.
+    /// </summary>
+    static Verdict CheckSandbox(TextWriter output, string directory)
+    {
+        using var corpus = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(directory, "..", "..", "wasm-host.cases.json")));
+        var modules = corpus.RootElement.GetProperty("modules");
+        var request = Encoding.UTF8.GetBytes("""{"jsonrpc":"2.0","id":1,"method":"morphir.initialize","params":{"protocolVersion":"0.2.0-draft.1"}}""");
+        var ok = true;
+        void Expect(bool condition, string what)
+        {
+            output.WriteLine($"  {(condition ? "ok" : "FAILED")}: {what}");
+            ok &= condition;
+        }
+
+        foreach (var (name, reply, expectedOutput) in SandboxModules)
+        {
+            var bytes = File.ReadAllBytes(Path.Combine(directory, name + ".wasm"));
+            var recorded = modules.GetProperty(name).GetProperty("sha256").GetString();
+            var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            Expect(digest == recorded, $"{name}.wasm has the corpus digest {recorded}");
+            var module = WasmEngine.Shared.Load(bytes).Match(
+                compiled => WasmHost.Admit(compiled, WasmAbi.ExtismKernel).Match(m => m, r => throw new InvalidOperationException(r.Message)),
+                refused => throw new InvalidOperationException(refused.Message),
+                invalid => throw new InvalidOperationException(invalid));
+            using var store = Opened(SessionStore.Open(module, SessionLimits.Default));
+            var outcome = store.CallHandle(request);
+            var text = outcome.Match(
+                completed => Encoding.UTF8.GetString(completed.Result.Output),
+                failed => $"failed: {failed.Message}",
+                notRun => $"not run: {notRun.Message}");
+            var outputs = string.Join(" | ", store.GuestOutput.Outputs.Select(item => item.Text.Replace("\n", "\\n", StringComparison.Ordinal)));
+            output.WriteLine($"  {name}: {text}; guest output: {(outputs.Length == 0 ? "none" : outputs)}");
+            if (reply is null)
+            {
+                Expect(outcome.Match(_ => false, failed => failed.Code == "extension.incomplete_session", _ => false), $"{name} fails the session with extension.incomplete_session");
+                Expect(store.RefusedHttpRequests.Count == 1, $"{name} records the refused request: {string.Join(", ", store.RefusedHttpRequests)}");
+            }
+            else
+            {
+                Expect(text == reply, $"{name} answers {reply}");
+            }
+
+            foreach (var fragment in expectedOutput)
+            {
+                Expect(store.GuestOutput.Outputs.Any(item => item.Text.StartsWith(fragment, StringComparison.Ordinal)), $"{name} records the guest output {fragment.Replace("\n", "\\n", StringComparison.Ordinal)}");
+            }
+        }
+
+        return ok ? Verdict.Holds : Verdict.Fails;
     }
 
     /// <summary>
@@ -296,11 +366,12 @@ public static partial class KernelProof
         return verdict;
     }
 
-    static bool TryParse(string[] args, out string guestPath, out string? publishLog, out List<string> sources, out string? spinPath)
+    static bool TryParse(string[] args, out string guestPath, out string? publishLog, out List<string> sources, out string? spinPath, out string? sandboxModules)
     {
         guestPath = "";
         publishLog = null;
         spinPath = null;
+        sandboxModules = null;
         sources = [];
         for (var i = 0; i < args.Length; i++)
         {
@@ -314,6 +385,9 @@ public static partial class KernelProof
                     break;
                 case "--bounds" when i + 1 < args.Length:
                     spinPath = args[++i];
+                    break;
+                case "--sandbox" when i + 1 < args.Length:
+                    sandboxModules = args[++i];
                     break;
                 case var path when !path.StartsWith("--", StringComparison.Ordinal) && guestPath.Length == 0:
                     guestPath = path;
@@ -468,7 +542,7 @@ public static partial class KernelProof
         output.WriteLine($"  output bytes (UTF-8): {Encoding.UTF8.GetString(result.Output)}");
         output.WriteLine($"  memory after the call: kernel {store.KernelMemory.GetLength()} bytes, guest {guestMemory?.GetLength().ToString() ?? "unknown"} bytes");
         output.WriteLine($"  fuel used by the call: {completed.FuelUsed} of {store.Limits.InstructionBudget}");
-        output.WriteLine($"  host functions outside the kernel and WASI that the guest called: {(store.UnprovidedCalls.Count == 0 ? "none" : string.Join(", ", store.UnprovidedCalls))}");
+        output.WriteLine($"  guest output: {store.GuestOutput.Outputs.Count} outputs; refused http_request: {store.RefusedHttpRequests.Count}; refused WASI calls: {(store.RefusedWasiCalls.Count == 0 ? "none" : string.Join(", ", store.RefusedWasiCalls.Select(call => $"{call.Key} x{call.Value}")))}");
 
         var ok = true;
         void Expect(bool condition, string what)

@@ -388,7 +388,7 @@ public class BoundsTests
     [Test]
     public async Task A_host_function_that_stops_the_call_is_the_contract_failure()
     {
-        // http_request is not provided yet (task 3.3); its callback stops the call, as the policy says it must.
+        // http_request stops the call, as the policy says it must (task 3.3).
         using var session = Open("extism-http", SessionLimits.Default);
 
         var failure = Failed(session.CallHandle(Initialize));
@@ -396,7 +396,7 @@ public class BoundsTests
         await Assert.That(failure.Kind).IsEqualTo(GuestFailureKind.IncompleteSession);
         await Assert.That(failure.Code).IsEqualTo("extension.incomplete_session");
         await Assert.That(failure.FaultKind).IsEqualTo("failure");
-        await Assert.That(failure.Detail).Contains("extism:host/env http_request");
+        await Assert.That(failure.Detail).Contains("http_request was refused");
         await Assert.That(failure.Memory.GuestBytes).IsEqualTo(Page);
     }
 
