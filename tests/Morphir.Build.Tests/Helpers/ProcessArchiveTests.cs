@@ -4,6 +4,7 @@ using System.Formats.Tar;
 using System.IO.Compression;
 using FluentAssertions;
 using Morphir.Build.Helpers;
+using Morphir.TestSupport;
 using TUnit.Core;
 
 namespace Morphir.Build.Tests.Helpers;
@@ -136,11 +137,12 @@ public class ProcessArchiveTests
         File.WriteAllText(path, relative);
     }
 
+    /// <summary>A test sandbox; disposing it removes the folder with <see cref="TolerantDirectory"/>.</summary>
     private sealed class Scratch : IDisposable
     {
-        private readonly string root = Directory.CreateTempSubdirectory("morphir-archive-").FullName;
+        private readonly TestSandbox sandbox = TestSandbox.Create("morphir-archive-");
 
-        public string PathOf(string name) => Path.Combine(root, name);
+        public string PathOf(string name) => sandbox.PathOf(name);
 
         /// <summary>A small publish folder: the launch file, createdump, a nested assembly and a non-ASCII path.</summary>
         public string Folder()
@@ -151,6 +153,6 @@ public class ProcessArchiveTests
             return folder;
         }
 
-        public void Dispose() => Directory.Delete(root, recursive: true);
+        public void Dispose() => sandbox.Dispose();
     }
 }

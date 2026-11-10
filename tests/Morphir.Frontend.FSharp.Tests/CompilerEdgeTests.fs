@@ -375,33 +375,30 @@ let tests =
         }
 
         test "a deps file that the host lists but that cannot be read is an error, not a silent fallback" {
-            let folder = Path.Combine(Path.GetTempPath(), $"morphir-deps-{Guid.NewGuid():N}")
-            Directory.CreateDirectory folder |> ignore
+            use sandbox = TestSandbox.Create "morphir-deps-"
+            let folder = Directory.CreateDirectory(sandbox.PathOf "deps").FullName
 
-            try
-                let good = Path.Combine(folder, "app.deps.json")
+            let good = Path.Combine(folder, "app.deps.json")
 
-                File.WriteAllText(
-                    good,
-                    """{"targets":{".NETCoreApp,Version=v10.0/win-arm64":{"runtimepack.Microsoft.NETCore.App.Runtime.win-arm64/10.0.14":{"runtime":{"System.Runtime.dll":{}}}}}}"""
-                )
+            File.WriteAllText(
+                good,
+                """{"targets":{".NETCoreApp,Version=v10.0/win-arm64":{"runtimepack.Microsoft.NETCore.App.Runtime.win-arm64/10.0.14":{"runtime":{"System.Runtime.dll":{}}}}}}"""
+            )
 
-                let missing = Path.Combine(folder, "missing.deps.json")
-                let malformed = Path.Combine(folder, "malformed.deps.json")
-                File.WriteAllText(malformed, "{ not json")
+            let missing = Path.Combine(folder, "missing.deps.json")
+            let malformed = Path.Combine(folder, "malformed.deps.json")
+            File.WriteAllText(malformed, "{ not json")
 
-                Expect.equal (CompilerEdge.hostFramework (box good)) (Ok(set [ "System.Runtime.dll" ])) "a readable deps file"
-                Expect.equal (CompilerEdge.hostFramework null) (Ok Set.empty) "no listed deps files: no framework list"
+            Expect.equal (CompilerEdge.hostFramework (box good)) (Ok(set [ "System.Runtime.dll" ])) "a readable deps file"
+            Expect.equal (CompilerEdge.hostFramework null) (Ok Set.empty) "no listed deps files: no framework list"
 
-                for path in [ missing; malformed ] do
-                    match CompilerEdge.hostFramework (box $"{good};{path}") with
-                    | Error(CompilerEdge.ReferenceError.UnreadableDepsFile(named, reason) as error) ->
-                        Expect.equal named path "the error names the file"
-                        Expect.isNotEmpty reason "and the reason"
-                        Expect.stringContains error.Message path "the message names the file"
-                    | other -> failtest $"{path}: {other}"
-            finally
-                Directory.Delete(folder, true)
+            for path in [ missing; malformed ] do
+                match CompilerEdge.hostFramework (box $"{good};{path}") with
+                | Error(CompilerEdge.ReferenceError.UnreadableDepsFile(named, reason) as error) ->
+                    Expect.equal named path "the error names the file"
+                    Expect.isNotEmpty reason "and the reason"
+                    Expect.stringContains error.Message path "the message names the file"
+                | other -> failtest $"{path}: {other}"
         }
 
         test "a reference failure is an fsharp.references_unavailable error diagnostic, not an exception" {
