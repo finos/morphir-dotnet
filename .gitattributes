@@ -49,6 +49,7 @@ tests/Fixtures/MorphirIon/** -text
 tests/Fixtures/Mep/** -text
 tests/Fixtures/MorphirOut/** -text
 tests/Fixtures/MepWasm/** -text
+tests/Fixtures/MepGuestKit/** -text
 
 # The portable case-set digest must not change with checkout newline settings.
 conformance/** text eol=lf
