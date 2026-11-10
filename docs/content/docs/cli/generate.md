@@ -15,7 +15,7 @@ input is an explicit `--input`, or else the IR of the most recent
 ```text
 morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output <directory>
   [--input-format auto|json|ion] [--option KEY=VALUE ...] [--json]
-  [--project <path-or-name>] [--config <file>] [--out-dir <directory>]
+  [--extension <path-or-command>] [--project <path-or-name>] [--config <file>] [--out-dir <directory>]
 ```
 
 ## Options
@@ -28,12 +28,15 @@ morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output
 | `--input-format` | `auto` by default; `json` or `ion` constrains the reader |
 | `--option` | Repeatable backend option, described below |
 | `--json` | Write one structured report to stdout |
-| `--project` | Without `--input`: the project directory, workspace member path or project name |
-| `--config` | Without `--input`: an explicit configuration file of the project |
+| `--extension` | A backend extension: a command name, a path, or a `.dll`. Overrides `[codegen.<target>].extension`. See [Backend extensions](#backend-extensions). |
+| `--project` | The project directory, workspace member path or project name: its compile record without `--input`, and its configuration |
+| `--config` | An explicit configuration file of the project |
 | `--out-dir` | Without `--input`: the out root. Overrides `MORPHIR_OUT_DIR` and `workspace.out_dir` |
 
 Paths resolve against the invocation directory. With `--input`, no project
-configuration is required or discovered. Repeated option keys use the last value. Values parse
+configuration is required. Without `--extension`, `generate` reads the project
+configuration only for `[codegen.<target>].extension`; a configuration error then
+fails the command with exit code 2, as it does for `compile`. Repeated option keys use the last value. Values parse
 as JSON first, so `optimize=false` is Boolean while `optimize='"false"'` is a
 string and is refused by this backend.
 
@@ -79,6 +82,56 @@ located refusals remain those of the reusable C# library. Generation needs no
 compiler installation. A separate consumer chooses the matching numeric compiler
 profile and references the runtime package. The production Roslyn adapter remains
 deferred.
+
+## Backend extensions
+
+A backend extension is a guest process that speaks the Morphir Extension Protocol (MEP) `0.2.0-draft.1`
+over stdio and serves `morphir.backend.generateModel`. Select one with `--extension`, or with
+`[codegen.<target>].extension` in the project configuration. The option overrides the key. Without either,
+the built-in backend of the target runs, as before. The F# generator is available as the guest
+`morphir-fsharp-backend`; see [F# generation]({{< relref "/docs/backends/fsharp" >}}).
+
+```sh
+morphir generate --input model.json --target fsharp --output gen --extension morphir-fsharp-backend
+```
+
+```toml
+[codegen.fsharp]
+extension = "morphir-fsharp-backend"
+```
+
+The command reads the value as `compile` reads a frontend extension:
+
+- A name without a directory is a command on `PATH`.
+- A relative path is relative to the invocation directory.
+- A path that ends in `.dll` runs on the `dotnet` host (`DOTNET_HOST_PATH` when it is set).
+
+`generate` loads the model first, then starts the guest with explicit arguments and no shell, and passes the
+guest's stderr to its own stderr. It agrees the session with `initialize` and offers JSON IR in the tuples
+profile `morphir-ir`, codec `morphir-json`, envelope `0.1.0-draft.1`, IR `4.0.0` and `3.0.0`. A v4 model
+is sent in the `4.0.0` tuple and a classic version 3 model in the `3.0.0` tuple, as the JSON bytes of the
+input file. Other versions and Ion input are not sent to an extension. The command checks every artifact
+path that the guest returns, keeps the guest's artifact order, and publishes the files as for a built-in
+backend. It always ends the session with `shutdown` and `exit`, or stops the process tree after a deadline.
+
+The report names the backend that ran by its own extension id, and adds `backendTransport` (`mep`) and
+`backendVersion`, the version that the extension gives. A report of a built-in backend has neither member.
+
+An extension failure is exit code 2 with one of these codes, or exit code 1 when the guest rejects the model
+with error diagnostics:
+
+| Code | Meaning |
+| --- | --- |
+| `extension.unavailable` | The guest did not start, the session did not initialize, or the guest does not claim the target. |
+| `extension.tuple_unavailable` | The host and the guest agreed no `generateModel` tuple, or the model needs a tuple that the session did not agree. The message names the tuples. |
+| `extension.not_admitted` | The guest refused the request, for example an option. |
+| `extension.unsafe_artifact` | The guest returned an artifact path that is not a plain relative path, or two paths that differ only in case. |
+| `extension.protocol_error` | The guest broke the protocol, for example a result that is not a generate result. |
+| `extension.timeout` | The guest did not answer before the deadline. |
+| `invalid-extension` | The value of `--extension` or of the key is empty. |
+
+Selection by an installed extension id is not available: the value is a command, a path or a `.dll`, as for
+`compile`.
 
 ## Input from a prior compile
 
@@ -165,7 +218,8 @@ if ($LASTEXITCODE -ne 0) { throw "Morphir generation failed" }
 Human output lists relative artifact paths on stdout and diagnostics on stderr.
 JSON mode writes one document containing `success`, `exitCode`, target/backend,
 input/output, source version/family/kind/representation, ordered `artifacts`,
-`written`, `unchanged`, `removed`, `diagnostics` and `failureKind`. Logs use stderr.
+`written`, `unchanged`, `removed`, `diagnostics` and `failureKind`, and for a selected
+backend extension `backendTransport` and `backendVersion`. Logs use stderr.
 Failed reports contain no successful artifact list. Parsed JSON-mode invocation
 errors also produce a report.
 
