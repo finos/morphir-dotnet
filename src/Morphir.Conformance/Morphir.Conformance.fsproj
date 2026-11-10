@@ -32,6 +32,8 @@
     <Compile Include="WasmHost/Comparer.fs" />
     <Compile Include="WasmHost/Judge.fs" />
     <Compile Include="WasmHost/HostRunner.fs" />
+    <Compile Include="WasmHost/HostReport.fs" />
+    <Compile Include="WasmHost/Commands.fs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />

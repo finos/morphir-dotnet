@@ -1,0 +1,287 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+module Morphir.Conformance.Tests.ReportTests
+
+open System.Text
+open System.Text.Json.Nodes
+open Expecto
+open Morphir.Conformance.WasmHost
+open Morphir.Conformance.Tests.FakeWorker
+
+let private caseIds = [ "classification/unknown-namespace"; "extism/echo"; "extism/error-set" ]
+
+let private scripts = [
+    "env-open-socket", [ refused "extension.abi_unsupported" "env.open_socket"; exitWith 3 ]
+    "extism-echo", [ started []; echo 1; read 1; exitWith 0 ]
+    // extism/error-set expects a failure fault; this host answers, so the case fails.
+    "extism-error", [ started []; echo 1; exitWith 0 ]
+]
+
+let private subset = lazy (suiteOf caseIds)
+
+/// One run of three cases against the fake, with a known deviation on the failing one.
+let private report =
+    lazy
+        (let fake = host scripts
+
+         try
+             runSuite
+                 { options fake [ Profile.ExtismKernelV1 ] with
+                     Deviations = [
+                         {
+                             CaseId = "extism/error-set"
+                             Tracking = "https://example.org/issues/1"
+                             Note = "The fake answers instead of failing."
+                         }
+                     ]
+                 }
+                 (subset.Force())
+         finally
+             fake.Sandbox.Dispose())
+
+let private bytes = lazy (HostReport.toUtf8 (report.Force()))
+
+let private noExpectations: HostReport.Expectations = { Offering = None; Platform = None }
+
+let private check (edited: byte array) =
+    HostReport.check (subset.Force()) moduleFile noExpectations edited
+
+let private edit (change: JsonObject -> unit) =
+    let node = JsonNode.Parse(Encoding.UTF8.GetString(bytes.Force())).AsObject()
+    change node
+
+    Encoding.UTF8.GetBytes(
+        node.ToJsonString(System.Text.Json.JsonSerializerOptions(WriteIndented = true))
+    )
+
+let private caseNode (node: JsonObject) (index: int) = node["cases"].[index].AsObject()
+
+let rec private names (node: JsonNode | null) : string list =
+    match node with
+    | :? JsonObject as value ->
+        value
+        |> Seq.collect (fun pair ->
+            pair.Key
+            :: names pair.Value
+        )
+        |> List.ofSeq
+    | :? JsonArray as items ->
+        items
+        |> Seq.collect names
+        |> List.ofSeq
+    | _ -> []
+
+let private problems (result: Result<WasmHostReport, string list>) =
+    match result with
+    | Ok _ -> failtest "Expected the check to refuse the report"
+    | Error problems -> problems
+
+[<Tests>]
+let tests =
+    testList "WASM host report and report check (task 1.5)" [
+        // Spec "Report identity".
+        test "The report identifies the runner, the corpus, the contract, the host and each module" {
+            let node = JsonNode.Parse(Encoding.UTF8.GetString(bytes.Force())).AsObject()
+            let suite = subset.Force()
+
+            Expect.equal
+                (node["suite"].["corpus"].["sha256"].GetValue<string>())
+                suite.Pin.Sha256
+                "corpus digest"
+
+            Expect.equal
+                (node["suite"].["contract"].["version"].GetValue<string>())
+                suite.Kit.ContractVersion
+                "contract version"
+
+            Expect.equal
+                (node["runner"].["name"].GetValue<string>())
+                "morphir-dotnet mck wasm-host"
+                "runner"
+
+            Expect.isNotEmpty (node["runner"].["version"].GetValue<string>()) "runner version"
+            let host = node["host"].AsObject()
+
+            Expect.equal
+                (host["sha256"].GetValue<string>())
+                (HostRunner.fileSha256 dotnet)
+                "host digest"
+
+            Expect.equal (host["executable"].GetValue<string>()) dotnet "host path"
+            Expect.equal (host["buildIdentity"].GetValue<string>()) Identity "build identity"
+
+            for name in [ "offering"; "platform"; "engine" ] do
+                Expect.isNotNull host[name] $"host {name}"
+
+            for index in 0..2 do
+                let moduleNode = (caseNode node index).["module"]
+
+                Expect.equal
+                    (moduleNode["observedSha256"].GetValue<string>())
+                    (moduleNode["sha256"].GetValue<string>())
+                    "module digest"
+        }
+
+        test "The report holds no qualification verdict and says so" {
+            let node = JsonNode.Parse(Encoding.UTF8.GetString(bytes.Force()))
+            let all = names node
+
+            for forbidden in [ "verdict"; "qualified"; "qualification" ] do
+                Expect.isFalse (List.contains forbidden all) $"no {forbidden} member"
+
+            Expect.stringContains
+                (node["qualificationNotice"].GetValue<string>())
+                "no qualification verdict"
+                "the notice"
+        }
+
+        test "The same observations give the same bytes" {
+            Expect.equal (HostReport.toUtf8 (report.Force())) (bytes.Force()) "written twice"
+
+            match HostReport.parse (subset.Force()) (bytes.Force()) with
+            | Ok parsed ->
+                Expect.equal
+                    (HostReport.toUtf8 parsed.Report)
+                    (bytes.Force())
+                    "read and written again"
+            | Error problems -> failtest (String.concat "\n" problems)
+        }
+
+        // Spec "Known deviations are recorded, not hidden".
+        test "A known deviation explains a failure and does not turn it into a pass" {
+            let failing =
+                (report.Force()).Cases
+                |> List.find (fun case -> case.Case.Case.CaseId = "extism/error-set")
+
+            Expect.equal failing.Outcome.WireValue "failed" "still failed"
+            Expect.isSome failing.Deviation "the deviation is attached"
+            Expect.equal (HostRunner.exitCode (report.Force())) 1 "the run does not pass"
+        }
+
+        test "report-check passes the runner's own report and recomputes its outcomes" {
+            match check (bytes.Force()) with
+            | Ok checkedReport ->
+                Expect.equal
+                    (checkedReport.Cases
+                     |> List.map (fun case -> case.Outcome.WireValue))
+                    [ "passed"; "passed"; "failed" ]
+                    "the outcomes from the observations"
+            | Error problems -> failtest (String.concat "\n" problems)
+        }
+
+        test "report-check refuses a report with a missing case" {
+            let edited = edit (fun node -> node["cases"].AsArray().RemoveAt 1)
+
+            Expect.exists
+                (problems (check edited))
+                (fun problem -> problem.Contains "has no result for the case")
+                "named"
+        }
+
+        test "report-check refuses a changed module digest" {
+            let edited =
+                edit (fun node ->
+                    (caseNode node 0).["module"].["sha256"] <- String.replicate 64 "0"
+                )
+
+            Expect.exists
+                (problems (check edited))
+                (fun problem -> problem.Contains "module digest")
+                "named"
+        }
+
+        test "report-check refuses a case from another kit" {
+            let edited = edit (fun node -> (caseNode node 2).["id"] <- "wasm-host-9999")
+
+            Expect.exists
+                (problems (check edited))
+                (fun problem -> problem.Contains "is not a case of the kit")
+                "named"
+        }
+
+        test "report-check refuses a report of another corpus" {
+            let edited =
+                edit (fun node -> node["suite"].["corpus"].["sha256"] <- String.replicate 64 "1")
+
+            Expect.exists
+                (problems (check edited))
+                (fun problem -> problem.Contains "of the corpus")
+                "named"
+        }
+
+        // Spec "Report identity": Edited verdict.
+        test "report-check recomputes outcomes, so an outcome edited to passed is refused" {
+            let edited = edit (fun node -> (caseNode node 2).["outcome"] <- "passed")
+
+            Expect.exists
+                (problems (check edited))
+                (fun problem -> problem.Contains "its observations give failed")
+                "named"
+        }
+
+        test "report-check refuses a report with a verdict added" {
+            let edited = edit (fun node -> node["qualified"] <- true)
+
+            Expect.exists
+                (problems (check edited))
+                (fun problem -> problem.Contains "is not what the runner writes")
+                "named"
+        }
+
+        test "report-check refuses a report whose host does not identify its engine" {
+            let edited = edit (fun node -> node["host"].["engine"] <- null)
+
+            Expect.exists
+                (problems (check edited))
+                (fun problem -> problem.Contains "engine")
+                "named"
+        }
+
+        // Spec "One executable per report": AOT report cited for the tool.
+        test "report-check refuses a report cited for another offering or platform" {
+            let cited: HostReport.Expectations = {
+                Offering = Some "dotnet-tool"
+                Platform = None
+            }
+
+            Expect.exists
+                (problems (HostReport.check (subset.Force()) moduleFile cited (bytes.Force())))
+                (fun problem -> problem.Contains "it is cited for dotnet-tool")
+                "the offering"
+
+            let platform: HostReport.Expectations = {
+                Offering = None
+                Platform = Some "linux-x64"
+            }
+
+            Expect.exists
+                (problems (HostReport.check (subset.Force()) moduleFile platform (bytes.Force())))
+                (fun problem -> problem.Contains "it is cited for linux-x64")
+                "the platform"
+        }
+
+        // Spec "A host does not qualify on crafted cases alone": Guest evidence from another executable.
+        test "report-check refuses a guest kit citation of another executable" {
+            let edited =
+                edit (fun node ->
+                    let citation = JsonObject()
+                    citation["report"] <- "guest-run.json"
+                    citation["reportSha256"] <- String.replicate 64 "2"
+                    citation["hostSha256"] <- String.replicate 64 "3"
+                    citation["guestModuleSha256"] <- String.replicate 64 "4"
+                    node["guestKitCitation"] <- citation
+                )
+
+            Expect.exists
+                (problems (check edited))
+                (fun problem -> problem.Contains "records the host executable digest")
+                "named"
+        }
+
+        // Spec "A host does not qualify on crafted cases alone": Refusals pass but compile fails.
+        test "A report never records a host as qualified, with or without a guest kit citation" {
+            let all = names (JsonNode.Parse(Encoding.UTF8.GetString(bytes.Force())))
+            Expect.isFalse (List.contains "qualified" all) "no qualified member"
+            Expect.contains all "guestKitCitation" "the citation member is always written"
+        }
+    ]
