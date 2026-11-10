@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `morphirup`, the standalone Native AOT toolchain manager, first slice: `morphirup --version`, plan-only `morphirup setup --plan` and `morphirup doctor` over local files. Setup resolves a `.morphir/toolchain.toml` request against a recipe file for every platform the lock would record and prints the plan with its `planSha256`; `--expect-plan` refuses another plan. Doctor checks that a project's lock binds its request bytes, records the current platform and, with `--recipe`, is a closure the recipe allows. Each command writes one manager result document to stdout. Acquisition, installation and activation are not implemented; `--recipe`, `--repository-id`, `--recipe-target`, `--artifact-sizes`, `--request` and `--lock` are provisional ([#558](https://github.com/finos/morphir-dotnet/issues/558))
+- `Morphir.Toolchain`: readers and writers for the `0.1.0-draft.1` toolset recipe, project toolchain request, portable lock, installation receipt and manager result of finos/morphir, with pure resolution, lock and plan functions. It reproduces every case of the pinned finos/morphir contract manifests that needs no TUF client ([#558](https://github.com/finos/morphir-dotnet/issues/558))
+
 ## [0.4.0-alpha.3] - 2026-11-09
 
 ### Added
