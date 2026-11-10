@@ -148,17 +148,17 @@ type SemVer =
     override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Text
 
 module SemVer =
-    /// <summary>The longest version text read: npm semver's MAX_LENGTH. Provisional, until the pages state a bound.</summary>
+    /// <summary>The longest version text read: npm semver's MAX_LENGTH (index.md, Versions).</summary>
     [<Literal>]
     let MaxLength = 256
 
     /// <summary>The most digits in a numeric identifier (major, minor, patch, or an all-digit prerelease identifier).
     /// Every 15-digit number is a JavaScript safe integer and fits a signed 64-bit integer, so every reader can hold it
-    /// exactly. Provisional, until the pages state a bound.</summary>
+    /// exactly (index.md, Versions).</summary>
     [<Literal>]
     let MaxDigits = 15
 
-    /// <summary>Whether text is within the provisional bounds, checked on the text before any parser runs: Semver
+    /// <summary>Whether text is within the bounds, checked on the text before any parser runs: Semver
     /// holds major, minor and patch as BigInteger, and parsing a million digits took about a minute. Build metadata
     /// identifiers are not numeric and are bounded only by the length.</summary>
     let withinBounds (text: string) =
@@ -178,7 +178,7 @@ module SemVer =
             identifiers
             |> Array.forall (fun identifier -> identifier.Length <= MaxDigits || not (identifier |> Seq.forall Char.IsAsciiDigit))
 
-    /// <summary>A strict, canonical SemVer version within the provisional bounds, or <c>invalid_value</c>.</summary>
+    /// <summary>A strict, canonical SemVer version within the bounds, or <c>invalid_value</c>.</summary>
     let tryParse (text: string) =
         let mutable version = Unchecked.defaultof<SemVersion>
 
@@ -575,7 +575,9 @@ type ProtocolVersion =
     override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Text
 
 module ProtocolVersion =
-    /// The version, or <c>unsupported_case</c> for anything off the line, text that is not SemVer included.
+    /// <summary>The version on the line. Text that is not a canonical SemVer version within the bound fails its type and
+    /// is <c>invalid_value</c>, even when it would be off the line; a SemVer version off the line, build metadata
+    /// included, is <c>unsupported_case</c> (index.md, MEP versions).</summary>
     let tryParse (text: string) =
         match SemVer.tryParse text with
         | Ok version ->
@@ -590,7 +592,7 @@ module ProtocolVersion =
                 Ok(ProtocolVersion version)
             else
                 Error ReaderCode.UnsupportedCase
-        | Error _ -> Error ReaderCode.UnsupportedCase
+        | Error code -> Error code
 
     let text (version: ProtocolVersion) = version.Text
 /// The MEP model operation of a model tuple.
