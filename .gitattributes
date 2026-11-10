@@ -48,6 +48,7 @@ tests/Fixtures/MorphirIon/** -text
 # Preserve original upstream bytes used by the frontend provenance checks.
 tests/Fixtures/Mep/** -text
 tests/Fixtures/MorphirOut/** -text
+tests/Fixtures/MepWasm/** -text
 
 # The portable case-set digest must not change with checkout newline settings.
 conformance/** text eol=lf
