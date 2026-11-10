@@ -339,17 +339,30 @@ public class ChannelTests
     public async Task Cancelling_during_a_call_throws_after_the_call_has_stopped()
     {
         using var channel = Open("extism-spin", SessionLimits.Default with { InstructionBudget = ulong.MaxValue });
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        using var cancellation = new CancellationTokenSource();
         var clock = Stopwatch.StartNew();
+        var cancelledAt = TimeSpan.Zero;
+        // The cancellation comes from a thread of its own and its moment is recorded. A timer on the thread pool
+        // fires late when other tests' spinning guests keep the processors busy, and the test would then measure
+        // the timer's delay, not how fast the call stops.
+        var canceller = new Thread(() =>
+        {
+            Thread.Sleep(300);
+            cancelledAt = clock.Elapsed;
+            cancellation.Cancel();
+        })
+        { IsBackground = true };
+        canceller.Start();
 
         await Assert.That(async () => await channel.RequestAsync(Initialize, Request(1), cancellation.Token))
             .Throws<OperationCanceledException>();
         clock.Stop();
+        canceller.Join();
 
         // The instance is discarded only after the call has returned, so an ended instance shows the call stopped.
         await Assert.That(channel.InstanceEnded).IsTrue();
         await Assert.That(channel.Failure?.Outcome).IsEqualTo("cancelled");
-        await Assert.That(clock.Elapsed).IsLessThan(TimeSpan.FromMilliseconds(300) + TimeSpan.FromSeconds(1));
+        await Assert.That(clock.Elapsed - cancelledAt).IsLessThan(TimeSpan.FromSeconds(1));
         await Assert.That(channel.HandleCalls).IsEqualTo(1);
     }
 
