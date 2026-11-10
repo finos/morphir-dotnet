@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Decides which installed version of an extension a command uses, from the shared catalog, the .NET global layer, .NET level pins and a toolchain generation overlay, and checks the installed bytes again before they run, without contacting any repository. The level pins and the overlay serve a contract that belongs in finos/morphir's toolchain specifications; until that contract exists, the requirements that define them are provisional.
+Decides which installed version of an extension a command uses, from the shared catalog, .NET level pins and a toolchain generation overlay, and checks the installed bytes again before they run, without contacting any repository. The level pins and the overlay serve a contract that belongs in finos/morphir's toolchain specifications; until that contract exists, the requirements that define them are provisional.
 
 ## ADDED Requirements
 
 ### Requirement: Selection layers have a fixed precedence
-Provisional pending Q-LEVELS, Q-OVERLAY and the shared toolchain contract. For each id a host SHALL use the first layer that selects it: the generation overlay, the project pin, the workspace pin, the .NET global layer, the shared catalog, the system pin. Project and workspace SHALL be found with the project system's discovery boundary. A layer whose selection is broken SHALL stop resolution of that id.
+Provisional pending Q-LEVELS, Q-OVERLAY and the shared toolchain contract. For each id a host SHALL use the first layer that selects it: the generation overlay, the project pin, the workspace pin, the shared catalog, the system pin. Project and workspace SHALL be found with the project system's discovery boundary. A layer whose selection is broken SHALL stop resolution of that id.
 
 #### Scenario: Project pins a newer version
 - **WHEN** the shared catalog selects `acme-backend` 0.1.0 and the project pin selects 0.2.0
@@ -18,7 +18,7 @@ Provisional pending Q-LEVELS, Q-OVERLAY and the shared toolchain contract. For e
 - **THEN** the command uses 0.3.0
 
 ### Requirement: Isolation omits machine layers
-When discovery is isolated, the host SHALL omit the system pin, the .NET global layer and the shared catalog, and SHALL keep the overlay and the project and workspace pins, which still resolve against the inventory in Morphir Home.
+When discovery is isolated, the host SHALL omit the system pin and the shared catalog, and SHALL keep the overlay and the project and workspace pins, which still resolve against the inventory in Morphir Home.
 
 #### Scenario: Isolated test run
 - **WHEN** `MORPHIR_ISOLATED` is set and the shared catalog selects an extension that no project pin names
@@ -63,7 +63,7 @@ Provisional pending Q-OVERLAY and the shared toolchain contract. A host SHALL re
 
 #### Scenario: Global selection untouched
 - **WHEN** two projects run under overlays that select versions 0.2.0 and 0.3.0 of one id
-- **THEN** each uses its own version, and the global selection still names the version it named before
+- **THEN** each uses its own version, and the shared catalog still selects the version it selected before
 
 ### Requirement: Old global catalogs stay readable under an overlay
 An overlay or pin SHALL NOT require a change to the shared catalog or locks. A host SHALL read a shared catalog written by any upstream release whose format this host reads, with or without an overlay.
@@ -131,7 +131,7 @@ Provisional pending Q-CONFIGREF. A frontend table SHALL name an installed extens
 - **THEN** configuration loading fails and names both members
 
 ### Requirement: Use writes a pin for an installed version
-Provisional pending Q-LEVELS and Q-COMMANDS. `extension use <id> --version <semver> [--level project|workspace|global|system]` SHALL select an installed version at the level, default `project`. At the global level it SHALL replace the global selection in the place the admission rule gives. It SHALL refuse a version with no installed record for this platform.
+Provisional pending Q-LEVELS and Q-COMMANDS. `extension use <id> --version <semver> [--level project|workspace|global|system]` SHALL select an installed version at the level, default `project`. At the global level it SHALL replace the catalog entry and lock in one transaction. It SHALL refuse a version with no installed record for this platform.
 
 #### Scenario: Use a version that is not installed
 - **WHEN** a user runs `morphir extension use acme-backend --version 9.9.9`

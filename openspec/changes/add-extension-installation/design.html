@@ -61,7 +61,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <li><a href="#journey">A worked journey</a></li>
 <li><a href="#failures">Failure and recovery paths</a></li>
 <li><a href="#mapping">Mapping the parent contract to this codebase</a></li>
-<li><a href="#decisions">Decisions</a> (including the maintainer decisions <a href="#share-1">SHARE-1: what may enter a shared catalog</a>, <a href="#mep-1">MEP-1: MEP 0.1 is not supported; the 0.2 line is</a> and <a href="#doc-1">DOC-1: only the current contract drafts are read</a>)</li>
+<li><a href="#decisions">Decisions</a> (including the maintainer decisions <a href="#q-shared">Q-SHARED: every global install goes to the shared catalog</a>, <a href="#mep-1">MEP-1: MEP 0.1 is not supported; the 0.2 line is</a> and <a href="#doc-1">DOC-1: only the current contract drafts are read</a>)</li>
 <li><a href="#questions">Questions</a>: <a href="#needs-maintainer">needs the maintainer</a>, <a href="#divergence">deliberate divergence</a>, <a href="#follows-reference">follows the reference</a>, <a href="#settled">settled</a>, <a href="#upstream">raised upstream</a></li>
 <li><a href="#fsharp-frontend">The path to installing the F# frontend without .NET</a></li>
 <li><a href="#verifiable">What a .NET implementation can be verified against</a></li>
@@ -131,7 +131,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 </tbody>
 </table>
 <p>So one .NET global install of a guest built on <code>Morphir.Mep</code> into <code>catalog/extensions.json</code> would make every Rust <code>compile</code>, <code>generate</code> and <code>extension list</code> on that Morphir Home fail. The reverse gives nothing either: an extension the Rust CLI installed that speaks only <code>0.1</code> cannot run in .NET. The failure is in the catalog only. Rust reads a lock file only for an id the catalog names. It lists <code>locks/extensions/</code> only to find <code>*.json.transaction</code> journals, whose bytes it writes to the lock path and to the one catalog path without parsing ids (<code>state_io.rs:209-252</code>), and it never lists the store. The first revision of this page said Rust never lists that directory, which was wrong. It is also why #1149 gives dotted journals their own directory. Index records reach a Rust reader only through a repository it is configured to read, and its resolver filters MEP versions per release (<code>resolver.rs:49-64</code>), so an incompatible record fails only the install of that id.</p>
-<p>The maintainer decided on 9 November 2026 to cut support for MEP <code>0.1</code> in this host (<a href="#mep-1">MEP-1</a>), and to keep released Rust CLIs working on a shared Morphir Home. So this change admits to a shared catalog only entries that every host reading it can read and run, and puts every other global install in a .NET global layer beside it (<a href="#share-1">SHARE-1</a>). Store objects stay shared, because they are content-addressed and nothing lists them. Today an extension enters <code>catalog/extensions.json</code> only if it also lists <code>0.1</code>. For the extensions this repository builds, "shared" means a shared store and a shared format until the Rust host speaks <code>0.2.0-draft.1</code>; after that, it means shared use.</p>
+<p>The maintainer decided on 9 November 2026 that every global install goes to that shared catalog, and that this cost is accepted: a released Rust CLI cannot list a Morphir Home that the .NET host has installed into (<a href="#q-shared">Q-SHARED</a>). The Rust CLI is legacy. Current hosts, .NET now and MoonBit later, share what is installed. Store objects are shared as before. A user who needs the Rust CLI again gives it its own <code>MORPHIR_HOME</code>.</p>
 <h2 id="goals">Goals and non-goals</h2>
 <p><strong>Goals.</strong></p>
 <ul>
@@ -144,7 +144,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 <p><strong>Non-goals at the design level.</strong> No network client. No signature checks. No new extension store layout. No change to MEP. No WASM runtime. The full list is in <a href="#out-of-scope">Deliberately left out</a>.</p>
 
 <h2 id="journey">A worked journey</h2>
-<p>Dana works on Windows x64. Every digest below is synthetic. <code>acme-backend</code> and <code>acme-lint</code> are hypothetical third-party process extensions with single-token ids. This repository's own F# guests report dotted ids, so they cannot be installed until finos/morphir#1149 lands (<a href="#fsharp-frontend">the F# frontend section</a>). <code>acme-backend</code> speaks only MEP <code>0.2.0-draft.1</code>, like every guest built on <code>Morphir.Mep</code>. <code>acme-lint</code> also lists <code>0.1</code>, so released Rust CLIs can run it; the .NET host runs it over <code>0.2.0-draft.1</code>. Every command below is <span class="tag prop">Proposed</span>.</p>
+<p>Dana works on Windows x64. Every digest below is synthetic. <code>acme-backend</code> is a hypothetical third-party process extension with a single-token id. This repository's own F# guests report dotted ids, so they cannot be installed until finos/morphir#1149 lands (<a href="#fsharp-frontend">the F# frontend section</a>). <code>acme-backend</code> speaks only MEP <code>0.2.0-draft.1</code>, like every guest built on <code>Morphir.Mep</code>. Every command below is <span class="tag prop">Proposed</span>.</p>
 
 <h3>1. Add a local repository</h3>
 <p>Dana's build produced a repository directory in the upstream layout: <code>D:\ext-repo\extensions\acme-backend.jsonl</code> and the executables below <code>D:\ext-repo\artifacts\</code>. One line of the history, pretty-printed:</p>
@@ -174,22 +174,20 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 }</code></pre>
 <pre><code class="language-console">&gt; morphir extension repository add local-dev --directory D:\ext-repo
 </code></pre>
-<p>This writes <code>%USERPROFILE%\.morphir\config\extensions\repositories.json</code> in the upstream format, under <code>locks/extensions.repositories.lock</code>, with the path in the reference's canonical spelling, <code>\\?\D:\ext-repo</code> (<code>repository.rs:83-97</code>, <code>local.rs:62-67</code>). The Rust CLI sees <code>local-dev</code> too.</p>
+<p>This writes <code>%USERPROFILE%\.morphir\config\extensions\repositories.json</code> in the upstream format, under <code>locks/extensions.repositories.lock</code>, with the canonical path <code>D:\ext-repo</code>. The reference writes the Windows verbatim form <code>\\?\D:\ext-repo</code> (<code>repository.rs:83-97</code>, <code>local.rs:62-67</code>); this host compares the two as equal, and the spelling is an ask for the contract pages.</p>
 
-<h3>2. Install a guest that speaks only MEP 0.2</h3>
+<h3>2. Install it</h3>
 <pre><code class="language-console">&gt; morphir extension install --repository local-dev acme-backend --json
 stderr: verifying acme-backend 0.1.0 (win-x64) from local-dev
 stderr: running describe on the staged copy (process, with your rights)
-stderr: note: acme-backend speaks only MEP 0.2.0-draft.1, which the reference reader does not read;
-stderr:       it is installed in the .NET global layer and is not visible to the Rust CLI
+stderr: note: acme-backend speaks only MEP 0.2.0-draft.1; a Morphir CLI that supports only
+stderr:       MEP 0.1, which is not supported, cannot list this Morphir Home
 stdout:
 {
   "operation": "install",
   "extension": { "id": "acme-backend", "name": "Acme backend", "version": "0.1.0",
                  "runtime": "process", "platform": "win-x64" },
   "level": "global",
-  "layer": "dotnet-global",
-  "layerReason": "mep-version",
   "source": { "kind": "repository", "repository": "local-dev" },
   "digest": "1111111111111111111111111111111111111111111111111111111111111111",
   "storePath": "store/extensions/sha256/1111…1111/acme-backend.exe",
@@ -205,41 +203,35 @@ stdout:
 <li>Stage. It copied the executable into <code>%USERPROFILE%\.morphir\tmp\morphir-extension-probe-…\</code>, hashing while copying, and compared the digest.</li>
 <li>Probe. It started the staged copy with a cleared environment, called <code>morphir.extension.describe</code>, and compared the answer with the record's claim set over the typed projection.</li>
 <li>Store. It copied the staged bytes into <code>store/extensions/sha256/1111…/acme-backend.exe</code>, hashing again while copying, so a guest that rewrote its staged file during the probe is caught, and published without replacing anything.</li>
-<li>Admit. The admission rule found no MEP version that the reference reader supports, so the entry may not enter <code>catalog/extensions.json</code>.</li>
-<li>Commit. Under <code>locks/extensions.state.lock</code> it applied any journal left by an earlier run, then wrote the inventory record <code>data/morphir-dotnet/extensions/installed/acme-backend/1111….json</code> and the .NET global layer <code>data/morphir-dotnet/extensions/global.json</code>. Nothing below <code>catalog/</code> or <code>locks/extensions/</code> changed.</li>
+<li>Commit. Under <code>locks/extensions.state.lock</code> it applied any journal left by an earlier run, wrote a journal, wrote <code>locks/extensions/acme-backend.json</code> and <code>catalog/extensions.json</code>, removed the journal, and wrote the inventory record <code>data/morphir-dotnet/extensions/installed/acme-backend/1111….json</code>.</li>
 </ol>
-
-<h3>3. What the Rust CLI sees</h3>
-<pre><code class="language-console">&gt; morphir extension list        # the Rust CLI, same MORPHIR_HOME
-Verified Installed Extensions:
-(none)
-</code></pre>
-<p>The Rust CLI keeps working and does not list <code>acme-backend</code>, because it cannot run it. Dana then installs <code>acme-lint</code>, which speaks both versions. It enters the shared catalog, with this lock. The lock has exactly the upstream members, because the Rust lock reader refuses any other (<a href="#q-strictlock">Q-STRICTLOCK</a>):</p>
+<p>The global lock has exactly the upstream members, because the Rust lock reader refuses any other (<a href="#q-strictlock">Q-STRICTLOCK</a>):</p>
 <pre><code class="language-json">{
   "schemaVersion": "1.0",
   "selection": { "kind": "channel", "value": "stable" },
-  "extensionId": "acme-lint",
-  "name": "Acme lint",
-  "version": "0.3.0",
-  "index": { "kind": "local-directory", "identity": "\\\\?\\D:\\ext-repo",
+  "extensionId": "acme-backend",
+  "name": "Acme backend",
+  "version": "0.1.0",
+  "index": { "kind": "local-directory", "identity": "D:\\ext-repo",
              "revision": "2222222222222222222222222222222222222222222222222222222222222222",
              "claims": { "claimsVersion": "0.1.0-draft.2", "…": "the artifact's claim set" } },
-  "source": { "kind": "local-file", "path": "artifacts/acme-lint.exe" },
+  "source": { "kind": "local-file", "path": "artifacts/acme-backend.exe" },
   "runtime": "process",
   "platform": { "os": "windows", "arch": "x86_64" },
   "args": [],
-  "digest": "4444444444444444444444444444444444444444444444444444444444444444",
-  "capabilities": ["validator"],
-  "mepVersions": ["0.1", "0.2.0-draft.1"],
+  "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+  "capabilities": ["backend"],
+  "mepVersions": ["0.2.0-draft.1"],
+  "backend": { "targets": ["acme"], "irVersions": ["4.0.0"], "generate": true },
   "executable": true
 }</code></pre>
-<pre><code class="language-console">&gt; morphir extension list        # the Rust CLI
-Verified Installed Extensions:
-Extension    Exact version    Selection
-acme-lint    0.3.0            channel stable
-  Claims: probed (describe); capabilities: validator
+
+<h3>3. What the Rust CLI sees</h3>
+<pre><code class="language-console">&gt; morphir extension list        # the Rust CLI at the pinned revision, same MORPHIR_HOME
+Error: Failed to list installed extensions: …
 </code></pre>
-<p><span class="tag asm">Assumed</span> The Rust CLI reads the file exactly as above. Task 3.5's gate confirms it with the pinned Rust CLI, at the first point where the .NET code writes a catalog.</p>
+<p>The pinned Rust host supports only MEP <code>0.1</code>, so its listing fails on the <code>0.2</code> entry (<code>state.rs:782-791</code>; the wording after the colon is the Rust error's own text). This is the accepted cost of <a href="#q-shared">Q-SHARED</a>.</p>
+<p>The Rust CLI is legacy (maintainer decision, 9 November 2026), and keeping it working on a shared home is not a goal. A user who needs it again gives it its own <code>MORPHIR_HOME</code>.</p>
 
 <h3>4. A second project pins another version</h3>
 <p>Dana's project <code>D:\work\billing</code> needs <code>acme-backend</code> 0.2.0, without changing other projects. This step depends on <a href="#q-levels">Q-LEVELS</a> and on the shared toolchain contract.</p>
@@ -258,7 +250,7 @@ acme-lint    0.3.0            channel stable
 <pre><code class="language-console">D:\work\billing&gt; morphir extension which acme-backend
 acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selection.json
   digest 3333…3333, claims probed (describe)
-  shadows: global 0.1.0 (.NET global layer)
+  shadows: global 0.1.0
 </code></pre>
 <p>A colleague on Linux who clones the project and runs <code>morphir extension which acme-backend</code> gets <code>extension.platform_not_pinned</code> for <code>linux-x64</code>. After they install on Linux, the pin gains a <code>linux-x64</code> digest. Nothing is fetched behind their back.</p>
 
@@ -271,61 +263,56 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li><code>acme-backend-0.2.0.release.json</code> and its <code>.sha256</code>;</li>
 <li>the target archive <code>acme-backend-0.2.0-x86_64-pc-windows-msvc.zip</code>, which holds only the <code>.exe</code>, and its <code>.sha256</code>.</li>
 </ul>
-<p><code>morphir extension install .\acme-backend-0.2.0.zip</code> checks the entries, the checksums and the descriptor, then extracts the one executable into private staging, probes it, and installs it. Because the extension speaks only <code>0.2</code>, it goes to the .NET global layer, so no generated repository is needed. For an admitted entry, the shared lock must name a <code>local-directory</code> index, so the installer first writes a generated one-release repository below <code>data/morphir-dotnet/extensions/repositories/</code> and installs from it (<a href="#q-provenance">Q-PROVENANCE</a>).</p>
+<p><code>morphir extension install .\acme-backend-0.2.0.zip</code> checks the entries, the checksums and the descriptor, then extracts the one executable into private staging, probes it, and installs it. Because the lock must name a <code>local-directory</code> index, the installer first writes a generated one-release repository below <code>data/morphir-dotnet/extensions/repositories/</code> and installs from it (<a href="#q-provenance">Q-PROVENANCE</a>).</p>
 <p>Eli later clones a repository whose <code>.morphir/extensions/staged/</code> holds the same archive. <code>morphir compile</code> in <code>auto</code> mode installs no process guest and runs nothing from it. It prints on stderr: <code>note: .morphir/extensions/staged/acme-backend-0.2.0.zip holds a process extension; install it with: morphir extension install --staged</code>.</p>
 
 <figure>
-<svg viewBox="0 0 980 480" role="img" aria-labelledby="fig1t fig1d">
+<svg viewBox="0 0 980 470" role="img" aria-labelledby="fig1t fig1d">
 <title id="fig1t">Figure 1: where extension state lives</title>
-<desc id="fig1d">Left: Morphir Home files shared with upstream CLIs, which hold only admitted entries. Middle: .NET-only files in Morphir Home, including the .NET global layer. Right: level files outside Morphir Home.</desc>
-<text x="20" y="24" style="font-weight:600">Morphir Home: shared format, admitted entries</text>
-<rect class="shared" x="20" y="36" width="300" height="44" rx="6"/><text x="32" y="56">store/extensions/sha256/&lt;digest&gt;/&lt;file&gt;</text><text class="small" x="32" y="72">verified bytes of every install, never replaced</text>
-<rect class="shared" x="20" y="90" width="300" height="44" rx="6"/><text x="32" y="110">catalog/extensions.json</text><text class="small" x="32" y="126">admitted entries only, one per id</text>
+<desc id="fig1d">Left: Morphir Home files shared with upstream CLIs. Middle: .NET-only files in Morphir Home. Right: level files outside Morphir Home.</desc>
+<text x="20" y="24" style="font-weight:600">Morphir Home: shared with upstream CLIs</text>
+<rect class="shared" x="20" y="36" width="300" height="44" rx="6"/><text x="32" y="56">store/extensions/sha256/&lt;digest&gt;/&lt;file&gt;</text><text class="small" x="32" y="72">verified bytes, never replaced</text>
+<rect class="shared" x="20" y="90" width="300" height="44" rx="6"/><text x="32" y="110">catalog/extensions.json</text><text class="small" x="32" y="126">one active record per id (global level)</text>
 <rect class="shared" x="20" y="144" width="300" height="44" rx="6"/><text x="32" y="164">locks/extensions/&lt;id&gt;.json</text><text class="small" x="32" y="180">exact upstream members; .transaction journal</text>
 <rect class="shared" x="20" y="198" width="300" height="44" rx="6"/><text x="32" y="218">locks/extensions.state.lock</text><text class="small" x="32" y="234">exclusive OS lock, same primitive as Rust</text>
 <rect class="shared" x="20" y="252" width="300" height="44" rx="6"/><text x="32" y="272">config/extensions/repositories.json</text><text class="small" x="32" y="288">and locks/extensions.repositories.lock</text>
 <text x="350" y="24" style="font-weight:600">Morphir Home: .NET only</text>
-<rect class="dotnet" x="350" y="36" width="300" height="44" rx="6"/><text x="362" y="56">data/morphir-dotnet/extensions/global.json</text><text class="small" x="362" y="72">.NET global layer: what the catalog cannot hold</text>
-<rect class="dotnet" x="350" y="90" width="300" height="44" rx="6"/><text x="362" y="110">data/morphir-dotnet/extensions/installed/</text><text class="small" x="362" y="126">&lt;id&gt;/&lt;digest&gt;.json: every installed version</text>
-<rect class="dotnet" x="350" y="144" width="300" height="44" rx="6"/><text x="362" y="164">data/morphir-dotnet/extensions/repositories/</text><text class="small" x="362" y="180">generated repositories for admitted file installs</text>
-<rect class="dotnet" x="350" y="198" width="300" height="44" rx="6"/><text x="362" y="218">tmp/morphir-extension-probe-*</text><text class="small" x="362" y="234">tmp/extensions/morphir-dotnet-run-*</text>
-<rect class="dotnet" x="350" y="252" width="300" height="44" rx="6"/><text x="362" y="272">extensions/staged/</text><text class="small" x="362" y="288">global staged folder</text>
-<rect class="dotnet" x="350" y="306" width="300" height="44" rx="6"/><text x="362" y="326">toolchains/generations/&lt;id&gt;/extensions/</text><text class="small" x="362" y="342">overlay pins, written by morphirup only</text>
+<rect class="dotnet" x="350" y="36" width="300" height="44" rx="6"/><text x="362" y="56">data/morphir-dotnet/extensions/installed/</text><text class="small" x="362" y="72">&lt;id&gt;/&lt;digest&gt;.json: every installed version</text>
+<rect class="dotnet" x="350" y="90" width="300" height="44" rx="6"/><text x="362" y="110">data/morphir-dotnet/extensions/repositories/</text><text class="small" x="362" y="126">generated repositories for file and staged installs</text>
+<rect class="dotnet" x="350" y="144" width="300" height="44" rx="6"/><text x="362" y="164">tmp/morphir-extension-probe-*</text><text class="small" x="362" y="180">tmp/extensions/morphir-dotnet-run-*</text>
+<rect class="dotnet" x="350" y="198" width="300" height="44" rx="6"/><text x="362" y="218">extensions/staged/</text><text class="small" x="362" y="234">global staged folder</text>
+<rect class="dotnet" x="350" y="252" width="300" height="44" rx="6"/><text x="362" y="272">toolchains/generations/&lt;id&gt;/extensions/</text><text class="small" x="362" y="288">overlay pins, written by morphirup only</text>
 <text x="680" y="24" style="font-weight:600">Outside Morphir Home</text>
 <rect class="dotnet" x="680" y="36" width="280" height="44" rx="6"/><text x="692" y="56">&lt;project&gt;/.morphir/extensions/</text><text class="small" x="692" y="72">selection.json (portable pin), staged/</text>
 <rect class="dotnet" x="680" y="90" width="280" height="44" rx="6"/><text x="692" y="110">&lt;workspace&gt;/.morphir/extensions/</text><text class="small" x="692" y="126">selection.json, staged/</text>
 <rect class="dotnet" x="680" y="144" width="280" height="44" rx="6"/><text x="692" y="164">/etc/morphir/extensions/</text><text class="small" x="692" y="180">or %ProgramData%\morphir\extensions\</text>
 <rect class="box" x="680" y="198" width="280" height="44" rx="6"/><text x="692" y="218">&lt;repository&gt;/extensions/&lt;id&gt;.jsonl</text><text class="small" x="692" y="234">a named repository, read only</text>
-<text class="small" x="20" y="390">Solid blue: format owned by the parent contract and read by upstream CLIs.</text>
-<text class="small" x="20" y="408">Dashed orange: .NET files, ignored by upstream CLIs; pins and overlays are proposed for the toolchain contract.</text>
-<text class="small" x="20" y="426">An entry enters the shared catalog only if the pinned reference reader can read and run it (SHARE-1).</text>
-<text class="small" x="20" y="444">Pins and inventory records refer to store objects by digest; nothing outside the store copies their bytes.</text>
-<text class="small" x="20" y="462">With finos/morphir#1149's partition (provisional): catalog/extensions-dotted.json and locks/extensions-dotted/, admitted by the same rule.</text>
+<text class="small" x="20" y="340">Solid blue: format owned by the parent contract and read by upstream CLIs.</text>
+<text class="small" x="20" y="358">Dashed orange: .NET files, ignored by upstream CLIs; pins and overlays are proposed for the toolchain contract.</text>
+<text class="small" x="20" y="376">Every global install goes to the shared catalog; a legacy Rust CLI cannot list a home that holds 0.2 entries (Q-SHARED).</text>
+<text class="small" x="20" y="394">Pins and inventory records refer to store objects by digest; nothing outside the store copies their bytes.</text>
 </svg>
-<figcaption>Figure 1: where extension state lives. Notice that the store is shared by every install, while the catalog in the left column holds only the entries a Rust reader can run.</figcaption>
+<figcaption>Figure 1: where extension state lives. Notice that every file a Rust CLI reads is in the left column, and that nothing in the right column holds an absolute path.</figcaption>
 </figure>
 
 <figure>
 <svg viewBox="0 0 980 300" role="img" aria-labelledby="fig2t fig2d">
 <title id="fig2t">Figure 2: the install pipeline</title>
-<desc id="fig2d">Five sources feed one resolved record. Staging, digest checks and the probe happen before a gate; storing with a second hash, admission and committing happen after it, the commit under the state lock.</desc>
+<desc id="fig2d">Five sources feed one resolved record. Staging, digest checks and the probe happen before a gate; storing with a second hash and committing happen after it, the commit under the state lock.</desc>
 <rect class="box" x="10" y="20" width="170" height="30" rx="5"/><text x="20" y="40">named repository</text>
 <rect class="box" x="10" y="56" width="170" height="30" rx="5"/><text x="20" y="76">package archive file</text>
 <rect class="box" x="10" y="92" width="170" height="30" rx="5"/><text x="20" y="112">bare .wasm (after 2a)</text>
 <rect class="box" x="10" y="128" width="170" height="30" rx="5"/><text x="20" y="148">staged folder</text>
 <rect class="box" x="10" y="164" width="170" height="30" rx="5"/><text x="20" y="184">morphirup hand-over</text>
-<rect class="box" x="200" y="80" width="130" height="56" rx="6"/><text x="212" y="104">resolved record</text><text class="small" x="212" y="122">release + artifact</text>
-<path class="edge" d="M180 35 L200 100 M180 71 L200 104 M180 107 L200 108 M180 143 L200 112 M180 179 L200 116"/>
-<rect class="box" x="345" y="80" width="110" height="56" rx="6"/><text x="357" y="104">stage + hash</text><text class="small" x="357" y="122">tmp/, ≤ 256 MiB</text>
-<rect class="box" x="470" y="80" width="100" height="56" rx="6"/><text x="482" y="104">probe</text><text class="small" x="482" y="122">process only</text>
-<line class="gate" x1="586" y1="10" x2="586" y2="230"/>
-<text class="small" x="440" y="250">nothing shared changes left of this line</text>
-<rect class="shared" x="600" y="80" width="110" height="56" rx="6"/><text x="612" y="104">store</text><text class="small" x="612" y="122">hash again, no-clobber</text>
-<rect class="box" x="725" y="80" width="90" height="56" rx="6"/><text x="737" y="104">admit</text><text class="small" x="737" y="122">SHARE-1</text>
-<rect class="shared" x="830" y="40" width="140" height="56" rx="6"/><text x="842" y="62">shared pair</text><text class="small" x="842" y="80">journal, lock, catalog</text>
-<rect class="dotnet" x="830" y="120" width="140" height="56" rx="6"/><text x="842" y="142">.NET global layer</text><text class="small" x="842" y="160">or a level pin</text>
-<text class="small" x="830" y="200">both: inventory, under state lock</text>
-<path class="edge" d="M330 108 L345 108 M455 108 L470 108 M570 108 L600 108 M710 108 L725 108 M815 100 L830 68 M815 116 L830 148"/>
+<rect class="box" x="220" y="80" width="140" height="56" rx="6"/><text x="232" y="104">resolved record</text><text class="small" x="232" y="122">release + artifact + provenance</text>
+<path class="edge" d="M180 35 L220 100 M180 71 L220 104 M180 107 L220 108 M180 143 L220 112 M180 179 L220 116"/>
+<rect class="box" x="390" y="80" width="120" height="56" rx="6"/><text x="402" y="104">stage + hash</text><text class="small" x="402" y="122">tmp/, ≤ 256 MiB</text>
+<rect class="box" x="530" y="80" width="120" height="56" rx="6"/><text x="542" y="104">probe</text><text class="small" x="542" y="122">process only</text>
+<line class="gate" x1="668" y1="10" x2="668" y2="230"/>
+<text class="small" x="560" y="250">nothing shared changes left of this line</text>
+<rect class="shared" x="690" y="80" width="110" height="56" rx="6"/><text x="702" y="104">store</text><text class="small" x="702" y="122">hash again, no-clobber</text>
+<rect class="shared" x="820" y="60" width="150" height="96" rx="6"/><text x="832" y="84">commit</text><text class="small" x="832" y="104">journal, lock, catalog</text><text class="small" x="832" y="120">or pin, inventory</text><text class="small" x="832" y="140">under state lock</text>
+<path class="edge" d="M360 108 L390 108 M510 108 L530 108 M650 108 L690 108 M800 108 L820 108"/>
 </svg>
 <figcaption>Figure 2: the install pipeline. Notice that the probe, the only step that runs guest code, comes after the first digest check and before any shared file changes, and that the store hashes the bytes again after the probe.</figcaption>
 </figure>
@@ -339,7 +326,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <tr><td>Digest of the staged copy differs</td><td><code>extension.digest_mismatch</code> with both digests</td><td>Unchanged; staging removed</td><td>Republish; treat as possible tampering</td></tr>
 <tr><td><code>describe</code> answer differs, hangs or writes junk</td><td><code>extension.claims_mismatch</code> naming the first differing member, or <code>extension.probe_failed</code></td><td>Unchanged; the guest's process tree ended</td><td>Fix the guest, or <code>--no-probe</code> to record <code>unchecked</code></td></tr>
 <tr><td>The guest rewrote its staged file during the probe</td><td><code>extension.digest_mismatch</code> when the store copy is hashed</td><td>Unchanged; nothing published</td><td>Treat as a hostile guest</td></tr>
-<tr><td>Global install of a guest the reference reader cannot run</td><td>A stderr note; the report says <code>layer</code> <code>dotnet-global</code></td><td>The .NET global layer selects it; shared catalog unchanged</td><td>None needed; the Rust CLI keeps working</td></tr>
+<tr><td>A legacy Rust CLI on a Morphir Home where the .NET host installed a <code>0.2</code> extension</td><td>The Rust listing fails; the .NET install printed a note about it</td><td>Unchanged</td><td>Accepted (Q-SHARED); give the Rust CLI its own <code>MORPHIR_HOME</code></td></tr>
 <tr><td>The shared catalog holds a Rust-installed entry this host cannot run</td><td><code>extension list</code> shows it unavailable with its reason; selecting it gives <code>extension.no_compatible_mep_version</code></td><td>Unchanged</td><td>Install a release that speaks <code>0.2.0-draft.1</code></td></tr>
 <tr><td>Interrupted after the lock write, before the catalog write</td><td>Nothing until the next command</td><td>Journal present</td><td>The next holder of the state lock, .NET or Rust, applies it</td></tr>
 <tr><td>Another CLI holds the state lock</td><td>One stderr line: waiting for another Morphir run</td><td>Unchanged while waiting</td><td>Waits; Ctrl+C leaves state unchanged</td></tr>
@@ -358,7 +345,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <thead><tr><th>Concern</th><th>Source of the rule</th><th>Reference behavior</th><th>Here today</th><th>This change</th></tr></thead>
 <tbody>
 <tr><td>Morphir Home</td><td>PRD; Rust <code>morphir-common/src/home.rs</code></td><td><code>MORPHIR_HOME</code> or <code>~/.morphir</code>; relative values used as given</td><td><code>MorphirHomeDirectory</code> joins a relative value to the start directory; handlers use <code>OsPaths</code> instead</td><td>Use <code>MorphirHomeDirectory</code> with the current directory as start; stop using <code>OsPaths</code> for extensions</td></tr>
-<tr><td>Shared use</td><td>None in the parent</td><td>Listing fails on any entry without MEP <code>0.1</code> (<code>state.rs:722-737, 782-791</code>)</td><td>Host speaks only <code>0.2.0-draft.1</code></td><td><a href="#share-1">SHARE-1</a>: admission per shared catalog, with a .NET global layer for the rest; <a href="#mep-1">MEP-1</a>: no <code>0.1</code> in this host</td></tr>
+<tr><td>Shared use</td><td>None in the parent</td><td>Listing fails on any entry without MEP <code>0.1</code> (<code>state.rs:722-737, 782-791</code>)</td><td>Host speaks only <code>0.2.0-draft.1</code></td><td><a href="#q-shared">Q-SHARED</a>: every global install goes to the shared catalog; the legacy Rust CLI is not protected; <a href="#mep-1">MEP-1</a>: no <code>0.1</code></td></tr>
 <tr><td>Store layout</td><td>PRD table; parent "content-addressed store"; layout only in Rust <code>store.rs</code></td><td><code>store/extensions/sha256/&lt;digest&gt;/&lt;filename&gt;</code>; <code>.stage-*</code> temp file; hash while copying from staging (<code>store.rs:179-190</code>); no-clobber; existing object rehashed; 256 MiB (<code>store.rs:14</code>); owner execute bit on Unix</td><td>None</td><td><a href="#store-1">STORE-1</a>; spec <code>extension-store</code></td></tr>
 <tr><td>Catalog</td><td>Parent "installed inventory"; member list and version switch only in Rust</td><td><code>catalog/extensions.json</code>; members of <code>InstalledExtension</code> (<code>state.rs:266-290</code>) including conditional <code>critical</code> and <code>requires</code>; <code>"1.0"</code> or <code>"2.0.0-draft.2"</code> (<code>state.rs:510-523</code>); a reader refuses <code>requires.host</code> without <code>critical</code> (<code>extension_format/mod.rs:35-40</code>)</td><td>None</td><td>Same members; <a href="#q-catver">Q-CATVER</a></td></tr>
 <tr><td>Shared locks</td><td>Parent "matching lock"; members only in Rust</td><td><code>locks/extensions/&lt;id&gt;.json</code>, <code>"1.0"</code>, unknown members refused, claims in <code>index.claims</code></td><td>None</td><td><a href="#q-strictlock">Q-STRICTLOCK</a></td></tr>
@@ -384,33 +371,23 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>These are this change's own choices. Each names the alternatives. Where a choice depends on a maintainer answer, it names the question.</p>
 
 <h3 id="inst-1">INST-1. A separate F# installation library that both hosts and morphirup reference</h3>
-<p>Put the installer in a new F# project, <code>src/Morphir.Extensions.Installation</code>, referencing <code>Morphir.Extensions</code> and <code>Morphir.Mep</code> but not <code>Morphir.Tooling</code>. Pure modules (identifiers, records, claim comparison, resolution, admission, archive entry rules, pin files) carry most tests without I/O. Edge modules (store, state lock, journal, archive reading, probe launch) sit behind small interfaces. The C# CLI edge stays in <code>src/Morphir.Tooling/Features/Extensions</code>. F# code that C# calls follows the <code>fsharp-csharp-interop</code> skill. JSON is read and written with <code>JsonDocument</code> and <code>Utf8JsonWriter</code>, because the reader must keep unknown members and the writer must emit exact member sets; no reflection serialization, so the library stays trim- and AOT-clean.</p>
+<p>Put the installer in a new F# project, <code>src/Morphir.Extensions.Installation</code>, referencing <code>Morphir.Extensions</code> and <code>Morphir.Mep</code> but not <code>Morphir.Tooling</code>. Pure modules (identifiers, records, claim comparison, resolution, archive entry rules, pin files) carry most tests without I/O. Edge modules (store, state lock, journal, archive reading, probe launch) sit behind small interfaces. The C# CLI edge stays in <code>src/Morphir.Tooling/Features/Extensions</code>. F# code that C# calls follows the <code>fsharp-csharp-interop</code> skill. JSON is read and written with <code>JsonDocument</code> and <code>Utf8JsonWriter</code>, because the reader must keep unknown members and the writer must emit exact member sets; no reflection serialization, so the library stays trim- and AOT-clean.</p>
 <p>Alternatives: inside <code>Morphir.Tooling</code> (rejected: <code>morphirup</code> must not reference it, adoption MGR-1); inside <code>Morphir.Extensions</code> (rejected: it would pull file system and process code into the registry domain).</p>
 
 <h3 id="inst-2">INST-2. Every source becomes one resolved record before any byte is stored</h3>
-<p>A named repository, a package archive, a staged file and a <code>morphirup</code> hand-over each produce the same value: release record, selected artifact, selection, index provenance, and a separate source description for the .NET inventory and report. Staging, hashing, probing, storing, admission and committing are then one code path (Figure 2). Alternative: separate pipelines per source, as the old handlers had. Rejected because checks drift.</p>
+<p>A named repository, a package archive, a staged file and a <code>morphirup</code> hand-over each produce the same value: release record, selected artifact, selection, index provenance, and a separate source description for the .NET inventory and report. Staging, hashing, probing, storing and committing are then one code path (Figure 2). Alternative: separate pipelines per source, as the old handlers had. Rejected because checks drift.</p>
 
-<h3 id="share-1">SHARE-1. A shared catalog admits only what every host that reads it can run (maintainer decision)</h3>
-<p>The maintainer cut support for MEP <code>0.1</code> in this host (<a href="#mep-1">MEP-1</a>), and kept the .NET global layer, so released Rust CLIs keep working on a shared Morphir Home. The rule, for every shared catalog, is this: a global install writes an entry and lock into a shared catalog only when every host that reads that catalog can read and run the entry. Store objects are shared by everyone, because they are content-addressed and nothing lists them.</p>
-<ul>
-<li><strong>For <code>catalog/extensions.json</code>,</strong> its readers include the released Rust CLIs. So an entry needs an <code>mepVersions</code> member holding a version the pinned reference reader supports, and a single-segment id. The supported set is one constant recorded with its source (<code>["0.1"]</code> at <code>c9f79da</code>), and it moves only with the submodule pin.</li>
-<li><strong>For #1149's <code>catalog/extensions-dotted.json</code></strong> (provisional), its readers are the hosts that implement #1149. An entry needs a version they all run, unless #1149 requires them to list and skip entries they cannot run (<a href="#q-shared">Q-SHARED</a>).</li>
-<li><strong>Everything else</strong> goes to the .NET global layer: an inventory record, plus an entry in <code>data/morphir-dotnet/extensions/global.json</code> that maps the id to that record's digest. That layer ranks above the shared catalogs for .NET hosts. One id is never globally selected in two places: a global install refuses an id that another place holds.</li>
-</ul>
-<p>The reverse direction is defined too. A shared entry this host cannot run is listed as unavailable with a reason, and never stops the listing.</p>
-<p>The .NET global layer shrinks on its own as hosts converge. When the pinned reference reader speaks <code>0.2.0-draft.1</code>, the constant moves, and new installs of <code>0.2</code> guests enter the shared catalog.</p>
-<p>Alternatives: write every install to the shared catalog (rejected by the maintainer: it breaks every released Rust command on that Morphir Home); keep every .NET install out of the shared catalog (rejected: it gives up shared use for extensions both hosts can run).</p>
-<h3 id="store-1">STORE-1. Shared files are written with the upstream member sets and read with must-ignore</h3>
-<p>Writers emit exactly the members the Rust implementation writes, in its spelling, pretty-printed with a final newline. That includes <code>critical</code> and <code>requires</code> on an entry whose release has <code>requires.host</code>. This host never writes an entry converted from a version 1 record (<a href="#doc-1">DOC-1</a>). When it rewrites a catalog that holds one the Rust CLI wrote, it carries that entry through with its members and values unchanged, because the reference writes such entries without <code>claims</code>, <code>claimCheck</code> or <code>probeSource</code> (<code>extension_format/claims.rs:82-87, 243-251</code>).</p>
-<p>Readers keep unknown optional members and refuse unknown critical ones. .NET-only facts (true source kind, archive digest, level, layer) go to the .NET inventory, never into shared files. Byte-for-byte equality with Rust output is not required; member-set and value equality is. Tasks 2.7, 3.5 and 9.1 check it against the pinned Rust CLI.</p>
-
+<h3 id="store-1">STORE-1. Shared files carry the members and values the shared contract defines</h3>
+<p>The bar for the catalog, locks, journal, repositories file and index records is the members and values the shared contract defines. Byte equality with any other writer is not a goal. Today much of that contract is specified only by the Rust source. Where it is, this change follows that behavior and asks upstream to write it down: finos/morphir#1149's task 1.4 makes <code>distribution-and-acquisition.md</code> the authority for the catalog, lock, journal, state lock and paths. Where Rust has a quirk the contract does not need, such as the Windows verbatim path spelling, this host does not copy it.</p>
+<p>Writers write <code>critical</code> and <code>requires</code> on an entry whose release has <code>requires.host</code>. This host never writes an entry converted from a version 1 record (<a href="#doc-1">DOC-1</a>). When it rewrites a catalog that holds one another host wrote, it carries that entry through with its members and values unchanged.</p>
+<p>Readers keep unknown optional members and refuse unknown critical ones. .NET-only facts (true source, archive digest, level) go to the .NET inventory, never into shared files.</p>
 <h3 id="store-2">STORE-2. The state lock uses the reference primitive</h3>
 <p>Open <code>locks/extensions.state.lock</code> for read and write, create without truncate, and take an exclusive lock that <code>fs2</code> respects:</p>
 <ul>
 <li>on Linux and macOS, <code>flock</code>, which is what .NET takes for <code>FileShare.None</code>;</li>
 <li>on Windows, a byte-range lock over the whole file: <code>FileStream.Lock</code> on a handle opened with <code>FileShare.ReadWrite | FileShare.Delete</code>, which overlaps <code>LockFileEx</code> over <code>0..2^64-1</code>.</li>
 </ul>
-<p>Poll with the <code>TaskLock</code> waiting line. The repositories lock uses the same primitive.</p>
+<p>Poll with the <code>TaskLock</code> waiting line. The repositories lock uses the same primitive. Any other current host that shares the home, such as the MoonBit host, must take the same whole-file lock, which is why the contract pages should name it.</p>
 <p><span class="tag asm">Assumed</span> <code>FileStream.Lock(0, long.MaxValue)</code> conflicts with an <code>fs2</code> lock on Windows. Task 3.1 proves it with a helper process that calls <code>LockFileEx</code> directly.</p>
 <p>Alternative: reuse <code>TaskLock</code> unchanged. Rejected: on Windows a .NET holder makes the Rust CLI fail instead of wait, and a Rust holder is invisible to it.</p>
 
@@ -421,35 +398,34 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>each member is a JSON number array of the bytes to write, or <code>null</code> for a deletion, which is what uninstall writes for the lock.</li>
 </ul>
 <p>Recovery does not decide between completing and rolling back. It writes whatever bytes the journal holds and removes it, as the reference does. A failed write first rewrites the journal with the previous bytes (<code>state_io.rs:180-187, 249-252</code>). Every acquisition of the state lock recovers journals before it reads.</p>
-<p>The inventory record and the .NET global layer are written after the pair, under the same lock. A missing inventory record for a shared entry is rebuilt from the pair on the next read.</p>
+<p>The inventory record is written after the pair, under the same lock. A missing inventory record for a shared entry is rebuilt from the pair on the next read.</p>
 
 <h3 id="store-4">STORE-4. A .NET inventory of every installed version</h3>
-<p><code>data/morphir-dotnet/extensions/installed/&lt;id&gt;/&lt;digest&gt;.json</code> keeps the entry and lock the installer would write globally, plus the source and, for target archives, the archive digest. It backs the .NET global layer, level pins and overlays.</p>
+<p><code>data/morphir-dotnet/extensions/installed/&lt;id&gt;/&lt;digest&gt;.json</code> keeps the entry and lock the installer would write globally, plus the source and, for target archives, the archive digest. It exists because the catalog and lock have closed member sets: it holds the .NET-only facts they cannot carry, and every installed version that level pins and overlays need.</p>
 <p>The key is the id and the artifact digest. The same bytes installed again with other <code>args</code>, claims or index replace the record, and the report warns. A pin binds a digest, not the metadata around it. For a shared entry the catalog and lock always win over the record. A record rebuilt from a Rust-written pair says source kind <code>shared-catalog</code>, because the true source cannot be known.</p>
 <p>Alternative: several entries per id in the shared catalog. Rejected: upstream readers refuse duplicate ids (<code>state.rs:557-563</code>, as <code>StateMismatch</code>).</p>
 
 <h3 id="sel-1">SEL-1. Portable pins at levels, resolved against the local inventory</h3>
 <p>Provisional: it follows <a href="#q-levels">Q-LEVELS</a> and serves a contract that belongs in the toolchain specifications, raised upstream in task 1.2.</p>
-<p>A level's <code>.morphir/extensions/selection.json</code> pins the id, version, runtime and a digest per platform, and nothing machine-specific. Precedence is overlay, project, workspace, .NET global layer, shared catalog, system (Figure 3). A broken pin never falls through to a lower layer. Isolation omits the system pin and both global layers. Pin writes take a lock below <code>locks/</code> in Morphir Home, keyed by the canonical pin path.</p>
+<p>A level's <code>.morphir/extensions/selection.json</code> pins the id, version, runtime and a digest per platform, and nothing machine-specific. Precedence is overlay, project, workspace, shared catalog, system (Figure 3). A broken pin never falls through to a lower layer. Isolation omits the system pin and the shared catalog. Pin writes take a lock below <code>locks/</code> in Morphir Home, keyed by the canonical pin path.</p>
 
 <figure>
 <svg viewBox="0 0 980 230" role="img" aria-labelledby="fig3t fig3d">
 <title id="fig3t">Figure 3: selection layers</title>
-<desc id="fig3d">Six layers from overlay to system; the first that selects an id wins; pins and the .NET global layer resolve through the inventory, the shared catalog through its lock.</desc>
-<rect class="dotnet" x="10" y="20" width="150" height="44" rx="6"/><text x="20" y="40">overlay</text><text class="small" x="20" y="56">MORPHIR_EXTENSION_OVERLAY</text>
-<rect class="dotnet" x="170" y="20" width="150" height="44" rx="6"/><text x="180" y="40">project pin</text><text class="small" x="180" y="56">.morphir/extensions/</text>
-<rect class="dotnet" x="330" y="20" width="150" height="44" rx="6"/><text x="340" y="40">workspace pin</text><text class="small" x="340" y="56">.morphir/extensions/</text>
-<rect class="dotnet" x="490" y="20" width="150" height="44" rx="6"/><text x="500" y="40">.NET global layer</text><text class="small" x="500" y="56">data/morphir-dotnet/</text>
-<rect class="shared" x="650" y="20" width="150" height="44" rx="6"/><text x="660" y="40">shared catalog</text><text class="small" x="660" y="56">catalog + lock</text>
-<rect class="dotnet" x="810" y="20" width="150" height="44" rx="6"/><text x="820" y="40">system pin</text><text class="small" x="820" y="56">/etc/morphir, ProgramData</text>
-<path class="edge" d="M160 42 L170 42 M320 42 L330 42 M480 42 L490 42 M640 42 L650 42 M800 42 L810 42"/>
-<text x="10" y="96">first layer that selects the id wins; a broken selection stops, it never falls through →</text>
+<desc id="fig3d">Five layers from overlay to system; the first that selects an id wins; pins resolve through the inventory, the global layer through the catalog and lock.</desc>
+<rect class="dotnet" x="20" y="20" width="170" height="44" rx="6"/><text x="32" y="40">overlay</text><text class="small" x="32" y="56">MORPHIR_EXTENSION_OVERLAY</text>
+<rect class="dotnet" x="210" y="20" width="150" height="44" rx="6"/><text x="222" y="40">project pin</text><text class="small" x="222" y="56">.morphir/extensions/</text>
+<rect class="dotnet" x="380" y="20" width="150" height="44" rx="6"/><text x="392" y="40">workspace pin</text><text class="small" x="392" y="56">.morphir/extensions/</text>
+<rect class="shared" x="550" y="20" width="170" height="44" rx="6"/><text x="562" y="40">shared catalog</text><text class="small" x="562" y="56">catalog + lock (upstream)</text>
+<rect class="dotnet" x="740" y="20" width="150" height="44" rx="6"/><text x="752" y="40">system pin</text><text class="small" x="752" y="56">/etc/morphir, ProgramData</text>
+<path class="edge" d="M190 42 L210 42 M360 42 L380 42 M530 42 L550 42 M720 42 L740 42"/>
+<text x="20" y="96">first layer that selects the id wins; a broken selection stops, it never falls through →</text>
 <rect class="dotnet" x="120" y="120" width="300" height="44" rx="6"/><text x="132" y="140">inventory record by id and digest</text><text class="small" x="132" y="156">data/morphir-dotnet/extensions/installed/</text>
 <rect class="shared" x="560" y="120" width="300" height="44" rx="6"/><text x="572" y="140">store object, hashed while copied, launched</text><text class="small" x="572" y="156">store/extensions/sha256/…</text>
-<path class="edge" d="M85 64 L200 120 M245 64 L250 120 M405 64 L300 120 M565 64 L380 120 M885 64 L400 120 M725 64 L700 120 M420 142 L560 142"/>
-<text class="small" x="10" y="196">Isolation removes the system pin and both global layers. Each id appears once in the registry after precedence; lower layers are reported as shadowed.</text>
+<path class="edge" d="M100 64 L200 120 M285 64 L260 120 M455 64 L320 120 M815 64 L380 120 M635 64 L700 120 M420 142 L560 142"/>
+<text class="small" x="20" y="196">Isolation removes the shared catalog and the system pin. Each id appears once in the registry after precedence; lower layers are reported as shadowed.</text>
 </svg>
-<figcaption>Figure 3: selection layers. Notice that only the shared catalog is visible to upstream CLIs; every other layer resolves through the .NET inventory.</figcaption>
+<figcaption>Figure 3: selection layers. Notice that only the shared catalog is visible to upstream CLIs; the others are the documented superset.</figcaption>
 </figure>
 
 <h3 id="sel-2">SEL-2. The overlay arrives by an environment variable that morphirup sets</h3>
@@ -521,7 +497,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>For a <code>morphirup</code> hand-over, the installer takes the caller's statement and returns it unchanged. The statement is <code>repository-target</code> with <code>repositoryId</code> and <code>targetsVersion</code>, or <code>recipe-digest</code>. Any other kind, including <code>local-developer</code>, is refused, because a hand-over is always a generation install. The one-repository-per-binding check and <code>repository_mismatch</code> stay with the manager.</p>
 <p>Two more manager rules touch the installer:</p>
 <ul>
-<li><strong>The plan covers everything.</strong> A plan must cover everything its command writes, so before writing, the installer answers "what would this install write": the store path, the shared catalog and lock, the .NET global layer or the pin, the inventory record, and whether the guest runs with the user's rights. It then writes nothing else. This is provisional pending the toolchain contract.</li>
+<li><strong>The plan covers everything.</strong> A plan must cover everything its command writes, so before writing, the installer answers "what would this install write": the store path, the catalog and lock or the pin, the inventory record, and whether the guest runs with the user's rights. It then writes nothing else. This is provisional pending the toolchain contract.</li>
 <li><strong>Revocation is the manager's job.</strong> A learned revocation of a recipe target is the manager's check before <code>run</code> launches a generation, and the installer does not learn revocations. Bytes the user installed globally outside a generation are not revoked by a recipe revocation, even when their digest is the same. The installer's docs say so.</li>
 </ul>
 <p>This is where the installer touches the TUF client: the client authenticates the targets and hands over bytes and a statement, and the installer rechecks the bound digests. The shared lock has no member for authentication, so this fact lives only in the manager's receipt and the .NET inventory.</p>
@@ -529,7 +505,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p><strong>Decision.</strong> On 9 November 2026 the maintainer decided three things, in this order:</p>
 <ol>
 <li>To cut support for MEP <code>0.1</code>: "we don't have users to support the cost of maintaining 2 versions".</li>
-<li>The scope of that cut: "we can still have the global, we just have decided to cut support for MEP 0.1". The .NET global layer stays (<a href="#share-1">SHARE-1</a>).</li>
+<li>The scope of that cut: "we can still have the global, we just have decided to cut support for MEP 0.1". "The global" meant that global installs still exist, in the shared catalog (<a href="#q-shared">Q-SHARED</a>).</li>
 <li>What is supported instead: "We should support 0.2.0 all prerelease and final 0.2.x releases".</li>
 </ol>
 <p>So MEP <code>0.1</code> is not supported, and the supported protocol is the whole 0.2 line: every prerelease of <code>0.2.0</code> and every final <code>0.2.x</code> release. Today the only version of that line that exists is <code>0.2.0-draft.1</code>. Nothing a host can speak changes yet. What changes is the policy: as later versions of the line appear, a host keeps the earlier ones instead of replacing one exact draft with the next.</p>
@@ -546,8 +522,8 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li><strong>Not DOC-1.</strong> DOC-1 drops the earlier transient drafts of the extension document formats, while MEP keeps every version of its 0.2 line: they are separate decisions about separate contracts.</li>
 <li><strong>Nothing implements 0.1.</strong> Nothing here implements, bridges or tests <code>0.1</code>.</li>
 <li><strong>No legacy code paths.</strong> The probe does not carry the reference's fallback for refusals that older guests signal only by message (PROBE-1). An extension that speaks only <code>0.1</code> is refused at install with <code>extension.no_compatible_mep_version</code>, and is listed as unavailable when the Rust CLI installed it. Both messages say that MEP <code>0.1</code> is not supported.</li>
-<li><strong>Released Rust CLIs are still not broken.</strong> Cutting <code>0.1</code> here does not mean writing entries they cannot run into the files they read. The admission rule keeps them working; that costs one constant and the .NET global layer.</li>
-<li><strong>The path out is upstream.</strong> The ask is for the Rust host to move to the MEP 0.2 line. When the pinned reader speaks a version of it, the admission constant moves, and new <code>0.2</code> installs enter the shared catalog.</li>
+
+<li><strong>The Rust CLI is legacy.</strong> Moving it to the 0.2 line is optional later work upstream, not a dependency of this change.</li>
 </ul>
 <p>A shared entry this host cannot run, for example one the Rust CLI installed, is listed as unavailable instead of failing the listing. That is robustness, not protocol support. <a href="#doc-1">DOC-1</a> applies the same "no transient compatibility" reasoning to old document formats.</p>
 <h3 id="doc-1">DOC-1. Only the current contract drafts are read (maintainer decision)</h3>
@@ -573,7 +549,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li><strong>With the partition</strong> (as #1149 is written), they live in <code>catalog/extensions-dotted.json</code> and <code>locks/extensions-dotted/</code>, and histories in a repository's <code>extensions-dotted/</code>. The store spec says this, as a provisional requirement.</li>
 <li><strong>With one catalog</strong>, they live in the existing files, which move to <code>2.0.0-draft.3</code> when they first hold a dotted id.</li>
 </ul>
-<p>Either way, admission (<a href="#share-1">SHARE-1</a>) decides first: a dotted extension that a reader of its catalog cannot run goes to the .NET global layer. Task 8.1 covers both answers.</p>
+<p>Task 8.1 covers both answers.</p>
 <h2 id="questions">Questions</h2>
 <p>The first version of this page listed 25 questions with one status. They are now grouped by what they need.</p>
 <ul>
@@ -689,29 +665,23 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <details id="q-fixtures"><summary>Q-FIXTURES. No language-neutral fixtures for acquisition documents</summary><p>Propose a fixture set in finos/morphir, kept as data like the kit cases. Until it lands, pin Rust-written copies with their provenance (task 2.7).</p></details>
 
 <h3 id="settled">Settled, kept here so earlier references resolve</h3>
-<details open id="q-shared"><summary>Q-SHARED. What may enter a shared catalog? Settled: SHARE-1; the id half is #1149's question 8</summary>
-<p><strong>Settled.</strong> The maintainer kept the .NET global layer while cutting MEP <code>0.1</code> in this host. A shared catalog admits only entries that every host that reads it can read and run, and the .NET global layer holds the rest (<a href="#share-1">SHARE-1</a>).</p>
-<p><strong>How the .NET global layer relates to #1149's dotted partition.</strong> They are two layers that apply one principle, not one layer with two reasons. The principle: a file that some host reads whole holds only entries that host can read and run, and anything else goes where that host never looks.</p>
-<ul>
-<li><strong>#1149's partition</strong> applies it to ids. It holds <code>catalog/extensions-dotted.json</code> at <code>2.0.0-draft.3</code>, with locks and journals in <code>locks/extensions-dotted/</code> and histories in a repository's <code>extensions-dotted/</code>. It admits by id form, and every host that implements #1149 reads it.</li>
-<li><strong>The .NET global layer</strong> applies it to MEP versions: <code>data/morphir-dotnet/extensions/global.json</code> plus the inventory. It admits by "the readers of the shared catalog cannot run this", and only .NET reads it.</li>
-</ul>
-<p>#1149's partition cannot also carry the MEP-version case, for three reasons:</p>
+<details open id="q-shared"><summary>Q-SHARED. What may enter the shared catalog? Settled: every global install, by the maintainer on 9 November 2026</summary>
+<p><strong>Decision.</strong> Every global install goes to <code>catalog/extensions.json</code> and <code>locks/extensions/</code>. There is no .NET-only global file. The accepted cost: a released Rust CLI cannot list a Morphir Home the .NET host has installed into.</p>
+<p><strong>History, so the layer is not restored again.</strong> This question went three turns on 9 November 2026.</p>
 <ol>
-<li>It refuses a single-segment id in the dotted files, so a single-token <code>0.2</code> guest cannot go there.</li>
-<li>An MEP version belongs to a release, not to an id. An update from a release that also lists <code>0.1</code> to one that speaks only <code>0.2.0-draft.1</code> would move the id between partitions, but #1149 changes one partition per operation.</li>
-<li>#1149's writer rule puts <code>2.0.0-draft.3</code> only on documents that name a dotted id.</li>
+<li>The review found that one entry the Rust reader cannot run breaks every Rust command on a home. This change then proposed a .NET global layer, <code>data/morphir-dotnet/extensions/global.json</code>, and an admission rule for the shared catalog.</li>
+<li>After the maintainer cut MEP <code>0.1</code>, this change withdrew the layer (commit <code>dd8aca1</code>). The maintainer then wrote "we can still have the global, we just have decided to cut support for MEP 0.1", and this change restored it (commit <code>337e72c</code>).</li>
+<li>Asked which was meant, the maintainer chose option A of these two:
+  <ul>
+  <li>A: "Keep global installs, in the one shared catalog, and drop the .NET-only file. .NET and MoonBit share what is installed. A released Rust CLI cannot list a Morphir Home that .NET has installed into";</li>
+  <li>B: "Keep the .NET-only file and the admission rule as the plan now has them."</li>
+  </ul>
+  "The global" meant that global installs still exist. The answer is recorded at <a href="https://github.com/finos/morphir/issues/1146#issuecomment-6759803158">finos/morphir#1146</a>.</li>
 </ol>
-<p><strong>The one decision.</strong> The maintainer has already answered, for MEP versions, the question both documents ask: a Morphir home keeps released hosts working by putting what they cannot read where they never look. That is SHARE-1. Giving the same answer for ids means #1149's question 8 takes the partition, not one catalog that switches version home-wide, because the home-wide switch would make <code>catalog/extensions.json</code> unreadable to released hosts the first time it held a dotted id.</p>
-<p>One thing joins the two. Every dotted extension known today is a .NET guest that speaks only versions of the MEP 0.2 line (today <code>0.2.0-draft.1</code>), while the Rust host that would read the dotted partition speaks only <code>0.1</code> until it moves. So #1149 should require its new readers to list an entry they cannot run as unavailable and keep going. That costs released hosts nothing, because they never read the new files. With that rule, the .NET dotted guests go to <code>catalog/extensions-dotted.json</code> and new Rust hosts can see them. Without it, admission sends them to the .NET global layer, where only .NET sees them.</p>
-<p>Recommendation: answer #1149's question 8 with the partition, and add that rule.</p>
-<p><strong>What #1149 needs to say so the two documents agree:</strong></p>
-<ol>
-<li>Readers of <code>catalog/extensions-dotted.json</code> and <code>locks/extensions-dotted/</code> list an entry they cannot run, for its MEP versions or any other reason, as unavailable, and keep reading. Without this, morphir-dotnet keeps its dotted <code>0.2</code> guests in its own global layer.</li>
-<li>"A reader of the new drafts SHALL also read every version it read before" should allow a host to drop earlier transient drafts. morphir-dotnet drops them (DOC-1), so its scenario reading <code>2.0.0-draft.1</code> descriptors describes the Rust host only.</li>
-<li>Its Impact line and task 5.3 say this installer writes the home files "byte for byte" and "byte-identical to the Rust host's". This change promises equal members and values (STORE-1); #1149 should say that, unless the maintainer wants this installer to take on byte identity.</li>
-<li>"An older host keeps working on a home that holds dotted extensions" can cite morphir-dotnet's admission rule as why it also holds on homes that a .NET host wrote. Task 5.3's mixed-home check should read the entries the Rust host can run, and list the others as unavailable.</li>
-</ol></details><details id="q-idrule"><summary>Q-IDRULE. Ids in shared files</summary><p>Settled by the maintainer's decision to allow dotted ids through finos/morphir#1149, and by ID-1. Dotted ids are read and written at #1149's drafts. Whether they live in a dotted partition or in the existing files is #1149's question 8 (see <a href="#q-shared">Q-SHARED</a>). Task 8.1 follows the answer.</p></details>
+<p>On finos/morphir#1149 the maintainer added: "we want to focus on morphir-dotnet and morphir-moonbit hosts and only possibly invest in Rust once 1 or both of those 2 are functional. For now we are treating the rust cli as legacy".</p>
+<p><strong>What this removes:</strong> the admission rule, <code>data/morphir-dotnet/extensions/global.json</code> as an install destination, the layer's place in precedence, its uninstall and report details, task 2.9 and the Rust interoperability gate in task 3.5.</p>
+<p><strong>What stays:</strong> the .NET inventory (STORE-4). It is a different thing: it holds .NET-only facts that the catalog's and lock's closed member sets cannot carry, and every installed version for pins and overlays. It is never a place a global install is selected from. Also kept: listing a shared entry this host cannot run as unavailable instead of failing.</p>
+<p>For dotted ids, see <a href="#id-1">ID-1</a>.</p></details><details id="q-idrule"><summary>Q-IDRULE. Ids in shared files</summary><p>Settled by the maintainer's decision to allow dotted ids through finos/morphir#1149, and by ID-1. Dotted ids are read and written at #1149's drafts. Whether they live in a dotted partition or in the existing files is #1149's question 8 (see <a href="#q-shared">Q-SHARED</a>). Task 8.1 follows the answer.</p></details>
 <details id="q-autoprocess"><summary>Q-AUTOPROCESS. Does auto apply to process guests?</summary><p>No. It is a safe default, and written as a SHALL (ARC-2).</p></details>
 <details id="q-wasmdescribe"><summary>Q-WASMDESCRIBE. WASM install and describe</summary><p>Settled by the upstream decision that WASM installation does not probe. WASM packages install <code>unchecked</code>; a bare <code>.wasm</code> waits for PRD step 2a. The PRD is corrected in task 4.8.</p></details>
 <details id="q-descname"><summary>Q-DESCNAME. Descriptor and checksum file names</summary><p>Merged into <a href="#q-archive">Q-ARCHIVE</a>.</p></details>
@@ -719,7 +689,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <h3 id="upstream">Raised upstream (task 1.2)</h3>
 <ul>
 <li>Review comments on #1149, as listed in <a href="#q-shared">Q-SHARED</a>: answer question 8 with the partition; new readers list and skip entries they cannot run; a host may drop earlier transient drafts; equal members and values instead of byte identity; and the mixed-home check.</li>
-<li>The shared catalog's legacy-reader rule for the Rust host: list or skip entries it cannot run instead of failing (SHARE-1).</li>
+
 <li>The overlay, the level pins and the receipt's launch path (<code>launch.program</code> names the store path while the host runs a private copy), for <code>docs/spec/toolchain</code>.</li>
 <li>Target and package archives (Q-ARCHIVE), a multi-file package form (Q-MULTIFILE), and a provenance kind for staged and file installs (Q-PROVENANCE).</li>
 <li>The claim check after <code>update</code> (Q-CLAIMCHECK).</li>
@@ -733,7 +703,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>Two facts apply whatever is chosen:</p>
 <ul>
 <li>The guest reports <code>org.finos.morphir.fsharp-frontend</code> (<code>src/Morphir.Frontend.FSharp.Extension/FSharpGuest.fs:61</code>). The probe compares <code>extension.id</code>, and dotted ids wait for #1149. So the frontend cannot be installed under any id today, even as one file, unless the maintainer accepts a temporary single-token id.</li>
-<li>It speaks only versions of the MEP 0.2 line (today <code>0.2.0-draft.1</code>), so a global install goes to the .NET global layer, or to the dotted partition if #1149 adds the list-and-skip rule, and never to <code>catalog/extensions.json</code>.</li>
+<li>It speaks only versions of the MEP 0.2 line (today <code>0.2.0-draft.1</code>), so once it is installed globally, a legacy Rust CLI cannot list that Morphir Home. That cost is accepted (Q-SHARED).</li>
 </ul>
 <p><span class="tag obs">Observed</span> Adoption task 3.1 has landed on main as a folder (#569, <code>4b14b0d</code>). <code>SelfContainedProcess.pubxml</code> publishes a self-contained folder with <code>PublishSingleFile</code> false, "because the compiler references are files of the folder". <code>CompilerEdge</code> now takes the framework references from the host's deps files, and it refuses a single-file bundle with <code>NoFileLocation</code> when <code>FSharp.Core</code> or the annotations have no file location. Both options below build on that.</p>
 
@@ -805,7 +775,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <tr><td>Substituted artifact in a repository, an archive, or the store</td><td>Digest checks at staging, against the descriptor as well as the checksum file; again when copying into the store; again in the read that writes the run copy</td></tr>
 <tr><td>Time of check to time of use: a guest rewrites its staged file during <code>describe</code>; the store object changes between hash and launch</td><td>"The copy into the store is verified again"; "Only verified bytes run" (one read hashes and copies)</td></tr>
 <tr><td>Symbolic link or junction out of a repository or out of Morphir Home, swapped in after the check</td><td>Canonicalize, then read through the opened handle; "Repository paths stay inside the repository"; "Store paths stay inside Morphir Home"</td></tr>
-<tr><td>A .NET install that breaks the Rust CLI on a shared Morphir Home (availability)</td><td>"A shared catalog admits only entries every host that reads it can run"; the gate in task 3.5</td></tr>
+<tr><td>A .NET install that breaks the Rust CLI on a shared Morphir Home (availability)</td><td>Accepted: the Rust CLI is legacy (Q-SHARED). A stderr note at install and the docs say so, and the Rust CLI can have its own <code>MORPHIR_HOME</code></td></tr>
 <tr><td>Lock-file abuse: a process holds <code>locks/extensions.state.lock</code> forever, or a .NET lock that a Rust process cannot see</td><td>The reference primitive, so both CLIs exclude each other; the wait is visible on stderr and cancellable; a user-level holder is the same user, so this is a nuisance, not an escalation</td></tr>
 <tr><td>Concurrent CLIs writing the same pair</td><td>One state lock; the journal; install refuses an id that appeared meanwhile</td></tr>
 <tr><td>Dependency confusion: the same id in two repositories</td><td>Install and update name exactly one repository; the lock records the repository identity and history revision; pins bind digests</td></tr>
@@ -830,17 +800,17 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 
 <h2 id="findings">Findings for the approved and adoption changes</h2>
 <ol>
-<li><strong>A .NET install of a 0.2-only guest would break the Rust CLI.</strong> The approved toolset-setup requirement says setup "SHALL use the host's extension configuration, store, claims and locks". Read naively, that writes the F# guests into the shared catalog, which breaks every Rust command on that Morphir Home (<a href="#shared">the evidence</a>). Adoption task 3.3 installs them under SHARE-1: into the .NET global layer, or into #1149's dotted partition if it adds the list-and-skip rule.</li>
+<li><strong>A .NET install of a 0.2-only guest would break the Rust CLI.</strong> The approved toolset-setup requirement says setup "SHALL use the host's extension configuration, store, claims and locks". That writes the F# guests into the shared catalog, which breaks every legacy Rust command on that Morphir Home (<a href="#shared">the evidence</a>). The maintainer accepted that (Q-SHARED). The approved qualification should not include the Rust CLI on a home the .NET host writes.</li>
 <li><strong>Multi-file frontend versus single-file store.</strong> Adoption FSF-1 ships the self-contained F# frontend as a folder, and the store holds one file per digest. Approved task 3.3 cannot complete as written until Q-MULTIFILE is answered. The cheapest path re-scopes adoption 3.1 (<a href="#fsharp-frontend">the F# frontend section</a>).</li>
-<li><strong>Dotted ids.</strong> Both F# guests report dotted ids, so neither can be installed until #1149 lands. #1149 now keeps dotted extensions in their own partition, which applies SHARE-1's principle to ids. Q-SHARED gives the one decision and what #1149 needs to say.</li>
+<li><strong>Dotted ids.</strong> Both F# guests report dotted ids, so neither can be installed until #1149 lands. See <a href="#id-1">ID-1</a> for how dotted ids are stored.</li>
 <li><strong>Target archives.</strong> The approved recipe binds <code>win-x64.zip</code> process archives, but nothing upstream says how an installer turns one into an installed artifact (Q-ARCHIVE). Under the recommendation, the shared lock records the inner file's digest and a generated repository, so only the .NET inventory ties the install back to the publisher's archive, and the Rust CLI cannot <code>update</code> it.</li>
 <li><strong>"Duplicate ids cannot enter one registry" (approved 4.4).</strong> The same id is expected across layers. The rule applies after precedence and within one layer. This change states that rule in a MODIFIED "Extension ids are unique", with exit code 1 for a refused selection.</li>
 <li><strong>PRD step 3 corrections.</strong>
   <ul>
   <li>Provenance kind <code>staged</code> would break upstream readers (Q-PROVENANCE).</li>
   <li><code>describe</code> for WASM packages conflicts with the upstream decision.</li>
-  <li>The global level is the shared catalog plus a .NET global layer, not one file.</li>
-  <li>"Sharing global installs" means sharing format and store until both hosts speak a common MEP version.</li>
+  <li>The global level's selection is the shared catalog itself, not a second file.</li>
+  <li>"Sharing global installs" means sharing with the other current hosts; the legacy Rust CLI is not protected.</li>
   </ul></li>
 <li><strong>#492 as written contradicts step 3.</strong> Recommend closing it as superseded (CMD-2).</li>
 <li><strong>Receipt launch path.</strong> A receipt's <code>launch.program</code> for an installed provider would be the store path, while the host runs a private copy (SEL-3). Raised upstream with the overlay and pins.</li>
@@ -855,8 +825,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <table>
 <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
 <tbody>
-<tr><td>The admission rule's supported-version constant goes stale when the Rust CLI starts reading <code>0.2</code></td><td>One constant with its source, moved only with the submodule pin; the 3.5 gate reruns when the pin moves</td></tr>
-<tr><td>Users expect a .NET global install to appear in the Rust CLI</td><td>A stderr note and the report's <code>layer</code> say where it went and why; docs explain shared format versus shared use</td></tr>
+<tr><td>Someone runs the legacy Rust CLI on a Morphir Home the .NET host wrote</td><td>Accepted (Q-SHARED); a stderr note at install and the docs say to give it its own <code>MORPHIR_HOME</code></td></tr>
 
 <tr><td>Upstream changes a Rust-only rule (lock reader, journal, catalog switch) and the CLIs diverge</td><td>Fixtures captured from a pinned Rust CLI; the interoperability gate; upstream issues to document each rule</td></tr>
 <tr><td>The Windows lock primitive assumption is wrong</td><td>Task 3.1 proves it with a direct <code>LockFileEx</code> helper before anything depends on it</td></tr>
@@ -874,8 +843,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>Group 4 replaces the stubs. No release ever installed anything through them, so there is no user data to migrate. Files the old handlers could have written below the <code>OsPaths</code> folders are not read or deleted.</li>
 <li>Groups 5 to 7 add archives, staged folders, levels, activation and the hand-over. Group 8 waits for #1149.</li>
 <li>The PRD's feature table and step 3 text are updated in the group that lands each part; <code>docs/content/docs/cli/management.md</code> is rewritten in task 4.8.</li>
-<li>Rollback: until group 4, each group adds code paths beside the old ones, and reverting a group's commits restores the stubs. Entries in the shared catalog are in the upstream format, so a Rust CLI can still read, update or uninstall the admitted entries a reverted .NET host installed. Entries in the .NET global layer stay on disk, readable by the next .NET host that has this code.</li>
-<li>If upstream standardizes a catalog for entries that need newer readers, the .NET global layer moves into it in one transaction under the state lock.</li>
+<li>Rollback: until group 4, each group adds code paths beside the old ones, and reverting a group's commits restores the stubs. Entries in the shared catalog are in the upstream format, so another current host can still read, update or uninstall what a reverted .NET host installed.</li>
 </ol>
 
 <h2 id="out-of-scope">Deliberately left out</h2>
@@ -885,7 +853,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li>Repository authoring: <code>repository init</code>, <code>publish</code>, <code>bundle</code>; also <code>search</code>, <code>repository enable|disable|inspect|verify</code>.</li>
 <li>A WASM runtime, and bare <code>.wasm</code> install until step 2a supplies one.</li>
 <li>Multi-file extension artifacts and any new store layout (Q-MULTIFILE).</li>
-<li>MEP <code>0.1</code> support in this host or its guests (MEP-1). Released Rust CLIs are kept working by admission, not by speaking <code>0.1</code>.</li>
+<li>MEP <code>0.1</code> support in this host or its guests (MEP-1), and keeping the legacy Rust CLI working on a shared home (Q-SHARED).</li>
 <li>Dotted ids before #1149 is approved.</li>
 <li>Store cleanup, yanking and revocation of extensions.</li>
 <li>External generator and analyzer selection in <code>generate</code> and <code>validate</code>; only the frontend reference (<code>extension_id</code>) is wired.</li>

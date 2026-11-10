@@ -18,7 +18,7 @@ Installs, updates, removes and describes external extensions from local sources 
 - **THEN** the install fails with `extension.repository_unavailable` naming `local-dev`, and nothing is written
 
 ### Requirement: Repositories are configured in the upstream format
-`extension repository add <name> --directory <dir>` SHALL record the directory as an enabled `local-directory` endpoint in the upstream repositories file, under `locks/extensions.repositories.lock` with the state lock primitive. The file SHALL have integer `schemaVersion` 1 and no member the reference reader refuses. A name SHALL be a portable token of at most 64 characters. `list` and `remove` SHALL use the same file.
+`extension repository add <name> --directory <dir>` SHALL record the directory as an enabled `local-directory` endpoint in the upstream repositories file, under `locks/extensions.repositories.lock` with the state lock primitive. The file SHALL have integer `schemaVersion` 1 and only the members the shared contract defines. A name SHALL be a portable token of at most 64 characters. `list` and `remove` SHALL use the same file.
 
 #### Scenario: Add a repository
 - **WHEN** a user runs `morphir extension repository add local-dev --directory ./ext-repo`
@@ -28,12 +28,12 @@ Installs, updates, removes and describes external extensions from local sources 
 - **WHEN** the directory has no `extensions` folder
 - **THEN** the command fails and the repositories file is unchanged
 
-### Requirement: Repository identities are spelled as the reference writes them
-The installer SHALL record a repository path and a lock's `index.identity` in the spelling the reference implementation's canonicalization produces on that platform, which on Windows is the verbatim form such as `\\?\D:\ext-repo`. It SHALL compare two identities after canonicalizing both to that form.
+### Requirement: Repository identities are canonical absolute paths
+The installer SHALL record a repository path and a lock's `index.identity` as the canonical absolute path in the platform's ordinary syntax, without the Windows verbatim prefix, until the shared contract defines the spelling. It SHALL compare two identities after canonicalizing both, so that a path written as `\\?\D:\ext-repo` by another host equals `D:\ext-repo`.
 
-#### Scenario: Identity written by the Rust CLI
-- **WHEN** the Rust CLI recorded `\\?\D:\ext-repo` and the .NET host resolves the same directory given as `D:\ext-repo`
-- **THEN** the two identities compare equal, and a lock the .NET host writes for it holds `\\?\D:\ext-repo`
+#### Scenario: An identity in the verbatim form
+- **WHEN** a repositories file names `\\?\D:\ext-repo` and the .NET host resolves the same directory given as `D:\ext-repo`
+- **THEN** the two identities compare equal, and a lock the .NET host writes for it holds `D:\ext-repo`
 
 ### Requirement: Selection is a channel or an exact version
 Install and update SHALL take `--channel <channel>` or `--version <semver>`, not both, and default to channel `stable`. `stable` SHALL select only releases without a prerelease label that list `stable`. `preview` and `insiders` SHALL select from all preview channels; `preview/<segment>` only from that one.
@@ -131,7 +131,7 @@ The installer SHALL map the host's runtime identifier to the descriptor target t
 - **THEN** the install fails with `extension.no_matching_artifact` naming `linux-musl-x64`
 
 ### Requirement: Bytes are verified while they are staged
-The installer SHALL copy the selected artifact into a private directory below `tmp/` in Morphir Home, hashing while it copies, refuse more than 256 MiB, and compare the digest with the record. A mismatch SHALL stop the install before the store, catalog, locks, .NET global layer, inventory or pins change. Later steps SHALL use only the staged copy.
+The installer SHALL copy the selected artifact into a private directory below `tmp/` in Morphir Home, hashing while it copies, refuse more than 256 MiB, and compare the digest with the record. A mismatch SHALL stop the install before the store, catalog, locks, inventory or pins change. Later steps SHALL use only the staged copy.
 
 #### Scenario: Substituted artifact
 - **WHEN** the repository file for the selected artifact has bytes whose SHA-256 differs from the record
@@ -216,16 +216,12 @@ The installer SHALL refuse a release or claim set whose `requires.host` comparat
 - **THEN** the command fails with a usage error, exit code 2
 
 ### Requirement: Uninstall removes one selection
-`extension uninstall <id>`, and its alias `extension remove <id>`, SHALL remove the selection of `<id>` at the target level: at the global level the shared catalog entry and lock in one transaction, or the .NET global layer's entry; at another level the pin. An id not selected there SHALL fail with `extension.not_installed`.
+`extension uninstall <id>`, and its alias `extension remove <id>`, SHALL remove the selection of `<id>` at the target level: at the global level the catalog entry and lock in one transaction; at another level the pin. An id not selected there SHALL fail with `extension.not_installed`.
 
-#### Scenario: Global uninstall of a shared entry
-- **WHEN** a user runs `morphir extension uninstall acme-backend` and it is in the shared catalog
+#### Scenario: Global uninstall
+- **WHEN** a user runs `morphir extension uninstall acme-backend`
 - **THEN** the catalog entry and `locks/extensions/acme-backend.json` are removed together
-- **AND** a Rust CLI no longer lists it
-
-#### Scenario: Global uninstall from the .NET layer
-- **WHEN** `acme-backend` is selected by the .NET global layer
-- **THEN** uninstall removes that entry and changes no file below `catalog/` or `locks/`
+- **AND** no other host that reads the catalog lists it
 
 ### Requirement: Installation never uses the network
 No `extension` command SHALL download. An argument that is a URL SHALL be a usage error with exit code 2. `compile`, `generate` and `validate` SHALL NOT install an extension from a repository or a network.
@@ -274,7 +270,7 @@ When the release that an install reads has artifacts whose claim sets differ fro
 - **THEN** the install report on `linux-x64` names that member and `x86_64-pc-windows-msvc`
 
 ### Requirement: Info describes one installed extension
-`extension info <id>` SHALL report the selected record for `<id>`: level, layer, version, runtime, platform, digest, store path, claims, `claimCheck`, `probeSource`, source and selection, and the levels it shadows.
+`extension info <id>` SHALL report the selected record for `<id>`: level, version, runtime, platform, digest, store path, claims, `claimCheck`, `probeSource`, source and selection, and the levels it shadows.
 
 #### Scenario: Info as JSON
 - **WHEN** a user runs `morphir extension info acme-backend --json`
@@ -289,7 +285,7 @@ Provisional pending Q-COMMANDS and Q-DIAG. Every `extension` command SHALL write
 
 #### Scenario: JSON install
 - **WHEN** a user runs `morphir extension install --repository local-dev acme-backend --json`
-- **THEN** stdout parses as one JSON document with `operation` `install`, `extension`, `level`, `layer`, `digest`, `storePath`, `source`, `authentication`, `integrity`, `claimCheck` and `diagnostics`
+- **THEN** stdout parses as one JSON document with `operation` `install`, `extension`, `level`, `digest`, `storePath`, `source`, `authentication`, `integrity`, `claimCheck` and `diagnostics`
 - **AND** the waiting and probe notes are on stderr
 
 #### Scenario: Platform on install
