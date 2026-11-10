@@ -23,7 +23,7 @@ A crafted case names one module that does one wrong thing, the frames to send an
 }
 ```
 
-The kit's case format is Gherkin, so this repository generates a feature from each pinned case. The step wording here is illustrative; the step vocabulary fixes it.
+The parent lets a runner execute the corpus in another form, as long as that form is derived from the JSON and checked against it. The kit's case format is Gherkin, so this repository generates a feature from each pinned case, one scenario per case and per alternative. The step wording here is illustrative; the step vocabulary fixes it.
 
 ```gherkin
 Scenario: wasm-host-0001 classification/unknown-namespace
@@ -38,6 +38,10 @@ Scenario: wasm-host-0001 classification/unknown-namespace
 The runner checks the module's digest, starts `<host> extension worker --module <wasm> --json`, writes the frame, reads stdout and the stderr events, and compares them with the expectation. It knows nothing about the host except its path and arguments, so the same run qualifies the MoonBit host and the .NET host.
 
 No expectation ever comes from a host run. The runner compares; it never records.
+
+At finos/morphir `c0c1096b3` the corpus has 58 cases and 50 modules. 48 cases are for `extism-kernel-v1` and apply to every host; 10 are for `morphir-bytes-v1`.
+
+The generic guest kit is a separate kit with its own runner. Its legacy tier negotiates MEP `0.1`, which this host does not support, so that tier is not run against this host, and a run of its model tier is not reported as a complete run of that kit.
 
 ## ADDED Requirements
 
@@ -93,6 +97,34 @@ The runner SHALL drive a host through a command that answers Content-Length fram
 - **WHEN** a case ends while the worker process is still alive
 - **THEN** the runner stops the worker's whole process tree before the next case starts
 
+### Requirement: A case's worker arguments reach the worker
+The runner SHALL start the worker with each argument the case's `worker` object gives, as the corpus's `worker` convention maps it: `requestBytes` as `--request-bytes`, `responseBytes` as `--response-bytes` and `instructions` as `--instructions`. It SHALL leave out the arguments `worker.omit` names. The generated scenario SHALL state each of these arguments in its own step.
+
+#### Scenario: Small instruction budget
+- **WHEN** the runner runs `bounds/small-budget`, whose `worker` object gives `instructions` 1,000,000
+- **THEN** the worker is started with `--instructions 1000000`
+- **AND** the generated scenario has a step that states that budget, and reading the feature gives the same worker arguments as reading the pinned case
+
+#### Scenario: Case without a worker object
+- **WHEN** a case gives no `worker` object
+- **THEN** the worker is started without `--request-bytes`, `--response-bytes` and `--instructions`, so the contract's defaults apply
+
+### Requirement: Each alternative is its own scenario
+A run with alternatives SHALL be generated as one scenario per alternative, tagged `@requires:` with that alternative's condition. Two scenarios of one case MAY carry the same `@requires:` tags. The runner SHALL record the case as passed when the observation satisfies at least one scenario whose tags match what the host declares, and as failed when it satisfies none of them.
+
+#### Scenario: Two alternatives with the same condition
+- **WHEN** a host that declares the instruction budget enforced runs `bounds/spin-extism`, whose two alternatives for that condition expect `budget-exhausted` before 30 seconds and `call-deadline` between 30 and 32 seconds
+- **THEN** the generated feature has two scenarios with the same id and the same `@requires:` tags, one for each expectation
+- **AND** the case passes when the call ends either way
+
+#### Scenario: No applicable alternative satisfied
+- **WHEN** the same host ends the call with fault `trap`
+- **THEN** neither applicable scenario is satisfied and the case fails
+
+#### Scenario: Alternative for another condition
+- **WHEN** a host that declares the instruction budget enforced runs a case with an alternative for an unenforced budget
+- **THEN** that alternative's scenario does not apply, and its expectation neither passes nor fails the case
+
 ### Requirement: Cases follow the profiles a host declares
 Every case for `extism-kernel-v1` SHALL apply to every host. A case that needs a `morphir-bytes-v1` session SHALL apply only to a host that declares that profile, and SHALL be recorded as `not_applicable` for any other. A host that does not declare the profile SHALL still pass the case that refuses a byte-profile module by name.
 
@@ -113,11 +145,17 @@ The report SHALL record, for each bound, whether the host declared it enforced. 
 - **THEN** the host is not qualified
 
 ### Requirement: A runaway guest is stopped in time
-A case whose module never returns SHALL pass when the host ends the call no later than the profile's call deadline plus the corpus's fixed margin, by the instruction budget or by the deadline. The report SHALL record which bound ended it. A call still running after the margin SHALL fail the case, and the runner SHALL stop the worker.
+A case whose module never returns SHALL pass when the host ends the call no later than the profile's call deadline plus the corpus's fixed margin, by the instruction budget or by the deadline. The report SHALL record which bound ended it. A call still running after the margin SHALL fail the case, and the runner SHALL stop the worker. The case that tests budget exhaustion with a small budget SHALL pass only on `budget-exhausted`.
 
 #### Scenario: Metering host
-- **WHEN** a host that enforces the instruction budget runs the spinning Extism module
-- **THEN** the call ends with fault `budget-exhausted` before 30 seconds and the case passes
+- **WHEN** a host that enforces the instruction budget runs the spinning Extism module under the default budget
+- **THEN** the case passes when the call ends with fault `budget-exhausted` before 30 seconds
+- **AND** it also passes when the call ends with fault `call-deadline` between 30 and 32 seconds, because the budget unit is engine-defined
+
+#### Scenario: Small budget on a metering host
+- **WHEN** a host that enforces the instruction budget runs the spinning Extism module with a budget of 1,000,000 units
+- **THEN** the call ends with fault `budget-exhausted` before 30 seconds
+- **AND** a fault of `call-deadline` fails the case
 
 #### Scenario: Host without metering
 - **WHEN** a host without metering runs the same module
@@ -138,7 +176,7 @@ A report SHALL qualify exactly one host executable on one platform. A release SH
 - **THEN** the release check rejects the citation
 
 ### Requirement: A host does not qualify on crafted cases alone
-A report SHALL record a host as qualified only when it also cites a passing run of the generic guest kit through the same host executable for at least one published `extism-kernel-v1` guest. The citation SHALL hold the digest of that run's report, the host executable's digest and the guest module's digest.
+A report SHALL record a host as qualified only when it also cites a passing run of the generic guest kit through the same host executable for at least one published `extism-kernel-v1` guest. The citation SHALL hold the digest of that run's report, the host executable's digest and the guest module's digest. For this host the cited run covers the kit's model tier only; the citation SHALL record the legacy tier as not run and SHALL NOT present the run as a complete run of the kit.
 
 #### Scenario: Refusals pass but compile fails
 - **WHEN** a host passes every crafted case and the Python guest's compile returns a different IR
