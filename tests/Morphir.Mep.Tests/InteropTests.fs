@@ -76,7 +76,16 @@ static class BadFailure { static void Check(string? text) {
 
         start.WorkingDirectory <- sandbox.Work
         sandbox.Apply start
-        let! (result: ChildProcessResult) = ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0)
+        do! Transcripts.consumerBuild.WaitAsync()
+
+        let! (result: ChildProcessResult) =
+            task {
+                try
+                    return! ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0)
+                finally
+                    Transcripts.consumerBuild.Release() |> ignore
+            }
+
         Expect.notEqual result.ExitCode 0 "Unsafe C# use must not compile"
 
         for file, diagnostic in

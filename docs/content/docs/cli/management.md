@@ -295,9 +295,9 @@ The example leaves out the `morphir.fsharp` entry.
 | `version` | Canonical SemVer 2.0.0. |
 | `description` | Left out when the extension has none. |
 | `types` | MEP extension types: `frontend`, `backend`, `transform`, `validator` or `workspace`. They come from the capabilities. |
-| `delivery` | How the extension is delivered. Now always `built-in`. |
+| `delivery` | How the extension is delivered: `built-in` (compiled into the host) or `wasm` (a WASM module that the host's WASM runtime runs). Every entry listed today is `built-in`: listing configured WASM modules is planned in [issue #565](https://github.com/finos/morphir-dotnet/issues/565). |
 | `hosts` | The hosts that the extension runs in. |
-| `available` | `true` when the extension runs in this host. An extension for the other host is listed with `false`. |
+| `available` | `true` when the extension runs in this host. An extension for the other host is listed with `false`, and so is a `wasm` extension in a host whose WASM runtime is unavailable. |
 | `capabilities.backend` | The MEP backend claim: targets, IR versions in their declared spelling, and `generate`. |
 | `capabilities.validator` | The IR versions that a validator reads, in the spelling of the model readers. This is a morphir-dotnet report member: MEP `0.2.0-draft.1` has no validator capability, so hosts do not write it into MEP messages. |
 

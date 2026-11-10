@@ -35,7 +35,7 @@ public sealed class ExtensionListCommand : Command
             return 2;
         }
 
-        var report = ExtensionListReport.From(catalog);
+        var report = ExtensionListReport.From(catalog, registry.WasmRuntime);
         stdout(json ? report.ToJson() : TerminalTable.Render(
             ["ID", "NAME", "VERSION", "TYPES", "DELIVERY", "HOSTS"],
             report.Extensions.Select(entry => (IReadOnlyList<string>)

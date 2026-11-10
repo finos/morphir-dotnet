@@ -327,6 +327,64 @@ let tests =
                     Expect.equal (failure session) (SessionFailure.ReplyTooLarge(validate, size)) "The session fails"
                     refusesWithoutCall session fake
 
+                testCase "a channel that throws fails the session with its exception"
+                <| fun _ ->
+                    let trap = InvalidOperationException "wasm trap: unreachable"
+
+                    let fake =
+                        FakeGuest(
+                            guest (),
+                            true,
+                            (fun _ reply -> reply),
+                            fun method _ -> if method = validate then raise trap else Task.CompletedTask
+                        )
+
+                    let session = initialized fake
+
+                    match wait (request session) with
+                    | Ok _ -> failtest "A request whose channel throws must fail"
+                    | Error error ->
+                        Expect.equal error.Code -32603 "The request fails with -32603"
+
+                        Expect.stringContains
+                            error.Message
+                            $"The channel failed during {validate}: {trap.Message}"
+                            "The error names the failure"
+
+                    match failure session with
+                    | SessionFailure.ChannelFailed(method, error) ->
+                        Expect.equal method validate "The failure names the method"
+                        Expect.isTrue (obj.ReferenceEquals(error, trap)) "The failure holds the exception that the channel threw"
+                    | other -> failtest $"The session must fail with ChannelFailed, not {other}"
+
+                    refusesWithoutCall session fake
+
+                testCase "a reply that is not a JSON-RPC message fails the session"
+                <| fun _ ->
+                    for returned, code in [ "not json", -32700; """[{"jsonrpc":"2.0","id":1,"result":{}}]""", -32600 ] do
+                        let fake =
+                            FakeGuest(
+                                guest (),
+                                true,
+                                (fun method reply -> if method = validate then bytes returned else reply),
+                                fun _ _ -> Task.CompletedTask
+                            )
+
+                        let session = initialized fake
+
+                        match wait (request session) with
+                        | Ok _ -> failtest $"The reply {returned} must not reach the caller"
+                        | Error error -> Expect.equal error.Code -32603 $"The request fails for {returned}"
+
+                        match failure session with
+                        | SessionFailure.InvalidReply(method, refusal) ->
+                            Expect.equal method validate "The failure names the method"
+                            Expect.equal refusal.Error.Code code $"The refusal of {returned} has the reader's code"
+                            Expect.isNone refusal.Id $"The refusal of {returned} has no id"
+                        | other -> failtest $"The session must fail with InvalidReply for {returned}, not {other}"
+
+                        refusesWithoutCall session fake
+
                 testCase "a single-message guest gets one call at a time"
                 <| fun _ ->
                     let fake =
@@ -481,7 +539,14 @@ static class BadFailure { static void Check(HostSession session) { Console.Write
 
               start.WorkingDirectory <- sandbox.Work
               sandbox.Apply start
-              let result = wait (ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0))
+              Transcripts.consumerBuild.Wait()
+
+              let result =
+                  try
+                      wait (ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0))
+                  finally
+                      Transcripts.consumerBuild.Release() |> ignore
+
               Expect.notEqual result.ExitCode 0 "Unsafe C# use must not compile"
 
               for file, diagnostic in [ "BadReply", "CS8602"; "BadChannel", "CS8625"; "BadFailure", "CS8602" ] do

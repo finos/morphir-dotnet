@@ -56,7 +56,7 @@ Parent tasks 1.1 to 1.4 and 1.6 belong to finos/morphir and are dependencies onl
   - First failing tests: in `tests/Morphir.Mep.Tests`, the scenarios of the `mep-protocol` delta, with a fake single-message guest built on `Dispatcher.DispatchAsync`. Keep the stream constructor of `HostSession`.
   - Republish `tests/Morphir.Mep.AotProbe` and confirm no new IL warning.
   - Design: CHAN-1.
-- [ ] 2.4 Add the engine layer: one engine with fuel and epoch interruption, one store per session, in-memory module reuse by digest, and classification from the validated module against the contract table. Verify the crafted classification cases in-process, including an unknown import named in the refusal, a feature refusal for shared memory and a byte-profile module refused with the profile named.
+- [x] 2.4 Add the engine layer: one engine with fuel and epoch interruption, one store per session, in-memory module reuse by digest, and classification from the validated module against the contract table. Verify the crafted classification cases in-process, including an unknown import named in the refusal, a feature refusal for shared memory and a byte-profile module refused with the profile named.
   - Files: `src/Morphir.Extensions.Wasm/`, `tests/Morphir.Extensions.Wasm.Tests/` (new, TUnit), `src/Morphir.Extensions/Registry.fs` (the `wasm` delivery and its availability rule) with `tests/Morphir.Extensions.Tests`.
   - The classifier reads its import table from the pinned contract file, not from a second copy in code. The `classification/` cases of the pinned corpus are the test data.
   - Specs: `dotnet-wasm-host`, `extension-registry`. Design: REG-1.

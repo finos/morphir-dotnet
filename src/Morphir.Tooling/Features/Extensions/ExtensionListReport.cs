@@ -10,13 +10,14 @@ namespace Morphir.Tooling.Features.Extensions;
 /// </summary>
 public sealed record ExtensionListReport(string Host, IReadOnlyList<ExtensionListEntry> Extensions, IReadOnlyList<ExtensionListDiagnostic>? Diagnostics)
 {
-    public static ExtensionListReport From(ExtensionCatalog catalog) =>
-        new(catalog.Host.Host.WireValue, catalog.Entries.Select(entry => Entry(entry, catalog.Host.Host)).ToArray(), null);
+    /// <summary>The report of the catalog, in a host whose WASM runtime has the availability <paramref name="wasmRuntime"/>.</summary>
+    public static ExtensionListReport From(ExtensionCatalog catalog, WasmRuntimeAvailability wasmRuntime) =>
+        new(catalog.Host.Host.WireValue, catalog.Entries.Select(entry => Entry(entry, catalog.Host.Host, wasmRuntime)).ToArray(), null);
 
     public static ExtensionListReport Failure(HostIdentity host, RegistryError error) =>
         new(host.Host.WireValue, [], error.Diagnostics.Select(diagnostic => new ExtensionListDiagnostic(diagnostic.Code.WireValue, diagnostic.Message)).ToArray());
 
-    private static ExtensionListEntry Entry(ExtensionEntry entry, MorphirHost host)
+    private static ExtensionListEntry Entry(ExtensionEntry entry, MorphirHost host, WasmRuntimeAvailability wasmRuntime)
     {
         var backend = entry.BackendClaimOrNull;
         var validator = entry.ValidatorClaimOrNull;
@@ -28,7 +29,7 @@ public sealed record ExtensionListReport(string Host, IReadOnlyList<ExtensionLis
             entry.Types.Select(type => type.WireValue).ToArray(),
             entry.Delivery.WireValue,
             entry.Hosts.WireValues,
-            entry.IsAvailableIn(host),
+            entry.IsAvailableIn(host, wasmRuntime),
             new ExtensionListCapabilities(backend is null
                 ? null
                 // Generation is the only backend operation in MEP, so a backend claim always generates.

@@ -62,16 +62,87 @@ type HostAvailability =
     /// <summary>The command names of the hosts.</summary>
     override this.ToString() = String.Join(", ", this.WireValues)
 
-/// <summary>How an extension is delivered. Process and WASM deliveries come in later steps.</summary>
+/// <summary>Why the WASM runtime of a host is unavailable, with the reasons of the runtime report.</summary>
+[<RequireQualifiedAccess>]
+type WasmRuntimeUnavailableReason =
+    /// <summary>The engine has no build for this platform.</summary>
+    | PlatformUnsupported
+    /// <summary>The host was built or started without its engine library.</summary>
+    | EngineMissing
+    /// <summary>The engine library is present but did not load.</summary>
+    | EngineLoadFailed
+    /// <summary>The runtime is turned off.</summary>
+    | Disabled
+
+    /// <summary>The text that the runtime report writes.</summary>
+    member this.WireValue =
+        match this with
+        | PlatformUnsupported -> "platform_unsupported"
+        | EngineMissing -> "engine_missing"
+        | EngineLoadFailed -> "engine_load_failed"
+        | Disabled -> "disabled"
+
+    /// <summary>The text that the runtime report writes.</summary>
+    override this.ToString() = this.WireValue
+
+/// <summary>
+/// Whether the WASM runtime of this host can run a module. The caller passes the value of the runtime report of the
+/// same executable, so that the registry and the report cannot disagree. C# reads <c>CanRunModules</c>, builds the
+/// unavailable case with <c>UnavailableBecause</c> and branches with <c>Match</c>.
+/// </summary>
+[<RequireQualifiedAccess>]
+type WasmRuntimeAvailability =
+    /// <summary>The runtime can run a module.</summary>
+    | Available
+    /// <summary>The runtime cannot run a module, for this reason.</summary>
+    | Unavailable of Reason: WasmRuntimeUnavailableReason
+
+    /// <summary>For C# callers: an unavailable runtime with its reason.</summary>
+    static member UnavailableBecause(reason: WasmRuntimeUnavailableReason) = Unavailable reason
+
+    /// <summary>True when the runtime can run a module.</summary>
+    member this.CanRunModules =
+        match this with
+        | Available -> true
+        | Unavailable _ -> false
+
+    /// <summary>For C# code that must branch: one function for each case.</summary>
+    member this.Match<'R>(available: Func<'R>, unavailable: Func<WasmRuntimeUnavailableReason, 'R>) : 'R =
+        match this with
+        | Available -> available.Invoke()
+        | Unavailable reason -> unavailable.Invoke reason
+
+    /// <summary><c>available</c>, or <c>unavailable</c> with the reason.</summary>
+    override this.ToString() =
+        match this with
+        | Available -> "available"
+        | Unavailable reason -> $"unavailable ({reason.WireValue})"
+
+/// <summary>How an extension is delivered. A process delivery comes in a later step.</summary>
 [<RequireQualifiedAccess>]
 type ExtensionDelivery =
     /// <summary>Compiled into the host.</summary>
     | BuiltIn
+    /// <summary>A WASM module that the host's WASM runtime runs.</summary>
+    | Wasm
 
     /// <summary>The text that the CLI writes.</summary>
     member this.WireValue =
         match this with
         | BuiltIn -> "built-in"
+        | Wasm -> "wasm"
+
+    /// <summary>True when an extension of this delivery can run in a host with this WASM runtime.</summary>
+    member this.CanRunWith(wasmRuntime: WasmRuntimeAvailability) =
+        match this with
+        | BuiltIn -> true
+        | Wasm -> wasmRuntime.CanRunModules
+
+    /// <summary>For C# code that must branch: one function for each case.</summary>
+    member this.Match<'R>(builtIn: Func<'R>, wasm: Func<'R>) : 'R =
+        match this with
+        | BuiltIn -> builtIn.Invoke()
+        | Wasm -> wasm.Invoke()
 
     /// <summary>The text that the CLI writes.</summary>
     override this.ToString() = this.WireValue
@@ -295,8 +366,23 @@ type ExtensionEntry =
         this.Capabilities
         |> NonEmptySet.map (fun capability -> capability.Type)
 
-    /// <summary>True when the extension runs in the host.</summary>
-    member this.IsAvailableIn(host: MorphirHost) = this.Hosts.IsAvailableIn host
+    /// <summary>
+    /// True when the extension runs in the host, whose WASM runtime has this availability: the host is one of the
+    /// entry's hosts, and a <c>wasm</c> entry also needs an available runtime. A host lists the entry either way.
+    /// </summary>
+    member this.IsAvailableIn(host: MorphirHost, wasmRuntime: WasmRuntimeAvailability) =
+        this.Hosts.IsAvailableIn host
+        && this.Delivery.CanRunWith wasmRuntime
+
+    /// <summary>
+    /// True when the extension runs in the host without asking a runtime. A <c>wasm</c> entry is never available here;
+    /// use the overload that takes the WASM runtime availability.
+    /// </summary>
+    member this.IsAvailableIn(host: MorphirHost) =
+        this.Hosts.IsAvailableIn host
+        && (match this.Delivery with
+            | ExtensionDelivery.BuiltIn -> true
+            | ExtensionDelivery.Wasm -> false)
 
     /// <summary>For C# callers: the backend claim, or null when the extension is not a backend.</summary>
     member this.BackendClaimOrNull =
@@ -382,6 +468,9 @@ type ExtensionEntry =
 
     /// <summary>For C# callers, which cannot use <c>with</c> on an F# record: the same entry with other hosts.</summary>
     member this.WithHosts(hosts: HostAvailability) = { this with Hosts = hosts }
+
+    /// <summary>For C# callers, which cannot use <c>with</c> on an F# record: the same entry with another delivery.</summary>
+    member this.WithDelivery(delivery: ExtensionDelivery) = { this with Delivery = delivery }
 
     /// <summary>A built-in backend that runs in both hosts.</summary>
     static member BuiltInBackend
