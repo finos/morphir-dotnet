@@ -29,7 +29,7 @@ namespace Morphir.Extensions.Wasm.Tests;
 /// </remarks>
 public class SandboxCorpusTests
 {
-    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 48d10706f (MepWasmFixtures.PinnedCommit).
+    // Counted in spec/mep/mck/wasm-host.cases.json at finos/morphir 8d678d2b (MepWasmFixtures.PinnedCommit).
     // Change it only when the pin moves.
     private const int PinnedSandboxCaseCount = 16;
 

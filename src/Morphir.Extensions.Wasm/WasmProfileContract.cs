@@ -123,6 +123,16 @@ public sealed class WasmProfileContract
     public static IReadOnlyList<string> ClassificationOrder { get; } =
         ["profile", "imports", "handle-export", "declared-abi", "host-runs-profile"];
 
+    /// <summary>
+    /// The memory rules this library applies, which the contract's <c>memory</c> must give, in this order: a trap at
+    /// the ceiling is <c>memory-limit</c> (<c>at-ceiling</c>, in <see cref="SessionStore"/>); every other end keeps its
+    /// own result (<c>guest-reported</c>); a host that observes refused growth may report more, which this host cannot
+    /// observe (<c>observed-refusal</c>); and an initial memory above the ceiling fails before any request
+    /// (<c>initial-above-ceiling</c>).
+    /// </summary>
+    public static IReadOnlyList<string> MemoryRules { get; } =
+        ["at-ceiling", "guest-reported", "observed-refusal", "initial-above-ceiling"];
+
     /// <summary>The number of functions of WASI preview 1, whose signatures the engine's own definitions give.</summary>
     const int WasiPreview1Functions = 46;
 
@@ -189,6 +199,12 @@ public sealed class WasmProfileContract
         {
             // One store limit applies to every memory of a session, the kernel's included.
             throw Invalid($"its kernel memory ceiling {kernelCeiling} differs from the memory ceiling {memoryCeiling}, which one store limit cannot apply");
+        }
+
+        var memoryRules = root.GetProperty("memory").EnumerateArray().Select(rule => rule.GetProperty("id").GetString()).ToArray();
+        if (!memoryRules.SequenceEqual(MemoryRules))
+        {
+            throw Invalid($"its memory rules are {string.Join(", ", memoryRules)}, and this library applies {string.Join(", ", MemoryRules)}");
         }
 
         var budgets = bounds.GetProperty("instructionBudget");

@@ -285,16 +285,17 @@ public sealed class SessionStore : IDisposable
 
     /// <summary>
     /// Finishes the session with a failure. The memory rule (contract <c>at-ceiling</c>, parent decision BND-2): a
-    /// call that ends in a trap or a failure while the guest's memory or the kernel's is at its ceiling
-    /// (<see cref="MemoryUse.AtCeiling"/>) becomes <see cref="GuestFailureKind.MemoryLimit"/>. A call the host
-    /// stopped keeps its result: an exhausted budget, the deadline and a cancellation, since the host knows why the
-    /// call ended.
+    /// call that ends in a trap while the guest's memory or the kernel's is at its ceiling
+    /// (<see cref="MemoryUse.AtCeiling"/>) becomes <see cref="GuestFailureKind.MemoryLimit"/>; a trap carries no
+    /// cause, so the host infers one from the memory. Every other end keeps its result, also at the ceiling (contract
+    /// <c>guest-reported</c>): a failure, such as a <c>proc_exit</c> with a code that is not 0 or a host function that
+    /// stops the call, and a call the host stopped for the budget, the deadline or a cancellation.
     /// </summary>
     HandleOutcome.Failed Fail(GuestFailureKind signal, string detail)
     {
         callClock.Stop();
         var memory = Memory;
-        var kind = signal is GuestFailureKind.GuestTrap or GuestFailureKind.IncompleteSession && memory.AtCeiling
+        var kind = signal is GuestFailureKind.GuestTrap && memory.AtCeiling
             ? GuestFailureKind.MemoryLimit
             : signal;
         var failure = new GuestFailure(kind, signal, detail, memory, FuelUsed, callClock.Elapsed);
