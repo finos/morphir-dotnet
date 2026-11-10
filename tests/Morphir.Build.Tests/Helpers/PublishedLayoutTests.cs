@@ -3,6 +3,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Morphir.Build.Helpers;
+using Morphir.TestSupport;
 using TUnit.Core;
 
 namespace Morphir.Build.Tests.Helpers;
@@ -99,9 +100,14 @@ public class PublishedLayoutTests
     private static ReleaseArtifact Artifact(Deployment deployment, string? rid) =>
         ((ArtifactResolution.Defined)ReleaseArtifacts.Resolve(deployment, rid, "1.2.3")).Artifact;
 
+    /// <summary>A publish folder inside a <see cref="TestSandbox"/>, which cleans up with TolerantDirectory.</summary>
     private sealed class Folder : IDisposable
     {
-        public string Root { get; } = Directory.CreateTempSubdirectory("morphir-published-layout-").FullName;
+        private readonly TestSandbox _sandbox = TestSandbox.Create("morphir-published-layout-");
+
+        public Folder() => Root = Directory.CreateDirectory(_sandbox.PathOf("publish")).FullName;
+
+        public string Root { get; }
 
         public string Path(string name) => System.IO.Path.Combine(Root, name);
 
@@ -116,6 +122,6 @@ public class PublishedLayoutTests
             return File.WriteAllTextAsync(Path("morphir.runtimeconfig.json"), json);
         }
 
-        public void Dispose() => Directory.Delete(Root, true);
+        public void Dispose() => _sandbox.Dispose();
     }
 }
