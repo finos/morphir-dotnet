@@ -287,6 +287,51 @@ module RecipeBindings =
         | Some artifact when artifact.Sha256 <> binding.Sha256 -> trust TrustCode.TargetDigestMismatch (owner.Child "artifactSha256")
         | Some artifact -> Ok artifact
 
+    /// The provider's model tuple as the parsed value a claim set lists.
+    let private tupleValue (tuple: ModelTuple) =
+        Value.Object
+            [ "operation", Value.String(ModelOperation.text tuple.Operation)
+              "profile", Value.String tuple.Profile.Text
+              "codec", Value.String tuple.Codec.Text
+              "envelopeVersion", Value.String tuple.EnvelopeVersion.Text
+              "irVersion", Value.String tuple.IrVersion.Text ]
+
+    /// Equal as parsed values: object member order does not matter, array order and number spelling do.
+    let private sameValue (a: Value) (b: Value) =
+        match Canonical.bytes a, Canonical.bytes b with
+        | Ok x, Ok y -> x = y
+        | _ -> false
+
+    /// <summary>The claim rows of one artifact's claims, in the page's order: the capability kind
+    /// (<c>frontend</c> for <c>compile</c>, <c>backend</c> for <c>generate</c>), the provider's MEP version in
+    /// <c>protocolVersions</c> (exact text), the language or target (<c>compile</c> or <c>generate</c> is
+    /// <c>true</c> and the operand is listed), and the provider's <c>modelTuple</c> exactly among
+    /// <c>modelTransport.tuples</c>. These are what the publisher claims; checking them is not a probe.</summary>
+    let private capabilities (at: DocumentPath) (provider: RecipeProvider) (claims: ClaimSet) : Result<unit, TargetRefusal> =
+        let mismatch (name: string) = trust TrustCode.ReleaseDescriptorMismatch (at.Child name)
+
+        let kind =
+            match provider.Operation with
+            | Operation.Compile _ -> CapabilityKind.Frontend
+            | Operation.Generate _ -> CapabilityKind.Backend
+
+        if not (List.contains kind claims.Extension.Types) then
+            mismatch "operation"
+        elif not (List.contains (ProtocolVersion.text provider.Protocol.Version) claims.ProtocolVersions) then
+            mismatch "protocolVersion"
+        else
+            let operand =
+                match provider.Operation with
+                | Operation.Compile language ->
+                    "language", claims.Frontend |> Option.exists (fun f -> f.Compile && List.contains language.Text f.Languages)
+                | Operation.Generate target ->
+                    "target", claims.Backend |> Option.exists (fun b -> b.Generate && List.contains target.Text b.Targets)
+
+            match operand with
+            | name, false -> mismatch name
+            | _ when not (claims.ModelTuples |> List.exists (sameValue (tupleValue provider.Protocol.Tuple))) -> mismatch "modelTuple"
+            | _ -> Ok()
+
     let private claimsOf (artifact: DescribedArtifact) =
         { Claims = artifact.Claims
           ClaimCheck = artifact.ClaimCheck }
@@ -316,12 +361,14 @@ module RecipeBindings =
                     if artifact.Platform <> Some(targetTriple platform) then
                         return! trust TrustCode.ArtifactPlatformMismatch (owner.Child "artifactTarget")
 
+                    do! capabilities at provider artifact.Claims
                     return digest, [ claimsOf artifact ]
                 })
         | RecipeDelivery.Wasm(_, binding) ->
             result {
                 let! _, digest = bound repository targets at "artifactTarget" "artifactSha256" binding
                 let! artifact = listedArtifact release descriptorTarget ArtifactRuntime.Wasm binding at
+                do! capabilities at provider artifact.Claims
                 return [ digest, [ claimsOf artifact ] ]
             }
         | RecipeDelivery.DotnetTool package ->
@@ -329,6 +376,8 @@ module RecipeBindings =
                 let! _, digest =
                     bound repository targets at "packageTarget" "packageSha256" { Target = package.Target; Sha256 = package.Sha256 }
 
+                // The version 2 descriptor has no runtime for .NET tool packages: every artifact's claims describe it.
+                do! release.Artifacts |> Result.traverse (fun artifact -> capabilities at provider artifact.Claims) |> Result.map ignore
                 return [ digest, release.Artifacts |> List.map claimsOf ]
             }
 

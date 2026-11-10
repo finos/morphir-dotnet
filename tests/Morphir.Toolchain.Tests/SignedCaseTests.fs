@@ -60,20 +60,14 @@ let ranRecipeRules =
           "provider-artifact-listed"
           "provider-artifact-runtime"
           "provider-artifact-digest-listed"
-          "provider-artifact-platform" ]
+          "provider-artifact-platform"
+          "provider-claims-kind"
+          "provider-claims-protocol"
+          "provider-claims-operand"
+          "provider-claims-model" ]
 
-let private bindingRows =
-    "a host or provider binding row after the provider repository row; the host release and extension descriptor readers and the claims checks are task 4.3 and not implemented in this slice"
-
-/// Recipe check rules this suite does not run, each with its reason.
-let skippedRecipeRules =
-    [ for rule in
-          [ "provider-claims-kind"
-            "provider-claims-protocol"
-            "provider-claims-operand"
-            "provider-claims-model" ] ->
-          rule, bindingRows ]
-    |> Map.ofList
+/// Recipe check rules this suite does not run, each with its reason. Every rule of the three tables is run.
+let skippedRecipeRules: Map<string, string> = Map.empty
 
 /// Trust operations, and the check-recipe rules, that this suite does not run, with their reasons.
 let skippedTrust =
