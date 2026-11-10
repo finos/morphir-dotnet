@@ -25,12 +25,12 @@ let tests =
                 Value.Object
                     [ "a", Value.Number "1"
                       "a!", Value.Number "2"
-                      "é", Value.Number "3"
-                      "ｶ", Value.Number "4"
+                      "e\u0301", Value.Number "3"
+                      "\uFF76", Value.Number "4"
                       "\U0001D11E", Value.Number "5"
                       "Z", Value.Number "6" ]
 
-            Expect.equal (canonical value) "{\"Z\":6,\"a!\":2,\"a\":1,\"é\":3,\"ｶ\":4,\"\U0001D11E\":5}" "byte order with quotes")
+            Expect.equal (canonical value) "{\"Z\":6,\"a!\":2,\"a\":1,\"\u00E9\":3,\"\uFF76\":4,\"\U0001D11E\":5}" "byte order with quotes")
 
         testCase "only the quotation mark and the backslash are escaped" (fun () ->
             let value = Value.String "<>&+' \"\\ line\nfeed \t tab"
@@ -38,7 +38,7 @@ let tests =
 
         testCase "strings are written in NFC" (fun () ->
             let bytes =
-                match Canonical.bytes (Value.String "é") with
+                match Canonical.bytes (Value.String "e\u0301") with
                 | Ok bytes -> bytes
                 | Error _ -> failtest "refused"
 

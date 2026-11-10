@@ -161,26 +161,24 @@ module SemVer =
         else
             Error ReaderCode.InvalidValue
 
-/// <summary>The contract versions a reader supports, as SemVer requirements. A <c>0.1.0-draft.1</c> reader lists
-/// exactly <c>=0.1.0-draft.1</c>.</summary>
+/// <summary>The contract version a reader supports. A <c>0.1.0-draft.1</c> reader supports exactly that text: the
+/// schemas say <c>"const": "0.1.0-draft.1"</c>, so even build metadata, which SemVer precedence ignores, makes another
+/// version.</summary>
 module ContractVersion =
     /// The one draft this reader supports.
     let current = "0.1.0-draft.1"
 
-    let private supported = SemVersionRange.ParseNpm("=" + current)
-
-    /// <c>invalid_value</c> for text that is not SemVer, <c>unsupported_contract_version</c> for a version outside the
-    /// supported requirements.
+    /// <c>invalid_value</c> for text that is not strict SemVer, <c>unsupported_contract_version</c> for any other
+    /// version.
     let check (text: string) =
         let mutable version = Unchecked.defaultof<SemVersion>
 
         if not (SemVersion.TryParse(text, SemVersionStyles.Strict, &version)) then
             Error ReaderCode.InvalidValue
-        elif supported.Contains version then
+        elif String.Equals(text, current, StringComparison.Ordinal) then
             Ok()
         else
             Error ReaderCode.UnsupportedContractVersion
-
 /// One SemVer comparator, such as <c>&gt;=10.0.0</c>, parsed by the Semver library's npm range syntax.
 [<CustomEquality; NoComparison>]
 type Comparator =
@@ -339,7 +337,7 @@ module TargetPath =
     /// The target path, or <c>non_portable_path</c>.
     let tryParse (text: string) =
         let hasForbiddenCharacter =
-            text |> Seq.exists (fun c -> c <= '\u001F' || c = ' ' || c = ' ')
+            text |> Seq.exists (fun c -> c <= '\u001F' || c = '\u2028' || c = '\u2029')
 
         if
             text.Length > 0

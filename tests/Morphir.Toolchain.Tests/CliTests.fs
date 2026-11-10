@@ -213,7 +213,7 @@ let tests =
             // build/Build.MyriadJson.cs TestMorphirupAot runs this command under JIT and Native AOT with --expect-plan.
             let probe = Path.Combine(__SOURCE_DIRECTORY__, "AotProbe")
             let recipe = File.ReadAllBytes(Path.Combine(probe, "recipe.json"))
-            let decomposed = Encoding.UTF8.GetBytes "café"
+            let decomposed = Encoding.UTF8.GetBytes "cafe\u0301"
             Expect.isTrue ((ReadOnlySpan recipe).IndexOf(ReadOnlySpan decomposed) >= 0) "the recipe holds a decomposed é"
 
             let run =
@@ -240,7 +240,7 @@ let tests =
             match (readResult run).Plan with
             | Some digested ->
                 let canonical = ReadOnlySpan digested.Canonical
-                Expect.isTrue (canonical.IndexOf(ReadOnlySpan(Encoding.UTF8.GetBytes "café")) >= 0) "NFC in the canonical bytes"
+                Expect.isTrue (canonical.IndexOf(ReadOnlySpan(Encoding.UTF8.GetBytes "caf\u00E9")) >= 0) "NFC in the canonical bytes"
                 Expect.isTrue (canonical.IndexOf(ReadOnlySpan decomposed) < 0) "no decomposed form in the canonical bytes"
             | None -> failtest "no plan")
 

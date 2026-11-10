@@ -172,7 +172,7 @@ module internal Reading =
                     return! refuse ReaderCode.InconsistentDocument critical.Path
 
                 match entries |> List.tryFind (understood.Contains >> not) with
-                | Some unknown -> return! refuse ReaderCode.UnsupportedCriticalMember (DocumentPath.ofDotted unknown)
+                | Some unknown -> return! refuse ReaderCode.UnsupportedCriticalMember (DocumentPath.verbatim unknown)
                 | None -> ()
 
             match firstCredential DocumentPath.root root with

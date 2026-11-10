@@ -87,15 +87,26 @@ type Mirror =
         text
 
 module Mirror =
-    /// <c>invalid_value</c> for text that is not an absolute URL, <c>credential_in_document</c> for a URL with user
-    /// information, a query or a fragment.
-    let tryParse (text: string) =
-        match Uri.TryCreate(text, UriKind.Absolute) with
-        | true, NonNull uri when uri.UserInfo <> "" || uri.Query <> "" || uri.Fragment <> "" ->
-            Error ReaderCode.CredentialInDocument
-        | true, NonNull _ -> Ok(Mirror text)
-        | _ -> Error ReaderCode.InvalidValue
+    /// <summary>The schemes a mirror may use. The tool release metadata v1 page requires HTTPS for public mirrors and
+    /// leaves other mirrors to transport configuration, so <c>http</c> is admitted too; which schemes a result may
+    /// report is a contract gap. The scheme must be written out: a bare path such as <c>/srv/mirror</c>, which .NET reads
+    /// as an implicit <c>file:</c> URI on Linux and macOS only, is refused on every operating system.</summary>
+    let schemes = [ "https"; "http" ]
 
+    /// <c>invalid_value</c> for text that is not an absolute <c>http</c> or <c>https</c> URL with a host,
+    /// <c>credential_in_document</c> for one with user information, a query or a fragment.
+    let tryParse (text: string) =
+        let written =
+            schemes
+            |> List.exists (fun scheme -> text.StartsWith(scheme + "://", StringComparison.OrdinalIgnoreCase))
+
+        match Uri.TryCreate(text, UriKind.Absolute) with
+        | true, NonNull uri when written && List.contains uri.Scheme schemes && uri.Host <> "" ->
+            if uri.UserInfo <> "" || uri.Query <> "" || uri.Fragment <> "" then
+                Error ReaderCode.CredentialInDocument
+            else
+                Ok(Mirror text)
+        | _ -> Error ReaderCode.InvalidValue
 /// A readiness check kind.
 [<RequireQualifiedAccess>]
 type CheckKind =
@@ -453,7 +464,7 @@ module ResultDocument =
                     result {
                         let! document = required "document" (tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))) o
                         let! path = required "path" text o
-                        return DiagnosticDetail.UnsupportedContract(readerCode, document, DocumentPath.ofDotted path)
+                        return DiagnosticDetail.UnsupportedContract(readerCode, document, DocumentPath.verbatim path)
                     }
                 | Code.GenerationNotInstalled ->
                     required "source" selectionSource o |> Result.map DiagnosticDetail.SelectionUnavailable
@@ -475,7 +486,7 @@ module ResultDocument =
                             | BindingCode.ReceiptLockMismatch, None -> Ok BindingProblem.ReceiptLockMismatch
                             | BindingCode.LockRecipeMismatch, None -> Ok BindingProblem.LockRecipeMismatch
 
-                        return DiagnosticDetail.LockBinding(problem, DocumentPath.ofDotted path)
+                        return DiagnosticDetail.LockBinding(problem, DocumentPath.verbatim path)
                     }
 
             return

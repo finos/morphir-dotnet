@@ -110,8 +110,8 @@ let tests =
             Expect.equal (ContractVersion.check "0.1.0-draft.2") (Error ReaderCode.UnsupportedContractVersion) "a later draft"
             Expect.equal (ContractVersion.check "0.1.0") (Error ReaderCode.UnsupportedContractVersion) "the release"
             Expect.equal (ContractVersion.check "0.1") (Error ReaderCode.InvalidValue) "not SemVer"
-            // SemVer precedence ignores build metadata, so the requirement admits it. See the report's contract notes.
-            Expect.equal (ContractVersion.check "0.1.0-draft.1+meta") (Ok()) "build metadata")
+            // The schemas say "const": "0.1.0-draft.1": build metadata is another text, so it is refused.
+            Expect.equal (ContractVersion.check "0.1.0-draft.1+meta") (Error ReaderCode.UnsupportedContractVersion) "build metadata")
 
         testCase "comparators are single SemVer comparators" (fun () ->
             for valid in [ ">=10.0.0"; "<11.0.0"; ">=2.28.0"; "=1.2.3"; "^1.2"; "~1.2.3"; "10" ] do
@@ -125,7 +125,7 @@ let tests =
                 Expect.isTrue (Reading.isCredential name) name
 
             // U+0131 LATIN SMALL LETTER DOTLESS I upper-cases to I, but it is not an ASCII letter.
-            for name in [ "authorızation"; "tokens"; "secretary"; "apikeys" ] do
+            for name in [ "author\u0131zation"; "tokens"; "secretary"; "apikeys" ] do
                 Expect.isFalse (Reading.isCredential name) name)
 
         testCase "channels follow tool release metadata v1" (fun () ->

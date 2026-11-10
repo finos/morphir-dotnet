@@ -63,12 +63,11 @@ module DocumentPath =
     /// The document itself.
     let root = DocumentPath []
 
-    /// A path written as dotted member names, such as a <c>critical</c> entry. It renders exactly as written.
-    let ofDotted (text: string) =
-        if String.IsNullOrEmpty text then
-            root
-        else
-            text.Split('.') |> Array.fold (fun (path: DocumentPath) name -> path.Child name) root
+    /// <summary>A path exactly as a document writes it, such as a <c>critical</c> entry or a result's <c>path</c>
+    /// member. It is one segment, never split at dots, so it renders as written: <c>.host</c> stays <c>.host</c>.
+    /// </summary>
+    let verbatim (text: string) =
+        if String.IsNullOrEmpty text then root else root.Child text
 
     /// The rendered text.
     let render (path: DocumentPath) = path.ToString()
