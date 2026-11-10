@@ -228,7 +228,10 @@ dotnet-morphir compile ...
 dotnet-morphir generate --input <out root>/compile.dest/morphir-ir.json --target <id> --output <directory>
 ```
 
-Both give the same files with the same bytes, and both reports name the same backend. Classic IR versions
+Both give the same files with the same bytes, and both reports name the same backend, as long as the project
+configuration selects no backend extension. `compile --target` always runs the built-in backend of the target
+and does not read `[codegen.<target>].extension`; when that key is set, the command prints a note on stderr,
+and only `morphir generate` runs the extension. Classic IR versions
 (`1`, `2` and `3`) give a classic model, and the backend uses its classic path.
 
 - Generation does not run when the compile fails.

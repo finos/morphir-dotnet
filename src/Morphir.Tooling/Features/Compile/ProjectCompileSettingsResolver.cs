@@ -199,6 +199,11 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         if (extension is not null && string.IsNullOrWhiteSpace(extension.Value))
             Error(CompileCodes.InvalidSetting, $"The frontend extension from {Describe(extension.Origin)} is empty.");
 
+        // A backend extension of the requested target, which compile --target does not run (only generate does).
+        var ignoredBackend = overrides.Target?.Target is RequestedTarget.Valid requestedTarget
+            ? config.String($"codegen.{requestedTarget.Id.Value}.extension")
+            : null;
+
         // Sources (SRC-1): --project-file, --input, the configured project file, the source directory.
         var unread = ImmutableArray<string>.Empty;
         SourceRequest? sources = null;
@@ -253,6 +258,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Extension = extension,
             Sources = sources,
             UnreadProjectFileKeys = unread,
+            IgnoredBackendExtension = ignoredBackend,
             ProjectRoot = loaded.ProjectRoot,
             OutRoot = place.OutRoot,
             Member = place.Member,

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `morphir generate --input` now loads the project configuration (from `--project`, `--config` or discovery) to read `[codegen.<target>].extension` when `--extension` is absent. With `--project` or `--config`, a configuration that fails to load fails the command with exit code 2. With neither, a discovered configuration that does not load is a warning on stderr and the built-in backend runs, as before
+- `compile --target` does not run a backend extension: it runs the built-in backend of the target, as before. When the project configuration sets `[codegen.<target>].extension` for that target, it now prints a note on stderr saying so
 - `dotnet-morphir` runs the shared command layer with the managed composition and no longer references the AOT-compatible `morphir` project, so the tool package no longer contains `morphir.dll`. Its commands and its F# frontend are unchanged
 - Build: `src/Morphir.Managed` fails to build with `PublishAot` or `PublishTrimmed`, and a project whose references resolve two different `morphir.dll` assemblies (`src/Morphir` and `src/Morphir.Managed`) fails to build
 

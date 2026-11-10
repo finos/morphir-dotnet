@@ -88,7 +88,8 @@ deferred.
 
 A backend extension is a guest process that speaks the Morphir Extension Protocol (MEP) `0.2.0-draft.1`
 over stdio and serves `morphir.backend.generateModel`. Select one with `--extension`, or with
-`[codegen.<target>].extension` in the project configuration. The option overrides the key. Without either,
+`[codegen.<target>].extension` in the project configuration. The option overrides the key. `compile --target`
+does not read the key: it runs the built-in backend and prints a note on stderr when the key is set. Without either,
 the built-in backend of the target runs, as before. The F# generator is available as the guest
 `morphir-fsharp-backend`; see [F# generation]({{< relref "/docs/backends/fsharp" >}}).
 
