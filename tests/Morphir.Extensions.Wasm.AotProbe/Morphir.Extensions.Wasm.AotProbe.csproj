@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The kernel proof of the add-wasm-extension-host change (task 2.2, design KPF-1): the embedded
+    Extism kernel and a published Extism guest in one Wasmtime store, under Native AOT.
+    Publish with: dotnet publish -c Release -r <rid> -p:MorphirProbeAot=true
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PublishAot Condition="'$(MorphirProbeAot)' == 'true'">true</PublishAot>
+    <StripSymbols Condition="'$(MorphirProbeAot)' == 'true'">true</StripSymbols>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Morphir.Extensions.Wasm/Morphir.Extensions.Wasm.csproj" />
+  </ItemGroup>
+</Project>

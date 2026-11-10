@@ -29,6 +29,7 @@
     <Project Path="src/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj" />
     <Project Path="src/Morphir.Myriad.SystemTextJson.Build/Morphir.Myriad.SystemTextJson.Build.csproj" />
     <Project Path="src/Morphir.Extensions/Morphir.Extensions.fsproj" />
+    <Project Path="src/Morphir.Extensions.Wasm/Morphir.Extensions.Wasm.csproj" />
     <Project Path="src/Morphir.Analyzers/Morphir.Analyzers.fsproj" />
     <Project Path="src/Morphir.Mep/Morphir.Mep.fsproj" />
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
@@ -82,6 +83,7 @@
     <Project Path="tests/Morphir.Analyzers.Tests/Morphir.Analyzers.Tests.fsproj" />
     <Project Path="tests/Morphir.Mep.Tests/Morphir.Mep.Tests.fsproj" />
     <Project Path="tests/Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" />
+    <Project Path="tests/Morphir.Extensions.Wasm.AotProbe/Morphir.Extensions.Wasm.AotProbe.csproj" />
     <Project Path="tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj" />
     <Project Path="tests/Morphir.TestSupport/Morphir.TestSupport.csproj" />
     <Project Path="tests/Morphir.TestSupport.Tests/Morphir.TestSupport.Tests.csproj" />
