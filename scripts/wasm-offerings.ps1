@@ -264,7 +264,8 @@ foreach ($offering in $Offerings) {
 
 $all | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $WorkDirectory 'results.json')
 $failed = @($all | Where-Object { $_.failures.Count -gt 0 } | ForEach-Object { "$($_.platform) $($_.offering): $($_.failures -join '; ')" })
-$failed | Set-Content (Join-Path $WorkDirectory 'failed.txt')
+# Written even when empty: the workflow's last step reads it and treats a missing file as a script that did not finish.
+[System.IO.File]::WriteAllLines((Join-Path $WorkDirectory 'failed.txt'), [string[]]$failed)
 
 function Format-Count($value) { $null -eq $value ? '' : ([long]$value).ToString('N0', [System.Globalization.CultureInfo]::InvariantCulture) }
 $rows = foreach ($item in $all) {
