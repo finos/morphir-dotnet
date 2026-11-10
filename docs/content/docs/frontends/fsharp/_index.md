@@ -115,8 +115,10 @@ The same guest also has a self-contained folder delivery that carries its own
 .NET runtime, for machines without .NET. See
 [Compile without .NET installed]({{< relref "/docs/getting-started/compile-fsharp#compile-without-net-installed" >}}).
 Both deliveries compile with the same references (the .NET framework,
-FSharp.Core and `Morphir.FSharp.Annotations`), so they give the same IR and
-diagnostics.
+FSharp.Core and `Morphir.FSharp.Annotations`), so at the same .NET runtime
+version they give the same IR and diagnostics. The model revision names the
+frontend identity, which includes the runtime version, so it is equal only on
+the same runtime patch.
 
 The guest speaks only MEP `0.2.0-draft.1`, over stdio with `Content-Length`
 framing. It serves `morphir.frontend.compileModel` and claims:
