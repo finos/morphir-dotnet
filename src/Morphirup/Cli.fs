@@ -510,7 +510,12 @@ let private doctor (io: Io) (args: string list) : Result<int, Usage> =
             | Some file -> Ok(Path.GetFullPath(file, io.CurrentDirectory))
             | None -> discover io options
 
-        let requestBytes = request |> Result.bind (readFile io Limits.request)
+        // A request given on the command line is read by the path as written, so that the reader sees a path written
+        // as a Windows device and refuses it by name on every system. The full path is only for finding the lock.
+        let requestBytes =
+            match options.TryGet "--request" with
+            | Some file -> readFile io Limits.request file
+            | None -> request |> Result.bind (readFile io Limits.request)
 
         let lockBytes =
             match options.TryGet "--lock" with
