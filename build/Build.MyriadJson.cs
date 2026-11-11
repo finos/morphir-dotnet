@@ -66,7 +66,7 @@ partial class Build
             throw new Exception($"The probe did not build:{Environment.NewLine}{buildLog}");
         }
 
-        var jitDll = project.Parent / "bin" / configuration / "net10.0" / $"{name}.dll";
+        var jitDll = project.Parent / "bin" / configuration / CurrentTargetFramework / $"{name}.dll";
         var (jitExit, jitOutput) = Capture("dotnet", ["exec", jitDll, .. arguments]);
         if (jitExit != 0)
         {

@@ -151,7 +151,7 @@ jobs:
                   name: aot-test-results-${{ github.event.inputs.platform }}
                   path: |
                       **/TestResults/**/*
-                      tests/**/bin/${{ env.CONFIGURATION }}/net10.0/*.dll
+                      tests/**/bin/${{ env.CONFIGURATION }}/net11.0/*.dll
                   retention-days: 7
 
             - name: Upload executables (on failure)

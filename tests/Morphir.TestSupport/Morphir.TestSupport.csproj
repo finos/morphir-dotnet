@@ -3,7 +3,7 @@
   <!-- Shared, framework-neutral test infrastructure: sandboxes, child processes and cleanup.
        Never packed or shipped. -->
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>

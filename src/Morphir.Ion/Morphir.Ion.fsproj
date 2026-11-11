@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.Ion</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <Description>Reads Morphir's Amazon Ion formats: the Ion IR format and the MEP morphir_model document</Description>

@@ -178,5 +178,5 @@ jobs:
                   name: test-results-${{ matrix.rid }}
                   path: |
                       **/TestResults/**/*
-                      tests/**/bin/${{ env.CONFIGURATION }}/net10.0/*.dll
+                      tests/**/bin/${{ env.CONFIGURATION }}/net11.0/*.dll
                   retention-days: 7

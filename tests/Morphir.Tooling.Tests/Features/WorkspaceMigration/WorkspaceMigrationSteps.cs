@@ -230,7 +230,7 @@ public sealed class WorkspaceMigrationSteps : IDisposable
             _targets[path] = (File.ReadAllBytes(path), File.GetLastWriteTimeUtc(path));
         var repo = Repo();
         var configuration = GetType().Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo, "src", "Morphir", "bin", configuration, "net10.0", "morphir.dll");
+        var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo, "src", "Morphir", "bin", configuration, "net11.0", "morphir.dll");
         var dll = cli.EndsWith(".dll", StringComparison.Ordinal);
         var info = new ProcessStartInfo(dll ? "dotnet" : cli)
         {

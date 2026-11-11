@@ -19,13 +19,13 @@ public class PackageStructureTests
         var entries = TestFixture.GetPackageEntries(package!);
 
         // Assert - Tool packages must have tools/ directory structure
-        entries.Should().Contain(e => e.StartsWith("tools/net10.0/any/"),
-            "Tool package must have tools/net10.0/any/ directory");
+        entries.Should().Contain(e => e.StartsWith("tools/net11.0/any/"),
+            "Tool package must have tools/net11.0/any/ directory");
 
         // Check for required tool files
-        entries.Should().Contain("tools/net10.0/any/dotnet-morphir.dll",
+        entries.Should().Contain("tools/net11.0/any/dotnet-morphir.dll",
             "Tool package must contain dotnet-morphir.dll in tools directory");
-        entries.Should().Contain("tools/net10.0/any/DotnetToolSettings.xml",
+        entries.Should().Contain("tools/net11.0/any/DotnetToolSettings.xml",
             "Tool package must contain DotnetToolSettings.xml");
 
         // Check for required dependencies
@@ -47,7 +47,7 @@ public class PackageStructureTests
 
         // DEP-1: dotnet-morphir runs the shared command layer with the managed composition and its F# frontend.
         foreach (var assembly in new[] { "Morphir.Tooling.Managed.dll", "Morphir.Frontend.FSharp.dll", "FSharp.Compiler.Service.dll" })
-            entries.Should().Contain($"tools/net10.0/any/{assembly}", $"the tool package ships {assembly}");
+            entries.Should().Contain($"tools/net11.0/any/{assembly}", $"the tool package ships {assembly}");
 
         // It no longer references the AOT-compatible entry point, so it ships no morphir.dll.
         entries.Should().NotContain(entry => string.Equals(Path.GetFileName(entry), "morphir.dll", StringComparison.OrdinalIgnoreCase),
@@ -64,7 +64,7 @@ public class PackageStructureTests
         package.Should().NotBeNull("Tool package should exist after build");
 
         // Act
-        var toolSettings = await TestFixture.ReadPackageEntry(package!, "tools/net10.0/any/DotnetToolSettings.xml");
+        var toolSettings = await TestFixture.ReadPackageEntry(package!, "tools/net11.0/any/DotnetToolSettings.xml");
 
         // Assert
         toolSettings.Should().Contain("<Command Name=\"dotnet-morphir\"",

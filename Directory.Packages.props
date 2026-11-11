@@ -57,7 +57,9 @@
     <PackageVersion Include="Oakton" Version="6.3.0" />
     <PackageVersion Include="Packaging.Targets" Version="0.1.232" PrivateAssets="All" />
     <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)" />
-    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.11.0" />
+    <!-- The MSBuild tasks target MorphirHostedTargetFramework (net10.0) and load into the MSBuild of the .NET 10 SDK.
+         Microsoft.Build.* 18.1 and later ship only net11.0 and net472 assets, so keep the 18.0 line of the .NET 10 SDK. -->
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
     <PackageVersion Include="altcover" Version="8.9.3" />
     <PackageVersion Include="System.CommandLine" Version="2.0.14" />
@@ -79,19 +81,19 @@
     <PackageVersion Include="Dotnet.ProjInfo.Workspace.FCS" Version="0.43.0" />
     <PackageVersion Include="FSharp.Compiler.Service" Version="43.12.403" />
     <PackageVersion Include="LanguageExt.Core" Version="$(LanguageExtVersion)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.3.2" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="11.0.0" />
     <PackageVersion Include="Fun.Blazor" Version="4.1.11" />
     <PackageVersion Include="Fun.Blazor.Cli" Version="4.1.9" />
     <PackageVersion Include="Fun.Blazor.MudBlazor" Version="8.15.0" />
     <PackageVersion Include="Fun.Blazor.BlazorMonaco" Version="3.5.0" />
     <PackageVersion Include="MudBlazor" Version="8.15.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="11.0.0" />
     <PackageVersion Include="bunit" Version="1.40.0" />
     <PackageVersion Include="bunit.web" Version="1.40.0" />
     <PackageVersion Include="BlazorMonaco" Version="3.5.0" />
@@ -122,11 +124,12 @@
     <!-- F# Script Dependencies (for .claude/skills) -->
     <PackageVersion Include="Argu" Version="6.2.5" />
     <PackageVersion Include="Spectre.Console" Version="0.57.2" />
-    <PackageVersion Include="System.Text.Json" Version="9.0.22" />
+    <PackageVersion Include="System.Text.Json" Version="11.0.0" />
     <PackageVersion Include="FSharp.SystemTextJson" Version="1.4.36" />
     <!-- Code Generation Dependencies -->
     <PackageVersion Include="Myriad.Core" Version="0.85.0" />
-    <PackageVersion Include="Microsoft.Build.Framework" Version="18.11.0" />
+    <!-- The 18.0 line, as Microsoft.Build.Utilities.Core above. -->
+    <PackageVersion Include="Microsoft.Build.Framework" Version="18.0.2" />
     <PackageVersion Include="Fabulous.AST" Version="1.10.0" />
     <PackageVersion Include="Fantomas.Core" Version="7.0.5" />
     <!-- Configuration Dependencies -->
@@ -135,7 +138,7 @@
     <PackageVersion Include="Semver" Version="3.0.0" />
     <!-- Semver 3.0.0 asks for Microsoft.Extensions.Primitives 5.0.1; pin it to the version the rest of the solution
          already resolves, so the toolchain projects do not carry a five-year-old copy beside it. -->
-    <PackageVersion Include="Microsoft.Extensions.Primitives" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Primitives" Version="11.0.0" />
     <!-- The toolchain's one cryptographic dependency: managed SHA-256 now, Ed25519 for the TUF client later. Managed,
          so morphirup needs no OpenSSL on Linux. -->
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />

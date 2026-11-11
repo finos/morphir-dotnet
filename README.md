@@ -77,7 +77,7 @@ adds bounded inventory, verified membership and recoverable batch application th
 
 ## SDK libraries
 
-`Morphir.SDK.CSharp` is an independent `net10.0` runtime package with immutable
+`Morphir.SDK.CSharp` is an independent `net11.0` and `net10.0` runtime package with immutable
 C#/.NET public types. See the [C# SDK guide](docs/content/docs/sdk/csharp/_index.md)
 for its bounded operation contract and package usage.
 
@@ -110,14 +110,21 @@ in this follow-up. Archive PR landing and root-verified cleanup remain pending.
 
 ### Building from source
 
-All projects target .NET 10 LTS. Install the SDK pinned in
-[`global.json`](./global.json), or use `mise install` to install the tools in
+The repository builds with the .NET 11 SDK and C# 15. Applications, .NET tools and tests target `net11.0`.
+Packable libraries target `net11.0` and `net10.0` (.NET 10 LTS), so .NET 10 applications can use them.
+.NET 8 and .NET 9 reached the end of support on 2026-11-10, so .NET 10 is the lowest target.
+MSBuild tasks and Myriad plugins target `net10.0`, so the .NET 10 SDK can load them.
+The `netstandard2.0` attribute packages keep that target. The properties
+`MorphirCurrentTargetFramework`, `MorphirLibraryTargetFrameworks` and `MorphirHostedTargetFramework` in
+[`Directory.Build.props`](./Directory.Build.props) set these targets.
+
+Install the SDK pinned in [`global.json`](./global.json), or use `mise install` to install the tools in
 [`mise.toml`](./mise.toml). CI uses the same SDK pin.
 
 VS Code users can run **Dev Containers: Reopen in Container** to use the
 Microsoft .NET SDK image in [`.devcontainer/Dockerfile`](./.devcontainer/Dockerfile).
 The SDK includes the C# and F# compilers. Renovate groups the container, global.json,
-and mise SDK updates together and keeps them on .NET 10 LTS. Moving to the next LTS
+and mise SDK updates together and keeps them on the .NET 11 SDK. Moving to the next SDK
 major version requires an explicit baseline update.
 
 ```bash
@@ -187,7 +194,7 @@ This project uses [Nuke](https://nuke.build/) for build orchestration, providing
 
 ### Requirements
 
-- [.NET SDK 10.0.403](https://dotnet.microsoft.com/download) or a later patch in the same feature band, as specified in `global.json`
+- [.NET SDK 11.0.100](https://dotnet.microsoft.com/download) or a later patch in the same feature band, as specified in `global.json`
 
 ### Basic Commands
 
@@ -244,7 +251,7 @@ for the build command, schema and provenance. After building its test project,
 run the offline validator with:
 
 ```powershell
-dotnet exec tests/Morphir.SDK.Conformance.Tests/bin/Debug/net10.0/Morphir.SDK.Conformance.Tests.dll --maximum-parallel-tests 2
+dotnet exec tests/Morphir.SDK.Conformance.Tests/bin/Debug/net11.0/Morphir.SDK.Conformance.Tests.dll --maximum-parallel-tests 2
 ```
 
 F# runtime consumers use `Morphir.SDK.FSharp`. Its namespace and runtime assembly
@@ -308,7 +315,7 @@ morphir-dotnet/
 
 ### Scripts
 
-The project uses C# scripts (`.cs` files) for build automation, leveraging .NET 10's direct C# file execution. These scripts are located in the `scripts/` directory:
+The project uses C# scripts (`.cs` files) for build automation, leveraging the direct C# file execution of the .NET SDK. These scripts are located in the `scripts/` directory:
 
 - `run-tests.cs` - Runs unit tests
 - `run-e2e-tests.cs` - Runs end-to-end tests

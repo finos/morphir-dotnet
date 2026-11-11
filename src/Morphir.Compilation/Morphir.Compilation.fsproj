@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.Compilation</RootNamespace>
         <Description>Language-neutral Morphir compilation contracts: exact IR targets, checked diagnostics, the IR builder interface and the writer, builder and project-file provider registries.</Description>
         <PackageReleaseNotes>### Added

@@ -265,7 +265,7 @@ let private present (path: string) =
 
         Directory.Exists parent
         && (try
-                Directory.EnumerateFileSystemEntries(parent, nonNull (Path.GetFileName path)) |> Seq.isEmpty |> not
+                Directory.EnumerateFileSystemEntries(parent, Path.GetFileName path) |> Seq.isEmpty |> not
             with
             | :? UnauthorizedAccessException
             | :? IOException -> true)

@@ -39,7 +39,7 @@ partial class Build
     AbsolutePath MorphirupProjectDirectory => RootDirectory / "src" / "Morphirup";
 
     /// <summary>The response file of the Native AOT compiler for the last publish of <c>--rid</c>: what it linked.</summary>
-    AbsolutePath MorphirupIlcResponseFile => MorphirupProjectDirectory / "obj" / Configuration.ToString() / "net10.0" / Rid! / "native" / "morphirup.ilc.rsp";
+    AbsolutePath MorphirupIlcResponseFile => MorphirupProjectDirectory / "obj" / Configuration.ToString() / CurrentTargetFramework / Rid! / "native" / "morphirup.ilc.rsp";
 
     /// <summary>
     /// The packages the last publish of <c>--rid</c> linked, from the compiler's response file. Fails on a linked file

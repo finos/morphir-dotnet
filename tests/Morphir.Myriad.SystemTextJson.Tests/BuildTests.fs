@@ -18,7 +18,7 @@ let private repositoryRoot =
 
     find (DirectoryInfo AppContext.BaseDirectory)
 
-/// The configuration that built this test assembly (bin/<configuration>/net10.0).
+/// The configuration that built this test assembly (bin/<configuration>/net11.0).
 let private configuration =
     DirectoryInfo(AppContext.BaseDirectory).Parent |> Option.ofObj |> Option.map _.Name |> Option.defaultValue "Debug"
 
