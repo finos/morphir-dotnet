@@ -231,9 +231,9 @@ You can set the build configuration using the `--configuration` parameter:
 
 By default, commands use `Release` configuration.
 
-### Migration from Just
+### Build system
 
-This project was recently migrated from Just to Nuke. See [NUKE_MIGRATION.md](NUKE_MIGRATION.md) for the complete migration guide and command mappings. The old `justfile` is preserved for reference.
+The build runs on [Fallout](https://github.com/Fallout-build/Fallout) 10.5.0, the successor to Nuke. `./build.sh`, `build.ps1`, and `build.cmd` are the entry points. Target names are unchanged from the earlier Just-to-Nuke move, which is recorded in [NUKE_MIGRATION.md](NUKE_MIGRATION.md).
 
 ## Developing
 

@@ -1098,7 +1098,7 @@ See [.agents/README.md](./.agents/README.md) for navigation and contribution gui
 - AGENTS.md Standard: https://agents.md
 - Reqnroll (BDD): https://docs.reqnroll.net/
 - TUnit (Testing): https://thomhurst.github.io/TUnit/
-- Nuke (Build): https://nuke.build/
+- Fallout (Build): https://fallout.build/
 - WolverineFx: https://wolverine.netlify.app/
 
 ## OpenSpec

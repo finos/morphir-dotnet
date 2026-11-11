@@ -1,6 +1,8 @@
 # Nuke Build Migration Guide
 
-This document outlines the migration from Just + C# scripts to Nuke build orchestration for the morphir-dotnet project.
+The build orchestrator is now [Fallout](https://github.com/Fallout-build/Fallout) 10.5.0 (`Fallout.Common`). Fallout is the successor to Nuke. Target names in the tables below are unchanged. Configuration lives in `.fallout/`.
+
+This document outlines the migration from Just + C# scripts to build orchestration for the morphir-dotnet project.
 
 ## Migration Status
 
