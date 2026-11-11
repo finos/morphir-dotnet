@@ -209,9 +209,23 @@ module internal TufAcceptance =
         else
             Ok()
 
+    // A caller may retain a continuation and invoke it again after observing a terminal branch.
+    // Terminal state must not expose the mutable key buffers still owned by that continuation.
+    let private refused (failure, current) =
+        TufAcceptanceStep.Refused(failure, TufTrustedSnapshot.copy current)
+
+    let private complete (result: RefreshResult) =
+        let snapshot = TufTrustedSnapshot.copy result.Trusted
+        let detached =
+            match result with
+            | RefreshResult.Refreshed _ -> RefreshResult.Refreshed snapshot
+            | RefreshResult.NothingNew _ -> RefreshResult.NothingNew snapshot
+            | RefreshResult.RootRotationPaused _ -> RefreshResult.RootRotationPaused snapshot
+            | RefreshResult.Failed(failure, _) -> RefreshResult.Failed(failure, snapshot)
+        TufAcceptanceStep.Complete detached
     let private protect current action =
         try action ()
-        with error -> TufAcceptanceStep.Refused(TufFailure.Internal $"the refresh failed with {error.GetType().Name}, a defect", current)
+        with error -> refused (TufFailure.Internal $"the refresh failed with {error.GetType().Name}, a defect", current)
 
     // A refused oversized input is never copied. Null stays on the existing reader/checker's refusal path.
     // Accepted evidence is frozen before parsing, so it is the exact envelope the checker read.
@@ -225,8 +239,8 @@ module internal TufAcceptance =
 
     let private required current role version link consume =
         request current role version link (function
-            | Error failure -> TufAcceptanceStep.Refused(failure, current)
-            | Ok None -> TufAcceptanceStep.Refused(TufFailure.Unavailable role, current)
+            | Error failure -> refused (failure, current)
+            | Ok None -> refused (TufFailure.Unavailable role, current)
             | Ok(Some bytes) -> consume (freeze role bytes))
 
     let private accepted role version bytes current next =
@@ -235,7 +249,7 @@ module internal TufAcceptance =
 
     let private checkedStep current check next =
         match check () with
-        | Error failure -> TufAcceptanceStep.Refused(failure, current)
+        | Error failure -> refused (failure, current)
         | Ok value -> next value
 
     let start (start: DateTimeOffset) (trusted: TufTrustedSet) : TufAcceptanceStep =
@@ -264,7 +278,7 @@ module internal TufAcceptance =
                     }) (fun read ->
                         // 5.6.6: no completion until this accepted evidence is acknowledged.
                         accepted TufRole.Targets read.Version bytes { current with Targets = Some read }
-                            (RefreshResult.Refreshed >> TufAcceptanceStep.Complete)))
+                            (RefreshResult.Refreshed >> complete)))
 
             let snapshot (current: TufTrustedSet) (timestamp: TufTimestamp) =
                 let meta = timestamp.Snapshot
@@ -321,24 +335,24 @@ module internal TufAcceptance =
                             if unchanged then
                                 let snapshot, targets = Option.get acknowledged.Snapshot, Option.get acknowledged.Targets
                                 if expired start snapshot.Expires then
-                                    TufAcceptanceStep.Refused(TufFailure.Expired TufRole.Snapshot, acknowledged)
+                                    refused (TufFailure.Expired TufRole.Snapshot, acknowledged)
                                 elif expired start targets.Expires then
-                                    TufAcceptanceStep.Refused(TufFailure.Expired TufRole.Targets, acknowledged)
-                                else TufAcceptanceStep.Complete(RefreshResult.NothingNew acknowledged)
+                                    refused (TufFailure.Expired TufRole.Targets, acknowledged)
+                                else complete(RefreshResult.NothingNew acknowledged)
                             else snapshot acknowledged read)))
 
             let afterRoots (current: TufTrustedSet) =
-                if expired start current.Root.Expires then TufAcceptanceStep.Refused(TufFailure.Expired TufRole.Root, current)
+                if expired start current.Root.Expires then refused (TufFailure.Expired TufRole.Root, current)
                 else timestamp current
 
             let rec rotate (current: TufTrustedSet) count =
                 if current.Root.Version >= TufMetadata.maxInteger then afterRoots current else
                 let version = current.Root.Version + 1UL
                 request current TufRole.Root (Some version) None (function
-                    | Error failure -> TufAcceptanceStep.Refused(failure, current)
+                    | Error failure -> refused (failure, current)
                     | Ok None -> afterRoots current
                     // Preserve 5.3.3: detect presence of the 33rd root without parsing or copying it.
-                    | Ok(Some _) when count = maxRootRotations -> TufAcceptanceStep.Complete(RefreshResult.RootRotationPaused current)
+                    | Ok(Some _) when count = maxRootRotations -> complete(RefreshResult.RootRotationPaused current)
                     | Ok(Some supplied) ->
                         let bytes = freeze TufRole.Root supplied
                         checkedStep current (fun () ->

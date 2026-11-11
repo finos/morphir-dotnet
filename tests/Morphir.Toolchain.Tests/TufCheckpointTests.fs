@@ -157,6 +157,52 @@ let private cancelOnDispose (ct: CancellationTokenSource) =
 
 [<Tests>]
 let exactEnvelopeTests = testList "TUF checkpoint exact accepted envelopes" [
+    testCase "a refused result cannot mutate the keys owned by a retained supply continuation" (fun () ->
+        let fixture = fixture ()
+        let supply =
+            match TufAcceptance.start referenceTime fixture.Initial with
+            | TufAcceptanceStep.Request(_, supply) -> supply
+            | other -> failtestf "Expected initial request, got %A" other
+        match supply (Error(TufFailure.Unavailable TufRole.Root)) with
+        | TufAcceptanceStep.Refused(_, accepted) ->
+            for KeyValue(_, key) in accepted.Root.Keys do Array.Fill(key, 0uy)
+        | other -> failtestf "Expected a refused result, got %A" other
+        match supply (Ok(Some fixture.Buffers[TufRole.Root])) with
+        | TufAcceptanceStep.Accepted(checkpoint, _) ->
+            Expect.equal checkpoint.Version 2UL "Mutating the prior terminal result cannot change verification"
+            Expect.equal checkpoint.Accepted.Root.Roles[TufRole.Root].KeyIds fixture.RootKeyIds "The valid rotation is still accepted"
+        | other -> failtestf "Retained continuation must still accept the valid root, got %A" other)
+
+    testCase "completed results cannot mutate keys owned by a retained acknowledgement" (fun () ->
+        let fixture = fixture ()
+        let acknowledge =
+            match TufAcceptance.start referenceTime fixture.Initial with
+            | TufAcceptanceStep.Request(_, supply) ->
+                match supply (Ok(Some fixture.Buffers[TufRole.Root])) with
+                | TufAcceptanceStep.Accepted(_, acknowledge) -> acknowledge
+                | other -> failtestf "Expected root checkpoint, got %A" other
+            | other -> failtestf "Expected initial request, got %A" other
+        let rec finish (step: TufAcceptanceStep) =
+            match step with
+            | TufAcceptanceStep.Request(request, supply) ->
+                let bytes =
+                    match request.Role, request.Version with
+                    | TufRole.Root, Some version -> fixture.Source.Root version
+                    | TufRole.Timestamp, None -> fixture.Source.Timestamp()
+                    | TufRole.Snapshot, Some version -> fixture.Source.Snapshot version
+                    | TufRole.Targets, Some version -> fixture.Source.Targets version
+                    | _ -> failtest "Unexpected role/version request"
+                finish (supply (Ok bytes))
+            | TufAcceptanceStep.Accepted(_, acknowledge) -> finish (acknowledge ())
+            | TufAcceptanceStep.Complete result -> result
+            | TufAcceptanceStep.Refused(failure, _) -> failtestf "Expected completion, got %A" failure
+        let first = finish (acknowledge ())
+        Expect.isSome first.Trusted.Targets "Positive control completes the refresh"
+        for KeyValue(_, key) in first.Trusted.Root.Keys do Array.Fill(key, 0uy)
+        let repeated = finish (acknowledge ())
+        Expect.isSome repeated.Trusted.Targets "The retained acknowledgement still completes with original verification keys"
+        Expect.equal repeated.Trusted.Root.Roles[TufRole.Root].KeyIds fixture.RootKeyIds "The accepted rotation remains intact")
+
     testCase "the pull core exposes the accepted root before asking for the next input" (fun () ->
         let fixture = fixture ()
         match TufAcceptance.start referenceTime fixture.Initial with

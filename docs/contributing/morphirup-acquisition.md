@@ -404,3 +404,26 @@ inventory; no further burst, full solution, probe, formatter, AOT, commit or pus
 These results exercise the shared pure acceptance core and injected awaited checkpoint contract. Restart storage,
 cache deletion/revocation durability, real filesystem persistence and production trust activation remain separate
 work and qualification. A new independent security-sensitive review is required before integration proceeds.
+
+### Retained continuation review correction
+
+Independent review of local checkpoint `417bbad8317998b8ab03094fca439c3bb7378ea8`
+found one internal correctness defect: terminal results exposed mutable key arrays
+still owned by retained pure-core continuations. The current sequential drivers
+did not demonstrate a production exploit, but continuation reuse broke isolation.
+Two new runtime regressions reproduced both refused-result and completed-result
+mutation: 24 checkpoint tests, 22 passed and 2 failed, 0 ignored or errored.
+
+The core now copies trusted state at every Refused and Complete boundary,
+including all RefreshResult alternatives. After the correction, the focused
+Release build had 0 warnings/errors, checkpoint tests passed 24/24, existing TUF
+regressions passed 114/114 and the current external corpus passed 1069/1069,
+all without skips. Root logs are CompileRed-20261111T1414196254798.log,
+RuntimeRed-20261111T1414343053279.log,
+CompileGreen-20261111T1415258881476.log,
+RuntimeGreen-20261111T1416310662631.log,
+TufGreen-20261111T1416352497487.log and
+CorpusGreen-20261111T1416492137492.log in ignored .dev/trust-checkpoint.
+These supersede the 22-test checkpoint count for this corrected delta, while
+preserving that earlier evidence. No formatter, AOT, full-solution, live durable
+store or production authority qualification was performed by this correction.
