@@ -38,6 +38,12 @@
     </ItemGroup>
 
 
+    <!-- The offerings this entry point can be published as; a named release profile states which one it is (HOST-1). -->
+    <PropertyGroup>
+        <MorphirEntryPointDeployments>dotnet-tool</MorphirEntryPointDeployments>
+    </PropertyGroup>
+    <Import Project="..\Morphir.BuildProfile.targets" />
+
     <!-- Generate version constant file at build time (same as Morphir project) -->
     <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">
         <PropertyGroup>

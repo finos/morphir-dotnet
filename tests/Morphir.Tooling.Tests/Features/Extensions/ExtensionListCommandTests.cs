@@ -11,7 +11,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// <summary>The command core: one registry in, text or one JSON document on stdout, diagnostics on stderr.</summary>
 public sealed class ExtensionListCommandTests
 {
-    private static readonly HostIdentity Native = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+    private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
 
     private sealed class FixedSource(params ExtensionEntry[] entries) : IExtensionSource
     {
@@ -21,9 +21,9 @@ public sealed class ExtensionListCommandTests
     private static ExtensionRegistry Registry(HostIdentity host, params IExtensionSource[] extra) =>
         new([new BackendExtensionSource([new FSharpGenerationBackend(), new CSharpGenerationBackend()], host), .. extra], host);
 
-    /// <summary>The composition of both hosts: the generation backends and the built-in analyzers.</summary>
+    /// <summary>The composition of both hosts: the generation backends, the built-in frontends and the built-in analyzers.</summary>
     private static ExtensionRegistry HostRegistry(HostIdentity host) =>
-        Registry(host, new AnalyzerExtensionSource(new AnalyzerRegistry(host)));
+        Registry(host, new FrontendExtensionSource(host), new AnalyzerExtensionSource(new AnalyzerRegistry(host)));
 
     private static ExtensionEntry ToolOnly() => ExtensionEntry.BuiltInBackend(
             ExtensionIdentity.Create(ExtensionId.Create("acme.tool-only"), ExtensionName.Create("Tool only"), Native.Version, null),
@@ -71,6 +71,7 @@ public sealed class ExtensionListCommandTests
             "╭────────────────────────┬────────────────┬─────────┬─────────────────────┬──────────┬─────────────────────────╮\n" +
             "│ ID                     │ NAME           │ VERSION │ TYPES               │ DELIVERY │ HOSTS                   │\n" +
             "├────────────────────────┼────────────────┼─────────┼─────────────────────┼──────────┼─────────────────────────┤\n" +
+            "│ morphir-dotnet.fsharp  │ F# frontend    │ 0.4.0   │ frontend (fsharp)   │ built-in │ morphir, dotnet-morphir │\n" +
             "│ morphir.csharp         │ C# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │\n" +
             "│ morphir.fsharp         │ F# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │\n" +
             "│ morphir.type-validator │ Type validator │ 0.4.0   │ validator (1, 2, 3) │ built-in │ morphir, dotnet-morphir │\n" +
@@ -82,8 +83,8 @@ public sealed class ExtensionListCommandTests
     {
         var (_, lines, _) = Run(HostRegistry(Native), json: false);
         var rows = string.Join('\n', lines).Split('\n').Where(row => row.StartsWith('│')).ToArray();
-        rows.Should().HaveCount(4);
-        rows[3].Should().MatchRegex(@"^│ morphir\.type-validator\s+│ Type validator\s+│ 0\.4\.0\s+│ validator \(1, 2, 3\)\s+│ built-in\s+│ morphir, dotnet-morphir\s+│$");
+        rows.Should().HaveCount(5);
+        rows[4].Should().MatchRegex(@"^│ morphir\.type-validator\s+│ Type validator\s+│ 0\.4\.0\s+│ validator \(1, 2, 3\)\s+│ built-in\s+│ morphir, dotnet-morphir\s+│$");
     }
 
     [Test]
@@ -94,8 +95,8 @@ public sealed class ExtensionListCommandTests
         using var document = JsonDocument.Parse(string.Join('\n', lines));
         var extensions = document.RootElement.GetProperty("extensions");
         extensions.EnumerateArray().Select(entry => entry.GetProperty("id").GetString())
-            .Should().Equal("morphir.csharp", "morphir.fsharp", "morphir.type-validator");
-        var validator = extensions[2];
+            .Should().Equal("morphir-dotnet.fsharp", "morphir.csharp", "morphir.fsharp", "morphir.type-validator");
+        var validator = extensions[3];
         validator.GetProperty("types").EnumerateArray().Select(type => type.GetString()).Should().Equal("validator");
         validator.GetProperty("delivery").GetString().Should().Be("built-in");
         validator.GetProperty("hosts").EnumerateArray().Select(host => host.GetString()).Should().Equal("morphir", "dotnet-morphir");
@@ -108,7 +109,7 @@ public sealed class ExtensionListCommandTests
     [Test]
     public void BothHostsListTheSameEntriesApartFromTheHost()
     {
-        var tool = new HostIdentity(MorphirHost.DotnetTool, Native.Version);
+        var tool = TestHosts.Unprofiled(MorphirHost.DotnetTool, Native.Version);
         var (_, native, _) = Run(HostRegistry(Native), json: true);
         var (_, dotnet, _) = Run(HostRegistry(tool), json: true);
         using var first = JsonDocument.Parse(string.Join('\n', native));
@@ -159,7 +160,7 @@ public sealed class ExtensionListCommandTests
     [Arguments(true, true)]
     public void AnEntryForTheOtherHostIsListedAsNotAvailable(bool tool, bool available)
     {
-        var host = tool ? new HostIdentity(MorphirHost.DotnetTool, Native.Version) : Native;
+        var host = tool ? TestHosts.Unprofiled(MorphirHost.DotnetTool, Native.Version) : Native;
         var (_, lines, _) = Run(Registry(host, new FixedSource(ToolOnly())), json: true);
         using var document = JsonDocument.Parse(string.Join('\n', lines));
         document.RootElement.GetProperty("host").GetString().Should().Be(host.Host.WireValue);

@@ -274,6 +274,7 @@ type AnalyzerRunner =
         |> Seq.exists (fun capability ->
             match capability with
             | ExtensionCapability.Validator claim -> claim.Reads model.SourceVersion.Version
+            | ExtensionCapability.Frontend _
             | ExtensionCapability.Backend _ -> false
         )
 

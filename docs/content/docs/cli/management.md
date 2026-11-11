@@ -225,14 +225,16 @@ morphir extension which <name> [--platform <rid>]                               
 
 ### extension list
 
-List the extensions that this host knows. Today these are the built-in generators of `morphir generate` and the
-built-in analyzers of [`morphir validate`](validate.md).
+List the extensions that this host knows, and say which offering of morphir-dotnet is running and what it needs from
+the machine. Today the extensions are the built-in F# frontend of `morphir compile`, the built-in generators of
+`morphir generate` and the built-in analyzers of [`morphir validate`](validate.md).
 
 ```bash
 $ morphir extension list
 ╭────────────────────────┬────────────────┬─────────┬─────────────────────┬──────────┬─────────────────────────╮
 │ ID                     │ NAME           │ VERSION │ TYPES               │ DELIVERY │ HOSTS                   │
 ├────────────────────────┼────────────────┼─────────┼─────────────────────┼──────────┼─────────────────────────┤
+│ morphir-dotnet.fsharp  │ F# frontend    │ 0.4.0   │ frontend (fsharp)   │ built-in │ morphir, dotnet-morphir │
 │ morphir.csharp         │ C# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
 │ morphir.fsharp         │ F# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
 │ morphir.type-validator │ Type validator │ 0.4.0   │ validator (1, 2, 3) │ built-in │ morphir, dotnet-morphir │
@@ -240,7 +242,8 @@ $ morphir extension list
 ```
 
 The rows are sorted by id. The version of a built-in is the version of the host, including any build metadata.
-The `TYPES` column shows each type. For a validator, the IR versions that it reads follow in parentheses.
+The `TYPES` column shows each type. For a frontend, the languages that it reads follow in parentheses; for a validator,
+the IR versions that it reads.
 
 In a terminal the table has styled borders and headers and fits the terminal width. When stdout is redirected, or
 `NO_COLOR` is set, the table has no ANSI codes. The table is for people: scripts use `--json`.
@@ -250,12 +253,35 @@ In a terminal the table has styled borders and headers and fits the terminal wid
 - `--platform <rid>`, `--local`: Select installed extensions. There are none until step 3 of the PRD, so these
   options do not change the result now. Built-in extensions always appear.
 
-With `--json`:
+With `--json`, from the Native AOT `morphir` for Windows ARM64:
 
 ```json
 {
   "host": "morphir",
+  "deployment": "native-aot",
+  "execution": "native-aot",
+  "platform": "win-arm64",
+  "prerequisites": { "runtime": [], "sdk": [], "native": [] },
   "extensions": [
+    {
+      "id": "morphir-dotnet.fsharp",
+      "name": "F# frontend",
+      "version": "0.4.0",
+      "description": "Compiles F# source files to a Morphir model in process.",
+      "types": ["frontend"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "deployments": ["self-contained", "framework-dependent", "dotnet-tool"],
+      "available": false,
+      "reason": "The native-aot morphir has no in-process F# frontend; the self-contained and framework-dependent morphir and dotnet-morphir have one. Here, install the F# frontend process delivery morphir-fsharp-frontend and configure it with [frontend.fsharp].extension or --extension.",
+      "prerequisites": { "runtime": [], "sdk": [], "native": [] },
+      "capabilities": {
+        "frontend": {
+          "languages": [{ "id": "fsharp", "fileExtensions": [".fs", ".fsi"] }],
+          "irVersions": ["1", "2", "3", "4"]
+        }
+      }
+    },
     {
       "id": "morphir.csharp",
       "name": "C# generator",
@@ -264,40 +290,48 @@ With `--json`:
       "types": ["backend"],
       "delivery": "built-in",
       "hosts": ["morphir", "dotnet-morphir"],
+      "deployments": ["native-aot", "self-contained", "framework-dependent", "dotnet-tool"],
       "available": true,
+      "prerequisites": { "runtime": [], "sdk": [], "native": [] },
       "capabilities": {
         "backend": { "targets": ["csharp"], "irVersions": ["1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0"], "generate": true }
-      }
-    },
-    {
-      "id": "morphir.type-validator",
-      "name": "Type validator",
-      "version": "0.4.0",
-      "description": "Reports definite type mismatches in classic models.",
-      "types": ["validator"],
-      "delivery": "built-in",
-      "hosts": ["morphir", "dotnet-morphir"],
-      "available": true,
-      "capabilities": {
-        "validator": { "irVersions": ["1", "2", "3"] }
       }
     }
   ]
 }
 ```
 
-The example leaves out the `morphir.fsharp` entry.
+The example leaves out the `morphir.fsharp` and `morphir.type-validator` entries. The four offerings report:
+
+| Offering | `host` | `deployment` | `execution` | `platform` | Top-level `prerequisites` | `morphir-dotnet.fsharp` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Native AOT `morphir` | `morphir` | `native-aot` | `native-aot` | the RID | none | not available, with the reason above |
+| Self-contained `morphir` | `morphir` | `self-contained` | `jit` | the RID | none | available |
+| Framework-dependent `morphir` | `morphir` | `framework-dependent` | `jit` | the RID | runtime `Microsoft.NETCore.App` `>=10.0.0` `<11.0.0` | available |
+| `dotnet-morphir` (`Morphir.Tool`) | `dotnet-morphir` | `dotnet-tool` | `jit` | left out: the package is portable | that runtime, and SDK `Microsoft.NET.Sdk` `>=10.0.100` with `"phase": "install"` | available |
+
+A build that no named release profile produced, such as `dotnet run`, a test host, or the legacy `morphir-<rid>`
+single-file assets that releases attach today, has no qualified deployment: it leaves out `deployment`, `platform` and
+the top-level `prerequisites`, and never reports one of the four names. It still reports `execution`.
 
 | Field | Meaning |
 | --- | --- |
-| `host` | The command that wrote the list: `morphir` or `dotnet-morphir` (the dotnet tool). `morphir` is the Native AOT executable; a managed `morphir` built from `src/Morphir.Managed`, which is not published yet, also reports `morphir`. |
+| `host` | The command that wrote the list: `morphir` or `dotnet-morphir` (the dotnet tool). It is a command name, not the offering: the Native AOT, self-contained and framework-dependent offerings all report `morphir`. |
+| `deployment` | The offering that the build's named release profile set at build time: `native-aot`, `self-contained`, `framework-dependent` or `dotnet-tool`. It is never inferred from how the process runs. Left out when no named profile built the executable. |
+| `execution` | How this process runs: `native-aot` or `jit`. |
+| `platform` | The .NET runtime identifier that the profile built for. Left out for the portable tool package and when no named profile built the executable. |
+| `prerequisites` | What the offering needs from the machine: `runtime` (an installed .NET runtime, to run), `sdk` (a .NET SDK, with `phase` `install` or `run`) and `native` (none is declared yet). Left out when no named profile built the executable. |
+| `deployments` | The offerings in which the extension is available. |
+| `reason` | Why the extension is not available in the running offering. Present exactly when `available` is `false`. |
+| extension `prerequisites` | What the extension needs from the machine beyond the host. Every built-in needs nothing. |
 | `id` | The extension id. See [Extension ids](#extension-ids). For a built-in generator, it is also the `backend` value in `morphir generate --json` reports. |
 | `version` | Canonical SemVer 2.0.0. |
 | `description` | Left out when the extension has none. |
 | `types` | MEP extension types: `frontend`, `backend`, `transform`, `validator` or `workspace`. They come from the capabilities. |
 | `delivery` | How the extension is delivered. Now always `built-in`. |
 | `hosts` | The hosts that the extension runs in. |
-| `available` | `true` when the extension runs in this host. An extension for the other host is listed with `false`. |
+| `available` | `true` when the extension runs in this host and offering. An extension for the other host, or for other offerings, is listed with `false` and a `reason`. |
+| `capabilities.frontend` | The MEP frontend claim: the languages with their file extensions, and the IR versions that it produces. |
 | `capabilities.backend` | The MEP backend claim: targets, IR versions in their declared spelling, and `generate`. |
 | `capabilities.validator` | The IR versions that a validator reads, in the spelling of the model readers. This is a morphir-dotnet report member: MEP `0.2.0-draft.1` has no validator capability, so hosts do not write it into MEP messages. |
 
