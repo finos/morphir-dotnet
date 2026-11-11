@@ -17,6 +17,12 @@ passed the upstream guest-kit qualification.
 | Call value codecs | morphir-elm writes test values with `DataCodec`, which no Morphir specification defines. Value codec 1 keeps its shape, so `morphir-tests.json` test cases can become call steps without a change to the values. Codec 1 does not copy four decoding defects: any value that does not decode is `Nothing`, a bad `Decimal` is `0`, a `Char` is the first character of any string, and `Unit` has no encoding. Value codec 2 is the kit's own encoding and the default. | [Value codecs](steps/steps-1.md#value-codecs), [`DataCodec.elm`](https://github.com/finos/morphir-elm/blob/main/src/Morphir/IR/Type/DataCodec.elm) |
 | F# guest signature files | The F# guest claims the language `fsharp` with the file extension `.fs` only. A case that has a `.fsi` document therefore does not reach the guest: the host selects no language and refuses the compile with `compile.language_required` before dispatch. The in-process frontend refuses the same case with `fsharp.unsupported_signature_file`. The suite case `frontend-fsharp-0081` gives this difference; all other cases give the same IR and diagnostics through the guest. | [task 9.4](../openspec/changes/archive/2026-11-09-add-fsharp-compile/tasks.md), [`CliAdapterTests.fs`](../tests/Morphir.Frontend.FSharp.Tests/CliAdapterTests.fs) |
 
+The toolchain contract pin now includes the frozen `expected/generated/Pricing.fs`.
+The generate tests compare its bytes directly; the compile-step test runs through
+the .NET library adapter. `morphir mck` dispatches to a separately installed kit.
+That dispatch is not evidence of a generate observation or a completed generation
+qualification through the shared runner.
+
 Upstream issue links and qualification reports are added when those follow-ups
 run. This seed does not claim an upstream guest-kit qualification or a released
 kit supersession.

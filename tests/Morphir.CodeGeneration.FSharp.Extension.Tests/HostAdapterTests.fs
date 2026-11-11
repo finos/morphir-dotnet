@@ -221,9 +221,8 @@ let tests =
 
               let ir = Path.Combine(case, "expected", "ir-4.0.0.json")
 
-              // main's pin (finos/morphir 1451c081f) has the case's source and expected IR but not its frozen generated set;
-              // that arrives with the re-pin to finos/morphir 9e1f853b7 (#582), as expected/generated/Pricing.fs. Until
-              // then the size and SHA-256 of the frozen file are here; once the pin has the file, the bytes are compared too.
+              // The contract pinned at finos/morphir 9e1f853b7 includes expected/generated/Pricing.fs. Keep the frozen
+              // size and SHA-256 explicit, and compare the pinned file's bytes when present in the fixture checkout.
               let pinned = [ "Pricing.fs", 112, "64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0" ]
               let frozen = Path.Combine(case, "expected", "generated", "Pricing.fs")
 

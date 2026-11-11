@@ -229,6 +229,10 @@ must write is already there and an earlier install did not write it, the command
 
 ## Compile and generate
 
+`compile` writes its task output and record, and can install IR or generated files.
+It currently has no `--dry-run` option; `--option format=false` controls formatting
+of generated F# only.
+
 With `--target <id> --generate-output <directory>`, a successful compile continues into generation in the
 same run. The command gives the exact IR bytes that it wrote to the model loader of `generate --input`, and
 then runs the generation stages of `generate`: backend selection, `--option` validation, generation and

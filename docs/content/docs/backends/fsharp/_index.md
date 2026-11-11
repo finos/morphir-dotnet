@@ -158,11 +158,16 @@ by the Native AOT host) give the same single file, `Pricing.fs`, 112 bytes.
 The test project pins those bytes, and its compile step (the case's F# source to
 its expected IR) runs through the compatibility kit.
 
-The case's expected generated file is frozen at finos/morphir `9e1f853b7`: its
+The case's expected generated file is frozen in the contract pinned at finos/morphir `9e1f853b7`: its
 `case.json` has `"status": "frozen"` and `"formatting": "off"`, and names
-`expected/generated/Pricing.fs` with those 112 bytes. This repository's pin moves
-to that commit separately; until then the test compares the size and SHA-256 of
-the frozen file, and once the pin has the file, its bytes. The guest is not
-qualified with the shared compatibility runner of `finos/morphir` yet, because the
-runner cannot observe generated files yet. See
+`expected/generated/Pricing.fs` with those 112 bytes and SHA-256
+`64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0`.
+This repository now includes that pinned file under
+`tests/Fixtures/Toolchain/workflows/fsharp-compile-generate/`; the tests compare
+the generated size, digest and bytes with it. The recorded five-delivery
+observation was on Windows ARM64 using local builds, not released packages.
+The guest has not been qualified for generation through the shared compatibility
+runner. The compile-step test uses the .NET library adapter; the in-repository
+runner has no generate observation or file-set comparison. `morphir mck` routes
+to a separately installed kit and does not establish that qualification. See
 [deviations](https://github.com/finos/morphir-dotnet/blob/main/conformance/deviations.md).

@@ -41,6 +41,9 @@ that does not load is a warning on stderr, and the built-in backend runs. Repeat
 as JSON first, so `optimize=false` is Boolean while `optimize='"false"'` is a
 string and is refused by this backend.
 
+`generate` writes generated files and an ownership manifest. It currently has no
+`--dry-run` option; `--option format=false` controls formatting only.
+
 F# accepts the Boolean options `optimize` and `format`, each `true` by default:
 
 - `optimize` runs exact constant folding.
