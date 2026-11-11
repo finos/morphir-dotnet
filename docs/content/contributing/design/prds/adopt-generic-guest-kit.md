@@ -23,7 +23,8 @@ The approved parent [finos/morphir#1154](https://github.com/finos/morphir/pull/1
 
 - Checkout starts at normal #570 commit `1e244a7c`; its refreshed normal commit is not available yet. Preserve history and do not copy the Extism owner's uncommitted work.
 - Existing `GuestKit/ModelTier.fs` opens separate describe and model sessions and appends legacy not-run cases. The E2E donor records 16 model cases, which do not satisfy the changed profile.
-- Existing `WasmHostCommands` already provides crafted run/check/usage boundaries. The dev executable will adapt preserved Tooling parser/test donors without product interfaces or registration. Extism owns removal of dead product registration and Tooling-to-Conformance dependency.
+- Existing `WasmHostCommands` already provides crafted run/check/usage boundaries. The dev executable will adapt preserved Tooling parser/test donors without product interfaces or registration. Extism owns removal of dead product registration and Tooling-to-Conformance dependency. Its temporary Tooling.Tests source link stays until destination tests compile. BothHostsHaveTheExperimentalCommands and all four ExecutableMckWasmHost.feature scenarios need explicit migration with no skips or deleted coverage.
+- Offering scripts need coordinated runner/host separation at scripts/wasm-offerings.ps1 lines 130/247/255 and the matching workflow input. The tested product becomes only --host; no script/workflow edit or execution is part of planning.
 - The exact [ownership map and test design](../../../../../openspec/changes/adopt-generic-guest-kit/design.html#ownership) names shared project hunks and reserved paths. No general Conformance Types/Runner/CliAdapter or WasmHost edits are planned. Build/Build.cs packaging remains held.
 - The fixed kit digest stays `f16f2a4c577b507527a77a19a383c2c0083b4db1db131cd06d170e65a88598ae`. Historical expected IR originated from Python 0.4.2; preserve that fact and independently review fixed data rather than generate expectations from the implementation.
 - Product #590 forwarding remains unchanged. Parent Rust IR/package gates remain unchanged. No public package/offering/version/release change or CET/Spectre weakening belongs to this delivery.
@@ -31,7 +32,7 @@ The approved parent [finos/morphir#1154](https://github.com/finos/morphir/pull/1
 ## Dependencies and blockers
 
 - Independent plan review is queued after parent #1157 review; implementation waits for this planning merge.
-- CPU2 is reserved for Extism's initial bounded burst. No .NET build, restore, test, formatter or installation has run in this thread. Request a scoped RED grant after planning readiness.
+- Extism released CPU2 after its initial burst. Its HEAD remains 1e244a7c with uncommitted merge/availability source and an unverified proposed fix; no clean normal donor exists. The coordinator must sequence required checks or settle intermediate donor verification policy before committing. CPU release is not a grant to this thread. No .NET build, restore, test, formatter or installation has run here; request scoped RED capacity after the planning gate and committed donor are ready.
 - The existing process edge needs proof that notification silence and post-shutdown responses are observed from the guest. Local suppression or lifecycle enforcement cannot substitute for real evidence.
 - The held generated-file branch at `34fcc6dc` has unresolved native-process defects and an uncompiled watchdog fix. It is not an approved helper, and this change must not copy it or add a duplicate process edge.
 - Crafted HostReport is observations-only and refuses a verdict. Parent task 1.4 and documentation/Smithy tasks 1.6/1.7 remain root-owned. Generic results do not qualify a host, RID, package or release.
