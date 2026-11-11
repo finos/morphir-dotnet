@@ -23,6 +23,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Toolchain.Tests" />
+        <InternalsVisibleTo Include="Morphir.Toolchain.IO" />
     </ItemGroup>
 
     <ItemGroup>

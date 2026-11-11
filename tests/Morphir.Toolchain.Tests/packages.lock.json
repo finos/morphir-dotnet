@@ -154,6 +154,13 @@
           "Semver": "[3.0.0, )"
         }
       },
+      "morphir.toolchain.io": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Toolchain": "[1.0.0, )"
+        }
+      },
       "morphirup": {
         "type": "Project",
         "dependencies": {

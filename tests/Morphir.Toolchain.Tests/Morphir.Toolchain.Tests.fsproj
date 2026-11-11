@@ -17,6 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Toolchain/Morphir.Toolchain.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Toolchain.IO/Morphir.Toolchain.IO.fsproj" />
     <ProjectReference Include="../../src/Morphirup/Morphirup.fsproj" />
     <ProjectReference Include="../../src/Morphir.Configuration.IO/Morphir.Configuration.IO.csproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
@@ -27,6 +28,7 @@
     <Compile Include="BindingCaseTests.fs" />
     <Compile Include="TufFixture.fs" />
     <Compile Include="TufTests.fs" />
+    <Compile Include="TufCheckpointTests.fs" />
     <Compile Include="ContractTableTests.fs" />
     <Compile Include="NormalizationTests.fs" />
     <Compile Include="CanonicalJsonTests.fs" />
