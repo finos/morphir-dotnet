@@ -52,6 +52,16 @@ jobs:
               if: runner.os == 'Linux'
               run: command -v readelf || { sudo apt-get update && sudo apt-get install -y --no-install-recommends binutils; }
 
+            - name: Check authenticated Ubuntu bootstrap sequencing
+              if: runner.os == 'Linux'
+              shell: sh
+              run: |
+                  set -eu
+                  MORPHIR_NATIVE_TEST_ROOT=$(mktemp -d)
+                  export MORPHIR_NATIVE_TEST_ROOT
+                  trap 'rm -rf "$MORPHIR_NATIVE_TEST_ROOT"' EXIT
+                  sh build/tests/ubuntu-native-dependencies.sh
+
             # The Native AOT link on Windows needs vswhere.exe, which the ILCompiler targets call by name.
             - name: Put vswhere on PATH
               if: runner.os == 'Windows'
