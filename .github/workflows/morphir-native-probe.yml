@@ -3,31 +3,30 @@ name: "morphir native probe"
 # Report mode: what the Native AOT morphir needs from a machine, measured before the legacy morphir-{rid} names carry it
 # (design REL-1). It publishes src/Morphir with the native-aot release profile (on Linux inside the pinned ubuntu:22.04),
 # then runs one command for each native dependency on the runner and, on Linux, in debian:12-slim and ubuntu:22.04
-# with no .NET, libicu or OpenSSL. It records every outcome and never fails the pull request.
+# with no .NET, libicu or OpenSSL. It records every command outcome; a successful job is not qualification.
 #
-# It runs only on the pull request of feat/legacy-names-carry-native-aot, so other pull requests do not pay for a
-# 28 MB Native AOT build on four runners.
+# Native qualification runs manually, outside pull-request CI.
 
 on:
-    pull_request:
+    workflow_dispatch:
 
 permissions:
     contents: read
 
 jobs:
     probe:
-        if: github.head_ref == 'feat/legacy-names-carry-native-aot'
         name: probe ${{ matrix.rid }}
-        continue-on-error: true
         strategy:
             fail-fast: false
             matrix:
-                # The platforms and runners of the release workflow's build-executables matrix.
+                # Native runners, matching the six-platform manual E2E lane.
                 include:
                     - { rid: linux-x64, os: ubuntu-latest }
                     - { rid: linux-arm64, os: ubuntu-24.04-arm }
                     - { rid: win-x64, os: windows-latest }
+                    - { rid: win-arm64, os: windows-11-arm }
                     - { rid: osx-arm64, os: macos-latest }
+                    - { rid: osx-x64, os: macos-15-intel }
         runs-on: ${{ matrix.os }}
         timeout-minutes: 60
         steps:

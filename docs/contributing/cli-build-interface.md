@@ -95,8 +95,10 @@ so it does not show that `native-aot` or `self-contained` runs without .NET, and
 The reusable workflow itself has not run on GitHub. Its helper's default, `-Local` and `-ResultFile` paths have separate
 tests in `Morphir.Build.Tests`; those tests do not establish that the workflow has run.
 [Checking the release profiles from packaged artifacts](release-profile-checks.md) has the fuller checks, and no
-platform is qualified by them yet. A packaged-artifact failure seen on macOS, where a temporary input path under `/var`
-resolves to `/private/var`, is unqualified evidence: it is not a reason to weaken the link checks.
+platform is qualified by them yet. The packaged-test harness resolves its working directory to a physical path before
+preparing absolute input paths. This avoids passing macOS's `/var` alias for `/private/var` to bounded input capture,
+which deliberately refuses linked ancestors. A regression test supplies a linked temporary root. This harness fix
+does not establish that the packaged-input scenario has passed on macOS; a fresh packaged-artifact run is required.
 
 ## Calling the targets directly
 

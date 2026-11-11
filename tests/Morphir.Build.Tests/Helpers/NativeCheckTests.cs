@@ -102,20 +102,21 @@ public class NativeCheckTests
     }
 
     [Test]
-    public void TheMorphirProbeRunsOnlyOnItsOwnPullRequestOnTheReleasePlatformsAndNeverFailsIt()
+    public void TheMorphirProbeIsManualOnEverySupportedPlatformAndReportsInfrastructureFailures()
     {
         string Workflow(string name) => File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", name));
         var probe = Workflow("morphir-native-probe.yml");
 
-        probe.Should().Contain("if: github.head_ref == 'feat/legacy-names-carry-native-aot'", "other pull requests do not pay for four Native AOT builds");
-        probe.Should().Contain("continue-on-error: true", "report mode never fails the pull request");
+        probe.Should().Contain("    workflow_dispatch:", "qualification stays outside pull-request CI");
+        probe.Should().NotContain("    pull_request:").And.NotContain("    push:");
+        probe.Should().NotContain("continue-on-error:", "build and infrastructure failures must remain failures");
         probe.Should().Contain("--target ProbeMorphirNative").And.Contain("if: always()");
 
         static List<(string, string)> Pairs(string text, string pattern) =>
             [.. System.Text.RegularExpressions.Regex.Matches(text, pattern, System.Text.RegularExpressions.RegexOptions.Multiline)
                 .Select(match => (match.Groups[1].Value, match.Groups[2].Value))];
-        Pairs(probe, @"^\s*- \{ rid: (\S+), os: (\S+) \}\s*$").Should()
-            .Equal(Pairs(Workflow("deployment.yml"), @"^\s*- rid: (\S+)\s*\n\s*os: (\S+)\s*$"), "it probes the platforms and runners that morphir is released on");
+        Pairs(probe, @"^\s*- \{ rid: (\S+), os: (\S+) \}\s*$").Select(pair => pair.Item1).Should()
+            .BeEquivalentTo(TargetPlatform.All.Select(platform => platform.Rid), "the manual probe covers every supported native platform");
     }
 
     [Test]

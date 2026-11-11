@@ -11,6 +11,37 @@ namespace Morphir.E2E.Tests.InfrastructureTests;
 public sealed class PackagedRunTests
 {
     [Test]
+    public void ALinkedTemporaryRootGivesThePackagedCommandAPhysicalInputPath()
+    {
+        using var sandbox = TestSandbox.Create("morphir packaged paths ");
+        var target = Directory.CreateDirectory(sandbox.PathOf("real sandbox")).FullName;
+        var alias = sandbox.PathOf("linked sandbox");
+        try
+        {
+            Directory.CreateSymbolicLink(alias, target);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException)
+        {
+            Skip.Test($"This account cannot create a symbolic link here: {exception.Message}");
+        }
+
+        var work = PackagedRun.CreateWorkingDirectory(alias);
+        work.Should().Be(Path.Combine(CanonicalPath.Of(target), PackagedRun.WorkDirectoryName),
+            "the packaged-input scenario must not pass a linked ancestor such as macOS /var to bounded capture");
+        File.WriteAllText(Path.Combine(work, "input.json"), "{}");
+        File.ReadAllText(Path.Combine(target, PackagedRun.WorkDirectoryName, "input.json")).Should().Be("{}");
+    }
+
+    [Test]
+    public void ThePackagedWorkingDirectoryHasNoLinkedAncestor()
+    {
+        using var sandbox = TestSandbox.Create("morphir packaged paths ");
+        var work = PackagedRun.CreateWorkingDirectory(sandbox.Root);
+        for (var directory = new DirectoryInfo(work); directory is not null; directory = directory.Parent)
+            directory.Attributes.HasFlag(FileAttributes.ReparsePoint).Should().BeFalse(directory.FullName);
+    }
+
+    [Test]
     public void HidingTheRuntimeRemovesEveryVariableAndPathEntryThatReachesIt()
     {
         using var sandbox = TestSandbox.Create("morphir hide ");

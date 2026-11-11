@@ -48,6 +48,11 @@ On demand per platform, without a pull request job:
   "No installed .NET runtime" scenario runs in a clean container (see below).
 - **Manual AOT Testing** (`.github/workflows/manual-aot-test.yml`): the `packaged` suite packs and checks
   `native-aot` for one platform. Its `trimming` and `aot-compilation` suites exclude `@packaged`.
+- **morphir native probe** (`.github/workflows/morphir-native-probe.yml`): a manual six-platform Native AOT
+  dependency probe, separate from PR CI. Run it from the source ref being examined. It publishes using the release
+  profile, on Linux inside the pinned Ubuntu 22.04 image, and uploads `probe.md`, the publish log and command output.
+  A failed build or infrastructure step fails the job. Command outcomes remain report-only, so a green job does not
+  mean every command passed. It publishes no release and does not replace acquired-artifact qualification.
 
 The two manual AOT suites ran no test before this change: their filters `*/AOT*` and `*/Trimming*` were not full
 TUnit tree paths, so they selected nothing, and the run ended with "zero tests ran" (exit code 8). They now name
@@ -73,6 +78,12 @@ commit as the artifact.
 | Reading an input file | `validate --input` with an absolute path that contains spaces. On Linux and macOS this reads the file kind through `libSystem.Native`, the fix in #556. On Windows the code path returns before that call, so a Windows run does not exercise it |
 | No installed .NET runtime | See below. Skipped, with the reason, where the runtime cannot be hidden |
 | The declared runtime | framework-dependent and dotnet-tool run on the machine's runtime: the host loads `hostfxr` from a machine runtime root and chooses a `Microsoft.NETCore.App` 10.x, read from the first `Chose FX version` line of the host trace. native-aot and self-contained never load the machine's runtime, even when it is reachable |
+
+The harness resolves its working directory to a physical path before preparing input files. On macOS, `/var` is an
+alias for `/private/var`. Passing that alias in an absolute input path previously failed the input scenario because
+bounded capture rejects linked ancestors. The product's link refusal remains in force. Regression tests cover a
+linked temporary root and verify that the prepared working directory has no linked ancestor. A fresh macOS packaged
+run is still needed to establish the scenario's result for a candidate artifact.
 
 ### How "no installed .NET runtime" is shown
 
@@ -193,3 +204,23 @@ Not established, to be recorded from runner evidence with acquired artifacts:
   `InvariantGlobalization`).
 - macOS: the minimum macOS version, and what Gatekeeper does with a downloaded, unsigned executable.
 - Windows x64: anything beyond the operating system itself.
+
+### Historical native probe evidence
+
+[Run 42878326618](https://github.com/finos/morphir-dotnet/actions/runs/42878326618), on PR #584 head `e8f4a00b`,
+produced reports whose checkout is recorded as `d2d4245`. The four reports are retained as workflow artifacts.
+These measurements describe those builds, without the separate WASM engine, rather than current release candidates:
+
+| Build | Recorded dependency observation |
+|---|---|
+| linux-x64 and linux-arm64 | Highest linked glibc symbol version 2.34, from a publish inside pinned Ubuntu 22.04. ICU is required at startup unless invariant globalization is selected. With ICU present but OpenSSL removed, generation and hashing commands terminate because libssl is unavailable. |
+| osx-arm64 | The executable's `LC_BUILD_VERSION` declares macOS 12.0. Execution on the runner does not prove execution on that minimum OS. |
+| win-x64 | The report contains runner command results. It does not establish a Windows minimum or test a clean consumer machine. |
+
+`dist install` reported that it was not implemented, so that command provided no HTTPS-path evidence. The probe's
+success status did not require successful command outcomes. No win-arm64 or osx-x64 report exists in this run, and
+none of these reports qualifies an acquired release or establishes a glibc floor for another build.
+
+Until an explicitly tested deployment changes these requirements, Linux installation guidance must include compatible
+ICU and OpenSSL libraries and CA certificates for HTTPS, in addition to the offering's .NET runtime prerequisite.
+Do not describe a runtime-bundled offering as needing no operating-system libraries.

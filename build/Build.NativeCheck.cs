@@ -26,8 +26,8 @@ partial class Build
     /// Runs <c>dotnet {arguments}</c> inside <paramref name="image"/>, which links the executable against that image's
     /// glibc. The repository and this machine's .NET SDK are mounted at their own paths (the SDK read-only), so the
     /// publish uses the SDK of global.json and writes where a publish on the runner would. The image gets clang and the
-    /// zlib headers that Native AOT links with, and libicu and the certificates that the SDK needs; the executable needs
-    /// none of them. Root in the container owns what it writes, so the script gives the repository back to this user.
+    /// zlib headers that Native AOT links with, and libicu and the certificates that the SDK needs. The probe measures
+    /// the executable's runtime dependencies separately. Root in the container owns what it writes, so the script gives the repository back to this user.
     /// </summary>
     (int ExitCode, string Output) PublishInContainer(string image, TargetPlatform platform, string[] arguments)
     {
