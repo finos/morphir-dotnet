@@ -25,6 +25,7 @@
     <Compile Include="ProvenanceTests.fs" />
     <Compile Include="Manifest.fs" />
     <Compile Include="DocumentCaseTests.fs" />
+    <Compile Include="PreviewDocumentCaseTests.fs" />
     <Compile Include="BindingCaseTests.fs" />
     <Compile Include="TufFixture.fs" />
     <Compile Include="TufTests.fs" />

@@ -13,6 +13,18 @@ type internal ObjectNode =
     { Members: (string * Value) list
       Path: DocumentPath }
 
+/// The closed set of documents in the preview family. It is separate from
+/// historical contract versions and the tool-release and extension authorities.
+[<RequireQualifiedAccess>]
+type internal PreviewDocument =
+    | Request
+    | Recipe
+    | Lock
+    | Receipt
+    | Result
+    | WorkflowCase
+    | Selection
+
 /// <summary>
 /// The reading rules shared by all five documents (overview page, "Rules shared by all five"): the order of checks,
 /// unknown and critical members, credentials, numbers, tagged cases, and data-keyed maps.
@@ -170,21 +182,8 @@ module internal Reading =
 
     // ---- the document envelope ---------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Checks 2 to 4 of the order of checks on a document's node: <c>schemaVersion</c>, then <c>critical</c>, then the
-    /// credential scan. The body (check 5) is the caller's. A document nested in another, such as the lock inside a
-    /// plan, reports its refusals under its own path.
-    /// </summary>
-    let envelopeAt (understood: Set<string>) (n: Node) : Read<ObjectNode> =
+    let private memberRules (understood: Set<string>) (n: Node) (o: ObjectNode) : Read<ObjectNode> =
         result {
-            let! o = asObject n
-            let versionPath = n.Path.Child "schemaVersion"
-
-            match tryMember "schemaVersion" o with
-            | Some { Value = Value.String version } ->
-                do! ContractVersion.check version |> Result.mapError (fun code -> { Code = code; Path = versionPath })
-            | _ -> return! refuse ReaderCode.InvalidDocument versionPath
-
             match tryMember "critical" o with
             | None -> ()
             | Some critical ->
@@ -210,6 +209,79 @@ module internal Reading =
             return o
         }
 
+    /// Historical envelope checks. Nested documents report refusals under their
+    /// own path. Preview readers never retry this envelope after a refusal.
+    let envelopeAt (understood: Set<string>) (n: Node) : Read<ObjectNode> =
+        result {
+            let! o = asObject n
+            let versionPath = n.Path.Child "schemaVersion"
+
+            match tryMember "schemaVersion" o with
+            | Some { Value = Value.String version } ->
+                do! ContractVersion.check version |> Result.mapError (fun code -> { Code = code; Path = versionPath })
+            | _ -> return! refuse ReaderCode.InvalidDocument versionPath
+
+            return! memberRules understood n o
+        }
+
+    let previewSchema contract =
+        let name =
+            match contract with
+            | PreviewDocument.Request -> "request"
+            | PreviewDocument.Recipe -> "recipe"
+            | PreviewDocument.Lock -> "lock"
+            | PreviewDocument.Receipt -> "receipt"
+            | PreviewDocument.Result -> "result"
+            | PreviewDocument.WorkflowCase -> "workflow-case"
+            | PreviewDocument.Selection -> "selection"
+
+        $"https://morphir.finos.org/schemas/toolchains/0.1.0-preview.1/{name}.schema.json"
+
+    let private withoutBodyVersion (n: Node) (o: ObjectNode) =
+        if has "schemaVersion" o then
+            refuse ReaderCode.InconsistentDocument (n.Path.Child "schemaVersion")
+        else
+            Ok o
+
+    /// The preview declaration is checked directly. Nothing relabels a parsed
+    /// historical document or substitutes another document's schema URL.
+    let previewEnvelopeAt contract (understood: Set<string>) (n: Node) : Read<ObjectNode> =
+        result {
+            let! o = asObject n
+            let path = n.Path.Child "$schema"
+
+            match tryMember "$schema" o with
+            | Some { Value = Value.String url } when url = previewSchema contract -> ()
+            | Some { Value = Value.String _ } -> return! refuse ReaderCode.UnsupportedContractVersion path
+            | _ -> return! refuse ReaderCode.InvalidDocument path
+
+            let! o = withoutBodyVersion n o
+            return! memberRules (understood |> Set.remove "schemaVersion" |> Set.add "$schema") n o
+        }
+
+    /// TOML retains its exact bytes, including the directive. Syntax is parsed
+    /// once, and the first-line declaration is checked before reading the body.
+    let previewRequest (understood: Set<string>) (body: ObjectNode -> Read<'T>) (bytes: byte array) : Read<'T> =
+        result {
+            let! root = Syntax.parseToml bytes
+            let n = node root DocumentPath.root
+            let! o = asObject n
+            let text = strictUtf8.GetString bytes
+            let newline = text.IndexOf '\n'
+            let firstLine = (if newline < 0 then text else text.Substring(0, newline)).TrimEnd '\r'
+            let prefix = "#:schema "
+            let path = DocumentPath.root.Child "$schema"
+
+            if not (firstLine.StartsWith(prefix, StringComparison.Ordinal)) then
+                return! refuse ReaderCode.InvalidDocument path
+            elif firstLine.Substring(prefix.Length) <> previewSchema PreviewDocument.Request then
+                return! refuse ReaderCode.UnsupportedContractVersion path
+
+            let! o = withoutBodyVersion n o
+            let! o = memberRules (understood |> Set.remove "schemaVersion") n o
+            return! body o
+        }
+
     /// The envelope checks on a parsed document root.
     let envelope (understood: Set<string>) (root: Value) : Read<ObjectNode> =
         envelopeAt understood (node root DocumentPath.root)
@@ -222,6 +294,7 @@ module internal Reading =
     let targetPath = validated TargetPath.tryParse
     let platform = validated Platform.tryParse
     let extensionId = validated ExtensionId.tryParse
+    let previewExtensionId = validated ExtensionId.tryParsePreview
     let packageId = validated PackageId.tryParse
 
     [<RequireQualifiedAccess>]
@@ -409,3 +482,8 @@ module internal Reading =
     /// Reads a document: parse its syntax, check the envelope, then read the body.
     let document parse (understood: Set<string>) (body: ObjectNode -> Read<'T>) (bytes: byte array) : Read<'T> =
         parse bytes |> Result.bind (envelope understood) |> Result.bind body
+
+    let previewDocument contract (understood: Set<string>) (body: ObjectNode -> Read<'T>) (bytes: byte array) : Read<'T> =
+        Syntax.parseJson bytes
+        |> Result.bind (fun root -> previewEnvelopeAt contract understood (node root DocumentPath.root))
+        |> Result.bind body

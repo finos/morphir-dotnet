@@ -427,3 +427,48 @@ CorpusGreen-20261111T1416492137492.log in ignored .dev/trust-checkpoint.
 These supersede the 22-test checkpoint count for this corrected delta, while
 preserving that earlier evidence. No formatter, AOT, full-solution, live durable
 store or production authority qualification was performed by this correction.
+
+## Preview reader adoption, first slice
+
+Parent PR1157 landed normally at `1d89fc50ce5239042c74d4a54fe323c7d5241294`.
+Its toolchain family uses exact `0.1.0-preview.1` schema URLs. Historical draft.1
+inputs and signatures retain their original bytes and authority.
+
+The existing request, recipe, lock, receipt and result modules now have internal
+`readPreview` entry points. These reuse the existing body checks and primitive
+readers. They check the exact document-specific `$schema` URL, or the request's
+first-line TOML directive, and never retry the historical codec after refusal.
+Critical-member and recursive credential checks use one shared implementation.
+Nested locks in preview results use the preview lock declaration. Request,
+recipe and standalone lock identities still hash the original input bytes.
+
+Preview extension identities use the published extension-family grammar: a
+238-character total bound, no historical 64-character segment bound, and the
+reserved first device-segment rule. The historical readers retain their original
+identity grammar. The choice is passed explicitly through the shared body
+readers, including installed identities and planned components.
+
+The first 18 fixed preview inputs ran through the five existing reader APIs
+before implementation. Including the manifest partition control, the result was
+19 executed, 6 passed and 13 assertion failures, with zero ignored or errored.
+The explicit preview entry points then passed all 19. Separate identity and
+family-isolation controls reproduced two further assertion failures: the old
+segment limit refused a valid long identity, while a reserved first device
+segment was accepted. All six isolation controls passed after the correction.
+The latest external corpus run passed 1,094/1,094 with zero ignored, failed or
+errored: the previous 1,069 registered cases plus these 25 controls. Focused
+Release builds had zero warnings and errors. No restore was needed. All 88
+tracked package-lock/config inputs and the selected source/corpus hashes were
+unchanged during execution. Raw results and separate ANSI-normalized analysis
+are retained under ignored `.dev/preview-reader-red`, `preview-reader-green`,
+`preview-identity-red` and `preview-identity-green` directories.
+
+This is an internal adoption slice, not a manager cutover. Public historical
+read/write APIs and the CLI remain on draft.1. The other 16 preview selection
+inputs and three workflow-case inputs have not run. Preview writers, signed
+recipe authentication/binding, installer/manager selection integration, durable
+trust, offline restore and acquired-release qualification remain unfinished.
+The common-body refactor does not establish those gates or activate a production
+trust root. Independent static review found no correctness, security or interop
+findings in this subset. Final formatting/platform/AOT and broader adoption
+checks remain required before landing the implementation.

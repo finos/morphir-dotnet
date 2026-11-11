@@ -46,7 +46,8 @@ module Token =
 
     let text (token: Token) = token.Text
 
-/// A provider identity: portable tokens joined by <c>.</c>, at most 238 characters, such as <c>morphir.fsharp</c>.
+/// A provider identity: lowercase portable segments joined by <c>.</c>, at most
+/// 238 characters. Each document reader selects its family's segment rules.
 type ExtensionId =
     private
     | ExtensionId of string
@@ -60,6 +61,22 @@ type ExtensionId =
 module ExtensionId =
     let tryParse (text: string) =
         if text.Length <= 238 && text.Split('.') |> Array.forall (Token.isToken 64) then
+            Ok(ExtensionId text)
+        else
+            Error ReaderCode.InvalidValue
+
+    /// The published extension-family grammar used by preview documents. The
+    /// historical parser above retains its original segment bound and rules.
+    let internal tryParsePreview (text: string) =
+        let segments = text.Split '.'
+        let first = segments[0]
+        let device =
+            [ "con"; "prn"; "aux"; "nul" ] |> List.contains first
+            || (first.Length = 4
+                && (first.StartsWith("com", StringComparison.Ordinal) || first.StartsWith("lpt", StringComparison.Ordinal))
+                && first[3] >= '1' && first[3] <= '9')
+
+        if text.Length <= 238 && not device && segments |> Array.forall (Token.isToken 238) then
             Ok(ExtensionId text)
         else
             Error ReaderCode.InvalidValue

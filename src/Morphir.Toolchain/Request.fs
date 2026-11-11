@@ -123,12 +123,12 @@ module RequestDocument =
     let private deliveries =
         Delivery.all |> List.map (fun (delivery, name) -> name, delivery)
 
-    let private choice (n: Node) : Read<ProviderChoice> =
+    let private choice readIdentity (n: Node) : Read<ProviderChoice> =
         result {
             let! o = asObject n
             let! operation = operation o
             let! delivery = optional "delivery" (tag deliveries) o
-            let! extensionId = optional "extensionId" extensionId o
+            let! extensionId = optional "extensionId" readIdentity o
             let! abi = optional "abi" token o
 
             let! selector =
@@ -165,11 +165,11 @@ module RequestDocument =
                   Release = release }
         }
 
-    let private toolset (n: Node) : Read<ToolsetRequest> =
+    let private toolset readIdentity (n: Node) : Read<ToolsetRequest> =
         result {
             let! o = asObject n
             let! preset = required "preset" token o
-            let! providers = optional "providers" (array choice) o
+            let! providers = optional "providers" (array (choice readIdentity)) o
             let providers = defaultArg providers []
             let providersPath = n.Path.Child "providers"
 
@@ -180,7 +180,7 @@ module RequestDocument =
             return { Preset = preset; Providers = providers }
         }
 
-    let private body (identity: Sha256) (o: ObjectNode) : Read<Request> =
+    let private body readIdentity (identity: Sha256) (o: ObjectNode) : Read<Request> =
         result {
             let! platforms = optional "platforms" (array platform) o
 
@@ -190,7 +190,7 @@ module RequestDocument =
             | _ -> ()
 
             let! host = required "host" host o
-            let! toolset = required "toolset" toolset o
+            let! toolset = required "toolset" (toolset readIdentity) o
 
             return
                 { Platforms = platforms
@@ -202,7 +202,11 @@ module RequestDocument =
     /// <summary>Reads the exact bytes of a request. A refusal names the first failing rule in the order of checks.
     /// </summary>
     let read (bytes: byte array) : Result<Request, ReaderRefusal> =
-        document Syntax.parseToml understoodCriticalPaths (body (Sha256.ofBytes bytes)) bytes
+        document Syntax.parseToml understoodCriticalPaths (body extensionId (Sha256.ofBytes bytes)) bytes
+
+    /// Reads only the preview request declaration, preserving its exact byte identity.
+    let internal readPreview (bytes: byte array) : Result<Request, ReaderRefusal> =
+        previewRequest understoodCriticalPaths (body previewExtensionId (Sha256.ofBytes bytes)) bytes
 
     /// <summary>
     /// The request bytes for a request given on the command line: TOML 1.0.0 in the member order and line layout of
