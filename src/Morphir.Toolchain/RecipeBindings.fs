@@ -221,7 +221,14 @@ module RecipeBindings =
             | Error refusal -> Error(refusal.Code, "source")
             | Ok bytes ->
                 match ToolReleaseDocument.read bytes with
-                | Ok release when release.ToolId.Text = toolId.Text && release.Version = version ->
+                // The descriptor's compatibility.morphirCli is in the CLI requirement grammar (host-release-v1), and its own
+                // tool id and version are the offering's (host-release-identity); both are release_descriptor_mismatch at
+                // source (toolset recipe page, at finos/morphir 837164580).
+                | Ok release when
+                    (CliRequirement.tryParse release.MorphirCli).IsSome
+                    && release.ToolId.Text = toolId.Text
+                    && release.Version = version
+                    ->
                     let byTargetPath = Dictionary<string, ToolReleaseArtifact>(System.StringComparer.Ordinal)
 
                     for artifact in release.Artifacts do
@@ -231,10 +238,10 @@ module RecipeBindings =
                 | _ -> source TrustCode.ReleaseDescriptorMismatch
 
     /// <summary>The release record of a <c>tool-release</c> offering: its descriptor target is an authenticated
-    /// <c>tool-release</c> for the tool and version (provisional: with a known status), not revoked, served with the
-    /// authenticated length and digest, and readable as a v1 tool release. Provisional, the stricter reading: the
-    /// descriptor's own tool id and version are the offering's, since the profile calls a mismatch in those immutable
-    /// values <c>release_descriptor_mismatch</c>. Read once per check for each tool and version.</summary>
+    /// <c>tool-release</c> for the tool and version with a known status, not revoked, served with the authenticated
+    /// length and digest, and readable as a v1 tool release. Its tool id and version must equal the offering's and
+    /// <c>morphirCli</c> must follow the CLI requirement grammar; a mismatch is
+    /// <c>release_descriptor_mismatch</c>. Read once per check for each tool and version.</summary>
     let private hostRelease
         (reads: Reads)
         (targets: Map<string, AuthenticatedTarget>)

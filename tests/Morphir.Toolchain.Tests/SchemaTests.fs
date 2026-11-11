@@ -20,7 +20,8 @@ let private schemaFiles =
           "lock", "toolchain-lock-0.1.0-draft.1.schema.json"
           "receipt", "toolchain-receipt-0.1.0-draft.1.schema.json"
           "result", "morphirup-result-0.1.0-draft.1.schema.json"
-          "workflow-case", "toolchain-workflow-case-0.1.0-draft.1.schema.json" ]
+          "workflow-case", "toolchain-workflow-case-0.1.0-draft.1.schema.json"
+          "tool-release", "tool-release-v1.schema.json" ]
 
 /// <summary>A schema's text with every pattern's end anchored as ECMA-262 anchors it: a final <c>$</c> without the m
 /// flag matches only at the end, where .NET's, which JsonSchema.Net uses, also matches before a final line feed. So
@@ -49,9 +50,16 @@ let endAnchored (text: string) =
     walk root
     root.ToJsonString()
 
+let private compiled = System.Collections.Concurrent.ConcurrentDictionary<string, JsonSchema>()
+
+/// The contract's schema, compiled once per run: the corpus does not change while the suite runs.
 let private schema (contract: string) =
-    let text = File.ReadAllText(Path.Combine(Fixtures.schemas, schemaFiles[contract]))
-    JsonSchema.FromText(endAnchored text, BuildOptions(SchemaRegistry = SchemaRegistry()))
+    compiled.GetOrAdd(
+        contract,
+        fun contract ->
+            let text = File.ReadAllText(Path.Combine(Fixtures.schemas, schemaFiles[contract]))
+            JsonSchema.FromText(endAnchored text, BuildOptions(SchemaRegistry = SchemaRegistry()))
+    )
 
 /// Whether a value validates, with the first failing location for the message.
 let validates (contract: string) (value: Value) =

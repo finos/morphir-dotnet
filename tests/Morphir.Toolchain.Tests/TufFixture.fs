@@ -128,7 +128,13 @@ type MetadataSet =
     { Root: Value
       Timestamp: Value
       Snapshot: Value
-      Targets: Value }
+      Targets: Value
+      /// <summary>A replace-role-text mutation of a role (timestamp, snapshot or targets): the text to find and its
+      /// replacement, applied each time the role is served, to the canonical bytes of its envelope as it is then. So it
+      /// serves text no value encodes to, such as a decomposed string under the original signature, and it stays
+      /// applied after a later relink or edit of the role, as finos/morphir's runner kept it (<c>served</c> in
+      /// <c>tests/support/repository.rs</c> at <c>dde74f94</c>).</summary>
+      RoleText: Map<string, string * string> }
 
 let metadataSet (name: string) =
     let set = at [ name ] (repository ())
@@ -136,7 +142,49 @@ let metadataSet (name: string) =
     { Root = at [ "trustedRoot" ] (repository ())
       Timestamp = memberOf "timestamp" set
       Snapshot = memberOf "snapshot" set
-      Targets = memberOf "targets" set }
+      Targets = memberOf "targets" set
+      RoleText = Map.empty }
+
+let private envelopeOf (role: string) (set: MetadataSet) =
+    match role with
+    | "timestamp" -> set.Timestamp
+    | "snapshot" -> set.Snapshot
+    | "targets" -> set.Targets
+    | other -> failtestf "no role %s" other
+
+/// The one place a text occurs, or a failure that says why it does not apply.
+let private onlyOccurrence (what: string) (find: string) (text: string) =
+    let at = text.IndexOf(find, StringComparison.Ordinal)
+
+    if at < 0 then
+        failtestf "%s: the text to find does not occur" what
+    elif text.IndexOf(find, at + 1, StringComparison.Ordinal) >= 0 then
+        failtestf "%s: the text to find occurs more than once" what
+
+    at
+
+/// <summary>The bytes the set serves for a role: the canonical bytes of its envelope, with its replace-role-text
+/// replacement applied. A replacement whose text a later edit removed or repeated fails, instead of serving the edited
+/// role unreplaced.</summary>
+let served (role: string) (set: MetadataSet) =
+    let bytes = canonical (envelopeOf role set)
+
+    match set.RoleText.TryFind role with
+    | None -> bytes
+    | Some(find, replace) ->
+        let text = Text.Encoding.UTF8.GetString bytes
+        let at = onlyOccurrence $"replace-role-text of {role}, when served" find text
+        Text.Encoding.UTF8.GetBytes(text.Substring(0, at) + replace + text.Substring(at + find.Length))
+
+/// <summary>The replace-role-text mutation. The text must occur exactly once in the role as served now, and a role
+/// takes one such mutation: finos/morphir's runner kept only the last of two, and composing them is not defined, so a
+/// second one fails its case.</summary>
+let replaceRoleText (role: string) (find: string) (replace: string) (set: MetadataSet) =
+    if set.RoleText.ContainsKey role then
+        failtestf "replace-role-text of %s: the role already has one, and a second is not applied" role
+
+    onlyOccurrence $"replace-role-text of {role}" find (Text.Encoding.UTF8.GetString(served role set)) |> ignore
+    { set with RoleText = set.RoleText.Add(role, (find, replace)) }
 
 let versionOf (role: Value) =
     match at [ "signed"; "version" ] role with
@@ -148,28 +196,37 @@ let resign (role: string) (envelopeValue: Value) =
     envelope (memberOf "signed" envelopeValue) (keysOf role)
 
 /// The fixture's relink: the snapshot's entry for targets.json and the timestamp's for snapshot.json are computed
-/// again from the served bytes, and both are signed again.
+/// again from the bytes served for the targets and the new snapshot, and both are signed again. The targets role is
+/// not re-signed, and every replace-role-text replacement stays applied.
 let relink (set: MetadataSet) =
-    let entry (role: Value) =
-        let bytes = canonical role
+    let entry (role: Value) (bytes: byte array) =
         Value.Object
             [ "version", number (versionOf role)
               "length", number (uint64 bytes.Length)
               "hashes", Value.Object [ "sha256", text (Digest.ofBytes bytes) ] ]
 
-    let snapshot = resign "snapshot" (setAt [ "signed"; "meta"; "targets.json" ] (entry set.Targets) set.Snapshot)
-    let timestamp = resign "timestamp" (setAt [ "signed"; "meta"; "snapshot.json" ] (entry snapshot) set.Timestamp)
-    { set with Snapshot = snapshot; Timestamp = timestamp }
+    let snapshot = resign "snapshot" (setAt [ "signed"; "meta"; "targets.json" ] (entry set.Targets (served "targets" set)) set.Snapshot)
+    let withSnapshot = { set with Snapshot = snapshot }
+
+    let timestamp =
+        resign "timestamp" (setAt [ "signed"; "meta"; "snapshot.json" ] (entry snapshot (served "snapshot" withSnapshot)) set.Timestamp)
+
+    { withSnapshot with Timestamp = timestamp }
 
 /// The source a refresh reads: the trusted root as 1.root.json, any further roots, and the set's other roles at the
 /// versions their envelopes state.
 let sourceOf (set: MetadataSet) (laterRoots: Value list) : MetadataSource =
     let roots = (set.Root :: laterRoots) |> List.map (fun root -> versionOf root, canonical root) |> Map.ofList
+    // A malformed fixture mutation is a harness failure, not an unavailable repository. Materialize these before
+    // refresh enters the production transport boundary, which deliberately converts source exceptions to refusals.
+    let timestamp = served "timestamp" set
+    let snapshot = served "snapshot" set
+    let targets = served "targets" set
 
     { Root = fun version -> roots.TryFind version
-      Timestamp = fun () -> Some(canonical set.Timestamp)
-      Snapshot = fun version -> if version = versionOf set.Snapshot then Some(canonical set.Snapshot) else None
-      Targets = fun version -> if version = versionOf set.Targets then Some(canonical set.Targets) else None }
+      Timestamp = fun () -> Some timestamp
+      Snapshot = fun version -> if version = versionOf set.Snapshot then Some snapshot else None
+      Targets = fun version -> if version = versionOf set.Targets then Some targets else None }
 
 /// The fixture's reference time, the trusted start time of every refresh in these tests.
 let referenceTime = DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero)
