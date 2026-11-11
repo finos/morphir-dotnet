@@ -11,6 +11,7 @@ The first tranche is bounded acquisition I/O. It does not connect `setup` to dow
 | Existing document readers, resolution and plan/dry-run behavior | Delivered on main | `Morphir.Toolchain` and `Morphirup`; unchanged by this tranche |
 | Streaming transport and integrity tests | GREEN for the bounded tranche | 58 passed, 0 ignored, failed or errored across the three new test lists |
 | Acquisition adapter | Implemented and tested in isolation | `src/Morphir.Toolchain.IO`; Release build has 0 warnings and 0 errors |
+| Existing CI test lane | Source wiring added; current-head execution pending | One `Morphir.Toolchain.IO.Tests` entry in Nuke `Test`; existing Development matrix runs it on Ubuntu, Windows and macOS |
 | Concrete immutable filesystem store | Deferred integration | Installer FileSafety/Store code is under independent review; no copy or merge in this tranche |
 | Production publisher authentication | Unqualified | Pure `TufClient` and `TrustRules` require security review and an asynchronous integration design |
 | Trusted-state durability, generations and transactions | Pending | Later lifecycle tranche |
@@ -116,6 +117,21 @@ The remaining concrete authentication question is which reviewed component will 
 expectation together with its durable trust evidence. This tranche can transport and check bytes without choosing
 that component or silently promoting a matching digest to trust. The coordinator owns that later integration.
 
+## Full lifecycle delivery
+
+The acquisition branch and its draft PR carry the full manager lifecycle. The bounded I/O work is the first
+increment, not a separate installer or the endpoint for this change. Remaining work includes authenticated target
+acquisition with durable trust and revocation handling, verified object durability, offline setup/restore,
+generations and transactions, activation and proxy/run behavior, and update/rollback/repair/remove/self-update.
+Commands continue to describe their implemented plan-only behavior until their apply paths are wired and tested.
+
+Integration must reuse the installer primitives delivered through
+[#593](https://github.com/finos/morphir-dotnet/pull/593) once their required qualification is available. That draft's
+full installer lifecycle and qualification are still in progress. No installer sources are copied or merged here.
+The parent portable selection/overlay candidate is not yet published or adopted, so this branch adds no such
+persisted metadata. Production authentication requires its own narrow design, tests and security review before
+activation. The existing pure TUF code remains unused and unqualified.
+
 ## Validation and capacity
 
 The first RED cycle was limited to the new acquisition test graph. The pinned mise SDK was `10.0.403`; restore
@@ -149,3 +165,14 @@ with an official digest and a reused read buffer. HTTP tests use an
 injected message handler and content that refuses eager buffering. No full-solution, AOT, live network, cross-platform
 or tool-install validation ran in these slots. Existing package versions and lock files are unchanged; only the two
 new projects have new lock files. Independent review and later integration qualification remain separate work.
+
+The coordinator's independent read-only review of exact `0bfff39abc21c09eb824141d5c3dae44ce1d18a0` reported no
+actionable security, correctness or interop findings and accepted the 58 controls as meaningful. That is static
+review of the bounded increment. It does not qualify real filesystem publication, live HTTP, other operating
+systems, Native AOT, C# consumers, trust or the remaining lifecycle.
+
+The subsequent change adds only the IO suite's missing entry to Nuke's existing test list and updates these status
+docs. `Morphir.slnx` already includes both new projects. The existing Development workflow builds that solution and
+invokes Nuke `Test` on its three operating systems, so no new job or YAML change is needed. This wiring has not been
+run locally; its execution and results remain pending current-head CI. The earlier 58-test local evidence applies
+to the reviewed I/O source, not an unexecuted full Nuke/CI run.
