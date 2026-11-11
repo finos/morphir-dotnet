@@ -43,7 +43,10 @@ let private hostAs (command: MorphirHost) =
     HostIdentity.Create(
         command,
         hostVersion,
-        NonEmptySet.create Deployment.SelfContained [ Deployment.FrameworkDependent; Deployment.DotnetTool ],
+        NonEmptySet.create Deployment.SelfContained [
+            Deployment.FrameworkDependent
+            Deployment.DotnetTool
+        ],
         BuildProfile.NoProfile,
         ExecutionMode.Jit
     )
@@ -53,6 +56,156 @@ let private hosts = [ hostAs MorphirHost.Native; hostAs MorphirHost.DotnetTool ]
 [<Tests>]
 let tests =
     testList "WASM delivery" [
+        for reason in reasons do
+            testCase $"runtime refusal {reason.WireValue} has a common unavailable reason"
+            <| fun () ->
+                let entry = wasm "acme.python"
+                let host = hostAs MorphirHost.Native
+                let runtime = WasmRuntimeAvailability.Unavailable reason
+                Expect.isFalse (entry.IsAvailableIn(host, runtime)) "the runtime refuses the entry"
+                let availability = entry.AvailabilityIn(host, runtime)
+
+                let expected =
+                    UnavailableReason.Create
+                        $"The WASM runtime is unavailable: {reason.Description}."
+
+                Expect.equal
+                    availability
+                    (ExtensionAvailability.Unavailable expected)
+                    "one combined outcome"
+
+                Expect.equal
+                    (entry.ReasonOrNullIn(host, runtime))
+                    expected
+                    "the common query supplies the same reason"
+
+                Expect.equal
+                    availability.ReasonOrNull
+                    expected
+                    "listing reads the same reason from the outcome"
+
+                Expect.sequenceEqual
+                    entry.Deployments.Deployments
+                    Deployment.All
+                    "runtime failure preserves the declared offerings"
+
+        test "available entries have no common reason" {
+            for entry in [ builtIn "morphir.csharp"; wasm "acme.python" ] do
+                for host in hosts do
+                    let availability = entry.AvailabilityIn(host, WasmRuntimeAvailability.Available)
+                    Expect.isTrue availability.CanRun "available"
+                    Expect.isNone availability.Reason "no F# reason"
+                    Expect.isNull availability.ReasonOrNull "no C# reason"
+
+                    Expect.isNull
+                        (entry.ReasonOrNullIn(host, WasmRuntimeAvailability.Available))
+                        "query agrees"
+        }
+
+        test "static host and deployment refusals take precedence without probing" {
+            let host = hostAs MorphirHost.Native
+
+            let hostOnly =
+                (wasm "acme.python").WithHosts(HostAvailability.OnlyIn MorphirHost.DotnetTool)
+
+            let deploymentReason =
+                UnavailableReason.Create "This delivery requires the native-aot offering."
+
+            let deploymentOnly =
+                (wasm "acme.python")
+                    .WithDeployments(
+                        EntryDeployments.Only(
+                            NonEmptySet.create Deployment.NativeAot [],
+                            deploymentReason
+                        )
+                    )
+
+            let runtime =
+                Func<WasmRuntimeAvailability>(fun () ->
+                    failtest "a static refusal must not ask the runtime"
+                )
+
+            for entry in [ hostOnly; deploymentOnly ] do
+                let availability = entry.AvailabilityIn(host, runtime)
+                Expect.isFalse availability.CanRun "statically unavailable"
+
+                Expect.equal
+                    availability.ReasonOrNull
+                    (entry.ReasonOrNullIn host)
+                    "the static reason wins"
+
+                Expect.equal
+                    (entry.ReasonOrNullIn(host, runtime))
+                    availability.ReasonOrNull
+                    "the common query agrees"
+
+                for reason in reasons do
+                    Expect.equal
+                        (entry.AvailabilityIn(host, WasmRuntimeAvailability.Unavailable reason))
+                        availability
+                        "runtime failure does not replace a static refusal"
+        }
+
+        test "a built-in combined outcome and common query do not ask the runtime" {
+            let entry = builtIn "morphir.csharp"
+
+            let runtime =
+                Func<WasmRuntimeAvailability>(fun () ->
+                    failtest "a built-in must not ask the runtime"
+                )
+
+            let host = hostAs MorphirHost.Native
+
+            Expect.equal
+                (entry.AvailabilityIn(host, runtime))
+                ExtensionAvailability.Available
+                "available"
+
+            Expect.isNull (entry.ReasonOrNullIn(host, runtime)) "no reason"
+        }
+
+        test "combined outcomes share the caller's lazy runtime probe" {
+            let asked = ref 0
+
+            let runtime =
+                lazy
+                    (asked.Value <-
+                        asked.Value
+                        + 1
+
+                     WasmRuntimeAvailability.Unavailable WasmRuntimeUnavailableReason.EngineMissing)
+
+            let probe = Func<WasmRuntimeAvailability>(fun () -> runtime.Value)
+            let host = hostAs MorphirHost.Native
+
+            for entry in [ wasm "acme.python"; wasm "acme.avro" ] do
+                let availability = entry.AvailabilityIn(host, probe)
+                Expect.isFalse availability.CanRun "unavailable"
+
+                Expect.equal
+                    (entry.ReasonOrNullIn(host, probe))
+                    availability.ReasonOrNull
+                    "query agrees"
+
+            Expect.equal asked.Value 1 "one shared engine probe"
+        }
+
+        test "C# can match the combined outcome without inspecting union cases" {
+            let render (availability: ExtensionAvailability) =
+                availability.Match(
+                    Func<string>(fun () -> "yes"),
+                    Func<UnavailableReason, string>(fun reason -> reason.Value)
+                )
+
+            Expect.equal (render ExtensionAvailability.Available) "yes" "available"
+            let reason = UnavailableReason.Create "Use a process extension."
+
+            Expect.equal
+                (render (ExtensionAvailability.Unavailable reason))
+                reason.Value
+                "common unavailable reason"
+        }
+
         test "a WASM delivery has the wire value wasm and built-ins keep built-in" {
             Expect.equal ExtensionDelivery.Wasm.WireValue "wasm" "wasm"
             Expect.equal (string ExtensionDelivery.Wasm) "wasm" "text"
@@ -182,7 +335,10 @@ let tests =
                 "native"
 
             Expect.isTrue
-                (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool, WasmRuntimeAvailability.Available))
+                (entry.IsAvailableIn(
+                    hostAs MorphirHost.DotnetTool,
+                    WasmRuntimeAvailability.Available
+                ))
                 "dotnet tool"
         }
 

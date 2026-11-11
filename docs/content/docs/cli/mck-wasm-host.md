@@ -7,10 +7,12 @@ description: "Experimental and internal: run the crafted WASM host cases against
 
 # morphir mck wasm-host
 
-> **Experimental and internal.** These commands exist to qualify WASM extension hosts while the
-> WASM runtime is built (OpenSpec change `add-wasm-extension-host`, task 1.5). Their options, output
-> and report format can change without notice, and the compatibility-kit work will fold them into a
-> general `mck` command. Do not build on them. Contributors: see
+> **Development runner adapter reference.** Product `morphir mck ...` forwards every argument to
+> the separately installed `morphir-mck`, as described in [morphir mck](../mck/). The product contains
+> no compatibility runner. The commands below document the retained adapter source awaiting migration
+> to the dedicated development entry point. They do not establish that the installed tool supports
+> these subcommands. Reports contain observations only; qualification awaits parent task 1.4.
+> Contributors: see
 > [WASM host qualification]({{< relref "/docs/contributing/qa/wasm-host-qualification" >}}).
 
 ## Synopsis

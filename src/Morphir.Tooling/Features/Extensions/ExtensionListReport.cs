@@ -49,6 +49,7 @@ public sealed record ExtensionListReport(
         var frontend = entry.FrontendClaimOrNull;
         var backend = entry.BackendClaimOrNull;
         var validator = entry.ValidatorClaimOrNull;
+        var availability = entry.AvailabilityIn(host, wasmRuntime);
         return new ExtensionListEntry(
             entry.Identity.Id.Value,
             entry.Identity.Name.Value,
@@ -58,8 +59,8 @@ public sealed record ExtensionListReport(
             entry.Delivery.WireValue,
             entry.Hosts.WireValues,
             entry.Deployments.Deployments.Select(deployment => deployment.WireValue).ToArray(),
-            entry.IsAvailableIn(host, wasmRuntime),
-            entry.ReasonOrNullIn(host)?.Value,
+            availability.CanRun,
+            availability.ReasonOrNull?.Value,
             // A built-in has no prerequisite beyond those of its offering.
             Prerequisite(Morphir.Extensions.Prerequisites.None),
             new ExtensionListCapabilities(

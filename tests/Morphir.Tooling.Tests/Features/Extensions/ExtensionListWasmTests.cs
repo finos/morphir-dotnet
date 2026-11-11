@@ -90,6 +90,61 @@ public sealed class ExtensionListWasmTests
     }
 
     [Test]
+    [Arguments(0)]
+    [Arguments(1)]
+    [Arguments(2)]
+    public void RuntimeRefusalsListTheSameCommonReasonAsTheRegistryQuery(int reason)
+    {
+        var entry = WasmEntry();
+        var availability = WasmRuntimeAvailability.UnavailableBecause(Reasons[reason]);
+        var runtime = new WasmRuntime("win-arm64", () => availability);
+        ExtensionCatalog.TryCreate(Native, [entry], out var catalog, out var error).Should().BeTrue();
+        error.Should().BeNull();
+        var listed = ExtensionListReport.From(catalog!, () => runtime.Availability).Extensions.Single();
+        listed.Available.Should().BeFalse();
+        listed.Reason.Should().Be(entry.ReasonOrNullIn(Native, () => runtime.Availability)!.Value);
+        listed.Reason.Should().Be($"The WASM runtime is unavailable: {Reasons[reason].Description}.");
+        listed.Deployments.Should().Equal(Deployment.All.Select(deployment => deployment.WireValue));
+    }
+
+    [Test]
+    public void AvailableListingsHaveNoReasonAndShareOneLazyProbe()
+    {
+        var probes = 0;
+        var runtime = new WasmRuntime("win-arm64", () =>
+        {
+            probes++;
+            return WasmRuntimeAvailability.Available;
+        });
+        var first = WasmEntry();
+        var second = ExtensionEntry.BuiltInBackend(
+                ExtensionIdentity.Create(ExtensionId.Create("acme.avro"), ExtensionName.Create("Avro binding"), Native.Version, null),
+                first.BackendClaimOrNull!)
+            .WithDelivery(ExtensionDelivery.Wasm);
+        ExtensionCatalog.TryCreate(Native, [first, second], out var catalog, out _).Should().BeTrue();
+        var report = ExtensionListReport.From(catalog!, () => runtime.Availability);
+        report.Extensions.Should().OnlyContain(entry => entry.Available && entry.Reason == null);
+        probes.Should().Be(1);
+    }
+
+    [Test]
+    public void StaticRefusalsListTheirCommonReasonWithoutProbing()
+    {
+        var hostOnly = WasmEntry().WithHosts(HostAvailability.OnlyIn(MorphirHost.DotnetTool));
+        var reason = UnavailableReason.Create("Configure a WASM delivery for this offering.");
+        var deploymentOnly = WasmEntry().WithDeployments(EntryDeployments.OnlyIn(NonEmptySet<Deployment>.Create(Deployment.NativeAot), reason));
+        foreach (var entry in new[] { hostOnly, deploymentOnly })
+        {
+            ExtensionCatalog.TryCreate(Native, [entry], out var catalog, out _).Should().BeTrue();
+            var runtime = new WasmRuntime("win-arm64", () => throw new InvalidOperationException("Static refusal probed the engine"));
+            var listed = ExtensionListReport.From(catalog!, () => runtime.Availability).Extensions.Single();
+            listed.Available.Should().BeFalse();
+            listed.Reason.Should().Be(entry.ReasonOrNullIn(Native)!.Value);
+            runtime.HasProbed.Should().BeFalse();
+        }
+    }
+
+    [Test]
     [Arguments(false)]
     [Arguments(true)]
     public void HostWithTheEngineListsTheWasmEntryAsAvailable(bool tool)

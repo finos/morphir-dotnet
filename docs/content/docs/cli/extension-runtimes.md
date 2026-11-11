@@ -103,8 +103,7 @@ wasm: unavailable (engine_missing)
 | `runtimes[].bounds` | Only when available: `memoryBytes` is the ceiling of each linear memory of a session, and `deadline` and `budget` say that the call deadline and the instruction budget are enforced. The values are the defaults of the pinned WASM execution profile contract. |
 
 The report has no member for the deployment offering (`native-aot`, `self-contained`,
-`framework-dependent` or `dotnet-tool`). A .NET executable does not know at run time how it was
-published, and the report does not guess one from the file name or path. A runner that needs the
+`framework-dependent` or `dotnet-tool`). The host identity now records named release profiles, but this report has not yet added those fields. It does not guess a deployment from the file name or path. A runner that needs the
 offering is given it as an input.
 
 ## Reasons

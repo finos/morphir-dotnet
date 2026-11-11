@@ -182,6 +182,10 @@ type WasmRuntimeUnavailableReason =
         | EngineMissing -> "the engine's native library is not in this installation"
         | EngineLoadFailed -> "the engine's native library is present but did not load"
 
+    /// <summary>The common registry reason; the runtime report keeps the separate wire code.</summary>
+    member internal this.CommonReason =
+        UnavailableReason.Create $"The WASM runtime is unavailable: {this.Description}."
+
     /// <summary>The text that the runtime report writes.</summary>
     override this.ToString() = this.WireValue
 
@@ -217,6 +221,41 @@ type WasmRuntimeAvailability =
         match this with
         | Available -> "available"
         | Unavailable reason -> $"unavailable ({reason.WireValue})"
+
+/// <summary>An extension's availability, with a common validated reason whenever it is unavailable.</summary>
+[<RequireQualifiedAccess>]
+type ExtensionAvailability =
+    /// <summary>The extension can run in the host.</summary>
+    | Available
+    /// <summary>The extension cannot run in the host, for this reason.</summary>
+    | Unavailable of Reason: UnavailableReason
+
+    /// <summary>True when the extension can run.</summary>
+    member this.CanRun =
+        match this with
+        | Available -> true
+        | Unavailable _ -> false
+
+    /// <summary>The common reason, or none when available. F# callers use this; C# reads <see cref="ReasonOrNull"/>.</summary>
+    member this.Reason =
+        match this with
+        | Available -> None
+        | Unavailable reason -> Some reason
+
+    /// <summary>For C# callers: the common reason, or null when available.</summary>
+    member this.ReasonOrNull: UnavailableReason | null = Option.toObj this.Reason
+
+    /// <summary>For C# code that must branch: one function for each case.</summary>
+    member this.Match<'R>(available: Func<'R>, unavailable: Func<UnavailableReason, 'R>) : 'R =
+        match this with
+        | Available -> available.Invoke()
+        | Unavailable reason -> unavailable.Invoke reason
+
+    /// <summary>The availability and, when unavailable, its reason.</summary>
+    override this.ToString() =
+        match this with
+        | Available -> "available"
+        | Unavailable reason -> $"unavailable ({reason.Value})"
 
 /// <summary>How an extension is delivered. A process delivery comes in a later step.</summary>
 [<RequireQualifiedAccess>]
@@ -476,46 +515,71 @@ type ExtensionEntry =
         |> NonEmptySet.map (fun capability -> capability.Type)
 
     /// <summary>
-    /// True when the extension runs in the host: its command is one of <see cref="Hosts"/>, and every deployment the host
-    /// is judged as (<see cref="HostIdentity.CandidateDeployments"/>) provides it.
+    /// Static host and deployment eligibility. This overload does not inspect the WASM runtime.
     /// </summary>
-    member this.IsAvailableIn(host: HostIdentity) : bool =
-        this.Hosts.IsAvailableIn host.Host
-        && host.CandidateDeployments |> Seq.forall this.Deployments.Contains
-
-    /// <summary>
-    /// True when the extension runs in the host, whose WASM runtime has this availability: the extension is available in
-    /// the host as the overload that takes only the host says, and a <c>wasm</c> entry also needs an available runtime.
-    /// A host lists the entry either way.
-    /// </summary>
-    member this.IsAvailableIn(host: HostIdentity, wasmRuntime: WasmRuntimeAvailability) : bool =
-        this.Hosts.IsAvailableIn host.Host
-        && host.CandidateDeployments |> Seq.forall this.Deployments.Contains
-        && this.Delivery.CanRunWith wasmRuntime
-
-    /// <summary>
-    /// For C# callers that read the runtime only when they need it: as the overload that takes the availability, but
-    /// <paramref name="wasmRuntime"/> is called only for a <c>wasm</c> entry that the host and its deployments allow, so
-    /// listing built-in entries never probes the WASM engine.
-    /// </summary>
-    member this.IsAvailableIn(host: HostIdentity, wasmRuntime: Func<WasmRuntimeAvailability>) : bool =
-        this.Hosts.IsAvailableIn host.Host
-        && host.CandidateDeployments |> Seq.forall this.Deployments.Contains
-        && (match this.Delivery with
-            | ExtensionDelivery.BuiltIn -> true
-            | ExtensionDelivery.Wasm -> wasmRuntime.Invoke().CanRunModules)
-
-    /// <summary>Why the extension is not available in the host, or none when it is.</summary>
-    member this.ReasonIn(host: HostIdentity) : UnavailableReason option =
-        if this.IsAvailableIn host then
-            None
-        elif not (this.Hosts.IsAvailableIn host.Host) then
-            Some(UnavailableReason.Create $"{this.Identity.Id} runs only in {this.Hosts}.")
+    member this.AvailabilityIn(host: HostIdentity) : ExtensionAvailability =
+        if not (this.Hosts.IsAvailableIn host.Host) then
+            ExtensionAvailability.Unavailable(UnavailableReason.Create $"{this.Identity.Id} runs only in {this.Hosts}.")
         else
-            this.Deployments.Reason
+            match this.Deployments with
+            | EntryDeployments.Every -> ExtensionAvailability.Available
+            | EntryDeployments.Only(deployments, reason) ->
+                if host.CandidateDeployments |> Seq.forall deployments.Contains then
+                    ExtensionAvailability.Available
+                else
+                    ExtensionAvailability.Unavailable reason
 
-    /// <summary>For C# callers: why the extension is not available in the host, or null when it is.</summary>
+    /// <summary>
+    /// The combined availability. Static refusals take precedence; only eligible WASM entries ask the lazy runtime.
+    /// For C# callers, the outcome supplies both <c>CanRun</c> and the common <c>ReasonOrNull</c>.
+    /// </summary>
+    member this.AvailabilityIn(host: HostIdentity, wasmRuntime: Func<WasmRuntimeAvailability>) : ExtensionAvailability =
+        match this.AvailabilityIn host with
+        | ExtensionAvailability.Unavailable reason -> ExtensionAvailability.Unavailable reason
+        | ExtensionAvailability.Available ->
+            match this.Delivery with
+            | ExtensionDelivery.BuiltIn -> ExtensionAvailability.Available
+            | ExtensionDelivery.Wasm ->
+                match wasmRuntime.Invoke() with
+                | WasmRuntimeAvailability.Available -> ExtensionAvailability.Available
+                | WasmRuntimeAvailability.Unavailable reason -> ExtensionAvailability.Unavailable reason.CommonReason
+
+    /// <summary>The combined availability with an already known runtime outcome.</summary>
+    member this.AvailabilityIn(host: HostIdentity, wasmRuntime: WasmRuntimeAvailability) : ExtensionAvailability =
+        this.AvailabilityIn(host, Func<WasmRuntimeAvailability>(fun () -> wasmRuntime))
+
+    /// <summary>True when the static host and deployment declarations allow the extension. Does not probe the runtime.</summary>
+    member this.IsAvailableIn(host: HostIdentity) : bool = (this.AvailabilityIn host).CanRun
+
+    /// <summary>True when the static declarations and the WASM runtime allow the extension.</summary>
+    member this.IsAvailableIn(host: HostIdentity, wasmRuntime: WasmRuntimeAvailability) : bool =
+        (this.AvailabilityIn(host, wasmRuntime)).CanRun
+
+    /// <summary>True when available. Only a statically eligible WASM entry asks the lazy runtime.</summary>
+    member this.IsAvailableIn(host: HostIdentity, wasmRuntime: Func<WasmRuntimeAvailability>) : bool =
+        (this.AvailabilityIn(host, wasmRuntime)).CanRun
+
+    /// <summary>The static refusal, or none when the host and deployment declarations allow the extension.</summary>
+    member this.ReasonIn(host: HostIdentity) : UnavailableReason option = (this.AvailabilityIn host).Reason
+
+    /// <summary>The common reason from the combined availability, or none when available.</summary>
+    member this.ReasonIn(host: HostIdentity, wasmRuntime: WasmRuntimeAvailability) : UnavailableReason option =
+        (this.AvailabilityIn(host, wasmRuntime)).Reason
+
+    /// <summary>The common reason. Only a statically eligible WASM entry asks the lazy runtime.</summary>
+    member this.ReasonIn(host: HostIdentity, wasmRuntime: Func<WasmRuntimeAvailability>) : UnavailableReason option =
+        (this.AvailabilityIn(host, wasmRuntime)).Reason
+
+    /// <summary>For C# callers: the static refusal, or null when statically eligible.</summary>
     member this.ReasonOrNullIn(host: HostIdentity) : UnavailableReason | null = Option.toObj (this.ReasonIn host)
+
+    /// <summary>For C# callers: the common reason from the combined availability, or null when available.</summary>
+    member this.ReasonOrNullIn(host: HostIdentity, wasmRuntime: WasmRuntimeAvailability) : UnavailableReason | null =
+        Option.toObj (this.ReasonIn(host, wasmRuntime))
+
+    /// <summary>For C# callers: the common reason, probing only for a statically eligible WASM entry.</summary>
+    member this.ReasonOrNullIn(host: HostIdentity, wasmRuntime: Func<WasmRuntimeAvailability>) : UnavailableReason | null =
+        Option.toObj (this.ReasonIn(host, wasmRuntime))
 
     /// <summary>For C# callers: the frontend claim, or null when the extension is not a frontend.</summary>
     member this.FrontendClaimOrNull =

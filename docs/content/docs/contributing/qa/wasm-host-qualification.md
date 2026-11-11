@@ -7,13 +7,14 @@ description: "The internal, experimental mck wasm-host commands that run the cra
 
 # WASM host qualification
 
-`morphir mck wasm-host run` and `morphir mck wasm-host report-check` are **internal and
-experimental**. They are in both executables, `morphir` and `dotnet-morphir`, so that a contributor
-can run the crafted cases of the `wasm-host` suite against any host that has a worker mode: the
-MoonBit native CLI, and the .NET host through `morphir extension worker` (task 4.1 of
-`add-wasm-extension-host`). They are not a user feature: their options and report can change in any
-release, and the compatibility-kit change will replace them with its general `mck` command. The
-reference is [morphir mck wasm-host]({{< relref "/docs/cli/mck-wasm-host" >}}).
+Product `morphir mck ...` forwards unchanged to the separately installed `morphir-mck`. Neither
+product executable embeds a compatibility runner. The WASM host adapter is retained as development
+source awaiting adoption by a dedicated tool, alongside the generic-kit work in
+[finos/morphir#1154](https://github.com/finos/morphir/pull/1154). The historical runner commands below
+need that migration before they can run again. The worker remains in the product as
+`morphir extension worker`. Reports contain observations only; qualification remains blocked on
+parent normative task 1.4. The adapter reference is
+[WASM host runner adapter]({{< relref "/docs/cli/mck-wasm-host" >}}).
 
 ## What runs where
 
@@ -60,8 +61,9 @@ attaches to the worker's console; no window opens.
 
 ## Running it
 
-The commands are internal and experimental. Build the runner once; any build of `morphir` or
-`dotnet-morphir` can be the runner, and it does not have to be the host it drives.
+The commands in this section record the former embedded adapter invocation. A product build no
+longer supplies the runner. The dedicated development entry point must replace the runner path in
+these examples; it may drive any host executable independently.
 
 ```console
 dotnet build src/Morphir/Morphir.csproj -c Release
@@ -120,8 +122,7 @@ This is internal and experimental, and there is no command for it. The end-to-en
 `ExecutableGuestKitModelTierTests` runs it for the published Python `0.6.0` guest against the
 executable the E2E run selects. It covers the model tier only. The host does not speak MEP `0.1`, so
 the kit's legacy tier is not run, and the result is not a complete run of the generic guest kit. The
-maintainer has not decided who runs the kit's model tier against this host, so this test is not cited
-as that run.
+approved [finos/morphir#1154 plan](https://github.com/finos/morphir/pull/1154) now owns the full 21-case runner and dedicated development entry point. The historical 16-step evidence is not a full kit pass.
 
 A worker that has ended cannot be written to. A later request, or the `morphir.exit` of its session,
 then fails with an `IOException` that `ModelTierRunner` does not catch. `EndAsync` still reports the

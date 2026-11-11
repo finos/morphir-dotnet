@@ -25,7 +25,7 @@ The host probes for its engine at most once per process, and only when something
 | `engine_missing` | Starting the engine fails because its native library is not found, and no library file is present |
 | `engine_load_failed` | Any other failure to start the engine, including a library file that is present and cannot be loaded, such as one built for another architecture |
 
-The runtime report does not name the offering. A .NET executable does not know at run time which offering it is, so a runner that needs the offering is given it as an input.
+The current runtime report does not name the offering, so a runner that needs the offering is given it as an input. HostIdentity now records the named build profile through #580. Any approved report addition must use that actual identity, omit the deployment claim for an unnamed build, and keep the runtime platform separate from the profile platform.
 
 ### The same module on four executables
 
