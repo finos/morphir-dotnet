@@ -26,11 +26,13 @@
     <ProjectReference Include="..\..\src\Morphir.Managed\Morphir.Managed.csproj" />
     <ProjectReference Include="..\..\src\Morphir.Tool\Morphir.Tool.csproj" />
     <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
+    <ProjectReference Include="..\Morphir.Mck.Stub\Morphir.Mck.Stub.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- One snapshot helper for both host test projects. -->
     <Compile Include="..\Morphir.Tests\Hosts\CompositionSnapshot.cs" Link="Hosts\CompositionSnapshot.cs" />
+    <Compile Include="..\Morphir.Tests\Hosts\MckRouting.cs" Link="Hosts\MckRouting.cs" />
   </ItemGroup>
 
 </Project>

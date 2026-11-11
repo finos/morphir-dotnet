@@ -190,8 +190,9 @@ let tests =
                 let diagnostic = Diagnostics.ofResolutionFailure failure
 
                 match diagnostic.Detail with
-                | DiagnosticDetail.UnsupportedArtifact(ArtifactProblem.AbiUnavailable abi, Component.Provider _, Platform.WinX64, _) ->
+                | DiagnosticDetail.UnsupportedArtifact(ArtifactProblem.AbiUnavailable abi, Component.Provider _, Platform.WinX64, _, Some concerns) ->
                     Expect.equal abi.Text "extism-kernel-v1" "the diagnostic names the ABI"
+                    Expect.equal (concerns.Document, concerns.Path) (DocumentKind.Request, failure.Path) "the request member"
                 | other -> failtestf "unexpected diagnostic %A" other
             | other -> failtestf "expected abi_unavailable, got %A" other)
 

@@ -182,7 +182,7 @@ An extension failure is exit code 2 with one of these codes:
 
 | Code | Meaning |
 | --- | --- |
-| `extension.unavailable` | The guest did not start, or the session did not initialize. |
+| `extension.unavailable` | The guest did not start, the session did not initialize, or the guest gave an id reserved for built-ins (every id that starts with `morphir.`). |
 | `extension.not_admitted` | The agreed session does not admit the request, for example its IR version. |
 | `extension.tuple_unavailable` | The host and the guest agreed no `compileModel` tuple, so no request can be sent. |
 | `extension.protocol_error` | The guest broke the protocol, for example it wrote a log line to stdout. |
@@ -538,7 +538,7 @@ $ morphir compile --language fsharp --input src/Rates.fs --package-name acme/dem
     {
       "severity": "error",
       "code": "compile.frontend_unavailable",
-      "message": "No registered frontend reads the language 'fsharp'. This build registers no frontend. The dotnet tool dotnet-morphir has a built-in F# frontend. Set [frontend.fsharp].extension in morphir.toml, or use --extension, to configure a frontend extension."
+      "message": "No registered frontend reads the language 'fsharp'. This build registers no frontend. The self-contained and framework-dependent morphir and dotnet-morphir have a built-in F# frontend; this offering uses the F# frontend process delivery morphir-fsharp-frontend. Set [frontend.fsharp].extension in morphir.toml, or use --extension, to configure a frontend extension."
     }
   ],
   "failureKind": "configuration",

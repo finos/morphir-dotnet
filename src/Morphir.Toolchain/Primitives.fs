@@ -148,17 +148,17 @@ type SemVer =
     override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Text
 
 module SemVer =
-    /// <summary>The longest version text read: npm semver's MAX_LENGTH. Provisional, until the pages state a bound.</summary>
+    /// <summary>The longest version text read: npm semver's MAX_LENGTH (index.md, Versions).</summary>
     [<Literal>]
     let MaxLength = 256
 
     /// <summary>The most digits in a numeric identifier (major, minor, patch, or an all-digit prerelease identifier).
     /// Every 15-digit number is a JavaScript safe integer and fits a signed 64-bit integer, so every reader can hold it
-    /// exactly. Provisional, until the pages state a bound.</summary>
+    /// exactly (index.md, Versions).</summary>
     [<Literal>]
     let MaxDigits = 15
 
-    /// <summary>Whether text is within the provisional bounds, checked on the text before any parser runs: Semver
+    /// <summary>Whether text is within the bounds, checked on the text before any parser runs: Semver
     /// holds major, minor and patch as BigInteger, and parsing a million digits took about a minute. Build metadata
     /// identifiers are not numeric and are bounded only by the length.</summary>
     let withinBounds (text: string) =
@@ -178,7 +178,7 @@ module SemVer =
             identifiers
             |> Array.forall (fun identifier -> identifier.Length <= MaxDigits || not (identifier |> Seq.forall Char.IsAsciiDigit))
 
-    /// <summary>A strict, canonical SemVer version within the provisional bounds, or <c>invalid_value</c>.</summary>
+    /// <summary>A strict, canonical SemVer version within the bounds, or <c>invalid_value</c>.</summary>
     let tryParse (text: string) =
         let mutable version = Unchecked.defaultof<SemVersion>
 
@@ -221,8 +221,7 @@ type ComparatorOperator =
 /// <summary>
 /// One version comparator: exactly one of <c>=</c>, <c>&gt;</c>, <c>&gt;=</c>, <c>&lt;</c> or <c>&lt;=</c>, then a complete
 /// version in canonical SemVer spelling, with no space. <c>^</c>, <c>~</c>, wildcards, partial versions and combined
-/// ranges are <c>invalid_value</c>, because Rust, TypeScript and .NET read them differently. This slice only reads and
-/// writes comparators; it never evaluates one.
+/// ranges are <c>invalid_value</c>, because Rust, TypeScript and .NET read them differently.
 /// </summary>
 [<CustomEquality; NoComparison>]
 type Comparator =
@@ -275,6 +274,59 @@ module Comparator =
             SemVer.tryParse (text.Substring symbol.Length) |> Result.map (fun version -> Comparator(operator, version)))
         |> Option.defaultValue (Error ReaderCode.InvalidValue)
         |> Result.mapError (fun _ -> ReaderCode.InvalidValue)
+
+    /// Whether a version satisfies one comparator by SemVer precedence.
+    let satisfies (version: SemVer) (comparator: Comparator) =
+        let order = SemVersion.ComparePrecedence(version.SemVersion, comparator.Version.SemVersion)
+
+        match comparator.Operator with
+        | ComparatorOperator.Equal -> order = 0
+        | ComparatorOperator.Greater -> order > 0
+        | ComparatorOperator.GreaterOrEqual -> order >= 0
+        | ComparatorOperator.Less -> order < 0
+        | ComparatorOperator.LessOrEqual -> order <= 0
+
+    /// <summary>Whether an installed version meets a comparator list: it satisfies every comparator by SemVer
+    /// precedence and, if it is a prerelease, at least one comparator names its own major, minor and patch with a
+    /// prerelease. This is the rule of the Rust <c>semver</c> crate and of npm, so <c>[">=10.0.0", "&lt;11.0.0"]</c>
+    /// is not met by <c>11.0.0-preview.1</c>. An empty list is always met.</summary>
+    let allMet (comparators: Comparator list) (installed: SemVer) =
+        let version = installed.SemVersion
+
+        let namesThisPrerelease (comparator: Comparator) =
+            let named = comparator.Version.SemVersion
+
+            named.IsPrerelease
+            && named.Major = version.Major
+            && named.Minor = version.Minor
+            && named.Patch = version.Patch
+
+        List.forall (satisfies installed) comparators
+        && (not version.IsPrerelease || comparators.IsEmpty || List.exists namesThisPrerelease comparators)
+
+/// <summary>The toolchain contract's CLI requirement grammar (toolset recipe page, "CLI requirement grammar", at
+/// finos/morphir <c>837164580</c>): one or more single comparators, each an operator directly followed by a version
+/// within the version bound, separated by exactly a comma and one space, such as <c>&gt;=0.4.0-alpha.5, &lt;0.5.0</c>.
+/// No other space, separator, range or wildcard is part of it, so <c>&gt;=0.4.0,&lt;0.5.0</c>, a leading space and
+/// <c>^0.4.0</c> are refused. A requirement is met by the npm and Rust <c>semver</c> prerelease rule
+/// (<see cref="Comparator.allMet"/>). This is a toolchain rule, stricter than the tool release metadata v1
+/// profile.</summary>
+module CliRequirement =
+    /// The comparators of a requirement in the grammar, or None.
+    let tryParse (text: string) : Comparator list option =
+        if text.Length = 0 then
+            None
+        else
+            let parsed =
+                text.Split ", "
+                |> Array.map (fun part ->
+                    if part.Length = 0 || part.Contains ' ' || part.Contains ',' then
+                        None
+                    else
+                        Comparator.tryParse part |> Result.toOption)
+
+            if Array.forall Option.isSome parsed then Some(parsed |> Array.choose id |> List.ofArray) else None
+
 /// A platform, in .NET runtime identifier spelling.
 [<RequireQualifiedAccess>]
 type Platform =
@@ -546,7 +598,9 @@ type ProtocolVersion =
     override this.GetHashCode() = StringComparer.Ordinal.GetHashCode this.Text
 
 module ProtocolVersion =
-    /// The version, or <c>unsupported_case</c> for anything off the line, text that is not SemVer included.
+    /// <summary>The version on the line. Text that is not a canonical SemVer version within the bound fails its type and
+    /// is <c>invalid_value</c>, even when it would be off the line; a SemVer version off the line, build metadata
+    /// included, is <c>unsupported_case</c> (index.md, MEP versions).</summary>
     let tryParse (text: string) =
         match SemVer.tryParse text with
         | Ok version ->
@@ -561,7 +615,7 @@ module ProtocolVersion =
                 Ok(ProtocolVersion version)
             else
                 Error ReaderCode.UnsupportedCase
-        | Error _ -> Error ReaderCode.UnsupportedCase
+        | Error code -> Error code
 
     let text (version: ProtocolVersion) = version.Text
 /// The MEP model operation of a model tuple.

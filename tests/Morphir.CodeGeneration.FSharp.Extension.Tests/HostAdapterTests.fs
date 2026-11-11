@@ -509,6 +509,13 @@ let tests =
               Expect.stringContains (messages failure) "ion-binary" "the guest's tuple is named"
               Expect.stringContains (messages failure) "morphir-json" "the host's offer is named"
 
+          testCase "A guest that reports an id reserved for built-ins (morphir.) does not connect, and the failure names the id"
+          <| fun _ ->
+              let failure = failureOf (connectOutcome (fakeGuest "reserved-id" (TimeSpan.FromMinutes 1.0)))
+              Expect.equal (codes failure) [ "extension.unavailable" ] "the code"
+              Expect.stringContains (messages failure) "morphir.fake-backend" "names the id"
+              Expect.stringContains (messages failure) "reserved" "says why"
+
           testCase "A model in a tuple that the session did not agree is refused before any request, naming the tuple"
           <| fun _ ->
               let backend = connect (fakeGuest "only-v4" (TimeSpan.FromMinutes 1.0))

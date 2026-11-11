@@ -78,6 +78,13 @@ let tests =
                     (namespaces |> Set.filter (fun ns -> ns.StartsWith("System.Security.Cryptography", StringComparison.Ordinal)))
                     $"{assembly} uses System.Security.Cryptography types")
 
+        testCase "neither morphirup nor Morphir.Toolchain uses regular expressions" (fun () ->
+            // .NET's $ also matches before a final line feed, so an anchored pattern accepted "<128 hex>\n" and the
+            // decoder after it threw (review of #581, T1). Spellings are checked character by character instead.
+            for assembly in [ "Morphir.Toolchain.dll"; "morphirup.dll" ] do
+                let _, namespaces = references assembly
+
+                Expect.isFalse (namespaces.Contains "System.Text.RegularExpressions") $"{assembly} uses System.Text.RegularExpressions")
         testCase "a morphirup that can load no ICU still plans the recorded digest" (fun () ->
             // An app-local ICU version that does not exist: a morphirup that used ICU would fail at its first
             // globalization call. In invariant mode the setting is never read.

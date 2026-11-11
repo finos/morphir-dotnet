@@ -89,6 +89,7 @@
     <Project Path="tests/Morphir.Mep.Tests/Morphir.Mep.Tests.fsproj" />
     <Project Path="tests/Morphir.Toolchain.Tests/Morphir.Toolchain.Tests.fsproj" />
     <Project Path="tests/Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" />
+    <Project Path="tests/Morphir.Mck.Stub/Morphir.Mck.Stub.csproj" />
     <Project Path="tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj" />
     <Project Path="tests/Morphir.TestSupport/Morphir.TestSupport.csproj" />
     <Project Path="tests/Morphir.TestSupport.Tests/Morphir.TestSupport.Tests.csproj" />

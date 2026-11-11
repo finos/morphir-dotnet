@@ -11,8 +11,15 @@ Feature: Morphir extension list
     Then the exit code should be 0
     And stdout should be one JSON document
     And the listed host should be the host of the executable under test
-    And the listed extension ids should be "morphir.csharp, morphir.fsharp, morphir.type-validator"
-    And every listed extension should be available in this host
+    And the listed extension ids should be "morphir-dotnet.fsharp, morphir.csharp, morphir.fsharp, morphir.type-validator"
+    And every listed extension except "morphir-dotnet.fsharp" should be available in this host
+    And the in-process F# frontend should be available exactly when the executable under test has it
+
+  Scenario: The list names the deployment that built the executable
+    When I run the command "extension list --json"
+    Then the exit code should be 0
+    And the listed host should be the host of the executable under test
+    And the listed deployment should be the deployment of the executable under test
 
   Scenario: The type validator is a built-in validator for the classic IR versions
     When I run the command "extension list --json"

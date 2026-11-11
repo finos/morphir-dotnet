@@ -109,11 +109,14 @@ let run (case: BindingCase) =
                 | Error _ -> failtest "not canonical"
 
             Expect.sequenceEqual (canonical digested.Plan.Lock) (canonical (lockAt lock)) $"{name}: the plan's lock"
-    | Discover(name, files, boundary, start, request) ->
+    | Discover(name, windows, files, boundary, start, request) ->
         let segments (path: string) = path.Split('/', System.StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
-        let present = files |> List.map segments |> set
-        let found = Discovery.request (segments boundary) (segments start) present.Contains
-        Expect.equal (found |> Option.map (String.concat "/")) request name
+        // A Windows case is compared with every name folded to lower case.
+        let fold (path: string) = if windows then path.ToLowerInvariant() else path
+        let present = files |> List.map (fold >> segments) |> set
+        let names = if windows then Discovery.PathCase.Folded else Discovery.PathCase.Exact
+        let found = Discovery.requestIn names (segments boundary) (segments start) (String.concat "/" >> fold >> segments >> present.Contains)
+        Expect.equal (found |> Option.map (String.concat "/" >> fold)) (request |> Option.map fold) name
     | MepVersion(name, version, expected) ->
         let actual =
             match ProtocolVersion.tryParse version with
@@ -123,19 +126,113 @@ let run (case: BindingCase) =
             | Error code -> Refused(Code.readerName code, "")
 
         Expect.equal actual expected name
+    | Nfc(name, input, expected) ->
+        Expect.equal (Nfc.normalize input) expected $"{name}: normalized"
+
+        match Canonical.bytes (Value.String input) with
+        | Ok bytes -> Expect.sequenceEqual bytes (System.Text.Encoding.UTF8.GetBytes("\"" + expected + "\"")) $"{name}: canonical bytes"
+        | Error _ -> failtestf "%s: the string has no canonical form" name
+    | SetupPlatforms(name, request, platform, platforms) ->
+        let request = RequestDocument.read (Fixtures.bytes request) |> valid request
+        let locked = Resolution.lockPlatforms request (platformOf platform) |> List.map Platform.name
+        Expect.equal locked platforms name
+    | PrerequisiteVersions(name, versions, installed, met) ->
+        let comparators =
+            versions
+            |> List.map (fun text ->
+                match Comparator.tryParse text with
+                | Ok comparator -> comparator
+                | _ -> failtestf "%s: %s is not a comparator" name text)
+
+        let installed =
+            match SemVer.tryParse installed with
+            | Ok version -> version
+            | Error _ -> failtestf "%s: %s is not a version" name installed
+
+        Expect.equal (Comparator.allMet comparators installed) met name
+    | Version(name, comparator, version, expected) ->
+        let actual =
+            if comparator then
+                match Comparator.tryParse version with
+                | Ok parsed ->
+                    Expect.equal parsed.Text version $"{name}: the text round-trips"
+                    Valid
+                | Error code -> Refused(Code.readerName code, "")
+            else
+                match SemVer.tryParse version with
+                | Ok parsed ->
+                    Expect.equal parsed.Text version $"{name}: the text round-trips"
+                    Valid
+                | Error code -> Refused(Code.readerName code, "")
+
+        Expect.equal actual expected name
+    | CanonicalJson(name, value, expected, referenceTuf) ->
+        let parse (text: string) (what: string) =
+            match Syntax.parseJson (System.Text.Encoding.UTF8.GetBytes text) with
+            | Ok parsed -> parsed
+            | Error _ -> failtestf "%s: %s is not JSON" name what
+
+        let parsed = parse value "the value"
+
+        match Canonical.bytes parsed with
+        | Ok bytes -> Expect.equal (System.Text.Encoding.UTF8.GetString bytes) expected $"{name}: the canonical text"
+        | Error _ -> failtestf "%s: the value has no canonical form" name
+
+        // The reference TUF encoder's text is not this contract's encoding; it must still encode the same value, as
+        // parsed values (strings compared after NFC, as both encoders write them).
+        let normalized (value: Value) =
+            match Canonical.bytes value with
+            | Ok bytes -> bytes
+            | Error _ -> failtestf "%s: no canonical form" name
+
+        Expect.sequenceEqual (normalized (parse referenceTuf "referenceTuf")) (normalized parsed) $"{name}: referenceTuf encodes the same value"
+    | CliRequirement(name, requirement, cliVersion, expected) ->
+        let parsed = CliRequirement.tryParse requirement
+
+        match expected, cliVersion with
+        | CliRead outcome, None ->
+            let actual = if parsed.IsSome then Valid else Refused("invalid_value", "")
+            Expect.equal actual outcome name
+        | CliMet met, Some cli ->
+            let comparators =
+                match parsed with
+                | Some comparators -> comparators
+                | None -> failtestf "%s: %s is not in the grammar" name requirement
+
+            let installed =
+                match SemVer.tryParse cli with
+                | Ok version -> version
+                | Error _ -> failtestf "%s: %s is not a version" name cli
+
+            Expect.equal (Comparator.allMet comparators installed) met name
+        | _ -> failtestf "%s: a cliVersion goes with an expected met, and only then" name
+
+/// The binding kinds of the pinned corpus. A corpus may add kinds this suite runs, but it may not drop one of these.
+let pinnedKinds =
+    set
+        [ "lock-request"
+          "lock-platform"
+          "receipt-lock"
+          "resolve"
+          "plan-canonical"
+          "lock-request-bytes"
+          "plan-lock"
+          "discover"
+          "mep-version"
+          "nfc"
+          "setup-platforms"
+          "prerequisite-versions"
+          "version" ]
 
 [<Tests>]
 let tests =
     let cases = bindings ()
 
     testList "Unsigned binding cases" [
-        testCase "the manifest lists binding cases of every kind" (fun () ->
+        testCase "the manifest lists binding cases of every pinned kind" (fun () ->
+            // A kind this suite does not run is refused while the manifest is read; here no pinned kind is missing.
             let kinds = cases |> List.map _.Kind |> set
-
-            Expect.equal
-                kinds
-                (set [ "lock-request"; "lock-platform"; "receipt-lock"; "resolve"; "plan-canonical"; "lock-request-bytes"; "plan-lock"; "discover"; "mep-version" ])
-                "every kind")
+            Expect.isEmpty (Set.difference pinnedKinds kinds) "every pinned kind has cases")
 
         testList "cases" [ for case in cases -> testCase case.Name (fun () -> run case) ]
     ]

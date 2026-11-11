@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -13,6 +13,12 @@
         <Description>Morphir executable package for AOT and single-file deployments</Description>
         <PackageTags>morphir;executable</PackageTags>
     </PropertyGroup>
+
+    <!-- The offerings this entry point can be published as; a named release profile states which one it is (HOST-1). -->
+    <PropertyGroup>
+        <MorphirEntryPointDeployments>native-aot</MorphirEntryPointDeployments>
+    </PropertyGroup>
+    <Import Project="..\Morphir.BuildProfile.targets" />
 
     <!-- Generate version constant file at build time -->
     <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">

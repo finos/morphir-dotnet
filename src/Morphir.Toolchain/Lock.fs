@@ -58,9 +58,7 @@ module Closures =
         let ordered = closures |> List.sortBy (fst >> Platform.order)
 
         let repeated (key: 'T -> 'K) (items: 'T list) =
-            items
-            |> List.indexed
-            |> List.tryFind (fun (index, item) -> items |> List.take index |> List.exists (fun earlier -> key earlier = key item))
+            firstRepeatBy key items |> Option.map (fun index -> index, items[index])
 
         result {
             if List.isEmpty ordered then
@@ -344,9 +342,9 @@ module LockDocument =
             if List.isEmpty providers then
                 return! refuse ReaderCode.InconsistentDocument providersPath
 
-            for index, provider in List.indexed providers do
-                if providers |> List.take index |> List.exists (fun earlier -> earlier.Operation = provider.Operation) then
-                    return! refuse ReaderCode.InconsistentDocument (providersPath.At index)
+            match firstRepeatBy _.Operation providers with
+            | Some index -> return! refuse ReaderCode.InconsistentDocument (providersPath.At index)
+            | None -> ()
 
             return
                 { Host = { Target = hostTarget; Sha256 = hostSha256 }

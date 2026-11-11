@@ -48,61 +48,60 @@ partial class Build
         });
 
     /// <summary>
-    /// Publish the Morphir CLI tool packages to NuGet.org
-    /// Publishes: Morphir.Tool, Morphir.Frontend.FSharp.Extension and Morphir.CodeGeneration.FSharp.Extension (dotnet tool packages)
+    /// Publish the Morphir CLI tool package, Morphir.Tool (the dotnet-morphir command), to NuGet.org. The official CLI
+    /// is published by finos/morphir; the deployment workflow runs this target only when MORPHIR_DOTNET_CLI_PUBLICATION
+    /// is enabled.
     /// Requires: --api-key parameter
     /// Parameters: --nuget-source (default: https://api.nuget.org/v3/index.json)
     /// </summary>
-    Target PublishTool => _ => _
+    Target PublishCliTool => _ => _
         .DependsOn(PackTool)
-        .Description("Publish the Morphir CLI tool package to NuGet.org")
+        .Description("Publish the Morphir.Tool CLI tool package to NuGet.org")
+        .Executes(() => PushToolPackage("Morphir.Tool"));
+
+    /// <summary>
+    /// Publish the F# extension tool packages to NuGet.org: Morphir.Frontend.FSharp.Extension and
+    /// Morphir.CodeGeneration.FSharp.Extension. They are extensions, not the CLI, so they are always published.
+    /// Requires: --api-key parameter
+    /// Parameters: --nuget-source (default: https://api.nuget.org/v3/index.json)
+    /// </summary>
+    Target PublishExtensionTools => _ => _
+        .DependsOn(PackTool)
+        .Description("Publish the F# frontend and backend extension tool packages to NuGet.org")
         .Executes(() =>
         {
-            if (string.IsNullOrEmpty(ApiKey))
-            {
-                throw new Exception("API_KEY is required for publishing. Use --api-key parameter.");
-            }
-
-            var toolPackage = OutputDir.GlobFiles("Morphir.Tool.*.nupkg")
-                .FirstOrDefault();
-
-            if (toolPackage != null)
-            {
-                Serilog.Log.Information($"Publishing Morphir.Tool CLI tool: {toolPackage}");
-                DotNetNuGetPush(s => s
-                    .SetTargetPath(toolPackage)
-                    .SetSource(NuGetSource)
-                    .SetApiKey(ApiKey)
-                    .SetSkipDuplicate(true));
-            }
-            else
-            {
-                throw new Exception($"Morphir.Tool package not found in {OutputDir}");
-            }
-
-            var extensionPackage = OutputDir.GlobFiles("Morphir.Frontend.FSharp.Extension.*.nupkg")
-                .FirstOrDefault()
-                ?? throw new Exception($"Morphir.Frontend.FSharp.Extension package not found in {OutputDir}");
-
-            Serilog.Log.Information($"Publishing Morphir.Frontend.FSharp.Extension tool: {extensionPackage}");
-            DotNetNuGetPush(s => s
-                .SetTargetPath(extensionPackage)
-                .SetSource(NuGetSource)
-                .SetApiKey(ApiKey)
-                .SetSkipDuplicate(true));
-
-            var backendPackage = OutputDir.GlobFiles("Morphir.CodeGeneration.FSharp.Extension.*.nupkg")
-                .FirstOrDefault()
-                ?? throw new Exception($"Morphir.CodeGeneration.FSharp.Extension package not found in {OutputDir}");
-
-            Serilog.Log.Information($"Publishing Morphir.CodeGeneration.FSharp.Extension tool: {backendPackage}");
-            DotNetNuGetPush(s => s
-                .SetTargetPath(backendPackage)
-                .SetSource(NuGetSource)
-                .SetApiKey(ApiKey)
-                .SetSkipDuplicate(true));
+            PushToolPackage("Morphir.Frontend.FSharp.Extension");
+            PushToolPackage("Morphir.CodeGeneration.FSharp.Extension");
         });
 
+    /// <summary>
+    /// Publish all three tool packages to NuGet.org: Morphir.Tool and the two F# extension tools.
+    /// Requires: --api-key parameter
+    /// </summary>
+    Target PublishTool => _ => _
+        .DependsOn(PublishCliTool, PublishExtensionTools)
+        .Description("Publish the Morphir CLI tool and extension tool packages to NuGet.org");
+
+    /// <summary>Pushes the packed tool package with this id from the output folder.</summary>
+    void PushToolPackage(string packageId)
+    {
+        if (string.IsNullOrEmpty(ApiKey))
+        {
+            throw new Exception("API_KEY is required for publishing. Use --api-key parameter.");
+        }
+
+        var package = OutputDir.GlobFiles($"{packageId}.*.nupkg")
+            .FirstOrDefault(path => path.Name.StartsWith($"{packageId}.", StringComparison.Ordinal)
+                && char.IsDigit(path.Name[packageId.Length + 1]))
+            ?? throw new Exception($"{packageId} package not found in {OutputDir}");
+
+        Serilog.Log.Information($"Publishing {packageId}: {package}");
+        DotNetNuGetPush(s => s
+            .SetTargetPath(package)
+            .SetSource(NuGetSource)
+            .SetApiKey(ApiKey)
+            .SetSkipDuplicate(true));
+    }
     /// <summary>
     /// Publish all packages to NuGet.org (libraries and tool)
     /// Equivalent to running PublishLibs and PublishTool

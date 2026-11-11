@@ -8,6 +8,16 @@
     },
     {
       "contract": "request",
+      "document": "request/approved-bom.toml",
+      "expected": "valid"
+    },
+    {
+      "contract": "request",
+      "document": "request/choice-for-unrequired-operation.toml",
+      "expected": "valid"
+    },
+    {
+      "contract": "request",
       "document": "request/team-platforms-external-backend.toml",
       "expected": "valid"
     },
@@ -169,6 +179,11 @@
     },
     {
       "contract": "lock",
+      "document": "lock/unknown-member-fraction.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "lock",
       "document": "lock/protocol-version-later-prerelease.json",
       "expected": "valid"
     },
@@ -186,7 +201,7 @@
       "contract": "lock",
       "document": "lock/negative/protocol-version-0.1.json",
       "expected": {
-        "code": "unsupported_case",
+        "code": "invalid_value",
         "path": "platforms.win-x64.providers[0].protocolVersion"
       }
     },
@@ -221,6 +236,57 @@
         "code": "unsupported_case",
         "path": "platforms.win-x64.providers[0].protocolVersion"
       }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/external-provider-with-model-input.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "platforms.win-x64.providers[0].modelInput"
+      }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/external-provider-without-model-tuple.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": "platforms.win-x64.providers[0].modelTuple"
+      }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/precedence-protocol-version-before-model-member.json",
+      "expected": {
+        "code": "unsupported_case",
+        "path": "platforms.win-x64.providers[0].protocolVersion"
+      }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/built-in-with-protocol-version.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "platforms.win-x64.providers[1].protocolVersion"
+      }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/duplicate-member.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": ""
+      },
+      "schema": "accepts",
+      "schemaGap": "JSON Schema validates a parsed value, and a parser keeps only one of two members with the same name."
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/byte-order-mark.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": ""
+      },
+      "schema": "unparsable"
     },
     {
       "contract": "lock",
@@ -356,7 +422,17 @@
     },
     {
       "contract": "recipe",
+      "document": "recipe/protocol-membership-exact.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "recipe",
       "document": "recipe/wasm-abi-alternatives.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/wasm-abi-and-protocol-misfit.json",
       "expected": "valid"
     },
     {
@@ -410,7 +486,7 @@
       "contract": "recipe",
       "document": "recipe/negative/protocol-version-0.1.json",
       "expected": {
-        "code": "unsupported_case",
+        "code": "invalid_value",
         "path": "providers[0].protocolVersion"
       }
     },
@@ -420,6 +496,46 @@
       "expected": {
         "code": "inconsistent_document",
         "path": "providers[0].modelInput"
+      }
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/external-provider-with-model-output.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "providers[0].modelOutput"
+      }
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/built-in-with-model-tuple.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "hosts[0].builtIns[0].modelTuple"
+      }
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/provider-built-in-delivery.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "providers[0].delivery"
+      }
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/duplicate-protocol-version.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "hosts[0].protocolVersions[1]"
+      }
+    },
+    {
+      "contract": "recipe",
+      "document": "recipe/negative/duplicate-wasm-abi.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "hosts[0].wasmAbis[1]"
       }
     },
     {
@@ -486,6 +602,11 @@
     },
     {
       "contract": "receipt",
+      "document": "receipt/workflow-skipped.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "receipt",
       "document": "receipt/negotiation-failed.json",
       "expected": "valid"
     },
@@ -496,6 +617,40 @@
         "code": "inconsistent_document",
         "path": "providers[0].installation.authentication"
       }
+    },
+    {
+      "contract": "receipt",
+      "document": "receipt/negative/workflow-check-without-workflow.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": "checks[0].workflow"
+      }
+    },
+    {
+      "contract": "receipt",
+      "document": "receipt/negative/probed-without-probe-source.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": "providers[0].installation.probeSource"
+      }
+    },
+    {
+      "contract": "receipt",
+      "document": "receipt/negative/component-workflow-qualified.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "providers[0].readiness"
+      }
+    },
+    {
+      "contract": "receipt",
+      "document": "receipt/negative/component-checks-not-one-of-each.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "providers[0].checks"
+      },
+      "schema": "accepts",
+      "schemaGap": "The schema does not count a component's checks by kind."
     },
     {
       "contract": "receipt",
@@ -639,6 +794,11 @@
     },
     {
       "contract": "result",
+      "document": "result/setup-plan-providers-swapped.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "result",
       "document": "result/show-project-selection.json",
       "expected": "valid"
     },
@@ -690,9 +850,31 @@
       "expected": {
         "code": "credential_in_document",
         "path": "diagnostics[2].mirror"
-      },
-      "schema": "accepts",
-      "schemaGap": "The schema's uri format does not refuse user information, a query or a fragment."
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/mirror-drive-letter.json",
+      "expected": {
+        "code": "invalid_value",
+        "path": "diagnostics[2].mirror"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/mirror-file-scheme.json",
+      "expected": {
+        "code": "invalid_value",
+        "path": "diagnostics[2].mirror"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/mirror-bare-path.json",
+      "expected": {
+        "code": "invalid_value",
+        "path": "diagnostics[2].mirror"
+      }
     },
     {
       "contract": "result",
@@ -700,9 +882,7 @@
       "expected": {
         "code": "credential_in_document",
         "path": "diagnostics[2].mirror"
-      },
-      "schema": "accepts",
-      "schemaGap": "The schema's uri format does not refuse user information, a query or a fragment."
+      }
     },
     {
       "contract": "result",
@@ -1569,6 +1749,130 @@
     },
     {
       "contract": "result",
+      "document": "result/negative/plan-key-collision.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": "plan.keyCollision"
+      },
+      "schema": "accepts",
+      "schemaGap": "The schema compares member names as written, not after NFC."
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/lock-binding-other-document.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "diagnostics[0].document"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/platform-not-locked-without-platform.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "diagnostics[0].platform"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/abi-on-other-code.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "diagnostics[0].abi"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/document-unavailable-with-path.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "diagnostics[0].path"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/critical-not-array.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": "critical"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-without-plan-sha256.json",
+      "expected": {
+        "code": "invalid_document",
+        "path": "planSha256"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-sha256-without-plan.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "planSha256"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/diagnostic-path-without-document.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "diagnostics[0].path"
+      }
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-host-component-other-deployment.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[0]"
+      },
+      "schema": "accepts",
+      "schemaGap": "The schema does not compare a plan's components with its lock."
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-host-component-other-implementation.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[0]"
+      },
+      "schema": "accepts",
+      "schemaGap": "The schema does not compare a plan's components with its lock."
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-host-component-other-version.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[0]"
+      },
+      "schema": "accepts",
+      "schemaGap": "The schema does not compare a plan's components with its lock."
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-provider-repository-target-source.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[1].source"
+      },
+      "schema": "accepts",
+      "schemaGap": "The schema does not tie a component's source kind to its role and delivery."
+    },
+    {
+      "contract": "result",
+      "document": "result/negative/plan-host-built-in-source.json",
+      "expected": {
+        "code": "inconsistent_document",
+        "path": "plan.components[0].source"
+      },
+      "schema": "accepts",
+      "schemaGap": "The schema does not tie a component's source kind to its role and delivery."
+    },
+    {
+      "contract": "result",
       "document": "result/negative/plan-lock-without-platform.json",
       "expected": {
         "code": "inconsistent_document",
@@ -1643,6 +1947,21 @@
     },
     {
       "contract": "result",
+      "document": "result/setup-provider-repository-mismatch.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "result",
+      "document": "result/setup-choice-unsupported.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "result",
+      "document": "result/setup-preset-unsupported.json",
+      "expected": "valid"
+    },
+    {
+      "contract": "result",
       "document": "result/restore-request-changed-crlf.json",
       "expected": "valid"
     },
@@ -1683,6 +2002,22 @@
       "document": "lock/negative/draft-build-metadata.json",
       "expected": {
         "code": "unsupported_contract_version",
+        "path": "schemaVersion"
+      }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/schema-version-at-bound.json",
+      "expected": {
+        "code": "unsupported_contract_version",
+        "path": "schemaVersion"
+      }
+    },
+    {
+      "contract": "lock",
+      "document": "lock/negative/schema-version-past-bound.json",
+      "expected": {
+        "code": "invalid_value",
         "path": "schemaVersion"
       }
     },
@@ -2198,7 +2533,7 @@
       "kind": "mep-version",
       "version": "0.1",
       "expected": {
-        "code": "unsupported_case",
+        "code": "invalid_value",
         "path": ""
       }
     },
@@ -2261,7 +2596,582 @@
       "kind": "mep-version",
       "version": "v0.2.0",
       "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a final patch release on the 0.2 line",
+      "kind": "mep-version",
+      "version": "0.2.7",
+      "expected": "valid"
+    },
+    {
+      "name": "mep version: a prerelease of 0.2.0 in upper case (SemVer is case-sensitive)",
+      "kind": "mep-version",
+      "version": "0.2.0-DRAFT.1",
+      "expected": "valid"
+    },
+    {
+      "name": "mep version: a patch of 20 digits, past the 15-digit bound",
+      "kind": "mep-version",
+      "version": "0.2.18446744073709551615",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a prerelease of 1,100 letters, past the 256-character bound",
+      "kind": "mep-version",
+      "version": "0.2.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a partial version",
+      "kind": "mep-version",
+      "version": "0.2",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a leading zero in the major",
+      "kind": "mep-version",
+      "version": "00.2.0",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: an empty prerelease",
+      "kind": "mep-version",
+      "version": "0.2.0-",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a numeric prerelease identifier with a leading zero",
+      "kind": "mep-version",
+      "version": "0.2.0-01",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: the empty string",
+      "kind": "mep-version",
+      "version": "",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a version followed by a line feed",
+      "kind": "mep-version",
+      "version": "0.2.0\n",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a patch of 20 digits, past 2^64 - 1 as well",
+      "kind": "mep-version",
+      "version": "0.2.18446744073709551616",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "a provider at MEP 0.2.0 does not fit a host that lists only 0.2.0-draft.1",
+      "kind": "resolve",
+      "rule": "resolve-preferred-misfit",
+      "recipe": "recipe/protocol-membership-exact.json",
+      "request": "request/approved.toml",
+      "platform": "win-x64",
+      "expected": {
+        "code": "unsupported_artifact",
+        "path": "toolset"
+      }
+    },
+    {
+      "name": "nfc: a Kirat Rai vowel sign pair composes (Unicode 16.0)",
+      "kind": "nfc",
+      "input": "𖵨",
+      "expected": "𖵨"
+    },
+    {
+      "name": "nfc: a Todhri letter and U+0307 compose (Unicode 16.0)",
+      "kind": "nfc",
+      "input": "𐗉",
+      "expected": "𐗉"
+    },
+    {
+      "name": "nfc: a Tai Yo mark of class 230 is reordered after U+0323 (Unicode 17.0)",
+      "kind": "nfc",
+      "input": "x𞛣̣",
+      "expected": "x̣𞛣"
+    },
+    {
+      "name": "nfc: a Garay mark of class 230 is reordered after U+0323 (Unicode 16.0)",
+      "kind": "nfc",
+      "input": "x̣𐵩",
+      "expected": "x̣𐵩"
+    },
+    {
+      "name": "nfc: conjoining Hangul jamo L, V and T compose to one syllable",
+      "kind": "nfc",
+      "input": "각",
+      "expected": "각"
+    },
+    {
+      "name": "nfc: a Hangul LV syllable and a trailing jamo compose",
+      "kind": "nfc",
+      "input": "각",
+      "expected": "각"
+    },
+    {
+      "name": "nfc: a string already in NFC is unchanged",
+      "kind": "nfc",
+      "input": "café-naïve-字",
+      "expected": "café-naïve-字"
+    },
+    {
+      "name": "nfc: a decomposed e and U+0301 compose",
+      "kind": "nfc",
+      "input": "é",
+      "expected": "é"
+    },
+    {
+      "name": "nfc: an unassigned code point is a starter of class 0 and blocks reordering",
+      "kind": "nfc",
+      "input": "x́͸̣",
+      "expected": "x́͸̣"
+    },
+    {
+      "name": "nfc: two marks with no starter between them are reordered",
+      "kind": "nfc",
+      "input": "x̣́",
+      "expected": "x̣́"
+    },
+    {
+      "name": "nfc: U+FFFE passes through unchanged and blocks composition",
+      "kind": "nfc",
+      "input": "a￾́",
+      "expected": "a￾́"
+    },
+    {
+      "name": "setup on linux-x64 locks win-x64, osx-arm64, linux-x64",
+      "kind": "setup-platforms",
+      "request": "request/team-platforms-external-backend.toml",
+      "platform": "linux-x64",
+      "expected": {
+        "platforms": [
+          "win-x64",
+          "osx-arm64",
+          "linux-x64"
+        ]
+      }
+    },
+    {
+      "name": "setup on osx-arm64 locks win-x64, osx-arm64",
+      "kind": "setup-platforms",
+      "request": "request/team-platforms-external-backend.toml",
+      "platform": "osx-arm64",
+      "expected": {
+        "platforms": [
+          "win-x64",
+          "osx-arm64"
+        ]
+      }
+    },
+    {
+      "name": "setup on linux-arm64 locks linux-arm64",
+      "kind": "setup-platforms",
+      "request": "request/approved.toml",
+      "platform": "linux-arm64",
+      "expected": {
+        "platforms": [
+          "linux-arm64"
+        ]
+      }
+    },
+    {
+      "name": "prerequisite versions: a release inside the range",
+      "kind": "prerequisite-versions",
+      "versions": [
+        ">=10.0.0",
+        "<11.0.0"
+      ],
+      "installed": "10.0.5",
+      "expected": {
+        "met": true
+      }
+    },
+    {
+      "name": "prerequisite versions: a prerelease of the excluded upper bound",
+      "kind": "prerequisite-versions",
+      "versions": [
+        ">=10.0.0",
+        "<11.0.0"
+      ],
+      "installed": "11.0.0-preview.1",
+      "expected": {
+        "met": false
+      }
+    },
+    {
+      "name": "prerequisite versions: a prerelease below the bound by precedence, which no comparator names",
+      "kind": "prerequisite-versions",
+      "versions": [
+        "<11.0.0"
+      ],
+      "installed": "11.0.0-preview.1",
+      "expected": {
+        "met": false
+      }
+    },
+    {
+      "name": "prerequisite versions: a prerelease of the lower bound",
+      "kind": "prerequisite-versions",
+      "versions": [
+        ">=10.0.0"
+      ],
+      "installed": "10.0.0-rc.1",
+      "expected": {
+        "met": false
+      }
+    },
+    {
+      "name": "prerequisite versions: a later prerelease of a version a comparator names",
+      "kind": "prerequisite-versions",
+      "versions": [
+        ">=11.0.0-preview.1",
+        "<12.0.0"
+      ],
+      "installed": "11.0.0-preview.2",
+      "expected": {
+        "met": true
+      }
+    },
+    {
+      "name": "prerequisite versions: a release candidate of a version a comparator names",
+      "kind": "prerequisite-versions",
+      "versions": [
+        ">=11.0.0-preview.1",
+        "<12.0.0"
+      ],
+      "installed": "11.0.0-rc.1",
+      "expected": {
+        "met": true
+      }
+    },
+    {
+      "name": "prerequisite versions: a prerelease of a version no comparator names",
+      "kind": "prerequisite-versions",
+      "versions": [
+        ">=11.0.0-preview.1",
+        "<12.0.0"
+      ],
+      "installed": "11.1.0-preview.1",
+      "expected": {
+        "met": false
+      }
+    },
+    {
+      "name": "prerequisite versions: no comparators",
+      "kind": "prerequisite-versions",
+      "versions": [],
+      "installed": "11.0.0-preview.1",
+      "expected": {
+        "met": true
+      }
+    },
+    {
+      "name": "a provider that misfits by ABI and by protocol is reported by its ABI",
+      "rule": "resolve-preferred-abi",
+      "kind": "resolve",
+      "recipe": "recipe/wasm-abi-and-protocol-misfit.json",
+      "request": "request/wasm-example-default.toml",
+      "platform": "win-x64",
+      "expected": {
+        "code": "abi_unavailable",
+        "path": "toolset"
+      }
+    },
+    {
+      "name": "a choice for an operation the recipe does not require is refused",
+      "rule": "resolve-choice-unrequired",
+      "kind": "resolve",
+      "recipe": "recipe/fsharp-synthetic.json",
+      "request": "request/choice-for-unrequired-operation.toml",
+      "platform": "win-x64",
+      "expected": {
+        "code": "unsupported_artifact",
+        "path": "toolset.providers[0]"
+      }
+    },
+    {
+      "name": "on Windows a boundary that differs from the start only in case is the same directory",
+      "kind": "discover",
+      "windows": true,
+      "files": [
+        "Workspace/.morphir/toolchain.toml"
+      ],
+      "boundary": "workspace",
+      "start": "Workspace/loans",
+      "expected": {
+        "request": "Workspace/.morphir/toolchain.toml"
+      }
+    },
+    {
+      "name": "mep version: 255 characters",
+      "kind": "mep-version",
+      "version": "0.2.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "valid"
+    },
+    {
+      "name": "mep version: 256 characters, the bound",
+      "kind": "mep-version",
+      "version": "0.2.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "valid"
+    },
+    {
+      "name": "mep version: 257 characters, one past the bound",
+      "kind": "mep-version",
+      "version": "0.2.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a patch of 15 digits",
+      "kind": "mep-version",
+      "version": "0.2.100000000000000",
+      "expected": "valid"
+    },
+    {
+      "name": "mep version: a patch of 16 digits",
+      "kind": "mep-version",
+      "version": "0.2.1000000000000000",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a major of 15 digits, which is SemVer but off the line",
+      "kind": "mep-version",
+      "version": "100000000000000.2.0",
+      "expected": {
         "code": "unsupported_case",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a major of 16 digits",
+      "kind": "mep-version",
+      "version": "1000000000000000.2.0",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a minor of 15 digits, which is SemVer but off the line",
+      "kind": "mep-version",
+      "version": "0.100000000000000.0",
+      "expected": {
+        "code": "unsupported_case",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a minor of 16 digits",
+      "kind": "mep-version",
+      "version": "0.1000000000000000.0",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: a numeric prerelease identifier of 15 digits",
+      "kind": "mep-version",
+      "version": "0.2.0-100000000000000",
+      "expected": "valid"
+    },
+    {
+      "name": "mep version: a numeric prerelease identifier of 16 digits",
+      "kind": "mep-version",
+      "version": "0.2.0-1000000000000000",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: long build metadata within 256 characters, which MEP refuses",
+      "kind": "mep-version",
+      "version": "0.2.0+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": {
+        "code": "unsupported_case",
+        "path": ""
+      }
+    },
+    {
+      "name": "mep version: build metadata past 256 characters",
+      "kind": "mep-version",
+      "version": "0.2.0+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "version: 255 characters",
+      "kind": "version",
+      "version": "1.0.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "valid"
+    },
+    {
+      "name": "version: 256 characters, the bound",
+      "kind": "version",
+      "version": "1.0.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "valid"
+    },
+    {
+      "name": "version: 257 characters, one past the bound",
+      "kind": "version",
+      "version": "1.0.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "version: a major of 15 digits",
+      "kind": "version",
+      "version": "100000000000000.0.0",
+      "expected": "valid"
+    },
+    {
+      "name": "version: a major of 16 digits",
+      "kind": "version",
+      "version": "1000000000000000.0.0",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "version: a minor of 15 digits",
+      "kind": "version",
+      "version": "1.100000000000000.0",
+      "expected": "valid"
+    },
+    {
+      "name": "version: a minor of 16 digits",
+      "kind": "version",
+      "version": "1.1000000000000000.0",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "version: a patch of 15 digits",
+      "kind": "version",
+      "version": "1.0.100000000000000",
+      "expected": "valid"
+    },
+    {
+      "name": "version: a patch of 16 digits",
+      "kind": "version",
+      "version": "1.0.1000000000000000",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "version: a numeric prerelease identifier of 15 digits",
+      "kind": "version",
+      "version": "1.0.0-rc.100000000000000",
+      "expected": "valid"
+    },
+    {
+      "name": "version: a numeric prerelease identifier of 16 digits",
+      "kind": "version",
+      "version": "1.0.0-rc.1000000000000000",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "version: a 16-digit alphanumeric prerelease identifier, which is not numeric",
+      "kind": "version",
+      "version": "1.0.0-1000000000000000a",
+      "expected": "valid"
+    },
+    {
+      "name": "version: build metadata within 256 characters",
+      "kind": "version",
+      "version": "1.0.0+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "valid"
+    },
+    {
+      "name": "version: a 16-digit build metadata identifier, bounded only by the length",
+      "kind": "version",
+      "version": "1.0.0+1000000000000000",
+      "expected": "valid"
+    },
+    {
+      "name": "version: build metadata past 256 characters",
+      "kind": "version",
+      "version": "1.0.0+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "version: a comparator whose version has 256 characters",
+      "kind": "version",
+      "comparator": true,
+      "version": ">=1.0.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": "valid"
+    },
+    {
+      "name": "version: a comparator whose version has 257 characters",
+      "kind": "version",
+      "comparator": true,
+      "version": ">=1.0.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": {
+        "code": "invalid_value",
+        "path": ""
+      }
+    },
+    {
+      "name": "version: a comparator with a 16-digit major",
+      "kind": "version",
+      "comparator": true,
+      "version": ">=1000000000000000.0.0",
+      "expected": {
+        "code": "invalid_value",
         "path": ""
       }
     }

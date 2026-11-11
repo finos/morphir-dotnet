@@ -26,8 +26,8 @@ A toolset recipe is an ordinary authenticated TUF target in a tool repository, f
 | `implementation`, `version`, `deployment` | The offering's identity. A recipe has one offering per implementation and deployment |
 | `execution` | `native-aot` or `jit` |
 | `source` | `{ "kind": "tool-release", "toolId": … }` or `{ "kind": "dotnet-tool", "packageId": …, "command": … }` |
-| `protocolVersions` | MEP versions the host speaks, each on the [supported 0.2 line](./index.md#mep-versions). A version off the line is `unsupported_case` at that element |
-| `wasmAbis` | WASM ABIs the host's qualified engine supports. Optional; absent or empty when it has none |
+| `protocolVersions` | MEP versions the host speaks, each on the [supported 0.2 line](./index.md#mep-versions) and each once. A version off the line is `unsupported_case` at that element, and a string that is not SemVer `invalid_value` |
+| `wasmAbis` | WASM ABIs the host's qualified engine supports, each once. Optional; absent or empty when it has none |
 | `prerequisites` | Runtime, SDK and native prerequisites. Optional; absent means none |
 | `builtIns` | Built-in providers, at most one per operation: `operation`, `extensionId`, `version`, and the model the built-in exchanges with the host. That is `modelOutput` for a `compile` built-in, which writes the model, and `modelInput` for a `generate` built-in, which reads it; the other member is `inconsistent_document`. Optional; absent means none |
 | `platforms` | The authenticated artifact (`target`, `sha256`) for each supported platform |
@@ -38,7 +38,7 @@ A `tool-release` source names a tool release metadata v1 tool id. Each separatel
 
 ### Providers
 
-Each provider has `operation`, `delivery` (`process`, `wasm` or `dotnet-tool`; built-ins belong to a host), `extensionId`, `version`, optional `prerequisites`, and the protocol members described for the [lock](./toolchain-lock.md#members). Delivery identities:
+Each provider has `operation`, `delivery` (`process`, `wasm` or `dotnet-tool`; built-ins belong to a host, so a provider with `delivery` `built-in` names a known case in the wrong place and is `inconsistent_document` at its `delivery`, `recipe/negative/provider-built-in-delivery.json`), `extensionId`, `version`, optional `prerequisites`, and the protocol members described for the [lock](./toolchain-lock.md#members). Delivery identities:
 
 | `delivery` | Members |
 | --- | --- |
@@ -56,14 +56,15 @@ Understood critical paths: `schemaVersion`, `critical`, `preset`, `version`, `op
 
 A reader refuses each of these with `inconsistent_document`. The fixture under `fixtures/0.1.0-draft.1/recipe/negative/` that pins each rule is named after it.
 
-The first four rules marked *while reading* concern one object and are checked as that object is read, in [reading order](./index.md#order-of-checks). The others are checked once the whole document has been read, in the order of this table; each of them is checked over its whole array, in index order, before the next rule is checked. So a recipe whose second host repeats the first offering and whose first host has a second built-in is refused at `hosts[1]` (`precedence-consistency-table-order.json`).
+The first five rules marked *while reading* concern one object and are checked as that object is read, in [reading order](./index.md#order-of-checks). The others are checked once the whole document has been read, in the order of this table; each of them is checked over its whole array, in index order, before the next rule is checked. So a recipe whose second host repeats the first offering and whose first host has a second built-in is refused at `hosts[1]` (`precedence-consistency-table-order.json`).
 
 | Rule | Checked | Path | Fixture |
 | --- | --- | --- | --- |
 | A `tool-release` offering lists no musl platform | while reading | `hosts[i].platforms.<id>` | `musl-bound-to-tool-release.json` |
+| An offering lists each MEP version and each WASM ABI once; a repeated entry is refused at the repetition | while reading | `hosts[i].protocolVersions[j]`, `hosts[i].wasmAbis[j]` | `duplicate-protocol-version.json`, `duplicate-wasm-abi.json` |
 | A process provider lists at least one platform | while reading | `providers[i].platforms` | `process-without-platforms.json` |
 | A `modelTuple` operation performs the provider's operation | while reading | `providers[i].modelTuple.operation` | `tuple-operation-mismatch.json` |
-| An external provider declares no `modelInput` or `modelOutput`, which only a built-in has | while reading | `providers[i].modelInput`, `providers[i].modelOutput` | `external-provider-with-model-input.json` |
+| A provider has only its delivery's members: an external provider declares no `modelInput` or `modelOutput`, which only a built-in has, and a built-in declares no `protocolVersion` or `modelTuple`, because it has no MEP session | while reading | `providers[i].modelInput`, `providers[i].modelOutput`, `hosts[i].builtIns[j].protocolVersion`, `hosts[i].builtIns[j].modelTuple` | `external-provider-with-model-input.json`, `external-provider-with-model-output.json`, `built-in-with-model-tuple.json` |
 | At least one operation | after reading | `operations` | `no-operations.json` |
 | At least one host offering | after reading | `hosts` | `no-hosts.json` |
 | No duplicate operation | after reading | `operations[i]` | `duplicate-operation.json` |
@@ -79,7 +80,11 @@ The last consistency rule asks about a recipe, not about one platform, so it use
 
 ## Authenticated recipe targets
 
-A recipe is published as a TUF target at `toolchains/recipes/<preset>/<version>.json` in a repository that follows [tool release metadata v1](../tool-release-metadata/index.md#offering-specific-tool-ids). Its `custom.morphir` object is:
+A recipe is published as a TUF target at `toolchains/recipes/<preset>/<version>.json` in a repository that follows [tool release metadata v1](../tool-release-metadata/index.md#offering-specific-tool-ids).
+
+The manager's TUF client is decided (9 November 2026, [finos/morphir#1146](https://github.com/finos/morphir/issues/1146#issuecomment-6760090078)). It is project-owned, in `Morphir.Toolchain` in finos/morphir-dotnet, implements only the subset of TUF that the tool release metadata profile uses, and has BouncyCastle's Ed25519 as its only cryptographic dependency. It is tested against the signed fixtures in this repository, the cases of the evaluation in finos/morphir-dotnet#568 and the upstream `tuf-conformance` suite, and it needs the maintainer's security review before any production use. This repository's reference checker uses tough 0.24 instead; the cases do not depend on which client runs them.
+
+The recipe's `custom.morphir` object is:
 
 ```json
 {
@@ -192,12 +197,15 @@ The failures are checked in this order, and the operations in the recipe's order
 | No offering for the implementation and deployment | `unsupported_artifact` | `host` | `resolve-offering` |
 | The offering's release is not the exact requested one | `unsupported_artifact` | `host.version` | `resolve-release` |
 | The offering has no artifact for the platform | `unsupported_artifact` | `platforms` | `resolve-platform` |
-| The preferred provider needs a WASM ABI the host lacks | `abi_unavailable` | `toolset` | `resolve-preferred-abi` |
+| The preferred provider needs a WASM ABI the host lacks, checked before any other misfit of the same provider | `abi_unavailable` | `toolset` | `resolve-preferred-abi` |
 | The preferred provider does not fit for another reason | `unsupported_artifact` | `toolset` | `resolve-preferred-misfit` |
 | No built-in or provider performs the operation | `unsupported_artifact` | `toolset` | No fixture: a recipe that passes its consistency rules has a built-in or a provider for every operation, so a reader refuses such a recipe before resolution can reach this row |
 | No built-in or provider matches an explicit choice | `unsupported_artifact` | `toolset.providers[i]` | `resolve-choice-unmatched` |
 | The chosen provider needs a WASM ABI the host lacks | `abi_unavailable` | `toolset.providers[i]` | `resolve-choice-abi` |
 | The chosen provider does not fit for another reason | `unsupported_artifact` | `toolset.providers[i]` | `resolve-choice-misfit` |
+| A choice names an operation the recipe does not require, checked after every required operation has resolved | `unsupported_artifact` | `toolset.providers[i]` | `resolve-choice-unrequired` |
+
+A provider can misfit in more than one way. A missing WASM ABI is reported first, as `abi_unavailable`, because it is the misfit a request can fix by choosing the provider for another ABI. The other misfits are then checked in this order: the MEP version, then the platform (`recipe/wasm-abi-and-protocol-misfit.json` has a preferred provider whose ABI and protocol version both misfit, and is refused for its ABI).
 
 A WASM guest for another ABI is therefore chosen only when the request names that ABI. Otherwise setup reports the missing ABI and does not report ready. Plan-only setup may refresh metadata, but it never runs an acquired artifact. Readiness probes happen after staging, under the existing launch controls.
 
@@ -207,18 +215,13 @@ A WASM guest for another ABI is therefore chosen only when the request names tha
 - **A provider must publish a version-2 descriptor.** Public toolset recipes bind extension artifacts and descriptors (approved toolchain management, "Explicit extension trust policy"), and a descriptor's claims are the only authenticated statement of what a guest does. A provider published only as a NuGet package, with no version-2 descriptor, therefore cannot be bound by a recipe or recorded in a lock in `0.1.0-draft.1`.
 - **Offerings publish a `compatibility.morphirCli` that no version matches.** Version 1 requires every release descriptor to state the Morphir CLI versions that may acquire it, and its resolver filters by the acquiring CLI's version. The Morphir CLI must never select a .NET host offering, because there is no second installer. An offering descriptor therefore publishes `<0.0.0-0`, which no version satisfies: `>=0.0.0` would start matching at the first final CLI release. A manager never evaluates the member: it resolves the recipe, then checks each host binding against the authenticated release and its targets as above. The signed fixtures publish `<0.0.0-0`, and their `v1Client` cases show the version 1 client selecting no offering.
 - **One repository per binding check**, as stated [above](#one-repository-per-binding-check).
+- **A multi-file extension is a package form that a separate change defines.** The self-contained F# frontend is a .NET program of 239 files, because the F# compiler inside it needs its reference assemblies as files on disk, while the shared extension store, records and activation assume one file per extension. The maintainer decided (9 November 2026, [finos/morphir#1146](https://github.com/finos/morphir/issues/1146#issuecomment-6760228228)) that the shared extension contract is extended so an extension can be a multi-file package, and that no self-unpacking single-file form of the frontend is built. That package form is a separately reviewed OpenSpec change in this repository, written for the .NET and MoonBit hosts first. Only the Native AOT offering needs an installed F# frontend, so the recipe's binding of the Native AOT offering's process frontend, one archive per platform in `artifactTarget`, is **provisional** on that change.
 
-## Questions for the maintainer
-
-These are open. Rules that depend on them are marked provisional where they appear. M1, freezing the generated files, is stated on the [readiness workflow page](./readiness-workflow.md), and M5, the readiness needed to activate, on the [receipt page](./installation-receipt.md#readiness).
-
-- **M2: what is installed from a multi-file process artifact?** A recipe binds one archive per platform, and the self-contained F# frontend archive is a folder of about 240 files, while the shared extension store, catalog, lock and activation hold one file per extension. **Recommended default:** for first delivery, a single-file self-extracting frontend at the archive's root, so the store holds one executable, and the recipe and lock bind the archive digest. A package form for multi-file guests would be a separate, reviewed descriptor change. The rule that a process provider's `artifactTarget` is one archive per platform is **provisional** until M2 is answered.
-- **M3: which TUF client authenticates tool release metadata for the manager?** This repository's reference reader uses tough 0.24, the client of the existing Rust installer. The .NET manager's client is undecided. **Recommended default:** a project-owned client for the tool release metadata v1 profile in the .NET toolchain library, with BouncyCastle Ed25519 as its only cryptographic dependency, run against every signed `trust` case, and reviewed for security before it merges. Two things here are **provisional** until M3 is answered: the canonical encoding stated with the [plan digest](./manager-result.md#the-plan-digest), on which repository identity, signatures and plan digests all depend, and the expiry window of the signed cases, which exists because tough cannot be given a reference time ([fixtures](./index.md#fixtures-and-conformance)).
-- **M4: what are the legacy single-file release assets, and what deployment do they report?** The legacy `morphir-{rid}` assets keep their current bytes, a JIT build of the Native AOT composition, and none of the four deployment values is true of them. **Recommended default:** they report a fifth deployment value, `legacy-single-file`, that no recipe ever offers. No rule in these contracts names a legacy asset: a recipe binds only the four offerings, and a manager never records a legacy installation in a generation. The [receipt](./installation-receipt.md#members) execution table covers the four offerings only, and is **provisional** in that a different answer to M4 could add a row.
+The maintainer decisions these pages follow are listed with their dates under [Decided](./index.md#decided).
 
 ## Fixtures
 
-`fixtures/0.1.0-draft.1/recipe/fsharp-synthetic.json` describes the four .NET offerings on the six first-delivery platforms, the F# frontend as a process guest and as the existing framework-dependent .NET tool, and the standalone F# backend process guest. Every offering keeps the built-in `morphir.fsharp` generator, and the three managed offerings have the built-in frontend `morphir-dotnet.fsharp`; its `resolve` case for `self-contained` selects both built-ins. It is unsigned and binds nothing, so it keeps the dotted frontend identity of the approved example. `wasm-abi-alternatives.json` offers a backend for two WASM ABIs to a host that supports only `morphir-bytes-v1`; its `resolve` cases show that resolution reports `abi_unavailable` unless the request chooses the other ABI. `critical-nested-platform-member.json` names a platform member as critical. `provider-misfit.json` has a frontend that fits its host on one of the host's two platforms. `recipe/negative/` has the fixtures in the consistency table plus a later draft, an unknown critical member and an unknown nested critical member, a WASM provider without an ABI, an uppercase identity, an identity token over 64 characters, an unknown source kind, a `dotnet-tool` provider without its descriptor, a `compile` built-in with `modelInput` and one without `modelOutput`, a provider speaking MEP `0.1` (`protocol-version-0.1.json`, `unsupported_case`), credential members (`apiKey`, and `APIKEY` to pin case-insensitive matching), and two documents that break two rules at once (`precedence-*.json`).
+`fixtures/0.1.0-draft.1/recipe/fsharp-synthetic.json` describes the four .NET offerings on the six first-delivery platforms, the F# frontend as a process guest and as the existing framework-dependent .NET tool, and the standalone F# backend process guest. Every offering keeps the built-in `morphir.fsharp` generator, and the three managed offerings have the built-in frontend `morphir-dotnet.fsharp`; its `resolve` case for `self-contained` selects both built-ins. It is unsigned and binds nothing, so it keeps the dotted frontend identity of the approved example. `wasm-abi-alternatives.json` offers a backend for two WASM ABIs to a host that supports only `morphir-bytes-v1`; its `resolve` cases show that resolution reports `abi_unavailable` unless the request chooses the other ABI. `critical-nested-platform-member.json` names a platform member as critical. `protocol-membership-exact.json` has a preferred provider at MEP `0.2.0` for hosts that list only `0.2.0-draft.1`, and `wasm-abi-and-protocol-misfit.json` a WASM provider that misfits by both ABI and protocol; their `resolve` cases pin exact membership and the order of misfits. `provider-misfit.json` has a frontend that fits its host on one of the host's two platforms. `recipe/negative/` has the fixtures in the consistency table plus a later draft, an unknown critical member and an unknown nested critical member, a WASM provider without an ABI, an uppercase identity, an identity token over 64 characters, an unknown source kind, a `dotnet-tool` provider without its descriptor, a `compile` built-in with `modelInput` and one without `modelOutput`, a provider speaking MEP `0.1` (`protocol-version-0.1.json`, `unsupported_case`), credential members (`apiKey`, and `APIKEY` to pin case-insensitive matching), and two documents that break two rules at once (`precedence-*.json`).
 
 The TEST-ONLY signed repository in `fixtures/0.1.0-draft.1/signed/repository.json` publishes:
 
