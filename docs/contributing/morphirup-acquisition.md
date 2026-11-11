@@ -156,6 +156,15 @@ without a transport call. No separate manager cache or local object-index format
 These controls are not yet implemented or executed. They require qualified installer primitives and a separate
 coordinated RED/GREEN cycle. The existing 58 tests cover the injected seam, not this filesystem adapter.
 
+The coordinator's private-stage review accepts awaited native syscall completion, not a hard wall-clock bound for
+a hung kernel flush, rename or close. Cancellation stops new admission, asynchronous work and lease waits, then is
+checked around native durability/publication. Native work or cleanup must not continue as an unobserved detached
+task. Logical abandonment may leave a closed, installer-owned private orphan for a later coordinated sweep when
+immediate deletion cannot acquire a busy cooperative lease. The adapter must observe that deferred cleanup, release
+all handles/leases, preserve foreign replacements and keep cancellation's primary cause. The IO comment that dispose
+discards uncommitted bytes needs this precise physical-cleanup reconciliation before concrete adapter integration.
+These refinements do not authorize any host blob namespace or the extension-specific raw-artifact limit for hosts.
+
 ## Pure trust durability design, not production authority
 
 The next trust work must refactor the existing pure acceptance transitions rather than implement another TUF
@@ -208,6 +217,54 @@ contract requires every component to be capability-checked and no check to have 
 workflow remains visible and is not workflow qualification. The prior selection survives every failure. Persisted
 selection and overlays remain gated on the separately published parent contracts, so these source-only scenarios
 define no local competing state. No new trust or lifecycle test has run as part of this design work.
+
+### Current source-only checkpoint test tranche
+
+The first three control slices are in `tests/Morphir.Toolchain.Tests/TufCheckpointTests.fs`: exact accepted
+envelope snapshots and buffer isolation; paused acknowledgements for root, timestamp, snapshot and targets; and
+refused/cancelled persistence with accepted and acknowledged progress distinguished. They use the existing signed
+TEST-ONLY fixture helpers, including their relinker, rather than generate another verifier or change the corpus.
+Envelope whitespace differs from canonical output, so re-encoding parsed records cannot pass the exact-byte control.
+An immediate-acknowledgement control compares the awaited driver with the existing synchronous refresh result.
+Their first 15 controls reached declaration-only runtime RED. The separate GREEN grant then exercised the
+implementation and seven additional controls: all 22 passed. This is in-memory acceptance/checkpoint evidence;
+production composition and durable storage remain unimplemented.
+
+The internal pull boundary is `TufAcceptance.start`, producing metadata request, accepted-checkpoint,
+complete or refused control flow. Requests carry the existing role, optional version, byte bound and parent link;
+checkpoints own defensive copies of the exact envelope and expose accepted parsed state without granting authority.
+An acknowledgement continuation is the only route to the next request. The synchronous compatibility entry point
+now drives this same core with immediate acknowledgements. The existing reader/signature/check ordering was moved
+into this single path. The 114 registered TUF regressions and current external corpus passed under the separate
+GREEN grant. IO contains no checker; independent security review is still required.
+
+The internal IO driver is `TufCheckpointRefresh.runAsync`, with injected fetch and checkpoint callbacks,
+and progress separating accepted, acknowledged and pending state. Persistence refusal and cancellation are explicit
+internal outcomes, distinct from the existing publisher/metadata failures and from completion. A cancelled outcome
+retains the caller token and progress; it is not a public cancellation or persistence contract and creates no target
+authority. Composition must not silently convert it to success or a publisher failure. No public/persisted API,
+production identity, root import, checkpoint filename, JSON, journal or receipt is introduced in this tranche.
+
+The targeted RED grant completed before substantive implementation. A separate GREEN and independent security-sensitive review
+must retain the existing rotation threshold/limit, invalidation, rollback, version-reuse, expiry and corpus
+regressions. Further restart/revocation controls remain to be added; the first three slices do not claim them or
+production qualification. The earlier 58 byte-acquisition tests are not trust coverage.
+
+The source keeps accepted evidence in private byte copies taken before parsing, after checking the existing role
+bound. Oversized inputs follow the existing refusal path without a copy. Checkpoint access returns fresh envelope
+and parsed-key copies, and the core owns its starting key arrays. Caller mutation must not alter later verification.
+
+The awaited driver records accepted and pending evidence before checking cancellation at a checkpoint. An `Ok`
+callback completion advances acknowledged state before a subsequent cancellation check. Refusal or cancellation
+without that acknowledgement leaves the checkpoint pending and reports only earlier state as acknowledged.
+Pending means unacknowledged by this callback contract; it does not assert that a failed storage operation wrote
+nothing. Recovery and durable storage remain separate design/review work.
+
+Reads and acknowledgements receive the caller token, which may be linked to an operation deadline. Their tasks are
+awaited to completion, including when cancellation arrives during an operation already in progress. No detached
+write or hard kernel-operation deadline is promised. Additional source controls cover successful acknowledgement
+after cancellation for each role, thrown storage/transport failures, fetch cancellation, and mutation of parsed keys.
+The three lists contain 22 tests; the original 15-test RED remains distinct from their later GREEN evidence.
 
 ## Integration boundary questions
 
@@ -285,3 +342,65 @@ docs. `Morphir.slnx` already includes both new projects. The existing Developmen
 invokes Nuke `Test` on its three operating systems, so no new job or YAML change is needed. This wiring has not been
 run locally; its execution and results remain pending current-head CI. The earlier 58-test local evidence applies
 to the reviewed I/O source, not an unexecuted full Nuke/CI run.
+
+The separate trust-checkpoint RED boundary uses three new lists and 15 tests for exact accepted envelopes,
+paused acknowledgements, and refusal/cancellation progress. The first focused Release `--no-restore` build
+reached the tests and reported 98 missing-API and cascading compiler errors, with zero warnings. Declaration-only
+internal pull/checkpoint types, an awaited-driver stub and friend-assembly wiring then built with zero warnings
+or errors. The existing synchronous checker is unchanged; the new declarations are not connected to it.
+
+The exact three lists ran sequenced: zero passed, ignored or assertion failures, and 15 intentional
+`NotImplementedException` errors (one pure-core entry and 14 awaited-driver entries). This establishes missing
+behavior only. Exact-byte isolation, acknowledgement ordering, refusal and cancellation assertions still need
+to execute against an implementation; the earlier 58 IO controls do not cover trust acceptance.
+
+This RED run used pinned SDK `10.0.403`, two processors, single-node MSBuild, disabled shared compilation and
+node reuse, and hidden captured execution with a 180-second whole-tree kill/await bound. No timeout or restore
+occurred, and no package versions or lock files changed. The focused project-reference edge has not had restore
+validation. No old/full test suite, probe, AOT or live network ran. CPU2 was explicitly released after an empty
+.NET build/test/compiler process inventory, before substantive implementation. Logs are retained under
+`.dev/trust-checkpoint/`: `CompileRed-20261111T1348059278580.log`,
+`CompileRed-20261111T1348525024352.log` and `RuntimeRed-20261111T1349032207176.log`.
+Production trust remains unused and unqualified; no persisted checkpoint format or default authority is added.
+
+Under the separate trust-checkpoint GREEN grant, the first focused Release build reported seven compiler errors:
+two nullness diagnostics and cascading errors from an ambiguous record type. These were corrected with
+`ReferenceEquals` null checks and an explicit `TufTrustedSet` annotation. The next build had zero warnings or
+errors. This initial failure is retained in `CompileGreen-20261111T1400229462536.log`.
+
+The IO project reference was absent from both test assets and its lock file. One permitted narrow restore of
+the same seven-project graph added only the `morphir.toolchain.io` project entry to
+`tests/Morphir.Toolchain.Tests/packages.lock.json`. Every existing member of every tracked lock file was compared
+with its saved prior value and remained unchanged, including all package versions. The final Release
+`--no-restore` build had zero warnings and errors in 1.8 seconds. No production source or source formatting changed
+after that build.
+
+The executed sections were:
+
+| Section | Exact selection | Passed | Ignored / failed / errored |
+| --- | --- | ---: | --- |
+| New checkpoint controls, pinned fixtures | `--sequenced --summary --filter-test-list "TUF checkpoint"` | 22 | 0 / 0 / 0 |
+| Existing registered TUF subtree, external corpus | `--sequenced --summary --filter-test-list "The TUF client over the signed repository"` | 114 | 0 / 0 / 0 |
+| Current external corpus registration | `--sequenced --summary` with external corpus selected | 1,069 | 0 / 0 / 0 |
+
+The external root was `C:/Users/damre/.t3/worktrees/morphir/t3-f4b4c4f8-aa775c70a7fa14ff`, at
+`ee331648746962044d127d1a22a8565dea46b5d5`. Hashes of 329 files under its toolchain pages/fixtures,
+schemas and workflow scope were unchanged before and after execution. The existing test registration determines
+which published toolchain contracts run; no additional family format or candidate was adopted.
+
+The count wrapper initially rejected successful checkpoint child output because of ANSI sequences, then rejected
+the successful corpus child output because its counts use thousands separators. Both failures and all child logs
+are preserved. The corrected parser verified the exact nonempty counts from each retained log, including zero
+ignored, failed and errored tests. These were wrapper validation defects; the child processes exited zero and
+there were no behavioral test failures in this GREEN cycle.
+
+GREEN evidence is retained in `.dev/trust-checkpoint/`: `Restore-20261111T1401302864702.log`,
+`CompileGreen-20261111T1401451540723.log`, `RuntimeGreen-20261111T1402247430969.log`,
+`TufGreen-20261111T1403055115179.log`, `CorpusGreen-20261111T1403229952568.log` and
+`Green-all-sections-count-validation.log`. The run used the same pinned SDK, processor/build limits and hidden
+180-second whole-tree kill/await bound. No timeout occurred. CPU2 was explicitly released after an empty process
+inventory; no further burst, full solution, probe, formatter, AOT, commit or push was performed.
+
+These results exercise the shared pure acceptance core and injected awaited checkpoint contract. Restart storage,
+cache deletion/revocation durability, real filesystem persistence and production trust activation remain separate
+work and qualification. A new independent security-sensitive review is required before integration proceeds.

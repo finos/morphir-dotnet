@@ -156,6 +156,220 @@ type RefreshResult =
         | RootRotationPaused trusted
         | Failed(_, trusted) -> trusted
 
+/// Defensive snapshots of the only mutable members of parsed trust state: public-key byte arrays.
+module internal TufTrustedSnapshot =
+    let copy (trusted: TufTrustedSet) =
+        { trusted with
+            Root =
+                { trusted.Root with
+                    Keys = trusted.Root.Keys |> Map.map (fun _ key -> if obj.ReferenceEquals(key, null) then key else Array.copy key) } }
+
+/// One explicit input request. Bounds and links come from the existing metadata profile and accepted parent.
+type internal TufMetadataRequest =
+    { Role: TufRole
+      Version: uint64 option
+      MaxBytes: int
+      Link: TufMetaFile option }
+
+/// Exact accepted evidence, isolated from both the source and the checkpoint consumer.
+/// Internal only: no persistence representation or production authority is defined here.
+type internal TufAcceptedCheckpoint internal (role, version, envelope: byte array, accepted: TufTrustedSet) =
+    let evidence = Array.copy envelope
+    let state = TufTrustedSnapshot.copy accepted
+    member _.Role: TufRole = role
+    member _.Version: uint64 = version
+    member _.EnvelopeBytes = Array.copy evidence
+    member _.Accepted = TufTrustedSnapshot.copy state
+
+[<RequireQualifiedAccess>]
+type internal TufAcceptanceStep =
+    | Request of request: TufMetadataRequest * supply: (Result<byte array option, TufFailure> -> TufAcceptanceStep)
+    | Accepted of checkpoint: TufAcceptedCheckpoint * acknowledge: (unit -> TufAcceptanceStep)
+    | Complete of result: RefreshResult
+    | Refused of failure: TufFailure * accepted: TufTrustedSet
+
+/// The single pure acceptance path, shared by synchronous and awaited drivers.
+/// SECURITY: unused and unqualified for production. No I/O or durability is performed by this core.
+module internal TufAcceptance =
+    let maxRootRotations = 32
+
+    let metadataName (role: TufRole) (version: uint64) =
+        match role with
+        | TufRole.Timestamp -> "timestamp.json"
+        | other -> $"{version}.{TufMetadata.roleName other}.json"
+
+    let private expired (start: DateTimeOffset) (expires: DateTimeOffset) = expires <= start
+
+    let private roleKeys (root: TufRoot) (role: TufRole) =
+        root.Roles[role].KeyIds |> List.map (fun id -> Convert.ToHexStringLower root.Keys[id]) |> set, root.Roles[role].Threshold
+
+    let private linked (role: TufRole) (meta: TufMetaFile) (bytes: byte array) =
+        if uint64 bytes.LongLength <> meta.Length || Sha256.ofBytes bytes <> meta.Sha256 then
+            Error(TufFailure.LinkMismatch role)
+        else
+            Ok()
+
+    let private protect current action =
+        try action ()
+        with error -> TufAcceptanceStep.Refused(TufFailure.Internal $"the refresh failed with {error.GetType().Name}, a defect", current)
+
+    // A refused oversized input is never copied. Null stays on the existing reader/checker's refusal path.
+    // Accepted evidence is frozen before parsing, so it is the exact envelope the checker read.
+    let private freeze role (bytes: byte array) =
+        if obj.ReferenceEquals(bytes, null) || bytes.Length > TufMetadata.limitOf role then bytes else Array.copy bytes
+
+    let private request current role version link consume =
+        TufAcceptanceStep.Request(
+            { Role = role; Version = version; MaxBytes = TufMetadata.limitOf role; Link = link },
+            fun response -> protect current (fun () -> consume response))
+
+    let private required current role version link consume =
+        request current role version link (function
+            | Error failure -> TufAcceptanceStep.Refused(failure, current)
+            | Ok None -> TufAcceptanceStep.Refused(TufFailure.Unavailable role, current)
+            | Ok(Some bytes) -> consume (freeze role bytes))
+
+    let private accepted role version bytes current next =
+        let checkpoint = TufAcceptedCheckpoint(role, version, bytes, current)
+        TufAcceptanceStep.Accepted(checkpoint, fun () -> protect current (fun () -> next current))
+
+    let private checkedStep current check next =
+        match check () with
+        | Error failure -> TufAcceptanceStep.Refused(failure, current)
+        | Ok value -> next value
+
+    let start (start: DateTimeOffset) (trusted: TufTrustedSet) : TufAcceptanceStep =
+        protect trusted (fun () ->
+            // Continuations own their trust state. Neither the input caller nor a checkpoint consumer can mutate keys.
+            let initial = TufTrustedSnapshot.copy trusted
+
+            let targets (current: TufTrustedSet) (snapshot: TufSnapshot) =
+                let meta = snapshot.Targets
+                required current TufRole.Targets (Some meta.Version) (Some meta) (fun bytes ->
+                    checkedStep current (fun () -> result {
+                        if bytes.Length > TufMetadata.targetsLimit then
+                            return! Error(TufFailure.MetadataTooLarge(TufRole.Targets, TufMetadata.targetsLimit))
+                        do! linked TufRole.Targets meta bytes
+                        let! read = TufMetadata.readTargets bytes
+                        if not (TufSignatures.thresholdMet current.Root TufRole.Targets read) then
+                            return! Error(TufFailure.SignatureInvalid TufRole.Targets)
+                        if read.Signed.Version <> meta.Version then
+                            return! Error(TufFailure.LinkMismatch TufRole.Targets)
+                        match current.Targets with
+                        | Some old when read.Signed.Version < old.Version -> return! Error(TufFailure.Rollback TufRole.Targets)
+                        | _ -> ()
+                        if expired start read.Signed.Expires then
+                            return! Error(TufFailure.Expired TufRole.Targets)
+                        return read.Signed
+                    }) (fun read ->
+                        // 5.6.6: no completion until this accepted evidence is acknowledged.
+                        accepted TufRole.Targets read.Version bytes { current with Targets = Some read }
+                            (RefreshResult.Refreshed >> TufAcceptanceStep.Complete)))
+
+            let snapshot (current: TufTrustedSet) (timestamp: TufTimestamp) =
+                let meta = timestamp.Snapshot
+                required current TufRole.Snapshot (Some meta.Version) (Some meta) (fun bytes ->
+                    checkedStep current (fun () -> result {
+                        if bytes.Length > TufMetadata.snapshotLimit then
+                            return! Error(TufFailure.MetadataTooLarge(TufRole.Snapshot, TufMetadata.snapshotLimit))
+                        do! linked TufRole.Snapshot meta bytes
+                        let! read = TufMetadata.readSnapshot bytes
+                        if not (TufSignatures.thresholdMet current.Root TufRole.Snapshot read) then
+                            return! Error(TufFailure.SignatureInvalid TufRole.Snapshot)
+                        if read.Signed.Version <> meta.Version then
+                            return! Error(TufFailure.LinkMismatch TufRole.Snapshot)
+                        match current.Snapshot with
+                        | Some old when read.Signed.Targets.Version < old.Targets.Version ->
+                            return! Error(TufFailure.Rollback TufRole.Snapshot)
+                        | _ -> ()
+                        if expired start read.Signed.Expires then
+                            return! Error(TufFailure.Expired TufRole.Snapshot)
+                        return read.Signed
+                    }) (fun read ->
+                        // 5.5.7: snapshot evidence is acknowledged before requesting targets.
+                        accepted TufRole.Snapshot read.Version bytes { current with Snapshot = Some read }
+                            (fun acknowledged -> targets acknowledged read)))
+
+            let timestamp (current: TufTrustedSet) =
+                required current TufRole.Timestamp None None (fun bytes ->
+                    checkedStep current (fun () -> result {
+                        let! read = TufMetadata.readTimestamp bytes
+                        if not (TufSignatures.thresholdMet current.Root TufRole.Timestamp read) then
+                            return! Error(TufFailure.SignatureInvalid TufRole.Timestamp)
+                        match current.Timestamp with
+                        | Some old when read.Signed.Version < old.Version || read.Signed.Snapshot.Version < old.Snapshot.Version ->
+                            return! Error(TufFailure.Rollback TufRole.Timestamp)
+                        | _ -> ()
+                        let sameVersion =
+                            match current.Timestamp with
+                            | Some old when read.Signed.Version = old.Version -> Some old
+                            | _ -> None
+                        match sameVersion with
+                        | Some old when read.Signed <> old -> return! Error(TufFailure.VersionReused TufRole.Timestamp)
+                        | _ -> ()
+                        if expired start read.Signed.Expires then
+                            return! Error(TufFailure.Expired TufRole.Timestamp)
+                        return read.Signed, sameVersion
+                    }) (fun (read, sameVersion) ->
+                        // 5.4.5: even a same-version accepted timestamp is acknowledged before the cycle ends.
+                        accepted TufRole.Timestamp read.Version bytes { current with Timestamp = Some read } (fun acknowledged ->
+                            let unchanged =
+                                match sameVersion, acknowledged.Snapshot, acknowledged.Targets with
+                                | Some _, Some snapshot, Some targets ->
+                                    snapshot.Version = read.Snapshot.Version && targets.Version = snapshot.Targets.Version
+                                | _ -> false
+                            if unchanged then
+                                let snapshot, targets = Option.get acknowledged.Snapshot, Option.get acknowledged.Targets
+                                if expired start snapshot.Expires then
+                                    TufAcceptanceStep.Refused(TufFailure.Expired TufRole.Snapshot, acknowledged)
+                                elif expired start targets.Expires then
+                                    TufAcceptanceStep.Refused(TufFailure.Expired TufRole.Targets, acknowledged)
+                                else TufAcceptanceStep.Complete(RefreshResult.NothingNew acknowledged)
+                            else snapshot acknowledged read)))
+
+            let afterRoots (current: TufTrustedSet) =
+                if expired start current.Root.Expires then TufAcceptanceStep.Refused(TufFailure.Expired TufRole.Root, current)
+                else timestamp current
+
+            let rec rotate (current: TufTrustedSet) count =
+                if current.Root.Version >= TufMetadata.maxInteger then afterRoots current else
+                let version = current.Root.Version + 1UL
+                request current TufRole.Root (Some version) None (function
+                    | Error failure -> TufAcceptanceStep.Refused(failure, current)
+                    | Ok None -> afterRoots current
+                    // Preserve 5.3.3: detect presence of the 33rd root without parsing or copying it.
+                    | Ok(Some _) when count = maxRootRotations -> TufAcceptanceStep.Complete(RefreshResult.RootRotationPaused current)
+                    | Ok(Some supplied) ->
+                        let bytes = freeze TufRole.Root supplied
+                        checkedStep current (fun () ->
+                            match TufMetadata.readRoot bytes with
+                            | Error(TufFailure.MetadataInvalid(_, reason)) -> Error(TufFailure.RootRotationInvalid(version, reason))
+                            | Error(TufFailure.MetadataTooLarge(_, limit)) ->
+                                Error(TufFailure.RootRotationInvalid(version, $"{metadataName TufRole.Root version} is larger than {limit} bytes"))
+                            | Error failure -> Error(TufFailure.RootRotationInvalid(version, $"%A{failure}"))
+                            | Ok read ->
+                                // 5.3.4/5.3.5: old and new thresholds precede the version check.
+                                if not (TufSignatures.thresholdMet current.Root TufRole.Root read) then
+                                    Error(TufFailure.RootRotationInvalid(version, "the trusted root's threshold is not met"))
+                                elif not (TufSignatures.thresholdMet read.Signed TufRole.Root read) then
+                                    Error(TufFailure.RootRotationInvalid(version, "the new root's own threshold is not met"))
+                                elif read.Signed.Version <> version then
+                                    Error(TufFailure.RootRotationInvalid(version, $"{metadataName TufRole.Root version} has version {read.Signed.Version}"))
+                                else
+                                    match TrustRules.refusal initial.Purpose read.Signed with
+                                    | Some refusal -> Error(TufFailure.RootRotationInvalid(version, $"the new root breaks the anchor's purpose: %A{refusal}"))
+                                    | None -> Ok read.Signed)
+                            (fun root ->
+                                // Preserve comparison with the refresh's initial root and irreversible role invalidation.
+                                let rotatedKeys =
+                                    roleKeys root TufRole.Timestamp <> roleKeys initial.Root TufRole.Timestamp
+                                    || roleKeys root TufRole.Snapshot <> roleKeys initial.Root TufRole.Snapshot
+                                let next =
+                                    if rotatedKeys then { current with Root = root; Timestamp = None; Snapshot = None; Targets = None }
+                                    else { current with Root = root }
+                                accepted TufRole.Root root.Version bytes next (fun acknowledged -> rotate acknowledged (count + 1))))
+            rotate initial 0)
+
 /// <summary>
 /// The update workflow of the tool release metadata v1 profile (TUF 1.0.36 section 5) as a pure function over
 /// supplied bytes and one start time: root rotation one version at a time with both thresholds, at most 32 roots per
@@ -168,14 +382,11 @@ type RefreshResult =
 /// </remarks>
 module TufClient =
     /// The most roots one refresh accepts before it asks for a retry.
-    let maxRootRotations = 32
+    let maxRootRotations = TufAcceptance.maxRootRotations
 
     /// <summary>The consistent-snapshot name of a metadata file: <c>N.root.json</c>, <c>timestamp.json</c>,
     /// <c>N.snapshot.json</c> or <c>N.targets.json</c>.</summary>
-    let metadataName (role: TufRole) (version: uint64) =
-        match role with
-        | TufRole.Timestamp -> "timestamp.json"
-        | other -> $"{version}.{TufMetadata.roleName other}.json"
+    let metadataName role version = TufAcceptance.metadataName role version
 
     /// <summary>The consistent-snapshot name of a target: its SHA-256 before the file name, in the same directory,
     /// always with <c>/</c>.</summary>
@@ -184,225 +395,26 @@ module TufClient =
         | -1 -> $"{sha256.Text}.{path}"
         | at -> $"{path.Substring(0, at + 1)}{sha256.Text}.{path.Substring(at + 1)}"
 
-    let private expired (start: DateTimeOffset) (expires: DateTimeOffset) = expires <= start
-
-    /// The keys a role trusts, as public keys, so a rotation that changes them can be seen.
-    let private roleKeys (root: TufRoot) (role: TufRole) =
-        root.Roles[role].KeyIds |> List.map (fun id -> Convert.ToHexStringLower root.Keys[id]) |> set, root.Roles[role].Threshold
-
-    /// Bytes against the version, length and SHA-256 their parent names, before they are parsed.
-    let private linked (role: TufRole) (meta: TufMetaFile) (bytes: byte array) =
-        if uint64 bytes.LongLength <> meta.Length || Sha256.ofBytes bytes <> meta.Sha256 then
-            Error(TufFailure.LinkMismatch role)
-        else
-            Ok()
-
-    /// <summary>Asks the caller's source for a file. A source that throws has failed to give it: the role is
-    /// unavailable, and the exception does not leave the refresh.</summary>
-    let private ask (role: TufRole) (call: unit -> byte array option) : Result<byte array option, TufFailure> =
-        try
-            Ok(call ())
-        with _ ->
-            Error(TufFailure.Unavailable role)
-
-    let private fetched (role: TufRole) (call: unit -> byte array option) =
-        match ask role call with
-        | Ok(Some bytes) -> Ok bytes
-        | Ok None -> Error(TufFailure.Unavailable role)
-        | Error failure -> Error failure
-
-    /// <summary>Root rotation (5.3): from trusted version N, only N + 1, then one version at a time. Each new root
-    /// must have the next version and meet the old root's threshold and its own. After 32 accepted roots, when another
-    /// follows, the refresh pauses.</summary>
-    let private rotate (purpose: TrustAnchorPurpose) (trusted: TufRoot) (source: MetadataSource) (accept: TufRoot -> unit) : Result<bool, TufFailure> =
-        let rec next (root: TufRoot) (accepted: int) =
-            // No root follows the largest version a reader takes, so the next version never wraps (review, T8).
-            if root.Version >= TufMetadata.maxInteger then Ok false else
-
-            let version = root.Version + 1UL
-
-            match ask TufRole.Root (fun () -> source.Root version) with
-            | Error failure -> Error failure
-            | Ok None -> Ok false
-            | Ok(Some _) when accepted = maxRootRotations -> Ok true
-            | Ok(Some bytes) ->
-                // A root N + 1 that fails for any reason is a failed rotation, so its code says what it means; its
-                // signatures are checked before its version, as TUF 5.3.4 and 5.3.5 order them (review of #581, T7).
-                match TufMetadata.readRoot bytes with
-                | Error(TufFailure.MetadataInvalid(_, reason)) -> Error(TufFailure.RootRotationInvalid(version, reason))
-                | Error(TufFailure.MetadataTooLarge(_, limit)) ->
-                    Error(TufFailure.RootRotationInvalid(version, $"{metadataName TufRole.Root version} is larger than {limit} bytes"))
-                | Error failure -> Error(TufFailure.RootRotationInvalid(version, $"%A{failure}"))
-                | Ok read ->
-                    if not (TufSignatures.thresholdMet root TufRole.Root read) then
-                        Error(TufFailure.RootRotationInvalid(version, "the trusted root's threshold is not met"))
-                    elif not (TufSignatures.thresholdMet read.Signed TufRole.Root read) then
-                        Error(TufFailure.RootRotationInvalid(version, "the new root's own threshold is not met"))
-                    elif read.Signed.Version <> version then
-                        Error(TufFailure.RootRotationInvalid(version, $"{metadataName TufRole.Root version} has version {read.Signed.Version}"))
-                    else
-                        match TrustRules.refusal purpose read.Signed with
-                        | Some refusal -> Error(TufFailure.RootRotationInvalid(version, $"the new root breaks the anchor's purpose: %A{refusal}"))
-                        | None ->
-                            accept read.Signed
-                            next read.Signed (accepted + 1)
-
-        next trusted 0
-
-    /// <summary>One refresh from a trusted set, with every expiry checked against <paramref name="start"/>, the one
-    /// trusted start time of the refresh. The result always carries the newest trust state accepted, also when a step
-    /// is refused.</summary>
+    /// <summary>Compatibility driver of the same pure acceptance core. Checkpoints are acknowledged immediately;
+    /// this synchronous API does not promise durability. It retains the newest accepted state on every failure.</summary>
     let refresh (start: DateTimeOffset) (trusted: TufTrustedSet) (source: MetadataSource) : RefreshResult =
-        let current = ref trusted
-
-        // 5.3.7 to 5.3.9: each accepted root is trusted at once. 5.3.11: when the timestamp or snapshot keys differ
-        // from the trusted root's, the trusted timestamp and snapshot are dropped, so a fast-forward attack on them can
-        // be recovered from. The trusted targets go with them: TUF checks targets only against the snapshot (5.6.4),
-        // so keeping them would make a targets fast-forward permanent (review of #581, T2).
-        let accept (root: TufRoot) =
-            let rotatedKeys =
-                roleKeys root TufRole.Timestamp <> roleKeys trusted.Root TufRole.Timestamp
-                || roleKeys root TufRole.Snapshot <> roleKeys trusted.Root TufRole.Snapshot
-
-            current.Value <-
-                if rotatedKeys then
-                    { current.Value with
-                        Root = root
-                        Timestamp = None
-                        Snapshot = None
-                        Targets = None }
-                else
-                    { current.Value with Root = root }
-
-        let steps () : Result<RefreshResult, TufFailure> =
-            result {
-                let! paused = rotate trusted.Purpose trusted.Root source accept
-
-                if paused then
-                    return RefreshResult.RootRotationPaused current.Value
-                else
-                    let root = current.Value.Root
-
-                    // 5.3.10: the newest root must not have expired.
-                    if expired start root.Expires then
-                        return! Error(TufFailure.Expired TufRole.Root)
-
-                    // 5.4: the timestamp.
-                    let! timestampBytes = fetched TufRole.Timestamp source.Timestamp
-                    let! timestamp = TufMetadata.readTimestamp timestampBytes
-
-                    if not (TufSignatures.thresholdMet root TufRole.Timestamp timestamp) then
-                        return! Error(TufFailure.SignatureInvalid TufRole.Timestamp)
-
-                    match current.Value.Timestamp with
-                    | Some old when timestamp.Signed.Version < old.Version || timestamp.Signed.Snapshot.Version < old.Snapshot.Version ->
-                        return! Error(TufFailure.Rollback TufRole.Timestamp)
-                    | _ -> ()
-
-                    // 5.4.3.1: a timestamp at the trusted version is discarded, and the update cycle ends. Another
-                    // timestamp under that version is two documents under one version, and is refused.
-                    let sameVersion =
-                        match current.Value.Timestamp with
-                        | Some old when timestamp.Signed.Version = old.Version -> Some old
-                        | _ -> None
-
-                    match sameVersion with
-                    | Some old when timestamp.Signed <> old -> return! Error(TufFailure.VersionReused TufRole.Timestamp)
-                    | _ -> ()
-
-                    // The expiry is checked even for the trusted timestamp: a frozen timestamp served for ever expires
-                    // with it.
-                    if expired start timestamp.Signed.Expires then
-                        return! Error(TufFailure.Expired TufRole.Timestamp)
-
-                    // 5.4.5: the verified timestamp is trusted.
-                    current.Value <- { current.Value with Timestamp = Some timestamp.Signed }
-
-                    // Nothing new only when the trusted snapshot and targets are the ones this timestamp names; after a
-                    // refresh that stopped before them, the workflow goes on.
-                    let unchanged =
-                        match sameVersion, current.Value.Snapshot, current.Value.Targets with
-                        | Some _, Some snapshot, Some targets ->
-                            snapshot.Version = timestamp.Signed.Snapshot.Version && targets.Version = snapshot.Targets.Version
-                        | _ -> false
-
-                    if unchanged then
-                        let snapshot, targets = Option.get current.Value.Snapshot, Option.get current.Value.Targets
-
-                        if expired start snapshot.Expires then
-                            return! Error(TufFailure.Expired TufRole.Snapshot)
-
-                        if expired start targets.Expires then
-                            return! Error(TufFailure.Expired TufRole.Targets)
-
-                        return RefreshResult.NothingNew current.Value
-                    else
-                        // 5.5: the snapshot the timestamp names.
-                        let snapshotMeta = timestamp.Signed.Snapshot
-                        let! snapshotBytes = fetched TufRole.Snapshot (fun () -> source.Snapshot snapshotMeta.Version)
-
-                        if snapshotBytes.Length > TufMetadata.snapshotLimit then
-                            return! Error(TufFailure.MetadataTooLarge(TufRole.Snapshot, TufMetadata.snapshotLimit))
-
-                        do! linked TufRole.Snapshot snapshotMeta snapshotBytes
-                        let! snapshot = TufMetadata.readSnapshot snapshotBytes
-
-                        if not (TufSignatures.thresholdMet root TufRole.Snapshot snapshot) then
-                            return! Error(TufFailure.SignatureInvalid TufRole.Snapshot)
-
-                        if snapshot.Signed.Version <> snapshotMeta.Version then
-                            return! Error(TufFailure.LinkMismatch TufRole.Snapshot)
-
-                        match current.Value.Snapshot with
-                        | Some old when snapshot.Signed.Targets.Version < old.Targets.Version ->
-                            return! Error(TufFailure.Rollback TufRole.Snapshot)
-                        | _ -> ()
-
-                        if expired start snapshot.Signed.Expires then
-                            return! Error(TufFailure.Expired TufRole.Snapshot)
-
-                        // 5.5.7: the verified snapshot is trusted.
-                        current.Value <- { current.Value with Snapshot = Some snapshot.Signed }
-
-                        // 5.6: the targets the snapshot names.
-                        let targetsMeta = snapshot.Signed.Targets
-                        let! targetsBytes = fetched TufRole.Targets (fun () -> source.Targets targetsMeta.Version)
-
-                        if targetsBytes.Length > TufMetadata.targetsLimit then
-                            return! Error(TufFailure.MetadataTooLarge(TufRole.Targets, TufMetadata.targetsLimit))
-
-                        do! linked TufRole.Targets targetsMeta targetsBytes
-                        let! targets = TufMetadata.readTargets targetsBytes
-
-                        if not (TufSignatures.thresholdMet root TufRole.Targets targets) then
-                            return! Error(TufFailure.SignatureInvalid TufRole.Targets)
-
-                        if targets.Signed.Version <> targetsMeta.Version then
-                            return! Error(TufFailure.LinkMismatch TufRole.Targets)
-
-                        match current.Value.Targets with
-                        | Some old when targets.Signed.Version < old.Version -> return! Error(TufFailure.Rollback TufRole.Targets)
-                        | _ -> ()
-
-                        if expired start targets.Signed.Expires then
-                            return! Error(TufFailure.Expired TufRole.Targets)
-
-                        // 5.6.6: the verified targets are trusted.
-                        current.Value <- { current.Value with Targets = Some targets.Signed }
-                        return RefreshResult.Refreshed current.Value
-            }
-
-        // The boundary: an exception inside the workflow, which is a defect, fails the refresh closed and still hands
-        // back the trust state accepted before it (review of #581, T1).
-        let outcome =
-            try
-                steps ()
-            with error ->
-                Error(TufFailure.Internal $"the refresh failed with {error.GetType().Name}, a defect")
-
-        match outcome with
-        | Ok outcome -> outcome
-        | Error failure -> RefreshResult.Failed(failure, current.Value)
+        let rec drive step =
+            match step with
+            | TufAcceptanceStep.Request(request, supply) ->
+                let response =
+                    try
+                        match request.Role, request.Version with
+                        | TufRole.Root, Some version -> Ok(source.Root version)
+                        | TufRole.Timestamp, None -> Ok(source.Timestamp())
+                        | TufRole.Snapshot, Some version -> Ok(source.Snapshot version)
+                        | TufRole.Targets, Some version -> Ok(source.Targets version)
+                        | _ -> Error(TufFailure.Internal "an invalid metadata request, a defect")
+                    with _ -> Error(TufFailure.Unavailable request.Role)
+                drive (supply response)
+            | TufAcceptanceStep.Accepted(_, acknowledge) -> drive (acknowledge ())
+            | TufAcceptanceStep.Complete result -> result
+            | TufAcceptanceStep.Refused(failure, accepted) -> RefreshResult.Failed(failure, accepted)
+        drive (TufAcceptance.start start trusted)
 /// <summary>Loading the first trusted root, delivered out of band. A root must read and meet its own root threshold.
 /// For production, it must be the repository the caller names, and meet <c>TrustRules</c>: a root threshold of at
 /// least two and none of the published TEST-ONLY fixture keys. Every root the refresh later accepts must meet the same
