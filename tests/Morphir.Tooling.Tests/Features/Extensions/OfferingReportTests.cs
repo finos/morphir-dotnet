@@ -34,7 +34,7 @@ public sealed class OfferingReportTests
             new BackendExtensionSource([new FSharpGenerationBackend(), new CSharpGenerationBackend()], host),
             new FrontendExtensionSource(host),
             new AnalyzerExtensionSource(new AnalyzerRegistry(host)),
-        ], host);
+        ], host, WasmRuntime.Process);
 
     private static JsonDocument List(HostIdentity host)
     {
