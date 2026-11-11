@@ -39,6 +39,26 @@ let corpusTests () =
         guarded "Contract tables" (fun () -> ContractTableTests.tests)
         guarded "Canonical JSON" (fun () -> CanonicalJsonTests.tests)
         guarded "Writers" (fun () -> WriterTests.tests)
+        guarded "The TUF client over the signed repository" (fun () ->
+            testList "The TUF client over the signed repository" [
+                TufTests.readerTests
+                TufTests.signatureTests
+                TufTests.workflowTests
+                TufTests.anchorTests
+                TufTests.failureCodeTests
+                TufTests.spikeProfileTests
+                TufTests.reviewT1Tests
+                TufTests.reviewAcceptedStateTests
+                TufTests.reviewTotalTests
+                TufTests.reviewT2Tests
+                TufTests.reviewT3Tests
+                TufTests.reviewT4Tests
+                TufTests.reviewT5Tests
+                TufTests.reviewT6Tests
+                TufTests.reviewT7Tests
+                TufTests.reviewT8Tests
+                TufTests.reviewT11Tests
+            ])
     ]
 
 /// The next slices write under Morphir Home, so the run fails when a test changed the machine folders outside its
