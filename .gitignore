@@ -300,3 +300,6 @@ test-*.json
 
 # Snapshot test output that differs from the accepted snapshot
 *.received
+
+# Fallout build bootstrap cache
+.fallout/temp/

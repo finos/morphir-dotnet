@@ -8,7 +8,7 @@
     <IsPackable>false</IsPackable>
     <IsAotCompatible>true</IsAotCompatible>
     <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
-    <!-- Same FSharp.Core summary baseline as the generated-code probe; the Nuke target rejects all other IL diagnostics. -->
+    <!-- Same FSharp.Core summary baseline as the generated-code probe; the Fallout target rejects all other IL diagnostics. -->
     <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2104;IL3053</WarningsNotAsErrors>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <InvariantGlobalization>true</InvariantGlobalization>

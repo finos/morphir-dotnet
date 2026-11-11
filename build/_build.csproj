@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -7,12 +7,11 @@
     <Nullable>enable</Nullable>
     <NoWarn>CS0649;CS0169</NoWarn>
     <RootNamespace></RootNamespace>
-    <NukeTelemetryVersion>1</NukeTelemetryVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Ionide.KeepAChangelog" />
-    <PackageReference Include="Nuke.Common" />
+    <PackageReference Include="Fallout.Common" />
   </ItemGroup>
 
 </Project>

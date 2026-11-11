@@ -1,7 +1,7 @@
 using System;
-using Nuke.Common;
-using Nuke.Common.Tools.DotNet;
-using static Nuke.Common.Tools.DotNet.DotNetTasks;
+using Fallout.Common;
+using Fallout.Common.Tools.DotNet;
+using static Fallout.Common.Tools.DotNet.DotNetTasks;
 
 /// <summary>
 /// Build targets for CI/CD workflows and local simulation of GitHub Actions pipeline

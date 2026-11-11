@@ -29,7 +29,7 @@ are forbidden. It checks source bytes/declarations, document shapes, type
 arguments, callback identities/types, canonical projections, numeric/text limits,
 ordered collections, coverage and known gaps. `dotnet test`'s default VSTest path
 is unsuitable for the repository's .NET 10 MTP suites; `dotnet exec` is also the
-Nuke runner's supported path. Nuke `Test` includes this suite sequentially.
+Fallout runner's supported path. Fallout `Test` includes this suite sequentially.
 
 ## Case interface
 
