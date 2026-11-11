@@ -28,13 +28,54 @@ module private RunDirectoryIO =
                 else
                     directory.DeleteFile name
 
-    let remove (parent: SafeDirectory) name =
-        do
+    let remove (parent: SafeDirectory) name expectedDirectory expectedOwner =
+        let directoryIdentity =
             use child = parent.Child(name, false)
-            use owner = child.File(".owner", false, true)
-            empty child
-        // No valid owner adopts an existing name; ownership always starts with a fresh random directory.
-        do use child = parent.Child(name, false) in child.DeleteFile ".owner"
+
+            match expectedDirectory with
+            | Some identity when
+                child.Identity
+                <> identity
+                ->
+                Operations.fail "extension.path_escape" "A run directory changed identity."
+            | _ -> ()
+
+            let ownerIdentity =
+                use owner = child.File(".owner", false, true)
+                let identity = child.FileIdentity owner
+
+                match expectedOwner with
+                | Some expected when
+                    identity
+                    <> expected
+                    ->
+                    Operations.fail "extension.path_escape" "A run owner changed identity."
+                | _ -> ()
+
+                if not (child.HasFileIdentity(".owner", identity)) then
+                    Operations.fail "extension.path_escape" "The run owner was replaced."
+
+                empty child
+                child.ValidateLocation()
+                identity
+
+            if not (child.HasFileIdentity(".owner", ownerIdentity)) then
+                Operations.fail "extension.path_escape" "The run owner was replaced during cleanup."
+
+            child.DeleteIfIdentity(".owner", ownerIdentity)
+            child.Identity
+        // The cross-process mutation lease remains held through owner removal and final directory deletion.
+        do
+            use current = parent.Child(name, false)
+
+            if
+                current.Identity
+                <> directoryIdentity
+            then
+                Operations.fail
+                    "extension.path_escape"
+                    "The run directory was replaced during cleanup."
+
         parent.DeleteDirectory name
 
 /// Lifetime of a .NET-owned temporary directory. Dispose only after its guest and children have exited.
@@ -74,12 +115,18 @@ type RunCopySweep internal (removed: string array, skipped: string array) =
 /// Owns and sweeps only .NET run directories, without any installed-record or package metadata.
 [<AbstractClass; Sealed>]
 type RunCopies private () =
-    /// Creates a private directory and holds its owner file exclusively until disposal.
-    static member CreateAsync(home: string, ct: CancellationToken) =
+    static member private CreateCore
+        (
+            home: string,
+            beforeOwner: Action<string>,
+            ct: CancellationToken
+        ) =
         Operations.run
             ct
             (fun () ->
                 use root = SafeDirectory.Open(home, true)
+                use mutation = FileSafety.mutationLease root
+                let homeIdentity = root.Identity
 
                 FileSafety.withDirectories
                     root
@@ -100,7 +147,10 @@ type RunCopies private () =
                                 ||| UnixFileMode.UserExecute
                             )
 
+                        beforeOwner.Invoke directory.Path
                         let owner = directory.File(".owner", false, true)
+                        let ownerIdentity = directory.FileIdentity owner
+                        let directoryIdentity = directory.Identity
 
                         new OwnedRunDirectory(
                             directory.Path,
@@ -108,15 +158,43 @@ type RunCopies private () =
                             Action(fun () ->
                                 use root = SafeDirectory.Open(home, false)
 
+                                if
+                                    root.Identity
+                                    <> homeIdentity
+                                then
+                                    Operations.fail
+                                        "extension.path_escape"
+                                        "Morphir Home changed identity."
+
+                                use mutation = FileSafety.mutationLease root
+
                                 FileSafety.withDirectories
                                     root
                                     [ "tmp"; "extensions" ]
                                     false
-                                    (fun parent -> RunDirectoryIO.remove parent name)
+                                    (fun parent ->
+                                        RunDirectoryIO.remove
+                                            parent
+                                            name
+                                            (Some directoryIdentity)
+                                            (Some ownerIdentity)
+                                    )
                             )
                         )
                     )
             )
+
+    /// Creates a private directory and holds its owner file exclusively until disposal.
+    static member CreateAsync(home: string, ct: CancellationToken) =
+        RunCopies.CreateCore(home, Action<string>(ignore), ct)
+
+    static member internal CreateWithHookAsync
+        (
+            home: string,
+            hook: Action<string>,
+            ct: CancellationToken
+        ) =
+        RunCopies.CreateCore(home, hook, ct)
 
     /// Deletes stale directories with the .NET prefix, taking a nonwaiting owner lock and never following reparse points.
     static member SweepAsync(home: string, ct: CancellationToken) =
@@ -127,6 +205,8 @@ type RunCopies private () =
                 use root = SafeDirectory.Open(home, true)
 
                 try
+                    use mutation = FileSafety.mutationLease root
+
                     FileSafety.withDirectories
                         root
                         [ "tmp"; "extensions" ]
@@ -146,15 +226,16 @@ type RunCopies private () =
                                     let path = Path.Combine(parent.Path, name)
 
                                     try
-                                        RunDirectoryIO.remove parent name
+                                        RunDirectoryIO.remove parent name None None
                                         removed.Add path
                                     with
                                     | :? IOException
                                     | :? UnauthorizedAccessException
                                     | InstallationException _ -> skipped.Add path
                         )
-                with :? FileNotFoundException ->
-                    ()
+                with
+                | :? FileNotFoundException -> ()
+                | :? IOException -> skipped.Add root.Path
 
                 RunCopySweep(removed.ToArray(), skipped.ToArray())
             )

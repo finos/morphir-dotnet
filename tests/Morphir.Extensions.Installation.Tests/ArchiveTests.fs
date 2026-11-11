@@ -7,6 +7,7 @@ open System.IO
 open System.IO.Compression
 open System.Formats.Tar
 open System.Text
+open System.Threading
 open Expecto
 open Morphir.Extensions.Installation
 open Morphir.TestSupport
@@ -40,6 +41,30 @@ let private gzip (bytes: byte array) =
         compressed.Write bytes
 
     output.ToArray()
+
+let private gzipStored (bytes: byte array) =
+    use output = new MemoryStream()
+
+    do
+        use compressed = new GZipStream(output, CompressionLevel.NoCompression, true)
+        compressed.Write bytes
+
+    output.ToArray()
+
+type private CancelDuringDrain(bytes: byte array, cancel: CancellationTokenSource) =
+    inherit MemoryStream(bytes, false)
+
+    override this.Read(buffer: byte array, offset, count) =
+        // Stay beyond the first tar end markers; cancellation happens while padding is still being consumed.
+        let read = base.Read(buffer, offset, min count 2048)
+
+        if
+            this.Position
+            >= 32768L
+        then
+            cancel.Cancel()
+
+        read
 
 let private tar (entries: TarEntry list) =
     use output = new MemoryStream()
@@ -406,5 +431,135 @@ let tests =
                 "1 MiB metadata"
 
             Expect.equal InstallationLimits.MaxExpansionRatio 200L "200 times"
+        }
+        test "all low-ratio gzip padding is bounded below the tar reader" {
+            let padding = Array.zeroCreate<byte> (128 * 1024)
+            use input = new MemoryStream(gzipStored padding, false)
+
+            try
+                ArchiveChecks.inspectWithExpansionLimit input ct 4096L
+                |> ignore
+
+                failtest "Padding escaped the scaled absolute expanded-byte budget."
+            with InstallationException error ->
+                Expect.equal
+                    error.Code
+                    "extension.archive_limit"
+                    "absolute limit, independent of ratio"
+        }
+        test "low-ratio repeated global PAX metadata consumes the expanded-byte budget" {
+            let payload = Encoding.ASCII.GetBytes "13 comment=x\n"
+
+            let block =
+                Array.append
+                    (header "global" 'g' (int64 payload.Length))
+                    (Array.append
+                        payload
+                        (Array.zeroCreate<byte> (
+                            512
+                            - payload.Length
+                        )))
+
+            let raw =
+                Array.concat [
+                    Array.concat [ for _ in 1..64 -> block ]
+                    Array.zeroCreate<byte> 1024
+                ]
+
+            use input = new MemoryStream(gzipStored raw, false)
+
+            try
+                ArchiveChecks.inspectWithExpansionLimit input ct 4096L
+                |> ignore
+
+                failtest "Global metadata bypassed the scaled expansion budget."
+            with InstallationException error ->
+                Expect.equal
+                    error.Code
+                    "extension.archive_limit"
+                    "metadata counts before framework allocation"
+        }
+        test "cancellation interrupts the final gzip padding drain" {
+            use cancellation = new CancellationTokenSource()
+
+            use input =
+                new CancelDuringDrain(
+                    gzipStored (Array.zeroCreate<byte> (128 * 1024)),
+                    cancellation
+                )
+
+            try
+                ArchiveChecks.inspect input cancellation.Token
+                |> ignore
+
+                failtest "A final padding drain ignored cancellation."
+            with :? OperationCanceledException ->
+                ()
+        }
+        test "global PAX entries cannot bypass the archive entry count" {
+            use sandbox = TestSandbox.Create()
+            let payload = Encoding.ASCII.GetBytes "13 comment=x\n"
+
+            let block =
+                Array.append
+                    (header "global" 'g' (int64 payload.Length))
+                    (Array.append
+                        payload
+                        (Array.zeroCreate<byte> (
+                            512
+                            - payload.Length
+                        )))
+
+            let raw =
+                Array.concat [
+                    Array.concat [ for _ in 1..1025 -> block ]
+                    Array.zeroCreate<byte> 1024
+                ]
+
+            inspect sandbox (gzipStored raw)
+            |> refused "extension.archive_limit"
+        }
+        test "raw tar bytes and regular content are charged once per nesting level" {
+            let raw =
+                Array.concat [
+                    header "regular" '0' 512L
+                    Array.zeroCreate<byte> 512
+                    Array.zeroCreate<byte> 1024
+                ]
+
+            use input = new MemoryStream(gzipStored raw, false)
+            let report = ArchiveChecks.inspectWithExpansionLimit input ct (int64 raw.Length)
+
+            Expect.equal
+                report.Entries.Count
+                1
+                "the exact raw budget fits, without charging the file payload twice"
+        }
+        test "the entry budget is checked before a global PAX payload is allocated" {
+            use sandbox = TestSandbox.Create()
+            let payload = Encoding.ASCII.GetBytes "13 comment=x\n"
+
+            let block =
+                Array.append
+                    (header "global" 'g' (int64 payload.Length))
+                    (Array.append
+                        payload
+                        (Array.zeroCreate<byte> (
+                            512
+                            - payload.Length
+                        )))
+            // The 1025th payload is intentionally absent. Refuse by count before the framework reads or allocates it.
+            let raw =
+                Array.concat [
+                    Array.concat [ for _ in 1..1024 -> block ]
+                    header
+                        "too-many"
+                        'g'
+                        (1024L
+                         * 1024L)
+                ]
+
+            inspect sandbox (gzipStored raw)
+            |> refused "extension.archive_limit"
         }
     ]

@@ -221,4 +221,98 @@ let tests =
 
             Expect.isEmpty (files (Path.Combine(sandbox.MorphirHome, "store"))) "no partial object"
         }
+        test "publication keeps the verified file identity when its stage name is replaced" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+            let expected = digest bytes
+            let directory = Path.Combine(root, "store", "extensions", "sha256", expected.Value)
+            let foreign = Encoding.UTF8.GetBytes "foreign replacement"
+            let mutable replaced: string option = None
+
+            let hook =
+                Action(fun () ->
+                    let stage =
+                        Directory.GetFiles(directory, ".stage-*")
+                        |> Array.exactlyOne
+
+                    try
+                        File.Move(stage, Path.Combine(directory, "moved-original"))
+                        File.WriteAllBytes(stage, foreign)
+                        replaced <- Some stage
+                    with :? IOException when OperatingSystem.IsWindows() ->
+                        ()
+                )
+
+            let result =
+                SingleFileStore
+                    .PublishWithHookAsync(
+                        root,
+                        staged sandbox bytes,
+                        filename "backend.exe",
+                        expected,
+                        true,
+                        hook,
+                        ct
+                    )
+                    .GetAwaiter()
+                    .GetResult()
+
+            result.Match(
+                Func<StoredArtifact, unit>(fun stored ->
+                    Expect.equal
+                        (File.ReadAllBytes stored.AbsolutePath)
+                        bytes
+                        "success must name the verified bytes"
+                ),
+                Func<InstallationFailure, unit>(fun _ ->
+                    Expect.isFalse
+                        (File.Exists(Path.Combine(directory, "backend.exe")))
+                        "refusal publishes nothing"
+                )
+            )
+
+            match replaced with
+            | Some stage ->
+                Expect.equal
+                    (File.ReadAllBytes stage)
+                    foreign
+                    "cleanup must not remove the substituted foreign object"
+
+                Expect.equal
+                    (File.ReadAllBytes(Path.Combine(directory, "moved-original")))
+                    bytes
+                    "the other name stays untouched"
+            | None -> ()
+        }
+        test "Unix refuses a digest directory renamed out before publication" {
+            if OperatingSystem.IsWindows() then
+                skiptest "Unix descriptor-relative rename interleaving"
+
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+            let expected = digest bytes
+            let directory = Path.Combine(root, "store", "extensions", "sha256", expected.Value)
+            let outside = Path.Combine(sandbox.Root, "renamed-out")
+
+            let result =
+                SingleFileStore
+                    .PublishWithHookAsync(
+                        root,
+                        staged sandbox bytes,
+                        filename "backend.exe",
+                        expected,
+                        true,
+                        Action(fun () -> Directory.Move(directory, outside)),
+                        ct
+                    )
+                    .GetAwaiter()
+                    .GetResult()
+
+            result
+            |> refused "extension.path_escape"
+
+            Expect.isFalse
+                (File.Exists(Path.Combine(outside, "backend.exe")))
+                "no commit through a moved directory descriptor"
+        }
     ]

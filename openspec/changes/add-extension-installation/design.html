@@ -77,11 +77,12 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
 
 <section class="note" id="implementation-update">
 <h2>Implementation update, 11 November 2026</h2>
-<p>This plan merged as #567; parent #1147, #1150, #1151 and #1152 are merged. Parent group 1 is still publishing seven schemas, normative member tables, identity/package cases and the publication audit. The older inspection and worked examples below are planning evidence, not permission to invent catalog, lock or package formats before those inputs publish.</p>
+<p>This plan merged as #567; parent #1147, #1150, #1151 and #1152 are merged. Group 1 is now published by #1156 at immutable parent main <code>0439c4c06d8ca6d4a46e41afb226ba0872f9bff8</code>, including seven schemas, authoritative member tables, identity/package cases and PKGVER-A. Production URL serving is a separate check. Typed shared readers will adopt that corpus next. Older Rust inspection and worked examples remain historical evidence; they do not override the published authority or authorize shadow codecs.</p>
 <p>Tasks 2.2, 2.3 and 2.10 now have implementation and targeted tests. Task 2.1 has its library, tests, C# probe and manual lane, but stays unchecked pending Native AOT qualification. The library reuses ExtensionId, toolchain path/channel/platform/SemVer values, Semver 3.0.0 and the actual MEP lifecycle. It adds no handwritten version parser or second implementation list.</p>
-<p>Task 3.3 now has the raw single-file store: hash while copying, no-clobber publication, rehash before reuse, refusal of mismatched objects and opened-handle containment. Generic ZIP/tar-gzip inspection and run-directory ownership/sweep are implemented portions of 5.1 and 3.4; those tasks remain unchecked for AOT and inventory/rebuild respectively. The final Windows run passed 123 installer tests and the expanded C# JIT probe, including both archive readers. Linux/macOS native filesystem branches and Native AOT have not run. The <a href="../../../src/Morphir.Extensions.Installation/README.md">library notes</a> and <a href="../../../docs/content/docs/cli/extension-installation.md">user status page</a> describe the implemented boundary. No archive entry is extracted or published by inspection.</p>
+<p>Task 3.3 is reopened after independent security review of <code>f6d991bb</code>. The historical 123-test Windows run and JIT probe did not cover stage substitution, gzip metadata/padding budgets or a creator/sweeper race. Six new runtime RED cases reproduced those failures. Corrections now pass 131 executed Windows tests, with three Unix-only rename/disposal cases ignored. Publication keeps the verified descriptor through a handle rename, fd link or fd clone. Supported writers use a stable private I/O lease and detect changed directory/owner identities. All raw tar expansion is bounded below the framework reader with cancellation, without double charging file content. Independent re-review, Unix runtime evidence and Native AOT remain outstanding. Tasks 3.3, 3.4 and 5.1 stay unchecked. The <a href="../../../src/Morphir.Extensions.Installation/README.md">library notes</a> and <a href="../../../docs/content/docs/cli/extension-installation.md">user status page</a> state these limits. Inspection extracts and publishes nothing.</p>
 <p>Multi-file packages follow merged #1151: VERIFY-B and LAUNCH-A. Full checks at install and explicit verification, structural checks at activation, launch from the shared tree and a process-tree lease are separate from the raw single-file private-copy rule. Q-ARCHIVE's one-executable target recommendation below is superseded; its outer release-assets packaging question remains open. No package is implemented by this initial tranche.</p>
-<p>The remaining levels, overlay/configuration, commands and developer-policy choices stay with the maintainer. All later mutating commands need <code>--dry-run</code>. Full installer and user/technical docs remain the destination. No repository mutation, shared-format adoption, signature verification or WASM runtime is added by this increment. Parent PR #1156 remains under independent review, including its latest fixes; its publication is not assumed here. Merged #1155 does not change this installer's contract pin.</p>
+<p>On 11 November the maintainer approved portable inventory-resolved pins, the environment overlay above project pins, explicit id configuration, local developer consent/generated provenance and CMD-1 with stable diagnostics. The Unix boundary is user-owned Home, cooperating manager locks and tamper detection; arbitrary malicious same-UID isolation is not promised. Each question retains its id and history below. Portable pin/overlay schemas, paths, member tables and corpus remain the separate parent toolchain authority. No format is implemented from the examples here. All mutating commands need <code>--dry-run</code>. Full installer remains the destination. Parent #1156 is published; #1155 does not change this installer's pin.</p>
+<p>Explicit staged consent supersedes the older default-auto wording for effects: an omitted setting inheriting <code>auto</code> permits discovery/reporting only, not automatic unsigned installation. Explicitly configured <code>auto</code>, or an explicit command naming the local/staged source, is consent. The existing schema default is unchanged and no new member is added. Omission-versus-explicit-auto tests remain pending with staging integration.</p>
 </section>
 
 <h2 id="context">Context: what exists today</h2>
@@ -117,7 +118,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
   <li>a home an older CLI wrote: detected, offered a move to a marked backup, never read (Decisions 10 and 11), and <code>morphir doctor</code> (with <code>--fix</code>);</li>
   <li>who republishes existing extensions: morphir-dotnet's bundle authoring (Decision 13).</li>
   </ul>
-  The plan is merged. Parent group 1 is still publishing its schemas, normative member tables and fixed cases; those are the inputs for the codecs.</li>
+  The plan and group 1 publication are merged. Parent #1156 at <code>0439c4c0</code> now supplies the schemas, normative member tables and fixed cases for codecs.</li>
 <li><span class="tag obs">Observed</span> The maintainer decided on 9 November 2026 (finos/morphir#1146) that the shared contract is extended so that an extension can be a multi-file package, and that no self-unpacking single-file form of the F# frontend is built. finos/morphir#1151 (merged, original inspection at <code>083b41eb</code>) defines that contract; the maintainer settled Q-VERIFY as VERIFY-B and Q-LAUNCH as LAUNCH-A on 11 November.</li>
 <li><span class="tag obs">Observed</span> Decision 16, as amended: the Morphir CLI is the .NET one, and its source stays in finos/morphir-dotnet, pinned in finos/morphir as <code>ecosystem/morphir-dotnet</code>. finos/morphir owns official build orchestration, qualification and publishing, the specs and docs, and FINOS registry-channel governance. The Rust product CLI is to be deleted, and its compatibility implementation is kept separately. This page cites the Rust distribution code at <code>c9f79da</code> as evidence of the reference behavior only.</li><li><span class="tag obs">Observed</span> The toolchain pages (finos/morphir#1147, at <code>60d363059</code> on <code>feat/morphirup-deployment-acquisition</code>) moved again:
   <ul>
@@ -127,7 +128,7 @@ svg .gate { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 5 4; fill: n
   <li><code>local-developer</code> is no longer a receipt authentication value. Developer artifacts never appear in a locked generation (<code>installation-receipt.md:43, 51</code>).</li>
   <li>A learned revocation of a recipe target blocks every generation bound to it (<code>installation-receipt.md:99-107</code>).</li>
   <li>Recipe question M2 recommended a single-file self-extracting frontend at the archive root (<code>toolset-recipe.md:215</code>); the maintainer has since chosen the package form instead (above).</li>
-  <li>The toolchain documents are a separate family, which also restarts at <code>0.1.0-preview.1</code> under Decision 15A; #1147 is merged; the remaining level and overlay choices are still gated.</li>
+  <li>The toolchain documents are a separate family at <code>0.1.0-preview.1</code> under Decision 15A. #1147 is merged and level/overlay product choices are approved; portable selection schemas, paths and corpus still await that authority. No version is renamed by this decision.</li>
   </ul>
   See <a href="#trust-1">TRUST-1</a> and <a href="#fsharp-frontend">the F# frontend section</a>.</li>
 <li><span class="tag obs">Observed</span> <code>add-discovery-containment</code> gives the boundary and isolation controls this change uses. The compatibility kit runner is a standalone <code>morphir-mck</code> executable, which <code>morphir mck</code> dispatches to as a process, as dotnet tools are (maintainer decision, 10 November 2026). The shared cases and fixed expectations stay in finos/morphir, and this change adds no second checker.</li>
@@ -421,7 +422,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>Alternative: several entries per id in the shared catalog. Rejected: upstream readers refuse duplicate ids (<code>state.rs:557-563</code>, as <code>StateMismatch</code>).</p>
 
 <h3 id="sel-1">SEL-1. Portable pins at levels, resolved against the local inventory</h3>
-<p>Provisional: it follows <a href="#q-levels">Q-LEVELS</a> and serves a contract that belongs in the toolchain specifications, raised upstream in task 1.2.</p>
+<p>Q-LEVELS (b) is approved. Portable pins resolve from local inventory. The toolchain authority must publish their schema, paths, member tables and corpus before codec implementation. The following path/member examples remain provisional to that authority.</p>
 <p>A level's <code>.morphir/extensions/selection.json</code> pins the id, version, runtime and a digest per platform, and nothing machine-specific. Precedence is overlay, project, workspace, shared catalog, system (Figure 3). A broken pin never falls through to a lower layer. Isolation omits the system pin and the shared catalog. Pin writes take a lock below <code>locks/</code> in Morphir Home, keyed by the canonical pin path.</p>
 
 <figure>
@@ -444,7 +445,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 </figure>
 
 <h3 id="sel-2">SEL-2. The overlay arrives by an environment variable that morphirup sets</h3>
-<p>Provisional: it follows <a href="#q-overlay">Q-OVERLAY</a> and belongs in the toolchain contract, raised upstream. <code>MORPHIR_EXTENSION_OVERLAY</code> names an absolute directory below <code>toolchains/generations/</code> in Morphir Home. It is an environment variable, not a command-line option, because <code>morphirup run</code> must pass the user's arguments unchanged (approved project-toolchains, "Explicit command dispatch"). The host never writes there. This is the seam approved task 4.4 needs; 4.4 itself writes the generation directories.</p>
+<p>Q-OVERLAY (a), above project pins, is approved. <code>MORPHIR_EXTENSION_OVERLAY</code> is supplied by the proxy; the host never writes there. Its schema, paths, member tables and corpus belong to the parent toolchain contract, not a .NET-only state file. Directory layout examples below remain provisional until publication. This is the seam approved task 4.4 needs.</p>
 
 <h3 id="sel-3">SEL-3. Activation verifies offline and runs a private copy written from the verified read</h3>
 <p>Before a guest starts, the host:</p>
@@ -489,10 +490,10 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p><span class="tag asm">Assumed</span> Both readers publish with no trim or AOT warnings. Task 5.1 confirms it.</p>
 
 <h3 id="arc-2">ARC-2. The automatic staged pass is narrow</h3>
-<p>The pass runs before commands that resolve extensions, only in <code>auto</code> mode, and installs only WASM packages. Process packages never install automatically, because installing one runs its <code>describe</code>, which is running code from whatever was cloned. Until this host has a WASM runtime, those entries are listed as unavailable. The pass writes nothing on stdout, turns failures into stderr warnings, and skips a file whose digest is already selected at its level.</p>
+<p>The pass runs before commands that resolve extensions, only with explicitly configured <code>auto</code> consent, and installs only WASM packages. An inherited default is not consent. Explicit local/staged commands are consent. Process packages never install automatically, because installing one runs its <code>describe</code>. Until this host has a WASM runtime, WASM entries are listed as unavailable. The pass writes nothing on stdout, turns failures into stderr warnings, and skips an already selected digest.</p>
 
 <h3 id="cmd-1">CMD-1. Upstream verbs, the PRD's additions, and one report shape</h3>
-<p>Following <a href="#q-commands">Q-COMMANDS</a>, the verbs are:</p>
+<p>CMD-1 is approved under Q-COMMANDS and Q-DIAG on 11 November. The verbs are:</p>
 <ul>
 <li><code>install</code> (<code>--repository &lt;name&gt; &lt;id&gt;</code>, or <code>&lt;file&gt;</code>, or <code>--staged</code>; <code>--channel</code>|<code>--version</code>, <code>--no-probe</code>, <code>--level</code>);</li>
 <li><code>update</code>, with the same source forms and <code>--repository</code> required for a repository, as in the parent README;</li>
@@ -570,11 +571,17 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <li><strong>Settled</strong>: earlier questions answered by a decision already made or by an upstream decision.</li>
 </ul>
 
-<h3 id="needs-maintainer">Needs the maintainer</h3>
+<h3 id="needs-maintainer">Maintainer questions and recorded decisions</h3>
+<p>Q-ARCHIVE remains open only for the outer release-assets file set, and Q-WINLAUNCH still needs executable/path evidence. The other question ids below are retained with their approved answers and historical options. Their decision gates are settled; implementation and published portable selection-contract gates remain distinct.</p>
+
+<details id="q-unix-threat"><summary>Unix threat boundary, settled on 11 November</summary>
+<p>The maintainer chose user-owned Morphir Home with supported writers honoring stable locks and tamper detection. No separate broker or sandbox is required, and arbitrary malicious same-UID isolation is not promised. Open directory descriptors survive rename. Reopened ancestry identities detect deterministic rename-out before commit, but are not atomic confinement against a hostile same-user actor between syscalls. Cleanup checks directory and owner identity under the stable lease. Unix runtime evidence is still pending; Windows GREEN does not complete this platform claim.</p>
+</details>
 
 
 
 <details id="q-levels"><summary>Q-LEVELS. What a level file is (PRD superset; belongs in the toolchain contract)</summary>
+<p class="note"><strong>Settled.</strong> 11 November decision: option (b) approved. Portable project/workspace pins resolve against local inventory. The parent toolchain authority must publish schema, paths, member tables and corpus before codecs; no unversioned .NET-only file is authorized. Historical options and former blocking notes remain below; this decision resolves that choice, not the implementation tasks.</p>
 <p><strong>Options.</strong></p>
 <ul>
 <li><strong>(a)</strong> Level directories hold copies of catalog entries and locks, including absolute index paths. They are then machine-local and must not be committed.</li>
@@ -586,6 +593,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p><strong>Blocks:</strong> 6.1 to 6.3, the non-global <code>--level</code> values, and the project, workspace and system staged folders in 5.5. Task 3.4's inventory is needed in any case, for archive digests and true sources.</p></details>
 
 <details id="q-overlay"><summary>Q-OVERLAY. How the generation overlay reaches the host (approved UP-2 is silent; belongs in the toolchain contract)</summary>
+<p class="note"><strong>Settled.</strong> 11 November decision: option (a) approved, with MORPHIR_EXTENSION_OVERLAY above project pins. The portable overlay contract still belongs to the parent toolchain authority. Historical options and former blocking notes remain below; this decision resolves that choice, not the implementation tasks.</p>
 <p><strong>Options.</strong></p>
 <ul>
 <li><strong>(a)</strong> <code>MORPHIR_EXTENSION_OVERLAY</code>, set by the proxy. This is recommended (<a href="#sel-2">SEL-2</a>).</li>
@@ -596,6 +604,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p><strong>Blocks:</strong> 6.4, and through it approved task 4.4. The task also waits on the toolchain contract.</p></details>
 
 <details id="q-provenance"><summary>Q-PROVENANCE. Index provenance for sources that are not a named repository (PRD conflict)</summary>
+<p class="note"><strong>Settled.</strong> 11 November decision: option (a) approved. Global file/staged installs use generated one-release local-directory repositories, with true source retained in inventory and no implicit publisher authentication. Historical options and former blocking notes remain below; this decision resolves that choice, not the implementation tasks.</p>
 <p>The PRD says a staged install writes provenance kind <code>staged</code>. Upstream <code>IndexKind</code> has only <code>local-directory</code> (<code>local.rs:12-17</code>), and an unknown kind would fail the whole catalog.</p>
 <p><strong>Options.</strong></p>
 <ul>
@@ -620,16 +629,19 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 
 
 <details id="q-commands"><summary>Q-COMMANDS. Command names and options</summary>
+<p class="note"><strong>Settled.</strong> 11 November decision: CMD-1 approved. remove aliases uninstall; use/which have project/workspace selection semantics; only extension list accepts --platform. Every mutating command also needs --dry-run. Historical options and former blocking notes remain below; this decision resolves that choice, not the implementation tasks.</p>
 <p>The .NET stubs have <code>use</code>, <code>remove</code> and <code>which</code>, each with <code>--platform</code> and <code>--local</code>. Upstream has <code>update</code>, <code>uninstall</code>, <code>search</code> and <code>repository …</code>.</p>
 <p><strong>Recommendation:</strong> CMD-1. Keep <code>remove</code> as an alias, give <code>use</code> and <code>which</code> the level meaning, and keep <code>--platform</code> only on <code>list</code>.</p>
 <p><strong>Blocks:</strong> 4.4 to 4.8, and 6.3.</p></details>
 
 <details id="q-diag"><summary>Q-DIAG. Stable codes (silent)</summary>
+<p class="note"><strong>Settled.</strong> 11 November decision: the specified stable extension.* diagnostics, stdout result/stderr diagnostics split and 0/1/2 exit meanings are approved. Historical options and former blocking notes remain below; this decision resolves that choice, not the implementation tasks.</p>
 <p>The toolchain contracts have stable codes. Extension acquisition has none.</p>
 <p><strong>Recommendation:</strong> the <code>extension.*</code> codes in the specs, offered upstream so the two CLIs can share them.</p>
 <p><strong>Blocks:</strong> 4.4 onwards, because reports fix the codes that scripts will read.</p></details>
 
 <details id="q-devpolicy"><summary>Q-DEVPOLICY. What is the explicit developer policy for unsigned installs?</summary>
+<p class="note"><strong>Settled.</strong> 11 November decision: option (a) approved. Explicit local/staged source commands are consent and stay labelled local-developer. Automatic unsigned staged installation requires explicitly configured auto. An omitted setting inheriting the historical default auto is not consent. This supersedes old default-auto consent wording without changing the schema default or adding a member. Historical options and former blocking notes remain below; this decision resolves that choice, not the implementation tasks.</p>
 <p>The maintainer's decision: an unsigned developer extension needs explicit developer policy and stays labelled.</p>
 <p><strong>Options.</strong></p>
 <ul>
@@ -640,6 +652,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p><strong>Blocks:</strong> 4.4.</p></details>
 
 <details id="q-configref"><summary>Q-CONFIGREF. How configuration names an installed extension</summary>
+<p class="note"><strong>Settled.</strong> 11 November decision: option (a) approved. Frontend extension_id and extensions table id fields select installed identities; existing path-string meaning is preserved. Historical options and former blocking notes remain below; this decision resolves that choice, not the implementation tasks.</p>
 <p><strong>Options.</strong></p>
 <ul>
 <li><strong>(a)</strong> New members: <code>extension_id</code> in a frontend table, and <code>id</code> in an <code>extensions</code> table. This is recommended.</li>
@@ -694,7 +707,7 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <p>The store holds one file per digest (<code>store.rs:157</code>), and activation reads one file (<code>activation.rs:193-204</code>). The F# frontend is a folder of about 239 files (#569).</p>
 <p>This change had recommended a self-unpacking single-file frontend first (Option A in <a href="#fsharp-frontend">the F# frontend section</a>). The maintainer decided instead that the shared contract is extended so that an extension can be a multi-file package, and that no self-unpacking single-file form is built (finos/morphir#1146).</p>
 <p>finos/morphir#1151 is merged. The maintainer chose VERIFY-B and LAUNCH-A: full checks at install and explicit verification, structural checks at activation, and launch from the shared tree with a process-tree lease. Raw single files still use SEL-3's private copy.</p>
-<p>Package implementation waits for parent group 1's published schemas, tables and cases. Multi-file rejection is no longer the target behavior. Adoption task 3.3 waits for this implementation; the approval itself is no longer a blocker.</p></details>
+<p>Package implementation now has parent #1156 at <code>0439c4c0</code> as its published schema/table/case authority, including PKGVER-A. Multi-file rejection is no longer the target behavior. Adoption task 3.3 waits for this implementation; the approval itself is no longer a blocker.</p></details>
 <details id="q-catver"><summary>Q-CATVER. Catalog schema version switching. Retired by Decision 15A</summary><p>The reference writes <code>"2.0.0-draft.2"</code> when any entry has supplied claims, and <code>"1.0"</code> otherwise (<code>state.rs:510-523</code>). Under Decision 15A every catalog carries its family <code>$schema</code>, so there is nothing to switch.</p></details>
 <details id="q-idrule"><summary>Q-IDRULE. Ids in shared files</summary><p>Settled by finos/morphir#1149 (merged), which allows dotted ids and keeps every id in the one catalog, lock directory and history directory, and by ID-1. Their documents carry the family <code>$schema</code> of Decision 15A.</p></details>
 <details id="q-autoprocess"><summary>Q-AUTOPROCESS. Does auto apply to process guests?</summary><p>No. It is a safe default, and written as a SHALL (ARC-2).</p></details>
@@ -809,6 +822,8 @@ acme-backend 0.2.0 from project pin D:\work\billing\.morphir\extensions\selectio
 <tr><td>Substituted artifact in a repository, an archive, or the store</td><td>Digest checks at staging, against the descriptor as well as the checksum file; again when copying into the store; again in the read that writes the run copy</td></tr>
 <tr><td>Time of check to time of use: a guest rewrites its staged file during <code>describe</code>; the store object changes between hash and launch</td><td>"The copy into the store is verified again"; "Only verified bytes run" (one read hashes and copies)</td></tr>
 <tr><td>Symbolic link or junction out of a repository or out of Morphir Home, swapped in after the check</td><td>Canonicalize, then read through the opened handle; "Repository paths stay inside the repository"; "Store paths stay inside Morphir Home"</td></tr>
+<tr><td>Stage-name substitution after hashing; a directory renamed out while open</td><td>Descriptor-bound publication; cooperating writers honor stable leases; ancestry and owner identity checks refuse detected tampering. No pathname precheck is described as atomic same-UID isolation.</td></tr>
+<tr><td>Low-ratio gzip metadata/padding or cancellation during the final drain</td><td>All raw decompressed bytes are charged below TarReader against the shared budget, with cancellation per read. Global PAX entries count; regular content is not charged twice.</td></tr>
 <tr><td>A .NET install that breaks the Rust CLI on a shared Morphir Home (availability)</td><td>Accepted: the Rust product CLI is to be deleted (Q-SHARED, Decision 16). A stderr note at install and the docs say so, and a released copy can have its own <code>MORPHIR_HOME</code></td></tr>
 <tr><td>Lock-file abuse: a process holds <code>locks/extensions.state.lock</code> forever, or a .NET lock that a Rust process cannot see</td><td>The contract's primitive, so every current host excludes the others; the wait is visible on stderr and cancellable; a user-level holder is the same user, so this is a nuisance, not an escalation</td></tr>
 <tr><td>Concurrent CLIs writing the same pair</td><td>One state lock; the journal; install refuses an id that appeared meanwhile</td></tr>

@@ -7,6 +7,21 @@ single files, inspects bounded archives and owns temporary run directories.
 It does not complete an extension installation yet. The CLI installation commands
 remain stubs. See the [user status page](../../docs/content/docs/cli/extension-installation.md).
 
+Independent security review of `f6d991bb` requested changes to stage-file identity,
+Unix rename-out containment, total gzip expansion/cancellation and run-directory
+creation versus sweeping. The earlier Windows 123/123 run and JIT probe are
+historical author evidence. Test-first fixes are in progress; these I/O APIs have
+not passed independent security re-review. The correction's Windows run passed
+131 executed tests, with three Unix-only interleavings explicitly ignored.
+Linux/macOS native paths and Native AOT remain unrun.
+
+Primary API references for the publication and identity mechanisms are
+[Windows handle rename](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_rename_info),
+[Windows file identity](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_id_info),
+[Linux descriptor links](https://man7.org/linux/man-pages/man2/link.2.html),
+and [Apple descriptor cloning](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/man/man2/clonefile.2).
+These define the intended native mechanisms; they are not platform test evidence.
+
 `DistributionIdentifiers` reuses `Morphir.Extensions.ExtensionId`,
 `Morphir.Toolchain.TargetPath` and `Morphir.Mep.Sha256Digest`. Id validation checks
 grammar, length, then the first segment's Windows device name. Built-in ids such as
@@ -49,7 +64,8 @@ with nullable warnings treated as errors.
 supplied Morphir Home, a parsed filename, the recorded digest and an executable
 flag. It hashes the same chunks it copies, using the existing toolchain SHA-256
 helper, and compares the result with the recorded digest. It flushes a temporary
-file before publishing to `store/extensions/sha256/<digest>/<filename>` without
+file and holds its verified descriptor through publication to
+`store/extensions/sha256/<digest>/<filename>` without
 replacing an existing name. It enforces the approved 256 MiB single-file limit.
 It sets the owner's execute bit on Unix when requested.
 
@@ -59,12 +75,32 @@ writer wins publication. A changed staging input fails with
 `extension.digest_mismatch`; its temporary output is removed. The library never
 repairs or replaces a corrupt object. It writes no catalog, lock or inventory.
 
-Windows operations open reparse points themselves and pin parent directories
-against write/delete sharing. Native calls use internal verbatim paths for long
-paths; returned paths keep their ordinary spelling. Unix operations use directory
-descriptors, `openat` with `O_NOFOLLOW`, and no-clobber `linkat`. Morphir Home itself
-and its ancestors must be provisioned by the caller in a trusted location. These
-operations do not establish the trust of an arbitrary ancestor outside that home.
+Windows publication renames the open verified handle with replacement disabled.
+Directory pins request data/list access and deny deletion while permitting child
+writes. Attribute-only access does not engage that sharing protection. Native
+calls use internal verbatim paths; returned paths keep their ordinary spelling.
+Linux links the kernel's `/proc/self/fd` reference to the verified file, not its
+mutable stage name. macOS uses `fclonefileat` from the verified descriptor and
+rehashes the clone. Missing procfs or filesystem clone support is an I/O refusal;
+there is no vulnerable pathname fallback. Cleanup compares the stage identity
+and leaves substituted names untouched in the tested interleaving.
+
+Store and run mutations take a stable private `.morphir-dotnet-io.lock` lease in
+Morphir Home. The library never deletes or renames it. Every cooperating .NET
+writer must use the same I/O boundary. This is private coordination, distinct
+from the future shared state lock and installed-state documents. Unix operations
+use descriptor-relative `openat` with `O_NOFOLLOW`. Reopened device/inode ancestry
+checks detect renamed-out directories before mutation/publication and check again
+after publication.
+
+The maintainer chose a user-owned Morphir Home on 11 November 2026. Supported
+writers must honor stable locks and deterministic tampering must be refused.
+Advisory locks and identity checks do not atomically stop an arbitrary malicious
+same-UID process from renaming a directory between syscalls or replacing a name
+after a cleanup check. Such isolation is not promised; no separate broker or
+sandbox is required. The caller must provision Morphir Home and its ancestors in
+a trusted location. Unix runtime verification and independent re-review remain
+necessary before task 3.3 is completed.
 
 ## Generic archive inspection
 
@@ -89,7 +125,13 @@ not from a package layout assumption:
 | Expansion after the first 1 MiB | 200:1 |
 
 PAX/GNU declared sizes are checked before the framework reader allocates their
-payloads. Nested ZIP and tar-gzip content is inspected with the same bounds.
+payloads. The bounded gzip stream below `TarReader` charges every decompressed
+byte, including headers, metadata, padding and final drains, and checks
+cancellation before and after each read. ZIP file content contributes to the same
+aggregate budget. Tar file content is already counted and is not charged twice.
+Raw PAX/GNU metadata headers contribute to the entry-count limit at the header
+boundary, before framework payload allocation. Nested ZIP and tar-gzip
+content is inspected with the same bounds.
 Inspection output is a read-only summary, not an extraction permission. Later
 extraction must validate the captured bytes it actually consumes and finish every
 check before publication. There is no extractor or package manifest codec here.
@@ -97,10 +139,12 @@ check before publication. There is no extractor or package manifest codec here.
 ## Run-directory ownership
 
 `RunCopies.CreateAsync` creates `tmp/extensions/morphir-dotnet-run-<random>` and
-holds an exclusive `.owner` file. Dispose its `OwnedRunDirectory` only after the
+holds an exclusive `.owner` file. Creation and sweeping share the interprocess
+mutation lease until ownership exists. Dispose its `OwnedRunDirectory` only after the
 guest process tree has exited. Disposal attempts cleanup. `SweepAsync` takes a
 nonwaiting ownership lock before deleting a stale .NET directory. Busy or unsafe
-directories are reported as skipped. Other hosts' `morphir-extension-*`
+directories are reported as skipped. Disposal checks the original home, directory
+and owner identities before cleanup. Other hosts' `morphir-extension-*`
 directories are untouched. The empty owner file is private lifecycle state, not
 installed inventory or shared package metadata. Launch and process-tree lifetime
 integration remain unfinished.
@@ -127,9 +171,14 @@ runs. Passing conditional tests on Windows does not exercise those branches.
 
 ## Remaining integration
 
-Parent group 1 in finos/morphir owns the seven schemas, normative member tables,
-identity/package cases and publication audit. Catalog, lock, repository and package
-readers wait for those published inputs. Extension family `0.1.0-preview.1`
+Parent group 1 published the seven schemas, normative member tables,
+identity/package cases and publication audit in finos/morphir#1156, immutable main
+`0439c4c06d8ca6d4a46e41afb226ba0872f9bff8`. That source is the authority for the
+next shared-reader tranche. On 11 November root reported HTTP 200 for all seven
+production schema URLs with exact `$id` and text matches to parent main. This is
+serving evidence, not a claimed raw-byte hash comparison.
+Catalog, lock, repository and package readers are still unimplemented here and
+will be tested against that corpus. Extension family `0.1.0-preview.1`
 matches exactly; it is not renamed or converted when another prerelease label is
 valid SemVer.
 
@@ -139,9 +188,22 @@ verification at activation, and launch from the shared tree with a process-tree
 lease are distinct from a raw single file's verified private run copy. The old
 one-executable target-archive recommendation is superseded.
 
-Level pins, generation overlays, configuration references, commands and developer
-policy remain gated on the maintainer's remaining choices. Later mutating command
-integration needs `--dry-run`. Neither ordinary compilation nor generation may
+The maintainer approved portable project/workspace pins resolved from local
+inventory, the `MORPHIR_EXTENSION_OVERLAY` above project pins, frontend
+`extension_id` and `extensions` table `id` fields that preserve path-string
+meaning, CMD-1 commands and stable `extension.*` diagnostics on 11 November.
+Pin/overlay schemas, member tables, paths and cases remain the parent toolchain
+authority's responsibility. This library adopts no unversioned selection format.
+
+Explicit local sources are developer consent and stay labelled `local-developer`.
+An explicitly configured staged `auto` setting permits automatic unsigned staged
+installation under the narrow WASM-only rule. An absent setting that inherits
+historical default `auto` is not consent. Discovery/reporting may retain that
+default; effectful staging must preserve whether configuration was explicit. No
+schema default or new configuration member is introduced by this decision.
+Global file/staged provenance uses a generated one-release local-directory
+repository, with true source retained in inventory. These integrations remain
+unimplemented. Later mutating command integration needs `--dry-run`. Neither ordinary compilation nor generation may
 acquire from the network. Publisher authentication and claim checks remain
 separate; a checksum proves integrity only. The manager owns TUF authentication
 and repository identity checks; the installer will recheck handed-over digests.

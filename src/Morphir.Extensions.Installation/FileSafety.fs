@@ -7,6 +7,7 @@ open System.IO
 open System.Runtime.InteropServices
 open System.Threading
 open System.Threading.Tasks
+open System.Text
 open Microsoft.Win32.SafeHandles
 
 /// An operation result. C# callers handle both cases through Match, without F# union tags.
@@ -79,8 +80,9 @@ module internal Operations =
 
         Task.FromResult(InstallationResult result)
 
-// Windows directories are pinned without write/delete sharing while their paths are used. Unix operations are
-// relative to open directory descriptors with O_NOFOLLOW; publication uses linkat, which cannot replace a winner.
+// Windows directories deny deletion while permitting child writes. Unix operations are
+// relative to open directory descriptors with O_NOFOLLOW. Descriptor identity is preserved through publication.
+// Directory ancestry checks detect rename-out, but advisory coordination is not same-UID OS isolation.
 // API references: CreateFileW / FILE_FLAG_OPEN_REPARSE_POINT (Microsoft Learn); openat(2), linkat(2), flock(2).
 module private NativeFiles =
     [<DllImport("kernel32.dll",
@@ -97,11 +99,25 @@ module private NativeFiles =
         nativeint template
     )
 
-    [<DllImport("kernel32.dll",
-                EntryPoint = "MoveFileExW",
-                CharSet = CharSet.Unicode,
-                SetLastError = true)>]
-    extern bool moveFile(string source, string target, uint32 flags)
+    [<DllImport("kernel32.dll", EntryPoint = "SetFileInformationByHandle", SetLastError = true)>]
+    extern bool setFileInformation(SafeFileHandle file, int kind, nativeint data, uint32 size)
+
+    [<DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandleEx", SetLastError = true)>]
+    extern bool getFileInformation(SafeFileHandle file, int kind, nativeint data, uint32 size)
+
+    [<DllImport("libc", EntryPoint = "fstat", SetLastError = true)>]
+    extern int fstat(int file, nativeint data)
+
+    [<DllImport("libc", EntryPoint = "fstat$INODE64", SetLastError = true)>]
+    extern int fstatDarwinX64(int file, nativeint data)
+
+    [<DllImport("libc", EntryPoint = "fclonefileat", SetLastError = true)>]
+    extern int cloneAt(
+        int file,
+        int directory,
+        [<MarshalAs(UnmanagedType.LPUTF8Str)>] string name,
+        int flags
+    )
 
     [<DllImport("libc", EntryPoint = "open", SetLastError = true)>]
     extern int unixOpen([<MarshalAs(UnmanagedType.LPUTF8Str)>] string path, int flags, uint32 mode)
@@ -189,6 +205,92 @@ module private NativeFiles =
 
         handle
 
+    // Identity only: the first device/inode fields of the supported 64-bit Linux and Darwin stat ABIs.
+    // Darwin x64 uses the INODE64 symbol; Darwin arm64's ordinary fstat already uses that layout.
+    let identity (handle: SafeFileHandle) =
+        let data = Marshal.AllocHGlobal 256
+
+        try
+            if OperatingSystem.IsWindows() then
+                if not (getFileInformation (handle, 18, data, 24u)) then
+                    error "file identity" (Marshal.GetLastPInvokeError())
+
+                struct (uint64 (Marshal.ReadInt64(data, 0)),
+                        uint64 (Marshal.ReadInt64(data, 8)),
+                        uint64 (Marshal.ReadInt64(data, 16)))
+            else
+                if
+                    RuntimeInformation.ProcessArchitecture
+                    <> Architecture.X64
+                    && RuntimeInformation.ProcessArchitecture
+                       <> Architecture.Arm64
+                then
+                    Operations.fail
+                        "extension.io_error"
+                        "Filesystem identity is supported only on x64 and arm64."
+
+                let result =
+                    if
+                        OperatingSystem.IsMacOS()
+                        && RuntimeInformation.ProcessArchitecture = Architecture.X64
+                    then
+                        fstatDarwinX64 (fd handle, data)
+                    else
+                        fstat (fd handle, data)
+
+                if
+                    result
+                    <> 0
+                then
+                    error "file identity" (Marshal.GetLastPInvokeError())
+
+                let device =
+                    if OperatingSystem.IsMacOS() then
+                        uint64 (uint32 (Marshal.ReadInt32(data, 0)))
+                    else
+                        uint64 (Marshal.ReadInt64(data, 0))
+
+                struct (device, uint64 (Marshal.ReadInt64(data, 8)), 0UL)
+        finally
+            Marshal.FreeHGlobal data
+
+    let renameHandle (source: SafeFileHandle) name =
+        let bytes = Encoding.Unicode.GetBytes(name: string)
+        let rootOffset = if IntPtr.Size = 8 then 8 else 4
+
+        let lengthOffset =
+            rootOffset
+            + IntPtr.Size
+
+        let nameOffset =
+            lengthOffset
+            + 4
+
+        let size =
+            nameOffset
+            + bytes.Length
+            + 2
+
+        let data = Marshal.AllocHGlobal size
+
+        try
+            Marshal.Copy(Array.zeroCreate<byte> size, 0, data, size)
+            // ReplaceIfExists remains FALSE. The source is the verified handle, never a reopened pathname.
+            // RootDirectory stays NULL; the full destination path is protected by pinned data-access directory handles.
+            Marshal.WriteInt32(data, lengthOffset, bytes.Length)
+
+            Marshal.Copy(
+                bytes,
+                0,
+                data
+                + nativeint nameOffset,
+                bytes.Length
+            )
+
+            setFileInformation (source, 3, data, uint32 size)
+        finally
+            Marshal.FreeHGlobal data
+
     let attributes path (handle: SafeFileHandle) directory =
         let attributes = File.GetAttributes handle
 
@@ -206,11 +308,52 @@ module private NativeFiles =
             Operations.fail "extension.path_escape" $"Not a regular {kind}: {path}"
 
 /// One trusted directory. Internal so callers cannot manufacture trusted filesystem state.
-type internal SafeDirectory private (path: string, handle: SafeFileHandle) =
+type internal SafeDirectory private (path: string, handle: SafeFileHandle, ancestry: unit -> unit) =
+    let identity = NativeFiles.identity handle
     member _.Path = path
     member _.Handle = handle
+    member _.Identity = identity
 
-    member _.Entries() =
+    member _.ValidateLocation() =
+        ancestry ()
+        // Reopen the expected location only for comparison. All actual I/O remains on the pinned descriptor.
+        let current =
+            try
+                if OperatingSystem.IsWindows() then
+                    NativeFiles.createFile (
+                        NativeFiles.windowsPath path,
+                        0x80000080u,
+                        3u,
+                        0n,
+                        3u,
+                        0x02200000u,
+                        0n
+                    )
+                    |> NativeFiles.windowsHandle path
+                else
+                    NativeFiles.unixOpen (
+                        path,
+                        NativeFiles.directoryFlags
+                        ||| NativeFiles.noFollow
+                        ||| NativeFiles.closeOnExec,
+                        0u
+                    )
+                    |> NativeFiles.unixHandle path
+            with :? FileNotFoundException ->
+                Operations.fail "extension.path_escape" $"Directory moved or disappeared: {path}"
+
+        use current = current
+        NativeFiles.attributes path current true
+
+        if
+            NativeFiles.identity current
+            <> identity
+        then
+            Operations.fail "extension.path_escape" $"Directory identity changed: {path}"
+
+    member this.Entries() =
+        this.ValidateLocation()
+
         Directory.GetFileSystemEntries(path)
         |> Array.map (fun entry ->
             Path.GetFileName entry
@@ -228,8 +371,8 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle) =
             if OperatingSystem.IsWindows() then
                 NativeFiles.createFile (
                     NativeFiles.windowsPath full,
-                    0x80u,
-                    1u,
+                    0x80000080u,
+                    3u,
                     0n,
                     3u,
                     0x02200000u,
@@ -248,12 +391,14 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle) =
 
         try
             NativeFiles.attributes full handle true
-            new SafeDirectory(full, handle)
+            new SafeDirectory(full, handle, ignore)
         with _ ->
             handle.Dispose()
             reraise ()
 
     member this.Child(name: string, create: bool) =
+        this.ValidateLocation()
+
         if
             name.Length = 0
             || name = "."
@@ -273,8 +418,8 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle) =
 
                 NativeFiles.createFile (
                     NativeFiles.windowsPath full,
-                    0x80u,
-                    1u,
+                    0x80000080u,
+                    3u,
                     0n,
                     3u,
                     0x02200000u,
@@ -302,12 +447,14 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle) =
 
         try
             NativeFiles.attributes full child true
-            new SafeDirectory(full, child)
+            new SafeDirectory(full, child, this.ValidateLocation)
         with _ ->
             child.Dispose()
             reraise ()
 
-    member _.File(name: string, createNew: bool, lease: bool) =
+    member this.File(name: string, createNew: bool, lease: bool) =
+        this.ValidateLocation()
+
         if
             name.Length = 0
             || name = "."
@@ -327,7 +474,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle) =
                          createNew
                          || lease
                      then
-                         0xC0000000u
+                         (if createNew then 0xC0010000u else 0xC0000000u)
                      else
                          0x80000000u),
                     (if lease then 0u else 1u),
@@ -399,35 +546,91 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle) =
             file.Dispose()
             reraise ()
 
-    member _.Publish(stage: string, name: string) =
-        if OperatingSystem.IsWindows() then
-            if
-                NativeFiles.moveFile (
-                    NativeFiles.windowsPath (Path.Combine(path, stage)),
-                    NativeFiles.windowsPath (Path.Combine(path, name)),
-                    0u
-                )
-            then
-                true
-            else
-                let code = Marshal.GetLastPInvokeError()
+    member this.Publish(source: SafeFileHandle, name: string) =
+        this.ValidateLocation()
 
-                if
-                    code = 80
-                    || code = 183
-                then
-                    false
-                else
-                    NativeFiles.error path code
-        else if
-            NativeFiles.linkAt (NativeFiles.fd handle, stage, NativeFiles.fd handle, name, 0) = 0
-        then
+        let published =
+            if OperatingSystem.IsWindows() then
+                NativeFiles.renameHandle source (NativeFiles.windowsPath (Path.Combine(path, name)))
+            elif OperatingSystem.IsLinux() then
+                // /proc/self/fd is the kernel descriptor link, not the mutable staging name.
+                NativeFiles.linkAt (
+                    -100,
+                    $"/proc/self/fd/{NativeFiles.fd source}",
+                    NativeFiles.fd handle,
+                    name,
+                    0x400
+                ) = 0
+            elif OperatingSystem.IsMacOS() then
+                NativeFiles.cloneAt (NativeFiles.fd source, NativeFiles.fd handle, name, 0) = 0
+            else
+                Operations.fail
+                    "extension.io_error"
+                    "Descriptor-bound publication is not supported on this platform."
+
+        if published then
+            this.ValidateLocation()
             true
         else
             let code = Marshal.GetLastPInvokeError()
-            if code = 17 then false else NativeFiles.error path code
 
-    member _.DeleteFile(name: string) =
+            if
+                (OperatingSystem.IsWindows()
+                 && (code = 80
+                     || code = 183))
+                || (not (OperatingSystem.IsWindows())
+                    && code = 17)
+            then
+                false
+            else
+                NativeFiles.error path code
+
+    member _.FileIdentity(file: FileStream) =
+        NativeFiles.identity file.SafeFileHandle
+
+    member this.HasFileIdentity(name: string, expected) =
+        this.ValidateLocation()
+
+        try
+            let full = Path.Combine(path, name)
+
+            use current =
+                if OperatingSystem.IsWindows() then
+                    NativeFiles.createFile (
+                        NativeFiles.windowsPath full,
+                        0x80u,
+                        7u,
+                        0n,
+                        3u,
+                        0x00200080u,
+                        0n
+                    )
+                    |> NativeFiles.windowsHandle full
+                else
+                    NativeFiles.openAt (
+                        NativeFiles.fd handle,
+                        name,
+                        NativeFiles.noFollow
+                        ||| NativeFiles.closeOnExec
+                        ||| NativeFiles.nonBlock,
+                        0u
+                    )
+                    |> NativeFiles.unixHandle full
+
+            NativeFiles.attributes full current false
+            NativeFiles.identity current = expected
+        with :? FileNotFoundException ->
+            false
+
+    member this.DeleteIfIdentity(name: string, expected) =
+        this.ValidateLocation()
+
+        if this.HasFileIdentity(name, expected) then
+            this.DeleteFile name
+
+    member this.DeleteFile(name: string) =
+        this.ValidateLocation()
+
         if OperatingSystem.IsWindows() then
             File.Delete(Path.Combine(path, name))
         elif
@@ -438,7 +641,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle) =
         then
             NativeFiles.error (Path.Combine(path, name)) (Marshal.GetLastPInvokeError())
 
-    member _.DeleteDirectory(name: string) =
+    member this.DeleteDirectory(name: string) =
+        this.ValidateLocation()
+
         if OperatingSystem.IsWindows() then
             Directory.Delete(Path.Combine(path, name), false)
         elif
@@ -455,6 +660,22 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle) =
         member _.Dispose() = handle.Dispose()
 
 module internal FileSafety =
+    // Private .NET coordination, not the shared state lock or an installed-state document.
+    // Every .NET store/run mutation uses this nonwaiting interprocess lease. It is advisory on Unix.
+    let mutationLease (root: SafeDirectory) =
+        let lease = root.File(".morphir-dotnet-io.lock", false, true)
+
+        try
+            if not (root.HasFileIdentity(".morphir-dotnet-io.lock", root.FileIdentity lease)) then
+                Operations.fail
+                    "extension.path_escape"
+                    "The .NET I/O coordination lease changed identity."
+
+            lease
+        with _ ->
+            lease.Dispose()
+            reraise ()
+
     let rec withDirectories (root: SafeDirectory) (parts: string list) create work =
         match parts with
         | [] -> work root
@@ -512,3 +733,11 @@ module internal FileSafety =
         with
         | :? IOException
         | :? UnauthorizedAccessException -> ()
+
+    let tryDeleteIdentity (directory: SafeDirectory) name expected =
+        try
+            directory.DeleteIfIdentity(name, expected)
+        with
+        | :? IOException
+        | :? UnauthorizedAccessException
+        | InstallationException _ -> ()

@@ -184,13 +184,35 @@ module internal ArchiveChecks =
 
             read
 
-    type Expanded(input: Stream, compressed: Counted) =
+    type Expanded
+        (
+            input: Stream,
+            compressed: Counted,
+            ct: CancellationToken,
+            remaining: unit -> int64,
+            charge: int -> unit
+        ) =
         inherit ReadProxy(input)
         let mutable count = 0L
         override _.CanSeek = false
 
         override _.Read(buffer, offset, length) =
-            let read = input.Read(buffer, offset, length)
+            ct.ThrowIfCancellationRequested()
+            // The limit lives below TarReader, so metadata allocation, entry padding and final drains all pay.
+            let read =
+                input.Read(
+                    buffer,
+                    offset,
+                    int (
+                        min
+                            (int64 length)
+                            (remaining ()
+                             + 1L)
+                    )
+                )
+
+            ct.ThrowIfCancellationRequested()
+            charge read
 
             count <-
                 count
@@ -273,6 +295,7 @@ module internal ArchiveChecks =
         let mutable remaining = 0L
         let mutable ended = false
         let mutable zeros = 0
+        let mutable entryCount = 0
         override _.CanSeek = false
 
         override _.Read(buffer, offset, length) =
@@ -331,6 +354,15 @@ module internal ArchiveChecks =
                     else
                         if zeros > 0 then
                             unsafe "Tar data follows an end marker."
+
+                        // Count raw metadata headers too, before TarReader can allocate their payloads.
+                        entryCount <-
+                            entryCount
+                            + 1
+
+                        if entryCount > InstallationLimits.MaxArchiveEntries then
+                            limit
+                                "Archive exceeds 1024 entries, including PAX/GNU metadata headers."
 
                         let size = tarNumber header
                         let extension = List.contains (char header[156]) [ 'x'; 'g'; 'L'; 'K' ]
@@ -670,7 +702,16 @@ module internal ArchiveChecks =
             | :? FormatException
             | :? OverflowException -> false
 
-    let inspect (source: Stream) (ct: CancellationToken) =
+    let inspectWithExpansionLimit (source: Stream) (ct: CancellationToken) (expandedLimit: int64) =
+        if
+            expandedLimit
+            <= 0L
+            || expandedLimit > InstallationLimits.MaxArchiveBytes
+        then
+            invalidArg
+                (nameof expandedLimit)
+                "The injected expansion bound must be within the approved 1 GiB bound."
+
         let pending = Queue<Stream * bool>()
         let snapshots = ResizeArray<IDisposable>()
         pending.Enqueue(source, true)
@@ -678,7 +719,20 @@ module internal ArchiveChecks =
         let mutable topFormat = ""
         let mutable topEntries = [||]
 
-        let consume name expected (input: Stream) compressed =
+        let remaining () =
+            expandedLimit
+            - total
+
+        let charge count =
+            total <-
+                total
+                + int64 count
+
+            if total > expandedLimit then
+                limit
+                    "Aggregate expansion, including metadata, padding and nested content, exceeds the 1 GiB bound."
+
+        let consume name expected (input: Stream) compressed chargeContent =
             let buffer = Array.zeroCreate<byte> (64 * 1024)
             let mutable length = 0L
             let mutable first = true
@@ -712,15 +766,12 @@ module internal ArchiveChecks =
                             length
                             + int64 read
 
-                        total <-
-                            total
-                            + int64 read
+                        // ZIP exposes expanded file bytes here. Tar bytes were already charged by Expanded.
+                        if chargeContent then
+                            charge read
 
                         if length > InstallationLimits.MaxArtifactBytes then
                             limit $"Entry exceeds 256 MiB: {name}"
-
-                        if total > InstallationLimits.MaxArchiveBytes then
-                            limit "Aggregate expansion, including nested content, exceeds 1 GiB."
 
                         ratio length (compressed ())
 
@@ -777,7 +828,7 @@ module internal ArchiveChecks =
                         |> Array.sumBy (fun record -> record.Length)
 
                     if
-                        declared > InstallationLimits.MaxArchiveBytes
+                        declared > expandedLimit
                                    - total
                     then
                         limit "Aggregate expansion, including nested content, exceeds 1 GiB."
@@ -818,6 +869,7 @@ module internal ArchiveChecks =
                                     counted.BytesRead
                                     - start
                                 )
+                                true
 
                         entries.Add(ArchiveEntryInfo(record.Name, length, record.Directory))
 
@@ -826,7 +878,7 @@ module internal ArchiveChecks =
                 elif isGzip prefix prefix.Length then
                     use counted = new Counted(input)
                     use gzip = new GZipStream(counted, CompressionMode.Decompress, true)
-                    use expanded = new Expanded(gzip, counted)
+                    use expanded = new Expanded(gzip, counted, ct, remaining, charge)
                     // Check the first tar header without allocating any declared payload, then replay it to TarReader.
                     let first = Array.zeroCreate<byte> 512
                     let mutable read = 0
@@ -860,9 +912,6 @@ module internal ArchiveChecks =
                                 entry.EntryType
                                 <> TarEntryType.GlobalExtendedAttributes
                             then
-                                if entries.Count = InstallationLimits.MaxArchiveEntries then
-                                    limit "Archive exceeds 1024 entries."
-
                                 let directory = entry.EntryType = TarEntryType.Directory
 
                                 if
@@ -895,6 +944,7 @@ module internal ArchiveChecks =
                                             entry.Length
                                             stream
                                             (fun () -> counted.BytesRead)
+                                            false
 
                                 entries.Add(ArchiveEntryInfo(name, length, directory))
 
@@ -929,6 +979,9 @@ module internal ArchiveChecks =
         finally
             for snapshot in snapshots do
                 snapshot.Dispose()
+
+    let inspect (source: Stream) (ct: CancellationToken) =
+        inspectWithExpansionLimit source ct InstallationLimits.MaxArchiveBytes
 
 /// Generic bounded archive inspection. It writes no entry and adopts no descriptor or package format.
 [<AbstractClass; Sealed>]

@@ -4,6 +4,8 @@
 
 Lets a user install an extension from one file, the extension package archive or a bare `.wasm` module, and from the `staged/` folders, and reads archives so that no entry can escape its directory, exhaust resources or substitute an artifact.
 
+Consent reconciliation, 11 November 2026: old default-auto wording remains historical. The explicit-consent decision supersedes it for effectful installation. Configuration presence must survive default resolution, without changing the schema default or adding a member.
+
 ## ADDED Requirements
 
 ### Requirement: The format comes from the file content
@@ -85,6 +87,25 @@ The installer SHALL refuse an archive file over 1 GiB, more than 1024 entries, a
 - **WHEN** a tar archive has a PAX header of 2 MiB
 - **THEN** it is refused with `extension.archive_limit`
 
+### Requirement: Gzip accounting and cancellation run below the tar reader
+The bounded stream SHALL charge all raw tar bytes, including metadata, headers, padding and final drains, against the aggregate expansion limit and check cancellation on every read. ZIP payloads SHALL share that budget; regular tar payload SHALL NOT be charged twice. Raw PAX/GNU metadata headers SHALL count toward the entry limit before framework payload allocation. Limits SHALL hold before publication or extraction.
+
+#### Scenario: Low-ratio padding exceeds the absolute limit
+- **WHEN** low-ratio tar padding or repeated metadata exceeds the aggregate expanded-byte limit
+- **THEN** reading stops with `extension.archive_limit` even though the ratio is acceptable
+
+#### Scenario: Cancel during the final drain
+- **WHEN** cancellation arrives while trailing gzip padding is drained
+- **THEN** reading stops on cancellation rather than consuming the rest
+
+#### Scenario: One charge per nesting level
+- **WHEN** a regular tar payload and its headers/padding exactly fit the expansion limit
+- **THEN** the payload is counted once at that level, while nested expansion contributes separately
+
+#### Scenario: Count refusal precedes metadata allocation
+- **WHEN** 1024 metadata entries are followed by a declared 1025th PAX payload
+- **THEN** the raw-header guard refuses by entry count before the framework allocates or reads that payload
+
 ### Requirement: Descriptor and artifacts match their checksums
 The installer SHALL check the descriptor against its `.sha256` file, and each artifact it uses against its `.sha256` file and the digest that the descriptor gives it. A checksum file SHALL hold 64 lowercase hexadecimal digits, white space and the entry's file name. Any mismatch SHALL stop the install before the store changes.
 
@@ -144,7 +165,7 @@ A bare `.wasm` file has no descriptor, so its identity, version and claims SHALL
 - **THEN** the command fails with `extension.wasm_host_unavailable` and nothing is written
 
 ### Requirement: A file argument installs like a staged file
-`extension install <file>` SHALL install a package archive or a bare `.wasm` file with the rules of this capability, at the global level unless `--level` names another, and SHALL run the process probe unless `--no-probe` is given. Levels other than global are provisional pending Q-LEVELS.
+`extension install <file>` SHALL install a package archive or a bare `.wasm` file with the rules of this capability, at the global level unless `--level` names another, and SHALL run the process probe unless `--no-probe` is given. Non-global pins SHALL follow the parent toolchain selection contract; Q-LEVELS (b) is approved.
 
 #### Scenario: Install a package archive
 - **WHEN** a user runs `morphir extension install ./acme-backend-0.1.0.zip --level project`
@@ -162,7 +183,7 @@ Each level SHALL have a `staged/` folder: `<project>/.morphir/extensions/staged/
 - **THEN** install ignores it and writes one warning naming it on stderr
 
 ### Requirement: The staged install mode is explicit
-The setting `[extension_install] staged` SHALL be `auto` or `manual`, default `auto`. With `auto`, compile, generate, validate and the `extension` commands that read selections SHALL first install new staged WASM packages. With `manual`, staged files install only through `extension install --staged`.
+The setting `[extension_install] staged` SHALL be `auto` or `manual`. Reporting MAY retain historical default `auto`; it is not consent. Only explicitly configured `auto` SHALL authorize the automatic WASM staged pass before selection. An omitted or `manual` setting SHALL require an explicit local/staged install command. No new configuration member or unrelated schema-default change is introduced.
 
 #### Scenario: Manual mode
 - **WHEN** the setting is `manual` and a new staged WASM package exists
@@ -171,6 +192,10 @@ The setting `[extension_install] staged` SHALL be `auto` or `manual`, default `a
 #### Scenario: Already installed
 - **WHEN** a staged file's artifact is already selected at its level with the same digest
 - **THEN** the automatic pass writes nothing
+
+#### Scenario: Omission differs from explicit auto
+- **WHEN** two configurations resolve to mode `auto`, one by omission and one by an explicit setting
+- **THEN** only the explicitly configured case authorizes automatic installation of a new staged WASM package
 
 ### Requirement: Staged process guests are never installed automatically
 The automatic pass SHALL NOT install a staged package that contains a process artifact, and SHALL NOT run any staged guest. It SHALL write one note on stderr naming the file and the `extension install` command that installs it.
@@ -187,7 +212,7 @@ The automatic pass SHALL write nothing on stdout. A staged file it cannot instal
 - **THEN** stdout holds only the compile report, stderr has a warning with `extension.unsafe_archive`, and the store is unchanged
 
 ### Requirement: Staged and file installs are representable upstream
-Provisional pending Q-PROVENANCE. For a global install from a file or staged folder, the installer SHALL write its entry and lock with `index.kind` `local-directory` naming a generated repository below `data/morphir-dotnet/extensions/repositories/`, whose history omits `platform` for WASM artifacts, and SHALL keep the true source in the .NET inventory. It SHALL NOT add that repository to the repositories file.
+For a global install from a file or staged folder, the installer SHALL write its entry and lock with `index.kind` `local-directory` naming a generated repository below `data/morphir-dotnet/extensions/repositories/`, whose history omits `platform` for WASM artifacts, and SHALL keep the true source in the .NET inventory. It SHALL NOT add that repository to the repositories file.
 
 #### Scenario: A staged install in the catalog
 - **WHEN** a WASM package is installed from the global staged folder

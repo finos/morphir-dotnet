@@ -11,15 +11,28 @@ On 9 November 2026 the maintainer decided that the .NET installer is built insid
 ## What Changes
 
 Implementation update, 11 November 2026: the installer plan merged as #567.
-Parent #1147, #1150, #1151 and #1152 are merged too. Their approval is separate
-from parent group 1's ongoing publication of schemas, member tables and fixed
-identity/package cases. Those inputs still gate document and package codecs.
+Parent #1147, #1150, #1151 and #1152 are merged too. Group 1 now publishes schemas,
+member tables and fixed identity/package cases through #1156 at immutable parent
+main `0439c4c06d8ca6d4a46e41afb226ba0872f9bff8`. Shared readers will use that source
+authority and corpus in the next tranche; production URL serving is separate.
 Distribution parsers, platform mappings, MEP eligibility, the single-file store,
 generic bounded archive inspection and run-directory ownership are implemented.
 Probing, extraction, inventory, transactions, activation and command integration
-are unfinished. Windows tests and the C# JIT probe pass; Unix filesystem runs and
-Native AOT qualification remain outstanding. Full installer and user/technical docs remain
+are unfinished. Security review reopened task 3.3. Six runtime RED cases preceded
+the corrections, which pass 131 executed Windows tests with three Unix-only cases
+ignored. The earlier JIT probe is historical evidence; independent re-review,
+Unix filesystem runs and Native AOT qualification remain outstanding. Full installer and user/technical docs remain
 the destination, with every later mutating command supporting `--dry-run`.
+
+The maintainer approved portable local-inventory pins, overlay precedence,
+explicit id configuration, CMD-1/stable diagnostics, developer consent and
+generated local-directory provenance on 11 November. Portable pin/overlay
+schemas and examples still await the separate parent toolchain contract. The
+user-owned Home model serializes supported writers with stable locks and detects
+tampering; arbitrary malicious same-UID isolation is not promised. Inherited
+default staged `auto` is not consent for automatic unsigned installation. Only
+explicit configuration or a command naming the local/staged source grants it.
+This supersedes old default-auto consent wording without changing a schema default.
 
 A developer on Windows adds a local extension repository and installs a process backend from it. A second project pins a newer version of the same backend without changing the global selection, and a `morphirup` toolchain generation selects its own versions over the shared store. A teammate who clones a repository with an extension package archive in `.morphir/extensions/staged/` gets a clear message, and no code from the clone runs until they install it.
 
@@ -75,11 +88,11 @@ The design groups its questions by what they need:
 
 The decision that mattered most, what may enter the shared catalog (Q-SHARED), is settled: every global install. The design records how the question went three turns, so the .NET-only layer is not restored again. Multi-file extensions follow merged finos/morphir#1151 and its VERIFY-B/LAUNCH-A decisions. The one-executable target-archive recommendation is superseded. Raw single-file activation remains a different path; package implementation waits for the parent tables and cases.
 
-Parent publication and remaining decisions still block the tasks the design names:
+Implementation prerequisites remain after the approved decisions:
 
-- the member tables of #1149's task 1.4, and its shared id cases (task 1.2);
-- the schemas, normative tables and cases implementing merged #1150 and #1151;
-- the remaining pin and overlay decisions after merged #1147; the manager's existing plan rules do not settle these choices.
+- shared readers, comparisons, inventory, locks/journal/recovery and probes must now be implemented against parent `0439c4c0` and its fixed corpus;
+- portable pin/overlay schemas, paths, member tables and corpus must come from the separate parent toolchain contract;
+- outer release-assets packaging and Windows executable/path assumptions remain named open questions; approval of other choices does not complete those tasks.
 
 Nothing here is shipped, released or qualified.
 

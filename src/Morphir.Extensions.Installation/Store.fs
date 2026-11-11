@@ -86,6 +86,7 @@ type SingleFileStore private () =
                 | Ok _ -> ()
 
                 use root = SafeDirectory.Open(home, true)
+                use mutation = FileSafety.mutationLease root
                 use input = FileSafety.openRelative root source
 
                 if input.Length > InstallationLimits.MaxArtifactBytes then
@@ -146,53 +147,82 @@ type SingleFileStore private () =
                                 ".stage-"
                                 + Guid.NewGuid().ToString("N")
 
+                            let mutable stageIdentity = None
+
                             try
+                                // Keep the verified file open through the kernel publication operation.
+                                use output = directory.File(stage, true, false)
+                                let identity = directory.FileIdentity output
+                                stageIdentity <- Some identity
+
                                 let actual, length =
-                                    use output = directory.File(stage, true, false)
+                                    Copying.hashCopy
+                                        input
+                                        output
+                                        InstallationLimits.MaxArtifactBytes
+                                        "extension.artifact_too_large"
+                                        ct
 
-                                    let actual, length =
-                                        Copying.hashCopy
-                                            input
-                                            output
-                                            InstallationLimits.MaxArtifactBytes
-                                            "extension.artifact_too_large"
-                                            ct
+                                if
+                                    actual
+                                    <> expected.Value
+                                then
+                                    Operations.fail
+                                        "extension.digest_mismatch"
+                                        $"Staged bytes have digest {actual}, expected {expected.Value}."
 
-                                    if
-                                        actual
-                                        <> expected.Value
-                                    then
-                                        Operations.fail
-                                            "extension.digest_mismatch"
-                                            $"Staged bytes have digest {actual}, expected {expected.Value}."
+                                if
+                                    executable
+                                    && not (OperatingSystem.IsWindows())
+                                then
+                                    File.SetUnixFileMode(
+                                        output.SafeFileHandle,
+                                        File.GetUnixFileMode(output.SafeFileHandle)
+                                        ||| UnixFileMode.UserExecute
+                                    )
 
-                                    if
-                                        executable
-                                        && not (OperatingSystem.IsWindows())
-                                    then
-                                        File.SetUnixFileMode(
-                                            output.SafeFileHandle,
-                                            File.GetUnixFileMode(output.SafeFileHandle)
-                                            ||| UnixFileMode.UserExecute
-                                        )
-
-                                    output.Flush true
-                                    actual, length
-
+                                output.Flush true
                                 ct.ThrowIfCancellationRequested()
                                 beforePublish.Invoke()
+                                directory.ValidateLocation()
+                                output.Position <- 0L
 
-                                if directory.Publish(stage, name) then
-                                    StoredArtifact(
-                                        relative,
-                                        absolute,
-                                        Sha256Digest.Create actual,
-                                        length
-                                    )
+                                let verified, _ =
+                                    Copying.hashCopy
+                                        output
+                                        Stream.Null
+                                        InstallationLimits.MaxArtifactBytes
+                                        "extension.artifact_too_large"
+                                        ct
+
+                                if
+                                    verified
+                                    <> expected.Value
+                                then
+                                    Operations.fail
+                                        "extension.digest_mismatch"
+                                        "The open staging object changed after copying."
+
+                                if directory.Publish(output.SafeFileHandle, name) then
+                                    if OperatingSystem.IsMacOS() then
+                                        // fclonefileat creates a new inode from the verified descriptor. Verify its snapshot too.
+                                        output.Dispose()
+                                        reuse ()
+                                    else
+                                        if not (directory.HasFileIdentity(name, identity)) then
+                                            Operations.fail
+                                                "extension.store_object_mismatch"
+                                                $"Published store identity changed: {absolute}"
+
+                                        StoredArtifact(relative, absolute, expected, length)
                                 else
+                                    output.Dispose()
                                     reuse ()
                             finally
-                                FileSafety.tryDelete directory stage
+                                match stageIdentity with
+                                | Some identity ->
+                                    FileSafety.tryDeleteIdentity directory stage identity
+                                | None -> ()
                     )
             )
 

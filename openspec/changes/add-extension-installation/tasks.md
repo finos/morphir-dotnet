@@ -2,7 +2,7 @@
 
 This is the implementation breakdown of the .NET extension installer (extension-model PRD step 3). The current implementation stays on one cohesive branch; checkboxes describe reviewable increments, not a requirement to open a scaffold-only pull request. The indented notes name the first failing test, its project and the narrowest command.
 
-Implementation boundary, 11 November 2026: #567, finos/morphir#1147, #1150, #1151 and #1152, and this repository's #590 are merged. Parent group 1 is still publishing the seven schemas, normative member tables, identity/package cases and publication audit. The merged plans do not complete that publication. Do not implement competing catalog, lock or package formats before that evidence is available. Remaining levels, overlay/configuration, commands and developer-policy choices are still gated on the maintainer. Every later mutating command needs `--dry-run`.
+Implementation boundary, 11 November 2026: #567, finos/morphir#1147, #1150, #1151 and #1152, and this repository's #590 are merged. Parent #1156 now publishes group 1 at immutable main `0439c4c06d8ca6d4a46e41afb226ba0872f9bff8`, including seven schemas, normative tables, identity/package cases and PKGVER-A. Source authority is published; production URL serving is separate. The maintainer approved Q-LEVELS (b), Q-OVERLAY (a) above project pins, Q-CONFIGREF (a), Q-DEVPOLICY (a), Q-PROVENANCE (a), CMD-1/stable diagnostics and user-owned Home with stable writer locks/tamper detection. No arbitrary malicious same-UID isolation is promised. Decision approval does not implement lifecycle tasks. Every mutating command needs `--dry-run`.
 
 GitHub issue: [finos/morphir-dotnet#558](https://github.com/finos/morphir-dotnet/issues/558) owns the deployment and acquisition effort.
 <!-- TRACKING: link the dedicated installer issue here once it exists. -->
@@ -10,18 +10,17 @@ No Beads id is recorded; do not invent one.
 
 Dependencies. The design groups its questions in two. One group follows today's reference behavior or an open parent proposal, which stands in for the shared contract until finos/morphir writes it down; those need no maintainer answer to start, and a change in the parent's review changes the named specs first. The other group needs the maintainer. Parent contracts are named where a task waits on them.
 
-- Implemented: 2.2, 2.3, 2.10 and 3.3. Run-directory ownership/sweep in 3.4 and generic archive inspection in 5.1 are implemented, while those whole tasks remain unchecked. Can continue now: group 1 and the unqualified parts of 2.1/5.1. Full 3.4 inventory/rebuild needs the shared pair types from the parent tables; do not invent their shape to start it early.
-- Waits on parent contracts in finos/morphir:
-  - 2.4 to 2.8, 3.1, 3.2, 3.5, 3.6, 4.1 and 4.9 on parent group 1's published schemas and tables implementing merged finos/morphir#1150. It gives the family's schema URLs (Decision 15A), the journal, the history rule and the old-state move (Decisions 10 and 11).
-  - 2.7, 2.8 and 4.1 also on the member tables of finos/morphir#1149's task 1.4, which is not done yet. #1149 is merged, but its task 1.4 page is the authority for the catalog, lock and repositories members. Until then, the reference behavior is the only evidence.
+- Implemented: 2.2, 2.3 and 2.10. Task 3.3 remains reopened after review of `f6d991bb`, pending independent re-review and Unix evidence. Corrections now pass 131 executed Windows tests, with three Unix-only interleavings ignored. The six runtime RED cases are recorded. Full 3.4 inventory/rebuild still needs shared pair types. 5.1 remains unchecked for AOT. No partial lifecycle task is completed by a maintainer decision or Windows-only evidence.
+- Parent contract adoption:
+  - Publication gates are cleared for 2.4 to 2.8, 3.1, 3.2, 3.5, 3.6, 4.1 and 4.9. Implement against #1156 at `0439c4c0`, including schemas, authoritative member tables and cases; do not create a shadow installer/checker or copy reference quirks where the published contract differs.
+  - Next tranche starts with exact failing tests for typed readers/comparison, then inventory, state locks/journal/recovery and probes, using the existing installation/MCK projects. Existing tasks remain unchecked until implemented and verified. Keep every current commit; request a separate CPU2 burst.
   - 4.3 also on the claims `$schema` in `describe` answers: the probe refuses an answer without it, so the test guest, and every guest built on `Morphir.Mep`, must answer with it first (provisional on #1150).
-  - 8.1 on the shared case manifest of #1149's task 1.2.
-  - 5.3, and the F# frontend for adoption task 3.3, on parent group 1's package tables and cases implementing merged finos/morphir#1151. VERIFY-B and LAUNCH-A supersede the one-executable recommendation for packages; single-file activation remains distinct.
-  - 6.1 and 6.4 still wait on the level/overlay decisions and their shared contract. finos/morphir#1147 is merged; it does not settle those remaining choices. 7.1 uses its plan rules after the installer prerequisites.
+  - 8.1 can now consume the published shared id corpus; .NET runner integration is still unimplemented.
+  - 5.3 and the frontend for adoption task 3.3 now have published package tables/cases and PKGVER-A. VERIFY-B/LAUNCH-A remain required; no one-executable recommendation is restored. Their reader, install/verify/activation implementations are still needed.
+  - 6.1 and 6.4 wait on the parent toolchain selection/overlay contract, its exact published schema, paths, member tables and corpus. Their product decisions are now approved. Root coordinates adoption; do not implement a .NET-only unversioned pin or overlay file. 7.1 uses the manager's plan rules after installer prerequisites.
 - Waits on a maintainer answer:
-  - 4.4 to 4.8 on Q-COMMANDS, Q-DIAG and Q-DEVPOLICY.
-  - 5.2 on Q-ARCHIVE. 5.3 on Q-ARCHIVE and Q-WINLAUNCH. 5.4 on Q-PROVENANCE.
-  - 6.1 to 6.3 on Q-LEVELS. 6.4 on Q-OVERLAY. 6.6 on Q-WINLAUNCH. 6.7 on Q-CONFIGREF.
+  - 5.2 on the outer release-assets question of Q-ARCHIVE; the one-executable target recommendation is superseded. 5.3/6.6 still have Q-WINLAUNCH's executable-name/path assumptions to resolve with evidence.
+  - Q-LEVELS/Q-OVERLAY/Q-CONFIGREF/Q-COMMANDS/Q-DIAG/Q-DEVPOLICY/Q-PROVENANCE and the Unix threat boundary no longer wait on a maintainer answer. Their implementation/contract prerequisites remain.
   - An answer that differs from the recommendation changes the named specs first, through task 1.1.
 - Waits on other work:
   - 5.6 on PRD step 2a, a WASM runtime in this host.
@@ -42,6 +41,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 ## 1. Decisions and upstream inputs, no code
 
 - [ ] 1.1 Record the maintainer's answer to each question in the design's "needs the maintainer" group beside the question, and change the specs and tasks where an answer differs from the recommendation; verify with `mise exec -- openspec validate add-extension-installation --strict` and `mise run openspec:verify`.
+  - Recorded the 11 November selection, developer/provenance, commands/diagnostics and user-owned Home decisions. Explicit staged consent supersedes old default-auto consent wording: omitted inherited `auto` authorizes no installation. The existing schema default is unchanged. Outer Q-ARCHIVE and Q-WINLAUNCH remain open, so this whole task stays unchecked.
 - [ ] 1.2 Raise the upstream asks of the design's "Raised upstream" list in finos/morphir, and the PRD superset proposal; verify that each question in `design.html` links its issue or proposal.
   - The asks:
     - the maintainer decision MEP-1: MEP `0.1` is not supported, and the supported protocol is the whole 0.2 line (`>=0.2.0-0`, `<0.3.0`, under the npm and Cargo prerelease rule) as an explicit exception to the exact-match rule for prereleases. Say so in `protocol.md` and the extension README; no Rust product host work is required (Decision 16A);
@@ -135,7 +135,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - a journal with `nextLock` `null` deletes the lock;
     - a reader during a replacement sees the old or the new file.
   - Command: `dotnet exec <inst> --filter-test-list "Transactions"`.
-- [x] 3.3 Implement the content-addressed store; verify the `Store` tests pass.
+- [ ] 3.3 Implement the content-addressed store; verify the `Store` tests pass.
   - The store covers: a staged temporary file, hash-while-copy from staging compared with the recorded digest, no-clobber publication, a rehash before reuse, containment inside Morphir Home, the 256 MiB limit and the Unix owner execute bit.
   - First failing tests:
     - a tampered object fails with `extension.store_object_mismatch` and is unchanged;
@@ -143,6 +143,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - a staged file changed after its first hash fails with `extension.digest_mismatch` and nothing is published.
   - Command: `dotnet exec <inst> --filter-test-list "Store"`.
   - Implemented in `SingleFileStore`: existing toolchain streaming hash, same-directory staging, flush, no-clobber publication and rehash on reuse/race. Windows symlink/reparse, tampering, cancellation and publication-race tests pass in the 123-test installer suite. Unix descriptor-relative operations and owner execute-bit code are implemented but not exercised on Windows; Linux/macOS runs remain necessary before platform claims. No corrupt object repair, shared pair or package metadata is added.
+  - Review correction: keep the verified descriptor through handle rename/fd link/fd clone; no pathname fallback. Stable private I/O coordination and directory identity checks implement the approved cooperating-writer boundary. Windows regression GREEN is 131 passed/3 Unix-only ignored; independent re-review and Unix runtime evidence remain. No arbitrary malicious same-UID isolation is promised. Task stays unchecked until remaining evidence/review.
 - [ ] 3.4 Implement the .NET inventory below `data/morphir-dotnet/extensions/installed/`, its rebuild from a shared pair, and the ownership of .NET run copies below `tmp/extensions/`; verify the `Inventory` tests pass.
   - The inventory holds the .NET-only facts that the closed catalog and lock member sets cannot carry: the true source, the archive digest, the level, and every installed version for pins and overlays. It is needed whatever Q-LEVELS decides.
   - First failing tests:
@@ -151,6 +152,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - the copy sweep removes a stale `morphir-dotnet-run-*` directory and leaves `morphir-extension-*` directories in place.
   - Command: `dotnet exec <inst> --filter-test-list "Inventory"`.
   - Partial implementation only: `RunCopies` owns an exclusive empty `.owner` file, skips live owners, refuses reparse points, and sweeps only `morphir-dotnet-run-*`. The `RunCopies` tests pass on Windows, and the C# JIT probe covers live ownership. The guest process-tree integration and installed inventory/rebuild are unfinished; this task remains unchecked.
+  - Security correction holds an interprocess creation/sweep lease until ownership exists and checks original home/directory/owner identities on disposal. Separate-process creator/sweeper RED then GREEN ran on Windows. Unix directory/owner replacement tests are authored but ignored on Windows. The probe was not rerun in this correction burst.
 - [ ] 3.5 Implement the commit path: every global install writes the catalog entry and lock through the journal, and an install at another level writes a pin; read a catalog that holds entries this host cannot run. Verify the `Commit` tests pass.
   - First failing tests (`Commit`):
     - a global install writes the entry and lock in one journal, and the pair agrees;
@@ -238,7 +240,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 ## 5. Package archives and staged folders
 
 - [ ] 5.1 Read zip and tar gzip package archives with the entry rules and recorded limits, detecting the format from content; verify the `Archives` tests pass in both formats and the AOT probe covers both readers with no new warning.
-  - Runtime reader implemented without extraction or package-layout adoption. All 26 `Archives` tests pass on Windows; the full installer suite is 123/123. Two additional runtime RED cases proved short-read nested detection and pre-inflation aggregate checks before their fixes. The C# JIT probe covers both readers. Native AOT has not run, so this task remains unchecked. Parent PR #1156's inputs remain provisional during independent review, including its later fixes; no format or pin is adopted here.
+  - Runtime reader implemented without extraction or package-layout adoption. Security RED/131-test GREEN covers all decompressed tar bytes, metadata/padding, global PAX counts, final-drain cancellation and no payload double charging. Three Unix-only cases are ignored. The earlier JIT probe covered both readers; no probe/AOT run occurred during this correction. Parent #1156 is now published at `0439c4c0`; corpus-driven format adoption is next, not implied by this generic reader. This task stays unchecked.
   - First failing test: for each format, archives built in the test are each refused before any file is written. They contain:
     - `../../evil.exe`, an absolute path or a drive letter;
     - a symbolic link, a hard link, or a FIFO (tar);
@@ -258,7 +260,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - First failing tests: a one-file target archive remains a package with its package digest; a self-contained multi-file frontend installs with its manifest and entry point. Full verification at install and explicit verification, structural verification under the state lock at activation (VERIFY-B), and launch from the store with a process-tree lease (LAUNCH-A) follow the parent contract. A raw single-file artifact still uses its private verified run copy. Do not invent package members in advance of the parent tables.
   - Command: `dotnet exec <inst> --filter-test-list "TargetArchives"`.
 - [ ] 5.4 Install a package archive given as a file through the pipeline, with generated local repositories for entries that enter the shared catalog and WASM packages unchecked; verify the `PackageInstall` tests pass.
-  - Waits on Q-PROVENANCE and 5.2.
+  - Q-PROVENANCE (a) is approved. Waits on 5.2 and published parent repository/package tables.
   - First failing tests:
     - a global install's lock has `index.kind` `local-directory`, naming a directory below `data/morphir-dotnet/extensions/repositories/`;
     - the generated WASM history omits `platform`;
@@ -266,6 +268,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - Command: `dotnet exec <inst> --filter-test-list "PackageInstall"`.
   - Docs: an "Install an extension" page under `docs/content/docs/cli/`, with both archive formats and the trust note for process guests.
 - [ ] 5.5 Add the staged folders, the `[extension_install] staged` setting, the automatic pass for WASM packages only, and `extension install --staged`; verify the configuration, staged-pass and E2E tests pass.
+  - Approved explicit consent: distinguish omitted inherited `auto` from explicitly configured `auto`; only the latter permits automatic unsigned WASM installation. Explicit source/staged commands are consent. Preserve the existing schema default; add no configuration member. Pending first failing tests in configuration/staged-pass/E2E projects must prove omission writes no state, explicit `auto` permits the narrow pass, and both retain `local-developer`. These tests and the integration are not implemented yet.
   - The global staged folder needs only 5.4; the project, workspace and system folders also need 6.1.
   - Files: `src/Morphir.Configuration/Schema.fs` and its tests in `tests/Morphir.Configuration.Tests`; the pass in `src/Morphir.Tooling/Features/Extensions/`.
   - First failing tests:
@@ -279,7 +282,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 ## 6. Selection layers and activation
 
 - [ ] 6.1 Read and write pin files with an exact `$schema` match, critical members and per-platform digests; verify the `Pins` tests pass.
-  - Waits on Q-LEVELS and on the shared toolchain contract for level pins.
+  - Q-LEVELS (b) is approved. Waits on the parent toolchain contract's published pin schema/member table/corpus; no .NET-only unversioned file.
   - First failing test: a pin whose `$schema` is not the URL the toolchain contract defines, or that has `schemaVersion` and no `$schema`, is refused with `extension.unsupported_contract_version`; a pin with an absolute path member value or a credential member is refused.
   - Command: `dotnet exec <inst> --filter-test-list "Pins"`.
 - [ ] 6.2 Resolve through the layers with the discovery boundary and isolation, refuse duplicates within a layer, and report shadowing; verify the `Layers` tests pass.
@@ -298,7 +301,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - two concurrent `use` commands on one pin file leave the complete result of both, in some order.
   - Command: `dotnet exec <tooling> --treenode-filter "/*/Morphir.Tooling.Tests.Features.Extensions/ExtensionUseCommandTests/*"`.
 - [ ] 6.4 Read the generation overlay from `MORPHIR_EXTENSION_OVERLAY`, refuse paths outside `toolchains/generations/`, and never write there; verify the `Overlay` tests pass.
-  - Waits on Q-OVERLAY and on the shared toolchain contract for overlays. Approved task 4.4 consumes this seam.
+  - Q-OVERLAY (a), above project pins, is approved. Waits on the parent toolchain contract for overlay schema/layout/corpus. Approved task 4.4 consumes this seam.
   - First failing tests:
     - two overlays selecting 0.2.0 and 0.3.0 of one id resolve to their own versions, while the global selection still names 0.1.0;
     - an overlay of `/tmp/gen` fails with `extension.overlay_invalid`;
@@ -318,7 +321,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - Waits on Q-WINLAUNCH. First confirm with a test whether process creation refuses an executable path over 260 characters. If it does not, drop the provisional requirement and record that in the design.
   - Command: `dotnet exec <inst> --filter-test-list "WindowsLaunch"`.
 - [ ] 6.7 Add `[frontend.<language>] extension_id`, and let compile start the selected installed frontend through the private copy; verify the configuration, compile and E2E tests pass.
-  - Waits on Q-CONFIGREF.
+  - Q-CONFIGREF (a) is approved. Also add `id` to an `extensions` table; preserve existing path-string meaning. Integration still waits on the selection pipeline, without changing schema defaults here.
   - Files: `src/Morphir.Configuration/Schema.fs`, `src/Morphir.Tooling/Features/Compile/MepFrontendExtensionConnector.cs`.
   - First failing tests:
     - setting both `extension` and `extension_id` fails configuration loading, naming both;
