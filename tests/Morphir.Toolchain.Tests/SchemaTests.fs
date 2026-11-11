@@ -49,9 +49,16 @@ let endAnchored (text: string) =
     walk root
     root.ToJsonString()
 
+let private compiled = System.Collections.Concurrent.ConcurrentDictionary<string, JsonSchema>()
+
+/// The contract's schema, compiled once per run: the corpus does not change while the suite runs.
 let private schema (contract: string) =
-    let text = File.ReadAllText(Path.Combine(Fixtures.schemas, schemaFiles[contract]))
-    JsonSchema.FromText(endAnchored text, BuildOptions(SchemaRegistry = SchemaRegistry()))
+    compiled.GetOrAdd(
+        contract,
+        fun contract ->
+            let text = File.ReadAllText(Path.Combine(Fixtures.schemas, schemaFiles[contract]))
+            JsonSchema.FromText(endAnchored text, BuildOptions(SchemaRegistry = SchemaRegistry()))
+    )
 
 /// Whether a value validates, with the first failing location for the message.
 let validates (contract: string) (value: Value) =

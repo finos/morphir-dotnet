@@ -34,6 +34,7 @@ let corpusTests () =
         guarded "Signed cases" (fun () -> SignedCaseTests.tests)
         guarded "JSON Schemas" (fun () -> SchemaTests.tests)
         guarded "The readiness workflow case" (fun () -> SchemaTests.workflowCaseTests)
+        guarded "Required and optional members" (fun () -> RequiredMemberTests.tests)
         guarded "Contract tables" (fun () -> ContractTableTests.tests)
         guarded "Canonical JSON" (fun () -> CanonicalJsonTests.tests)
         guarded "Writers" (fun () -> WriterTests.tests)
