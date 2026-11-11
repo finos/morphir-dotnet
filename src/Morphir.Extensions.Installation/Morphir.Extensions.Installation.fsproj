@@ -21,6 +21,8 @@
     <Compile Include="Identifiers.fs" />
     <Compile Include="Platforms.fs" />
     <Compile Include="MepSupport.fs" />
+    <Compile Include="SharedJson.fs" />
+    <Compile Include="Descriptors.fs" />
     <Compile Include="FileSafety.fs" />
     <Compile Include="Store.fs" />
     <Compile Include="Archives.fs" />

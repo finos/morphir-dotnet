@@ -3,8 +3,12 @@ Copyright 2014 - 2020 Morgan Stanley
 
 Extension installer foundations, bounded I/O and tests (#558)
 Copyright 2026 FINOS contributors.
-Original Apache-2.0 contributions. Existing dependency notices remain applicable;
-this change copies no third-party source or fixtures.
+Original Apache-2.0 contributions. Existing dependency notices remain applicable.
+The shared-reader follow-up copies unmodified FINOS/Morphir extension schemas
+and identity/package case data from finos/morphir commit
+0439c4c06d8ca6d4a46e41afb226ba0872f9bff8 under Apache-2.0. Existing FINOS and
+Morgan Stanley notices remain applicable. Source paths and exact SHA-256 hashes
+are recorded in tests/Fixtures/ExtensionAcquisition/parent-0439c4c0/manifest.json.
 
 F# source frontend and compile steel thread (#499)
 Copyright 2026 FINOS contributors.

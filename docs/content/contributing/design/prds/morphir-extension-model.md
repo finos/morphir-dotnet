@@ -304,7 +304,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | Roslyn AOT spike | Done: feasible; ships as an optional extension for now ([report](../spikes/extension-model/roslyn-aot.md)) | Spike | Decision recorded |
 | WASM analyzers | Planned | 2a | MCK suite passes in both hosts |
 | Process analyzers and .NET guest SDK | Planned | 2b | C# and F# samples pass the MCK suite in both hosts |
-| Installation, levels and staged folders | In progress: domain foundations and corrected I/O; complete installation/levels/staging unfinished | 3 | #558; security corrections pass 131 executed Windows tests with three Unix-only cases ignored. Independent re-review, Unix/MCK/AOT evidence remain. Selection/developer/command choices are approved; portable pin/overlay publication and implementation remain |
+| Installation, levels and staged folders | In progress: domain foundations and corrected I/O; complete installation/levels/staging unfinished | 3 | #558; security corrections pass 131 executed Windows tests with three Unix-only cases ignored. Static re-review of b6936ba5 found no concrete remaining finding under the approved Home boundary; Unix/MCK/AOT evidence remain. Selection/developer/command choices are approved; portable pin/overlay publication and implementation remain |
 | Extension package archive (zip and tar gzip) | In progress: generic inspection, no extraction or package-format adoption | 3 | Corrected raw gzip budgets/cancellation and metadata counts pass Windows tests. Parent tables/cases are published at `0439c4c0`; typed corpus adoption, MCK installs, extraction, full pipeline and AOT remain |
 | Generator capability | Planned | 4 | MCK suite |
 | Transformer capability | Planned | 4 | MCK suite |
@@ -335,7 +335,9 @@ proved stage substitution, missing raw gzip budgets/cancellation, global PAX
 counting and the creator/sweeper race. Corrections now pass 131 executed Windows
 tests, with three Unix-only rename/disposal cases ignored. Publication binds the
 verified open descriptor; supported mutations share an interprocess lease and
-check directory/owner identity. Re-review and Unix runtime evidence remain.
+check directory/owner identity. Independent security/interop re-review of exact
+`b6936ba5` found no concrete remaining finding in the four I/O sources/delta under
+the approved cooperating Home boundary. Unix runtime evidence remains pending.
 
 On 11 November the maintainer approved portable inventory-resolved pins, overlay
 precedence, explicit id configuration, CMD-1/stable diagnostics, generated local

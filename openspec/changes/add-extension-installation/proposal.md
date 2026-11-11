@@ -14,13 +14,17 @@ Implementation update, 11 November 2026: the installer plan merged as #567.
 Parent #1147, #1150, #1151 and #1152 are merged too. Group 1 now publishes schemas,
 member tables and fixed identity/package cases through #1156 at immutable parent
 main `0439c4c06d8ca6d4a46e41afb226ba0872f9bff8`. Shared readers will use that source
-authority and corpus in the next tranche; production URL serving is separate.
+authority and corpus in the next tranche. Root checked all seven production
+schema URLs for HTTP 200, exact `$id` and matching text against this source;
+no production raw-byte hash comparison is claimed.
 Distribution parsers, platform mappings, MEP eligibility, the single-file store,
 generic bounded archive inspection and run-directory ownership are implemented.
 Probing, extraction, inventory, transactions, activation and command integration
 are unfinished. Security review reopened task 3.3. Six runtime RED cases preceded
 the corrections, which pass 131 executed Windows tests with three Unix-only cases
-ignored. The earlier JIT probe is historical evidence; independent re-review,
+ignored. Independent security/interop re-review of exact `b6936ba5` found no
+concrete remaining finding in the four I/O sources/delta under the approved
+cooperating Home boundary. The earlier JIT probe is historical evidence;
 Unix filesystem runs and Native AOT qualification remain outstanding. Full installer and user/technical docs remain
 the destination, with every later mutating command supporting `--dry-run`.
 

@@ -13,8 +13,10 @@ command status. These library changes are not a released installer.
 
 Independent review requested security corrections to installation I/O. The fixes
 now pass 131 executed Windows tests; three Unix-only interleavings were explicitly
-ignored. Independent re-review, Unix runtime evidence and Native AOT are still
-pending. These results do not constitute security approval of a released installer.
+ignored. Independent security/interop re-review of `b6936ba5` found no concrete
+remaining finding under the approved cooperating Home boundary. Unix runtime
+evidence and Native AOT remain qualification gates. These results do not qualify
+a released installer.
 
 The installation library can verify and publish a staged single file to a
 content-addressed store, validate ZIP and tar-gzip archives without extracting
@@ -29,6 +31,11 @@ activation and installation commands remain unfinished. Shared package formats
 will use the parent contract and corpus published in finos/morphir#1156 at
 `0439c4c0`. Portable pins and generation-overlay document formats still wait on the
 separate parent toolchain contract.
+
+The first internal shared-reader increment passes 19 focused Windows tests using
+data pinned to that parent commit, including six release/schema cases and two
+I-JSON cases. It is not connected to installation commands. The remaining parent
+case operations and full claim/package validation are still being implemented.
 
 The maintainer approved project/workspace pins resolved from local inventory and
 `MORPHIR_EXTENSION_OVERLAY` above project pins. Explicit frontend `extension_id`

@@ -20,10 +20,14 @@
     <Compile Include="IdentifiersTests.fs" />
     <Compile Include="PlatformsTests.fs" />
     <Compile Include="MepLineTests.fs" />
+    <Compile Include="SharedReaderTests.fs" />
     <Compile Include="IoTestSupport.fs" />
     <Compile Include="StoreTests.fs" />
     <Compile Include="ArchiveTests.fs" />
     <Compile Include="RunCopyTests.fs" />
     <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../Fixtures/ExtensionAcquisition/parent-0439c4c0/**" Link="ParentContracts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

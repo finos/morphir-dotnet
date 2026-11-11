@@ -7,13 +7,28 @@ single files, inspects bounded archives and owns temporary run directories.
 It does not complete an extension installation yet. The CLI installation commands
 remain stubs. See the [user status page](../../docs/content/docs/cli/extension-installation.md).
 
+Shared-family readers are being added against parent `0439c4c0`. The current
+internal descriptor reader is an unfinished increment, with no installation or
+activation consumer. Its first tests use six named parent release/schema cases,
+two I-JSON cases and additional semantic regressions. The copied corpus and seven
+schemas are hash-checked offline from test output; their presence does not mean
+all 137 identity or 66 package cases have run. Complete recursive metadata,
+standalone claims, package semantics and state readers remain open. It does not
+call the older MEP/Toolchain claim codecs that convert `claimsVersion` documents.
+The first focused Windows `SharedReaders` run passes 19/19 tests, repeated after
+pinned formatting. Both I-JSON refusal cases first prove acceptance of a valid
+document. This is separate from the earlier 131-test I/O run and does not
+establish complete shared-file conformance.
+
 Independent security review of `f6d991bb` requested changes to stage-file identity,
 Unix rename-out containment, total gzip expansion/cancellation and run-directory
 creation versus sweeping. The earlier Windows 123/123 run and JIT probe are
-historical author evidence. Test-first fixes are in progress; these I/O APIs have
-not passed independent security re-review. The correction's Windows run passed
-131 executed tests, with three Unix-only interleavings explicitly ignored.
-Linux/macOS native paths and Native AOT remain unrun.
+historical author evidence. Test-first corrections at `b6936ba5` passed independent
+security/interop re-review with no concrete remaining finding in the four I/O
+sources or their delta under the approved cooperating Home boundary. The
+correction's Windows run passed 131 executed tests, with three Unix-only
+interleavings explicitly ignored. This is static review plus Windows test
+evidence. Linux/macOS native paths and Native AOT remain qualification gates.
 
 Primary API references for the publication and identity mechanisms are
 [Windows handle rename](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_rename_info),
@@ -99,8 +114,9 @@ Advisory locks and identity checks do not atomically stop an arbitrary malicious
 same-UID process from renaming a directory between syscalls or replacing a name
 after a cleanup check. Such isolation is not promised; no separate broker or
 sandbox is required. The caller must provision Morphir Home and its ancestors in
-a trusted location. Unix runtime verification and independent re-review remain
-necessary before task 3.3 is completed.
+a trusted location. Independent re-review of `b6936ba5` found no concrete remaining
+finding under this boundary. Unix runtime verification remains necessary before
+task 3.3 is completed.
 
 ## Generic archive inspection
 
