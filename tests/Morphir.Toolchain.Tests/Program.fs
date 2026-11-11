@@ -37,6 +37,7 @@ let corpusTests () =
         guarded "Required and optional members" (fun () -> RequiredMemberTests.tests)
         guarded "The readiness workflow case's data" (fun () -> WorkflowCaseTests.tests)
         guarded "Former contract crate gates" (fun () -> CorpusGateTests.tests)
+        guarded "Former contract crate reproduction gates" (fun () -> FixtureGenerationTests.tests)
         guarded "Contract tables" (fun () -> ContractTableTests.tests)
         guarded "Canonical JSON" (fun () -> CanonicalJsonTests.tests)
         guarded "Writers" (fun () -> WriterTests.tests)

@@ -47,6 +47,8 @@
     <Compile Include="RequiredMemberTests.fs" />
     <Compile Include="WorkflowCaseTests.fs" />
     <Compile Include="CorpusGateTests.fs" />
+    <Compile Include="FixtureGenerator.fs" />
+    <Compile Include="FixtureGenerationTests.fs" />
     <Compile Include="CorpusModeTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
