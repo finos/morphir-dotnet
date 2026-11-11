@@ -56,6 +56,10 @@ definition and the source come from one commit.
 | `sha256` | The file's SHA-256, lower-case hex. |
 | `release` | The release version, the latest released version in that commit's `CHANGELOG.md`. |
 
+The named release profile stamps the offering identity at build time. The registry's `host` still names the command;
+it is not inferred from the offering or process execution mode. Builds outside a named profile leave the deployment
+unspecified. The parent owns official `v<version>` tags and publishes all four offerings from the selected source.
+
 The artifact holds the file, `<file>.build-launch.json`, `<file>.build-contents.json` and `<file>.sha256` (one line in
 `sha256sum -c` format). It is kept for seven days. The workflow publishes nothing.
 
@@ -88,6 +92,8 @@ The artifact holds the file, `<file>.build-launch.json`, `<file>.build-contents.
 
 This is a start check, not platform qualification. It runs on the runner's own machine with its .NET installation,
 so it does not show that `native-aot` or `self-contained` runs without .NET, and it does not check a glibc floor.
+The reusable workflow itself has not run on GitHub. Its helper's default, `-Local` and `-ResultFile` paths have separate
+tests in `Morphir.Build.Tests`; those tests do not establish that the workflow has run.
 [Checking the release profiles from packaged artifacts](release-profile-checks.md) has the fuller checks, and no
 platform is qualified by them yet. A packaged-artifact failure seen on macOS, where a temporary input path under `/var`
 resolves to `/private/var`, is unqualified evidence: it is not a reason to weaken the link checks.
@@ -123,3 +129,8 @@ build.
 
 `morphir-mck` is a separate, development-only tool from finos/morphir. The CLI does not include it. `morphir mck <args>`
 runs it; see [mck](../content/docs/cli/mck.md).
+
+The helper and `mck` routing do not acquire or install extensions. The parent's merged extension-state and package
+plans in finos/morphir#1150 and #1151 belong to their installer follow-up. Package leases do not change this routing
+contract. Contract-test pins and CLI delivery source pins have separate purposes; updating this build interface does
+not move either pin.

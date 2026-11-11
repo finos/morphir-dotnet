@@ -23,6 +23,8 @@ dotnet morphir mck [<argument>...]
 ```
 
 Every entry point routes `mck` the same way: the Native AOT `morphir`, the managed `morphir` and `dotnet-morphir`.
+This pass-through uses `MorphirApplication.Run`. A custom host that parses through `CreateApp` first gets
+System.CommandLine's help and response-file expansion before the routing action.
 
 ## What reaches the tool
 
@@ -65,6 +67,7 @@ The message goes to standard error, and standard output stays empty.
 - **Windows.** Before it starts the tool, `morphir` joins a job object that ends every process in it when `morphir`
   ends. If `morphir` is killed, for example from Task Manager or by a CI runner, the tool and every process it started
   stop too. This also stops a process that the tool meant to leave running after it exits.
+  If the job cannot be joined, the CLI warns on standard error and continues without that kill-on-close protection.
 - **Linux and macOS.** SIGTERM or SIGHUP to `morphir` stops the tool's process tree, and `morphir` exits with 143.
   SIGKILL to `morphir` cannot be passed on, so the tool keeps running in that case.
 

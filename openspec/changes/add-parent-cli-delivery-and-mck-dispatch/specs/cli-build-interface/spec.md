@@ -23,12 +23,13 @@ executables, the `morphirup-<rid>` assets and the `Morphir.Tool` package. This h
 ### Requirement: A reusable build of one offering for one platform
 The repository SHALL provide a reusable workflow that takes a repository, a commit, an offering and a runtime
 identifier, and builds that offering for that platform with the maintained release profiles. It SHALL upload the
-archive, its build launch metadata and a SHA-256 file. The offering is one of `native-aot`, `self-contained`,
+archive, its build launch metadata, its build contents metadata and a SHA-256 file. It SHALL expose the release version
+alongside the artifact name, file name and SHA-256. The offering is one of `native-aot`, `self-contained`,
 `framework-dependent` or `dotnet-tool`.
 
 #### Scenario: The parent builds the Native AOT morphir for Linux
 - **WHEN** finos/morphir calls the workflow with this repository's commit, `native-aot` and `linux-x64`
-- **THEN** it receives an artifact with the `morphir-dotnet-<version>-native-aot-linux-x64.tar.gz` archive, its `.build-launch.json` and their SHA-256 values, built from exactly that commit
+- **THEN** it receives an artifact with the `morphir-dotnet-<version>-native-aot-linux-x64.tar.gz` archive, its `.build-launch.json`, `.build-contents.json` and archive SHA-256, built from exactly that commit
 
 ### Requirement: The build qualifies the produced executable
 For every offering except `dotnet-tool`, the reusable workflow SHALL extract the archive and start the produced
@@ -38,6 +39,20 @@ executable, not `dotnet exec` of an assembly. It SHALL check that the executable
 #### Scenario: A produced apphost is started
 - **WHEN** the workflow has built the self-contained offering for a platform
 - **THEN** it runs the `morphir` executable from the extracted archive with `--version`, and fails the job if that does not print the release version
+
+### Requirement: Tool-package checks use only the built package
+The build's shared tool-package helper SHALL isolate its feed, NuGet configuration and caches and verify the installed
+package and extracted tool files against the built bytes. It SHALL support a default tool-path install and a `-Local`
+manifest install. Its optional `-ResultFile` SHALL hold internal run evidence only after a successful check; a failed
+run SHALL leave no result file. This is a build check, not a shared acquisition or package-state contract.
+
+#### Scenario: Another feed or cache holds the same tool version
+- **WHEN** another feed or cache holds a different package with the same id and version
+- **THEN** both helper modes install and verify only the built package, and refuse different installed bytes
+
+#### Scenario: A caller requests local-install evidence
+- **WHEN** the parent calls the helper with `-Local` and `-ResultFile`
+- **THEN** the result records the verified files and the `dotnet morphir` invocation from the isolated manifest folder only after the checks pass, so the caller can run that invocation
 
 ### Requirement: The offerings and the tool identity are kept
 The build interface SHALL keep the four offerings, the `Morphir.Tool` package id and its `dotnet-morphir` command,

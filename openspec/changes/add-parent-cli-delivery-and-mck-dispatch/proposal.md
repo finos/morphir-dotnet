@@ -37,6 +37,10 @@ until the .NET runner reaches parity. Users reach it as `morphir mck`, the way `
   of the four offerings for one platform with the maintained release profiles, starts the produced executable, and
   uploads the archive, its launch metadata and its SHA-256. The four offerings, the `Morphir.Tool` package identity and
   the `dotnet-morphir` command stay as they are.
+  The upload also carries `.build-contents.json` and the workflow exposes the release version. Its shared
+  `install-tool-package.ps1` helper verifies an isolated install of the built bytes, with default tool-path and
+  `-Local` manifest modes and optional success-only `-ResultFile` evidence. This helper is a build check, not an
+  acquisition installer.
 
 ## Capabilities
 
@@ -60,13 +64,27 @@ None. The offerings themselves (`dotnet-deployment-profiles` in `add-deployment-
   removal of the Rust product CLI).
 - Decisions 15 and 16, and modified 16A, of finos/morphir#1146.
 
+The parent owns the shared contracts. finos/morphir#1147 is merged at `836deccc5abfdf2a67fb555ec69d2bd561a13c4d`,
+and #1152 at `776744f2cc709ff8c6ecf3c3fea2cf055d8cc2c9` sets one version per contract family, a required published
+schema URL and exact prerelease matching without conversion. Any valid SemVer prerelease label is allowed; the
+extension state family keeps `0.1.0-preview.1`. MEP 0.2, IR and tool release metadata v1 remain separate authorities.
+This change renames or converts no contract and adds no Rust acquisition crate.
+
+finos/morphir#1150, merged at `ec363c61dd955d6979e1c9f7cf94592d19f348ad`, owns shared extension state, locks and
+old-state backups. #1151, merged at `cd391b07564823c14389d42cd14f05e89824e4f8`, owns package planning. Its VERIFY-B
+decision checks manifest digest, names, sizes and modes at activation, with full file hashes at install and on
+request. LAUNCH-A uses shared-store launch with a process-tree lease and explicit collection, never uninstall, to
+delete bytes. Package-version timing remains open under its task 1.1. Those requirements belong to the installer
+and package follow-ups. They do not add package leases or installation to the `mck` dispatcher.
+
 ## Impact
 
 - **Code:**
   - `src/Morphir.Tooling` (the shared command layer: `MorphirApplication`, a new `Features/Mck` slice);
   - `tests/Morphir.Tooling.Tests` (the resolution unit tests);
+  - `tests/Morphir.Build.Tests` (publication, workflow and tool-package helper checks);
   - a new test stub `tests/Morphir.Mck.Stub`;
-  - `tests/Morphir.Tests`, which runs produced apphosts as subprocesses.
+  - `tests/Morphir.Tests` and `tests/Morphir.Managed.Tests`, which run produced apphosts as subprocesses.
 - **Workflows:** `.github/workflows/deployment.yml` (the CLI publication gate) and a new
   `.github/workflows/cli-offering.yml`.
 - **Docs:** `docs/content/docs/cli/mck.md`, the CLI reference index, a contributing page on the parent build

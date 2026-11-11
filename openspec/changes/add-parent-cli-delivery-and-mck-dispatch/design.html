@@ -65,11 +65,23 @@ Decision 16A, is the only MCK executable for now.</li>
 <li><strong>Process code already exists.</strong> <code>Morphir.Tooling/Infrastructure/BoundedProcess.cs</code> runs a child with captured pipes, a
 deadline and a byte budget, and stops its tree, with <code>kill</code> on a process group on Unix. Routing needs the
 opposite: inherited streams and no budget.</li>
-<li><strong>Publication today.</strong> <code>.github/workflows/deployment.yml</code> builds the legacy <code>morphir-&lt;rid&gt;</code> single-file executables
-and morphirup on four runners. Its <code>release</code> job pushes every library package and <code>Morphir.Tool</code> with
-<code>PublishAll</code>, and <code>create-github-release</code> attaches <code>morphir-*</code> and <code>morphirup-*</code>. The named release profiles
-(<code>PublishRelease</code>, <code>PackRelease</code>) exist but no workflow publishes them.</li>
+<li><strong>Publication in this change.</strong> <code>.github/workflows/deployment.yml</code> publishes libraries and both F# extension tools.
+It builds and publishes the legacy CLI assets, morphirup and <code>Morphir.Tool</code> only behind the rollback variable.
+The parent owns official delivery through <code>cli-offering.yml</code> and the named release profiles
+<code>PublishRelease</code> and <code>PackRelease</code>. This change publishes no release.</li>
+<li><strong>Main integration.</strong> The 11 November refresh retains main at <code>017e05b1</code>, including build-time offering identity,
+<code>setup --dry-run</code>, the contract corpus, reserved Morphir IDs, frontend schema object members, the cancellation test fix
+and the recorded macOS minimum. Every entry point still calls <code>MorphirApplication.Run</code>, so routing stays before parsing
+and does not alter the host or offering identities.</li>
 </ul>
+<p>The shared-contract authorities are merged parent changes, not decisions made here. finos/morphir#1147 owns the
+toolchain contracts; #1152 requires one version per family, published schema URLs and exact prerelease matching without
+conversion. Any valid SemVer prerelease label is allowed; the extension state family keeps <code>0.1.0-preview.1</code>.
+MEP 0.2, IR and tool release metadata v1 retain their separate authorities. #1150 owns shared extension state, locks and
+old-state backups. #1151's VERIFY-B checks manifest digest, names, sizes and modes at activation, with full file hashes
+at install and on request; LAUNCH-A launches packages from the shared store with a process-tree lease and deletes bytes
+only by explicit collection, never uninstall. Package-version timing is still its task 1.1. Package implementation is
+outside this change, and those leases do not change the approved <code>mck</code> process contract.</p>
 
 <h2 id="goals">Goals and non-goals</h2>
 <p><strong>Goals.</strong></p>
@@ -111,7 +123,8 @@ tree, and routes the rest of the arguments unparsed.</p>
 <li><strong>Why before the parser.</strong> Pass-through must be exact. System.CommandLine applies its recursive <code>--help</code> and its
 response-file (<code>@file</code>) expansion before any action runs.</li>
 <li><strong>Why it is still a command.</strong> The tree also gets an <code>mck</code> command that takes the remaining tokens and routes them the
-same way, so that <code>morphir --help</code> lists it and a host built with <code>CreateApp</code> (as tests do) behaves the same.</li>
+same way, so that <code>morphir --help</code> lists it. A host built with <code>CreateApp</code> alone parses first: System.CommandLine
+handles help and expands response files before the action. Only <code>Run</code> gives the unparsed pass-through contract.</li>
 <li><strong>Alternative.</strong> Only a command with <code>TreatUnmatchedTokensAsErrors = false</code>. Rejected, because help and response
 files would still be interpreted.</li>
 </ul>
@@ -153,6 +166,9 @@ ends every process in the job. If the job cannot be created (an old system that 
 without it and says so on standard error.</li>
 <li><strong>A cancellation token</strong> (the command-tree path) kills the tool's tree.</li>
 </ul>
+<p>Signal handlers and cancellation are registered before process start. An already cancelled token starts nothing and
+returns 130. A request during start stops the tree once it attaches. Partial tree-stop failures are reported on standard
+error rather than escaping a signal handler. These paths use <code>MckTermination</code>; no package-store lease is involved.</p>
 <p><strong>Alternative.</strong> Assigning the child to a job after <code>Process.Start</code>. Rejected: the child can start processes before it
 is assigned.</p>
 
@@ -180,7 +196,9 @@ the stub and its grandchild.</li>
 <ul>
 <li><code>build-executables</code>, <code>build-morphirup</code> and the CLI parts of <code>create-github-release</code> run only when
 <code>vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled'</code>.</li>
-<li>The <code>release</code> job runs <code>PublishLibs</code>, plus <code>PublishTool</code> only under the same condition.</li>
+<li>The <code>release</code> job always runs <code>PublishLibs</code> and <code>PublishExtensionTools</code>, and runs
+<code>PublishCliTool</code> only under the same condition. <code>PublishTool</code> still combines both tool targets,
+and <code>PublishAll</code> keeps its earlier scope.</li>
 <li>The GitHub release of this repository is still created, for the library release notes, with no CLI assets unless
 enabled.</li>
 </ul>
@@ -208,13 +226,23 @@ rollback.</p>
 </ul>
 <p>It checks out that repository at that ref with full history, because the version comes from the CHANGELOG and the
 commit. It sets up the SDK from the checkout's <code>global.json</code> and runs <code>./build.sh --target PackRelease</code>. It
-qualifies the result:</p>
+checks that the result starts:</p>
 <ul>
 <li>an archive is extracted and its <code>morphir</code> apphost or Native AOT executable is started with <code>--version</code>;</li>
-<li>the tool package is installed into a tool path and <code>dotnet-morphir --version</code> is started.</li>
+<li>the tool package is installed into a tool path by <code>.github/scripts/install-tool-package.ps1</code> and
+<code>dotnet-morphir --version</code> is started. The helper uses a feed containing only the built package, an isolated
+NuGet configuration and fresh caches, then checks the installed package and every extracted tool file against the built bytes.</li>
 </ul>
 <p>It uploads the artifact <code>morphir-dotnet-&lt;deployment&gt;-&lt;rid|any&gt;</code>, with the archive or package, its
-<code>.build-launch.json</code> and a <code>.sha256</code> file. Its outputs are the artifact name, the file name and the SHA-256.</p>
+<code>.build-launch.json</code>, <code>.build-contents.json</code> and a <code>.sha256</code> file. Its outputs are the artifact name,
+the file name, the SHA-256 and the release version. The executable's version before <code>+</code> must match that release.</p>
+<p>The same helper supports <code>-Local</code> for a manifest install invoked as <code>dotnet morphir</code>, and
+<code>-ResultFile</code> for internal JSON evidence written only after all checks pass. Both install modes verify the built bytes.
+The parent consumes this helper; it must not gain a second installer or checker. These are build checks, not acquisition.</p>
+<p>The parent owns official <code>v&lt;version&gt;</code> release tags. This workflow publishes nothing and has not itself run on
+GitHub. Its start check on an SDK-equipped runner proves neither .NET-free execution nor a glibc floor. It grants no
+release or platform qualification. The parent's contract-test pin <code>f89dda45</code> is separate from its CLI delivery
+source candidate; this refresh changes neither pin.</p>
 <ul>
 <li><strong>Why the caller's ref is checked out.</strong> In a reusable workflow, <code>actions/checkout</code> checks out the caller's
 repository by default.</li>
@@ -230,7 +258,8 @@ part of the documented interface.</li>
 <tbody>
 <tr><td>Between this change and the parent's first release, no CLI is published anywhere.</td><td>No production release is planned. <code>MORPHIR_DOTNET_CLI_PUBLICATION=enabled</code> restores publication here if one is needed.</td></tr>
 <tr><td>The job object also ends a process that the tool meant to leave running after it exits.</td><td>A gate tool has no reason to leave daemons; this is stated in the docs. The job applies only to <code>mck</code>.</td></tr>
-<tr><td>On Linux and macOS a SIGKILL of the CLI cannot be forwarded, so the tool keeps running.</td><td>Stated as a limit. SIGTERM, SIGINT and cancellation are covered and tested.</td></tr>
+<tr><td>On Linux and macOS a SIGKILL of the CLI cannot be forwarded, so the tool keeps running.</td><td>Stated as a limit. Strict SIGTERM checks passed for the native-composition and dotnet-tool apphosts. Ctrl+C, SIGHUP and managed Unix SIGTERM lack automated coverage.</td></tr>
+<tr><td>At <code>8c15df59</code>, Linux SIGTERM tests timed out waiting for the grandchild.</td><td>Later passes at <code>5b84ddda</code> and <code>51be09f2</code> do not explain the failure. Retain it as unresolved evidence; do not claim a root cause or qualify a platform.</td></tr>
 <tr><td>Ctrl+C sent to the CLI's process id alone (<code>kill -INT</code>), not to its group, does not reach the tool.</td><td>The tool still stops on SIGTERM or when the CLI's tree is stopped. Interactive Ctrl+C reaches the whole group.</td></tr>
 <tr><td>The reusable workflow builds what the profiles define. A qualification gap in a profile (the macOS packaged input path under <code>/var</code>, which resolves to <code>/private/var</code>) carries into the parent.</td><td>It is recorded as unqualified evidence, and no link check is weakened.</td></tr>
 <tr><td>Tests that start apphosts depend on the runtime being found.</td><td>The tests pass <code>DOTNET_ROOT</code> from the test's own runtime.</td></tr>
@@ -253,6 +282,9 @@ a tool it is a diagnostic.</li>
 <ul>
 <li><strong>When the job definitions are deleted.</strong> The variable-gated jobs can be removed once the parent has published a
 release. That is a follow-up change, not part of this one.</li>
+<li><strong>Validation of the refreshed head.</strong> All 13 checks and the independent no-blocker review concern exactly
+<code>51be09f25107145f10c3046da333cc781dc2724a</code>. They do not review or validate the new main integration. Root owns
+new-head CI and review; this merge/docs refresh runs no local .NET build, test or publish while its heavy CPU slot is reserved.</li>
 </ul>
 
 </main>

@@ -31,11 +31,16 @@ Commands follow the repository's build settings: `dotnet build <project> -c Rele
   directory only, and that `morphir lint` starts nothing. Verify they fail before 2.2.
 - [x] 2.2 Implement the routing in `MorphirApplication.Run` before the command tree, with inherited streams, the exit
   code, the 127 diagnostic, and an `mck` command so that `morphir --help` lists it. Verify the 2.1 tests pass.
-- [ ] 2.3 Add the Windows job object (kill on close), Ctrl+C handling, and SIGTERM or SIGHUP stopping the tool's tree on Unix.
+- [x] 2.3 Add the Windows job object (kill on close), Ctrl+C handling, and SIGTERM or SIGHUP stopping the tool's tree on Unix.
   Verify with a subprocess test that killing the CLI on Windows stops the stub and its grandchild, and on Unix that
   SIGTERM stops the tree.
-  - Windows half verified locally, with a mutation check (the kill test fails without the job object). The Unix SIGTERM
-    test is written but skips on Windows; it is not ticked until it passes on Linux and macOS CI.
+  - The stated Windows-kill and Unix-SIGTERM checks passed at `51be09f25107145f10c3046da333cc781dc2724a`,
+    [CI run 42898613660](https://github.com/finos/morphir-dotnet/actions/runs/42898613660). Both strict SIGTERM cases,
+    `morphir` and `dotnet-morphir`, passed on Linux and macOS; Windows passed its kill tests. The local Windows
+    mutation check fails without the job object. Task completion records those checks, not platform qualification.
+    The earlier Linux grandchild timeout at `8c15df59`, run 42882875643, remains unexplained. Later passing runs do
+    not establish its cause or prove it cannot recur. Ctrl+C, SIGHUP and managed `morphir` SIGTERM on Unix remain
+    untested by automation.
 - [x] 2.4 Add a subprocess test that the managed `morphir` routes `mck` the same way, in `tests/Morphir.Managed.Tests`,
   and verify it passes.
 - [x] 2.5 Document `morphir mck` in `docs/content/docs/cli/mck.md` and the CLI index, and add a CHANGELOG entry. Verify
@@ -48,8 +53,12 @@ Commands follow the repository's build settings: `dotnet build <project> -c Rele
   `tests/Morphir.Build.Tests` that reads the workflow and with `actionlint`.
 - [x] 3.2 Add `.github/workflows/cli-offering.yml` (`workflow_call` with `repository`, `ref`, `deployment`, `rid`, `os`,
   `configuration`) that builds one offering with `PackRelease`, starts the produced executable or the installed
-  `dotnet-morphir` with `--version`, and uploads the archive, `.build-launch.json` and `.sha256`. Verify with a test
-  that pins its inputs and offerings and with `actionlint`.
+  `dotnet-morphir` with `--version`, and uploads the archive, `.build-launch.json`, `.build-contents.json` and `.sha256`.
+  Verify with a test that pins its inputs and offerings and with `actionlint`.
+  - `.github/scripts/install-tool-package.ps1` is the parent's shared helper for checking the built tool package.
+    Keep its default tool-path install, `-Local` manifest install and success-only `-ResultFile` evidence interface.
+    The seven `ToolPackageInstallTests` cover feed/cache conflicts, byte checks, both install modes and result files;
+    all passed on Linux, macOS and Windows in run 42898613660. The reusable workflow itself has not run on GitHub.
 - [x] 3.3 Document the build interface for finos/morphir (targets, inputs, outputs, qualification of produced
   executables, the version source, the publication switch) in `docs/contributing`. Verify the documented commands match
   the workflow.
@@ -61,9 +70,25 @@ Commands follow the repository's build settings: `dotnet build <project> -c Rele
   - Done on win-arm64, 10 November 2026: the Release solution build has 0 errors and none of its warnings come from changed files.
     Morphir.Tests 49 passed (2 Unix skips), Morphir.Managed.Tests 12 passed, Morphir.Tooling.Tests 1001 passed (1 Unix skip).
     The Native AOT win-arm64 pack has no IL or AOT warning in changed files. Its produced morphir.exe routes mck,
-    exits with 127 without a tool, and its job object stops the tool and the tool's child. Linux and macOS were not run.
+    exits with 127 without a tool, and its job object stops the tool and the tool's child. These local runs predate the
+    Linux, macOS and Windows CI evidence at `51be09f2` recorded under 2.3.
 - [x] 4.2 Run `openspec validate add-parent-cli-delivery-and-mck-dispatch --strict` and `mise run openspec:verify`, and
   verify both pass.
+
+## Refresh against main, 11 November 2026
+
+- Merged `origin/main` at `017e05b11ea2cb75a1a4a1c60df792f8247b5a9e` normally. Both CHANGELOG sides are retained.
+  The two test lock-file auto-merges keep main's `Morphir.Compilation` dependency and this change's MCK stub.
+  Offering identity, setup `--dry-run`, contract-corpus checks, reserved Morphir IDs, frontend schema object members,
+  the cancellation-observation test fix and the documented macOS minimum are retained from main.
+- All 13 checks and the independent no-blocker review apply to the old exact head `51be09f2`. The refreshed head
+  needs its own CI and review. No local .NET build, test or publish is run for this merge/docs refresh because the
+  root thread has reserved the heavy CPU slot. The earlier 4.1 evidence is not a build of the refreshed head.
+- Parent contracts and package planning are merged: finos/morphir#1147, #1152, #1150 and #1151. Their ownership and
+  remaining package-version timing are recorded in the proposal and design. No package or installation work is
+  added here. The parent contract-test pin `f89dda45` and its CLI delivery source pin have separate purposes.
+- The parent's CLI delivery candidate remains held in finos/morphir#1155. This refresh changes no source pin, parent
+  checkout, contract fixture or version. Root owns refreshed-head review, CI monitoring and merge approval.
 
 ## Workflow follow-up
 
