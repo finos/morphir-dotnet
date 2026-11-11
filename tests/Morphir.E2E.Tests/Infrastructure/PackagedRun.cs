@@ -56,6 +56,12 @@ public static class PackagedRun
     internal static string CreateWorkingDirectory(string sandboxRoot) =>
         CanonicalPath.Of(Directory.CreateDirectory(Path.Combine(sandboxRoot, WorkDirectoryName)).FullName);
 
+    internal static (string Boundary, string WorkDirectory) CreateWorkspace(string sandboxRoot)
+    {
+        var boundary = CanonicalPath.Of(sandboxRoot);
+        return (boundary, CreateWorkingDirectory(boundary));
+    }
+
     public static Task<PackagedRunResult> RunAsync(
         PackagedInstallation installation, string[] arguments, RuntimeAccess access, Action<string>? prepare = null) =>
         RunLaunchAsync(installation.LaunchPath, installation.Directory, () => arguments, access, prepare);
@@ -81,13 +87,14 @@ public static class PackagedRun
         string launchPath, string installationDirectory, Func<string[]> arguments, RuntimeAccess access, Action<string>? prepare)
     {
         await using var sandbox = TestSandbox.Create("morphir-packaged-");
-        var work = CreateWorkingDirectory(sandbox.Root);
+        var workspace = CreateWorkspace(sandbox.Root);
+        var work = workspace.WorkDirectory;
         prepare?.Invoke(work);
         var trace = Path.Combine(sandbox.Root, "host-trace.txt");
 
         var start = ChildProcess.StartInfo(launchPath, arguments());
         start.WorkingDirectory = work;
-        sandbox.Apply(start, new SandboxOptions { Boundary = sandbox.Root });
+        sandbox.Apply(start, new SandboxOptions { Boundary = workspace.Boundary });
         start.Environment["COREHOST_TRACE"] = "1";
         start.Environment["COREHOST_TRACEFILE"] = trace;
         if (access == RuntimeAccess.Hidden)

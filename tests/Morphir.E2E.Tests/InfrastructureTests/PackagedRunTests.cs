@@ -33,6 +33,30 @@ public sealed class PackagedRunTests
     }
 
     [Test]
+    public void ALinkedTemporaryRootKeepsTheWorkingDirectoryInsideItsDiscoveryBoundary()
+    {
+        using var sandbox = TestSandbox.Create("morphir packaged boundary ");
+        var target = Directory.CreateDirectory(sandbox.PathOf("physical sandbox")).FullName;
+        var alias = sandbox.PathOf("linked sandbox");
+        try
+        {
+            Directory.CreateSymbolicLink(alias, target);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException)
+        {
+            Skip.Test($"This account cannot create a symbolic link here: {exception.Message}");
+        }
+
+        var workspace = PackagedRun.CreateWorkspace(alias);
+        workspace.Boundary.Should().Be(CanonicalPath.Of(target),
+            "discovery compares the physical working directory with the same physical boundary");
+        Path.GetRelativePath(workspace.Boundary, workspace.WorkDirectory).Should().Be(PackagedRun.WorkDirectoryName);
+        var start = new ProcessStartInfo("morphir") { WorkingDirectory = workspace.WorkDirectory };
+        sandbox.Apply(start, new SandboxOptions { Boundary = workspace.Boundary });
+        start.Environment["MORPHIR_DISCOVERY_BOUNDARY"].Should().Be(CanonicalPath.Of(target));
+    }
+
+    [Test]
     public void ThePackagedWorkingDirectoryHasNoLinkedAncestor()
     {
         using var sandbox = TestSandbox.Create("morphir packaged paths ");
