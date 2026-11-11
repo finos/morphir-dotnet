@@ -217,11 +217,16 @@ let relink (set: MetadataSet) =
 /// versions their envelopes state.
 let sourceOf (set: MetadataSet) (laterRoots: Value list) : MetadataSource =
     let roots = (set.Root :: laterRoots) |> List.map (fun root -> versionOf root, canonical root) |> Map.ofList
+    // A malformed fixture mutation is a harness failure, not an unavailable repository. Materialize these before
+    // refresh enters the production transport boundary, which deliberately converts source exceptions to refusals.
+    let timestamp = served "timestamp" set
+    let snapshot = served "snapshot" set
+    let targets = served "targets" set
 
     { Root = fun version -> roots.TryFind version
-      Timestamp = fun () -> Some(served "timestamp" set)
-      Snapshot = fun version -> if version = versionOf set.Snapshot then Some(served "snapshot" set) else None
-      Targets = fun version -> if version = versionOf set.Targets then Some(served "targets" set) else None }
+      Timestamp = fun () -> Some timestamp
+      Snapshot = fun version -> if version = versionOf set.Snapshot then Some snapshot else None
+      Targets = fun version -> if version = versionOf set.Targets then Some targets else None }
 
 /// The fixture's reference time, the trusted start time of every refresh in these tests.
 let referenceTime = DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero)

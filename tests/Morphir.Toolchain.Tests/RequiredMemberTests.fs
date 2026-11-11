@@ -255,7 +255,7 @@ let tests =
                 | outcome -> outcome
 
             let _, _, failures, _ = sweepWith mutant
-            Expect.isNonEmpty failures "the diagnostics.role omission mutation must be caught")
+            Expect.contains failures "result: diagnostics.role: the reader never accepts its schema-valid absence" "the diagnostics.role omission mutation must be caught")
 
         testCase "the schemas and readers require the same members, and only the pages' members are optional" (fun () ->
             let optional, present, failures, checkedRemovals = sweep ()

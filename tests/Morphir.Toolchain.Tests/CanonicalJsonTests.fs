@@ -90,6 +90,16 @@ let tests =
                 Expect.equal (Code.readerName refusal.Code, DocumentPath.render refusal.Path) ("invalid_value", "plan.unknown[0].x") "the exact member"
             | Ok _ -> failtest "a plan cannot carry an integer past the bound")
 
+        testCase "unknown numbers outside a plan are still ignored" (fun () ->
+            let original =
+                match Syntax.parseJson (Fixtures.bytes "result/setup-plan-escaping.json") with
+                | Ok(Value.Object members) -> members
+                | _ -> failtest "the result fixture is an object"
+
+            for spelling in [ System.String('9', 80); "1.5" ] do
+                let bytes = JsonText.toBytes (Value.Object(("unknown", Value.Number spelling) :: original))
+                Expect.isOk (ResultDocument.read bytes) spelling)
+
         testCase "the escaping fixture's plan digest is the SHA-256 of its canonical bytes" (fun () ->
             let canonical = Fixtures.bytes "result/setup-plan-escaping.plan.canonical.json"
 

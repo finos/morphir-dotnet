@@ -973,26 +973,42 @@ let tests =
             let run metadata mutations action = runTrustCase TufFixture.referenceTime "synthetic" metadata mutations action
             let quoted (a: string) (b: string) = "\"" + a + "\":\"" + b + "\""
 
+            yield testCase "a role-text harness failure cannot become repository_unavailable" (fun () ->
+                for role in [ "timestamp"; "snapshot"; "targets" ] do
+                    let mutations =
+                        [ ReplaceRoleText(role, quoted "_type" role, quoted "_type" "replaced")
+                          SetSignedMember(role, "/_type", Value.String "edited") ]
+
+                    Expect.throwsT<AssertException> (fun () -> run "metadata" mutations Load |> ignore) $"{role}: invalid fixture text must fail outside refresh")
+
+            yield testCase "JSON pointers preserve root, empty names and escaped names" (fun () ->
+                let original = Value.Object [ "", Value.Number "1"; "~", Value.Number "2"; "a/b", Value.Number "3"; "~1", Value.Number "4" ]
+                Expect.equal (setAtPointer "" Value.Null original) Value.Null "the empty pointer names the root"
+                Expect.equal (setAtPointer "/" Value.Null original) (Value.Object [ "", Value.Null; "~", Value.Number "2"; "a/b", Value.Number "3"; "~1", Value.Number "4" ]) "an empty member name"
+                Expect.equal (setAtPointer "/~0" Value.Null original) (Value.Object [ "", Value.Number "1"; "~", Value.Null; "a/b", Value.Number "3"; "~1", Value.Number "4" ]) "a tilde"
+                Expect.equal (setAtPointer "/a~1b" Value.Null original) (Value.Object [ "", Value.Number "1"; "~", Value.Number "2"; "a/b", Value.Null; "~1", Value.Number "4" ]) "a slash"
+                Expect.equal (setAtPointer "/~01" Value.Null original) (Value.Object [ "", Value.Number "1"; "~", Value.Number "2"; "a/b", Value.Number "3"; "~1", Value.Null ]) "escapes are decoded once")
+
             yield testCase "an unknown mutation op fails" (fun () ->
                 let case = caseOf """{"name":"made up","mutations":[{"op":"made-up-mutation","target":"nothing"}]}"""
-                Expect.throws (fun () -> trustMutations "made up" case |> ignore) "an unknown op fails")
+                Expect.throwsT<AssertException> (fun () -> trustMutations "made up" case |> ignore) "an unknown op fails")
 
             yield testCase "a mutation member its op does not define fails" (fun () ->
                 let case = caseOf """{"name":"extra","mutations":[{"op":"relink","role":"targets"}]}"""
-                Expect.throws (fun () -> trustMutations "extra" case |> ignore) "an unknown member fails")
+                Expect.throwsT<AssertException> (fun () -> trustMutations "extra" case |> ignore) "an unknown member fails")
 
             yield testCase "a mutation without a member its op defines fails" (fun () ->
                 let case = caseOf """{"name":"missing","mutations":[{"op":"replace-role","role":"timestamp"}]}"""
-                Expect.throws (fun () -> trustMutations "missing" case |> ignore) "a missing member fails")
+                Expect.throwsT<AssertException> (fun () -> trustMutations "missing" case |> ignore) "a missing member fails")
 
             yield testCase "a trust case without a mutations array fails" (fun () ->
-                Expect.throws (fun () -> trustMutations "none" (caseOf """{"name":"none"}""") |> ignore) "missing"
-                Expect.throws (fun () -> trustMutations "object" (caseOf """{"name":"object","mutations":{"op":"relink"}}""") |> ignore) "an object")
+                Expect.throwsT<AssertException> (fun () -> trustMutations "none" (caseOf """{"name":"none"}""") |> ignore) "missing"
+                Expect.throwsT<AssertException> (fun () -> trustMutations "object" (caseOf """{"name":"object","mutations":{"op":"relink"}}""") |> ignore) "an object")
 
             yield testCase "an unknown action, or an action member its op does not define, fails" (fun () ->
-                Expect.throws (fun () -> trustAction "unknown" (caseOf """{"op":"made-up-action"}""") |> ignore) "unknown op"
-                Expect.throws (fun () -> trustAction "extra" (caseOf """{"op":"load","target":"x"}""") |> ignore) "extra member"
-                Expect.throws (fun () -> trustAction "missing" (caseOf """{"op":"read"}""") |> ignore) "missing member"
+                Expect.throwsT<AssertException> (fun () -> trustAction "unknown" (caseOf """{"op":"made-up-action"}""") |> ignore) "unknown op"
+                Expect.throwsT<AssertException> (fun () -> trustAction "extra" (caseOf """{"op":"load","target":"x"}""") |> ignore) "extra member"
+                Expect.throwsT<AssertException> (fun () -> trustAction "missing" (caseOf """{"op":"read"}""") |> ignore) "missing member"
 
                 Expect.throws
                     (fun () -> trustAction "change" (caseOf """{"op":"check-recipe-bindings","recipe":"r","documentMutations":[{"pointer":"/a","value":1,"x":2}]}""") |> ignore)
@@ -1018,15 +1034,15 @@ let tests =
 
             yield testCase "a target mutation of a load, an authentication or a launch check fails, since none reads served bytes" (fun () ->
                 let mutation = [ ReplaceTargetBytes(recipe, other) ]
-                Expect.throws (fun () -> run "metadata" mutation Load |> ignore) "load"
-                Expect.throws (fun () -> run "metadata" mutation (Authenticate(release, "x")) |> ignore) "authenticate"
-                Expect.throws (fun () -> run "metadata" [ ReplaceTargetBytes(release, other) ] (CheckLockedGeneration "fsharp-native-aot.lock.json") |> ignore) "a launch check reads only the recipe")
+                Expect.throwsT<AssertException> (fun () -> run "metadata" mutation Load |> ignore) "load"
+                Expect.throwsT<AssertException> (fun () -> run "metadata" mutation (Authenticate(release, "x")) |> ignore) "authenticate"
+                Expect.throwsT<AssertException> (fun () -> run "metadata" [ ReplaceTargetBytes(release, other) ] (CheckLockedGeneration "fsharp-native-aot.lock.json") |> ignore) "a launch check reads only the recipe")
 
             yield testCase "a mutation of a target the action never reads fails" (fun () ->
-                Expect.throws (fun () -> run "metadata" [ ReplaceTargetBytes("releases/morphir-v1-control/1.2.3.json", other) ] (Read release) |> ignore) "never read")
+                Expect.throwsT<AssertException> (fun () -> run "metadata" [ ReplaceTargetBytes("releases/morphir-v1-control/1.2.3.json", other) ] (Read release) |> ignore) "never read")
 
             yield testCase "a text mutation whose text is not in the target fails" (fun () ->
-                Expect.throws (fun () -> ServedTargets("absent", [ ReplaceTargetText(recipe, "no such text", "x") ]) |> ignore) "not applied")
+                Expect.throwsT<AssertException> (fun () -> ServedTargets("absent", [ ReplaceTargetText(recipe, "no such text", "x") ]) |> ignore) "not applied")
 
             yield testCase "target mutations apply in order: a later one takes bytes an earlier one changed" (fun () ->
                 let original = Encoding.UTF8.GetString(targetBytes other)
@@ -1037,7 +1053,7 @@ let tests =
                 let served = ServedTargets("ordered", mutations)
                 Expect.stringContains (Encoding.UTF8.GetString(served.Served release)) replace "the changed bytes"
                 served.ExpectAllApplied "read"
-                Expect.throws (fun () -> ServedTargets("unread", mutations).ExpectAllApplied "read") "nothing read")
+                Expect.throwsT<AssertException> (fun () -> ServedTargets("unread", mutations).ExpectAllApplied "read") "nothing read")
 
             yield testCase "a relink keeps a replace-role-text replacement of the snapshot" (fun () ->
                 // Review of #591: relink dropped the snapshot's and timestamp's served overrides.
@@ -1065,20 +1081,20 @@ let tests =
                         (TufFixture.metadataSet "metadata")
                         [ ReplaceRoleText("timestamp", quoted "_type" "timestamp", quoted "_type" "x"); SetSignedMember("timestamp", "/_type", Value.String "other") ]
 
-                Expect.throws (fun () -> TufFixture.served "timestamp" removed |> ignore) "the text is gone")
+                Expect.throwsT<AssertException> (fun () -> TufFixture.served "timestamp" removed |> ignore) "the text is gone")
 
             yield testCase "a second replace-role-text of a role fails" (fun () ->
                 let twice = [ ReplaceRoleText("targets", quoted "_type" "targets", quoted "_type" "a"); ReplaceRoleText("targets", quoted "_type" "a", quoted "_type" "b") ]
-                Expect.throws (fun () -> applyMetadataMutations (TufFixture.metadataSet "metadata") twice |> ignore) "not composed")
+                Expect.throwsT<AssertException> (fun () -> applyMetadataMutations (TufFixture.metadataSet "metadata") twice |> ignore) "not composed")
 
             yield testCase "a pointer must name a member or element that exists" (fun () ->
                 let set mutation = applyMetadataMutations (TufFixture.metadataSet "metadata") [ mutation ] |> ignore
-                Expect.throws (fun () -> set (SetSignedMember("timestamp", "/no-such-member", Value.String "x"))) "a missing member"
-                Expect.throws (fun () -> set (SetSignedMember("timestamp", "version", Value.String "x"))) "no leading slash"
-                Expect.throws (fun () -> set (SetSignedMember("root", "/version", Value.String "x"))) "a role a set does not serve"
+                Expect.throwsT<AssertException> (fun () -> set (SetSignedMember("timestamp", "/no-such-member", Value.String "x"))) "a missing member"
+                Expect.throwsT<AssertException> (fun () -> set (SetSignedMember("timestamp", "version", Value.String "x"))) "no leading slash"
+                Expect.throwsT<AssertException> (fun () -> set (SetSignedMember("root", "/version", Value.String "x"))) "a role a set does not serve"
                 let array = Value.Object [ "a", Value.Array [ Value.Number "1" ] ]
                 Expect.equal (setAtPointer "/a/0" (Value.Number "2") array) (Value.Object [ "a", Value.Array [ Value.Number "2" ] ]) "an element"
-                Expect.throws (fun () -> setAtPointer "/a/1" Value.Null array |> ignore) "past the end"
-                Expect.throws (fun () -> setAtPointer "/a/00" Value.Null array |> ignore) "a leading zero")
+                Expect.throwsT<AssertException> (fun () -> setAtPointer "/a/1" Value.Null array |> ignore) "past the end"
+                Expect.throwsT<AssertException> (fun () -> setAtPointer "/a/00" Value.Null array |> ignore) "a leading zero")
         ]
     ]
