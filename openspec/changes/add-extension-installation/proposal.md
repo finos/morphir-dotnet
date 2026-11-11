@@ -14,9 +14,11 @@ Implementation update, 11 November 2026: the installer plan merged as #567.
 Parent #1147, #1150, #1151 and #1152 are merged too. Their approval is separate
 from parent group 1's ongoing publication of schemas, member tables and fixed
 identity/package cases. Those inputs still gate document and package codecs.
-Distribution parsers, platform mappings and MEP eligibility are implemented;
-store, probing, activation and command integration are not. Native AOT
-qualification remains outstanding. Full installer and user/technical docs remain
+Distribution parsers, platform mappings, MEP eligibility, the single-file store,
+generic bounded archive inspection and run-directory ownership are implemented.
+Probing, extraction, inventory, transactions, activation and command integration
+are unfinished. Windows tests and the C# JIT probe pass; Unix filesystem runs and
+Native AOT qualification remain outstanding. Full installer and user/technical docs remain
 the destination, with every later mutating command supporting `--dry-run`.
 
 A developer on Windows adds a local extension repository and installs a process backend from it. A second project pins a newer version of the same backend without changing the global selection, and a `morphirup` toolchain generation selects its own versions over the shared store. A teammate who clones a repository with an extension package archive in `.morphir/extensions/staged/` gets a clear message, and no code from the clone runs until they install it.

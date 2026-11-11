@@ -1,7 +1,7 @@
 Morphir - FINOS
 Copyright 2014 - 2020 Morgan Stanley
 
-Extension installer foundations and tests (#558)
+Extension installer foundations, bounded I/O and tests (#558)
 Copyright 2026 FINOS contributors.
 Original Apache-2.0 contributions. Existing dependency notices remain applicable;
 this change copies no third-party source or fixtures.

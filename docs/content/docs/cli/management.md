@@ -210,8 +210,10 @@ morphir tool which <name> [options]
 ## Extension Commands
 
 `extension list` is available. Installation, selection and removal commands are
-still stubs. The installation library currently provides portable-value parsers,
-platform mappings and MEP eligibility checks; it does not install files yet.
+still stubs. The installation library provides portable-value parsers,
+platform mappings, MEP eligibility checks, a verified single-file store, bounded
+archive inspection and temporary run-directory ownership. The complete install
+pipeline is unfinished. See [extension installation status](extension-installation.md).
 The full installer is tracked by
 [#558](https://github.com/finos/morphir-dotnet/issues/558).
 

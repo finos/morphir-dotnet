@@ -10,7 +10,7 @@ No Beads id is recorded; do not invent one.
 
 Dependencies. The design groups its questions in two. One group follows today's reference behavior or an open parent proposal, which stands in for the shared contract until finos/morphir writes it down; those need no maintainer answer to start, and a change in the parent's review changes the named specs first. The other group needs the maintainer. Parent contracts are named where a task waits on them.
 
-- Can start now: group 1; the unqualified part of 2.1; 3.3; the run-copy ownership portion of 3.4; 5.1. Tasks 2.2, 2.3 and 2.10 are implemented. Full 3.4 inventory/rebuild needs the shared pair types from the parent tables; do not invent their shape to start it early.
+- Implemented: 2.2, 2.3, 2.10 and 3.3. Run-directory ownership/sweep in 3.4 and generic archive inspection in 5.1 are implemented, while those whole tasks remain unchecked. Can continue now: group 1 and the unqualified parts of 2.1/5.1. Full 3.4 inventory/rebuild needs the shared pair types from the parent tables; do not invent their shape to start it early.
 - Waits on parent contracts in finos/morphir:
   - 2.4 to 2.8, 3.1, 3.2, 3.5, 3.6, 4.1 and 4.9 on parent group 1's published schemas and tables implementing merged finos/morphir#1150. It gives the family's schema URLs (Decision 15A), the journal, the history rule and the old-state move (Decisions 10 and 11).
   - 2.7, 2.8 and 4.1 also on the member tables of finos/morphir#1149's task 1.4, which is not done yet. #1149 is merged, but its task 1.4 page is the authority for the catalog, lock and repositories members. Until then, the reference behavior is the only evidence.
@@ -135,13 +135,14 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - a journal with `nextLock` `null` deletes the lock;
     - a reader during a replacement sees the old or the new file.
   - Command: `dotnet exec <inst> --filter-test-list "Transactions"`.
-- [ ] 3.3 Implement the content-addressed store; verify the `Store` tests pass.
+- [x] 3.3 Implement the content-addressed store; verify the `Store` tests pass.
   - The store covers: a staged temporary file, hash-while-copy from staging compared with the recorded digest, no-clobber publication, a rehash before reuse, containment inside Morphir Home, the 256 MiB limit and the Unix owner execute bit.
   - First failing tests:
     - a tampered object fails with `extension.store_object_mismatch` and is unchanged;
     - a linked digest directory fails with `extension.path_escape`;
     - a staged file changed after its first hash fails with `extension.digest_mismatch` and nothing is published.
   - Command: `dotnet exec <inst> --filter-test-list "Store"`.
+  - Implemented in `SingleFileStore`: existing toolchain streaming hash, same-directory staging, flush, no-clobber publication and rehash on reuse/race. Windows symlink/reparse, tampering, cancellation and publication-race tests pass in the 123-test installer suite. Unix descriptor-relative operations and owner execute-bit code are implemented but not exercised on Windows; Linux/macOS runs remain necessary before platform claims. No corrupt object repair, shared pair or package metadata is added.
 - [ ] 3.4 Implement the .NET inventory below `data/morphir-dotnet/extensions/installed/`, its rebuild from a shared pair, and the ownership of .NET run copies below `tmp/extensions/`; verify the `Inventory` tests pass.
   - The inventory holds the .NET-only facts that the closed catalog and lock member sets cannot carry: the true source, the archive digest, the level, and every installed version for pins and overlays. It is needed whatever Q-LEVELS decides.
   - First failing tests:
@@ -149,6 +150,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - a record rebuilt from a pair another host wrote has source kind `shared-catalog`;
     - the copy sweep removes a stale `morphir-dotnet-run-*` directory and leaves `morphir-extension-*` directories in place.
   - Command: `dotnet exec <inst> --filter-test-list "Inventory"`.
+  - Partial implementation only: `RunCopies` owns an exclusive empty `.owner` file, skips live owners, refuses reparse points, and sweeps only `morphir-dotnet-run-*`. The `RunCopies` tests pass on Windows, and the C# JIT probe covers live ownership. The guest process-tree integration and installed inventory/rebuild are unfinished; this task remains unchecked.
 - [ ] 3.5 Implement the commit path: every global install writes the catalog entry and lock through the journal, and an install at another level writes a pin; read a catalog that holds entries this host cannot run. Verify the `Commit` tests pass.
   - First failing tests (`Commit`):
     - a global install writes the entry and lock in one journal, and the pair agrees;
@@ -236,6 +238,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 ## 5. Package archives and staged folders
 
 - [ ] 5.1 Read zip and tar gzip package archives with the entry rules and recorded limits, detecting the format from content; verify the `Archives` tests pass in both formats and the AOT probe covers both readers with no new warning.
+  - Runtime reader implemented without extraction or package-layout adoption. All 26 `Archives` tests pass on Windows; the full installer suite is 123/123. Two additional runtime RED cases proved short-read nested detection and pre-inflation aggregate checks before their fixes. The C# JIT probe covers both readers. Native AOT has not run, so this task remains unchecked. Parent PR #1156's inputs remain provisional during independent review, including its later fixes; no format or pin is adopted here.
   - First failing test: for each format, archives built in the test are each refused before any file is written. They contain:
     - `../../evil.exe`, an absolute path or a drive letter;
     - a symbolic link, a hard link, or a FIFO (tar);

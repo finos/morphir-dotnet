@@ -156,6 +156,9 @@
       "morphir.myriad.systemtextjson.annotations": {
         "type": "Project"
       },
+      "morphir.testsupport": {
+        "type": "Project"
+      },
       "morphir.toolchain": {
         "type": "Project",
         "dependencies": {

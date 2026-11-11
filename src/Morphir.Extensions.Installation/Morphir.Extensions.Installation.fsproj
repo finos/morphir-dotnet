@@ -21,5 +21,9 @@
     <Compile Include="Identifiers.fs" />
     <Compile Include="Platforms.fs" />
     <Compile Include="MepSupport.fs" />
+    <Compile Include="FileSafety.fs" />
+    <Compile Include="Store.fs" />
+    <Compile Include="Archives.fs" />
+    <Compile Include="RunCopies.fs" />
   </ItemGroup>
 </Project>

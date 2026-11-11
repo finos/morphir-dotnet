@@ -304,11 +304,30 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | Roslyn AOT spike | Done: feasible; ships as an optional extension for now ([report](../spikes/extension-model/roslyn-aot.md)) | Spike | Decision recorded |
 | WASM analyzers | Planned | 2a | MCK suite passes in both hosts |
 | Process analyzers and .NET guest SDK | Planned | 2b | C# and F# samples pass the MCK suite in both hosts |
-| Installation, levels and staged folders | In progress: distribution parsers, platform mappings and MEP eligibility implemented; installation/levels/staging unfinished | 3 | #558; installer Expecto suite and C# JIT probe. Parent schemas/tables and remaining maintainer choices still gate integration; MCK and AOT qualification remain outstanding |
-| Extension package archive (zip and tar gzip) | Planned | 3 | MCK suite installs the avro WASM release and the elm-classic process release from a `.zip` and from a `.tar.gz` package; the unsafe-archive cases fail with no store change in both formats |
+| Installation, levels and staged folders | In progress: distribution values, platform/MEP checks, single-file store and run-directory ownership implemented; complete installation/levels/staging unfinished | 3 | #558; 123 installer tests and expanded C# JIT probe pass on Windows. Parent schemas/tables and remaining maintainer choices still gate integration; Unix filesystem runs, MCK and AOT qualification remain outstanding |
+| Extension package archive (zip and tar gzip) | In progress: bounded generic inspection in both formats, no extraction or package-format adoption | 3 | Both readers are covered by Windows tests and the C# JIT probe. Package tables/cases remain under parent review. Still needed: MCK installation cases, extraction, complete pipeline and AOT checks |
 | Generator capability | Planned | 4 | MCK suite |
 | Transformer capability | Planned | 4 | MCK suite |
 | Upstream bundles and grants | Planned | 5 | A published upstream bundle runs in both hosts |
+
+## Installation implementation notes
+
+11 November 2026, work on #558: `Morphir.Extensions.Installation` now has the raw
+single-file store, generic ZIP/tar-gzip inspection and .NET run-directory
+ownership. It reuses the toolchain hash and existing test sandbox/cleanup
+helpers. Native filesystem operations add no-follow containment and no-clobber
+publication; they do not create a second installer or shared metadata format.
+The store never repairs a mismatched object. Archive inspection writes nothing
+and does not authorize later extraction from a path whose bytes may have changed.
+
+Two additional failing runtime regressions caught nested archive detection after
+short stream reads and late aggregate ZIP size checks. Both fixes pass in the
+123-test Windows suite. The C# JIT probe covers both archive formats, store
+publication and live run ownership. Linux/macOS filesystem runs and Native AOT
+qualification remain pending. Parent group 1's final tables/cases, full package
+verification and activation, shared inventory and remaining maintainer choices
+still gate the complete installer. Multi-file packages retain VERIFY-B/LAUNCH-A;
+the single-file publication rule is separate.
 
 ## Testing approach
 

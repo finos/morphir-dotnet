@@ -46,3 +46,47 @@ foreach (var version in new[] { "0.2.0-draft.1", "0.2.0-draft.2", "0.3.0" })
 }
 if (MepSupport.IsSupported(ProtocolVersion.Create("0.2.1-rc.1")))
     throw new InvalidOperationException("npm prerelease rule was bypassed.");
+
+// No real Morphir Home or installed metadata is read. Both generic readers must be covered by future AOT runs.
+var probeRoot = Directory.CreateTempSubdirectory("morphir-installation-probe-").FullName;
+try
+{
+    var stagedDirectory = Directory.CreateDirectory(Path.Combine(probeRoot, "tmp", "staging")).FullName;
+    var staged = Path.Combine(stagedDirectory, "guest.exe");
+    var content = System.Text.Encoding.UTF8.GetBytes("probe content");
+    File.WriteAllBytes(staged, content);
+    var expected = Sha256Digest.Create(Morphir.Toolchain.Digest.ofBytes(content));
+    if (!DistributionIdentifiers.TryParseArtifactFileName("guest.exe", out var fileName, out failure))
+        throw new InvalidOperationException(failure.ToString());
+    var stored = (await SingleFileStore.PublishAsync(probeRoot, staged, fileName, expected, true, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    Console.WriteLine(stored.RelativePath);
+
+    var zipPath = Path.Combine(probeRoot, "input.zip");
+    using (var zip = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create))
+    using (var output = zip.CreateEntry("guest.exe").Open())
+        output.Write(content);
+    var tarPath = Path.Combine(probeRoot, "input.tgz");
+    using (var output = File.Create(tarPath))
+    using (var gzip = new System.IO.Compression.GZipStream(output, System.IO.Compression.CompressionLevel.Optimal))
+    using (var tar = new System.Formats.Tar.TarWriter(gzip))
+    using (var input = new MemoryStream(content, false))
+        tar.WriteEntry(new System.Formats.Tar.PaxTarEntry(System.Formats.Tar.TarEntryType.RegularFile, "guest.exe") { DataStream = input });
+    foreach (var pathToInspect in new[] { zipPath, tarPath })
+    {
+        var inspection = (await ArchiveReader.InspectAsync(pathToInspect, CancellationToken.None))
+            .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+        Console.WriteLine($"{inspection.Format}:{inspection.Entries[0].Name}");
+    }
+    using var run = (await RunCopies.CreateAsync(probeRoot, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    var sweep = (await RunCopies.SweepAsync(probeRoot, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    Console.WriteLine($"run-copy sweep:{sweep.Removed.Count}/{sweep.Skipped.Count}");
+}
+finally
+{
+    try { Directory.Delete(probeRoot, recursive: true); }
+    catch (IOException) { }
+    catch (UnauthorizedAccessException) { }
+}

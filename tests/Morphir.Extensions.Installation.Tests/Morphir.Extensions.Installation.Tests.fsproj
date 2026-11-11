@@ -14,11 +14,16 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="YoloDev.Expecto.TestSdk" />
     <ProjectReference Include="../../src/Morphir.Extensions.Installation/Morphir.Extensions.Installation.fsproj" />
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="IdentifiersTests.fs" />
     <Compile Include="PlatformsTests.fs" />
     <Compile Include="MepLineTests.fs" />
+    <Compile Include="IoTestSupport.fs" />
+    <Compile Include="StoreTests.fs" />
+    <Compile Include="ArchiveTests.fs" />
+    <Compile Include="RunCopyTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
