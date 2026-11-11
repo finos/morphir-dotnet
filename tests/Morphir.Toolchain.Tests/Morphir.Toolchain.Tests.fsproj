@@ -21,6 +21,7 @@
     <ProjectReference Include="../../src/Morphirup/Morphirup.fsproj" />
     <ProjectReference Include="../../src/Morphir.Configuration.IO/Morphir.Configuration.IO.csproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <ProjectReference Include="../Morphir.Toolchain.ProcessFixture/Morphir.Toolchain.ProcessFixture.fsproj" ReferenceOutputAssembly="false" />
     <Compile Include="Fixtures.fs" />
     <Compile Include="ProvenanceTests.fs" />
     <Compile Include="Manifest.fs" />
@@ -39,6 +40,8 @@
     <Compile Include="PlanningTests.fs" />
     <Compile Include="WriterTests.fs" />
     <Compile Include="CliTests.fs" />
+    <Compile Include="LocalCandidateTests.fs" />
+    <Compile Include="LocalProcessOwnershipTests.fs" />
     <Compile Include="DryRunTests.fs" />
     <Compile Include="ConfigurationAdapterTests.fs" />
     <Compile Include="SchemaTests.fs" />
@@ -55,4 +58,24 @@
     <Compile Include="CorpusModeTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
+  <!-- GetTargetPath uses the same active configuration/global output properties as
+       the project reference. Copy its runtime closure, including satellites,
+       never a hardcoded Release tree or a recursive copy of our own output. -->
+  <Target Name="CopyCurrentProcessFixture" AfterTargets="Build">
+    <MSBuild Projects="../Morphir.Toolchain.ProcessFixture/Morphir.Toolchain.ProcessFixture.fsproj"
+             Targets="GetTargetPath" BuildInParallel="false"
+             Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CurrentProcessFixture" />
+    </MSBuild>
+    <PropertyGroup>
+      <_CurrentProcessFixtureDirectory>@(_CurrentProcessFixture->'%(RootDir)%(Directory)')</_CurrentProcessFixtureDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CurrentProcessFixtureRuntime Include="$(_CurrentProcessFixtureDirectory)**/*.dll;$(_CurrentProcessFixtureDirectory)*.json"
+                                    Exclude="$(_CurrentProcessFixtureDirectory)ProcessFixture/**" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_CurrentProcessFixtureRuntime)"
+          DestinationFiles="@(_CurrentProcessFixtureRuntime->'$(OutDir)ProcessFixture/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

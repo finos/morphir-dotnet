@@ -16,6 +16,9 @@
     <ProjectReference Include="../Morphir.Toolchain/Morphir.Toolchain.fsproj" />
     <InternalsVisibleTo Include="Morphir.Toolchain.IO.Tests" />
     <InternalsVisibleTo Include="Morphir.Toolchain.Tests" />
+    <InternalsVisibleTo Include="morphirup" />
+    <InternalsVisibleTo Include="Morphir.Tooling" />
+    <Compile Include="WindowsProcess.fs" />
     <Compile Include="Boundary.fs" />
     <Compile Include="Acquisition.fs" />
     <Compile Include="HttpTransport.fs" />

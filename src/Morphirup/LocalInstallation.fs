@@ -1,0 +1,804 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+module internal Morphirup.LocalInstallation
+
+open System
+open System.Collections.Generic
+open System.IO
+open System.IO.Compression
+open System.Reflection.PortableExecutable
+open System.Text.Json
+open System.Threading
+open Morphir.Toolchain
+open Morphir.Extensions.Installation
+open LocalCandidate
+
+let maximumArchive = 1UL <<< 30
+let documentBound = 8L <<< 20
+
+let private parts (path: string) =
+    path.Split('/')
+    |> Array.toList
+
+let private relative (root: string) (path: string) =
+    Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar))
+
+let private entry (zip: ZipArchive) name =
+    match zip.GetEntry name with
+    | null -> refuse "local.closure_mismatch" "Missing archive entry."
+    | entry -> entry
+
+let private checkedPlan platform candidate =
+    match
+        LocalCandidatePlanning.plan
+            platform
+            (Some LocalConsent.LocalDeveloper)
+            maximumArchive
+            candidate
+    with
+    | Ok plan -> plan
+    | Error error -> refuse "local.candidate_refused" (string error)
+
+let private copyChecked
+    (source: Stream)
+    (output: Stream option)
+    expectedLength
+    (expected: Sha256)
+    (ct: CancellationToken)
+    =
+    let digest = Digest.Incremental()
+    let buffer = Array.zeroCreate<byte> 65536
+    let mutable total = 0UL
+    let mutable reading = true
+
+    while reading do
+        ct.ThrowIfCancellationRequested()
+
+        let count =
+            source.Read(
+                buffer,
+                0,
+                int (
+                    min
+                        (uint64 buffer.Length)
+                        (expectedLength
+                         - total
+                         + 1UL)
+                )
+            )
+
+        if count = 0 then
+            reading <- false
+        else
+            if
+                uint64 count > expectedLength
+                               - total
+            then
+                refuse "local.length_mismatch" "A stream exceeded its declared length."
+
+            digest.Append(buffer, 0, count)
+
+            output
+            |> Option.iter (fun target -> target.Write(buffer, 0, count))
+
+            total <-
+                total
+                + uint64 count
+
+    if
+        total
+        <> expectedLength
+    then
+        refuse "local.length_mismatch" "A stream ended before its declared length."
+
+    if
+        digest.Finish()
+        <> expected.Text
+    then
+        refuse "local.digest_mismatch" "Exact streamed SHA-256 differs from the candidate."
+
+let private structure (candidate: LocalHostCandidate) (read: string -> byte array) =
+    try
+        use image = new MemoryStream(read candidate.EntryPoint.Target.Text, false)
+        use pe = new PEReader(image)
+
+        if
+            pe.PEHeaders.CoffHeader.Machine
+            <> Machine.Amd64
+            || not (pe.PEHeaders.CoffHeader.Characteristics.HasFlag Characteristics.ExecutableImage)
+            || pe.PEHeaders.CoffHeader.Characteristics.HasFlag Characteristics.Dll
+        then
+            refuse "local.platform_mismatch" "The actual entry point is not an AMD64 executable."
+    with :? BadImageFormatException ->
+        refuse "local.platform_mismatch" "The actual entry point is not a Windows executable."
+
+    let prefix =
+        let p = candidate.EntryPoint.Target.Text
+        let slash = p.LastIndexOf '/'
+        if slash < 0 then "" else p.Substring(0, slash + 1)
+
+    if
+        Path.GetFileName candidate.EntryPoint.Target.Text
+        <> "morphir.exe"
+    then
+        refuse "local.launch_structure" "The official managed entry point must be morphir.exe."
+
+    let names =
+        HashSet<string>(
+            candidate.Files
+            |> Seq.map (fun f -> f.Artifact.Target.Text),
+            StringComparer.Ordinal
+        )
+
+    for name in
+        [
+            "morphir.dll"
+            "morphir.deps.json"
+            "morphir.runtimeconfig.json"
+            "hostfxr.dll"
+            "hostpolicy.dll"
+            "coreclr.dll"
+            "System.Private.CoreLib.dll"
+            "FSharp.Core.dll"
+            "FSharp.Compiler.Service.dll"
+            "Morphir.CodeGeneration.FSharp.dll"
+        ] do
+        if
+            not (
+                names.Contains(
+                    prefix
+                    + name
+                )
+            )
+        then
+            refuse
+                "local.launch_structure"
+                ("Incomplete runtime-bundled folder: "
+                 + name)
+
+    use runtime =
+        JsonDocument.Parse(
+            read (
+                prefix
+                + "morphir.runtimeconfig.json"
+            )
+        )
+
+    let options = runtime.RootElement.GetProperty "runtimeOptions"
+    let mutable found = Unchecked.defaultof<JsonElement>
+
+    if
+        options.TryGetProperty("framework", &found)
+        || options.TryGetProperty("frameworks", &found)
+        || not (options.TryGetProperty("includedFrameworks", &found))
+    then
+        refuse
+            "local.launch_structure"
+            "The candidate requires a system framework rather than an app-local runtime."
+
+    if
+        not (
+            found.EnumerateArray()
+            |> Seq.exists (fun item ->
+                item.GetProperty("name").GetString() = "Microsoft.NETCore.App"
+            )
+        )
+    then
+        refuse "local.launch_structure" "No bundled Microsoft.NETCore.App was declared."
+
+    use deps =
+        JsonDocument.Parse(
+            read (
+                prefix
+                + "morphir.deps.json"
+            )
+        )
+
+    let target =
+        deps.RootElement.GetProperty("runtimeTarget").GetProperty("name").GetString()
+        |> Option.ofObj
+        |> Option.defaultValue ""
+
+    if not (target.EndsWith("/win-x64", StringComparison.Ordinal)) then
+        refuse "local.platform_mismatch" "The managed dependency closure is not win-x64."
+
+let private pinnedRead (root: SafeDirectory) path maximum =
+    use file = FileSafety.openRelative root (relative root.Path path)
+
+    if file.Length > maximum then
+        refuse "local.document_too_large" "Installed document exceeds its bound."
+
+    use output = new MemoryStream()
+    let buffer = Array.zeroCreate<byte> 65536
+    let mutable reading = true
+
+    while reading do
+        let count = file.Read(buffer, 0, buffer.Length)
+
+        if count = 0 then
+            reading <- false
+        else
+            if
+                output.Length
+                + int64 count > maximum
+            then
+                refuse "local.document_too_large" "Installed document grew past its bound."
+
+            output.Write(buffer, 0, count)
+
+    output.ToArray()
+
+let private checkFolder (root: SafeDirectory) candidate hashFiles (ct: CancellationToken) =
+    let expected = Dictionary<string, LocalHostFile>(StringComparer.Ordinal)
+
+    for file in candidate.Files do
+        expected.Add(file.Artifact.Target.Text, file)
+
+    let seen = HashSet<string>(StringComparer.Ordinal)
+
+    let rec walk (directory: SafeDirectory) prefix =
+        for name in directory.Entries() do
+            ct.ThrowIfCancellationRequested()
+
+            let path =
+                prefix
+                + name
+
+            let attributes = File.GetAttributes(Path.Combine(directory.Path, name))
+
+            if attributes.HasFlag FileAttributes.ReparsePoint then
+                refuse "local.path_escape" "Installed links are refused."
+
+            if attributes.HasFlag FileAttributes.Directory then
+                if
+                    not (
+                        expected.Keys
+                        |> Seq.exists (fun item ->
+                            item.StartsWith(path + "/", StringComparison.Ordinal)
+                        )
+                    )
+                then
+                    refuse
+                        "local.closure_mismatch"
+                        "An undeclared directory exists in the installed closure."
+
+                use child = directory.Child(name, false)
+                walk child (path + "/")
+            else
+                match expected.TryGetValue path with
+                | false, _ ->
+                    refuse
+                        "local.closure_mismatch"
+                        "An undeclared file exists in the installed closure."
+                | true, file ->
+                    use input = directory.File(name, false, false)
+
+                    if
+                        uint64 input.Length
+                        <> file.Bytes
+                    then
+                        refuse "local.length_mismatch" "An installed file has the wrong length."
+
+                    if hashFiles then
+                        copyChecked input None file.Bytes file.Artifact.Sha256 ct
+
+                    if not (seen.Add path) then
+                        refuse "local.closure_mismatch" "Duplicate installed file."
+
+    walk root ""
+
+    if
+        seen.Count
+        <> expected.Count
+    then
+        refuse "local.closure_mismatch" "The installed closure is incomplete."
+
+    structure candidate (fun name -> pinnedRead root name documentBound)
+
+type Installed = {
+    Candidate: LocalHostCandidate
+    Receipt: byte array
+}
+
+let private loadGeneration (root: SafeDirectory) identity hashFiles ct =
+    let generation = LocalCandidateDocument.generationPath identity
+
+    let bytes =
+        pinnedRead
+            root
+            (generation
+             + "/candidate.json")
+            documentBound
+
+    if
+        Sha256.ofBytes bytes
+        <> identity
+    then
+        refuse
+            "local.candidate_mismatch"
+            "Stored candidate bytes differ from the generation identity."
+
+    let candidate =
+        LocalCandidateDocument.readCandidate bytes
+        |> reader
+
+    checkedPlan Platform.WinX64 candidate
+    |> ignore
+
+    let receipt =
+        pinnedRead
+            root
+            (generation
+             + "/receipt.json")
+            documentBound
+
+    LocalCandidateDocument.receiptMatches candidate receipt
+    |> reader
+
+    FileSafety.withDirectories
+        root
+        (parts (LocalCandidateDocument.installationPath candidate))
+        false
+        (fun folder -> checkFolder folder candidate hashFiles ct)
+
+    {
+        Candidate = candidate
+        Receipt = receipt
+    }
+
+let private loadSelection (root: SafeDirectory) hashFiles ct =
+    let pointer =
+        pinnedRead root LocalCandidateDocument.selectionPath documentBound
+        |> LocalCandidateDocument.readSelection
+        |> reader
+
+    let installed = loadGeneration root pointer.CandidateSha256 hashFiles ct
+
+    if
+        Sha256.ofBytes installed.Receipt
+        <> pointer.ReceiptSha256
+    then
+        refuse "local.receipt_mismatch" "Selected receipt bytes changed."
+
+    installed
+
+let private foreignHome () =
+    refuse
+        "local.foreign_home"
+        "Unsupported entries were found in setup admission or a manager-owned namespace."
+
+let private only (directory: SafeDirectory) names =
+    for name in directory.Entries() do
+        if not (List.contains name names) then
+            foreignHome ()
+
+let private optionalChild (parent: SafeDirectory) name action =
+    if
+        parent.Entries()
+        |> Array.contains name
+    then
+        use child = parent.Child(name, false)
+        action child
+
+/// Later commands validate only local manager authority. Shared Home siblings are opaque and are never traversed.
+let private validateOwnedState (root: SafeDirectory) =
+
+    if
+        root.Entries()
+        |> Array.contains ".morphir-dotnet-io.lock"
+    then
+        let attributes =
+            File.GetAttributes(Path.Combine(root.Path, ".morphir-dotnet-io.lock"))
+
+        if
+            attributes.HasFlag FileAttributes.ReparsePoint
+            || attributes.HasFlag FileAttributes.Directory
+            || attributes.HasFlag FileAttributes.Device
+        then
+            foreignHome ()
+
+    optionalChild
+        root
+        "store"
+        (fun store ->
+            optionalChild
+                store
+                "tools"
+                (fun tools ->
+                    only tools [ "sha256" ]
+
+                    optionalChild
+                        tools
+                        "sha256"
+                        (fun objects ->
+                            for name in objects.Entries() do
+                                if
+                                    Sha256.tryParse name
+                                    |> Result.isError
+                                then
+                                    foreignHome ()
+
+                                use folder = objects.Child(name, false)
+                                folder.ValidateLocation()
+                        )
+                )
+        )
+
+    optionalChild
+        root
+        "toolchains"
+        (fun toolchains ->
+            only toolchains [ "generations"; "default.json" ]
+
+            optionalChild
+                toolchains
+                "generations"
+                (fun generations ->
+                    for name in generations.Entries() do
+                        let identity =
+                            Sha256.tryParse name
+                            |> function
+                                | Ok identity -> identity
+                                | Error _ -> foreignHome ()
+
+                        use folder = generations.Child(name, false)
+                        only folder [ "candidate.json"; "receipt.json" ]
+
+                        loadGeneration root identity false CancellationToken.None
+                        |> ignore
+                )
+        )
+
+    optionalChild
+        root
+        "tmp"
+        (fun temporary ->
+            for name in temporary.Entries() do
+                if name.StartsWith("local-toolchain-", StringComparison.Ordinal) then
+                    use folder = temporary.Child(name, false)
+                    only folder [ ".owner"; "host"; "generation" ]
+        )
+
+/// Setup never adopts foreign or legacy Home state. This admission happens before staging, probing or publication.
+let private validateSetupAdmission (root: SafeDirectory) =
+    only root [ "store"; "toolchains"; "tmp"; ".morphir-dotnet-io.lock" ]
+    optionalChild root "store" (fun store -> only store [ "tools" ])
+
+    optionalChild
+        root
+        "tmp"
+        (fun temporary ->
+            for name in temporary.Entries() do
+                if not (name.StartsWith("local-toolchain-", StringComparison.Ordinal)) then
+                    foreignHome ()
+        )
+
+    validateOwnedState root
+
+let private existingHome home ct =
+    if Directory.Exists home then
+        use root = SafeDirectory.Open(home, false)
+        validateSetupAdmission root
+
+        if File.Exists(relative home LocalCandidateDocument.selectionPath) then
+            loadSelection root true ct
+            |> ignore
+
+/// Same archive and state validation for dry-run and apply. No Home creation or process launch occurs here.
+let private validateArchive (source: Stream) candidate home ct =
+    if
+        uint64 source.Length
+        <> candidate.ArchiveBytes
+    then
+        refuse "local.length_mismatch" "Archive length differs from the candidate."
+
+    copyChecked source None candidate.ArchiveBytes candidate.ArchiveSha256 ct
+    source.Position <- 0L
+    let inspection = ArchiveChecks.inspect source ct
+
+    if
+        inspection.Format
+        <> "zip"
+    then
+        refuse "local.archive_format" "Only an explicitly declared ZIP is supported."
+
+    source.Position <- 0L
+    use zip = new ZipArchive(source, ZipArchiveMode.Read, true)
+
+    let expected =
+        candidate.Files
+        |> Seq.map (fun file -> file.Artifact.Target.Text, file)
+        |> dict
+
+    let seen = HashSet<string>(StringComparer.Ordinal)
+
+    for entry in zip.Entries do
+        if entry.FullName.EndsWith("/", StringComparison.Ordinal) then
+            let prefix = entry.FullName
+
+            if
+                not (
+                    expected.Keys
+                    |> Seq.exists (fun path -> path.StartsWith(prefix, StringComparison.Ordinal))
+                )
+            then
+                refuse "local.closure_mismatch" "Undeclared archive directory."
+        else
+            match expected.TryGetValue entry.FullName with
+            | false, _ ->
+                refuse
+                    "local.closure_mismatch"
+                    "Archive contains a file absent from the complete candidate inventory."
+            | true, file ->
+                if not (seen.Add entry.FullName) then
+                    refuse "local.closure_mismatch" "Duplicate archive entry."
+
+                if
+                    uint64 entry.Length
+                    <> file.Bytes
+                then
+                    refuse "local.length_mismatch" "Archive file length differs from the inventory."
+
+                use input = entry.Open()
+                copyChecked input None file.Bytes file.Artifact.Sha256 ct
+
+    if
+        seen.Count
+        <> expected.Count
+    then
+        refuse "local.closure_mismatch" "Archive does not contain the complete candidate inventory."
+
+    structure
+        candidate
+        (fun name ->
+            let entry = entry zip name
+
+            if entry.Length > documentBound then
+                refuse "local.document_too_large" "Launch document exceeds its bound."
+
+            use input = entry.Open()
+            use output = new MemoryStream()
+            input.CopyTo output
+            output.ToArray()
+        )
+
+    existingHome home ct
+
+let private writeFile (root: SafeDirectory) path bytes =
+    let names = parts path
+
+    FileSafety.withDirectories
+        root
+        (names
+         |> List.take (
+             names.Length
+             - 1
+         ))
+        true
+        (fun directory ->
+            use output = directory.File(List.last names, true, false)
+            output.Write(bytes: byte array)
+            output.Flush true
+        )
+
+let setupAsync home raw candidate archive dryRun (ct: CancellationToken) = task {
+    use source = FileSafety.openInput archive
+    validateArchive source candidate home ct
+
+    if not dryRun then
+        use root = SafeDirectory.Open(home, true)
+        validateSetupAdmission root
+        // Admission is brief. Decompression and verification happen in a privately owned folder outside the writer lease.
+        let stageName =
+            "local-toolchain-"
+            + Guid.NewGuid().ToString("N")
+
+        let stagePath =
+            "tmp/"
+            + stageName
+
+        do! task {
+            use! lease = FileSafety.mutationLeaseAsync root ct
+            FileSafety.withDirectories root (parts stagePath) true ignore
+        }
+
+        use stage = SafeDirectory.Open(relative home stagePath, false)
+        use owner = stage.File(".owner", true, true)
+
+        FileSafety.withDirectories
+            stage
+            [ "host" ]
+            true
+            (fun folder ->
+                source.Position <- 0L
+                use zip = new ZipArchive(source, ZipArchiveMode.Read, true)
+
+                for file in candidate.Files do
+                    let names = parts file.Artifact.Target.Text
+
+                    FileSafety.withDirectories
+                        folder
+                        (names
+                         |> List.take (
+                             names.Length
+                             - 1
+                         ))
+                        true
+                        (fun directory ->
+                            use output = directory.File(List.last names, true, false)
+                            use input = (entry zip file.Artifact.Target.Text).Open()
+                            copyChecked input (Some output) file.Bytes file.Artifact.Sha256 ct
+                            output.Flush true
+                        )
+
+                checkFolder folder candidate true ct
+            )
+
+        do! task {
+            use! lease = FileSafety.mutationLeaseAsync root ct
+            validateSetupAdmission root
+
+            FileSafety.withDirectories
+                root
+                [ "store"; "tools"; "sha256" ]
+                true
+                (fun parent ->
+                    let destination =
+                        relative home (LocalCandidateDocument.installationPath candidate)
+
+                    if Directory.Exists destination then
+                        use folder = parent.Child(candidate.ArchiveSha256.Text, false)
+                        checkFolder folder candidate true ct
+                    else
+                        stage.ValidateLocation()
+                        parent.ValidateLocation()
+
+                        let identity =
+                            use sourceFolder = stage.Child("host", false)
+                            sourceFolder.Identity
+
+                        Directory.Move(Path.Combine(stage.Path, "host"), destination)
+                        use folder = parent.Child(candidate.ArchiveSha256.Text, false)
+
+                        if
+                            folder.Identity
+                            <> identity
+                        then
+                            refuse "local.path_escape" "Published host folder identity changed."
+
+                        checkFolder folder candidate true ct
+                )
+        }
+
+        let program =
+            relative
+                home
+                (LocalCandidateDocument.installationPath candidate
+                 + "/"
+                 + candidate.EntryPoint.Target.Text)
+
+        let directory =
+            Path.GetDirectoryName program
+            |> Option.ofObj
+            |> Option.defaultWith (fun () ->
+                refuse "local.path_escape" "Missing executable directory."
+            )
+
+        do! LocalProcess.verifyVersionAsync program candidate.Host.Version.Text directory home ct
+        let receipt = LocalCandidateDocument.writeReceipt candidate
+
+        FileSafety.withDirectories
+            stage
+            [ "generation" ]
+            true
+            (fun generation ->
+                writeFile generation "candidate.json" raw
+                writeFile generation "receipt.json" receipt
+            )
+
+        use! lease = FileSafety.mutationLeaseAsync root ct
+
+        FileSafety.withDirectories
+            root
+            [ "toolchains"; "generations" ]
+            true
+            (fun parent ->
+                let destination = Path.Combine(parent.Path, candidate.ManifestSha256.Text)
+
+                if Directory.Exists destination then
+                    let existing = loadGeneration root candidate.ManifestSha256 true ct
+
+                    if
+                        existing.Receipt
+                        <> receipt
+                    then
+                        refuse "local.generation_conflict" "Existing immutable generation differs."
+                else
+                    ct.ThrowIfCancellationRequested()
+                    stage.ValidateLocation()
+                    parent.ValidateLocation()
+
+                    let identity =
+                        use sourceFolder = stage.Child("generation", false)
+                        sourceFolder.Identity
+
+                    Directory.Move(Path.Combine(stage.Path, "generation"), destination)
+                    use published = parent.Child(candidate.ManifestSha256.Text, false)
+
+                    if
+                        published.Identity
+                        <> identity
+                    then
+                        refuse "local.path_escape" "Published generation identity changed."
+            )
+// Interrupted private stages have no authority. They remain private, never mistaken for a completed generation.
+}
+
+let generation home identity ct =
+    use root = SafeDirectory.Open(home, false)
+    validateOwnedState root
+
+    if File.Exists(relative home LocalCandidateDocument.selectionPath) then
+        loadSelection root true ct
+        |> ignore
+
+    loadGeneration root identity true ct
+
+let selected home ct =
+    use root = SafeDirectory.Open(home, false)
+    validateOwnedState root
+    loadSelection root false ct
+
+let selectAsync home identity dryRun ct = task {
+    let installed = generation home identity ct
+
+    if not dryRun then
+        use root = SafeDirectory.Open(home, false)
+        use! lease = FileSafety.mutationLeaseAsync root ct
+        validateOwnedState root
+        let current = loadGeneration root identity true ct
+
+        if File.Exists(relative home LocalCandidateDocument.selectionPath) then
+            loadSelection root true ct
+            |> ignore
+
+        let bytes = LocalCandidateDocument.writeSelection current.Candidate current.Receipt
+
+        FileSafety.withDirectories
+            root
+            [ "toolchains" ]
+            false
+            (fun directory ->
+                let name =
+                    ".default-"
+                    + Guid.NewGuid().ToString("N")
+
+                writeFile directory name bytes
+                ct.ThrowIfCancellationRequested()
+                directory.ValidateLocation()
+
+                File.Move(
+                    Path.Combine(directory.Path, name),
+                    Path.Combine(directory.Path, "default.json"),
+                    true
+                )
+            )
+
+    return installed
+}
+
+let runAsync home args directory input output errors ct = task {
+    use root = SafeDirectory.Open(home, false)
+    use! lease = FileSafety.mutationLeaseAsync root ct
+    validateOwnedState root
+    let installed = loadSelection root false ct
+
+    let program =
+        relative
+            home
+            (LocalCandidateDocument.installationPath installed.Candidate
+             + "/"
+             + installed.Candidate.EntryPoint.Target.Text)
+
+    return! LocalProcess.runAsync program args directory home input output errors ct
+}

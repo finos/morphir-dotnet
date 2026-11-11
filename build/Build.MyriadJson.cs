@@ -123,6 +123,7 @@ partial class Build
         var start = new ProcessStartInfo(command)
         {
             UseShellExecute = false,
+            CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
