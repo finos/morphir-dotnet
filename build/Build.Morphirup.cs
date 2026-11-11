@@ -104,66 +104,16 @@ partial class Build
 
             var packages = MorphirupLinkedPackages();
             var version = Version.ToString();
+            var linkedAssemblies = ThirdPartyNotices.LinkedFiles(File.ReadAllText(MorphirupIlcResponseFile), MorphirupProjectDirectory);
+            IReadOnlyList<DeclaredNativeLibrary> natives = [.. CheckNativeLibraries(MorphirupProjectDirectory / "Morphirup.fsproj", Rid!), .. CheckEmbeddedResources(linkedAssemblies)];
             var notices = ThirdPartyNotices.Write(version, Rid!, packages, RootDirectory / "build" / "notices",
-                File.ReadAllText(RootDirectory / "tests" / "Fixtures" / "Unicode" / "17.0.0" / "LICENSE.txt"));
+                File.ReadAllText(RootDirectory / "tests" / "Fixtures" / "Unicode" / "17.0.0" / "LICENSE.txt"), natives, NativeLibraryDeclarations);
             var written = MorphirupRelease.WriteAssets(executable, Rid!, version, ReleaseAssetsDir, RootDirectory / "LICENSE", RootDirectory / "NOTICE", notices);
             Serilog.Log.Information("Linked packages, named in the third-party notices: {Packages}",
                 string.Join(", ", packages.Select(package => $"{package.Id} {package.Version}")));
             foreach (var name in written)
                 Serilog.Log.Information("✓ {Asset}: {Bytes:N0} bytes", ReleaseAssetsDir / name, new FileInfo(ReleaseAssetsDir / name).Length);
         });
-
-    /// <summary>
-    /// Runs <c>dotnet {arguments}</c> inside <paramref name="image"/>, which links the executable against that image's
-    /// glibc. The repository and this machine's .NET SDK are mounted at their own paths (the SDK read-only), so the
-    /// publish uses the SDK of global.json and writes where a publish on the runner would. The image gets clang and the
-    /// zlib headers that Native AOT links with, and libicu and the certificates that the SDK needs; the executable needs
-    /// none of them. Root in the container owns what it writes, so the script gives the repository back to this user.
-    /// </summary>
-    (int ExitCode, string Output) PublishInContainer(string image, TargetPlatform platform, string[] arguments)
-    {
-        if (!OperatingSystem.IsLinux() || platform.OperatingSystem != "linux")
-            throw new Exception($"--morphirup-build-image publishes a Linux executable on Linux; this is {Rid} on {System.Runtime.InteropServices.RuntimeInformation.OSDescription}.");
-
-        var sdk = Path.GetFullPath(Path.Combine(System.Runtime.InteropServices.RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
-        if (!File.Exists(Path.Combine(sdk, "dotnet")))
-            throw new Exception($"No dotnet in {sdk}, the .NET root of this build.");
-        var owner = $"{RunChecked("id", ["-u"], null, RootDirectory, "id -u").Trim()}:{RunChecked("id", ["-g"], null, RootDirectory, "id -g").Trim()}";
-        // The packages restore into this machine's NuGet folder, at its own path, so the third-party notices can read
-        // the packages that the compiler's response file names after the container is gone.
-        var packages = Environment.GetEnvironmentVariable("NUGET_PACKAGES") is { Length: > 0 } configured
-            ? Path.GetFullPath(configured)
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
-        Directory.CreateDirectory(packages);
-
-        const string script = """
-            set -eu
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update -qq
-            apt-get install -y -qq --no-install-recommends clang zlib1g-dev libicu70 libssl3 ca-certificates > /dev/null
-            printf '[safe]\n\tdirectory = *\n' > "$HOME/.gitconfig"
-            echo "Publishing in $(. /etc/os-release && echo "$PRETTY_NAME"), $(ldd --version | head -n 1)"
-            status=0
-            dotnet "$@" || status=$?
-            chown -R "$MORPHIRUP_OWNER" "$MORPHIRUP_REPOSITORY" "$NUGET_PACKAGES"
-            exit "$status"
-            """;
-        List<string> docker =
-        [
-            "run", "--rm",
-            "--volume", $"{RootDirectory}:{RootDirectory}", "--workdir", RootDirectory,
-            "--volume", $"{packages}:{packages}", "--env", $"NUGET_PACKAGES={packages}",
-            "--env", $"MORPHIRUP_OWNER={owner}", "--env", $"MORPHIRUP_REPOSITORY={RootDirectory}",
-            "--env", $"DOTNET_ROOT={sdk}", "--env", $"PATH={sdk}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-            "--env", "DOTNET_NOLOGO=1", "--env", "DOTNET_CLI_TELEMETRY_OPTOUT=1", "--env", "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1",
-        ];
-        if (!sdk.StartsWith(RootDirectory, StringComparison.Ordinal))
-            docker.InsertRange(2, ["--volume", $"{sdk}:{sdk}:ro"]);
-        docker.AddRange([image, "sh", "-c", script, "sh", .. arguments]);
-
-        Serilog.Log.Information("Publishing morphirup for {Rid} in {Image}, with the .NET SDK in {Sdk}", Rid, image, sdk);
-        return Capture("docker", [.. docker]);
-    }
 
     /// <summary>
     /// Check the release assets of <c>--rid</c>, not a source build: the tarball holds exactly the bare executable;
@@ -189,10 +139,7 @@ partial class Build
 
             var root = RootDirectory / "artifacts" / "morphirup" / "check" / $"{rid} with space";
             root.CreateOrCleanDirectory();
-            var launch = root / MorphirupRelease.LaunchName(rid);
-            File.Copy(bare, launch);
-            if (!OperatingSystem.IsWindows())
-                File.SetUnixFileMode(launch, ReleaseArchive.ExecutableMode);
+            var launch = CopyForCheck(bare, root, MorphirupRelease.LaunchName(rid));
 
             // The tarball holds exactly the executable, LICENSE, NOTICE and the third-party notices, under {rid}/.
             var extracted = root / "from the tarball";
@@ -224,13 +171,15 @@ partial class Build
             if (rid.StartsWith("linux-", StringComparison.Ordinal))
             {
                 // The glibc versions the executable needs, from its version needs section; none may be above the floor.
-                var readelf = RunChecked("readelf", ["--version-info", "--wide", bare], null, root, $"{rid}: readelf --version-info");
-                var needed = MorphirupRelease.HighestGlibc(readelf)
+                // Every shared library it needs is logged by name, so a new one is seen rather than assumed.
+                var needs = ReadLinuxNeeds(bare, root);
+                var needed = needs.HighestGlibc
                     ?? throw new Exception($"{rid}: readelf found no GLIBC_ version that {bare} needs.");
                 if (MorphirupRelease.IsAboveFloor(needed.Version))
-                    throw new Exception($"{rid}: {bare} needs GLIBC_{needed.Version} from {needed.File}, above the floor GLIBC_{MorphirupRelease.GlibcFloor}.{Environment.NewLine}{readelf}");
+                    throw new Exception($"{rid}: {bare} needs GLIBC_{needed.Version} from {needed.File}, above the floor GLIBC_{MorphirupRelease.GlibcFloor}.{Environment.NewLine}{needs.VersionInfo}");
                 Serilog.Log.Information("✓ {Rid}: the highest glibc version needed is GLIBC_{Needed} ({File}); the floor is GLIBC_{Floor}",
                     rid, needed.Version, needed.File, MorphirupRelease.GlibcFloor);
+                Serilog.Log.Information("{Rid}: the shared libraries needed are {Libraries}", rid, string.Join(", ", needs.Libraries));
             }
             else if (rid.StartsWith("osx-", StringComparison.Ordinal))
             {
@@ -243,26 +192,33 @@ partial class Build
             foreach (var file in new[] { "toolchain.toml", "recipe.json", "artifact-sizes.json" })
                 File.Copy(MorphirupProbeDirectory / file, inputs / file);
             var expectedPlan = File.ReadAllText(MorphirupProbeDirectory / "plan-sha256.txt").Trim();
-            string[] Plan(string folder, char separator) =>
+            // morphirup's own commands: the version, and the plan-only setup with the recorded digest, which takes the
+            // NFC and SHA-256 paths. Both must succeed and print the same everywhere.
+            CheckCommand[] commands =
             [
-                "setup", "--plan", "--platform", "linux-x64",
-                "--request", $"{folder}{separator}toolchain.toml",
-                "--recipe", $"{folder}{separator}recipe.json",
-                "--repository-id", new string('b', 64),
-                "--artifact-sizes", $"{folder}{separator}artifact-sizes.json",
-                "--expect-plan", expectedPlan,
+                new("version", ["startup"], ["--version"]) { SameOutputEverywhere = true },
+                new("plan", ["NFC tables", "SHA-256 (plan digest)"],
+                [
+                    "setup", "--plan", "--platform", "linux-x64",
+                    "--request", "{inputs}/toolchain.toml",
+                    "--recipe", "{inputs}/recipe.json",
+                    "--repository-id", new string('b', 64),
+                    "--artifact-sizes", "{inputs}/artifact-sizes.json",
+                    "--expect-plan", expectedPlan,
+                ]) { SameOutputEverywhere = true },
             ];
+            var scratchRoot = RootDirectory / "artifacts" / "morphirup" / "scratch" / rid;
 
-            var inherited = Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
-                .ToDictionary(entry => (string)entry.Key, entry => (string?)entry.Value);
-            var environment = MorphirupRelease.CheckEnvironment(inherited, OperatingSystem.IsWindows());
-
-            var hostVersion = RunChecked(launch, ["--version"], environment, root, $"{rid}: --version");
+            var host = RunOnRunner(launch, root, inputs, scratchRoot, commands);
+            if (host.Select(outcome => outcome.Problem).FirstOrDefault(problem => problem is not null) is { } hostProblem)
+                throw new Exception($"{rid}: {hostProblem}");
+            var hostVersion = host.Single(outcome => outcome.Command.Name == "version").Stdout;
             if (hostVersion.Trim().Split('+')[0] != version)
                 throw new Exception($"{rid}: --version printed '{hostVersion.Trim()}', not the release version {version}.");
-            var hostPlan = RunChecked(launch, Plan(inputs, Path.DirectorySeparatorChar), environment, root, $"{rid}: setup --plan --expect-plan");
+            var inherited = Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
+                .ToDictionary(entry => (string)entry.Key, entry => (string?)entry.Value);
             Serilog.Log.Information("✓ {Rid}: {Version}; the plan-only setup matched the recorded digest, from '{Folder}' with PATH={Path}",
-                rid, hostVersion.Trim(), root, environment["PATH"]);
+                rid, hostVersion.Trim(), root, MorphirupRelease.CheckEnvironment(inherited, OperatingSystem.IsWindows())["PATH"]);
 
             if (MorphirupContainers.Length == 0) return;
             if (!OperatingSystem.IsLinux())
@@ -271,44 +227,25 @@ partial class Build
             foreach (var (pinned, index) in MorphirupContainers.Select((image, index) => (image, index)))
             {
                 // A Linux executable needs glibc and nothing else, so the check removes OpenSSL where the image ships it
-                // (ubuntu:22.04 has libssl3), in a derived image; the precondition below then checks what is left.
-                var container = $"morphirup-check-{rid}-{index}";
-                var image = $"morphirup-check-{rid}:{index}";
-                var purge = RunChecked("docker", ["run", "--name", container, pinned, "sh", "-c", """
-                    removed=""
-                    for package in libssl3 libssl1.1; do
-                        if dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'install ok installed'; then
-                            dpkg --purge --force-depends "$package" > /dev/null 2>&1
-                            removed="$removed $package"
-                        fi
-                    done
-                    echo "$removed"
-                    """], null, root, $"removing OpenSSL from {pinned}").Trim();
-                RunChecked("docker", ["commit", container, image], null, root, $"committing {image}");
-                RunChecked("docker", ["rm", container], null, root, $"removing the container {container}");
-                Serilog.Log.Information("{Image}: {Removed}", pinned, purge.Length > 0 ? $"removed {purge} (dpkg --purge --force-depends) in {image}" : "ships no OpenSSL package");
+                // (ubuntu:22.04 has libssl3), in a derived image; the image must then be clean.
+                var image = PrepareCleanImage(pinned, $"morphirup-check-{rid}:{index}", root);
+                if (image.Leftovers.Length > 0)
+                    throw new Exception($"The image {image.Image} is not clean: it has {image.Leftovers}.");
 
-                // The image must be the clean environment it claims to be: glibc and no .NET, libicu, libssl or libcrypto.
-                var leftovers = RunChecked("docker", ["run", "--rm", image, "sh", "-c",
-                    "ls -d /usr/lib/*/libicu* /lib/*/libicu* /usr/lib/libicu* /usr/lib/*/libssl.so* /lib/*/libssl.so* /usr/lib/libssl.so* "
-                    + "/usr/lib/*/libcrypto.so* /lib/*/libcrypto.so* /usr/lib/libcrypto.so* /usr/share/dotnet /usr/lib/dotnet 2>/dev/null; command -v dotnet || true"],
-                    null, root, $"the check of the image {image}").Trim();
-                if (leftovers.Length > 0)
-                    throw new Exception($"The image {image} is not clean: it has {leftovers}.");
-                var glibc = RunChecked("docker", ["run", "--rm", image, "sh", "-c", "ldd --version | head -n 1"], null, root, $"glibc of {image}").Trim();
+                var inImage = RunInImage(image, root, MorphirupRelease.LaunchName(rid), inputs, scratchRoot, commands, $"{rid} in {pinned}");
+                if (inImage.Select(outcome => outcome.Problem).FirstOrDefault(problem => problem is not null) is { } problem)
+                    throw new Exception(problem);
+                foreach (var outcome in inImage.Where(outcome => outcome.Command.SameOutputEverywhere))
+                {
+                    var onRunner = host.Single(hostOutcome => hostOutcome.Command.Name == outcome.Command.Name).Stdout;
+                    if (outcome.Stdout != onRunner)
+                        throw new Exception(outcome.Command.Name == "version"
+                            ? $"In {image.Image}, --version printed '{outcome.Stdout.Trim()}', not '{onRunner.Trim()}'."
+                            : $"In {image.Image}, the {outcome.Command.Name} output differs from the runner's.");
+                }
 
-                const string mounted = "/morphirup check";
-                string[] Docker(params string[] command) =>
-                    ["run", "--rm", "--network", "none", "--volume", $"{root}:{mounted}:ro", "--workdir", mounted, image, .. command];
-                var containerVersion = RunChecked("docker", Docker($"{mounted}/morphirup", "--version"), null, root, $"{rid} in {image}: --version");
-                var containerPlan = RunChecked("docker", Docker([$"{mounted}/morphirup", .. Plan($"{mounted}/probe inputs", '/')]), null, root,
-                    $"{rid} in {image}: setup --plan --expect-plan");
-                if (containerVersion != hostVersion)
-                    throw new Exception($"In {image}, --version printed '{containerVersion.Trim()}', not '{hostVersion.Trim()}'.");
-                if (containerPlan != hostPlan)
-                    throw new Exception($"In {image}, the plan output differs from the runner's.");
-                Serilog.Log.Information("✓ {Rid} in {Image} ({Glibc}), with no .NET, libicu, libssl or libcrypto: the same version and plan", rid, pinned, glibc);
-                RunChecked("docker", ["rmi", image], null, root, $"removing the image {image}");
+                Serilog.Log.Information("✓ {Rid} in {Image} ({Glibc}), with no .NET, libicu, libssl or libcrypto: the same version and plan", rid, pinned, image.Glibc);
+                RunChecked("docker", ["rmi", image.Image], null, root, $"removing the image {image.Image}");
             }
         });
 
@@ -352,39 +289,4 @@ partial class Build
             Serilog.Log.Information("✓ {File}:{NewLine}{Text}", checksums, Environment.NewLine, File.ReadAllText(checksums));
         });
 
-    /// <summary>
-    /// Runs a command with an explicit environment (or the inherited one when null), no shell and no window, kills its
-    /// process tree after five minutes, and returns stdout. Fails with the output on a non-zero exit code.
-    /// </summary>
-    static string RunChecked(string command, string[] arguments, IReadOnlyDictionary<string, string>? environment, string workingDirectory, string what)
-    {
-        var start = new ProcessStartInfo(command)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            WorkingDirectory = workingDirectory,
-        };
-        foreach (var argument in arguments) start.ArgumentList.Add(argument);
-        if (environment is not null)
-        {
-            start.Environment.Clear();
-            foreach (var (key, value) in environment) start.Environment[key] = value;
-        }
-
-        using var process = Process.Start(start) ?? throw new Exception($"{what}: could not start {command}.");
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(TimeSpan.FromMinutes(5)))
-        {
-            process.Kill(entireProcessTree: true);
-            process.WaitForExit();
-            throw new Exception($"{what}: timed out after five minutes.");
-        }
-
-        if (process.ExitCode != 0)
-            throw new Exception($"{what}: exit code {process.ExitCode}{Environment.NewLine}{stdout.Result}{stderr.Result}");
-        return stdout.Result;
-    }
 }

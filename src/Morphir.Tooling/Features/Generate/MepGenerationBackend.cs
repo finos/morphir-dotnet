@@ -326,7 +326,8 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 files.Add(KeyValuePair.Create(artifact.Path, VFileModule.ofText(artifact.Path, artifact.Content)));
         }
 
-        // The guest's order is the declared order.
+        // The guest's order is the declared order. A MEP generate result does not say whether the guest formatted, so
+        // the artifacts carry no Formatting: the host reports only what it observes.
         var tree = VFileTree.OfFiles(files);
         return new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics));
     }
