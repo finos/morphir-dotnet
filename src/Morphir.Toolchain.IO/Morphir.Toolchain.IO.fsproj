@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Morphir.Toolchain.IO</RootNamespace>
+    <Description>Bounded acquisition transport and byte integrity for the standalone toolchain manager</Description>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <ProjectReference Include="../Morphir.Toolchain/Morphir.Toolchain.fsproj" />
+    <InternalsVisibleTo Include="Morphir.Toolchain.IO.Tests" />
+    <Compile Include="Boundary.fs" />
+    <Compile Include="Acquisition.fs" />
+    <Compile Include="HttpTransport.fs" />
+  </ItemGroup>
+</Project>
