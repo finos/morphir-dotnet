@@ -224,6 +224,19 @@ module TufMetadata =
             | Ok digest -> Ok digest
             | Error _ -> Error(TufFailure.MetadataInvalid(role, "sha256 is not 64 lowercase hexadecimal digits")))
 
+    /// <summary>The first target path of a targets role's <c>signed</c> object that is not a portable target path,
+    /// including one that is not NFC. A reader under the toolchain contracts checks target paths before the version 1
+    /// signed-text rule and reports such a path with its own code, <c>non_portable_path</c> (tool release metadata v1,
+    /// "Signed text", at finos/morphir <c>655f88df8</c>).</summary>
+    let private firstNonPortablePath (role: TufRole) (signed: Value) =
+        match role, signed with
+        | TufRole.Targets, Value.Object members ->
+            match members |> List.tryFind (fst >> (=) "targets") with
+            | Some(_, Value.Object entries) ->
+                entries |> List.tryPick (fun (path, _) -> if Result.isError (TargetPath.tryParse path) then Some path else None)
+            | _ -> None
+        | _ -> None
+
     /// <summary>The first string or member name inside a value that is not already NFC. The signature input is the
     /// NFC canonical form, so a document with such text would share its input with another (review of #581, T4).</summary>
     let rec private firstNotNfc (value: Value) : string option =
@@ -268,6 +281,10 @@ module TufMetadata =
                     do! exactMembers role "the envelope" [ "signatures"; "signed" ] top
                     let! signed = required role "signed" top
                     let! signedMembers = members role "signed" signed
+
+                    match firstNonPortablePath role signed with
+                    | Some path -> return! Error(TufFailure.NonPortableTarget path)
+                    | None -> ()
 
                     match firstNotNfc signed with
                     | Some what -> return! Error(TufFailure.MetadataInvalid(role, $"{what} inside signed is not NFC"))
