@@ -79,11 +79,12 @@ commit as the artifact.
 | No installed .NET runtime | See below. Skipped, with the reason, where the runtime cannot be hidden |
 | The declared runtime | framework-dependent and dotnet-tool run on the machine's runtime: the host loads `hostfxr` from a machine runtime root and chooses a `Microsoft.NETCore.App` 10.x, read from the first `Chose FX version` line of the host trace. native-aot and self-contained never load the machine's runtime, even when it is reachable |
 
-The harness resolves its working directory to a physical path before preparing input files. On macOS, `/var` is an
-alias for `/private/var`. Passing that alias in an absolute input path previously failed the input scenario because
-bounded capture rejects linked ancestors. The product's link refusal remains in force. Regression tests cover a
-linked temporary root and verify that the prepared working directory has no linked ancestor. A fresh macOS packaged
-run is still needed to establish the scenario's result for a candidate artifact.
+The harness resolves both its discovery boundary and working directory to physical paths before preparing input
+files. On macOS, `/var` is an alias for `/private/var`. Passing that alias in an absolute input path fails bounded
+capture's linked-ancestor check. Resolving only the input path is insufficient: discovery then compares a physical
+working directory with an aliased boundary and refuses it. The product's containment and link checks remain in
+force. Regression tests cover a linked temporary root, the physical boundary passed in the environment, and a
+working directory with no linked ancestor.
 
 ### How "no installed .NET runtime" is shown
 
@@ -166,7 +167,7 @@ against 25,158 then, in 20 assemblies and no other entry. The fix
 |---|---|---|---|---|
 | win-arm64 | Packaged checks pass: local build, run on the build machine. Not qualified | Packaged checks pass: local build, run on the build machine. Not qualified | Packaged checks pass: local build, run on the build machine. Not qualified | Packaged checks pass: local build, run on the build machine. Not qualified |
 | win-x64 | Not run | Not run | Not run | Not run |
-| osx-arm64 | Not run | Not run | Not run | Not run |
+| osx-arm64 | Packaged run at f4fc12a2 failed two infrastructure checks; corrected-harness rerun pending. Not qualified | Not run | Not run | Not run |
 | osx-x64 | Not run | Not run | Not run | Not run |
 | linux-x64 | Not run | Not run | Not run | Not run |
 | linux-arm64 | Not run | Not run | Not run | Not run |
@@ -177,6 +178,16 @@ or registered location (the machine's .NET 10.0.13 and 10.0.14 runtimes are in a
 38 other non-manual E2E scenarios pass; the 38th, "Verify with quiet mode", is tagged `@Ignore` in the existing suite.
 The release lanes of task 2.5 and the acquired-artifact checks of group 6 still apply before anything is qualified.
 The `dotnet-tool` package is portable; only its win-arm64 installation has been run.
+
+[macOS packaged run 43010471928](https://github.com/finos/morphir-dotnet/actions/runs/43010471928), at
+`f4fc12a2a80072b5739cf1922911d8f72ac3d21a`, built and packed Native AOT, then actually ran 73 tests:
+69 passed, two failed and two were skipped. The input-file scenario failed with `discovery.boundary` because the
+physical working directory was compared with the aliased sandbox root. The duplicate-artifact infrastructure
+test correctly received a refusal naming both artifacts, but assumed their filesystem enumeration order. The
+harness now supplies a physical discovery boundary, and that assertion checks both names without assuming order.
+A Windows linked-root regression failed before the boundary correction; the eight packaged-run and four
+artifact-discovery infrastructure tests then passed. Those tests do not substitute for the macOS rerun or acquired
+release qualification.
 
 Unsupported, and refused by `PackRelease`:
 
