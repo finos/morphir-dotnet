@@ -16,11 +16,14 @@ internal static class MckProcess
     /// <summary>The exit code when the tool could not be started: the shell's "found but not executable".</summary>
     private const int NotStartedExitCode = 126;
 
+    /// <summary>The shell convention for signal exit codes: this base plus the signal number.</summary>
+    private const int SignalExitCodeBase = 128;
+
     /// <summary>The exit code when the routing was cancelled: the shell's code for an interrupt.</summary>
-    private const int CancelledExitCode = 128 + 2;
+    private const int CancelledExitCode = SignalExitCodeBase + 2;
 
     /// <summary>The conventional exit code of a process stopped by SIGTERM; also used for SIGHUP.</summary>
-    private const int TerminatedExitCode = 128 + 15;
+    private const int TerminatedExitCode = SignalExitCodeBase + 15;
 
     /// <summary>At most this many failures are named when part of the tool's tree cannot be stopped.</summary>
     private const int ReportedFailures = 3;
