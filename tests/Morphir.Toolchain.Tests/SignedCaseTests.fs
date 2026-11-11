@@ -608,6 +608,112 @@ let private channelTests () =
                   requireKnown name [ "code"; "path" ] expected
                   Expect.equal (targetOutcome actual) (Refused(str expected "code", str expected "path")) name) ]
 
+/// The outcome of a load trust case: its metadata set, after its mutations, refreshed from the trusted root at a start.
+let private loadOutcome (start: DateTimeOffset) (case: JsonElement) =
+    match TufClient.refresh start (anchor ()) (TufFixture.sourceOf (mutatedSet case) []) with
+    | RefreshResult.Refreshed _ -> Valid
+    | RefreshResult.Failed(failure, _) -> Refused(Code.name (TufFailure.code failure), "")
+    | other -> failtestf "%s did not complete: %A" (str case "name") other
+
+/// <summary>The reference window (finos/morphir's <c>every_case_has_one_outcome_across_the_reference_window</c>): the
+/// fixtures are built so every case has the same outcome at any instant after the expired timestamp's expiry and
+/// before every other expiry. The Rust client could only compare expiry with the wall clock; this client takes the
+/// start time, so every load case is run at both ends of the window, at the reference time and now.</summary>
+let private referenceWindowTests () =
+    use repository = repositoryDocument ()
+    let root = repository.RootElement
+    let text (e: JsonElement) = nonNull (e.GetString())
+
+    let instant (value: string) =
+        // RFC 3339 UTC timestamps of one fixed shape compare as strings.
+        Expect.isTrue (value.Length = 20 && value.EndsWith 'Z') $"{value} is a fixed-shape UTC timestamp"
+        DateTimeOffset.Parse(value, Globalization.CultureInfo.InvariantCulture, Globalization.DateTimeStyles.AssumeUniversal)
+
+    let reference = text (root.GetProperty "referenceTime")
+    let expired = text (root.GetProperty("rejectionMetadata").GetProperty("expiredTimestamp").GetProperty("signed").GetProperty "expires")
+
+    let expiries =
+        [ yield text (root.GetProperty("trustedRoot").GetProperty("signed").GetProperty "expires")
+          for set in [ "metadata"; "learnedRevocation" ] do
+              for role in [ "timestamp"; "snapshot"; "targets" ] do
+                  yield text (root.GetProperty(set).GetProperty(role).GetProperty("signed").GetProperty "expires") ]
+
+    let earliest = expiries |> List.min
+
+    [ testCase "the reference time and now lie after the expired timestamp and before every other expiry" (fun () ->
+          Expect.isLessThan (instant expired) (instant reference) "after the expired timestamp"
+          Expect.isLessThan (instant reference) (instant earliest) "before every other expiry"
+          Expect.equal expired "2020-01-01T00:00:00Z" "the expired timestamp's expiry"
+          Expect.equal earliest "2999-01-01T00:00:00Z" "the earliest other expiry"
+          Expect.isTrue (instant expired < DateTimeOffset.UtcNow && DateTimeOffset.UtcNow < instant earliest) "now is inside the window"
+          Expect.equal TufFixture.referenceTime (instant reference) "the client runs at the fixture's reference time")
+
+      testCase "every load case has one outcome across the whole window" (fun () ->
+          let starts =
+              [ (instant expired).AddSeconds 1.0
+                instant reference
+                DateTimeOffset.UtcNow
+                (instant earliest).AddSeconds -1.0 ]
+
+          let loads = cases "trust" |> List.filter (fun case -> str (case.GetProperty "action") "op" = "load")
+          Expect.isNonEmpty loads "load cases"
+
+          for case in loads do
+              let outcomes = starts |> List.map (fun start -> loadOutcome start case)
+              Expect.equal (List.distinct outcomes) [ Manifest.expected (str case "name") case ] $"""{str case "name"}: one outcome at {starts}""") ]
+
+/// <summary>A recipe whose preset is a device name (finos/morphir's
+/// <c>a_non_portable_recipe_target_is_refused_without_panicking</c>): its target
+/// <c>toolchains/recipes/con/1.0.0.json</c> is refused as <c>non_portable_path</c>, by the TUF client when targets
+/// metadata lists it, and by selection and the recipe target check over authenticated targets. Nothing here touches
+/// the file system, so no directory named <c>con</c> is ever created.</summary>
+let private devicePresetTests () =
+    let target = "toolchains/recipes/con/1.0.0.json"
+    let recipeBytes = Encoding.UTF8.GetBytes """{"preset":"con","version":"1.0.0"}"""
+
+    let state =
+        Value.Object
+            [ "morphir",
+              Value.Object
+                  [ "kind", Value.String "toolset-recipe"
+                    "schemaVersion", Value.String "0.1.0-draft.1"
+                    "preset", Value.String "con"
+                    "version", Value.String "1.0.0"
+                    "channels", Value.Array [ Value.String "stable" ]
+                    "status", Value.String "active" ] ]
+
+    let entry =
+        { Length = uint64 recipeBytes.Length
+          Sha256 = Sha256.ofBytes recipeBytes
+          Custom = Some state }
+
+    let con = match Token.tryParse "con" with Ok t -> t | Error _ -> failtest "con is a token"
+
+    [ testCase "the TUF client refuses targets metadata that lists the device-name recipe" (fun () ->
+          let set = TufFixture.metadataSet "metadata"
+
+          let listing =
+              Value.Object
+                  [ "length", TufFixture.number entry.Length
+                    "hashes", Value.Object [ "sha256", Value.String entry.Sha256.Text ]
+                    "custom", state ]
+
+          let targets = TufFixture.resign "targets" (TufFixture.setAt [ "signed"; "targets"; target ] listing set.Targets)
+          let relinked = TufFixture.relink { set with Targets = targets }
+
+          match TufClient.refresh TufFixture.referenceTime (anchor ()) (TufFixture.sourceOf relinked []) with
+          | RefreshResult.Failed(failure, _) -> Expect.equal (Code.name (TufFailure.code failure)) "non_portable_path" "refused"
+          | other -> failtestf "expected a refusal, got %A" other)
+
+      testCase "a selected device-name recipe is refused by the target check before it is read" (fun () ->
+          // Selection names the greatest active recipe of the preset on the channel; the recipe target checks then
+          // start with the target path rules, before anything is read (toolset recipe page). The Rust reference
+          // refused at selection; here the refusal is the check's first row, with the same code and empty path.
+          let listed = (target, entry) :: (authenticatedTargets "metadata" |> Map.toList)
+          Expect.equal (RecipeTargets.select con Channel.Stable listed) (Ok target) "selection names the device-name target"
+          Expect.equal (targetOutcome (RecipeTargets.check target (Some entry) recipeBytes)) (Refused("non_portable_path", "")) "the check refuses it"
+          // The check refuses the path before the bytes: even bytes that are not a recipe give the same refusal.
+          Expect.equal (targetOutcome (RecipeTargets.check target (Some entry) [||])) (Refused("non_portable_path", "")) "before anything is read") ]
 /// Why a trust case is not run, or None when it is.
 let trustSkipReason (op: string) (rule: string option) =
     match op, rule with
@@ -665,6 +771,8 @@ let tests =
                 let lock = LockDocument.read (Fixtures.bytesIn Fixtures.signed (str case "lock")) |> valid "lock"
                 Expect.equal lock.Recipe.RepositoryId.Text (repositoryId ()) "the recipe's repository")
 
+        testList "reference window" (referenceWindowTests ())
+        testList "device-name preset" (devicePresetTests ())
         testList "selection" (selectionTests ())
         testList "frozen" (frozenTests ())
         testList "lockRecipe" (lockRecipeTests ())
