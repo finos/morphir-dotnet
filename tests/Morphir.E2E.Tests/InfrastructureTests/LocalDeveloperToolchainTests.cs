@@ -133,9 +133,13 @@ public sealed class LocalDeveloperToolchainTests
             start.Environment["COREHOST_TRACEFILE"] = start.Environment["DOTNET_HOST_TRACEFILE"];
             await File.WriteAllTextAsync(Path.Combine(evidence, label + ".invocation.json"), JsonSerializer.Serialize(new
             {
-                executable, arguments, workingDirectory = start.WorkingDirectory, hidden,
+                executable,
+                arguments,
+                workingDirectory = start.WorkingDirectory,
+                hidden,
                 path = start.Environment.TryGetValue("PATH", out var searchPath) ? searchPath : null,
-                home, guardSha256 = ReleaseFiles.Sha256(guard)
+                home,
+                guardSha256 = ReleaseFiles.Sha256(guard)
             }));
             try
             {
@@ -146,7 +150,7 @@ public sealed class LocalDeveloperToolchainTests
                 await File.WriteAllTextAsync(Path.Combine(evidence, label + ".stdout.log"), result.StandardOutput);
                 await File.WriteAllTextAsync(Path.Combine(evidence, label + ".stderr.log"), result.StandardError);
                 await File.WriteAllTextAsync(Path.Combine(evidence, label + ".result.json"), JsonSerializer.Serialize(new
-                    { result.ExitCode, result.StartedAt, result.ExitedAt }));
+                { result.ExitCode, result.StartedAt, result.ExitedAt }));
                 if (success) result.ExitCode.Should().Be(0, result.CombinedOutput);
                 return result;
             }
@@ -261,12 +265,22 @@ public sealed class LocalDeveloperToolchainTests
         ReleaseFiles.Sha256(archive).Should().Be(expectedArchiveDigest);
         await File.WriteAllTextAsync(Path.Combine(evidence, "identity.json"), JsonSerializer.Serialize(new
         {
-            manager, managerSha256 = ReleaseFiles.Sha256(manager), archive, archiveSha256 = expectedArchiveDigest, candidateDigest,
-            installedHostSha256 = ReleaseFiles.Sha256(installedHost), coreClrSha256 = ReleaseFiles.Sha256(Path.Combine(installedFolder, "coreclr.dll")),
-            version = Text(candidate, "version"), archiveRelease = packaged.Release,
-            sourceCommit = Text(candidate, "sourceCommit"), buildIdentity = Text(candidate, "buildIdentity"),
-            provenance = "local-developer", hiding = hiding.Reason, osArchitecture = RuntimeInformation.OSArchitecture.ToString(),
-            testProcessArchitecture = RuntimeInformation.ProcessArchitecture.ToString(), qualification = "local-windows-x64-only"
+            manager,
+            managerSha256 = ReleaseFiles.Sha256(manager),
+            archive,
+            archiveSha256 = expectedArchiveDigest,
+            candidateDigest,
+            installedHostSha256 = ReleaseFiles.Sha256(installedHost),
+            coreClrSha256 = ReleaseFiles.Sha256(Path.Combine(installedFolder, "coreclr.dll")),
+            version = Text(candidate, "version"),
+            archiveRelease = packaged.Release,
+            sourceCommit = Text(candidate, "sourceCommit"),
+            buildIdentity = Text(candidate, "buildIdentity"),
+            provenance = "local-developer",
+            hiding = hiding.Reason,
+            osArchitecture = RuntimeInformation.OSArchitecture.ToString(),
+            testProcessArchitecture = RuntimeInformation.ProcessArchitecture.ToString(),
+            qualification = "local-windows-x64-only"
         }));
     }
 
