@@ -63,6 +63,10 @@ cooperating lease boundaries through one manager-owned folder adapter. It does
 not use the extension single-file layout. Incomplete private stages are not
 installation authority; cleanup and recovery of abandoned stages remain future
 lifecycle work.
+Selection likewise prepares its bytes inside a private temporary stage and
+atomically moves them to the default pointer only after validation. Cancellation
+or an exception before that move leaves the previous pointer intact. Abandoned
+preparation is never selection authority and does not block later commands.
 
 The focused product-API integration covers a real full-folder candidate, actual
 installed version probe, compile followed by generate, fixed IR and generated

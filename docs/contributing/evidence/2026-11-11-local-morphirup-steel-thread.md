@@ -72,6 +72,19 @@ an unquoted `--` consumed by its wrapper, then passed with the literal quoted.
 Raw logs, exact command vectors, typed UTC build/closure records and fixed outputs
 remain in the supplied candidate evidence, not committed wholesale into git.
 
+The milestone PR review also found that interrupted selection left a
+`.default-<guid>` file beside the authoritative pointer, causing later commands
+to refuse the Home. Two controls interrupt after actual pointer preparation by
+cancellation and an I/O exception. Both initially errored on the intended
+`show` assertion, expected success and actual `local.foreign_home`. Preparation
+now uses the existing private temporary-stage namespace. Abandoned bytes there
+have no authority and do not block show, selection or launch; the prior pointer
+remains unchanged. General private-stage sweeping remains future work.
+After the correction, all seven supplied-candidate controls passed, including
+both interruptions, subsequent show/select/run, the original integrity and
+owned-state refusals, and real fixed compile/generate. The PR and bundle record
+the replacement native producer, exact artifact digest and repeated journey.
+
 ## Reproduction and remaining acceptance
 
 The [user walkthrough](../../content/docs/getting-started/local-morphirup-candidate.md)

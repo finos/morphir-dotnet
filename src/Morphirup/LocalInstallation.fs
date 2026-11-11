@@ -749,7 +749,7 @@ let selected home ct =
     validateOwnedState root
     loadSelection root false ct
 
-let selectAsync home identity dryRun ct = task {
+let internal selectWithPreparedAsync home identity dryRun (prepared: unit -> unit) ct = task {
     let installed = generation home identity ct
 
     if not dryRun then
@@ -764,28 +764,50 @@ let selectAsync home identity dryRun ct = task {
 
         let bytes = LocalCandidateDocument.writeSelection current.Candidate current.Receipt
 
+        // Prepared pointer bytes have no authority. An interrupted write stays in
+        // the already-supported private stage namespace, never beside default.json.
+        let stageName =
+            "local-toolchain-"
+            + Guid.NewGuid().ToString("N")
+
         FileSafety.withDirectories
             root
-            [ "toolchains" ]
-            false
-            (fun directory ->
-                let name =
-                    ".default-"
-                    + Guid.NewGuid().ToString("N")
+            [ "tmp"; stageName ]
+            true
+            (fun stage ->
+                use owner = stage.File(".owner", true, true)
 
-                writeFile directory name bytes
-                ct.ThrowIfCancellationRequested()
-                directory.ValidateLocation()
-
-                File.Move(
-                    Path.Combine(directory.Path, name),
-                    Path.Combine(directory.Path, "default.json"),
+                FileSafety.withDirectories
+                    stage
+                    [ "generation" ]
                     true
-                )
+                    (fun pending ->
+                        writeFile pending "selection.json" bytes
+                        prepared ()
+                        ct.ThrowIfCancellationRequested()
+                        pending.ValidateLocation()
+
+                        FileSafety.withDirectories
+                            root
+                            [ "toolchains" ]
+                            false
+                            (fun directory ->
+                                directory.ValidateLocation()
+
+                                File.Move(
+                                    Path.Combine(pending.Path, "selection.json"),
+                                    Path.Combine(directory.Path, "default.json"),
+                                    true
+                                )
+                            )
+                    )
             )
 
     return installed
 }
+
+let selectAsync home identity dryRun ct =
+    selectWithPreparedAsync home identity dryRun ignore ct
 
 let runAsync home args directory input output errors ct = task {
     use root = SafeDirectory.Open(home, false)

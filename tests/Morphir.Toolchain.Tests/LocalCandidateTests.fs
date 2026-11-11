@@ -713,6 +713,104 @@ let suppliedCandidateTests =
     | null, null -> testList "morphirup supplied local candidate integration (not configured)" []
     | candidatePath, archivePath ->
         testList "morphirup supplied local candidate integration" [
+            for cancel in [ true; false ] do
+                testCaseTask
+                    (sprintf
+                        "interrupted prepared selection preserves usable prior state cancel=%b"
+                        cancel)
+                    (fun () -> task {
+                        let candidatePath =
+                            candidatePath
+                            |> Option.ofObj
+                            |> Option.get
+
+                        let archivePath =
+                            archivePath
+                            |> Option.ofObj
+                            |> Option.get
+
+                        use sandbox = TestSandbox.Create()
+                        let! candidate = installSelected sandbox candidatePath archivePath
+
+                        let pointer =
+                            Path.Combine(sandbox.MorphirHome, "toolchains", "default.json")
+
+                        let before = File.ReadAllBytes pointer
+                        use cancellation = new CancellationTokenSource()
+                        let injected = IOException "selection preparation failed"
+                        let mutable prepared = false
+                        let mutable observed: exn option = None
+
+                        try
+                            let! _ =
+                                Morphirup.LocalInstallation.selectWithPreparedAsync
+                                    sandbox.MorphirHome
+                                    candidate.ManifestSha256
+                                    false
+                                    (fun () ->
+                                        prepared <- true
+                                        if cancel then cancellation.Cancel() else raise injected
+                                    )
+                                    cancellation.Token
+
+                            failtest "Interrupted selection unexpectedly committed"
+                        with error ->
+                            observed <- Some error
+
+                        Expect.isTrue
+                            prepared
+                            "the actual selection bytes were prepared before interruption"
+
+                        match observed with
+                        | Some(:? OperationCanceledException) when cancel -> ()
+                        | Some error when
+                            not cancel
+                            && obj.ReferenceEquals(error, injected)
+                            ->
+                            ()
+                        | _ -> failtestf "Wrong primary interruption: %A" observed
+
+                        Expect.equal
+                            (File.ReadAllBytes pointer)
+                            before
+                            "prior pointer stays intact"
+
+                        for command in
+                            [
+                                [ "show"; "--home"; sandbox.MorphirHome ]
+                                [
+                                    "select"
+                                    "--generation"
+                                    candidate.ManifestSha256.Text
+                                    "--home"
+                                    sandbox.MorphirHome
+                                    "--dry-run"
+                                ]
+                                [ "run"; "--home"; sandbox.MorphirHome; "--"; "--version" ]
+                                [
+                                    "select"
+                                    "--generation"
+                                    candidate.ManifestSha256.Text
+                                    "--home"
+                                    sandbox.MorphirHome
+                                ]
+                            ] do
+                            let! exit, output, error = runLocal sandbox command
+
+                            Expect.equal
+                                exit
+                                0
+                                ("Prepared private state must not poison "
+                                 + command.Head
+                                 + ": "
+                                 + output
+                                 + error)
+
+                        Expect.equal
+                            (File.ReadAllBytes pointer)
+                            before
+                            "later successful selection keeps exact identity"
+                    })
             testCaseTask
                 "later commands preserve host locks and ignore shared Home siblings without adopting them"
                 (fun () -> task {
