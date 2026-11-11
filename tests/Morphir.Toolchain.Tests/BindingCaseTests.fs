@@ -166,32 +166,73 @@ let run (case: BindingCase) =
                 | Error code -> Refused(Code.readerName code, "")
 
         Expect.equal actual expected name
+    | CanonicalJson(name, value, expected, referenceTuf) ->
+        let parse (text: string) (what: string) =
+            match Syntax.parseJson (System.Text.Encoding.UTF8.GetBytes text) with
+            | Ok parsed -> parsed
+            | Error _ -> failtestf "%s: %s is not JSON" name what
+
+        let parsed = parse value "the value"
+
+        match Canonical.bytes parsed with
+        | Ok bytes -> Expect.equal (System.Text.Encoding.UTF8.GetString bytes) expected $"{name}: the canonical text"
+        | Error _ -> failtestf "%s: the value has no canonical form" name
+
+        // The reference TUF encoder's text is not this contract's encoding; it must still encode the same value, as
+        // parsed values (strings compared after NFC, as both encoders write them).
+        let normalized (value: Value) =
+            match Canonical.bytes value with
+            | Ok bytes -> bytes
+            | Error _ -> failtestf "%s: no canonical form" name
+
+        Expect.sequenceEqual (normalized (parse referenceTuf "referenceTuf")) (normalized parsed) $"{name}: referenceTuf encodes the same value"
+    | CliRequirement(name, requirement, cliVersion, expected) ->
+        let parsed = CliRequirement.tryParse requirement
+
+        match expected, cliVersion with
+        | CliRead outcome, None ->
+            let actual = if parsed.IsSome then Valid else Refused("invalid_value", "")
+            Expect.equal actual outcome name
+        | CliMet met, Some cli ->
+            let comparators =
+                match parsed with
+                | Some comparators -> comparators
+                | None -> failtestf "%s: %s is not in the grammar" name requirement
+
+            let installed =
+                match SemVer.tryParse cli with
+                | Ok version -> version
+                | Error _ -> failtestf "%s: %s is not a version" name cli
+
+            Expect.equal (Comparator.allMet comparators installed) met name
+        | _ -> failtestf "%s: a cliVersion goes with an expected met, and only then" name
+
+/// The binding kinds of the pinned corpus. A corpus may add kinds this suite runs, but it may not drop one of these.
+let pinnedKinds =
+    set
+        [ "lock-request"
+          "lock-platform"
+          "receipt-lock"
+          "resolve"
+          "plan-canonical"
+          "lock-request-bytes"
+          "plan-lock"
+          "discover"
+          "mep-version"
+          "nfc"
+          "setup-platforms"
+          "prerequisite-versions"
+          "version" ]
 
 [<Tests>]
 let tests =
     let cases = bindings ()
 
     testList "Unsigned binding cases" [
-        testCase "the manifest lists binding cases of every kind" (fun () ->
+        testCase "the manifest lists binding cases of every pinned kind" (fun () ->
+            // A kind this suite does not run is refused while the manifest is read; here no pinned kind is missing.
             let kinds = cases |> List.map _.Kind |> set
-
-            Expect.equal
-                kinds
-                (set
-                    [ "lock-request"
-                      "lock-platform"
-                      "receipt-lock"
-                      "resolve"
-                      "plan-canonical"
-                      "lock-request-bytes"
-                      "plan-lock"
-                      "discover"
-                      "mep-version"
-                      "nfc"
-                      "setup-platforms"
-                      "prerequisite-versions"
-                      "version" ])
-                "every kind")
+            Expect.isEmpty (Set.difference pinnedKinds kinds) "every pinned kind has cases")
 
         testList "cases" [ for case in cases -> testCase case.Name (fun () -> run case) ]
     ]

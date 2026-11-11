@@ -68,6 +68,14 @@ let ranRecipeRules =
           "provider-claims-operand"
           "provider-claims-model" ]
 
+/// The rules the pinned corpus names. Every one of them must still have cases, so a corpus cannot drop one unnoticed.
+let pinnedRecipeRules = ranRecipeRules
+
+/// The rules the contract added after the pin (finos/morphir 837164580), which RecipeBindings runs.
+let laterRecipeRules = set [ "host-release-identity"; "provider-descriptor-critical"; "provider-descriptor-filenames" ]
+
+let ranRules = Set.union ranRecipeRules laterRecipeRules
+
 /// Recipe check rules this suite does not run, each with its reason. Every rule of the three tables is run.
 let skippedRecipeRules: Map<string, string> = Map.empty
 
@@ -129,9 +137,9 @@ let private mutatedSet (case: JsonElement) =
 
     let withRole (role: string) (value: Value) (set: TufFixture.MetadataSet) =
         match role with
-        | "timestamp" -> { set with Timestamp = value }
-        | "snapshot" -> { set with Snapshot = value }
-        | "targets" -> { set with Targets = value }
+        | "timestamp" -> { set with Timestamp = value; Served = set.Served.Remove role }
+        | "snapshot" -> { set with Snapshot = value; Served = set.Served.Remove role }
+        | "targets" -> { set with Targets = value; Served = set.Served.Remove role }
         | other -> failtestf "mutation of role %s" other
 
     let roleOf (role: string) (set: TufFixture.MetadataSet) =
@@ -154,6 +162,9 @@ let private mutatedSet (case: JsonElement) =
             let role = str m "role"
             withRole role (TufFixture.setAt ("signed" :: pointerPath (str m "pointer")) value (roleOf role set)) set
         | "relink" -> TufFixture.relink set
+        | "replace-role-text" ->
+            requireKnown "replace-role-text" [ "op"; "role"; "find"; "replace" ] m
+            TufFixture.replaceRoleText (str m "role") (str m "find") (str m "replace") set
         | "replace-role" -> withRole (str m "role") (TufFixture.at (List.ofArray ((str m "from").Split '.')) (TufFixture.repository ())) set
         | target when target.EndsWith "-target-bytes" || target.EndsWith "-target-text" -> set
         | other -> failtestf "metadata mutation %s" other)
@@ -330,7 +341,7 @@ let private recipeCheckTests () =
           let rule = optStr case "rule"
 
           // Valid cases have no rule: they must pass the rows this suite runs.
-          if rule.IsNone || ranRecipeRules.Contains rule.Value then
+          if rule.IsNone || ranRules.Contains rule.Value then
               yield
                   testCase name (fun () ->
                       let target = str case "recipe"
@@ -343,28 +354,30 @@ let private trustTests () =
           let action = case.GetProperty "action"
           let op = str action "op"
           let rule = optStr case "rule"
-          let listed = authenticatedTargets (str case "metadata")
+          // Authenticated when a case reads it: a load case's set may be one the client refuses.
+          let metadata = str case "metadata"
+          let listed = lazy (authenticatedTargets metadata)
 
           match op, rule with
           | "read", _ ->
               yield
                   testCase name (fun () ->
                       let target = str action "target"
-                      let actual = RecipeTargets.authenticate (listed.TryFind target) (servedBytes case target) |> targetOutcome
+                      let actual = RecipeTargets.authenticate (listed.Value.TryFind target) (servedBytes case target) |> targetOutcome
                       Expect.equal actual (Manifest.expected name case) name)
           | "authenticate", _ ->
               yield
                   testCase name (fun () ->
                       let actual =
-                          RecipeTargets.authenticate (listed.TryFind(str action "target")) (Encoding.UTF8.GetBytes(str action "text"))
+                          RecipeTargets.authenticate (listed.Value.TryFind(str action "target")) (Encoding.UTF8.GetBytes(str action "text"))
                           |> targetOutcome
 
                       Expect.equal actual (Manifest.expected name case) name)
-          | "check-recipe", Some rule when ranRecipeRules.Contains rule ->
+          | "check-recipe", Some rule when ranRules.Contains rule ->
               yield
                   testCase name (fun () ->
                       let target = str action "recipe"
-                      Expect.equal (withServedTargets case (recipeRows listed target)) (Manifest.expected name case) name)
+                      Expect.equal (withServedTargets case (recipeRows listed.Value target)) (Manifest.expected name case) name)
           | "check-recipe-bindings", _ ->
               yield
                   testCase name (fun () ->
@@ -386,7 +399,7 @@ let private trustTests () =
                               original
 
                       let recipe = RecipeDocument.read (JsonText.toBytes edited) |> valid target
-                      let actual = withServedTargets case (fun bytesOf -> RecipeBindings.check (repository ()) listed bytesOf recipe) |> targetOutcome
+                      let actual = withServedTargets case (fun bytesOf -> RecipeBindings.check (repository ()) listed.Value bytesOf recipe) |> targetOutcome
                       Expect.equal actual (Manifest.expected name case) name)
           | "load", _ ->
               yield
@@ -407,7 +420,7 @@ let private trustTests () =
                       // A generation whose recipe target the trust state does not list is refused before it is read.
                       let recipe () = Ok(signedRecipe lock.Recipe.Target.Text)
 
-                      let actual = RecipeTargets.checkLockedGeneration (repository ()) listed recipe lock |> targetOutcome
+                      let actual = RecipeTargets.checkLockedGeneration (repository ()) listed.Value recipe lock |> targetOutcome
                       Expect.equal actual (Manifest.expected name case) name)
           | _ -> () ]
 
@@ -440,10 +453,32 @@ let private v1DescriptorTests () =
 
               Expect.isOk (ToolReleaseDocument.read (targetBytes release)) "a v1 descriptor")
       yield testCase "every other release target is the deliberate negative" (fun () ->
+          // The v1Client controls' own release (finos/morphir 837164580) is not an offering; the control cases read it.
+          let controlTools =
+              use document = manifest ()
+
+              match document.RootElement.GetProperty("v1Client").TryGetProperty "controls" with
+              | true, controls -> [ for control in controls.EnumerateArray() -> str control "toolId" ] |> List.distinct
+              | false, _ -> []
+
+          // A recipe-check negative names its release through a host offering of the recipe it checks.
+          let checkedReleases =
+              [ for case in cases "recipeChecks" do
+                    match tryTargetBytes (str case "recipe") |> Option.map RecipeDocument.read with
+                    | Some(Ok recipe) ->
+                        for host in recipe.Hosts do
+                            match host.Source with
+                            | HostSource.ToolRelease toolId -> yield $"releases/{toolId.Text}/{host.Version.Text}.json"
+                            | HostSource.DotnetTool _ -> ()
+                    | _ -> () ]
+              |> set
+
           let others =
               listed
               |> Map.keys
               |> Seq.filter (fun target -> target.StartsWith "releases/" && not (List.contains target releases))
+              |> Seq.filter (fun target -> not (controlTools |> List.exists (fun id -> target.StartsWith $"releases/{id}/")))
+              |> Seq.filter (fun target -> target = "releases/morphir-dotnet-not-a-release/1.2.3.json" || not (checkedReleases.Contains target))
               |> List.ofSeq
 
           Expect.equal others [ "releases/morphir-dotnet-not-a-release/1.2.3.json" ] "the one release not listed"
@@ -452,7 +487,7 @@ let private v1DescriptorTests () =
 let private v1ClientTests () =
     use document = manifest ()
     let section = document.RootElement.GetProperty "v1Client"
-    requireKnown "v1Client" [ "note"; "recipe"; "selections" ] section
+    requireKnown "v1Client" [ "note"; "recipe"; "selections"; "controls" ] section
     let cli = str (document.RootElement.GetProperty "referenceClient") "cliVersion"
     let recipe = signedRecipe (str section "recipe")
     let listed = authenticatedTargets "metadata"
@@ -503,7 +538,48 @@ let private v1ClientTests () =
               let digests =
                   [ for selection in selections -> listed[str (selection.GetProperty "recipeBinding") "targetPath"].Sha256.Text ]
 
-              Expect.equal (List.length (List.distinct digests)) 18 "distinct") ]
+              Expect.equal (List.length (List.distinct digests)) 18 "distinct")
+
+      // The controls (finos/morphir 837164580): the same client on a release that is not an offering, selected at some
+      // CLI versions and not at others, so a client that never selects fails them.
+      match section.TryGetProperty "controls" with
+      | false, _ -> ()
+      | true, controls ->
+          for control in controls.EnumerateArray() do
+              let control = control.Clone()
+              let toolId = str control "toolId"
+              let cli = str control "cliVersion"
+              requireKnown $"{toolId} control" [ "toolId"; "channel"; "platform"; "cliVersion"; "expected" ] control
+
+              yield
+                  testCase $"control {toolId} at CLI {cli}" (fun () ->
+                      let platform = control.GetProperty "platform"
+                      requireKnown $"{toolId} control platform" [ "os"; "arch" ] platform
+                      let expected = control.GetProperty "expected"
+                      requireKnown $"{toolId} control expected" [ "selected"; "version"; "targetPath" ] expected
+                      let v1Platform = { Os = str platform "os"; Arch = str platform "arch" }
+
+                      let request =
+                          match Channel.tryParse (str control "channel") with
+                          | Ok channel -> ToolRequest.OnChannel channel
+                          | Error _ -> failtest "channel"
+
+                      let id = match ToolId.tryParse toolId with Ok id -> id | Error _ -> failtest "tool id"
+                      let cliVersion = match SemVer.tryParse cli with Ok v -> v | Error _ -> failtest "cli version"
+
+                      match ToolResolver.resolve listed id request v1Platform cliVersion, expected.GetProperty("selected").GetBoolean() with
+                      | Ok selection, true ->
+                          Expect.equal selection.Version.Text (str expected "version") "the selected version"
+
+                          // The artifact the client then installs: the descriptor's artifact for the platform, read from
+                          // its authenticated bytes.
+                          let descriptor = ToolReleaseDocument.read (targetBytes selection.Target) |> valid selection.Target
+                          let artifact = descriptor.Artifacts |> List.tryFind (fun a -> a.Platform = v1Platform)
+                          Expect.equal (artifact |> Option.map _.TargetPath) (Some(str expected "targetPath")) "the selected artifact"
+                      | Error refusal, false ->
+                          requireKnown $"{toolId} control expected" [ "selected" ] expected
+                          Expect.equal (Code.name refusal.Code) "no_compatible_release" "why nothing is selected"
+                      | outcome, selected -> failtestf "control at %s: expected selected = %b, got %A" cli selected outcome) ]
 
 let private channelTests () =
     let listed = authenticatedTargets "metadata" |> Map.toList
@@ -536,7 +612,7 @@ let private channelTests () =
 let trustSkipReason (op: string) (rule: string option) =
     match op, rule with
     | ("read" | "authenticate" | "check-locked-generation" | "check-recipe-bindings" | "load"), _ -> None
-    | "check-recipe", Some rule when ranRecipeRules.Contains rule -> None
+    | "check-recipe", Some rule when ranRules.Contains rule -> None
     | "check-recipe", Some rule -> skippedRecipeRules.TryFind rule |> Option.orElse (Some "unlisted")
     | _ -> skippedTrust.TryFind op |> Option.orElse (Some "unlisted")
 
@@ -557,8 +633,11 @@ let tests =
                 |> List.choose (fun case -> optStr case "rule")
 
             let rules = (cases "recipeChecks" |> List.choose (fun case -> optStr case "rule")) @ checkRecipe |> set
-            let accounted = Set.union ranRecipeRules (skippedRecipeRules |> Map.keys |> set)
-            Expect.equal rules accounted "the manifest's rules are exactly the run and the skipped rules")
+            let skipped = skippedRecipeRules |> Map.keys |> set
+            let accounted = Set.union ranRules skipped
+            Expect.isEmpty (Set.difference rules accounted) "every rule of the manifest is run or skipped with a reason"
+            Expect.isEmpty (Set.difference skipped rules) "no skipped rule is stale"
+            Expect.isEmpty (Set.difference pinnedRecipeRules rules) "no rule of the pinned corpus has lost its cases")
 
         testCase "every trust case is run or listed with a reason" (fun () ->
             let unlisted =
