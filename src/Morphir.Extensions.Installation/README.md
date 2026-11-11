@@ -255,6 +255,21 @@ ignored. The freshly rebuilt public C# probe still emits all 24 lines. This is
 functional regression evidence, not a measured heap-growth reproduction or new
 Unix/AOT qualification. Independent review remains required before integration.
 
+Hosted Unix execution at exact `98df40356676d4facdd358e43effa9fad795af43`
+subsequently found a real staging failure. Both full Run tests logs report 207
+executed, 182 passed, zero ignored/failed and 25 errored. All 25 PrivateStaging
+cases errored while Begin tried to construct a FileStream with an async flag on
+a raw Unix handle whose `IsAsync` metadata is false. The existing 182 tests passed;
+that does not qualify staging. A source correction now retains the Windows
+OVERLAPPED flag and describes Unix handles truthfully. All 25 staging cases remain;
+the successful-write control now crosses the 64 KiB buffer, and the ownership
+control checks platform handle metadata. Two focused Windows no-restore builds
+now pass, each with four existing dependency TFM warnings and zero errors. Before
+and after pinned two-file formatting, PrivateStaging passes 25/25, Store 15/15
+with one Unix-only ignored and RunCopies 5/5 with two Unix-only ignored. The
+format check passes. Exact-head Unix GREEN remains required; these Windows
+results cannot close this failure. No AOT or full-lifecycle qualification follows.
+
 This burst used three focused no-restore builds. The first two recorded tuple
 alias/await syntax diagnostics separately; the third succeeded after pinned
 Fantomas formatting, with four existing dependency TFM warnings and zero errors.
@@ -282,8 +297,19 @@ and rehashes that same open object against exact count and digest before ownersh
 transfers once to the sealed wrapper. Disposing the writable wrapper after that
 transfer cannot close the sealed owner's stream.
 
-The existing FileSafety opening path has an opt-in async-file mode, including the
-Windows overlapped flag. Existing store/run callers keep synchronous handles.
+The FileSafety opening path requests Windows OVERLAPPED only for staging. Raw
+Unix openat handles retain synchronous handle metadata. The correction
+passes that actual mode to the same-handle FileStream constructor. The .NET 10
+[constructor validation](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.Private.CoreLib/src/System/IO/FileStream.cs)
+requires the flag to match `SafeFileHandle.IsAsync`. Unix uses the same
+[stream strategy](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.Private.CoreLib/src/System/IO/Strategies/FileStreamHelpers.Unix.cs)
+for either mode; its
+[async writes](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.Private.CoreLib/src/System/IO/RandomAccess.Unix.cs)
+queue awaited thread-pool operations on the original descriptor. No pathname is
+reopened or handle metadata overridden. Buffered WriteAsync/FlushAsync, same-open
+rehashing, awaited durability and cancellation/disposal ownership stay in place.
+Cancellation cannot interrupt an arbitrary kernel syscall already running.
+Existing store/run callers keep their prior handle strategy.
 Private lease waits retry only native sharing/flock contention, with cancellation;
 permission/identity failures refuse. The .NET 10
 [async Windows stream strategy](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.Private.CoreLib/src/System/IO/Strategies/AsyncWindowsFileStreamStrategy.cs)

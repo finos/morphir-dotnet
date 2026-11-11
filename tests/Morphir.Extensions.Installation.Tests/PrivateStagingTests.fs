@@ -93,18 +93,29 @@ let tests =
     testList "PrivateStaging" [
         testTask "valid chunks seal with exact length and digest" {
             use sandbox = TestSandbox.Create()
+            // Cross the owned FileStream buffer so the control exercises awaited
+            // writes as well as the final buffered flush on each platform.
+            let content =
+                Array.init
+                    (128 * 1024
+                     + 7)
+                    (fun index -> byte (index % 251))
 
             use! (stage: PrivateArtifactStage) =
-                beginStage (home sandbox) (uint64 bytes.Length) (digest bytes) (uint64 bytes.Length)
+                beginStage
+                    (home sandbox)
+                    (uint64 content.Length)
+                    (digest content)
+                    (uint64 content.Length)
 
-            do! stage.WriteAsync(ReadOnlyMemory<byte>(bytes, 0, 3), ct)
+            do! stage.WriteAsync(ReadOnlyMemory<byte>(content, 0, 3), ct)
 
             do!
                 stage.WriteAsync(
                     ReadOnlyMemory<byte>(
-                        bytes,
+                        content,
                         3,
-                        bytes.Length
+                        content.Length
                         - 3
                     ),
                     ct
@@ -112,8 +123,8 @@ let tests =
 
             let! result = stage.SealAsync ct
             use! (sealedStage: SealedArtifactStage) = Task.FromResult(get result)
-            Expect.equal sealedStage.Length (uint64 bytes.Length) "verified count"
-            Expect.equal sealedStage.Digest (digest bytes) "verified digest"
+            Expect.equal sealedStage.Length (uint64 content.Length) "verified count"
+            Expect.equal sealedStage.Digest (digest content) "verified digest"
             do! (sealedStage :> IAsyncDisposable).DisposeAsync()
         }
         testTask "empty bytes have a valid seal" {
@@ -287,6 +298,13 @@ let tests =
             use! (stage: PrivateArtifactStage) = beginWithWriter (home sandbox) writer
             do! write stage bytes
             let! (ownedStream: Stream) = observed.Task.WaitAsync deadline
+            let ownedFile = ownedStream :?> FileStream
+
+            Expect.equal
+                ownedFile.IsAsync
+                (OperatingSystem.IsWindows())
+                "Windows uses OVERLAPPED; the raw Unix descriptor has synchronous handle metadata"
+
             let! result = stage.SealAsync ct
             use! (sealedStage: SealedArtifactStage) = Task.FromResult(get result)
             do! throws<InvalidOperationException> (fun () -> write stage [||])

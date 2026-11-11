@@ -38,8 +38,15 @@ interrupted-write and concurrency controls, including cancellation while waiting
 for creation admission. Affected Store 15/15 and RunCopies
 5/5 pass, with three Unix-only cases ignored. The public C# JIT probe also passes
 its original 15 output cases plus nine staging cases, including ownership,
-nullable cleanup, refusal and cancellation controls. New staging Unix and AOT
-evidence remain pending. The reviewed hashing dependency was merged normally;
+nullable cleanup, refusal and cancellation controls. Hosted macOS and Ubuntu at
+`98df4035` then each reported 207 executed, 182 passed and all 25 staging tests
+errored, with zero ignored or failed. Begin incorrectly declared a raw Unix file
+handle asynchronous. A source correction preserves the open file and Windows
+OVERLAPPED behavior while using the Unix handle's actual mode. Focused Windows
+verification passes 25 staging, 15 Store and five RunCopies tests before and after
+formatting, with three Unix-only tests ignored each time. These Windows results
+leave the hosted Unix failure open; Unix staging GREEN and AOT evidence remain
+pending. The reviewed hashing dependency was merged normally;
 publication, host mapping, manager integration and later safe orphan collection
 remain unfinished. This adds no working installation command.
 

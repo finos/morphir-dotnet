@@ -609,6 +609,14 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
 
                 NativeFiles.error full error
 
+            // Raw Unix SafeFileHandle wrappers have IsAsync=false. .NET still
+            // implements their WriteAsync/FlushAsync through awaited I/O; the
+            // constructor flag must describe the handle, not our caller's API.
+            // Windows alone opened an OVERLAPPED handle above when requested.
+            let asynchronousHandle =
+                asynchronous
+                && OperatingSystem.IsWindows()
+
             let stream =
                 new FileStream(
                     file,
@@ -620,7 +628,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                      else
                          FileAccess.Read),
                     64 * 1024,
-                    asynchronous
+                    asynchronousHandle
                 )
 
             if not stream.CanSeek then
