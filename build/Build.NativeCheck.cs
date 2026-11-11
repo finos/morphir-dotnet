@@ -212,12 +212,14 @@ partial class Build
         foreach (var command in commands)
         {
             var scratch = Scratch(scratchRoot, label, command, inputs);
-            List<string> docker = ["run", "--rm", "--network", "none", "--volume", $"{folder}:{mounted}:ro", "--volume", $"{scratch}:/scratch",
+            List<string> docker = ["--network", "none", "--volume", $"{folder}:{mounted}:ro", "--volume", $"{scratch}:/scratch",
                 "--workdir", command.InScratch ? "/scratch" : mounted];
             foreach (var (key, value) in (extra ?? new Dictionary<string, string>()).Concat(command.Environment))
                 docker.AddRange(["--env", $"{key}={value.Replace("{scratch}", "/scratch", StringComparison.Ordinal)}"]);
             docker.AddRange([image.Image, $"{mounted}/{launchName}", .. command.Expand(mountedInputs, "/scratch")]);
-            var (exit, stdout, stderr, timedOut) = RunCaptured("docker", [.. docker], null, folder, TimeSpan.FromMinutes(5));
+            var (exit, stdout, stderr, timedOut) = NativeCheck.RunContainer(docker,
+                arguments => RunCaptured("docker", arguments, null, folder, TimeSpan.FromMinutes(5)),
+                arguments => RunChecked("docker", arguments, null, folder, $"removing the check container {arguments[2]}", TimeSpan.FromMinutes(1)));
             outcomes.Add(NativeCheck.Outcome(label, command, exit, timedOut, stdout, stderr));
         }
 

@@ -100,6 +100,10 @@ preparing absolute input paths. This avoids passing macOS's `/var` alias for `/p
 which deliberately refuses linked ancestors. A regression test supplies a linked temporary root. This harness fix
 does not establish that the packaged-input scenario has passed on macOS; a fresh packaged-artifact run is required.
 
+Each packaged command run in a clean image gets a unique container name. The check force-removes that container
+after the command, including after a client timeout or exception, with a separate one-minute cleanup limit. A failed
+cleanup fails the check, since stopping the Docker client alone does not stop the container managed by the daemon.
+
 ## Calling the targets directly
 
 A parent job that has the submodule checked out can run the same targets itself, from the submodule folder:

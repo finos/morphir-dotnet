@@ -86,6 +86,23 @@ public sealed record OpenSslCallSite(string Path, int Line, string Api, string T
 public static class NativeCheck
 {
     /// <summary>
+    /// Runs a command in a uniquely named container and removes that container even when the Docker client times out
+    /// or throws. The caller supplies bounded Docker operations; killing the client alone cannot stop its container.
+    /// </summary>
+    public static TResult RunContainer<TResult>(IReadOnlyList<string> arguments, Func<string[], TResult> run, Action<string[]> remove)
+    {
+        var name = $"morphir-native-check-{Guid.NewGuid():N}";
+        try
+        {
+            return run(["run", "--name", name, .. arguments]);
+        }
+        finally
+        {
+            remove(["rm", "--force", name]);
+        }
+    }
+
+    /// <summary>
     /// The highest glibc the Linux executables may need: Ubuntu 22.04's. A Native AOT executable needs the glibc of the
     /// machine that linked it, or newer, so the Linux publish runs in <see cref="LinuxBuildImage"/>, and the check reads
     /// the versions the executable needs and refuses one above this floor.

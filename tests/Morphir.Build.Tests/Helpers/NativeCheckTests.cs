@@ -13,6 +13,63 @@ namespace Morphir.Build.Tests.Helpers;
 public class NativeCheckTests
 {
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void AContainerIsRemovedAfterSuccessOrAClientTimeout(bool timedOut)
+    {
+        var containers = new HashSet<string>(StringComparer.Ordinal);
+        string? started = null;
+        var result = NativeCheck.RunContainer(["--network", "none", "image", "/check/morphir", "--version"],
+            arguments =>
+            {
+                arguments.Take(2).Should().Equal("run", "--name");
+                started = arguments[2];
+                containers.Add(started);
+                arguments.Skip(3).Should().Equal("--network", "none", "image", "/check/morphir", "--version");
+                // The daemon keeps the container after its client has timed out.
+                return (ExitCode: timedOut ? -1 : 0, TimedOut: timedOut);
+            },
+            arguments =>
+            {
+                arguments.Should().Equal("rm", "--force", started!);
+                containers.Remove(arguments[2]).Should().BeTrue();
+            });
+
+        result.Should().Be((timedOut ? -1 : 0, timedOut));
+        containers.Should().BeEmpty("both successful and timed-out clients leave daemon-managed resources to remove");
+    }
+
+    [Test]
+    public void AContainerIsRemovedWhenTheClientThrowsAndOnlyItsOwnContainerIsRemoved()
+    {
+        var containers = new HashSet<string>(StringComparer.Ordinal) { "another-check" };
+        var failure = new IOException("client pipe failed");
+        Action run = () => NativeCheck.RunContainer<int>(["image"],
+            arguments =>
+            {
+                containers.Add(arguments[2]);
+                throw failure;
+            },
+            arguments => containers.Remove(arguments[2]).Should().BeTrue());
+
+        run.Should().Throw<IOException>().Which.Should().BeSameAs(failure);
+        containers.Should().Equal("another-check");
+    }
+
+    [Test]
+    public void EveryContainerHasItsOwnIdentityAndACleanupFailureFailsTheCheck()
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var _ in Enumerable.Range(0, 3))
+            NativeCheck.RunContainer(["image"], arguments => names.Add(arguments[2]).Should().BeTrue(), _ => { });
+        names.Should().HaveCount(3);
+
+        Action run = () => NativeCheck.RunContainer(["image"], _ => 0,
+            _ => throw new IOException("container removal failed"));
+        run.Should().Throw<IOException>().WithMessage("container removal failed");
+    }
+
+    [Test]
     public void EveryNeededSharedLibraryIsReportedByName()
     {
         const string dynamic = """
