@@ -25,7 +25,9 @@
     <Compile Include="Manifest.fs" />
     <Compile Include="DocumentCaseTests.fs" />
     <Compile Include="BindingCaseTests.fs" />
+    <Compile Include="TufFixture.fs" />
     <Compile Include="SignedCaseTests.fs" />
+    <Compile Include="TufTests.fs" />
     <Compile Include="ReleaseDescriptorTests.fs" />
     <Compile Include="BindingReviewTests.fs" />
     <Compile Include="ContractTableTests.fs" />

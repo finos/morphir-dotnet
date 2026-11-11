@@ -264,6 +264,17 @@ The executable needs no .NET runtime, no ICU and no OpenSSL: it is built in inva
 - `unsupported_contract_version` at `schemaVersion`: this build reads `0.1.0-draft.1` documents only, never another draft or the released `0.1.0`.
 - `credential_in_document`: no toolchain document may hold a member such as `token`, `password` or `apiKey`, at any depth and in any letter case. The result names the member, never its value.
 
+## Repository metadata verification
+
+`Morphir.Toolchain` has the verification part of a TUF client for the tool release metadata v1 profile: it reads root, timestamp, snapshot and targets metadata, checks Ed25519 signature thresholds, follows root rotation, and checks rollback, links and expiry. No `morphirup` command uses it yet, and nothing in this release downloads or authenticates repository metadata. **This code has not had a security review. It must not be used to authenticate a production release until it has.**
+
+A trust anchor has a purpose, `TestOnly` or `Production`, and every root the client later accepts by rotation must meet the same rules as the anchor. A production anchor must be the repository whose identity the caller names: no root is production on the strength of the checks below alone, and no production identity ships with this build. The production checks then refuse:
+
+- a root threshold below two, at the anchor and at every rotation;
+- any of the five public keys of this repository's TEST-ONLY signed fixture, wherever a root lists them.
+
+That deny list stops those five keys and nothing else. It does not stop any other published test seed, of which this repository has several, and it says nothing about which repository is meant. That is why production also needs the repository identity.
+
 ## Related
 
 - [Toolchain acquisition contracts](https://github.com/finos/morphir/blob/9e1f853b7ef64c160bd3ec9c238e246d84a23802/docs/spec/toolchain/index.md) in finos/morphir: a draft, in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to
