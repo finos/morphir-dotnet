@@ -1,0 +1,22 @@
+{
+  "evidenceKind": "packaged-native-aot-source-build-tests",
+  "description": "Internal evidence record, not an installer input or a versioned Morphir document contract.",
+  "sourceCommit": "1b9b6367f01127efa3b03f52dba36cf526ec5093",
+  "workflowRun": 43014397958,
+  "workflowUrl": "https://github.com/finos/morphir-dotnet/actions/runs/43014397958",
+  "rid": "osx-arm64",
+  "configuration": "Release",
+  "deployment": "native-aot",
+  "conclusion": "success",
+  "tests": {
+    "total": 74,
+    "passed": 72,
+    "failed": 0,
+    "skipped": 2,
+    "skippedNames": ["Verify with quiet mode", "AWindowsShortNameIsTheLongName"]
+  },
+  "priorFailedRun": 43010471928,
+  "qualificationClaim": false,
+  "acquiredReleaseArtifacts": false,
+  "minimumOsExecutionTested": false
+}

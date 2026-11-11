@@ -167,7 +167,7 @@ against 25,158 then, in 20 assemblies and no other entry. The fix
 |---|---|---|---|---|
 | win-arm64 | Packaged checks pass: local build, run on the build machine. Not qualified | Packaged checks pass: local build, run on the build machine. Not qualified | Packaged checks pass: local build, run on the build machine. Not qualified | Packaged checks pass: local build, run on the build machine. Not qualified |
 | win-x64 | Not run | Not run | Not run | Not run |
-| osx-arm64 | Packaged run at f4fc12a2 failed two infrastructure checks; corrected-harness rerun pending. Not qualified | Not run | Not run | Not run |
+| osx-arm64 | Corrected-harness packaged run at 1b9b6367: 72 passed, two skipped. Source-built on the runner. Not qualified | Not run | Not run | Not run |
 | osx-x64 | Not run | Not run | Not run | Not run |
 | linux-x64 | Not run | Not run | Not run | Not run |
 | linux-arm64 | Not run | Not run | Not run | Not run |
@@ -186,8 +186,15 @@ physical working directory was compared with the aliased sandbox root. The dupli
 test correctly received a refusal naming both artifacts, but assumed their filesystem enumeration order. The
 harness now supplies a physical discovery boundary, and that assertion checks both names without assuming order.
 A Windows linked-root regression failed before the boundary correction; the eight packaged-run and four
-artifact-discovery infrastructure tests then passed. Those tests do not substitute for the macOS rerun or acquired
-release qualification.
+artifact-discovery infrastructure tests then passed.
+
+The corrected [macOS packaged run 43014397958](https://github.com/finos/morphir-dotnet/actions/runs/43014397958),
+at `1b9b6367f01127efa3b03f52dba36cf526ec5093`, built and packed Native AOT on the hosted osx-arm64 runner.
+It ran 74 tests: 72 passed, none failed, and two were skipped. The skips were the existing quiet-mode scenario
+and the Windows-only short-name test. The input-file and duplicate-artifact checks passed, along with the new
+linked-root regression. This establishes the corrected harness on macOS, not an acquired release, execution on
+the minimum OS, or production qualification. The [run record](evidence/macos-packaged-1b9b6367.json) records the
+source commit and test totals.
 
 Unsupported, and refused by `PackRelease`:
 

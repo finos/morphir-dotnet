@@ -101,7 +101,10 @@ which deliberately refuses linked ancestors. A regression test supplies a linked
 also resolves the discovery boundary to the same physical root. The first fresh macOS packaged run,
 [43010471928](https://github.com/finos/morphir-dotnet/actions/runs/43010471928) at `f4fc12a2`, showed that resolving
 only the working directory still produced a `discovery.boundary` refusal. The corrected harness has a failing-then-
-passing linked-root regression on Windows; a fresh macOS packaged-artifact run is still required.
+passing linked-root regression on Windows. The corrected
+[macOS packaged-artifact run 43014397958](https://github.com/finos/morphir-dotnet/actions/runs/43014397958)
+at `1b9b6367` passed 72 tests with two skips and no failures. It built its artifact on that runner; acquired-release
+and minimum-platform qualification remain outstanding.
 
 Each packaged command run in a clean image gets a unique container name. The check force-removes that container
 after the command, including after a client timeout or exception, with a separate one-minute cleanup limit. A failed
