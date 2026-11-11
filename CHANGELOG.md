@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `compile --target` does not run a backend extension: it runs the built-in backend of the target, as before. When the project configuration sets `[codegen.<target>].extension` for that target, it now prints a note on stderr saying so
 
 ### Fixed
+- Configuration: a member of `[frontend]` that is not a table (for example `[frontend]` `note = "x"`) is no longer refused as an invalid language table. Only an object-valued member is a `[frontend.<language>]` table with `project_file` and `extension`; any other member stays unconstrained, as the upstream schema leaves it
 - `compile --extension`: a frontend guest that never answers `compileModel` now fails with `extension.timeout` at the deadline, and a guest that does not answer `shutdown` or take `exit` within the deadline (for example one whose handler blocks its read loop) has its process tree stopped. Before, the host could wait indefinitely in both cases. The same holds for `generate --extension`, so a timed-out request ends within about two deadlines
 - A frontend or backend guest that fails to start or initialize no longer leaves its stderr reader or process handle behind
 - `compile`: for a language id with a dot, `[frontend."acme.lang"].extension` and `project_file` are now read from that quoted table; before, the id was split at the dot, so the keys were looked up under `[frontend.acme.lang]` and the quoted table was ignored. A project file key that is not read for lack of a language is now named with the quotes too

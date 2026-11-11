@@ -34,7 +34,9 @@ applies these amendments to the parsed schema before it generates `src/Morphir.C
   build parts, for example `"4.1.0-draft.1"`. The integer default stays 4.
 - The definition `frontendLanguage` has the members `extension` and `project_file`. Every
   `[frontend.<language>]` table uses it, including `[frontend.elm]`. Upstream documents `extension` as
-  valid under any language table; `project_file` is the proposed shared key.
+  valid under any language table; `project_file` is the proposed shared key. Only an object-valued member of
+  `[frontend]` is a language table: any other member stays unconstrained, as upstream's `additionalProperties: true`
+  leaves it. A dotted language id is one quoted key, `[frontend."acme.lang"]`.
 - The definition `codegenTarget` has the member `extension`, with the same value rule as
   `[frontend.<language>].extension`. Every object-valued member of `[codegen]` (a `[codegen.<target>]` table, for
   example `[codegen.fsharp]`, or `[codegen."acme.codegen"]` for a dotted target id, which is one quoted key) uses it, beside the upstream members `targets`, `template_dir` and `output_format`.
