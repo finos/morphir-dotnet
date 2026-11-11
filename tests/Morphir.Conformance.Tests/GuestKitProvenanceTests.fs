@@ -75,8 +75,10 @@ let tests =
                 Directory.GetFiles(kitDirectory, "*", SearchOption.AllDirectories)
                 |> Array.map relative
                 |> Array.filter (fun name ->
+                    // Only adoption/ has a separate authority, exact inventory and digest checks below.
                     name
                     <> "PROVENANCE.md"
+                    && not (name.StartsWith("adoption/", StringComparison.Ordinal))
                     && not (entries.ContainsKey name)
                 )
 
@@ -107,4 +109,112 @@ let tests =
         test "The pinned kit is read by the runner's reader" {
             Expect.equal kit.Value.Profile "generic-json-library-v1" "profile"
         }
+    ]
+
+/// The approved parent contract is a second authority; it does not repin the historical kit.
+[<Literal>]
+let private AdoptionCommit = "9e7d90e2fb5708580baef7cdd323cd994030c237"
+
+// Fixed digests from the original pin, independent of the editable provenance table.
+let private originalPinnedDigests =
+    Map.ofList [
+        "LICENSE", "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+        "NOTICE", "02a20174dd6ff4d866cad7d04ce8d61503306f3266f3c03261418d5011805889"
+        "README.md", "7f37b522fbae4e10e914319aac3b0c61ffd23ac59773ae56aea6334ff32a3764"
+        "generic-guest-profile/spec.md", "2b38bbcb827706e1ab4eb68a7f84bbdd984b0934285d30351dbf5224f598f750"
+        "guest-generic-json.json", "f16f2a4c577b507527a77a19a383c2c0083b4db1db131cd06d170e65a88598ae"
+    ]
+
+// Each source file's raw bytes were matched to its Git blob at AdoptionCommit before hashing.
+// These expectations are not read from the later import or from an implementation's output.
+let private adoptionInputs = [
+    (
+        "proposal.md",
+        "openspec/changes/drop-generic-guest-legacy-tier/proposal.md",
+        "2c1a961551068e983096508e495e31ce5901689c6e6198af5e26c8e985d4fa3b"
+    )
+    (
+        "design.html",
+        "openspec/changes/drop-generic-guest-legacy-tier/design.html",
+        "adb0015ef33ae198e15584f173afb1a09ec1896a1975d6ff9a1aa9e41661ab20"
+    )
+    (
+        "tasks.md",
+        "openspec/changes/drop-generic-guest-legacy-tier/tasks.md",
+        "61bae4278086285fc4375d10c285bcda2bc5415d3afb0f08227dae071d03bc3e"
+    )
+    (
+        "specs/mep/generic-guest-profile/spec.md",
+        "openspec/changes/drop-generic-guest-legacy-tier/specs/mep/generic-guest-profile/spec.md",
+        "2d7f292a8af946a3a65cab20203a143f500be10b367869eb35983b4567d30bb5"
+    )
+]
+
+let private adoptionDirectory = Path.Combine(kitDirectory, "adoption")
+
+let private adoptionProvenance () =
+    let path = Path.Combine(adoptionDirectory, "PROVENANCE.md")
+    Expect.isTrue (File.Exists path) "the separately attributed adoption/PROVENANCE.md must exist"
+    File.ReadAllText path
+
+[<Tests>]
+let adoptionTests =
+    testList "Generic guest kit adoption provenance (task 2.1)" [
+        test "The frozen kit retains its original authority and file digests" {
+            let manifest = provenance ()
+            Expect.stringContains manifest $"Commit: `{KitCommit}`" "the original kit authority"
+            Expect.isFalse (manifest.Contains AdoptionCommit) "the old pin must not claim the later contract authority"
+            Expect.equal (rows manifest) originalPinnedDigests "the original five provenance rows"
+
+            for KeyValue(file, expected) in originalPinnedDigests do
+                let path = Path.Combine(kitDirectory, file.Replace('/', Path.DirectorySeparatorChar))
+                Expect.equal (sha256 path) expected $"unchanged original bytes of {file}"
+        }
+
+        test "The adoption manifest names its approved authority and inherited notices" {
+            let manifest = adoptionProvenance ()
+            Expect.stringContains manifest "Repository: https://github.com/finos/morphir" "the source repository"
+            Expect.stringContains manifest $"Commit: `{AdoptionCommit}`" "the approved contract authority"
+            Expect.stringContains manifest $"Baseline commit: `{KitCommit}`" "the distinct historical kit authority"
+            Expect.stringContains manifest "../PROVENANCE.md" "the unchanged baseline provenance"
+            Expect.stringContains manifest "../LICENSE" "the retained upstream licence"
+            Expect.stringContains manifest "../NOTICE" "the retained upstream notices"
+            Expect.stringContains manifest "Apache-2.0" "the import licence"
+        }
+
+        test "The adoption manifest maps exactly the four approved files and source paths" {
+            let entries =
+                Regex.Matches(
+                    adoptionProvenance (),
+                    @"(?m)^\| `([^`]+)` \| `([^`]+)` \| `([0-9a-f]{64})` \|\r?$"
+                )
+                |> Seq.map (fun row -> row.Groups[1].Value, row.Groups[2].Value, row.Groups[3].Value)
+                |> Seq.sort
+                |> Seq.toList
+
+            Expect.equal entries (List.sort adoptionInputs) "exact source paths, fixed digests and no duplicate rows"
+        }
+
+        test "The adoption directory contains only the four inputs and their provenance" {
+            Expect.isTrue (Directory.Exists adoptionDirectory) "the separately attributed adoption directory must exist"
+
+            let actual =
+                Directory.GetFiles(adoptionDirectory, "*", SearchOption.AllDirectories)
+                |> Array.map (fun path -> Path.GetRelativePath(adoptionDirectory, path).Replace('\\', '/'))
+                |> Array.sort
+                |> Array.toList
+
+            let expected =
+                "PROVENANCE.md" :: (adoptionInputs |> List.map (fun (file, _, _) -> file))
+                |> List.sort
+
+            Expect.equal actual expected "every adoption file is accounted for without relocating the original pin"
+        }
+
+        for file, source, expected in adoptionInputs do
+            test $"The adoption input {file} has its approved SHA-256" {
+                let path = Path.Combine(adoptionDirectory, file.Replace('/', Path.DirectorySeparatorChar))
+                Expect.isTrue (File.Exists path) $"missing approved input from {AdoptionCommit}:{source}"
+                Expect.equal (sha256 path) expected $"exact approved bytes from {AdoptionCommit}:{source}"
+            }
     ]
