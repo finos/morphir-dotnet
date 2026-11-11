@@ -22,6 +22,7 @@
     <Compile Include="MepLineTests.fs" />
     <Compile Include="SharedReaderTests.fs" />
     <Compile Include="IoTestSupport.fs" />
+    <Compile Include="PrivateStagingTests.fs" />
     <Compile Include="StoreTests.fs" />
     <Compile Include="ArchiveTests.fs" />
     <Compile Include="RunCopyTests.fs" />

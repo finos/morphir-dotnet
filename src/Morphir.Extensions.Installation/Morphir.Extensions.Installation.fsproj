@@ -25,6 +25,7 @@
     <Compile Include="Claims.fs" />
     <Compile Include="Descriptors.fs" />
     <Compile Include="FileSafety.fs" />
+    <Compile Include="PrivateStaging.fs" />
     <Compile Include="Store.fs" />
     <Compile Include="Archives.fs" />
     <Compile Include="RunCopies.fs" />

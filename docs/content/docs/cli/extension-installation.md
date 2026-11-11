@@ -23,7 +23,24 @@ one error in file permissions/reopening and temporary-directory disposal. A
 Darwin ARM64 native-call correction and permission regressions are now under
 review. Focused Windows verification passes Store 15/15 and RunCopies 5/5, with
 three Unix-only tests ignored and Unix permission assertions unexecuted. The
-correction still needs hosted macOS and Linux verification at its exact commit.
+correction subsequently passed the installer assembly on hosted macOS and Ubuntu
+at exact head `749dd2fe`: 182/182 each, with zero ignored, failed or errored. That
+closes the ABI platform-evidence gap. Native AOT, acquired artifacts and the full
+installation lifecycle remain unqualified.
+
+Private streaming stages are the next test-first library draft. After separate
+missing-API and setup diagnostics, a fresh build succeeded and 16 tests ran.
+All 16 errored at the declaration stub's intentional refusal; zero passed or were
+ignored. No staging mechanism executed, and no behavior or public API approval
+is established by that earlier stub run. The Begin/Write/Seal implementation now
+passes 24/24 focused Windows tests that execute byte ownership, integrity,
+interrupted-write and concurrency controls. Affected Store 15/15 and RunCopies
+5/5 pass, with three Unix-only cases ignored. The public C# JIT probe also passes
+its original 15 output cases plus nine staging cases, including ownership,
+nullable cleanup, refusal and cancellation controls. New staging Unix and AOT
+evidence remain pending. The reviewed hashing dependency was merged normally;
+publication, host mapping, manager integration and later safe orphan collection
+remain unfinished. This adds no working installation command.
 
 The installation library can verify and publish a staged single file to a
 content-addressed store, validate ZIP and tar-gzip archives without extracting

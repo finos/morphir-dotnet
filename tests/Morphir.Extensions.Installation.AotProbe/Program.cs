@@ -83,6 +83,92 @@ try
     var sweep = (await RunCopies.SweepAsync(probeRoot, CancellationToken.None))
         .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
     Console.WriteLine($"run-copy sweep:{sweep.Removed.Count}/{sweep.Skipped.Count}");
+
+    // Public C# staging consumer. No internal writer, destination selection or publication.
+    var stageHome = Path.Combine(probeRoot, "private-byte-home");
+    var stageBytes = System.Text.Encoding.UTF8.GetBytes("C# private staging");
+    var stageDigest = Sha256Digest.Create(Morphir.Toolchain.Digest.ofBytes(stageBytes));
+    var stageLength = (ulong)stageBytes.Length;
+    await using var writable = (await PrivateStaging.BeginAsync(
+        stageHome, stageLength, stageDigest, stageLength, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+
+    StageCleanupReport? beforeCleanup = writable.CleanupReport;
+    if (beforeCleanup is not null)
+        throw new InvalidOperationException("Live staging unexpectedly reports physical cleanup.");
+    var borrowed = stageBytes.ToArray();
+    await writable.WriteAsync(borrowed.AsMemory(0, 3), CancellationToken.None);
+    await writable.WriteAsync(borrowed.AsMemory(3), CancellationToken.None);
+    Array.Fill(borrowed, (byte)0);
+    await using var sealedBytes = (await writable.SealAsync(CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    if (sealedBytes.Length != stageLength || !sealedBytes.Digest.Equals(stageDigest))
+        throw new InvalidOperationException("Sealed bytes differ from their expected identity.");
+    Console.WriteLine($"staging seal:{sealedBytes.Length}:{sealedBytes.Digest.Value}");
+
+    await ((IAsyncDisposable)writable).DisposeAsync();
+    if (sealedBytes.CleanupReport is not null)
+        throw new InvalidOperationException("The writable wrapper disposed the transferred owner.");
+    var refusedWrite = false;
+    try { await writable.WriteAsync(stageBytes, CancellationToken.None); }
+    catch (InvalidOperationException) { refusedWrite = true; }
+    if (!refusedWrite)
+        throw new InvalidOperationException("The transferred writable wrapper admitted bytes.");
+    Console.WriteLine("staging ownership:transferred");
+
+    await ((IAsyncDisposable)sealedBytes).DisposeAsync();
+    StageCleanupReport cleanup = sealedBytes.CleanupReport
+        ?? throw new InvalidOperationException("Awaited disposal omitted cleanup observation.");
+    InstallationFailure? cleanupFailure = cleanup.Failure;
+    if (cleanupFailure is not null)
+        throw new InvalidOperationException(cleanupFailure.ToString());
+    if (cleanup.IsDeferred)
+        throw new InvalidOperationException("Uncontended owned staging cleanup was deferred.");
+    Console.WriteLine("staging cleanup:removed:no-error");
+
+    var nullHome = (await PrivateStaging.BeginAsync(
+        null, 0, stageDigest, 0, CancellationToken.None))
+        .Match(_ => throw new InvalidOperationException("Null Home was accepted."), error => error.Code);
+    if (nullHome != "extension.invalid_path") throw new InvalidOperationException(nullHome);
+    Console.WriteLine($"staging null-home:{nullHome}");
+
+    var nullDigest = (await PrivateStaging.BeginAsync(
+        stageHome, 0, null!, 0, CancellationToken.None))
+        .Match(_ => throw new InvalidOperationException("Null digest was accepted."), error => error.Code);
+    if (nullDigest != "extension.invalid_digest") throw new InvalidOperationException(nullDigest);
+    Console.WriteLine($"staging null-digest:{nullDigest}");
+
+    var invalidBound = (await PrivateStaging.BeginAsync(
+        stageHome, 2, stageDigest, 1, CancellationToken.None))
+        .Match(_ => throw new InvalidOperationException("Invalid caller bound was accepted."), error => error.Code);
+    if (invalidBound != "extension.artifact_too_large") throw new InvalidOperationException(invalidBound);
+    Console.WriteLine($"staging bound:{invalidBound}");
+
+    await using var shortBytes = (await PrivateStaging.BeginAsync(
+        stageHome, stageLength + 1, stageDigest, stageLength + 1, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    await shortBytes.WriteAsync(stageBytes, CancellationToken.None);
+    var shortSeal = (await shortBytes.SealAsync(CancellationToken.None))
+        .Match(_ => throw new InvalidOperationException("Short stream was sealed."), error => error.Code);
+    if (shortSeal != "extension.digest_mismatch") throw new InvalidOperationException(shortSeal);
+    Console.WriteLine($"staging short:{shortSeal}");
+
+    await using var wrongBytes = (await PrivateStaging.BeginAsync(
+        stageHome, stageLength, Sha256Digest.Create(new string('0', 64)), stageLength, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    await wrongBytes.WriteAsync(stageBytes, CancellationToken.None);
+    var wrongSeal = (await wrongBytes.SealAsync(CancellationToken.None))
+        .Match(_ => throw new InvalidOperationException("Wrong digest was sealed."), error => error.Code);
+    if (wrongSeal != "extension.digest_mismatch") throw new InvalidOperationException(wrongSeal);
+    Console.WriteLine($"staging digest:{wrongSeal}");
+
+    using var cancellation = new CancellationTokenSource();
+    cancellation.Cancel();
+    var cancelled = false;
+    try { await PrivateStaging.BeginAsync(stageHome, stageLength, stageDigest, stageLength, cancellation.Token); }
+    catch (OperationCanceledException error) when (error.CancellationToken == cancellation.Token) { cancelled = true; }
+    if (!cancelled) throw new InvalidOperationException("Pre-cancelled Begin did not preserve cancellation.");
+    Console.WriteLine("staging cancellation:propagated");
 }
 finally
 {

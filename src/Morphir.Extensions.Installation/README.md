@@ -55,8 +55,12 @@ refuse explicitly. No-follow/exclusive flags and descriptor identity are unchang
 The correction adds private-mode and repeated reopen/disposal regressions.
 Focused Windows Store 15/15 and RunCopies 5/5 passed before and after formatting,
 with three existing Unix-only tests ignored. The new Unix permission assertions
-did not execute on Windows. Exact-head hosted macOS and Linux results are still
-required; this Windows result does not close the macOS failure.
+did not execute on Windows. Subsequent hosted Development run `43029092889` at
+exact head `749dd2fee3b6573a2ad874635c832fab1f4e2389` executed the installer
+assembly on macOS job `130551180282` and Ubuntu job `130551179939`: each passed
+182/182 with zero ignored, failed or errored. Those runs close the ABI platform
+evidence gap, including the three Unix interleavings. They do not qualify minimum
+OS versions, acquired artifacts, Native AOT or the full installer lifecycle.
 
 The ABI correction follows Apple's
 [ARM64 calling convention](https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms)
@@ -220,6 +224,86 @@ and macOS native filesystem paths, including Unix execute bits, require their ow
 runs. Passing conditional tests on Windows does not exercise those branches.
 
 ## Remaining integration
+
+Private asynchronous byte staging now has a source-only implementation draft of
+Begin/Write/Seal. Earlier missing-API/setup logs are retained separately from the
+first runtime-stub RED: 16 executed, all 16 errored at intentional Begin refusal,
+zero passed, ignored or failed. No staging mechanism executed in that run. The
+current implementation now passes the focused Windows PrivateStaging list: 24
+executed, 24 passed, zero ignored/failed/errored. These tests execute real owned
+stream writes, flushed partial-prefix cancellation/error, one-time ownership
+transfer, same-object tamper checks, disposal joins, interprocess lease access
+while writes pause, and observable closed-orphan deferral. Affected Store passes
+15/15 with one Unix-only test ignored, and RunCopies passes 5/5 with two Unix-only
+tests ignored. No new staging Unix branch or AOT run is established. The subsequent
+public C# JIT probe preserves its original 15 output cases and appends nine staging
+cases, for 24 deterministic lines. It verifies sealed length/digest and ownership,
+nullable cleanup/Failure consumption, null Home/digest and caller-bound refusals,
+short/wrong-digest seals and pre-cancelled Begin preserving its token. Two
+deliberately unsafe accesses produced CS8602 for CleanupReport and Failure;
+the guarded consumer then built and ran. Explicit disposal uses IAsyncDisposable.
+This was two focused no-restore probe builds and one successful fresh assembly
+run, with no production API or mechanism change, native publish or AOT inference.
+
+This burst used three focused no-restore builds. The first two recorded tuple
+alias/await syntax diagnostics separately; the third succeeded after pinned
+Fantomas formatting, with four existing dependency TFM warnings and zero errors.
+Nullable observations use the established Option.toObj boundary so the pinned
+formatter accepts the syntax. The final four-file format check passed. The three
+lists ran once; the build cap left no second rebuild/list repeat. All 90 lock
+files and the two owned project registrations were unchanged by verification.
+Exact source SHA-256 and full logs are retained in the ignored installer evidence
+folder. This is local Windows development evidence, not full qualification.
+
+Reviewed PR #594 head `8f28d5ca7881adeafc5443f1e9069ee1710378b0` was normally
+merged as `bb1aaef1900155f15ef4b397f4535ba8b75eec7a`, with every unstaged draft
+byte preserved. This supplies `Morphir.Toolchain.Digest.Incremental`; no hash or
+native filesystem implementation was copied and there is no installer dependency
+on Toolchain.IO. This dependency merge does not activate TUF or durable trust.
+
+The source uses one phase/owner state machine. Overlapping writes refuse while
+the admitted write finishes. Failed or cancelled writes and failed seals prohibit
+later sealing. Disposal joins active writes/sealing, including failed operations,
+before releasing handles. Each awaited write consumes caller memory using bounded
+storage and hashes the chunks actually admitted. Begin validates caller length
+and limit without selecting an extension cap or destination. Streaming holds no
+global mutation lease. Seal flushes, checks captured Home/directory/file identity,
+and rehashes that same open object against exact count and digest before ownership
+transfers once to the sealed wrapper. Disposing the writable wrapper after that
+transfer cannot close the sealed owner's stream.
+
+The existing FileSafety opening path has an opt-in async-file mode, including the
+Windows overlapped flag. Existing store/run callers keep synchronous handles.
+Private lease waits retry only native sharing/flock contention, with cancellation;
+permission/identity failures refuse. The .NET 10
+[async Windows stream strategy](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.Private.CoreLib/src/System/IO/Strategies/AsyncWindowsFileStreamStrategy.cs)
+and [stream strategy selection](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.Private.CoreLib/src/System/IO/Strategies/FileStreamHelpers.cs)
+were read as API references, not runtime evidence for this new code.
+
+Awaited disposal exposes `CleanupReport` with completed or deferred physical
+cleanup. It closes ownership before attempting identity-checked deletion under
+the cooperative lease. A busy lease or foreign substitution leaves closed private
+bytes and an observable diagnostic, with no detached task or shared journal.
+Failed Begin retains a cleanup report in its exception Data under
+`Morphir.PrivateStaging.CleanupReport`; typed refusal messages also disclose
+physical deferral. A later process's safe orphan collector remains unimplemented
+and needs its own substitution/ownership controls. No immediate physical deletion
+under failed storage or a busy lease is promised. Native durability/close calls
+are awaited to completion; cancellation is not a hard kernel deadline.
+
+Private temporary names and empty owner files are installer internals, not a
+shared metadata contract. Public classes have internal constructors, nullable
+cleanup observations and Task/ValueTask/IAsyncDisposable ownership; no F# options
+or unions cross that boundary. The API has focused C# JIT/nullable evidence;
+independent review and native/AOT consumer qualification remain outstanding.
+
+Later slices must verify additional Home/name replacement interleavings, full
+cancellation/deadline boundaries and safe orphan sweep, and add sealed publication
+through the existing Store/FileSafety implementation. Store.fs is unchanged in
+these first two slices. Actual commit state including Darwin clone final
+verification, read-only reuse, host publication mapping and manager composition
+remain unimplemented. Generic staging chooses no extension layout or 256 MiB
+policy. Unix and Native AOT qualification of this new source remain pending.
 
 Parent group 1 published the seven schemas, normative member tables,
 identity/package cases and publication audit in finos/morphir#1156, immutable main

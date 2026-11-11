@@ -53,6 +53,9 @@ type InstallationLimits private () =
 
 exception internal InstallationException of InstallationFailure
 
+type internal FileLeaseBusyException(message: string) =
+    inherit IOException(message)
+
 module internal Operations =
     let fail code message =
         raise (InstallationException(InstallationFailure(code, message)))
@@ -511,7 +514,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
             child.Dispose()
             reraise ()
 
-    member this.File(name: string, createNew: bool, lease: bool) =
+    member this.File(name: string, createNew: bool, lease: bool, asynchronous: bool) =
         this.ValidateLocation()
 
         if
@@ -527,24 +530,40 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
 
         let file =
             if OperatingSystem.IsWindows() then
-                NativeFiles.createFile (
-                    NativeFiles.windowsPath full,
-                    (if
-                         createNew
-                         || lease
-                     then
-                         (if createNew then 0xC0010000u else 0xC0000000u)
-                     else
-                         0x80000000u),
-                    (if lease then 0u else 1u),
-                    0n,
-                    (if createNew then 1u
-                     elif lease then 4u
-                     else 3u),
-                    0x00200080u,
-                    0n
-                )
-                |> NativeFiles.windowsHandle full
+                let opened =
+                    NativeFiles.createFile (
+                        NativeFiles.windowsPath full,
+                        (if
+                             createNew
+                             || lease
+                         then
+                             (if createNew then 0xC0010000u else 0xC0000000u)
+                         else
+                             0x80000000u),
+                        (if lease then 0u else 1u),
+                        0n,
+                        (if createNew then 1u
+                         elif lease then 4u
+                         else 3u),
+                        (0x00200080u
+                         ||| (if asynchronous then 0x40000000u else 0u)),
+                        0n
+                    )
+
+                if
+                    lease
+                    && opened.IsInvalid
+                then
+                    let error = Marshal.GetLastPInvokeError()
+
+                    if
+                        error = 32
+                        || error = 33
+                    then
+                        opened.Dispose()
+                        raise (FileLeaseBusyException $"Private I/O lease is busy: {full}")
+
+                NativeFiles.windowsHandle full opened
             else
                 let flags =
                     NativeFiles.noFollow
@@ -580,7 +599,15 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                 && NativeFiles.flock (NativeFiles.fd file, 2 ||| 4)
                    <> 0
             then
-                raise (IOException $"Run directory is in use: {path}")
+                let error = Marshal.GetLastPInvokeError()
+
+                if
+                    error = 11
+                    || error = 35
+                then
+                    raise (FileLeaseBusyException $"Private I/O lease is busy: {full}")
+
+                NativeFiles.error full error
 
             let stream =
                 new FileStream(
@@ -593,7 +620,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                      else
                          FileAccess.Read),
                     64 * 1024,
-                    false
+                    asynchronous
                 )
 
             if not stream.CanSeek then
@@ -604,6 +631,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
         with _ ->
             file.Dispose()
             reraise ()
+
+    member this.File(name: string, createNew: bool, lease: bool) =
+        this.File(name, createNew, lease, false)
 
     member this.Publish(source: SafeFileHandle, name: string) =
         this.ValidateLocation()
@@ -734,6 +764,28 @@ module internal FileSafety =
         with _ ->
             lease.Dispose()
             reraise ()
+
+    let tryMutationLease root =
+        try
+            Some(mutationLease root)
+        with :? FileLeaseBusyException ->
+            None
+
+    // Retry only actual interprocess contention. Permission/identity failures are refusals.
+    let rec mutationLeaseAsync root (ct: CancellationToken) = task {
+        ct.ThrowIfCancellationRequested()
+
+        match tryMutationLease root with
+        | Some lease ->
+            if ct.IsCancellationRequested then
+                lease.Dispose()
+                ct.ThrowIfCancellationRequested()
+
+            return lease
+        | None ->
+            do! Task.Delay(25, ct)
+            return! mutationLeaseAsync root ct
+    }
 
     let rec withDirectories (root: SafeDirectory) (parts: string list) create work =
         match parts with

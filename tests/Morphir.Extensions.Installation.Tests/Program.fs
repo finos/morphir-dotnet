@@ -10,6 +10,19 @@ open Morphir.Extensions.Installation
 [<EntryPoint>]
 let main args =
     match args with
+    | [| "--mutation-lease-only"; home |] ->
+        try
+            use root = SafeDirectory.Open(home, false)
+            use mutation = FileSafety.mutationLease root
+            printfn "mutation lease acquired"
+            0
+        with
+        | :? System.IO.IOException as error ->
+            eprintfn "%s" error.Message
+            1
+        | InstallationException error ->
+            eprintfn "%s" (error.ToString())
+            1
     | [| "--sweep-only"; home |] ->
         RunCopies
             .SweepAsync(home, CancellationToken.None)
