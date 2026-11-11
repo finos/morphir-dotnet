@@ -221,7 +221,14 @@ module RecipeBindings =
             | Error refusal -> Error(refusal.Code, "source")
             | Ok bytes ->
                 match ToolReleaseDocument.read bytes with
-                | Ok release when release.ToolId.Text = toolId.Text && release.Version = version ->
+                // The descriptor's compatibility.morphirCli is in the CLI requirement grammar (host-release-v1), and its own
+                // tool id and version are the offering's (host-release-identity); both are release_descriptor_mismatch at
+                // source (toolset recipe page, at finos/morphir 837164580).
+                | Ok release when
+                    (CliRequirement.tryParse release.MorphirCli).IsSome
+                    && release.ToolId.Text = toolId.Text
+                    && release.Version = version
+                    ->
                     let byTargetPath = Dictionary<string, ToolReleaseArtifact>(System.StringComparer.Ordinal)
 
                     for artifact in release.Artifacts do

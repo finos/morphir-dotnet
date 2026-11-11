@@ -304,6 +304,29 @@ module Comparator =
         List.forall (satisfies installed) comparators
         && (not version.IsPrerelease || comparators.IsEmpty || List.exists namesThisPrerelease comparators)
 
+/// <summary>The toolchain contract's CLI requirement grammar (toolset recipe page, "CLI requirement grammar", at
+/// finos/morphir <c>837164580</c>): one or more single comparators, each an operator directly followed by a version
+/// within the version bound, separated by exactly a comma and one space, such as <c>&gt;=0.4.0-alpha.5, &lt;0.5.0</c>.
+/// No other space, separator, range or wildcard is part of it, so <c>&gt;=0.4.0,&lt;0.5.0</c>, a leading space and
+/// <c>^0.4.0</c> are refused. A requirement is met by the npm and Rust <c>semver</c> prerelease rule
+/// (<see cref="Comparator.allMet"/>). This is a toolchain rule, stricter than the tool release metadata v1
+/// profile.</summary>
+module CliRequirement =
+    /// The comparators of a requirement in the grammar, or None.
+    let tryParse (text: string) : Comparator list option =
+        if text.Length = 0 then
+            None
+        else
+            let parsed =
+                text.Split ", "
+                |> Array.map (fun part ->
+                    if part.Length = 0 || part.Contains ' ' || part.Contains ',' then
+                        None
+                    else
+                        Comparator.tryParse part |> Result.toOption)
+
+            if Array.forall Option.isSome parsed then Some(parsed |> Array.choose id |> List.ofArray) else None
+
 /// A platform, in .NET runtime identifier spelling.
 [<RequireQualifiedAccess>]
 type Platform =

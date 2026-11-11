@@ -35,7 +35,7 @@ type ToolSelection = { Target: string; Version: SemVer }
 /// read or check the release descriptor; a caller that installs the selection must check the descriptor's immutable
 /// values against this state (<c>release_descriptor_mismatch</c>), as the recipe host binding check does. A manager
 /// acquiring an offering through a recipe never calls this resolver: it checks the recipe's exact bindings instead.
-/// Provisional readings: <c>compatibility.morphirCli</c> is a list of single comparators separated by commas, each in
+/// Readings: <c>compatibility.morphirCli</c> is in the toolchain contract's CLI requirement grammar (single comparators separated by a comma and one space), each in
 /// the comparator grammar of the toolchain contract and met by the Rust <c>semver</c> and npm prerelease rule; a
 /// requirement outside that grammar, a malformed state of the requested tool, and two releases of one precedence are
 /// refused with <c>release_descriptor_mismatch</c>.
@@ -54,16 +54,10 @@ module ToolResolver =
         | Some(Value.String s) -> Some s
         | _ -> None
 
-    /// <summary>A CLI requirement: single comparators separated by commas, such as
-    /// <c>&gt;=0.4.0-alpha.5, &lt;0.5.0</c>; <c>None</c> for anything else.</summary>
-    let requirement (text: string) : Comparator list option =
-        let parts = text.Split ',' |> Array.map (fun part -> part.Trim ' ')
-
-        let parsed =
-            parts
-            |> Array.map (fun part -> if part.Length = 0 then None else Comparator.tryParse part |> Result.toOption)
-
-        if parsed |> Array.forall Option.isSome then Some(parsed |> Array.choose id |> List.ofArray) else None
+    /// <summary>A CLI requirement in the toolchain contract's grammar (<see cref="CliRequirement.tryParse"/>): single
+    /// comparators separated by a comma and one space, such as <c>&gt;=0.4.0-alpha.5, &lt;0.5.0</c>; <c>None</c> for
+    /// anything else, including a comma without its space.</summary>
+    let requirement (text: string) : Comparator list option = CliRequirement.tryParse text
 
     let private state (target: string) (morphir: Value) : ToolReleaseState option =
         let all (parse: string -> Result<'T, ReaderCode>) (values: Value list) =
