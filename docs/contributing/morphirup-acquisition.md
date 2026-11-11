@@ -100,6 +100,115 @@ accepted root and role before continuing. It must carry the caller's cancellatio
 durability operations. No such adapter is activated here. `TufClient`, `TrustRules`, repository identities and
 TEST-ONLY keys remain outside production acquisition. Security review is required before production authentication.
 
+## Next adapter increment, proposed for review
+
+The adapter belongs in `Morphirup` composition, referencing `Morphir.Toolchain.IO` and the qualified installer
+library. The dependency direction stays one way: IO and installer each depend on existing domain libraries;
+neither depends on the manager or the other adapter. The manager supplies the explicit source, existing parsed
+target path and digest, caller limits, deadline and cancellation. It supplies no default store or trusted repository.
+This is a composition proposal, not an implemented API or a new persistent format.
+
+The inspected installer `SingleFileStore.PublishAsync` accepts a file already privately staged beneath the supplied
+Home. It rehashes, flushes and holds a verified descriptor through publication, with cooperative writer locking.
+It does not currently expose the private streaming handle needed by `IAcquisitionStore.BeginAsync`. Its existing
+Task-returning wrapper executes synchronous file work. Calling it after creating a separate manager-owned staging
+implementation would duplicate the file-safety boundary. Blocking asynchronous downloads behind that wrapper, or
+holding its writer lease while awaiting the network, would also violate the acquisition boundary.
+
+The installer owner must define, test and review the exact private-stage API. The following are ownership and
+ordering requirements, not proposed method signatures or layout members:
+
+| Phase | Owner and completion contract | Cancellation, deadline and failure contract |
+| --- | --- | --- |
+| Begin | Installer creates a private stage, owns its directory/file identity and returns exclusive handle ownership to the adapter | No global state/writer lease is held while waiting for transport; failure cleans partial creation and returns no stage |
+| Write | IO awaits each bounded chunk write through the adapter before reusing the buffer; installer consumes it through its owned handle | Use the operation's cancellation/deadline, refuse a short or failed write, and retain no caller buffer after completion |
+| Seal/flush | Installer seals writes, flushes and preserves the identity of the same staged object | Completion means the bytes needed for commit are durable under the installer's contract; failure or cancellation before commit exposes nothing |
+| Verify | IO's streamed EOF/length/digest checks must have passed; installer retains its verified-descriptor/tamper checks | Matching the stream digest alone cannot authorize a different filesystem object, installation receipt, trust or readiness |
+| Commit | Installer acquires the cooperative writer lease only for publication, revalidates the handle/location and atomically publishes without clobbering | Waiting for the lease honors the same cancellation/deadline; before-commit refusal preserves any winner and prior selection; successful commit reports success consistently |
+| Dispose | Installer closes/releases the stage and removes only private objects whose identity it still owns | Cleanup is bounded and awaited after failed begin/write/seal/commit; foreign replacements survive; postcommit cleanup cannot imply rollback |
+
+The adapter must not reopen an unverified path to substitute for the verified handle. It must not create a second
+hash implementation, installer, staging layout, state lock or receipt. Filename restrictions, file limits, executable
+permissions, store layout and ownership remain the installer's published contracts. The current single-file store's
+extension-specific layout and limits are not silently generalized to host archives. That applicability must be
+resolved with the installer owner using the relevant published host/extension contracts.
+
+Offline reuse needs an installer-owned way to find and reverify an existing immutable object without creating a
+stage. The present acquisition `Offline` result forbids all fetch/staging calls; it is not an offline inventory or
+restore implementation. The composition must check the verified local inventory first and report missing content
+without a transport call. No separate manager cache or local object-index format is introduced by this proposal.
+
+### Adapter controls to implement after the installer API review
+
+| Control | Positive observation | Negative observation |
+| --- | --- | --- |
+| Dependency direction | Manager composition references IO and installer using their existing types | No IO-to-installer, installer-to-manager or Tooling dependency; no copied filesystem implementation |
+| Lease scope | A paused download leaves the global writer lease available to another supported writer | No network read or streamed write occurs while that publication lease is held |
+| Buffer ownership | Chunk completion consumes exact bytes before the caller overwrites its buffer | A pending write cannot retain a reused buffer or publish partial data |
+| Sealing and flush | The same handle is sealed/flushed before publication; its exact bytes remain readable | Injected flush failure exposes no object and creates no receipt or selection |
+| Identity preservation | The verified open object is the object committed | Replacing a pathname or changing the open stage is refused or the original verified handle is published, according to reviewed installer behavior; foreign replacement cleanup is forbidden |
+| No clobber | An identical verified winner is reused under the lease | A conflicting winner is retained and acquisition fails without repair or replacement |
+| Cancel/deadline before commit | Cancellation during begin/write/seal/lease acquisition stops before visibility and releases handles/leases | No pending await is replaced by a synchronous wait or mapped to publisher authentication failure |
+| Commit race | A confirmed commit stays successful when cancellation arrives immediately afterward | No return value claims the committed object was rolled back; prior generation selection remains a separate transaction |
+| Cleanup | Interrupted private staging is removed and all resources become available | Another writer's identity is never removed; cleanup failure does not hide caller cancellation before commit |
+| Offline | Existing bytes are reverified through the installer primitive without staging | Missing or changed bytes cause a structured refusal with zero transport calls |
+
+These controls are not yet implemented or executed. They require qualified installer primitives and a separate
+coordinated RED/GREEN cycle. The existing 58 tests cover the injected seam, not this filesystem adapter.
+
+## Pure trust durability design, not production authority
+
+The next trust work must refactor the existing pure acceptance transitions rather than implement another TUF
+checker. The existing readers, signature checks, repository identity, role/target naming and bound metadata types
+remain the only implementations. The effect driver may await bounded reads and persistence, but must never call
+an asynchronous transport through the current synchronous `MetadataSource` callbacks.
+
+For review, model the next required input and each accepted checkpoint as in-memory control flow. A checkpoint
+must retain the exact envelope bytes accepted for that role together with the existing parsed state and repository
+purpose/identity. `TufTrustedSet` currently returns parsed roles; it is not by itself a durable authenticated-envelope
+format. Re-encoding those parsed records is not evidence of the original signatures. No checkpoint serializer,
+filename, journal member or trust-root provisioning mechanism is defined here.
+
+The driver must await durable acceptance before consuming the next role/root or exposing authenticated target
+authority. It must preserve every accepted root, role rollback protection and learned revocations according to
+the published profile, including when a later read or verification fails. Cache deletion must not delete security
+state. The exact distinction between disposable role-byte caches and durable rollback/revocation evidence needs
+review against the profile and the existing pure-client failure-state tests; this document does not replace either.
+
+The authority handoff to acquisition must bind the named repository, exact target path, recorded length/digest and
+durably accepted trust state. A public `AuthenticatedTarget` record or successful stream check alone is insufficient
+to produce that authority. Test-purpose state must remain distinguishable and unusable for production. Root keys,
+repository identities, canonical encoding and revocation handling need security review before any production path
+can request the handoff. No root or fixture key is selected here.
+
+### Pure checkpoint and effect-order controls to prepare
+
+| Scenario | Required observation before production integration |
+| --- | --- |
+| Accepted root N+1, later root/role failure | Its checkpoint preserves the exact accepted envelope and key transition; later failure cannot restore the revoked root keys |
+| Durability await paused | No next-root/role read and no authenticated-target handoff occurs until the checkpoint completes |
+| Durability failure or cancellation | No checkpoint success or target authority is fabricated; caller cancellation remains cancellation; prior durable state is recoverable |
+| Root key rotation | The same timestamp/snapshot/targets invalidation behavior as the current pure engine is checkpointed before new-role use |
+| Root rotation limit | Accepted roots remain durable when the existing bounded rotation limit pauses the refresh |
+| Timestamp/snapshot/targets acceptance | Existing signature, linked length/digest/version, rollback and expiry checks keep their order and bound the next fetch |
+| Same-version or rollback response | Refusal preserves previously durable acceptance and cannot overwrite it with different content |
+| Learned revocation, failed refresh, then offline use | Recipe/host revocation remains enforceable; unavailable transport or cache cleanup cannot erase it |
+| TEST-ONLY or wrong repository | No production authority can be created from either, even if a digest or signature check succeeds |
+| Failed target transfer | The previously durable trust evidence is retained, but no partial object, receipt or activation is published |
+| Process restart between acceptance and generation publication | Restart sees only acknowledged durable trust and complete objects; an incomplete candidate cannot become selected |
+
+New acquisition and installed launch are different cases. The published tool-release profile permits launch of an
+otherwise valid installed release despite expired repository metadata, provided installed bytes are reverified and
+learned revocations remain enforced. An expired cache cannot authorize new resolution. Existing
+`RecipeTargets.checkLockedGeneration`, receipt/lock binding and derived readiness logic must be reused rather than
+duplicated or replaced with a blanket cache-expiry rule.
+
+Generation assembly, readiness probes and activation follow this authority/object boundary. The published receipt
+contract requires every component to be capability-checked and no check to have failed before activation; a skipped
+workflow remains visible and is not workflow qualification. The prior selection survives every failure. Persisted
+selection and overlays remain gated on the separately published parent contracts, so these source-only scenarios
+define no local competing state. No new trust or lifecycle test has run as part of this design work.
+
 ## Integration boundary questions
 
 These questions concern ownership and evidence at integration. They do not reopen the maintainer's extension
