@@ -29,6 +29,12 @@ on:
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
 
+# The official Morphir CLI (the morphir-<rid> executables, morphirup and the Morphir.Tool package) is built, qualified
+# and published by finos/morphir from a pinned commit of this repository, through .github/workflows/cli-offering.yml.
+# This workflow publishes the library packages and the F# extension tools. It builds and publishes the CLI only when
+# the repository variable MORPHIR_DOTNET_CLI_PUBLICATION is 'enabled', as a rollback while the parent's channel is
+# not live.
+
 jobs:
     validate-version:
         runs-on: ubuntu-latest
@@ -89,7 +95,7 @@ jobs:
 
     build-executables:
         needs: [validate-version]
-        if: ${{ !failure() }}
+        if: ${{ !failure() && vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
         timeout-minutes: 60
         strategy:
             matrix:
@@ -145,7 +151,7 @@ jobs:
     # The morphirup manager, from the same build-and-check definition that the pull request workflow morphirup.yml runs.
     build-morphirup:
         needs: [validate-version]
-        if: ${{ !failure() }}
+        if: ${{ !failure() && vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
         permissions:
             contents: read
         strategy:
@@ -164,7 +170,8 @@ jobs:
     release:
         runs-on: ubuntu-latest
         environment: production
-        # Nothing is published unless morphirup built and passed its check on every platform too.
+        # With CLI publication enabled, nothing is published unless the executables and morphirup built and passed
+        # their checks on every platform. Without it, those jobs are skipped and the libraries publish alone.
         needs: [validate-version, build-executables, build-morphirup]
         permissions:
             contents: read
@@ -212,6 +219,7 @@ jobs:
               run: ./build.sh --target Compile --configuration ${{ env.CONFIGURATION }}
 
             - name: Download all executable artifacts
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               uses: actions/download-artifact@v7
               with:
                   path: ./artifacts/single-file
@@ -237,7 +245,13 @@ jobs:
             - name: Publish packages to NuGet
               env:
                   NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
-              run: ./build.sh --target PublishAll --api-key "$NUGET_API_KEY" --nuget-source https://api.nuget.org/v3/index.json
+              run: ./build.sh --target PublishLibs PublishExtensionTools --api-key "$NUGET_API_KEY" --nuget-source https://api.nuget.org/v3/index.json
+
+            - name: Publish the Morphir.Tool CLI package to NuGet
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
+              env:
+                  NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+              run: ./build.sh --target PublishCliTool --api-key "$NUGET_API_KEY" --nuget-source https://api.nuget.org/v3/index.json
 
     create-github-release:
         runs-on: ubuntu-latest
@@ -253,6 +267,7 @@ jobs:
                   fetch-depth: 0
 
             - name: Download all executable artifacts
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               uses: actions/download-artifact@v7
               with:
                   path: ./artifacts/executables
@@ -261,6 +276,7 @@ jobs:
 
             # morphir-* does not match morphirup-* (the eighth character differs), so the two downloads stay apart.
             - name: Download the morphirup release assets
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               uses: actions/download-artifact@v7
               with:
                   path: ./artifacts/release-assets
@@ -268,11 +284,13 @@ jobs:
                   merge-multiple: true
 
             - name: List downloaded artifacts
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               run: |
                   echo "Downloaded artifacts:"
                   find ./artifacts/executables ./artifacts/release-assets -type f -ls
 
             - name: Prepare executables for release
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               run: |
                   set -euo pipefail
                   VERSION=${{ needs.validate-version.outputs.version }}
@@ -308,6 +326,7 @@ jobs:
                   ls -lh ./artifacts/release-assets/
 
             - name: Setup .NET SDK
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               uses: actions/setup-dotnet@v5
               with:
                   global-json-file: global.json
@@ -315,6 +334,7 @@ jobs:
             # The checksum file lists every uploaded morphirup asset; the target reads it back and checks the files, and
             # sha256sum checks it the way a user would.
             - name: Write and verify the morphirup checksum file
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               shell: bash
               run: |
                   set -euo pipefail
@@ -340,6 +360,7 @@ jobs:
                   echo "Release notes:"
                   cat release-notes.md
 
+            # Without CLI publication the release has the notes and no CLI assets: the patterns match no file.
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v2
               with:
