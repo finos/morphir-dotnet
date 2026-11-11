@@ -17,21 +17,21 @@ open Morphir.Toolchain.Tests.Manifest
 open Morphir.Toolchain.Tests.BindingCaseTests
 
 /// Sections this suite runs, in whole or in part.
-let ranSections = [ "selection"; "frozen"; "lockRecipe"; "recipeChecks"; "trust"; "channelSelection" ]
+let ranSections = [ "selection"; "frozen"; "lockRecipe"; "recipeChecks"; "trust"; "channelSelection"; "v1Descriptors"; "v1Client" ]
 
-let private noV1Client =
-    "needs the tool release metadata v1 client, which does not exist in morphir-dotnet yet (task 4.2)"
+/// Parts of a section this suite runs that it does not run, each with its reason.
+let notRunClauses =
+    [ "v1Descriptors",
+      "Validation against tool-release-v1.schema.json, which this pin does not hold: the v1 reader checks the schema's rules, written from it by hand." ]
 
-/// Sections this suite does not run, each with its reason.
-let notRunSections =
-    [ "v1Client", $"Selects artifacts by tool id, channel and v1 platform: {noV1Client}."
-      "v1Descriptors", "Validates release targets against tool-release-v1.schema.json, which is not part of this pin, read through the TUF client." ]
+/// Sections this suite does not run, each with its reason. Every section is run.
+let notRunSections: (string * string) list = []
 
 /// Members of the signed manifest that are data, not case sections.
 let metadataMembers = [ "contractVersion"; "repository"; "referenceClient" ]
 
-/// Recipe check rules this suite runs: the recipe target rows that are pure functions of the authenticated
-/// metadata, and the first provider row.
+/// Recipe check rules this suite runs: the recipe target rows, the host binding rows and the provider binding rows,
+/// as pure functions of the authenticated metadata and the target bytes.
 let ranRecipeRules =
     set
         [ "recipe-target-portable"
@@ -40,58 +40,57 @@ let ranRecipeRules =
           "recipe-target-revoked"
           "recipe-document-reads"
           "recipe-document-identity"
-          "provider-repository" ]
+          "host-release-authenticated"
+          "host-release-revoked"
+          "host-release-read"
+          "host-release-v1"
+          "host-target-authenticated"
+          "host-target-digest"
+          "host-target-listed"
+          "host-target-platform"
+          "host-target-metadata"
+          "provider-repository"
+          "provider-descriptor-bound"
+          "provider-descriptor-read"
+          "provider-descriptor-parses"
+          "provider-descriptor-identity"
+          "provider-descriptor-version"
+          "provider-claims-identity"
+          "provider-artifact-bound"
+          "provider-artifact-listed"
+          "provider-artifact-runtime"
+          "provider-artifact-digest-listed"
+          "provider-artifact-platform"
+          "provider-claims-kind"
+          "provider-claims-protocol"
+          "provider-claims-operand"
+          "provider-claims-model" ]
 
-let private bindingRows =
-    "a host or provider binding row after the provider repository row; the host release and extension descriptor readers and the claims checks are task 4.3 and not implemented in this slice"
-
-/// Recipe check rules this suite does not run, each with its reason.
-let skippedRecipeRules =
-    [ for rule in
-          [ "host-release-authenticated"
-            "host-release-revoked"
-            "host-release-read"
-            "host-release-v1"
-            "host-target-authenticated"
-            "host-target-digest"
-            "host-target-listed"
-            "host-target-platform"
-            "host-target-metadata"
-            "provider-descriptor-bound"
-            "provider-descriptor-read"
-            "provider-descriptor-parses"
-            "provider-descriptor-identity"
-            "provider-descriptor-version"
-            "provider-claims-identity"
-            "provider-artifact-bound"
-            "provider-artifact-listed"
-            "provider-artifact-runtime"
-            "provider-artifact-digest-listed"
-            "provider-artifact-platform"
-            "provider-claims-kind"
-            "provider-claims-protocol"
-            "provider-claims-operand"
-            "provider-claims-model" ] ->
-          rule, bindingRows ]
-    |> Map.ofList
+/// Recipe check rules this suite does not run, each with its reason. Every rule of the three tables is run.
+let skippedRecipeRules: Map<string, string> = Map.empty
 
 /// Trust operations, and the check-recipe rules, that this suite does not run, with their reasons.
 let skippedTrust =
     Map.ofList
-        [ "load", "loads the mutated repository through a TUF client: signatures, snapshot links and expiry are metadata verification"
-          "check-recipe-bindings", bindingRows ]
+        [ "load", "loads the mutated repository through a TUF client: signatures, snapshot links and expiry are metadata verification" ]
 
 let private manifest () = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "cases.json")
 
 let private repositoryDocument () = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "repository.json")
 
 /// The exact bytes of a target in the TEST-ONLY repository: the UTF-8 bytes of its <c>targetFiles</c> text.
-let targetBytes (target: string) =
+/// The exact bytes of a target, or None when the repository has no file for it.
+let tryTargetBytes (target: string) =
     use repository = repositoryDocument ()
 
     match repository.RootElement.GetProperty("targetFiles").TryGetProperty target with
-    | true, text -> Encoding.UTF8.GetBytes(nonNull (text.GetString()))
-    | false, _ -> failtestf "repository.json has no target file %s" target
+    | true, text -> Some(Encoding.UTF8.GetBytes(nonNull (text.GetString())))
+    | false, _ -> None
+
+let targetBytes (target: string) =
+    match tryTargetBytes target with
+    | Some bytes -> bytes
+    | None -> failtestf "repository.json has no target file %s" target
 
 let repositoryId () =
     use repository = repositoryDocument ()
@@ -140,13 +139,31 @@ let private targetOutcome (result: Result<'T, TargetRefusal>) =
     | Ok _ -> Valid
     | Error refusal -> Refused(Code.name refusal.Code, DocumentPath.render refusal.Path)
 
-/// The recipe target rows, then the provider repository row, over the recipe's authenticated metadata.
-let private recipeRows (listed: Map<string, AuthenticatedTarget>) (target: string) (bytes: byte array) =
-    RecipeTargets.check target (listed.TryFind target) bytes
-    |> Result.bind (fun (recipe, _) ->
-        Bindings.recipeProvidersInRepository recipe (repository ())
-        |> Result.mapError (fun refusal -> { Code = refusal.Code; Path = refusal.Path }))
+/// The recipe target rows, then the host and provider binding rows, over the authenticated metadata and the bytes the
+/// repository serves for each target.
+let private recipeRows (listed: Map<string, AuthenticatedTarget>) (target: string) (bytesOf: string -> byte array option) =
+    RecipeTargets.check target (listed.TryFind target) (defaultArg (bytesOf target) [||])
+    |> Result.bind (fun (recipe, _) -> RecipeBindings.check (repository ()) listed bytesOf recipe)
     |> targetOutcome
+
+/// A value with the member or element a JSON pointer names replaced (RFC 6901: ~1 is /, ~0 is ~).
+let private setAtPointer (pointer: string) (replacement: Value) (value: Value) =
+    let tokens =
+        pointer.Split '/'
+        |> Array.skip 1
+        |> Array.map (fun token -> token.Replace("~1", "/").Replace("~0", "~"))
+        |> List.ofArray
+
+    let rec set (path: string list) (value: Value) =
+        match path, value with
+        | [], _ -> replacement
+        | head :: rest, Value.Object members when members |> List.exists (fst >> (=) head) ->
+            Value.Object(members |> List.map (fun (name, item) -> if name = head then name, set rest item else name, item))
+        | head :: rest, Value.Array items ->
+            Value.Array(items |> List.mapi (fun index item -> if string index = head then set rest item else item))
+        | _ -> failtestf "the pointer %s names nothing" pointer
+
+    set tokens value
 
 /// <summary>A case's target mutations, applied to the bytes served for each target. A mutation of another op, or one
 /// that is never applied, fails the case, so no case passes with a mutation the runner ignored (review of #582,
@@ -204,6 +221,15 @@ let private servedBytes (case: JsonElement) (target: string) =
     let bytes = mutations.Served target
     mutations.ExpectAllApplied()
     bytes
+
+/// <summary>Runs a case that reads targets: <paramref name="run"/> gets the bytes served for each target after the
+/// case's mutations (None when the repository has no file for it), and every mutation must have been applied to some
+/// target it read. One case can read the recipe, its host releases and its descriptors.</summary>
+let private withServedTargets (case: JsonElement) (run: (string -> byte array option) -> 'T) : 'T =
+    let mutations = TargetMutations case
+    let outcome = run (fun target -> tryTargetBytes target |> Option.map (fun _ -> mutations.Served target))
+    mutations.ExpectAllApplied()
+    outcome
 
 let private selectionTests () =
     [ for case in cases "selection" ->
@@ -278,8 +304,7 @@ let private recipeCheckTests () =
               yield
                   testCase name (fun () ->
                       let target = str case "recipe"
-                      let bytes = if listed.ContainsKey target then targetBytes target else [||]
-                      Expect.equal (recipeRows listed target bytes) (Manifest.expected name case) name) ]
+                      Expect.equal (recipeRows listed target tryTargetBytes) (Manifest.expected name case) name) ]
 
 let private trustTests () =
     [ for case in cases "trust" do
@@ -309,7 +334,30 @@ let private trustTests () =
               yield
                   testCase name (fun () ->
                       let target = str action "recipe"
-                      Expect.equal (recipeRows listed target (servedBytes case target)) (Manifest.expected name case) name)
+                      Expect.equal (withServedTargets case (recipeRows listed target)) (Manifest.expected name case) name)
+          | "check-recipe-bindings", _ ->
+              yield
+                  testCase name (fun () ->
+                      // The recipe document edited by JSON pointer, then only its bindings checked: the edited bytes are
+                      // no longer the authenticated recipe target.
+                      let target = str action "recipe"
+
+                      let original =
+                          match Syntax.parseJson (targetBytes target) with
+                          | Ok value -> value
+                          | Error _ -> failtest "the recipe does not parse"
+
+                      let edited =
+                          [ for m in action.GetProperty("documentMutations").EnumerateArray() -> m ]
+                          |> List.fold
+                              (fun (value: Value) m ->
+                                  requireKnown $"{name} mutation" [ "pointer"; "value" ] m
+                                  setAtPointer (str m "pointer") (Value.String(str m "value")) value)
+                              original
+
+                      let recipe = RecipeDocument.read (JsonText.toBytes edited) |> valid target
+                      let actual = withServedTargets case (fun bytesOf -> RecipeBindings.check (repository ()) listed bytesOf recipe) |> targetOutcome
+                      Expect.equal actual (Manifest.expected name case) name)
           | "check-locked-generation", _ ->
               yield
                   testCase name (fun () ->
@@ -322,6 +370,100 @@ let private trustTests () =
                       let actual = RecipeTargets.checkLockedGeneration (repository ()) listed recipe lock |> targetOutcome
                       Expect.equal actual (Manifest.expected name case) name)
           | _ -> () ]
+
+let private v1DescriptorTests () =
+    use document = manifest ()
+    let section = document.RootElement.GetProperty "v1Descriptors"
+    requireKnown "v1Descriptors" [ "note"; "schema"; "releases" ] section
+    let releases = [ for r in section.GetProperty("releases").EnumerateArray() -> nonNull (r.GetString()) ]
+    let listed = authenticatedTargets "metadata"
+
+    [ for release in releases do
+          yield testCase release (fun () ->
+              // Read as the binding check reads it: authenticated bytes, a tool-release target of schemaVersion 1, and
+              // an unchanged v1 descriptor.
+              let entry =
+                  match RecipeTargets.authenticate (listed.TryFind release) (targetBytes release) with
+                  | Ok entry -> entry
+                  | Error refusal -> failtestf "%s is not authenticated: %A" release refusal
+
+              let morphir =
+                  match entry.Custom with
+                  | Some(Value.Object members) -> members |> List.tryFind (fst >> (=) "morphir") |> Option.map snd
+                  | _ -> None
+
+              match morphir with
+              | Some(Value.Object members) ->
+                  Expect.contains members ("kind", Value.String "tool-release") "custom.morphir.kind"
+                  Expect.contains members ("schemaVersion", Value.Number "1") "custom.morphir.schemaVersion"
+              | _ -> failtestf "%s has no custom.morphir" release
+
+              Expect.isOk (ToolReleaseDocument.read (targetBytes release)) "a v1 descriptor")
+      yield testCase "every other release target is the deliberate negative" (fun () ->
+          let others =
+              listed
+              |> Map.keys
+              |> Seq.filter (fun target -> target.StartsWith "releases/" && not (List.contains target releases))
+              |> List.ofSeq
+
+          Expect.equal others [ "releases/morphir-dotnet-not-a-release/1.2.3.json" ] "the one release not listed"
+          Expect.isError (ToolReleaseDocument.read (targetBytes others.Head)) "it does not read as a v1 descriptor") ]
+
+let private v1ClientTests () =
+    use document = manifest ()
+    let section = document.RootElement.GetProperty "v1Client"
+    requireKnown "v1Client" [ "note"; "recipe"; "selections" ] section
+    let cli = str (document.RootElement.GetProperty "referenceClient") "cliVersion"
+    let recipe = signedRecipe (str section "recipe")
+    let listed = authenticatedTargets "metadata"
+    let selections = [ for s in section.GetProperty("selections").EnumerateArray() -> s.Clone() ]
+
+    [ for selection in selections do
+          let toolId = str selection "toolId"
+          let recipePlatform = str selection "recipePlatform"
+          requireKnown toolId [ "toolId"; "channel"; "platform"; "deployment"; "recipePlatform"; "recipeBinding"; "expected" ] selection
+
+          yield
+              testCase $"{toolId} on {recipePlatform}" (fun () ->
+                  let platform = selection.GetProperty "platform"
+                  requireKnown $"{toolId} platform" [ "os"; "arch" ] platform
+                  let expected = selection.GetProperty "expected"
+                  requireKnown $"{toolId} expected" [ "selected" ] expected
+
+                  let request =
+                      match Channel.tryParse (str selection "channel") with
+                      | Ok channel -> ToolRequest.OnChannel channel
+                      | Error _ -> failtest "channel"
+
+                  let id = match ToolId.tryParse toolId with Ok id -> id | Error _ -> failtest "tool id"
+                  let cliVersion = match SemVer.tryParse cli with Ok v -> v | Error _ -> failtest "cli version"
+
+                  let resolved =
+                      ToolResolver.resolve listed id request { Os = str platform "os"; Arch = str platform "arch" } cliVersion
+
+                  Expect.equal (Result.isOk resolved) (expected.GetProperty("selected").GetBoolean()) "the v1 client's selection"
+
+                  // Not selected because no CLI version meets the offering's requirement, not because a state is malformed.
+                  match resolved with
+                  | Error refusal -> Expect.equal (Code.name refusal.Code) "no_compatible_release" "why nothing is selected"
+                  | Ok _ -> ()
+
+                  // The recipe still binds the offering's artifact for that platform, with its authenticated digest.
+                  let target = str (selection.GetProperty "recipeBinding") "targetPath"
+
+                  let host =
+                      recipe.Hosts |> List.find (fun host -> host.Deployment.Text = str selection "deployment")
+
+                  let binding = host.Platforms |> List.find (fun (p, _) -> Platform.name p = recipePlatform) |> snd
+                  Expect.equal binding.Target.Text target "the recipe binds the target"
+                  Expect.equal (Some binding.Sha256) (listed.TryFind target |> Option.map _.Sha256) "with its authenticated digest")
+
+      yield
+          testCase "the 18 bound digests are distinct" (fun () ->
+              let digests =
+                  [ for selection in selections -> listed[str (selection.GetProperty "recipeBinding") "targetPath"].Sha256.Text ]
+
+              Expect.equal (List.length (List.distinct digests)) 18 "distinct") ]
 
 let private channelTests () =
     let listed = authenticatedTargets "metadata" |> Map.toList
@@ -353,7 +495,7 @@ let private channelTests () =
 /// Why a trust case is not run, or None when it is.
 let trustSkipReason (op: string) (rule: string option) =
     match op, rule with
-    | ("read" | "authenticate" | "check-locked-generation"), _ -> None
+    | ("read" | "authenticate" | "check-locked-generation" | "check-recipe-bindings"), _ -> None
     | "check-recipe", Some rule when ranRecipeRules.Contains rule -> None
     | "check-recipe", Some rule -> skippedRecipeRules.TryFind rule |> Option.orElse (Some "unlisted")
     | _ -> skippedTrust.TryFind op |> Option.orElse (Some "unlisted")
@@ -410,6 +552,12 @@ let tests =
         testList "recipeChecks" (recipeCheckTests ())
         testList "trust" (trustTests ())
         testList "channelSelection" (channelTests ())
+        testList "v1Descriptors" (v1DescriptorTests ())
+        testList "v1Client" (v1ClientTests ())
+
+        testCase "every part of a run section that is not run names its section" (fun () ->
+            for section, _ in notRunClauses do
+                Expect.contains ranSections section $"{section} is run")
 
         testList "the launch check reads the generation's recipe without letting an exception out" [
             // Review of #582, R7: a Lazy caches the exception its factory throws.
