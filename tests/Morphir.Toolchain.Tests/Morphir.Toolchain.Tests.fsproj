@@ -46,6 +46,7 @@
     <Compile Include="SchemaTests.fs" />
     <Compile Include="RequiredMemberTests.fs" />
     <Compile Include="WorkflowCaseTests.fs" />
+    <Compile Include="CorpusGateTests.fs" />
     <Compile Include="CorpusModeTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
