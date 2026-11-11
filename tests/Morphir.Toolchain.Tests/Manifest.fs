@@ -20,6 +20,11 @@ type ResolveExpected =
     | Providers of hostTarget: string option * providers: ExpectedProvider list
     | ResolveRefused of code: string * path: string
 
+/// What a cli-requirement case expects: the requirement reads or is refused, or a CLI version meets it or not.
+type CliExpected =
+    | CliRead of Expected
+    | CliMet of bool
+
 type DocumentCase =
     { Contract: string
       Document: string
@@ -38,9 +43,23 @@ type BindingCase =
     | LockRequestBytes of name: string * lock: string * request: string * expected: Expected * cause: string option
     | PlanLock of name: string * result: string * lock: string * expected: Expected
     /// Files under one synthetic root, and the request discovery finds from start, if any.
-    | Discover of name: string * files: string list * boundary: string * start: string * request: string option
+    /// Files under one synthetic root, and the request discovery finds from start, if any. On Windows, names compare
+    /// without case.
+    | Discover of name: string * windows: bool * files: string list * boundary: string * start: string * request: string option
     /// Whether a MEP version is on the supported 0.2 line.
     | MepVersion of name: string * version: string * expected: Expected
+    /// A string and its NFC form.
+    | Nfc of name: string * input: string * expected: string
+    /// The platforms setup locks for a request on a platform.
+    | SetupPlatforms of name: string * request: string * platform: string * platforms: string list
+    /// Whether an installed version meets a comparator list.
+    | PrerequisiteVersions of name: string * versions: string list * installed: string * met: bool
+    /// Whether a version, or a comparator when comparator is true, reads within the bounds.
+    | Version of name: string * comparator: bool * version: string * expected: Expected
+    /// A value's canonical JSON text, and the text the TUF reference encoder writes for the same value.
+    | CanonicalJson of name: string * value: string * expected: string * referenceTuf: string
+    /// Whether a CLI requirement is in the grammar, or, with a CLI version, whether that version meets it.
+    | CliRequirement of name: string * requirement: string * cliVersion: string option * expected: CliExpected
 
     member this.Name =
         match this with
@@ -51,8 +70,14 @@ type BindingCase =
         | PlanCanonical(name, _, _, _)
         | LockRequestBytes(name, _, _, _, _)
         | PlanLock(name, _, _, _)
-        | Discover(name, _, _, _, _)
-        | MepVersion(name, _, _) -> name
+        | Discover(name, _, _, _, _, _)
+        | MepVersion(name, _, _)
+        | Nfc(name, _, _)
+        | SetupPlatforms(name, _, _, _)
+        | PrerequisiteVersions(name, _, _, _)
+        | Version(name, _, _, _)
+        | CanonicalJson(name, _, _, _)
+        | CliRequirement(name, _, _, _) -> name
 
     member this.Kind =
         match this with
@@ -64,7 +89,13 @@ type BindingCase =
         | LockRequestBytes _ -> "lock-request-bytes"
         | PlanLock _ -> "plan-lock"
         | Discover _ -> "discover"
+        | CanonicalJson _ -> "canonical-json"
+        | CliRequirement _ -> "cli-requirement"
         | MepVersion _ -> "mep-version"
+        | Nfc _ -> "nfc"
+        | SetupPlatforms _ -> "setup-platforms"
+        | PrerequisiteVersions _ -> "prerequisite-versions"
+        | Version _ -> "version"
 
 let private members (element: JsonElement) =
     element.EnumerateObject() |> Seq.map (fun p -> p.Name) |> Set.ofSeq
@@ -86,6 +117,19 @@ let optStr (element: JsonElement) (name: string) =
     | true, value when value.ValueKind = JsonValueKind.String -> Some(nonNull (value.GetString()))
     | true, _ -> failwithf "member %s is not a string" name
     | false, _ -> None
+
+let strings (element: JsonElement) (name: string) =
+    [ for item in element.GetProperty(name).EnumerateArray() ->
+          match item.ValueKind with
+          | JsonValueKind.String -> nonNull (item.GetString())
+          | _ -> failwithf "member %s has an item that is not a string" name ]
+
+let optBool (element: JsonElement) (name: string) =
+    match element.TryGetProperty name with
+    | true, value when value.ValueKind = JsonValueKind.True -> true
+    | true, value when value.ValueKind = JsonValueKind.False -> false
+    | true, _ -> failwithf "member %s is not a boolean" name
+    | false, _ -> false
 
 let expected (where: string) (element: JsonElement) =
     let value = element.GetProperty "expected"
@@ -177,14 +221,15 @@ let bindings () : BindingCase list =
               requireKnown name (common @ [ "result"; "lock" ]) case
               PlanLock(name, str case "result", str case "lock", expected name case)
           | "discover" ->
-              requireKnown name (common @ [ "files"; "boundary"; "start" ]) case
+              requireKnown name (common @ [ "windows"; "files"; "boundary"; "start" ]) case
               let value = case.GetProperty "expected"
               requireKnown $"{name} expected" [ "request" ] value
               let request = value.GetProperty "request"
 
               Discover(
                   name,
-                  [ for file in case.GetProperty("files").EnumerateArray() -> nonNull (file.GetString()) ],
+                  optBool case "windows",
+                  strings case "files",
                   str case "boundary",
                   str case "start",
                   (if request.ValueKind = JsonValueKind.Null then None else Some(nonNull (request.GetString())))
@@ -192,4 +237,46 @@ let bindings () : BindingCase list =
           | "mep-version" ->
               requireKnown name (common @ [ "version" ]) case
               MepVersion(name, str case "version", expected name case)
+          | "nfc" ->
+              requireKnown name (common @ [ "input" ]) case
+              Nfc(name, str case "input", str case "expected")
+          | "setup-platforms" ->
+              requireKnown name (common @ [ "request"; "platform" ]) case
+              let value = case.GetProperty "expected"
+              requireKnown $"{name} expected" [ "platforms" ] value
+              SetupPlatforms(name, str case "request", str case "platform", strings value "platforms")
+          | "prerequisite-versions" ->
+              requireKnown name (common @ [ "versions"; "installed" ]) case
+              let value = case.GetProperty "expected"
+              requireKnown $"{name} expected" [ "met" ] value
+
+              let met =
+                  match value.GetProperty("met").ValueKind with
+                  | JsonValueKind.True -> true
+                  | JsonValueKind.False -> false
+                  | _ -> failwithf "%s expected met is not a boolean" name
+
+              PrerequisiteVersions(name, strings case "versions", str case "installed", met)
+          | "version" ->
+              requireKnown name (common @ [ "comparator"; "version" ]) case
+              Version(name, optBool case "comparator", str case "version", expected name case)
+          | "canonical-json" ->
+              requireKnown name (common @ [ "value"; "referenceTuf" ]) case
+              CanonicalJson(name, case.GetProperty("value").GetRawText(), str case "expected", str case "referenceTuf")
+          | "cli-requirement" ->
+              requireKnown name (common @ [ "requirement"; "cliVersion" ]) case
+              let value = case.GetProperty "expected"
+
+              let outcome =
+                  if value.ValueKind = JsonValueKind.Object && (value.TryGetProperty "met" |> fst) then
+                      requireKnown $"{name} expected" [ "met" ] value
+
+                      match value.GetProperty("met").ValueKind with
+                      | JsonValueKind.True -> CliMet true
+                      | JsonValueKind.False -> CliMet false
+                      | _ -> failwithf "%s expected met is not a boolean" name
+                  else
+                      CliRead(expected name case)
+
+              CliRequirement(name, str case "requirement", optStr case "cliVersion", outcome)
           | other -> failwithf "binding %s has kind %s, which this suite does not run" name other ]

@@ -112,6 +112,18 @@ let private hugePosition () =
           Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
     )
 
+/// A guest with the real guest's capabilities that reports an id reserved for built-ins, morphir.fake-frontend.
+let private reservedId () =
+    Guest(
+        { Claims =
+            { FSharpGuest.claims with
+                Extension =
+                    { FSharpGuest.claims.Extension with
+                        Id = "morphir.fake-frontend" } }
+          Capabilities = FSharpGuest.capabilities
+          Methods = readOnlyDict [ Method.CompileModel.WireValue, Handlers.raw (fun _ _ -> Task.FromResult(Error(RpcErrors.create ErrorCode.InternalError))) ] }
+    )
+
 /// Runs a scripted guest on stdin and stdout until the session ends.
 let run (scenario: string) =
     let output = Console.OpenStandardOutput()
@@ -126,6 +138,7 @@ let run (scenario: string) =
         | "never-answers" -> neverAnswers ()
         | "blocks-read-loop" -> blocksReadLoop ()
         | "huge-position" -> hugePosition ()
+        | "reserved-id" -> reservedId ()
         | other -> failwith $"Unknown fake guest scenario {other}"
 
     guest.RunAsync(input, output, CancellationToken.None).GetAwaiter().GetResult() |> ignore

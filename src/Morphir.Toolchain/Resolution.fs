@@ -97,6 +97,26 @@ module Resolution =
 
             let choices = request.Toolset.Providers |> List.indexed
 
+            // Lookups by operation, built once: a list scan per operation made resolution quadratic in a recipe with
+            // many operations (review of #582, R1). Each keeps the first entry, as the scans did.
+            let firstBy (key: 'T -> Operation) (items: 'T list) =
+                let found = System.Collections.Generic.Dictionary<Operation, 'T>(HashIdentity.Structural)
+
+                for item in items do
+                    found.TryAdd(key item, item) |> ignore
+
+                found
+
+            let builtIns = firstBy (fun (b: BuiltIn) -> b.Operation) offering.BuiltIns
+            let choiceFor = firstBy (fun (_, choice: ProviderChoice) -> choice.Operation) choices
+            let candidatesFor = recipe.Providers |> List.groupBy (fun (p: RecipeProvider) -> p.Operation) |> dict
+            let required = System.Collections.Generic.HashSet<Operation>(recipe.Operations, HashIdentity.Structural)
+
+            let lookup (table: System.Collections.Generic.IDictionary<Operation, 'T>) (operation: Operation) =
+                match table.TryGetValue operation with
+                | true, value -> Some value
+                | false, _ -> None
+
             let misfit (path: DocumentPath) (operation: Operation) (provider: RecipeProvider) =
                 match Fit.onPlatform offering platform provider with
                 | None -> Ok(Selected.Provider provider)
@@ -105,12 +125,10 @@ module Resolution =
                 | Some Misfit.NoArtifact -> unsupported path (Component.Provider operation)
 
             let select (operation: Operation) : Result<Selected, ResolutionFailure> =
-                let builtIn = offering.BuiltIns |> List.tryFind (fun b -> b.Operation = operation)
+                let builtIn = lookup builtIns operation
+                let candidates = lookup candidatesFor operation |> Option.defaultValue []
 
-                let candidates =
-                    recipe.Providers |> List.filter (fun provider -> provider.Operation = operation)
-
-                match choices |> List.tryFind (fun (_, choice) -> choice.Operation = operation) with
+                match lookup choiceFor operation with
                 | Some(index, choice) ->
                     let path = (toolset.Child "providers").At index
                     let chosenDelivery = ProviderChoice.delivery choice
@@ -142,7 +160,7 @@ module Resolution =
             let! selected = recipe.Operations |> Result.traverse select
 
             // A choice for an operation the recipe does not require matches nothing.
-            match choices |> List.tryFind (fun (_, choice) -> not (List.contains choice.Operation recipe.Operations)) with
+            match choices |> List.tryFind (fun (_, choice) -> not (required.Contains choice.Operation)) with
             | Some(index, choice) ->
                 return! unsupported ((toolset.Child "providers").At index) (Component.Provider choice.Operation)
             | None -> ()

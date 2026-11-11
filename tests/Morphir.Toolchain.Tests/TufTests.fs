@@ -1,0 +1,950 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+/// <summary>
+/// The TUF client subset of the tool release metadata v1 profile, against the pinned TEST-ONLY signed repository:
+/// the strict metadata readers. The client has had no security review.
+/// </summary>
+module Morphir.Toolchain.Tests.TufTests
+
+open System
+open System.Text
+open Expecto
+open Morphir.Toolchain
+open Morphir.Toolchain.Tests.TufFixture
+
+let private root () = metadataSet("metadata").Root
+
+let private invalid (role: TufRole) (result: Result<'T, TufFailure>) =
+    match result with
+    | Error(TufFailure.MetadataInvalid(actual, _)) -> Expect.equal actual role "the role"
+    | other -> failtestf "expected the %A metadata to be refused as invalid, got %A" role other
+
+/// Root bytes with a member of signed replaced.
+let private rootWith (path: string list) (value: Value) =
+    canonical (setAt ("signed" :: path) value (root ()))
+
+let private firstKeyId () =
+    match at [ "signed"; "roles"; "root"; "keyids" ] (root ()) with
+    | Value.Array(Value.String id :: _) -> id
+    | _ -> failwith "keyids"
+
+[<Tests>]
+let readerTests =
+    testList "TUF metadata readers" [
+        testCase "the fixture's four roles read" (fun () ->
+            let set = metadataSet "metadata"
+            let read = TufMetadata.readRoot (canonical set.Root) |> expectOk "root"
+            Expect.equal read.Signed.Version 1UL "root version"
+            Expect.equal (read.Signed.Roles[TufRole.Root].Threshold) 2 "two of the root keys"
+
+            let timestamp = TufMetadata.readTimestamp (canonical set.Timestamp) |> expectOk "timestamp"
+            Expect.equal timestamp.Signed.Snapshot.Version 1UL "the snapshot it names"
+
+            let snapshot = TufMetadata.readSnapshot (canonical set.Snapshot) |> expectOk "snapshot"
+            Expect.equal snapshot.Signed.Targets.Version 1UL "the targets it names"
+
+            let targets = TufMetadata.readTargets (canonical set.Targets) |> expectOk "targets"
+            let recipe = targets.Signed.Targets["toolchains/recipes/fsharp/1.0.0.json"]
+            let bytes = Encoding.UTF8.GetBytes(match at [ "targetFiles"; "toolchains/recipes/fsharp/1.0.0.json" ] (repository ()) with Value.String s -> s | _ -> "")
+            Expect.equal recipe.Length (uint64 bytes.Length) "the recipe's length"
+            Expect.equal recipe.Sha256 (Sha256.ofBytes bytes) "the recipe's digest"
+            Expect.isSome recipe.Custom "custom.morphir")
+
+        testCase "repository identity is the SHA-256 of the canonical initial root's signed object" (fun () ->
+            let read = TufMetadata.readRoot (canonical (root ())) |> expectOk "root"
+            let expected = match at [ "repositoryId" ] (repository ()) with Value.String s -> s | _ -> ""
+            Expect.equal (TufMetadata.repositoryIdentity read).Text expected "repositoryId")
+
+        testList "a root outside the profile is refused" [
+            let otherKey = keyValue (newTestKey "other")
+            let otherId = (newTestKey "other").KeyId
+
+            for name, bytes in
+                [ "spec_version 2.0.0", (fun () -> rootWith [ "spec_version" ] (text "2.0.0"))
+                  "spec_version 1.1.0 (provisional: only 1.0.x)", (fun () -> rootWith [ "spec_version" ] (text "1.1.0"))
+                  "spec_version 1.0, not SemVer", (fun () -> rootWith [ "spec_version" ] (text "1.0"))
+                  "consistent_snapshot false", (fun () -> rootWith [ "consistent_snapshot" ] (Value.Boolean false))
+                  "no consistent_snapshot", (fun () -> canonical (removeAt [ "signed"; "consistent_snapshot" ] (root ())))
+                  "_type timestamp", (fun () -> rootWith [ "_type" ] (text "timestamp"))
+                  "version 0", (fun () -> rootWith [ "version" ] (number 0UL))
+                  "a version with a fraction", (fun () -> JsonText.toBytes (setAt [ "signed"; "version" ] (Value.Number "1.5") (root ())))
+                  "expires with fractional seconds", (fun () -> rootWith [ "expires" ] (text "2999-01-01T00:00:00.000Z"))
+                  "expires with an offset", (fun () -> rootWith [ "expires" ] (text "2999-01-01T00:00:00+00:00"))
+                  "expires with a space", (fun () -> rootWith [ "expires" ] (text "2999-01-01 00:00:00Z"))
+                  "a key of another type (provisional: any non-Ed25519 key)",
+                  (fun () ->
+                      rootWith
+                          [ "keys"; otherId ]
+                          (Value.Object [ "keytype", text "rsa"; "scheme", text "rsassa-pss-sha256"; "keyval", Value.Object [ "public", text "00" ] ]))
+                  "an Ed25519 key with another scheme", (fun () -> rootWith [ "keys"; otherId ] (setAt [ "scheme" ] (text "ed25519-ph") otherKey))
+                  "a key id that is not the key's SHA-256 (provisional)", (fun () -> rootWith [ "keys"; String.replicate 64 "a" ] otherKey)
+                  "a public key of 31 bytes", (fun () -> rootWith [ "keys"; otherId ] (setAt [ "keyval"; "public" ] (text (String.replicate 62 "a")) otherKey))
+                  "threshold 0", (fun () -> rootWith [ "roles"; "timestamp"; "threshold" ] (number 0UL))
+                  "a threshold above the role's keys (provisional)", (fun () -> rootWith [ "roles"; "root"; "threshold" ] (number 3UL))
+                  "a role the profile does not define (provisional)", (fun () -> rootWith [ "roles"; "mirrors" ] (at [ "signed"; "roles"; "timestamp" ] (root ())))
+                  "a missing role", (fun () -> canonical (removeAt [ "signed"; "roles"; "snapshot" ] (root ())))
+                  "a role naming a key the root does not list", (fun () -> rootWith [ "roles"; "timestamp"; "keyids" ] (Value.Array [ text otherId ]))
+                  "a role naming a key twice", (fun () -> rootWith [ "roles"; "root"; "keyids" ] (Value.Array [ text (firstKeyId ()); text (firstKeyId ()) ])) ] ->
+                testCase name (fun () -> invalid TufRole.Root (TufMetadata.readRoot (bytes ())))
+        ]
+
+        testList "envelopes outside the profile are refused" [
+            let signatures () = at [ "signatures" ] (root ())
+
+            let firstSignature () =
+                match signatures () with
+                | Value.Array(first :: _) -> first
+                | _ -> failwith "signatures"
+
+            for name, bytes in
+                [ "an unknown envelope member (provisional)", (fun () -> canonical (setAt [ "extra" ] (number 1UL) (root ())))
+                  "a signature in upper-case hex", (fun () ->
+                      let upper = match memberOf "sig" (firstSignature ()) with Value.String s -> s.ToUpperInvariant() | _ -> ""
+                      canonical (setAt [ "signatures" ] (Value.Array [ setAt [ "sig" ] (text upper) (firstSignature ()) ]) (root ())))
+                  "a signature of 63 bytes", (fun () ->
+                      canonical (setAt [ "signatures" ] (Value.Array [ setAt [ "sig" ] (text (String.replicate 126 "a")) (firstSignature ()) ]) (root ())))
+                  "the same key id signing twice (provisional)", (fun () ->
+                      canonical (setAt [ "signatures" ] (Value.Array [ firstSignature (); firstSignature () ]) (root ())))
+                  "not JSON", (fun () -> Encoding.UTF8.GetBytes "{")
+                  "a repeated member", (fun () -> Encoding.UTF8.GetBytes """{"signed":{},"signed":{},"signatures":[]}""") ] ->
+                testCase name (fun () -> invalid TufRole.Root (TufMetadata.readRoot (bytes ())))
+        ]
+
+        testList "timestamp, snapshot and targets outside the profile are refused" [
+            let set () = metadataSet "metadata"
+            let with' (role: Value) (path: string list) (value: Value) = canonical (setAt ("signed" :: path) value role)
+
+            yield testCase "a timestamp naming another file besides snapshot.json (provisional)" (fun () ->
+                let ts = (set ()).Timestamp
+                invalid TufRole.Timestamp (TufMetadata.readTimestamp (with' ts [ "meta"; "targets.json" ] (at [ "signed"; "meta"; "snapshot.json" ] ts))))
+
+            yield testCase "a timestamp whose snapshot.json has no sha256 (provisional)" (fun () ->
+                let ts = (set ()).Timestamp
+                invalid TufRole.Timestamp (TufMetadata.readTimestamp (canonical (removeAt [ "signed"; "meta"; "snapshot.json"; "hashes" ] ts))))
+
+            yield testCase "a snapshot whose targets.json has no length (provisional)" (fun () ->
+                let snapshot = (set ()).Snapshot
+                invalid TufRole.Snapshot (TufMetadata.readSnapshot (canonical (removeAt [ "signed"; "meta"; "targets.json"; "length" ] snapshot))))
+
+            yield testCase "targets with delegations (provisional: no delegations in this profile subset)" (fun () ->
+                let targets = (set ()).Targets
+                invalid TufRole.Targets (TufMetadata.readTargets (with' targets [ "delegations" ] (Value.Object [ "keys", Value.Object []; "roles", Value.Array [] ]))))
+
+            yield testCase "a target without a SHA-256" (fun () ->
+                let targets = (set ()).Targets
+                invalid TufRole.Targets (TufMetadata.readTargets (with' targets [ "targets"; "toolchains/recipes/fsharp/1.0.0.json"; "hashes" ] (Value.Object [ "sha512", text (String.replicate 128 "a") ]))))
+
+            yield testCase "a target listed under a non-portable path is non_portable_path" (fun () ->
+                let targets = (set ()).Targets
+                let entry = at [ "signed"; "targets"; "toolchains/recipes/fsharp/1.0.0.json" ] targets
+
+                match TufMetadata.readTargets (with' targets [ "targets"; "toolchains/recipes/../fsharp/1.0.0.json" ] entry) with
+                | Error(TufFailure.NonPortableTarget path) -> Expect.equal path "toolchains/recipes/../fsharp/1.0.0.json" "the path"
+                | other -> failtestf "expected NonPortableTarget, got %A" other)
+        ]
+
+        testCase "metadata over its download bound is refused before it is parsed" (fun () ->
+            for read, role, limit in
+                [ TufMetadata.readRoot >> Result.map ignore, TufRole.Root, 64 * 1024
+                  TufMetadata.readTimestamp >> Result.map ignore, TufRole.Timestamp, 64 * 1024
+                  TufMetadata.readSnapshot >> Result.map ignore, TufRole.Snapshot, 1024 * 1024
+                  TufMetadata.readTargets >> Result.map ignore, TufRole.Targets, 8 * 1024 * 1024 ] do
+                // Not JSON at all: only the size is looked at.
+                Expect.equal (read (Array.create (limit + 1) (byte ' '))) (Error(TufFailure.MetadataTooLarge(role, limit))) $"{role}")
+    ]
+
+[<Tests>]
+let signatureTests =
+    testList "TUF signatures" [
+        testCase "Ed25519 verifies RFC 8032 test vector 1 and refuses a changed message or signature" (fun () ->
+            let publicKey = Convert.FromHexString "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+
+            let signature =
+                Convert.FromHexString
+                    "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+
+            Expect.isTrue (TufSignatures.verifyEd25519 publicKey [||] signature) "the empty message"
+            Expect.isFalse (TufSignatures.verifyEd25519 publicKey [| 0uy |] signature) "another message"
+            let changed = Array.copy signature
+            changed[0] <- changed[0] ^^^ 1uy
+            Expect.isFalse (TufSignatures.verifyEd25519 publicKey [||] changed) "another signature"
+            Expect.isFalse (TufSignatures.verifyEd25519 publicKey[..30] [||] signature) "a 31-byte key"
+            Expect.isFalse (TufSignatures.verifyEd25519 publicKey [||] signature[..62]) "a 63-byte signature"
+            Expect.isFalse (TufSignatures.verifyEd25519 (Array.create 32 0xFFuy) [||] signature) "a key that is not a point")
+
+        testCase "each fixture role meets its threshold with its own keys only" (fun () ->
+            let set = metadataSet "metadata"
+            let trusted = (TufMetadata.readRoot (canonical set.Root) |> expectOk "root").Signed
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Root (TufMetadata.readRoot (canonical set.Root) |> expectOk "root")) "root"
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Timestamp (TufMetadata.readTimestamp (canonical set.Timestamp) |> expectOk "timestamp")) "timestamp"
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Snapshot (TufMetadata.readSnapshot (canonical set.Snapshot) |> expectOk "snapshot")) "snapshot"
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Targets (TufMetadata.readTargets (canonical set.Targets) |> expectOk "targets")) "targets"
+
+            // The timestamp signed by the snapshot key: a valid signature, by a key of another role.
+            let bySnapshotKey = envelope (memberOf "signed" set.Timestamp) (keysOf "snapshot")
+            Expect.isFalse (TufSignatures.thresholdMet trusted TufRole.Timestamp (TufMetadata.readTimestamp (canonical bySnapshotKey) |> expectOk "timestamp")) "another role's key")
+
+        testCase "a signature over other content, or by an unknown key, does not count" (fun () ->
+            let set = metadataSet "metadata"
+            let trusted = (TufMetadata.readRoot (canonical set.Root) |> expectOk "root").Signed
+            let changed = setAt [ "signed"; "expires" ] (text "2998-01-01T00:00:00Z") set.Timestamp
+            Expect.isFalse (TufSignatures.thresholdMet trusted TufRole.Timestamp (TufMetadata.readTimestamp (canonical changed) |> expectOk "timestamp")) "changed content"
+
+            // An extra signature by a key the root does not list is ignored; the timestamp key's still counts.
+            let signed = memberOf "signed" set.Timestamp
+            let extra = Value.Object [ "signatures", Value.Array [ signatureOf (newTestKey "unknown") signed; signatureOf (keysOf "timestamp").Head signed ]; "signed", signed ]
+            Expect.isTrue (TufSignatures.thresholdMet trusted TufRole.Timestamp (TufMetadata.readTimestamp (canonical extra) |> expectOk "timestamp")) "ignored")
+
+        testCase "two key ids naming one public key count once" (fun () ->
+            // The readers refuse such a root, because a key id is the SHA-256 of its key; the verifier still counts
+            // distinct public keys, as well as distinct key ids.
+            let set = metadataSet "metadata"
+            let trusted = (TufMetadata.readRoot (canonical set.Root) |> expectOk "root").Signed
+            let timestampKey = (keysOf "timestamp").Head
+            let publicKey = trusted.Keys[timestampKey.KeyId]
+            let alias = String.replicate 64 "e"
+
+            let doubled =
+                { trusted with
+                    Keys = trusted.Keys.Add(alias, publicKey)
+                    Roles = trusted.Roles.Add(TufRole.Timestamp, { KeyIds = [ timestampKey.KeyId; alias ]; Threshold = 2 }) }
+
+            let signed = memberOf "signed" set.Timestamp
+            let aliasSignature = setAt [ "keyid" ] (text alias) (signatureOf timestampKey signed)
+            let twice = Value.Object [ "signatures", Value.Array [ signatureOf timestampKey signed; aliasSignature ]; "signed", signed ]
+            Expect.isFalse (TufSignatures.thresholdMet doubled TufRole.Timestamp (TufMetadata.readTimestamp (canonical twice) |> expectOk "timestamp")) "one key, two ids")
+    ]
+/// A root of the given version, with root keys and threshold, signed by the signers.
+let private rootVersion (version: uint64) (rootKeys: TestKey list) (threshold: int) (signers: TestKey list) =
+    let base' = memberOf "signed" (metadataSet "metadata").Root
+
+    let keys =
+        match memberOf "keys" base' with
+        | Value.Object existing -> Value.Object(existing @ [ for key in rootKeys do if not (existing |> List.exists (fst >> (=) key.KeyId)) then yield key.KeyId, keyValue key ])
+        | _ -> failwith "keys"
+
+    let signed =
+        base'
+        |> setAt [ "version" ] (number version)
+        |> setAt [ "keys" ] keys
+        |> setAt [ "roles"; "root" ] (Value.Object [ "keyids", Value.Array(rootKeys |> List.map (fun key -> text key.KeyId)); "threshold", number (uint64 threshold) ])
+
+    envelope signed signers
+
+let private identityOfRoot (root: Value) =
+    TufMetadata.repositoryIdentity (TufMetadata.readRoot (canonical root) |> expectOk "root")
+
+let private anchor () =
+    match TrustAnchor.load TrustAnchorPurpose.TestOnly (canonical (metadataSet "metadata").Root) with
+    | Ok(trusted, _) -> trusted
+    | Error refusal -> failtestf "the fixture root does not load as a TEST-ONLY anchor: %A" refusal
+
+let private refresh (trusted: TufTrustedSet) (source: MetadataSource) = TufClient.refresh referenceTime trusted source
+
+let private refreshed (result: RefreshResult) =
+    match result with
+    | RefreshResult.Refreshed trusted -> trusted
+    | other -> failtestf "expected a completed refresh, got %A" other
+
+let private refused (result: RefreshResult) =
+    match result with
+    | RefreshResult.Failed(failure, _) -> failure
+    | other -> failtestf "expected a refusal, got %A" other
+
+let private rotationRefused (result: RefreshResult) =
+    match refused result with
+    | TufFailure.RootRotationInvalid _ -> ()
+    | other -> failtestf "expected RootRotationInvalid, got %A" other
+
+[<Tests>]
+let workflowTests =
+    let rootKeys () = keysOf "root"
+    let newRootKeys () = [ newTestKey "root-a"; newTestKey "root-b" ]
+
+    testList "TUF refresh" [
+        testCase "each fixture metadata set refreshes from the trusted root at the reference time" (fun () ->
+            for name in [ "metadata"; "learnedRevocation"; "recipeRevocation" ] do
+                let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet name) []))
+                let targets = (Option.get trusted.Targets).Targets
+                let listed = match at [ name; "targets"; "signed"; "targets" ] (repository ()) with Value.Object items -> items.Length | _ -> 0
+                Expect.equal targets.Count listed $"{name}: every target"
+                Expect.equal trusted.Root.Version 1UL $"{name}: no new root")
+
+        testCase "a root rotation that meets both thresholds is trusted" (fun () ->
+            let v2 = rootVersion 2UL (rootKeys ()) 2 (rootKeys ())
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ v2 ]))
+            Expect.equal trusted.Root.Version 2UL "root v2")
+
+        testCase "a rotation signed by the new threshold only is refused" (fun () ->
+            rotationRefused (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ rootVersion 2UL (newRootKeys ()) 2 (newRootKeys ()) ])))
+
+        testCase "a rotation signed by the old threshold only is refused" (fun () ->
+            rotationRefused (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ rootVersion 2UL (newRootKeys ()) 2 (rootKeys ()) ])))
+
+        testCase "2.root.json whose signed version is 3 is refused" (fun () ->
+            let v3 = rootVersion 3UL (rootKeys ()) 2 (rootKeys ())
+            let set = metadataSet "metadata"
+            let bytes = canonical v3
+
+            let source =
+                { sourceOf set [] with
+                    Root = fun version -> if version = 1UL then Some(canonical set.Root) elif version = 2UL then Some bytes else None }
+
+            rotationRefused (refresh (anchor ()) source))
+
+        testCase "a refresh stops after 32 accepted roots and asks for a retry, which continues" (fun () ->
+            let roots = [ for version in 2UL .. 34UL -> rootVersion version (rootKeys ()) 2 (rootKeys ()) ]
+            let source = sourceOf (metadataSet "metadata") roots
+
+            match refresh (anchor ()) source with
+            | RefreshResult.RootRotationPaused trusted ->
+                Expect.equal trusted.Root.Version 33UL "32 accepted roots"
+                let again = refreshed (refresh trusted source)
+                Expect.equal again.Root.Version 34UL "the retry continues"
+            | other -> failtestf "expected a pause after 32 roots, got %A" other
+
+            // Exactly 32 newer roots complete in one refresh.
+            let exactly = refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") (List.truncate 32 roots)))
+            Expect.equal exactly.Root.Version 33UL "no pause when nothing follows")
+
+        testCase "a timestamp older than the trusted one is a rollback" (fun () ->
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "learnedRevocation") []))
+            Expect.equal (refused (refresh trusted (sourceOf (metadataSet "metadata") []))) (TufFailure.Rollback TufRole.Timestamp) "timestamp v1 after v2")
+
+        testCase "a snapshot naming an older targets version is a rollback" (fun () ->
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "learnedRevocation") []))
+            let older = metadataSet "metadata"
+            let newer = metadataSet "learnedRevocation"
+
+            // Timestamp and snapshot at version 3, linking the version 1 targets.
+            let set =
+                relink
+                    { older with
+                        Snapshot = setAt [ "signed"; "version" ] (number 3UL) newer.Snapshot
+                        Timestamp = setAt [ "signed"; "version" ] (number 3UL) newer.Timestamp }
+
+            Expect.equal (refused (refresh trusted (sourceOf set []))) (TufFailure.Rollback TufRole.Snapshot) "targets v1 after v2")
+
+        testCase "a snapshot that is not the one the timestamp names is a link mismatch" (fun () ->
+            let set = metadataSet "metadata"
+            let other = (metadataSet "learnedRevocation").Snapshot
+
+            // The version 2 snapshot served as 1.snapshot.json.
+            let source = { sourceOf set [] with Snapshot = fun version -> if version = 1UL then Some(canonical other) else None }
+            Expect.equal (refused (refresh (anchor ()) source)) (TufFailure.LinkMismatch TufRole.Snapshot) "mix and match")
+
+        testCase "every expiry is checked against the one start time" (fun () ->
+            let expired = { metadataSet "metadata" with Timestamp = at [ "rejectionMetadata"; "expiredTimestamp" ] (repository ()) }
+            Expect.equal (refused (refresh (anchor ()) (sourceOf expired []))) (TufFailure.Expired TufRole.Timestamp) "expired in 2020"
+
+            // A timestamp that expires exactly at the start time is expired; one second later it is not.
+            let set = metadataSet "metadata"
+            let at' (time: string) = { set with Timestamp = resign "timestamp" (setAt [ "signed"; "expires" ] (text time) set.Timestamp) }
+            Expect.equal (refused (refresh (anchor ()) (sourceOf (at' "2030-01-01T00:00:00Z") []))) (TufFailure.Expired TufRole.Timestamp) "at the start"
+            refreshed (refresh (anchor ()) (sourceOf (at' "2030-01-01T00:00:01Z") [])) |> ignore)
+
+        testCase "an expired newest root is refused" (fun () ->
+            let v2 = resign "root" (setAt [ "signed"; "expires" ] (text "2029-01-01T00:00:00Z") (rootVersion 2UL (rootKeys ()) 2 (rootKeys ())))
+            // resign uses the role's fixture keys: both root keys sign v2.
+            Expect.equal (refused (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ v2 ]))) (TufFailure.Expired TufRole.Root) "root v2 expired")
+
+        testCase "a file the refresh needs that the source does not have is unavailable" (fun () ->
+            let source = { sourceOf (metadataSet "metadata") [] with Timestamp = fun () -> None }
+            Expect.equal (refused (refresh (anchor ()) source)) (TufFailure.Unavailable TufRole.Timestamp) "no timestamp")
+
+        testCase "consistent-snapshot names use / and the digest before the file name" (fun () ->
+            match Sha256.tryParse (String.replicate 64 "a") with
+            | Ok digest ->
+                Expect.equal (TufClient.consistentTargetPath "artifacts/desktop/1.0.0/windows-x86_64.zip" digest) ("artifacts/desktop/1.0.0/" + String.replicate 64 "a" + ".windows-x86_64.zip") "a target"
+                Expect.equal (TufClient.consistentTargetPath "top.json" digest) (String.replicate 64 "a" + ".top.json") "a top-level target"
+                Expect.equal (TufClient.metadataName TufRole.Snapshot 7UL) "7.snapshot.json" "a snapshot"
+                Expect.equal (TufClient.metadataName TufRole.Timestamp 7UL) "timestamp.json" "the timestamp"
+            | Error _ -> failtest "digest")
+    ]
+
+[<Tests>]
+let anchorTests =
+    testList "TUF trust anchors" [
+        testCase "the fixture root loads as a TEST-ONLY anchor with the fixture's repository identity" (fun () ->
+            match TrustAnchor.load TrustAnchorPurpose.TestOnly (canonical (metadataSet "metadata").Root) with
+            | Ok(_, identity) ->
+                Expect.equal identity.Text (match at [ "repositoryId" ] (repository ()) with Value.String s -> s | _ -> "") "repositoryId"
+            | Error refusal -> failtestf "refused: %A" refusal)
+
+        testCase "a fixture key cannot be loaded as a production root" (fun () ->
+            match TrustAnchor.load (TrustAnchorPurpose.Production(identityOfRoot (metadataSet "metadata").Root)) (canonical (metadataSet "metadata").Root) with
+            | Error(TrustAnchorRefusal.TestOnlyKey _) -> ()
+            | other -> failtestf "expected the TEST-ONLY key to be refused, got %A" other)
+
+        testCase "a production root needs a root threshold of at least two" (fun () ->
+            let only = newTestKey "production-shaped"
+            // A root whose only root key is not a fixture key, with threshold 1.
+            let root = envelope (memberOf "signed" (rootVersion 1UL [ only ] 1 [])) [ only ]
+
+            match TrustAnchor.load (TrustAnchorPurpose.Production(identityOfRoot root)) (canonical root) with
+            | Error TrustAnchorRefusal.RootThresholdBelowTwo -> ()
+            | other -> failtestf "expected RootThresholdBelowTwo, got %A" other)
+
+        testCase "an anchor must meet its own root threshold" (fun () ->
+            let unsigned = Value.Object [ "signatures", Value.Array []; "signed", memberOf "signed" (metadataSet "metadata").Root ]
+
+            match TrustAnchor.load TrustAnchorPurpose.TestOnly (canonical unsigned) with
+            | Error(TrustAnchorRefusal.Unreadable(TufFailure.SignatureInvalid TufRole.Root)) -> ()
+            | other -> failtestf "expected the unsigned root to be refused, got %A" other)
+    ]
+[<Tests>]
+let failureCodeTests =
+    testCase "each TUF failure maps to its stable code" (fun () ->
+        for failure, code in
+            [ TufFailure.SignatureInvalid TufRole.Targets, "metadata_signature_invalid"
+              TufFailure.RootRotationInvalid(2UL, "reason"), "metadata_root_rotation_invalid"
+              TufFailure.Expired TufRole.Timestamp, "metadata_expired"
+              TufFailure.Rollback TufRole.Snapshot, "metadata_rollback"
+              TufFailure.LinkMismatch TufRole.Targets, "metadata_link_mismatch"
+              TufFailure.NonPortableTarget "a/../b", "non_portable_path"
+              TufFailure.Unavailable TufRole.Timestamp, "repository_unavailable"
+              // Provisional: the contract has no code for metadata that does not read under the profile.
+              TufFailure.MetadataInvalid(TufRole.Root, "reason"), "metadata_signature_invalid"
+              TufFailure.MetadataTooLarge(TufRole.Root, 65536), "metadata_signature_invalid" ] do
+            Expect.equal (Code.name (TufFailure.code failure)) code $"%A{failure}"
+
+        Expect.equal (TufFailure.role (TufFailure.Expired TufRole.Snapshot)) (Some TufRole.Snapshot) "the role a diagnostic names"
+        Expect.equal (TufFailure.role (TufFailure.NonPortableTarget "x")) (Some TufRole.Targets) "a target path is targets metadata's"
+        Expect.equal (TufFailure.role (TufFailure.RootRotationInvalid(2UL, "reason"))) (Some TufRole.Root) "rotation is the root's")
+[<Tests>]
+let spikeProfileTests =
+    // The 16 profile cases of the TUF client evaluation (spike/tuf-client-evaluation, results/conformance-win-arm64.md),
+    // on the pinned signed repository's keys. Three need a transport or durable state, which this slice does not have;
+    // the report lists them.
+    let rootKeys () = keysOf "root"
+    let newRootKeys () = [ newTestKey "root-a"; newTestKey "root-b" ]
+    let padded (value: Value) = Array.append (canonical value) (Array.create (70 * 1024) (byte ' '))
+
+    testList "TUF profile cases from the client evaluation" [
+        testCase "1 rotation v1 to v2 meeting both thresholds" (fun () ->
+            Expect.equal (refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ rootVersion 2UL (rootKeys ()) 2 (rootKeys ()) ]))).Root.Version 2UL "v2")
+
+        testCase "2 rotation signed by a new threshold only" (fun () ->
+            rotationRefused (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ rootVersion 2UL (newRootKeys ()) 2 (newRootKeys ()) ])))
+
+        testCase "3 rotation signed by the old threshold only" (fun () ->
+            rotationRefused (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ rootVersion 2UL (newRootKeys ()) 2 (rootKeys ()) ])))
+
+        testCase "4 2.root.json whose signed version is 3" (fun () ->
+            let set = metadataSet "metadata"
+            let v3 = canonical (rootVersion 3UL (rootKeys ()) 2 (rootKeys ()))
+            rotationRefused (refresh (anchor ()) { sourceOf set [] with Root = fun v -> if v = 1UL then Some(canonical set.Root) elif v = 2UL then Some v3 else None }))
+
+        testCase "5 33 newer roots stop after 32 and ask to retry" (fun () ->
+            match refresh (anchor ()) (sourceOf (metadataSet "metadata") [ for v in 2UL .. 34UL -> rootVersion v (rootKeys ()) 2 (rootKeys ()) ]) with
+            | RefreshResult.RootRotationPaused trusted -> Expect.equal trusted.Root.Version 33UL "paused at v33"
+            | other -> failtestf "expected a pause, got %A" other)
+
+        testCase "6 timestamp v1 served after a persisted timestamp v2" (fun () ->
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "learnedRevocation") []))
+            Expect.equal (refused (refresh trusted (sourceOf (metadataSet "metadata") []))) (TufFailure.Rollback TufRole.Timestamp) "rollback")
+
+        testCase "7 snapshot v2 served as 1.snapshot.json" (fun () ->
+            let other = canonical (metadataSet "learnedRevocation").Snapshot
+            let source = { sourceOf (metadataSet "metadata") [] with Snapshot = fun v -> if v = 1UL then Some other else None }
+            Expect.equal (refused (refresh (anchor ()) source)) (TufFailure.LinkMismatch TufRole.Snapshot) "mix and match")
+
+        testCase "8 and 9 a timestamp of 70 KiB is refused before parsing" (fun () ->
+            // The spike's case 9 ran the same input through a bounding transport; here the client bounds it.
+            let set = metadataSet "metadata"
+            let source = { sourceOf set [] with Timestamp = fun () -> Some(padded set.Timestamp) }
+            Expect.equal (refused (refresh (anchor ()) source)) (TufFailure.MetadataTooLarge(TufRole.Timestamp, 64 * 1024)) "the bound")
+
+        testCase "10 a root v2 of 70 KiB is refused before parsing" (fun () ->
+            let set = metadataSet "metadata"
+            let v2 = padded (rootVersion 2UL (rootKeys ()) 2 (rootKeys ()))
+            let source = { sourceOf set [] with Root = fun v -> if v = 1UL then Some(canonical set.Root) elif v = 2UL then Some v2 else None }
+            // A root N + 1 that cannot be read is a failed rotation, whatever the reader refused it for (review, T7).
+            match refused (refresh (anchor ()) source) with
+            | TufFailure.RootRotationInvalid(2UL, _) -> ()
+            | other -> failtestf "expected a failed rotation, got %A" other)
+
+        testCase "11 a timestamp with spec_version 2.0.0 is refused" (fun () ->
+            let set = metadataSet "metadata"
+            let timestamp = resign "timestamp" (setAt [ "signed"; "spec_version" ] (text "2.0.0") set.Timestamp)
+
+            match refused (refresh (anchor ()) (sourceOf { set with Timestamp = timestamp } [])) with
+            | TufFailure.MetadataInvalid(TufRole.Timestamp, _) -> ()
+            | other -> failtestf "expected the timestamp to be refused, got %A" other)
+
+        testCase "12 a trusted root with consistent_snapshot false is refused" (fun () ->
+            let root = resign "root" (setAt [ "signed"; "consistent_snapshot" ] (Value.Boolean false) (metadataSet "metadata").Root)
+
+            match TrustAnchor.load TrustAnchorPurpose.TestOnly (canonical root) with
+            | Error(TrustAnchorRefusal.Unreadable(TufFailure.MetadataInvalid(TufRole.Root, _))) -> ()
+            | other -> failtestf "expected the root to be refused, got %A" other)
+
+        testCase "16 the consistent-snapshot path of a target uses / on every system" (fun () ->
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") []))
+            let path = "artifacts/morphir-dotnet-native-aot/1.2.3/win-x64.zip"
+            let target = (Option.get trusted.Targets).Targets[path]
+            Expect.equal (TufClient.consistentTargetPath path target.Sha256) $"artifacts/morphir-dotnet-native-aot/1.2.3/{target.Sha256.Text}.win-x64.zip" "the path")
+    ]
+
+/// The first signature object of an envelope.
+let private firstSignatureOf (envelopeValue: Value) =
+    match at [ "signatures" ] envelopeValue with
+    | Value.Array(first :: _) -> first
+    | _ -> failwith "signatures"
+
+let private textOf (value: Value) =
+    match value with
+    | Value.String s -> s
+    | _ -> failwith "not a string"
+
+/// A source whose root N + 1 is the given bytes.
+let private withRoot2 (set: MetadataSet) (bytes: byte array) =
+    { sourceOf set [] with
+        Root = fun version -> if version = 1UL then Some(canonical set.Root) elif version = 2UL then Some bytes else None }
+
+[<Tests>]
+let reviewT1Tests =
+    // Review of #581, T1: .NET's $ also matches before a final line feed. The inputs are written with JsonText.toBytes,
+    // which escapes the line feed as \n, so they are JSON.
+    testList "T1 a trailing line feed in a hex or time field is refused, never thrown" [
+        testCase "a signature's sig" (fun () ->
+            let set = metadataSet "metadata"
+            let signature = firstSignatureOf set.Timestamp
+            let served = setAt [ "signatures" ] (Value.Array [ setAt [ "sig" ] (text (textOf (memberOf "sig" signature) + "\n")) signature ]) set.Timestamp
+            let bytes = JsonText.toBytes served
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp bytes)
+            refused (refresh (anchor ()) { sourceOf set [] with Timestamp = fun () -> Some bytes }) |> ignore)
+
+        testCase "a signature's keyid" (fun () ->
+            let set = metadataSet "metadata"
+            let signature = firstSignatureOf set.Timestamp
+            let served = setAt [ "signatures" ] (Value.Array [ setAt [ "keyid" ] (text (textOf (memberOf "keyid" signature) + "\n")) signature ]) set.Timestamp
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp (JsonText.toBytes served)))
+
+        testCase "a key's public in a rotated root" (fun () ->
+            let set = metadataSet "metadata"
+
+            let keyObject =
+                Value.Object
+                    [ "keytype", text "ed25519"
+                      "scheme", text "ed25519"
+                      "keyval", Value.Object [ "public", text ((newTestKey "line feed").Public + "\n") ] ]
+
+            // The key id is the SHA-256 of the canonical key object, so only the public key's spelling is wrong.
+            let keyId = Digest.ofBytes (canonical keyObject)
+            let signed = setAt [ "keys"; keyId ] keyObject (memberOf "signed" (rootVersion 2UL (keysOf "root") 2 []))
+            let bytes = JsonText.toBytes (envelope signed (keysOf "root"))
+            invalid TufRole.Root (TufMetadata.readRoot bytes)
+            refused (refresh (anchor ()) (withRoot2 set bytes)) |> ignore)
+
+        testCase "a root's expires" (fun () ->
+            invalid TufRole.Root (TufMetadata.readRoot (JsonText.toBytes (setAt [ "signed"; "expires" ] (text "2999-01-01T00:00:00Z\n") (root ())))))
+    ]
+
+[<Tests>]
+let reviewAcceptedStateTests =
+    // Automated review of #581 (TufClient.fs line 155): a failure after a root was accepted must still hand back the
+    // newest accepted trust state, so a revocation of root keys is not lost (TUF 5.3.8 persists each accepted root).
+    let oldKeys () = keysOf "root"
+    let newKeys () = [ newTestKey "root-a"; newTestKey "root-b" ]
+
+    testList "a refresh that fails after accepting roots hands back the newest trust state" [
+        testCase "a timestamp that is unavailable after a rotation that revokes the old root keys" (fun () ->
+            // v2 meets the old threshold and its own, and trusts only the new root keys.
+            let v2 = rootVersion 2UL (newKeys ()) 2 (oldKeys () @ newKeys ())
+            let source = { sourceOf (metadataSet "metadata") [ v2 ] with Timestamp = fun () -> None }
+
+            match TufClient.refresh referenceTime (anchor ()) source with
+            | RefreshResult.Failed(TufFailure.Unavailable TufRole.Timestamp, trusted) ->
+                Expect.equal trusted.Root.Version 2UL "the accepted root"
+
+                // From that state, a version 3 signed only by the revoked keys is refused.
+                let v3 = rootVersion 3UL (oldKeys ()) 2 (oldKeys ())
+                let again = TufClient.refresh referenceTime trusted (sourceOf (metadataSet "metadata") [ v2; v3 ])
+
+                match again with
+                | RefreshResult.Failed(TufFailure.RootRotationInvalid(3UL, _), _) -> ()
+                | other -> failtestf "expected v3 by revoked keys to be refused, got %A" other
+            | other -> failtestf "expected a failure that carries root v2, got %A" other)
+
+        testCase "a rotation that fails part way keeps the roots accepted before it" (fun () ->
+            let v2 = rootVersion 2UL (oldKeys ()) 2 (oldKeys ())
+            let v3 = rootVersion 3UL (newKeys ()) 2 (newKeys ())
+
+            match TufClient.refresh referenceTime (anchor ()) (sourceOf (metadataSet "metadata") [ v2; v3 ]) with
+            | RefreshResult.Failed(TufFailure.RootRotationInvalid(3UL, _), trusted) -> Expect.equal trusted.Root.Version 2UL "v2 is kept"
+            | other -> failtestf "expected v3 to be refused with v2 kept, got %A" other)
+
+        testCase "the trust state names the newest root on every outcome" (fun () ->
+            let v2 = rootVersion 2UL (oldKeys ()) 2 (oldKeys ())
+            let completed = TufClient.refresh referenceTime (anchor ()) (sourceOf (metadataSet "metadata") [ v2 ])
+            Expect.equal completed.Trusted.Root.Version 2UL "a completed refresh")
+    ]
+
+[<Tests>]
+let reviewTotalTests =
+    // Review of #581, T1: no exception leaves the client. Every public function of TufMetadata, TufSignatures,
+    // TufClient and TrustAnchor turns one into a typed failure at its boundary.
+    testList "T1 no exception leaves the TUF client" [
+        testCase "a source that throws is a failure that keeps the trust state" (fun () ->
+            let v2 = rootVersion 2UL (keysOf "root") 2 (keysOf "root")
+            let source = { sourceOf (metadataSet "metadata") [ v2 ] with Timestamp = fun () -> raise (IO.IOException "the network is down") }
+
+            match TufClient.refresh referenceTime (anchor ()) source with
+            | RefreshResult.Failed(TufFailure.Unavailable TufRole.Timestamp, trusted) -> Expect.equal trusted.Root.Version 2UL "root v2 is kept"
+            | other -> failtestf "expected the timestamp to be unavailable, got %A" other)
+
+        testCase "a trusted set built with a role whose key is missing is a failure, not an exception" (fun () ->
+            let trusted = anchor ()
+            // A caller-built root whose timestamp role names a key it does not list; rotation compares role keys.
+            let broken = { trusted.Root with Keys = trusted.Root.Keys |> Map.filter (fun id _ -> not (List.contains id trusted.Root.Roles[TufRole.Timestamp].KeyIds)) }
+            let v2 = rootVersion 2UL (keysOf "root") 2 (keysOf "root")
+
+            match TufClient.refresh referenceTime { trusted with Root = broken } (sourceOf (metadataSet "metadata") [ v2 ]) with
+            | RefreshResult.Failed(TufFailure.Internal _, kept) -> Expect.equal kept.Root.Version 1UL "the given root"
+            | other -> failtestf "expected an internal failure, got %A" other
+
+            Expect.equal (Code.name (TufFailure.code (TufFailure.Internal "reason"))) "metadata_signature_invalid" "fails closed")
+
+        testCase "the readers refuse the reviewer's inputs without an exception" (fun () ->
+            for read in [ TufMetadata.readRoot >> Result.map ignore; TufMetadata.readTimestamp >> Result.map ignore; TufMetadata.readSnapshot >> Result.map ignore; TufMetadata.readTargets >> Result.map ignore ] do
+                for bytes in [ [||]; Encoding.UTF8.GetBytes "null"; Encoding.UTF8.GetBytes """{"signed":{},"signatures":[{"keyid":"x","sig":"0"}]}""" ] do
+                    Expect.isError (read bytes) "refused")
+    ]
+
+/// A metadata entry naming the canonical bytes of a role, as a parent lists it.
+let private entryOf (role: Value) =
+    let bytes = canonical role
+
+    Value.Object
+        [ "version", number (versionOf role)
+          "length", number (uint64 bytes.Length)
+          "hashes", Value.Object [ "sha256", text (Digest.ofBytes bytes) ] ]
+
+/// Root v2 giving the timestamp, snapshot and targets roles new keys, and the fixture's metadata re-signed by them:
+/// timestamp v1, snapshot v1 and targets v2.
+let private recoverySet () =
+    let set = metadataSet "metadata"
+    let timestampKey, snapshotKey, targetsKey = newTestKey "timestamp-2", newTestKey "snapshot-2", newTestKey "targets-2"
+    let role (key: TestKey) = Value.Object [ "keyids", Value.Array [ text key.KeyId ]; "threshold", number 1UL ]
+
+    let rootSigned =
+        memberOf "signed" set.Root
+        |> setAt [ "version" ] (number 2UL)
+        |> setAt [ "keys"; timestampKey.KeyId ] (keyValue timestampKey)
+        |> setAt [ "keys"; snapshotKey.KeyId ] (keyValue snapshotKey)
+        |> setAt [ "keys"; targetsKey.KeyId ] (keyValue targetsKey)
+        |> setAt [ "roles"; "timestamp" ] (role timestampKey)
+        |> setAt [ "roles"; "snapshot" ] (role snapshotKey)
+        |> setAt [ "roles"; "targets" ] (role targetsKey)
+
+    let targets = envelope (setAt [ "version" ] (number 2UL) (memberOf "signed" set.Targets)) [ targetsKey ]
+    let snapshot = envelope (memberOf "signed" set.Snapshot |> setAt [ "meta"; "targets.json" ] (entryOf targets)) [ snapshotKey ]
+    let timestamp = envelope (memberOf "signed" set.Timestamp |> setAt [ "meta"; "snapshot.json" ] (entryOf snapshot)) [ timestampKey ]
+    sourceOf { set with Timestamp = timestamp; Snapshot = snapshot; Targets = targets } [ envelope rootSigned (keysOf "root") ]
+
+[<Tests>]
+let reviewT2Tests =
+    // Review of #581, T2: TUF 5.3.11 drops the trusted timestamp and snapshot when their keys rotate, so a
+    // fast-forward can be recovered from. TUF has no rollback check against trusted targets (5.6 checks targets against
+    // the snapshot only), so the trusted targets are dropped with the snapshot.
+    testList "T2 a targets fast-forward is recovered from by rotating the timestamp and snapshot keys" [
+        testCase "recovery after a fast-forward to version 50" (fun () ->
+            let trusted = anchor ()
+            let ok = refreshed (refresh trusted (sourceOf (metadataSet "metadata") []))
+            let timestamp, snapshot, targets = Option.get ok.Timestamp, Option.get ok.Snapshot, Option.get ok.Targets
+
+            // The state an attacker with the old timestamp, snapshot and targets keys leaves.
+            let forwarded =
+                { ok with
+                    Timestamp = Some { timestamp with Version = 50UL; Snapshot = { timestamp.Snapshot with Version = 50UL } }
+                    Snapshot = Some { snapshot with Version = 50UL; Targets = { snapshot.Targets with Version = 50UL } }
+                    Targets = Some { targets with Version = 50UL } }
+
+            let recovered = refreshed (refresh forwarded (recoverySet ()))
+            Expect.equal (Option.get recovered.Targets).Version 2UL "targets v2 after the rotation")
+
+        testCase "control: the same recovery with no fast-forward" (fun () ->
+            let recovered = refreshed (refresh (anchor ()) (recoverySet ()))
+            Expect.equal (Option.get recovered.Targets).Version 2UL "targets v2")
+
+        testCase "control: without a key rotation, older targets are still a rollback" (fun () ->
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "learnedRevocation") []))
+            let older = metadataSet "metadata"
+            let newer = metadataSet "learnedRevocation"
+
+            let set =
+                relink
+                    { older with
+                        Snapshot = setAt [ "signed"; "version" ] (number 3UL) newer.Snapshot
+                        Timestamp = setAt [ "signed"; "version" ] (number 3UL) newer.Timestamp }
+
+            Expect.equal (refused (refresh trusted (sourceOf set []))) (TufFailure.Rollback TufRole.Snapshot) "targets v1 after v2")
+    ]
+
+/// A root whose keys are all new TEST-ONLY labels, none of the five fixture keys: root keys and an online key for the
+/// other roles.
+let private freshRoot (version: uint64) (rootKeys: TestKey list) (threshold: int) (signers: TestKey list) =
+    let online = newTestKey "online"
+    let role (keys: TestKey list) (n: int) = Value.Object [ "keyids", Value.Array(keys |> List.map (fun key -> text key.KeyId)); "threshold", number (uint64 n) ]
+
+    let signed =
+        memberOf "signed" (metadataSet "metadata").Root
+        |> setAt [ "version" ] (number version)
+        |> setAt [ "keys" ] (Value.Object [ for key in (rootKeys @ [ online ]) |> List.distinctBy _.KeyId -> key.KeyId, keyValue key ])
+        |> setAt [ "roles" ] (Value.Object [ "root", role rootKeys threshold; "timestamp", role [ online ] 1; "snapshot", role [ online ] 1; "targets", role [ online ] 1 ])
+
+    envelope signed signers
+
+let private identityOf (root: Value) =
+    TufMetadata.repositoryIdentity (TufMetadata.readRoot (canonical root) |> expectOk "root")
+
+[<Tests>]
+let reviewT3Tests =
+    // Review of #581, T3: the purpose is carried in the trusted set and every root accepted in rotation meets its
+    // rules; production needs the repository the caller names, not the deny list alone.
+    let rootA, rootB = newTestKey "root-a", newTestKey "root-b"
+    let first () = freshRoot 1UL [ rootA; rootB ] 2 [ rootA; rootB ]
+
+    let productionAnchor () =
+        match TrustAnchor.load (TrustAnchorPurpose.Production(identityOf (first ()))) (canonical (first ())) with
+        | Ok(trusted, _) -> trusted
+        | Error refusal -> failtestf "the fresh root does not load for the repository it is: %A" refusal
+
+    testList "T3 production rules hold for every trusted root" [
+        testCase "a root is not production on the strength of the deny list: it must be the repository named" (fun () ->
+            // None of the five fixture keys, threshold 2: the deny list and the threshold pass.
+            let other = identityOf ((metadataSet "metadata").Root)
+
+            match TrustAnchor.load (TrustAnchorPurpose.Production other) (canonical (first ())) with
+            | Error(TrustAnchorRefusal.OtherRepository actual) -> Expect.equal actual (identityOf (first ())) "the root's own identity"
+            | other -> failtestf "expected another repository, got %A" other
+
+            Expect.equal (productionAnchor ()).Purpose (TrustAnchorPurpose.Production(identityOf (first ()))) "the purpose is carried")
+
+        testCase "the fixture root is refused for production even when it is the repository named" (fun () ->
+            let fixture = (metadataSet "metadata").Root
+
+            match TrustAnchor.load (TrustAnchorPurpose.Production(identityOf fixture)) (canonical fixture) with
+            | Error(TrustAnchorRefusal.TestOnlyKey _) -> ()
+            | other -> failtestf "expected the TEST-ONLY key to be refused, got %A" other)
+
+        testCase "a production trusted set does not rotate to the fixture's TEST-ONLY root" (fun () ->
+            // The fixture root at version 2, signed by the production root keys and the fixture's root keys.
+            let v2 = rootVersion 2UL (keysOf "root") 2 ([ rootA; rootB ] @ keysOf "root")
+            let source = { sourceOf (metadataSet "metadata") [] with Root = fun version -> if version = 2UL then Some(canonical v2) else None }
+
+            match TufClient.refresh referenceTime (productionAnchor ()) source with
+            | RefreshResult.Failed(TufFailure.RootRotationInvalid(2UL, _), trusted) -> Expect.equal trusted.Root.Version 1UL "v1 is kept"
+            | other -> failtestf "expected the rotation to a TEST-ONLY root to be refused, got %A" other)
+
+        testCase "a production trusted set does not rotate to a root threshold of 1" (fun () ->
+            let v2 = freshRoot 2UL [ rootA; rootB ] 1 [ rootA; rootB ]
+            let source = { sourceOf (metadataSet "metadata") [] with Root = fun version -> if version = 2UL then Some(canonical v2) else None }
+
+            match TufClient.refresh referenceTime (productionAnchor ()) source with
+            | RefreshResult.Failed(TufFailure.RootRotationInvalid(2UL, _), _) -> ()
+            | other -> failtestf "expected the rotation to threshold 1 to be refused, got %A" other)
+
+        testCase "control: a TEST-ONLY trusted set may rotate to a root threshold of 1" (fun () ->
+            let v2 = rootVersion 2UL (keysOf "root") 1 (keysOf "root")
+            let trusted = refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") [ v2 ]))
+            Expect.equal trusted.Root.Version 2UL "v2"
+            Expect.equal trusted.Purpose TrustAnchorPurpose.TestOnly "still TEST-ONLY")
+    ]
+
+/// The fixture's targets signed by the targets key with custom.morphir.preset = signedText, then served with the same
+/// signature and preset = servedText, written without normalization; snapshot and timestamp are linked to the served
+/// bytes and signed again with their own keys only.
+let private servedTargets (signedText: string) (servedText: string) =
+    let set = metadataSet "metadata"
+    let path = [ "targets"; "toolchains/recipes/fsharp/1.0.0.json"; "custom"; "morphir"; "preset" ]
+    let signed = setAt path (text signedText) (memberOf "signed" set.Targets)
+    let signatures = memberOf "signatures" (envelope signed (keysOf "targets"))
+    let served = Value.Object [ "signatures", signatures; "signed", setAt path (text servedText) signed ]
+    let bytes = JsonText.toBytes served
+
+    let entry =
+        Value.Object
+            [ "version", number (versionOf set.Targets)
+              "length", number (uint64 bytes.Length)
+              "hashes", Value.Object [ "sha256", text (Digest.ofBytes bytes) ] ]
+
+    let snapshot = resign "snapshot" (setAt [ "signed"; "meta"; "targets.json" ] entry set.Snapshot)
+    let timestamp = resign "timestamp" (setAt [ "signed"; "meta"; "snapshot.json" ] (entryOf snapshot) set.Timestamp)
+
+    { sourceOf { set with Snapshot = snapshot; Timestamp = timestamp } [] with
+        Targets = fun version -> if version = versionOf set.Targets then Some bytes else None }
+
+[<Tests>]
+let reviewT4Tests =
+    // Review of #581, T4: the signature input normalizes to NFC, so it was many-to-one. A string or member name inside
+    // signed that is not already NFC is refused, so the input is one-to-one on the documents the readers accept.
+    testList "T4 signed text that is not NFC is refused" [
+        for name, signedText, servedText in
+            [ "KELVIN SIGN for K", "Kfsharp", string (char 0x212A) + "fsharp"
+              "GREEK QUESTION MARK for ;", "a;b", "a" + string (char 0x037E) + "b"
+              "a decomposed e and U+0301 for é", "caf" + string (char 0x00E9), "cafe" + string (char 0x0301) ] ->
+            testCase name (fun () ->
+                match refused (refresh (anchor ()) (servedTargets signedText servedText)) with
+                | TufFailure.MetadataInvalid(TufRole.Targets, _) -> ()
+                | other -> failtestf "expected the targets to be refused as invalid, got %A" other)
+
+        yield testCase "control: other text under the same signature is SignatureInvalid" (fun () ->
+            Expect.equal (refused (refresh (anchor ()) (servedTargets "x" "y"))) (TufFailure.SignatureInvalid TufRole.Targets) "signature")
+
+        yield testCase "control: the same text signed and served refreshes" (fun () ->
+            refreshed (refresh (anchor ()) (servedTargets "fsharp" "fsharp")) |> ignore)
+
+        yield testCase "a member name that is not NFC is refused" (fun () ->
+            let set = metadataSet "metadata"
+            let timestamp = resign "timestamp" (setAt [ "signed"; "note" + string (char 0x212A) ] (text "x") set.Timestamp)
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp (JsonText.toBytes timestamp)))
+
+        yield testCase "a member that differs from a known member only in letter case is refused" (fun () ->
+            let set = metadataSet "metadata"
+            let timestamp = resign "timestamp" (setAt [ "signed"; "Version" ] (number 99UL) set.Timestamp)
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp (canonical timestamp)))
+
+        yield testCase "control: an unknown member is still ignored, as TUF says" (fun () ->
+            let set = metadataSet "metadata"
+            let timestamp = resign "timestamp" (setAt [ "signed"; "note" ] (text "x") set.Timestamp)
+            refreshed (refresh (anchor ()) { sourceOf set [] with Timestamp = fun () -> Some(canonical timestamp) }) |> ignore)
+    ]
+
+[<Tests>]
+let reviewT5Tests =
+    // Review of #581, T5: removing the snapshot or the targets expiry check, or weakening a threshold of two to one
+    // signature, failed no workflow test.
+    let set () = metadataSet "metadata"
+    let expiredAt = text "2029-01-01T00:00:00Z"
+
+    testList "T5 each expiry and each threshold of two is checked in a real refresh" [
+        testCase "only the snapshot has expired" (fun () ->
+            let s = set ()
+            let expired = relink { s with Snapshot = setAt [ "signed"; "expires" ] expiredAt s.Snapshot }
+            Expect.equal (refused (refresh (anchor ()) (sourceOf expired []))) (TufFailure.Expired TufRole.Snapshot) "snapshot")
+
+        testCase "only the targets have expired" (fun () ->
+            let s = set ()
+            let expired = relink { s with Targets = resign "targets" (setAt [ "signed"; "expires" ] expiredAt s.Targets) }
+            Expect.equal (refused (refresh (anchor ()) (sourceOf expired []))) (TufFailure.Expired TufRole.Targets) "targets")
+
+        testCase "a rotation signed by one of the two root keys is refused" (fun () ->
+            let v2 = rootVersion 2UL (keysOf "root") 2 [ (keysOf "root").Head ]
+            rotationRefused (refresh (anchor ()) (sourceOf (set ()) [ v2 ])))
+
+        testCase "an anchor signed by one of its two root keys is refused" (fun () ->
+            let root = (set ()).Root
+            let once = envelope (memberOf "signed" root) [ (keysOf "root").Head ]
+
+            match TrustAnchor.load TrustAnchorPurpose.TestOnly (canonical once) with
+            | Error(TrustAnchorRefusal.Unreadable(TufFailure.SignatureInvalid TufRole.Root)) -> ()
+            | other -> failtestf "expected one of two signatures to be refused, got %A" other)
+    ]
+
+[<Tests>]
+let reviewT6Tests =
+    // Review of #581, T6: TUF 5.4.3.1 discards a timestamp whose version equals the trusted one and ends the update
+    // cycle without an error.
+    let completed () = refreshed (refresh (anchor ()) (sourceOf (metadataSet "metadata") []))
+
+    testList "T6 an equal-version timestamp is nothing new" [
+        testCase "the same timestamp again ends the cycle with the trust state unchanged" (fun () ->
+            let trusted = completed ()
+
+            match refresh trusted (sourceOf (metadataSet "metadata") []) with
+            | RefreshResult.NothingNew kept -> Expect.equal kept trusted "unchanged"
+            | other -> failtestf "expected nothing new, got %A" other)
+
+        testCase "another timestamp under the same version is refused" (fun () ->
+            let set = metadataSet "metadata"
+            let fork = { set with Timestamp = resign "timestamp" (setAt [ "signed"; "expires" ] (text "2031-06-01T00:00:00Z") set.Timestamp) }
+
+            match refresh (completed ()) (sourceOf fork []) with
+            | RefreshResult.Failed(TufFailure.VersionReused TufRole.Timestamp, kept) -> Expect.equal kept (completed ()) "the trusted state is kept"
+            | other -> failtestf "expected the reused version to be refused, got %A" other
+
+            Expect.equal (Code.name (TufFailure.code (TufFailure.VersionReused TufRole.Timestamp))) "metadata_rollback" "its code")
+
+        testCase "nothing new is still refused once the trusted metadata has expired" (fun () ->
+            // A frozen timestamp served for ever: the same content, so it expires with the trusted one.
+            match TufClient.refresh (DateTimeOffset(2999, 1, 1, 0, 0, 0, TimeSpan.Zero)) (completed ()) (sourceOf (metadataSet "metadata") []) with
+            | RefreshResult.Failed(TufFailure.Expired _, _) -> ()
+            | other -> failtestf "expected the frozen metadata to have expired, got %A" other)
+
+        testCase "the same timestamp after a refresh that stopped before the snapshot goes on to the snapshot" (fun () ->
+            let partial = { completed () with Snapshot = None; Targets = None }
+
+            match refresh partial (sourceOf (metadataSet "metadata") []) with
+            | RefreshResult.Refreshed trusted -> Expect.isSome trusted.Targets "the targets are verified"
+            | other -> failtestf "expected the refresh to continue, got %A" other)
+    ]
+
+[<Tests>]
+let reviewT7Tests =
+    // Review of #581, T7: a root N + 1 that fails is metadata_root_rotation_invalid, whatever failed, and its
+    // signatures are checked before its version (TUF 5.3.4, then 5.3.5).
+    let set () = metadataSet "metadata"
+
+    let rotationReason (bytes: byte array) =
+        match refresh (anchor ()) (withRoot2 (set ()) bytes) with
+        | RefreshResult.Failed(TufFailure.RootRotationInvalid(2UL, reason) as failure, _) ->
+            Expect.equal (Code.name (TufFailure.code failure)) "metadata_root_rotation_invalid" "the code"
+            reason
+        | other -> failtestf "expected a failed rotation, got %A" other
+
+    testList "T7 a failed rotation is coded as one, signatures first" [
+        testCase "2.root.json that is not JSON" (fun () -> rotationReason (Encoding.UTF8.GetBytes "{") |> ignore)
+
+        testCase "2.root.json over the root bound" (fun () ->
+            rotationReason (Array.append (canonical (rootVersion 2UL (keysOf "root") 2 (keysOf "root"))) (Array.create (70 * 1024) (byte ' '))) |> ignore)
+
+        testCase "an unsigned 2.root.json whose version is 3 fails on its signatures, not its version" (fun () ->
+            let reason = rotationReason (canonical (rootVersion 3UL (keysOf "root") 2 []))
+            Expect.stringContains reason "threshold" "the signatures are checked first")
+
+        testCase "a signed 2.root.json whose version is 3 fails on its version" (fun () ->
+            let reason = rotationReason (canonical (rootVersion 3UL (keysOf "root") 2 (keysOf "root")))
+            Expect.stringContains reason "version" "then the version")
+    ]
+
+[<Tests>]
+let reviewT8Tests =
+    // Review of #581, T8: root.Version + 1 wrapped at 2^64 - 1. Integers are bounded at 2^53 - 1, which every reader
+    // language holds exactly, and rotation never asks for a version past the bound.
+    let largest = 9007199254740991UL
+
+    testList "T8 versions are bounded at 2^53 - 1" [
+        testCase "a root version at the bound reads" (fun () ->
+            let read = TufMetadata.readRoot (rootWith [ "version" ] (number largest)) |> expectOk "root"
+            Expect.equal read.Signed.Version largest "2^53 - 1")
+
+        testCase "a root version past the bound is refused" (fun () ->
+            invalid TufRole.Root (TufMetadata.readRoot (rootWith [ "version" ] (number (largest + 1UL)))))
+
+        testCase "a length past the bound is refused" (fun () ->
+            let set = metadataSet "metadata"
+            invalid TufRole.Timestamp (TufMetadata.readTimestamp (canonical (setAt [ "signed"; "meta"; "snapshot.json"; "length" ] (number (largest + 1UL)) set.Timestamp))))
+
+        testCase "rotation from a trusted root at the largest version asks for no further root" (fun () ->
+            for version in [ largest; UInt64.MaxValue ] do
+                let trusted = anchor ()
+                let asked = Collections.Generic.List<uint64>()
+                let source = { sourceOf (metadataSet "metadata") [] with Root = fun v -> asked.Add v; None }
+                TufClient.refresh referenceTime { trusted with Root = { trusted.Root with Version = version } } source |> ignore
+                Expect.isEmpty asked $"no root after {version}")
+    ]
+
+[<Tests>]
+let reviewT11Tests =
+    // Review of #581, T11: a prerelease of the specification is not "compatible with 1.0".
+    testList "T11 spec_version is a release of TUF 1.0" [
+        testCase "a prerelease spec_version is refused" (fun () ->
+            for spec in [ "1.0.0-rc.1"; "1.0.36-draft" ] do
+                invalid TufRole.Root (TufMetadata.readRoot (rootWith [ "spec_version" ] (text spec))))
+
+        testCase "control: 1.0.0 and 1.0.36 read" (fun () ->
+            for spec in [ "1.0.0"; "1.0.36" ] do
+                TufMetadata.readRoot (rootWith [ "spec_version" ] (text spec)) |> expectOk spec |> ignore)
+    ]

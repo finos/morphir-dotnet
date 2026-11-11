@@ -20,6 +20,8 @@ preset = "fsharp"
 
 The file is separate from `morphir.toml`. Existing `[toolchain.<name>]` sections there define task adapters and keep their meaning; a manager never reads them as a host selection.
 
+A request names no program to run: it selects a host and a toolset, which a manager acquires only from an authenticated recipe. Project configuration that names a program to run, such as an extension command in `morphir.toml`, is a separate matter. Such a program does not start until the user has allowed that project, and `--extension` on the command line needs no allowance (decided 10 November 2026, [finos/morphir#1146](https://github.com/finos/morphir/issues/1146#issuecomment-6760321629); designed in finos/morphir-dotnet#577).
+
 ## Members
 
 | Member | Required | Meaning |
@@ -53,7 +55,7 @@ A reader refuses bytes that are not UTF-8 or not TOML with `invalid_document`. W
 
 ## Discovery
 
-A command finds its project request by looking for `.morphir/toolchain.toml` in the directory it starts in, then in each parent in turn, and stops at the host's established discovery boundary, which it also searches. The first file found is the request; nothing above the boundary is read. So in a workspace whose root has a request, a member with its own request uses that one, and a member without one uses the root's. Requests are never merged. A start directory outside the boundary has no project request, and selection moves on to the user default.
+A command finds its project request by looking for `.morphir/toolchain.toml` in the directory it starts in, then in each parent in turn, and stops at the host's established discovery boundary, which it also searches. A manager uses the boundary the host's own configuration discovery uses: the one given with `--boundary`, and otherwise the root of the start directory's file system. So by default it searches to the drive or file system root, and does not stop at a version-control root. On Windows, where `C:\Work` and `c:\work` name one directory, a manager compares the start, the boundary and the candidates without case (the `discover` case marked `"windows": true`, which runners compare with every name folded to lower case). The first file found is the request; nothing above the boundary is read. So in a workspace whose root has a request, a member with its own request uses that one, and a member without one uses the root's. Requests are never merged. A start directory outside the boundary has no project request, and selection moves on to the user default.
 
 The `discover` binding cases in `cases.json` pin this rule over synthetic directory trees: the member's own request, the workspace root's, the boundary's own, a request above the boundary, and a start outside the boundary. The reference function is `discover_request`.
 

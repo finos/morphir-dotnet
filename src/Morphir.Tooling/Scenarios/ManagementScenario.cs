@@ -18,6 +18,7 @@ public class ManagementScenario : IMorphirCliScenario
         builder.ConfigureServices(services =>
         {
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IExtensionSource, BackendExtensionSource>());
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IExtensionSource, FrontendExtensionSource>());
             services.TryAddSingleton<ExtensionRegistry>();
         });
 

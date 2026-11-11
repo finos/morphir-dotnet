@@ -18,7 +18,7 @@ public sealed class HostRegistryTests
         var registry = app.Services.GetRequiredService<ExtensionRegistry>();
         registry.TryRead(out var catalog, out var error).Should().BeTrue(error?.ToString());
         catalog!.Host.Should().Be(host);
-        catalog.Entries.Select(entry => entry.Identity.Id.Value).Should().Equal("morphir.csharp", "morphir.fsharp", "morphir.type-validator");
+        catalog.Entries.Select(entry => entry.Identity.Id.Value).Should().Equal("morphir-dotnet.fsharp", "morphir.csharp", "morphir.fsharp", "morphir.type-validator");
         catalog.Entries.Should().OnlyContain(entry => entry.Identity.Version.Equals(host.Version));
     }
 

@@ -91,7 +91,11 @@ let tests =
                 "diagnostic kinds")
 
         testCase "every document schema pins schemaVersion to this reader's draft" (fun () ->
-            for schema in Directory.GetFiles(Fixtures.schemas) do
+            // The six toolchain contract schemas the pin holds; a finos/morphir checkout's schema folder also holds the
+            // schemas of every other contract.
+            let names = [ "morphirup-result"; "toolchain-lock"; "toolchain-receipt"; "toolchain-request"; "toolchain-workflow-case"; "toolset-recipe" ]
+
+            for schema in names |> List.map (fun name -> Path.Combine(Fixtures.schemas, $"{name}-0.1.0-draft.1.schema.json")) do
                 use document = JsonDocument.Parse(File.ReadAllBytes schema)
                 let pinned = document.RootElement.GetProperty("properties").GetProperty("schemaVersion").GetProperty("const")
                 Expect.equal (pinned.GetString()) ContractVersion.current (Path.GetFileName schema))

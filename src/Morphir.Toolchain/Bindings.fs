@@ -8,8 +8,8 @@ type BindingFailure =
     /// A <c>lock-binding</c> code.
     | Binding of problem: BindingProblem
     /// <c>repository_mismatch</c>: a document names a repository other than the one the check runs against, which is
-    /// carried here, as the <c>trust-failure</c> diagnostic reports it.
-    | RepositoryMismatch of repository: Sha256
+    /// carried here, as the <c>trust-failure</c> diagnostic reports it, with the document whose member the path names.
+    | RepositoryMismatch of repository: Sha256 * document: DocumentKind
 
 /// A refusal from a check that compares one document with another, or a document with the authenticated repository.
 type BindingRefusal =
@@ -63,9 +63,9 @@ module Bindings =
             { Failure = BindingFailure.Binding problem
               Path = path }
 
-    let private wrongRepository repository (path: DocumentPath) : Result<'T, BindingRefusal> =
+    let private wrongRepository repository (document: DocumentKind) (path: DocumentPath) : Result<'T, BindingRefusal> =
         Error
-            { Failure = BindingFailure.RepositoryMismatch repository
+            { Failure = BindingFailure.RepositoryMismatch(repository, document)
               Path = path }
 
     let private root = DocumentPath.root
@@ -120,7 +120,7 @@ module Bindings =
         result {
             for index, provider in List.indexed recipe.Providers do
                 if provider.Release.RepositoryId <> repository then
-                    return! wrongRepository repository (((root.Child "providers").At index).Child "repositoryId")
+                    return! wrongRepository repository DocumentKind.Recipe (((root.Child "providers").At index).Child "repositoryId")
         }
 
     /// <summary>A receipt binds the exact lock bytes and repeats the closure for its platform. Paths name receipt
@@ -146,7 +146,7 @@ module Bindings =
 
             match authenticatedBy receipt.Host.Installation with
             | Some repositoryId when repositoryId <> lock.Recipe.RepositoryId ->
-                return! wrongRepository lock.Recipe.RepositoryId (authenticationPath (root.Child "host"))
+                return! wrongRepository lock.Recipe.RepositoryId DocumentKind.Receipt (authenticationPath (root.Child "host"))
             | _ -> ()
 
             for index, provider in List.indexed receipt.Providers do
@@ -154,7 +154,7 @@ module Bindings =
                 | ProviderInstallation.Installed(installation, _) ->
                     match authenticatedBy installation with
                     | Some repositoryId when repositoryId <> lock.Recipe.RepositoryId ->
-                        return! wrongRepository lock.Recipe.RepositoryId (authenticationPath ((root.Child "providers").At index))
+                        return! wrongRepository lock.Recipe.RepositoryId DocumentKind.Receipt (authenticationPath ((root.Child "providers").At index))
                     | _ -> ()
                 | ProviderInstallation.PartOfHost -> ()
 
@@ -190,7 +190,7 @@ module Bindings =
                 return! mismatch ((root.Child "recipe").Child "sha256")
 
             if lock.Recipe.RepositoryId <> repository then
-                return! wrongRepository repository ((root.Child "recipe").Child "repositoryId")
+                return! wrongRepository repository DocumentKind.Lock ((root.Child "recipe").Child "repositoryId")
 
             let offering =
                 recipe.Hosts
@@ -213,20 +213,25 @@ module Bindings =
                     if set (closure.Providers |> List.map _.Operation) <> set recipe.Operations then
                         return! mismatch (at.Child "providers")
 
+                    // The closures this recipe allows on the platform, built once per platform: building and scanning
+                    // them per provider was quadratic in a recipe with many operations (review of #582, R1).
+                    let allowed =
+                        System.Collections.Generic.HashSet<LockedProvider>(
+                            [ yield! offering.BuiltIns |> List.map Locked.ofBuiltIn
+                              for candidate in recipe.Providers do
+                                  if Fit.onPlatform offering platform candidate |> Option.isNone then
+                                      yield! Locked.ofProvider platform candidate |> Option.toList ],
+                            HashIdentity.Structural
+                        )
+
                     for index, provider in List.indexed closure.Providers do
                         let providerPath = (at.Child "providers").At index
 
                         match Locked.repository provider with
                         | Some named when named <> repository ->
-                            return! wrongRepository repository (providerPath.Child "repositoryId")
+                            return! wrongRepository repository DocumentKind.Lock (providerPath.Child "repositoryId")
                         | _ -> ()
 
-                        let allowed =
-                            [ yield! offering.BuiltIns |> List.map Locked.ofBuiltIn
-                              for candidate in recipe.Providers do
-                                  if Fit.onPlatform offering platform candidate |> Option.isNone then
-                                      yield! Locked.ofProvider platform candidate |> Option.toList ]
-
-                        if not (List.contains provider allowed) then
+                        if not (allowed.Contains provider) then
                             return! mismatch providerPath
         }

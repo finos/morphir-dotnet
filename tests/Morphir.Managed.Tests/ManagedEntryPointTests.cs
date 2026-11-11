@@ -22,6 +22,25 @@ namespace Morphir.Managed.Tests;
 public sealed class ManagedEntryPointTests
 {
     [Test]
+    public void TheManagedEntryPointIsPublishedAsSelfContainedOrFrameworkDependentAndATestBuildStatesNeither()
+    {
+        var host = ManagedProgram.Host;
+        host.Host.Should().Be(MorphirHost.Native, "the managed morphir runs as the command morphir");
+        host.EntryPoint.Should().Equal(Deployment.SelfContained, Deployment.FrameworkDependent);
+        host.DeploymentOrNull.Should().BeNull("no named release profile built the test host's reference");
+        host.ExecutionMatchesDeployment.Should().BeTrue();
+    }
+
+    /// <summary>The managed morphir lists the in-process F# frontend as available, like dotnet-morphir.</summary>
+    [Test]
+    public void TheManagedEntryPointListsTheFSharpFrontendAsAvailable()
+    {
+        using var app = ManagedProgram.CreateApp([]);
+        app.Services.GetRequiredService<Morphir.Tooling.Features.Extensions.ExtensionRegistry>().TryRead(out var catalog, out var error).Should().BeTrue(error?.ToString());
+        var entry = catalog!.Entries.Single(item => item.Identity.Id.Equals(Morphir.Tooling.Features.Extensions.FrontendExtensionSource.FSharpId));
+        entry.IsAvailableIn(catalog.Host).Should().BeTrue();
+    }
+    [Test]
     public void TheManagedEntryPointRegistersTheInProcessFSharpFrontend()
     {
         using var app = ManagedProgram.CreateApp([]);
@@ -117,7 +136,10 @@ public sealed class ManagedEntryPointTests
         using var report = JsonDocument.Parse(result.StandardOutput);
         report.RootElement.GetProperty("host").GetString().Should().Be("morphir");
         report.RootElement.GetProperty("extensions").EnumerateArray().Select(entry => entry.GetProperty("id").GetString())
-            .Should().Equal("morphir.csharp", "morphir.fsharp", "morphir.type-validator");
+            .Should().Equal("morphir-dotnet.fsharp", "morphir.csharp", "morphir.fsharp", "morphir.type-validator");
+        // A development build: no named release profile built it, so it states no deployment.
+        report.RootElement.TryGetProperty("deployment", out _).Should().BeFalse();
+        report.RootElement.GetProperty("execution").GetString().Should().Be("jit");
     }
 
     private static CompositionSnapshot Managed() => CompositionSnapshot.Of(observe => ManagedProgram.CreateApp([], observe));

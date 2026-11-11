@@ -33,6 +33,7 @@ These go beyond the approved text. Each follows approved language. The maintaine
 
 - The registry reports the running offering in a top-level `deployment` member. Each entry lists its `deployments` in a fixed order, an unavailable entry has a `reason`, and the result and entries state their prerequisites in separate members. The approved text asks for "capability differences" and to "state why a requested delivery is unavailable"; these members are how this repository does that.
 - The in-process F# frontend becomes a built-in registry entry with the id `morphir-dotnet.fsharp`, the frontend identity the compile report already shows. Without it the AOT offering has nothing to explain as unavailable. The approved change does not ask for frontend entries or name this id.
+- Directed by the maintainer on 10 November 2026, after the choices above: every `morphirup` command that creates, updates, repairs or removes persistent state has `--dry-run`, which takes the command's own planning and validation path, makes no persistent change, and reports blocked actions accurately. In the plan-only build, `setup --dry-run` is `setup --plan` under another name; `doctor` only reads, and a future `doctor --fix` comes with its dry run.
 - `cli-model-compilation` changes. Its requirement "The in-process F# frontend ships with the dotnet tool" and its refusal message would otherwise contradict the managed `morphir` offerings, so the requirement is renamed and modified.
 
 ## Capabilities
@@ -44,7 +45,7 @@ These go beyond the approved text. Each follows approved language. The maintaine
 - `project-toolchains`: project requests and exact locks, selection precedence, frozen and offline restore, command dispatch and the split between toolchain state and build outputs. Adopted from the approved `acquisition/project-toolchains`.
 - `toolset-setup`: capability-based toolsets, the preserved built-in F# backend, the standalone F# frontend and the independently acquirable F# backend, prerequisites, readiness evidence, WASM readiness as a refusal-only guard, and cross-offering qualification. Adopted from the approved `extensions/toolset-setup`.
 
-This repository keeps a flat spec layout, so the approved nested paths become flat names. The specs carry the approved requirement and scenario text verbatim. Two added requirements, marked "Adoption-specific", say that this repository defines no members of the shared documents.
+This repository keeps a flat spec layout, so the approved nested paths become flat names. The specs carry the approved requirement and scenario text verbatim. Two added requirements, marked "Adoption-specific", say that this repository defines no members of the shared documents. A third, "Dry runs for state changes" in `toolchain-management`, records the maintainer's rule of 10 November 2026 that every `morphirup` command that changes persistent state has `--dry-run` on the same planning and validation path.
 
 ### Modified Capabilities
 

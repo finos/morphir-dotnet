@@ -7,7 +7,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// <summary>Builds and reads a catalog from C# with no switch on an F# union.</summary>
 public sealed class ExtensionCatalogInteropTests
 {
-    private static readonly HostIdentity Host = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+    private static readonly HostIdentity Host = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
 
     private static ExtensionEntry Backend(string id) => ExtensionEntry.BuiltInBackend(
         ExtensionIdentity.Create(ExtensionId.Create(id), ExtensionName.Create(id + " generator"), Host.Version, null),
@@ -37,7 +37,7 @@ public sealed class ExtensionCatalogInteropTests
         entry.Types.Select(type => type.WireValue).Should().Equal("backend");
         entry.Delivery.WireValue.Should().Be("built-in");
         entry.Hosts.WireValues.Should().Equal("morphir", "dotnet-morphir");
-        entry.IsAvailableIn(MorphirHost.DotnetTool).Should().BeTrue();
+        entry.IsAvailableIn(TestHosts.Unprofiled(MorphirHost.DotnetTool, Host.Version)).Should().BeTrue();
         entry.BackendClaimOrNull!.Targets.Select(target => target.Value).Should().Equal("csharp");
         entry.Identity.DescriptionOrNull.Should().BeNull();
     }
@@ -46,7 +46,7 @@ public sealed class ExtensionCatalogInteropTests
     public void AnEntryForOneHostIsNotAvailableInTheOther()
     {
         var entry = Backend("acme.frontend").WithHosts(HostAvailability.OnlyIn(MorphirHost.DotnetTool));
-        entry.IsAvailableIn(MorphirHost.Native).Should().BeFalse();
-        entry.IsAvailableIn(MorphirHost.DotnetTool).Should().BeTrue();
+        entry.IsAvailableIn(TestHosts.Unprofiled(MorphirHost.Native, Host.Version)).Should().BeFalse();
+        entry.IsAvailableIn(TestHosts.Unprofiled(MorphirHost.DotnetTool, Host.Version)).Should().BeTrue();
     }
 }
