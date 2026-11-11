@@ -135,8 +135,9 @@ No offering claims a .NET single-file bundle, so there is no bundle extraction a
 one native executable that needs no extraction; the layout scenario checks that it holds no managed runtime or
 assembly and that it is not a bundle. The managed offerings are folders, because the in-process F# frontend reads
 compiler references from assembly locations, which a single-file bundle does not have. They stay untrimmed. The
-legacy release asset (`LegacyAsset.TrimmedSingleFile`) is a managed trimmed single-file build; these checks do not
-cover it.
+legacy release asset in this repository's rollback publication path (`LegacyAsset.TrimmedSingleFile`) is a managed
+trimmed single-file build; these checks do not cover it. Official delivery in finos/morphir instead aliases the
+Native AOT executable's exact bytes under the legacy `morphir-<rid>` names. That alias is not another offering.
 
 ## Packaged sizes
 
@@ -204,6 +205,36 @@ Not established, to be recorded from runner evidence with acquired artifacts:
   `InvariantGlobalization`).
 - macOS: the minimum macOS version, and what Gatekeeper does with a downloaded, unsigned executable.
 - Windows x64: anything beyond the operating system itself.
+
+### Six-platform source-build observations
+
+[Run 43010468595](https://github.com/finos/morphir-dotnet/actions/runs/43010468595) ran the manual native probe on
+`f4fc12a2a80072b5739cf1922911d8f72ac3d21a`, after #578 and #584 merged. All six jobs produced reports. The
+[evidence record](evidence/native-probe-f4fc12a2.json) retains the 248 command outcomes, generated-file comparisons,
+and SHA-256 of each original report and publish log. Executable sizes below exclude archives and notices.
+
+| Platform | Executable bytes | Measured requirement |
+|---|---:|---|
+| linux-x64 | 23,706,800 | Highest required glibc symbol 2.34; linked inside pinned Ubuntu 22.04, tested at its glibc 2.35 |
+| linux-arm64 | 24,394,912 | Highest required glibc symbol 2.34; linked inside pinned Ubuntu 22.04, tested at its glibc 2.35 |
+| osx-arm64 | 23,216,856 | `LC_BUILD_VERSION` declares macOS 12.0; tested on the hosted runner, not macOS 12.0 |
+| osx-x64 | 23,756,696 | `LC_BUILD_VERSION` declares macOS 12.0; tested on the hosted runner, not macOS 12.0 |
+| win-arm64 | 28,806,656 | Command execution on the hosted runner; no Windows minimum established |
+| win-x64 | 28,118,016 | Command execution on the hosted runner; no Windows minimum established |
+
+Both Linux reports distinguish the native libraries a command reaches:
+
+- With neither ICU nor OpenSSL, every command stops at startup for missing ICU.
+- In invariant mode, or with ICU installed and OpenSSL removed, `--version`, extension listing and validation run.
+  C# generation, F# generation, configuration hashing and Ion generation stop for missing libssl.
+- The generated files match the runner's outputs in invariant mode and under `tr-TR` where those runs succeed.
+  This compares the probe's own inputs and outputs, not the frozen F# acquisition journey.
+
+The deliberate MSBuild overflow case exits 2 and reaches its child-stop marker. `dist install` still reports
+unimplemented, so it provides no HTTPS evidence. A successful probe job does not require all its commands to pass.
+The reports describe Native AOT builds without the separate WASM engine. They do not establish a minimum OS by
+running on it, exercise acquired release archives, or qualify the full installer/offline workflow. No new version,
+tag or release was created. In particular, the build's existing `0.4.0-alpha.4` version is not a new release identity.
 
 ### Historical native probe evidence
 
