@@ -52,6 +52,13 @@ module internal Prelude =
         let firstError (checks: (unit -> Result<unit, 'E>) list) : Result<unit, 'E> =
             checks |> traverse (fun check -> check ()) |> Result.map ignore
 
+    /// <summary>The index of the first element whose key equals an earlier element's, in linear time: the earlier
+    /// keys are kept in a hash set with structural equality. Every repetition check over input uses it, never a scan of
+    /// the earlier elements (review of #582, R1).</summary>
+    let firstRepeatBy (key: 'T -> 'K) (items: 'T list) : int option =
+        let seen = Collections.Generic.HashSet<'K>(HashIdentity.Structural)
+        items |> List.tryFindIndex (fun item -> not (seen.Add(key item)))
+
     /// Compares two strings by their UTF-8 bytes, as unsigned values.
     let compareUtf8 (left: string) (right: string) =
         let a = Encoding.UTF8.GetBytes left

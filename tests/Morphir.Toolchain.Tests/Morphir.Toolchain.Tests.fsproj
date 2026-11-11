@@ -26,6 +26,8 @@
     <Compile Include="DocumentCaseTests.fs" />
     <Compile Include="BindingCaseTests.fs" />
     <Compile Include="SignedCaseTests.fs" />
+    <Compile Include="ReleaseDescriptorTests.fs" />
+    <Compile Include="BindingReviewTests.fs" />
     <Compile Include="ContractTableTests.fs" />
     <Compile Include="NormalizationTests.fs" />
     <Compile Include="CanonicalJsonTests.fs" />
@@ -35,6 +37,7 @@
     <Compile Include="PlanningTests.fs" />
     <Compile Include="WriterTests.fs" />
     <Compile Include="CliTests.fs" />
+    <Compile Include="DryRunTests.fs" />
     <Compile Include="ConfigurationAdapterTests.fs" />
     <Compile Include="HardeningTests.fs" />
     <Compile Include="MutationTests.fs" />

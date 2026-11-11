@@ -124,6 +124,25 @@ module internal Reading =
     let array (read: Node -> Read<'T>) (n: Node) : Read<'T list> =
         items n |> Result.bind (Result.traverse read)
 
+    /// <summary>An array of strings whose elements are read in index order and listed once each: an element whose text
+    /// equals an earlier one's, compared ordinally, is <c>inconsistent_document</c> at the repetition, checked as it is
+    /// read. The earlier texts are kept in a hash set, so the check is linear in the array: a list scan made a recipe
+    /// of 453 KB take 85 s (review of #582, R1). The values read are compared by their text, which is how every value
+    /// read here is equal (<c>ProtocolVersion</c> and <c>Token</c>).</summary>
+    let distinctArray (read: Node -> Read<'T>) (n: Node) : Read<'T list> =
+        let seen = System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal)
+
+        let rec go (earlier: 'T list) (rest: Node list) =
+            match rest with
+            | [] -> Ok(List.rev earlier)
+            | element :: rest ->
+                match read element, element.Value with
+                | Error refusal, _ -> Error refusal
+                | Ok _, Value.String text when not (seen.Add text) -> refuse ReaderCode.InconsistentDocument element.Path
+                | Ok value, _ -> go (value :: earlier) rest
+
+        items n |> Result.bind (go [])
+
     /// <summary>A map keyed by platform ids. Every key is checked first: the first invalid key in UTF-8 byte order is
     /// <c>invalid_value</c> at that key. The entries are then read in platform table order.</summary>
     let platformMap (read: Platform -> Node -> Read<'T>) (n: Node) : Read<(Platform * 'T) list> =
@@ -238,16 +257,16 @@ module internal Reading =
         | Operation.Compile _ -> "modelOutput"
         | Operation.Generate _ -> "modelInput"
 
-    /// <summary>A built-in's model: the member its operation names, required; the other member present is
-    /// <c>inconsistent_document</c> at that member.</summary>
+    /// <summary>A built-in's model: the member its operation names, required. A built-in has no MEP session, so
+    /// <c>protocolVersion</c>, <c>modelTuple</c> and the other model member are each <c>inconsistent_document</c> at
+    /// that member, checked in that order before the model member (index.md, order of checks).</summary>
     let builtInModel (operation: Operation) (o: ObjectNode) : Read<ModelFormat> =
         let wanted = builtInModelMember operation
         let other = if wanted = "modelInput" then "modelOutput" else "modelInput"
 
-        if has other o then
-            refuse ReaderCode.InconsistentDocument (o.Path.Child other)
-        else
-            required wanted modelFormat o
+        match [ "protocolVersion"; "modelTuple"; other ] |> List.tryFind (fun name -> has name o) with
+        | Some name -> refuse ReaderCode.InconsistentDocument (o.Path.Child name)
+        | None -> required wanted modelFormat o
 
     let modelTuple (n: Node) : Read<ModelTuple> =
         result {
