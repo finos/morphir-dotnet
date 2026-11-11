@@ -23,7 +23,11 @@
       <_MorphirSystemTextJsonOutput>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'system-text-json'))))</_MorphirSystemTextJsonOutput>
     </PropertyGroup>
   </Target>
-  <Target Name="GenerateFSharpJsonContexts" BeforeTargets="CoreCompile" DependsOnTargets="_MorphirSystemTextJsonPaths" Condition="'@(FSharpJsonContext)' != ''">
+  <!--
+    MorphirSystemTextJsonTaskOptional: skip the generation while the task assembly does not exist. The repository
+    targets set it, because an IDE runs CoreCompile at project load, before the first build makes the task assembly.
+  -->
+  <Target Name="GenerateFSharpJsonContexts" BeforeTargets="CoreCompile" DependsOnTargets="_MorphirSystemTextJsonPaths" Condition="'@(FSharpJsonContext)' != '' And ('$(MorphirSystemTextJsonTaskOptional)' != 'true' Or Exists('$(MorphirSystemTextJsonTaskAssembly)'))">
     <GenerateJsonContexts Contexts="@(FSharpJsonContext)" Compile="@(Compile)" ProjectDirectory="$(MSBuildProjectDirectory)" OutputDirectory="$(_MorphirSystemTextJsonOutput)" HostPath="$(MorphirSystemTextJsonHostPath)" PluginPath="$(MorphirSystemTextJsonPluginPath)" DotNetHost="$(DotNetHostPath)" DesignTimeBuild="$(DesignTimeBuild)">
       <Output TaskParameter="OrderedCompile" ItemName="_MorphirSystemTextJsonCompile" />
       <Output TaskParameter="GeneratedFiles" ItemName="_MorphirSystemTextJsonGenerated" />

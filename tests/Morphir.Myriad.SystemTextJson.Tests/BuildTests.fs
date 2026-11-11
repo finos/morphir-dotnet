@@ -158,4 +158,37 @@ let tests =
             finally
                 Directory.Delete(folder, true)
         }
+
+        // An IDE loads a project before the first build, when the task assembly is not built. It runs CoreCompile
+        // without the compiler, then reads the packages to prune. A failure there makes the IDE restore without
+        // pruning, and the lock file then refuses the restore (NU1102).
+        testTask "an IDE project load passes when the task assembly is not built" {
+            use sandbox = TestSandbox.Create("stj-design-time-")
+            File.WriteAllText(Path.Combine(sandbox.Work, "Types.fs"), "namespace Fixture\n\nmodule Marker =\n    let value = 0\n")
+
+            let item =
+                """<FSharpJsonContext Include="Types.fs" Name="FixtureJson" Namespace="Fixture.Json" />"""
+
+            File.WriteAllText(Path.Combine(sandbox.Work, "Fixture.fsproj"), projectFile "Types.fs" item)
+            let missing = Path.Combine(sandbox.Work, "not-built", "Morphir.Myriad.SystemTextJson.Build.dll")
+
+            let start =
+                ChildProcess.StartInfo(
+                    "dotnet",
+                    "msbuild",
+                    "Fixture.fsproj",
+                    "-restore",
+                    "-t:Compile;CoreCompile;CollectPrunePackageReferences",
+                    $"-p:Configuration={configuration}",
+                    "-p:SkipCompilerExecution=true",
+                    "-p:BuildProjectReferences=false",
+                    $"-p:MorphirSystemTextJsonTaskAssembly={missing}",
+                    "-nologo"
+                )
+
+            start.WorkingDirectory <- sandbox.Work
+            sandbox.Apply start
+            let! (result: ChildProcessResult) = ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0)
+            Expect.equal result.ExitCode 0 $"The project load targets pass: {result.CombinedOutput}"
+        }
     ]
