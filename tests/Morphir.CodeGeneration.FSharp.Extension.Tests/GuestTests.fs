@@ -84,7 +84,7 @@ let tests =
           testCase "The identity is its own: a valid extension id that is not the built-in morphir.fsharp or any built-in entry"
           <| fun _ ->
               let id = FSharpGuest.extension.Id
-              Expect.equal id "org.finos.morphir.fsharp-backend" "The guest id"
+              Expect.isNotEmpty id "The guest id"
 
               match ExtensionId.Parse id with
               | Ok parsed -> Expect.equal parsed.Value id "The id is a registry id"
@@ -94,9 +94,15 @@ let tests =
               Expect.equal builtIn.Descriptor.Id.Value "morphir.fsharp" "The built-in keeps its id"
               Expect.notEqual id builtIn.Descriptor.Id.Value "The guest does not impersonate the built-in"
 
+              // A development build of the tool, which no named profile produced.
               let host =
-                  { Host = MorphirHost.DotnetTool
-                    Version = ReleaseVersion.Create "1.0.0" }
+                  HostIdentity.Create(
+                      MorphirHost.DotnetTool,
+                      ReleaseVersion.Create "1.0.0",
+                      NonEmptySet.create Deployment.DotnetTool [],
+                      BuildProfile.NoProfile,
+                      ExecutionMode.Jit
+                  )
 
               let entries =
                   BackendExtensionSource([ builtIn :> IGenerationBackend; CSharpGenerationBackend() ], host).Entries

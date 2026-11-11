@@ -113,7 +113,9 @@ public sealed class Deployment
         InProcessFSharpFrontend = inProcessFSharpFrontend;
         RequiredRuntime = requiredRuntime;
         RequiredSdk = requiredSdk;
-        BuildProperties = buildProperties;
+        // The entry point writes this deployment into its build (src/Morphir.BuildProfile.targets), so the artifact
+        // reports the offering it is. A build that no named profile makes states no deployment.
+        BuildProperties = buildProperties.SetItem("MorphirDeployment", id);
     }
 
     /// <summary>The wire value, for example <c>native-aot</c>.</summary>

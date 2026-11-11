@@ -45,9 +45,11 @@ module Diagnostics =
         let path = DocumentPath.render refusal.Path
 
         match refusal.Failure with
-        | BindingFailure.RepositoryMismatch repository ->
+        | BindingFailure.RepositoryMismatch(repository, document) ->
+            let concerns = Some { Document = document; Path = refusal.Path }
+
             error
-                (DiagnosticDetail.TrustFailure(TrustCode.RepositoryMismatch, repository, None, None, None))
+                (DiagnosticDetail.TrustFailure(TrustCode.RepositoryMismatch, repository, None, None, None, concerns))
                 $"The document names another repository at {path} than {repository.Text}, the repository this check runs against."
                 None
         | BindingFailure.Binding problem ->
@@ -84,9 +86,14 @@ module Diagnostics =
 
     /// <summary>A diagnostic for a recipe target refusal: <c>unsupported-contract</c> for the reader codes (document
     /// <c>recipe</c>), <c>trust-failure</c> naming <paramref name="repository"/> for the trust codes, and
-    /// <c>unsupported-artifact</c> for a channel that selects nothing.</summary>
-    let ofTargetRefusal (repository: Sha256) (platform: Platform) (on: Component) (refusal: TargetRefusal) =
+    /// <c>unsupported-artifact</c> for a channel that selects nothing. A refusal at a member names it with
+    /// <paramref name="document"/>, the document the check read: the request for channel selection, the lock for a
+    /// launch check. A refusal at the empty path concerns no single member and has neither.</summary>
+    let ofTargetRefusal (repository: Sha256) (platform: Platform) (on: Component) (document: DocumentKind) (refusal: TargetRefusal) =
         let path = DocumentPath.render refusal.Path
+
+        let concerns =
+            if path = "" then None else Some { Document = document; Path = refusal.Path }
 
         match refusal.Code with
         | Code.Reader code -> ofReaderRefusal DocumentKind.Recipe { Code = code; Path = refusal.Path }
@@ -94,16 +101,16 @@ module Diagnostics =
             let at = if path = "" then "" else " at " + path
 
             error
-                (DiagnosticDetail.TrustFailure(code, repository, None, None, None))
+                (DiagnosticDetail.TrustFailure(code, repository, None, None, None, concerns))
                 $"The recipe target was refused with {Code.name refusal.Code}{at}."
                 None
         | _ ->
             error
-                (DiagnosticDetail.UnsupportedArtifact(ArtifactProblem.Unsupported, on, platform, None))
+                (DiagnosticDetail.UnsupportedArtifact(ArtifactProblem.Unsupported, on, platform, None, concerns))
                 $"No recipe target matches the request at {path}."
                 None
 
-    /// An <c>unsupported-artifact</c> diagnostic for a resolution failure.
+    /// An <c>unsupported-artifact</c> diagnostic for a resolution failure, naming the request member it concerns.
     let ofResolutionFailure (failure: ResolutionFailure) =
         let platform = Platform.name failure.Platform
         let path = DocumentPath.render failure.Path
@@ -119,4 +126,9 @@ module Diagnostics =
         let alternatives =
             if List.isEmpty failure.Alternatives then None else Some failure.Alternatives
 
-        error (DiagnosticDetail.UnsupportedArtifact(failure.Problem, failure.Component, failure.Platform, alternatives)) text None
+        let concerns =
+            Some
+                { Document = DocumentKind.Request
+                  Path = failure.Path }
+
+        error (DiagnosticDetail.UnsupportedArtifact(failure.Problem, failure.Component, failure.Platform, alternatives, concerns)) text None

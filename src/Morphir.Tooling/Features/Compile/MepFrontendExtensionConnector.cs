@@ -1,8 +1,8 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-using System.Reflection;
 using Morphir.Compilation;
 using Morphir.Compilation.Mep;
+using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Compile;
 
@@ -14,34 +14,21 @@ namespace Morphir.Tooling.Features.Compile;
 /// </summary>
 public sealed class MepFrontendExtensionConnector : IFrontendExtensionConnector
 {
-    private static readonly string HostVersion =
-        typeof(MepFrontendExtensionConnector).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion.Split('+')[0] ?? "0.0.0";
-
     /// <inheritdoc />
     public Task<Checked<IFrontend>> ConnectAsync(FrontendExtensionRequest request, CancellationToken ct)
     {
-        var (executable, arguments) = Resolve(request.Extension.Value, request.WorkingDirectory);
-        var options = MepFrontendOptions.Create(executable, arguments, request.WorkingDirectory, Console.Error, "morphir-dotnet", HostVersion);
+        if (!MepExtensionCommand.TryResolve(request.Extension.Value, request.WorkingDirectory, out var executable, out var arguments, out var error))
+            return Task.FromResult(Checked<IFrontend>.Fail([Diagnostic.Create(DiagnosticSeverity.Error, MepFrontendCodes.Unavailable, error, null)]));
+        var options = MepFrontendOptions.Create(executable, arguments, request.WorkingDirectory, Console.Error,
+            MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
         return MepFrontend.ConnectCheckedAsync(options, ct);
     }
 
     /// <summary>
-    /// The executable and arguments for an extension setting. A name without a directory is looked up on PATH by
-    /// the process start; a relative path is relative to the working directory; a <c>.dll</c> runs on the
-    /// <c>dotnet</c> host (<c>DOTNET_HOST_PATH</c> when it is set).
+    /// The executable and arguments for an extension setting, as <see cref="MepExtensionCommand.Resolve"/> gives
+    /// them for frontend and backend extensions alike. A name without a directory is searched only on PATH, and a
+    /// name that is not there throws <see cref="FileNotFoundException"/>.
     /// </summary>
-    public static (string Executable, string[] Arguments) Resolve(string extension, string workingDirectory)
-    {
-        var hasDirectory = extension.Contains(Path.DirectorySeparatorChar) || extension.Contains(Path.AltDirectorySeparatorChar);
-        var path = hasDirectory && !Path.IsPathRooted(extension) ? Path.GetFullPath(extension, workingDirectory) : extension;
-
-        if (path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-        {
-            var host = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
-            return (string.IsNullOrEmpty(host) ? "dotnet" : host, [path]);
-        }
-
-        return (path, []);
-    }
+    public static (string Executable, string[] Arguments) Resolve(string extension, string workingDirectory) =>
+        MepExtensionCommand.Resolve(extension, workingDirectory);
 }

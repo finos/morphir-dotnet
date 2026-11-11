@@ -18,6 +18,7 @@ public class ManagementScenario : IMorphirCliScenario
         builder.ConfigureServices(services =>
         {
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IExtensionSource, BackendExtensionSource>());
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IExtensionSource, FrontendExtensionSource>());
             // The process's WASM runtime, registered once (task 4.2, design RPT-1): the registry, extension list, the
             // loader and extension runtimes read this one value, which probes the engine only when one of them needs it.
             // The worker, which runs before this composition exists, reads the same WasmRuntime.Process.

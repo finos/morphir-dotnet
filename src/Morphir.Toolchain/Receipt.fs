@@ -211,8 +211,10 @@ module ReceiptDocument =
                 | CheckStatusTag.Skipped, Some reason -> Ok(CheckStatus.Skipped reason)
                 | CheckStatusTag.Unsupported, Some reason -> Ok(CheckStatus.Unsupported reason)
 
+            // workflow is a member of the workflow case: required there, a member out of place elsewhere
+            // (installation-receipt.md, Checks).
             match kind, workflow with
-            | CheckKind.Workflow, None -> return! refuse ReaderCode.InconsistentDocument (n.Path.Child "workflow")
+            | CheckKind.Workflow, None -> return! refuse ReaderCode.InvalidDocument (n.Path.Child "workflow")
             | CheckKind.Integrity, Some _
             | CheckKind.Capability, Some _ -> return! refuse ReaderCode.InconsistentDocument (n.Path.Child "workflow")
             | CheckKind.Workflow, Some _
@@ -237,11 +239,15 @@ module ReceiptDocument =
             | _ -> return! refuse ReaderCode.InconsistentDocument n.Path
         }
 
+    /// <summary>A component's readiness. <c>workflow-qualified</c> is a known state, a generation's, so a component
+    /// that records it is <c>inconsistent_document</c> at its <c>readiness</c>, as any other state its checks do not
+    /// derive is.</summary>
     let private componentReadiness =
         tag
             [ "acquired", Readiness.Acquired
               "integrity-verified", Readiness.IntegrityVerified
-              "capability-checked", Readiness.CapabilityChecked ]
+              "capability-checked", Readiness.CapabilityChecked
+              "workflow-qualified", Readiness.WorkflowQualified ]
 
     /// A component's stated readiness must equal the readiness its checks derive.
     let private derivedComponent (o: ObjectNode) (checks: ComponentChecks) : Read<unit> =
@@ -454,7 +460,8 @@ module ReceiptDocument =
                             match claim, probeSource with
                             | ClaimTag.Probed, Some source -> Ok(ClaimCheck.Probed source)
                             | ClaimTag.Unchecked, None -> Ok ClaimCheck.Unchecked
-                            | ClaimTag.Probed, None
+                            // probeSource is a member of the probed case: required there, out of place elsewhere.
+                            | ClaimTag.Probed, None -> refuse ReaderCode.InvalidDocument probePath
                             | ClaimTag.Unchecked, Some _ -> refuse ReaderCode.InconsistentDocument probePath
 
                         return ProviderInstallation.Installed(installation, claimCheck)

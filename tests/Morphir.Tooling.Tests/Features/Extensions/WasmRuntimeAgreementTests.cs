@@ -19,7 +19,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// </summary>
 public sealed class WasmRuntimeAgreementTests
 {
-    private static readonly HostIdentity Native = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+    private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
 
     private sealed class FixedSource(params ExtensionEntry[] entries) : IExtensionSource
     {

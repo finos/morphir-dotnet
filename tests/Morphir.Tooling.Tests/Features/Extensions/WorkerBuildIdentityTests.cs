@@ -18,7 +18,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// </summary>
 public sealed class WorkerBuildIdentityTests
 {
-    private static readonly HostIdentity Native = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0-alpha.3+9af11f835eac40e338ee0d7232f8959ffbef1be4"));
+    private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0-alpha.3+9af11f835eac40e338ee0d7232f8959ffbef1be4"));
 
     [Test]
     public void The_identity_is_64_lower_case_hexadecimal_digits()
@@ -49,12 +49,12 @@ public sealed class WorkerBuildIdentityTests
     [Test]
     public void The_same_build_has_the_same_identity_and_another_host_or_build_another()
     {
-        var same = new HostIdentity(MorphirHost.Native, ReleaseVersion.Create("0.4.0-alpha.3+9af11f835eac40e338ee0d7232f8959ffbef1be4"));
+        var same = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0-alpha.3+9af11f835eac40e338ee0d7232f8959ffbef1be4"));
         WorkerBuildIdentity.Of(same).Should().Be(WorkerBuildIdentity.Of(Native));
-        WorkerBuildIdentity.Of(new HostIdentity(MorphirHost.DotnetTool, Native.Version)).Should().NotBe(WorkerBuildIdentity.Of(Native));
-        WorkerBuildIdentity.Of(new HostIdentity(MorphirHost.Native, ReleaseVersion.Create("0.4.0-alpha.3+0000000000000000000000000000000000000000")))
+        WorkerBuildIdentity.Of(TestHosts.Unprofiled(MorphirHost.DotnetTool, Native.Version)).Should().NotBe(WorkerBuildIdentity.Of(Native));
+        WorkerBuildIdentity.Of(TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0-alpha.3+0000000000000000000000000000000000000000")))
             .Should().NotBe(WorkerBuildIdentity.Of(Native));
-        WorkerBuildIdentity.Of(new HostIdentity(MorphirHost.Native, ReleaseVersion.Create("0.4.0-alpha.4"))).Should().NotBe(WorkerBuildIdentity.Of(Native));
+        WorkerBuildIdentity.Of(TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0-alpha.4"))).Should().NotBe(WorkerBuildIdentity.Of(Native));
     }
 
     [Test]

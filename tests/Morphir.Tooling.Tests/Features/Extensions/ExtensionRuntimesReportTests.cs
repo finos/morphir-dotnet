@@ -14,8 +14,8 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// </summary>
 public sealed class ExtensionRuntimesReportTests
 {
-    private static readonly HostIdentity Native = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
-    private static readonly HostIdentity Tool = new(MorphirHost.DotnetTool, Native.Version);
+    private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+    private static readonly HostIdentity Tool = TestHosts.Unprofiled(MorphirHost.DotnetTool, Native.Version);
 
     /// <summary>The unavailable reasons, with the platform a probe would give each on.</summary>
     public static IEnumerable<(string Reason, string Platform)> Reasons() =>

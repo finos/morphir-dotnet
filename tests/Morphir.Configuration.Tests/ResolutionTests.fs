@@ -517,6 +517,30 @@ let tests =
                     (errorsFor language (obj [ "extension", text " padded " ]))
                     $"{language} extension has no surrounding space"
         }
+        test "a codegen target table has extension, and other codegen members stay unconstrained as upstream" {
+            let errorsFor (codegen: ConfigValue) =
+                let identity = source "codegen.toml" SourceRole.RootPrimary DocumentFormat.Toml
+
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [ supplied identity (obj [ "codegen", codegen ]) ]
+                    }
+                |> fun result ->
+                    result.Diagnostics
+                    |> List.filter (fun d -> d.Severity = DiagnosticSeverity.Error)
+
+            // Upstream has additionalProperties: true for [codegen], so a scalar member was valid and stays valid.
+            Expect.isEmpty (errorsFor (obj [ "foo", text "x" ])) "a scalar member is not a target table"
+            Expect.isEmpty (errorsFor (obj [ "level", ConfigValue.Integer 3L ])) "an integer member is not a target table"
+            Expect.isEmpty (errorsFor (obj [ "targets", ConfigValue.Array [ text "fsharp" ] ])) "the upstream members"
+
+            Expect.isEmpty
+                (errorsFor (obj [ "fsharp", obj [ "extension", text "morphir-fsharp-backend"; "other", text "kept" ] ]))
+                "a target table with extension"
+
+            Expect.isNonEmpty (errorsFor (obj [ "fsharp", obj [ "extension", ConfigValue.Integer 1L ] ])) "extension is a string"
+            Expect.isNonEmpty (errorsFor (obj [ "fsharp", obj [ "extension", text " padded " ] ])) "extension has no surrounding space"
+        }
         test "every extension table may declare abi and sha256 (CFG-1)" {
             let resolve table =
                 let identity = source "extensions.toml" SourceRole.RootPrimary DocumentFormat.Toml

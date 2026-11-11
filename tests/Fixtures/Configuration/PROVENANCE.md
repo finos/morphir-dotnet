@@ -35,6 +35,12 @@ applies these amendments to the parsed schema before it generates `src/Morphir.C
 - The definition `frontendLanguage` has the members `extension` and `project_file`. Every
   `[frontend.<language>]` table uses it, including `[frontend.elm]`. Upstream documents `extension` as
   valid under any language table; `project_file` is the proposed shared key.
+- The definition `codegenTarget` has the member `extension`, with the same value rule as
+  `[frontend.<language>].extension`. Every object-valued member of `[codegen]` (a `[codegen.<target>]` table, for
+  example `[codegen.fsharp]`, or `[codegen."acme.codegen"]` for a dotted target id, which is one quoted key) uses it, beside the upstream members `targets`, `template_dir` and `output_format`.
+  Any other member stays unconstrained, as upstream's `additionalProperties: true` leaves it. It names the backend
+  extension that `generate` runs for that target, as `[frontend.<language>].extension` names a frontend extension
+  for `compile`. Upstream has no such key yet.
 - The definition `extension`, which every `[extensions.<name>]` table uses, has two more optional keys.
   `abi` is a profile id of the pinned WASM execution profile contract, which the generator reads from
   `tests/Fixtures/MepWasm/wasm-execution-profiles.json` (`extism-kernel-v1` or `morphir-bytes-v1` at the

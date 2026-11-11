@@ -38,7 +38,17 @@ let private reasons = [
     WasmRuntimeUnavailableReason.EngineLoadFailed
 ]
 
-let private hosts = [ MorphirHost.Native; MorphirHost.DotnetTool ]
+/// A development build of the managed entry point, which every built-in's deployments provide.
+let private hostAs (command: MorphirHost) =
+    HostIdentity.Create(
+        command,
+        hostVersion,
+        NonEmptySet.create Deployment.SelfContained [ Deployment.FrameworkDependent; Deployment.DotnetTool ],
+        BuildProfile.NoProfile,
+        ExecutionMode.Jit
+    )
+
+let private hosts = [ hostAs MorphirHost.Native; hostAs MorphirHost.DotnetTool ]
 
 [<Tests>]
 let tests =
@@ -142,11 +152,11 @@ let tests =
 
                     Expect.isFalse
                         (entry.IsAvailableIn(host, runtime))
-                        $"wasm entry in {host}, {reason}"
+                        $"wasm entry in {host.Host}, {reason}"
 
                     Expect.isTrue
                         (csharp.IsAvailableIn(host, runtime))
-                        $"built-in entry in {host}, {reason}"
+                        $"built-in entry in {host.Host}, {reason}"
         }
 
         test "host with the engine: a WASM entry for both hosts is available" {
@@ -155,12 +165,12 @@ let tests =
             for host in hosts do
                 Expect.isTrue
                     (entry.IsAvailableIn(host, WasmRuntimeAvailability.Available))
-                    $"wasm entry in {host}"
+                    $"wasm entry in {host.Host}"
 
                 Expect.isTrue
                     ((builtIn "morphir.csharp")
                         .IsAvailableIn(host, WasmRuntimeAvailability.Available))
-                    $"built-in in {host}"
+                    $"built-in in {host.Host}"
         }
 
         test "a WASM entry for the other host stays unavailable with the engine" {
@@ -168,11 +178,11 @@ let tests =
                 (wasm "acme.python").WithHosts(HostAvailability.OnlyIn MorphirHost.DotnetTool)
 
             Expect.isFalse
-                (entry.IsAvailableIn(MorphirHost.Native, WasmRuntimeAvailability.Available))
+                (entry.IsAvailableIn(hostAs MorphirHost.Native, WasmRuntimeAvailability.Available))
                 "native"
 
             Expect.isTrue
-                (entry.IsAvailableIn(MorphirHost.DotnetTool, WasmRuntimeAvailability.Available))
+                (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool, WasmRuntimeAvailability.Available))
                 "dotnet tool"
         }
 
@@ -191,12 +201,12 @@ let tests =
             for host in hosts do
                 Expect.isTrue
                     ((builtIn "morphir.csharp").IsAvailableIn(host, runtime))
-                    $"built-in in {host}"
+                    $"built-in in {host.Host}"
 
             Expect.equal asked.Value 0 "a built-in entry never asks the runtime"
 
             Expect.isTrue
-                ((wasm "acme.python").IsAvailableIn(MorphirHost.Native, runtime))
+                ((wasm "acme.python").IsAvailableIn(hostAs MorphirHost.Native, runtime))
                 "wasm entry with the engine"
 
             Expect.equal asked.Value 1 "a wasm entry asks once"
@@ -208,7 +218,7 @@ let tests =
                     )
 
                 Expect.isFalse
-                    ((wasm "acme.python").IsAvailableIn(MorphirHost.Native, unavailable))
+                    ((wasm "acme.python").IsAvailableIn(hostAs MorphirHost.Native, unavailable))
                     $"wasm entry without the engine, {reason}"
         }
 
@@ -219,7 +229,7 @@ let tests =
             let runtime =
                 Func<WasmRuntimeAvailability>(fun () -> failtest "the runtime was asked")
 
-            Expect.isFalse (entry.IsAvailableIn(MorphirHost.Native, runtime)) "native"
+            Expect.isFalse (entry.IsAvailableIn(hostAs MorphirHost.Native, runtime)) "native"
         }
 
         test "each unavailable reason has a description for the runtime report" {
@@ -235,10 +245,7 @@ let tests =
         }
 
         test "a catalog keeps a WASM entry beside the built-ins" {
-            let host = {
-                Host = MorphirHost.Native
-                Version = hostVersion
-            }
+            let host = hostAs MorphirHost.Native
 
             match ExtensionCatalog.create host [ builtIn "morphir.csharp"; wasm "acme.python" ] with
             | Error error -> failtest $"refused: {error}"

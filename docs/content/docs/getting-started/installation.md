@@ -7,8 +7,21 @@ description: "Install Morphir .NET on your system"
 
 ## Requirements
 
-- .NET SDK 10.0 or higher
-- Mono (for Linux/macOS)
+What morphir-dotnet needs from the machine depends on the offering. A .NET runtime is what runs a managed program; a
+.NET SDK is the larger download that also builds and installs one. Each offering states its needs in
+`morphir extension list --json` (`deployment` and `prerequisites`, see
+[extension list]({{< relref "/docs/cli/management#extension-list" >}})):
+
+| Offering | To run it | To install it | Released |
+| --- | --- | --- | --- |
+| Native AOT `morphir` | Nothing from .NET | Nothing | Not yet as this offering |
+| Self-contained `morphir` (carries its own .NET runtime) | Nothing from .NET | Nothing | Not yet |
+| Framework-dependent `morphir` | The .NET runtime `Microsoft.NETCore.App` 10.x | Nothing | Not yet |
+| `dotnet-morphir` (`Morphir.Tool` dotnet tool) | The .NET runtime `Microsoft.NETCore.App` 10.x | A .NET SDK 10.0.100 or later, for `dotnet tool install` | Yes, on NuGet |
+
+The `morphir-<rid>` executables that releases attach today are a trimmed single-file build that carries its runtime,
+so they need nothing from .NET either; no named release profile produces them, so they report no `deployment`. Building
+from source needs the .NET SDK that `global.json` names.
 
 ## Installation Methods
 
@@ -53,10 +66,11 @@ The operating system must still meet the .NET 10 runtime requirements. On
 Linux these include glibc and ICU (`libicu`), which the folder does not
 contain; this is not verified yet.
 
-Both hosts generate F# with their built-in backend. A separate F# backend
-extension, `Morphir.CodeGeneration.FSharp.Extension` (command
-`morphir-fsharp-backend`), is for other MEP hosts that have no built-in F#
-backend; `morphir generate` does not use it. See
+Both hosts generate F# with their built-in backend by default. A separate F#
+backend extension, `Morphir.CodeGeneration.FSharp.Extension` (command
+`morphir-fsharp-backend`), is for MEP hosts that have no built-in F# backend.
+`morphir generate` runs it only when you select it, with `--extension` or
+`[codegen.fsharp].extension`. See
 [F# generation]({{< relref "/docs/backends/fsharp" >}}).
 
 ### The morphirup toolchain manager

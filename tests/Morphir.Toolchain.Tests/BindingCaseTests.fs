@@ -109,11 +109,14 @@ let run (case: BindingCase) =
                 | Error _ -> failtest "not canonical"
 
             Expect.sequenceEqual (canonical digested.Plan.Lock) (canonical (lockAt lock)) $"{name}: the plan's lock"
-    | Discover(name, files, boundary, start, request) ->
+    | Discover(name, windows, files, boundary, start, request) ->
         let segments (path: string) = path.Split('/', System.StringSplitOptions.RemoveEmptyEntries) |> List.ofArray
-        let present = files |> List.map segments |> set
-        let found = Discovery.request (segments boundary) (segments start) present.Contains
-        Expect.equal (found |> Option.map (String.concat "/")) request name
+        // A Windows case is compared with every name folded to lower case.
+        let fold (path: string) = if windows then path.ToLowerInvariant() else path
+        let present = files |> List.map (fold >> segments) |> set
+        let names = if windows then Discovery.PathCase.Folded else Discovery.PathCase.Exact
+        let found = Discovery.requestIn names (segments boundary) (segments start) (String.concat "/" >> fold >> segments >> present.Contains)
+        Expect.equal (found |> Option.map (String.concat "/" >> fold)) (request |> Option.map fold) name
     | MepVersion(name, version, expected) ->
         let actual =
             match ProtocolVersion.tryParse version with
@@ -121,6 +124,46 @@ let run (case: BindingCase) =
                 Expect.equal (ProtocolVersion.text parsed) version $"{name}: the text round-trips"
                 Valid
             | Error code -> Refused(Code.readerName code, "")
+
+        Expect.equal actual expected name
+    | Nfc(name, input, expected) ->
+        Expect.equal (Nfc.normalize input) expected $"{name}: normalized"
+
+        match Canonical.bytes (Value.String input) with
+        | Ok bytes -> Expect.sequenceEqual bytes (System.Text.Encoding.UTF8.GetBytes("\"" + expected + "\"")) $"{name}: canonical bytes"
+        | Error _ -> failtestf "%s: the string has no canonical form" name
+    | SetupPlatforms(name, request, platform, platforms) ->
+        let request = RequestDocument.read (Fixtures.bytes request) |> valid request
+        let locked = Resolution.lockPlatforms request (platformOf platform) |> List.map Platform.name
+        Expect.equal locked platforms name
+    | PrerequisiteVersions(name, versions, installed, met) ->
+        let comparators =
+            versions
+            |> List.map (fun text ->
+                match Comparator.tryParse text with
+                | Ok comparator -> comparator
+                | _ -> failtestf "%s: %s is not a comparator" name text)
+
+        let installed =
+            match SemVer.tryParse installed with
+            | Ok version -> version
+            | Error _ -> failtestf "%s: %s is not a version" name installed
+
+        Expect.equal (Comparator.allMet comparators installed) met name
+    | Version(name, comparator, version, expected) ->
+        let actual =
+            if comparator then
+                match Comparator.tryParse version with
+                | Ok parsed ->
+                    Expect.equal parsed.Text version $"{name}: the text round-trips"
+                    Valid
+                | Error code -> Refused(Code.readerName code, "")
+            else
+                match SemVer.tryParse version with
+                | Ok parsed ->
+                    Expect.equal parsed.Text version $"{name}: the text round-trips"
+                    Valid
+                | Error code -> Refused(Code.readerName code, "")
 
         Expect.equal actual expected name
 
@@ -134,7 +177,20 @@ let tests =
 
             Expect.equal
                 kinds
-                (set [ "lock-request"; "lock-platform"; "receipt-lock"; "resolve"; "plan-canonical"; "lock-request-bytes"; "plan-lock"; "discover"; "mep-version" ])
+                (set
+                    [ "lock-request"
+                      "lock-platform"
+                      "receipt-lock"
+                      "resolve"
+                      "plan-canonical"
+                      "lock-request-bytes"
+                      "plan-lock"
+                      "discover"
+                      "mep-version"
+                      "nfc"
+                      "setup-platforms"
+                      "prerequisite-versions"
+                      "version" ])
                 "every kind")
 
         testList "cases" [ for case in cases -> testCase case.Name (fun () -> run case) ]

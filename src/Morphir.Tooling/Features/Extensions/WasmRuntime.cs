@@ -193,6 +193,6 @@ public static class WasmRuntimeUnavailable
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(reason);
-        return $"the WASM runtime of {host} on {platform} is unavailable ({reason.WireValue}): {reason.Description}";
+        return $"the WASM runtime of {host.Host.WireValue} {host.Version} on {platform} is unavailable ({reason.WireValue}): {reason.Description}";
     }
 }

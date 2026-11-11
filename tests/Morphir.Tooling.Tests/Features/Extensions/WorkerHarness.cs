@@ -60,10 +60,10 @@ internal sealed record WorkerRunResult(int ExitCode, byte[] Stdout, IReadOnlyLis
 internal static class WorkerHarness
 {
     /// <summary>The build identity the tests give the worker as its own.</summary>
-    public static string Identity { get; } = WorkerBuildIdentity.Of(new HostIdentity(MorphirHost.Native, ReleaseVersion.Create("0.0.0-test")));
+    public static string Identity { get; } = WorkerBuildIdentity.Of(TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.0.0-test")));
 
     /// <summary>The host the tests run the worker as.</summary>
-    public static HostIdentity Host { get; } = new(MorphirHost.Native, ReleaseVersion.Create("0.0.0-test"));
+    public static HostIdentity Host { get; } = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.0.0-test"));
 
     /// <summary>The loader of a worker in this process: the process's WASM runtime, which has the engine.</summary>
     public static IWasmModuleLoader Loader { get; } = new WasmModuleLoader(WasmRuntime.Process, Host);

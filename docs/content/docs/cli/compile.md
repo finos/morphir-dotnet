@@ -75,6 +75,9 @@ language = "fsharp"
 project_file = "src/Acme.CarRental.fsproj"   # the same key in every [frontend.<language>] table
 ```
 
+A language id can contain a dot; then the id is one quoted TOML key, `[frontend."acme.lang"]`. Without
+the quotes, `[frontend.acme.lang]` is a table `lang` inside a table `acme`, which no language reads.
+
 The upstream default of `frontend.language` is not a selection. If you do not set the language, the
 extensions of the documents select it.
 
@@ -139,9 +142,24 @@ extension = "morphir-fsharp-frontend"
 
 The command reads the value in this way:
 
-- A name without a directory is a command on `PATH`.
+- A name without a directory is searched only in the absolute directories of `PATH`, in order, and the
+  command starts that absolute path. It is never taken from the invocation directory or from the directory of
+  `morphir` itself. Starting a bare name directly would look there first: CreateProcess searches the
+  application's directory and the current directory before `PATH` on Windows, and .NET does the same on Unix.
+  On Windows the name matches a `.exe` or `.com` file, in `PATHEXT` order, and batch files are not started. On
+  Unix the file must be executable. A name that is not on `PATH` fails with `extension.unavailable`; to run a
+  file in the current directory, give a path such as `./guest`.
 - A relative path is relative to the invocation directory.
-- A path that ends in `.dll` runs on the `dotnet` host (`DOTNET_HOST_PATH` when it is set).
+- A path that ends in `.dll` runs on the `dotnet` host: `DOTNET_HOST_PATH` when it is set, else `dotnet`
+  searched on `PATH` in the same way.
+
+**What configuration can run.** `[frontend.<language>].extension` names a program that `morphir compile` starts with your user's rights.
+The project configuration is the `morphir.toml` found from the working directory upward, so running
+`morphir compile` inside a checkout that you do not trust can start a program that the checkout chooses: a file
+inside the checkout, or any command on `PATH`. `MORPHIR_ISOLATED=1` leaves out only the machine and personal
+configuration files, not the project's own file, and `MORPHIR_DISCOVERY_BOUNDARY` only limits how far up the
+search goes. Read the `extension` keys of a project before you run `morphir compile` in it, or choose the file
+with `--config`.
 
 The command starts the guest with explicit arguments and no shell, and passes the guest's stderr to its own
 stderr. It agrees the session with `initialize`, and it admits only the model tuples that both sides
@@ -153,7 +171,7 @@ session admits the language, the file extension of each document, the number of 
 version. The guest does not claim `.fsi` signature files.
 
 The command checks the model envelope of the result (base64, length and SHA-256) before it reads the IR.
-It always ends the session with `shutdown` and `exit`, or stops the process tree after a deadline. The
+When the run ends, it sends `shutdown` and then `exit`. A guest that does not answer `shutdown`, or does not take `exit`, within the deadline (for example a guest that is still busy or no longer reads its input) has its whole process tree stopped. So a request that times out ends within about two deadlines: one for the request and one for the end of the session. The
 report names the frontend with its transport, for example
 `org.finos.morphir.fsharp-frontend (mep)`. For the same documents, the guest gives the same IR and the same
 diagnostics as the in-process frontend. A `.fsi` signature file is the exception: no frontend in the
@@ -221,7 +239,10 @@ dotnet-morphir compile ...
 dotnet-morphir generate --input <out root>/compile.dest/morphir-ir.json --target <id> --output <directory>
 ```
 
-Both give the same files with the same bytes, and both reports name the same backend. Classic IR versions
+Both give the same files with the same bytes, and both reports name the same backend, as long as the project
+configuration selects no backend extension. `compile --target` always runs the built-in backend of the target
+and does not read `[codegen.<target>].extension`; when that key is set, the command prints a note on stderr,
+and only `morphir generate` runs the extension. Classic IR versions
 (`1`, `2` and `3`) give a classic model, and the backend uses its classic path.
 
 - Generation does not run when the compile fails.
@@ -514,7 +535,7 @@ $ morphir compile --language fsharp --input src/Rates.fs --package-name acme/dem
     {
       "severity": "error",
       "code": "compile.frontend_unavailable",
-      "message": "No registered frontend reads the language 'fsharp'. This build registers no frontend. The dotnet tool dotnet-morphir has a built-in F# frontend. Set [frontend.fsharp].extension in morphir.toml, or use --extension, to configure a frontend extension."
+      "message": "No registered frontend reads the language 'fsharp'. This build registers no frontend. The self-contained and framework-dependent morphir and dotnet-morphir have a built-in F# frontend; this offering uses the F# frontend process delivery morphir-fsharp-frontend. Set [frontend.fsharp].extension in morphir.toml, or use --extension, to configure a frontend extension."
     }
   ],
   "failureKind": "configuration",

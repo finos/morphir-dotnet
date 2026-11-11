@@ -13,8 +13,8 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// </summary>
 public sealed class ExtensionListWasmTests
 {
-    private static readonly HostIdentity Native = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
-    private static readonly HostIdentity Tool = new(MorphirHost.DotnetTool, Native.Version);
+    private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+    private static readonly HostIdentity Tool = TestHosts.Unprofiled(MorphirHost.DotnetTool, Native.Version);
 
     private sealed class FixedSource(params ExtensionEntry[] entries) : IExtensionSource
     {

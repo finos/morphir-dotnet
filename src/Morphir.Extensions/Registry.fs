@@ -27,17 +27,110 @@ type MorphirHost =
     /// <summary>The command name.</summary>
     override this.ToString() = this.WireValue
 
-/// <summary>The host that runs this process, with its release version.</summary>
+/// <summary>
+/// The host that runs this process (HOST-1): the command, the release version, the offerings that this entry point can
+/// be published as, the release profile that built it, and how it runs. The host string keeps its meaning as the
+/// command name; the deployment is a separate value. Only <see cref="HostIdentity.Create"/> builds one.
+/// </summary>
+[<CustomEquality; NoComparison>]
 type HostIdentity =
-    {
-        /// <summary>The kind of host.</summary>
-        Host: MorphirHost
-        /// <summary>The release version.</summary>
-        Version: ReleaseVersion
-    }
+    private
+        {
+            host: MorphirHost
+            version: ReleaseVersion
+            entryPoint: NonEmptySet<Deployment>
+            profile: BuildProfile
+            execution: ExecutionMode
+        }
 
-    /// <summary>The host and its version.</summary>
-    override this.ToString() = $"{this.Host.WireValue} {this.Version}"
+    /// <summary>
+    /// The identity of an entry point. <paramref name="entryPoint"/> holds the offerings that the entry point can be
+    /// published as. Throws <see cref="ArgumentException"/> when <paramref name="profile"/> names another offering:
+    /// the build refuses that combination too.
+    /// </summary>
+    static member Create
+        (
+            host: MorphirHost,
+            version: ReleaseVersion,
+            entryPoint: NonEmptySet<Deployment>,
+            profile: BuildProfile,
+            execution: ExecutionMode
+        ) : HostIdentity =
+        match profile.Deployment with
+        | Some deployment when not (entryPoint.Contains deployment) ->
+            let allowed = String.Join(", ", entryPoint |> Seq.map (fun candidate -> candidate.WireValue))
+            invalidArg (nameof profile) $"This entry point is published as {allowed}, not as {deployment}."
+        | _ ->
+            {
+                host = host
+                version = version
+                entryPoint = entryPoint
+                profile = profile
+                execution = execution
+            }
+
+    /// <summary>The command that runs: <c>morphir</c> or <c>dotnet-morphir</c>.</summary>
+    member this.Host = this.host
+
+    /// <summary>The release version.</summary>
+    member this.Version = this.version
+
+    /// <summary>The offerings that this entry point can be published as.</summary>
+    member this.EntryPoint = this.entryPoint
+
+    /// <summary>The release profile that built the executable, or no profile.</summary>
+    member this.Profile = this.profile
+
+    /// <summary>How this process runs.</summary>
+    member this.Execution = this.execution
+
+    /// <summary>The deployment that the build states, or none when no named profile built it. C# uses <see cref="DeploymentOrNull"/>.</summary>
+    member internal this.Deployment = this.profile.Deployment
+
+    /// <summary>For C# callers: the deployment, or null when no named profile built the executable.</summary>
+    member this.DeploymentOrNull: Deployment | null = Option.toObj this.profile.Deployment
+
+    /// <summary>For C# callers: the platform the profile built for, or null for a portable artifact or no profile.</summary>
+    member this.PlatformOrNull: Platform | null = Option.toObj this.profile.Platform
+
+    /// <summary>
+    /// The deployments that availability is judged against: the profile's deployment, or without a profile every
+    /// offering that the entry point can be published as.
+    /// </summary>
+    member this.CandidateDeployments: IReadOnlyList<Deployment> =
+        match this.profile.Deployment with
+        | Some deployment -> [| deployment |]
+        | None -> [| for deployment in Deployment.All do if this.entryPoint.Contains deployment then deployment |]
+
+    /// <summary>
+    /// False when the build claims a deployment that this process contradicts: a <c>native-aot</c> claim in a process
+    /// that supports dynamic code, or a managed claim in native code. True when there is no claim.
+    /// </summary>
+    member this.ExecutionMatchesDeployment =
+        match this.profile.Deployment with
+        | Some deployment -> deployment.Execution = this.execution
+        | None -> true
+
+    /// <summary>For C# callers: the prerequisites of the running offering, or null when no named profile built it.</summary>
+    member this.PrerequisitesOrNull: Prerequisites | null =
+        this.profile.Deployment |> Option.map (fun deployment -> deployment.Prerequisites) |> Option.toObj
+
+    override this.Equals(other: obj | null) =
+        match other with
+        | :? HostIdentity as identity ->
+            this.host = identity.host
+            && this.version = identity.version
+            && this.entryPoint = identity.entryPoint
+            && this.profile = identity.profile
+            && this.execution = identity.execution
+        | _ -> false
+
+    override this.GetHashCode() =
+        HashCode.Combine(this.host, this.version, this.profile, this.execution)
+
+    /// <summary>The host, version and profile.</summary>
+    override this.ToString() =
+        $"{this.host.WireValue} {this.version} ({this.profile}; {this.execution})"
 
 /// <summary>The hosts that an extension runs in. An empty set of hosts cannot exist.</summary>
 [<RequireQualifiedAccess>]
@@ -296,6 +389,8 @@ module ValidatorClaim =
 /// <summary>A capability that an extension claims. Each case fixes the extension type it implies.</summary>
 [<RequireQualifiedAccess>]
 type ExtensionCapability =
+    /// <summary>A frontend that compiles source code to a model.</summary>
+    | Frontend of FrontendClaim
     /// <summary>A backend that generates artifacts.</summary>
     | Backend of BackendClaim
     /// <summary>A validator that reads a model and reports diagnostics.</summary>
@@ -304,6 +399,7 @@ type ExtensionCapability =
     /// <summary>The extension type that this capability implies.</summary>
     member this.Type =
         match this with
+        | Frontend _ -> ExtensionType.Frontend
         | Backend _ -> ExtensionType.Backend
         | Validator _ -> ExtensionType.Validator
 
@@ -313,12 +409,16 @@ type ExtensionCapability =
     /// </summary>
     member this.Summary =
         match this with
+        | Frontend claim ->
+            let languages = String.Join(", ", claim.Languages |> Seq.map (fun language -> language.Language.Value))
+            $"{ExtensionType.Frontend.WireValue} ({languages})"
         | Backend _ -> ExtensionType.Backend.WireValue
         | Validator claim -> $"{ExtensionType.Validator.WireValue} ({claim})"
 
     /// <summary>The capability and its claim.</summary>
     override this.ToString() =
         match this with
+        | Frontend claim -> $"frontend ({claim})"
         | Backend claim -> $"backend ({claim})"
         | Validator claim -> $"validator ({claim})"
 
@@ -362,8 +462,10 @@ type ExtensionEntry =
         Identity: ExtensionIdentity
         /// <summary>How the extension is delivered.</summary>
         Delivery: ExtensionDelivery
-        /// <summary>The hosts that the extension runs in.</summary>
+        /// <summary>The hosts that the extension runs in: command names, never the deployment.</summary>
         Hosts: HostAvailability
+        /// <summary>The offerings of the release that provide the extension.</summary>
+        Deployments: EntryDeployments
         /// <summary>The capabilities that the extension claims; at least one.</summary>
         Capabilities: NonEmptySet<ExtensionCapability>
     }
@@ -374,23 +476,57 @@ type ExtensionEntry =
         |> NonEmptySet.map (fun capability -> capability.Type)
 
     /// <summary>
-    /// True when the extension runs in the host, whose WASM runtime has this availability: the host is one of the
-    /// entry's hosts, and a <c>wasm</c> entry also needs an available runtime. A host lists the entry either way.
+    /// True when the extension runs in the host: its command is one of <see cref="Hosts"/>, and every deployment the host
+    /// is judged as (<see cref="HostIdentity.CandidateDeployments"/>) provides it.
     /// </summary>
-    member this.IsAvailableIn(host: MorphirHost, wasmRuntime: WasmRuntimeAvailability) =
-        this.Hosts.IsAvailableIn host
+    member this.IsAvailableIn(host: HostIdentity) : bool =
+        this.Hosts.IsAvailableIn host.Host
+        && host.CandidateDeployments |> Seq.forall this.Deployments.Contains
+
+    /// <summary>
+    /// True when the extension runs in the host, whose WASM runtime has this availability: the extension is available in
+    /// the host as the overload that takes only the host says, and a <c>wasm</c> entry also needs an available runtime.
+    /// A host lists the entry either way.
+    /// </summary>
+    member this.IsAvailableIn(host: HostIdentity, wasmRuntime: WasmRuntimeAvailability) : bool =
+        this.Hosts.IsAvailableIn host.Host
+        && host.CandidateDeployments |> Seq.forall this.Deployments.Contains
         && this.Delivery.CanRunWith wasmRuntime
 
     /// <summary>
     /// For C# callers that read the runtime only when they need it: as the overload that takes the availability, but
-    /// <paramref name="wasmRuntime"/> is called only for a <c>wasm</c> entry of the host, so listing built-in entries never
-    /// probes the WASM engine.
+    /// <paramref name="wasmRuntime"/> is called only for a <c>wasm</c> entry that the host and its deployments allow, so
+    /// listing built-in entries never probes the WASM engine.
     /// </summary>
-    member this.IsAvailableIn(host: MorphirHost, wasmRuntime: Func<WasmRuntimeAvailability>) =
-        this.Hosts.IsAvailableIn host
+    member this.IsAvailableIn(host: HostIdentity, wasmRuntime: Func<WasmRuntimeAvailability>) : bool =
+        this.Hosts.IsAvailableIn host.Host
+        && host.CandidateDeployments |> Seq.forall this.Deployments.Contains
         && (match this.Delivery with
             | ExtensionDelivery.BuiltIn -> true
             | ExtensionDelivery.Wasm -> wasmRuntime.Invoke().CanRunModules)
+
+    /// <summary>Why the extension is not available in the host, or none when it is.</summary>
+    member this.ReasonIn(host: HostIdentity) : UnavailableReason option =
+        if this.IsAvailableIn host then
+            None
+        elif not (this.Hosts.IsAvailableIn host.Host) then
+            Some(UnavailableReason.Create $"{this.Identity.Id} runs only in {this.Hosts}.")
+        else
+            this.Deployments.Reason
+
+    /// <summary>For C# callers: why the extension is not available in the host, or null when it is.</summary>
+    member this.ReasonOrNullIn(host: HostIdentity) : UnavailableReason | null = Option.toObj (this.ReasonIn host)
+
+    /// <summary>For C# callers: the frontend claim, or null when the extension is not a frontend.</summary>
+    member this.FrontendClaimOrNull =
+        this.Capabilities
+        |> Seq.tryPick (
+            function
+            | ExtensionCapability.Frontend claim -> Some claim
+            | ExtensionCapability.Backend _
+            | ExtensionCapability.Validator _ -> None
+        )
+        |> Option.toObj
 
     /// <summary>For C# callers: the backend claim, or null when the extension is not a backend.</summary>
     member this.BackendClaimOrNull =
@@ -398,6 +534,7 @@ type ExtensionEntry =
         |> Seq.tryPick (
             function
             | ExtensionCapability.Backend claim -> Some claim
+            | ExtensionCapability.Frontend _
             | ExtensionCapability.Validator _ -> None
         )
         |> Option.toObj
@@ -408,6 +545,7 @@ type ExtensionEntry =
         |> Seq.tryPick (
             function
             | ExtensionCapability.Validator claim -> Some claim
+            | ExtensionCapability.Frontend _
             | ExtensionCapability.Backend _ -> None
         )
         |> Option.toObj
@@ -438,7 +576,8 @@ type ExtensionEntry =
 
     /// <summary>
     /// The MEP capability claims of the entry, with only the claim kinds that the pinned contract defines. A backend
-    /// claim maps to <c>backend</c>. A validator claim stays out: MEP 0.2.0-draft.1 has no validator capability.
+    /// claim maps to <c>backend</c>. A validator claim stays out: MEP 0.2.0-draft.1 has no validator capability. A
+    /// built-in frontend claim stays out too: an in-process frontend is not offered to a MEP peer.
     /// </summary>
     member this.ToMepCapabilities() : Morphir.Mep.ExtensionCapabilities =
         let backend =
@@ -459,6 +598,7 @@ type ExtensionEntry =
                         }
                         : Morphir.Mep.BackendCapability
                     )
+                | ExtensionCapability.Frontend _
                 | ExtensionCapability.Validator _ -> None
             )
 
@@ -480,7 +620,27 @@ type ExtensionEntry =
     /// <summary>For C# callers, which cannot use <c>with</c> on an F# record: the same entry with another delivery.</summary>
     member this.WithDelivery(delivery: ExtensionDelivery) = { this with Delivery = delivery }
 
-    /// <summary>A built-in backend that runs in both hosts.</summary>
+    /// <summary>For C# callers: the same entry with other deployments.</summary>
+    member this.WithDeployments(deployments: EntryDeployments) = { this with Deployments = deployments }
+
+    /// <summary>
+    /// A built-in in-process frontend that runs in both hosts, in the given offerings. Its type comes from the claim.
+    /// </summary>
+    static member BuiltInFrontend
+        (
+            identity: ExtensionIdentity,
+            claim: FrontendClaim,
+            deployments: EntryDeployments
+        ) : ExtensionEntry =
+        {
+            Identity = identity
+            Delivery = ExtensionDelivery.BuiltIn
+            Hosts = HostAvailability.AllHosts
+            Deployments = deployments
+            Capabilities = NonEmptySet.create (ExtensionCapability.Frontend claim) []
+        }
+
+    /// <summary>A built-in backend that runs in both hosts and every offering.</summary>
     static member BuiltInBackend
         (
             identity: ExtensionIdentity,
@@ -490,10 +650,11 @@ type ExtensionEntry =
             Identity = identity
             Delivery = ExtensionDelivery.BuiltIn
             Hosts = HostAvailability.AllHosts
+            Deployments = EntryDeployments.Every
             Capabilities = NonEmptySet.create (ExtensionCapability.Backend claim) []
         }
 
-    /// <summary>A built-in validator that runs in both hosts. Its type comes from the claim.</summary>
+    /// <summary>A built-in validator that runs in both hosts and every offering. Its type comes from the claim.</summary>
     static member BuiltInValidator
         (
             identity: ExtensionIdentity,
@@ -503,12 +664,13 @@ type ExtensionEntry =
             Identity = identity
             Delivery = ExtensionDelivery.BuiltIn
             Hosts = HostAvailability.AllHosts
+            Deployments = EntryDeployments.Every
             Capabilities = NonEmptySet.create (ExtensionCapability.Validator claim) []
         }
 
-    /// <summary>The identity, delivery and hosts.</summary>
+    /// <summary>The identity, delivery, hosts and deployments.</summary>
     override this.ToString() =
-        $"{this.Identity} ({this.Delivery}; {this.Hosts})"
+        $"{this.Identity} ({this.Delivery}; {this.Hosts}; {this.Deployments})"
 
 /// <summary>The stable code of a registry diagnostic.</summary>
 [<RequireQualifiedAccess>]

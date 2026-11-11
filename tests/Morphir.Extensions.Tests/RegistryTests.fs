@@ -9,10 +9,16 @@ let private version text =
     | Ok parsed -> parsed
     | Error error -> failwith $"bad version {text}: {error}"
 
-let private host = {
-    Host = MorphirHost.Native
-    Version = ReleaseVersion.Create "0.4.0"
-}
+let private hostAs (command: MorphirHost) =
+    HostIdentity.Create(
+        command,
+        ReleaseVersion.Create "0.4.0",
+        NonEmptySet.create Deployment.SelfContained [ Deployment.FrameworkDependent; Deployment.DotnetTool ],
+        BuildProfile.NoProfile,
+        ExecutionMode.Jit
+    )
+
+let private host = hostAs MorphirHost.Native
 
 let private backend (id: string) =
     ExtensionEntry.BuiltInBackend(
@@ -67,8 +73,10 @@ let tests =
 
         test "an entry for all hosts is available in both hosts" {
             let entry = backend "morphir.csharp"
-            Expect.isTrue (entry.IsAvailableIn(MorphirHost.Native, WasmRuntimeAvailability.Available)) "native"
-            Expect.isTrue (entry.IsAvailableIn(MorphirHost.DotnetTool, WasmRuntimeAvailability.Available)) "dotnet tool"
+            Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.Native)) "native"
+            Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool)) "dotnet tool"
+            Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.Native, WasmRuntimeAvailability.Available)) "native, with a runtime"
+            Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool, WasmRuntimeAvailability.Available)) "dotnet tool, with a runtime"
 
             Expect.equal
                 (List.ofSeq entry.Hosts.WireValues)
@@ -82,8 +90,11 @@ let tests =
                     Hosts = HostAvailability.Only MorphirHost.DotnetTool
                 }
 
-            Expect.isFalse (entry.IsAvailableIn(MorphirHost.Native, WasmRuntimeAvailability.Available)) "not native"
-            Expect.isTrue (entry.IsAvailableIn(MorphirHost.DotnetTool, WasmRuntimeAvailability.Available)) "dotnet tool"
+            Expect.isFalse (entry.IsAvailableIn(hostAs MorphirHost.Native)) "not native"
+            Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool)) "dotnet tool"
+            Expect.isNotNull (entry.ReasonOrNullIn(hostAs MorphirHost.Native)) "a reason names the host that has it"
+            Expect.isFalse (entry.IsAvailableIn(hostAs MorphirHost.Native, WasmRuntimeAvailability.Available)) "not native, with a runtime"
+            Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool, WasmRuntimeAvailability.Available)) "dotnet tool, with a runtime"
             Expect.equal (List.ofSeq entry.Hosts.WireValues) [ "dotnet-morphir" ] "one host"
         }
 

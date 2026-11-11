@@ -20,7 +20,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// </summary>
 public sealed class WasmModuleLoaderTests
 {
-    private static readonly HostIdentity Host = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+    private static readonly HostIdentity Host = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
 
     private static readonly WasmModuleLoader Loader = new(WasmRuntime.Process, Host);
 

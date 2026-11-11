@@ -35,6 +35,7 @@
         <Compile Include="TextValueTests.fs" />
         <Compile Include="RegistryTests.fs" />
         <Compile Include="WasmDeliveryTests.fs" />
+        <Compile Include="OfferingTests.fs" />
         <Compile Include="AnalyzerTests.fs" />
         <Compile Include="MepMappingTests.fs" />
         <Compile Include="Program.fs" />

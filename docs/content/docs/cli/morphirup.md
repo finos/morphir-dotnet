@@ -111,7 +111,7 @@ Check in both `.morphir/toolchain.toml` and `.morphir/toolchain.lock.json`. The 
 
 ## Commands
 
-`setup --plan` and `doctor` write one manager result document (`0.1.0-draft.1`, see the [contract](https://github.com/finos/morphir/blob/1451c081f56cf5b74618302d315dcdbe573028a1/docs/spec/toolchain/manager-result.md), a draft in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to) to standard output and their progress to standard error. `--version`, `--help` and a command line that cannot be parsed write no result document. JSON is the only output format of this build; `--json` is accepted.
+`setup --plan` (or `setup --dry-run`) and `doctor` write one manager result document (`0.1.0-draft.1`, see the [contract](https://github.com/finos/morphir/blob/9e1f853b7ef64c160bd3ec9c238e246d84a23802/docs/spec/toolchain/manager-result.md), a draft in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to) to standard output and their progress to standard error. `--version`, `--help` and a command line that cannot be parsed write no result document. JSON is the only output format of this build; `--json` is accepted.
 
 | Exit code | Meaning |
 | --- | --- |
@@ -126,7 +126,7 @@ Exit code 2 means that `morphirup` did not run the command. That happens when:
 
 - no command is given, or the command is not `setup` or `doctor`;
 - an option is unknown, given twice, or has no value. A value never starts with `--`, so `--project --plan` is a missing value, not a folder named `--plan`;
-- `setup` is run without `--plan`, or with `--yes`;
+- `setup` is run without `--plan` or `--dry-run`, or with `--yes`;
 - `--platform` is not one of the eight [platform ids](#platforms-and-prerequisites), or this machine is not one of them and `--platform` is not given;
 - the value of `--repository-id`, `--expect-plan`, `--implementation`, `--deployment`, `--preset`, `--channel` or `--version` is not valid;
 - `setup` has no `--repository-id` or no `--recipe`, or `doctor` has `--recipe` without `--repository-id`;
@@ -145,7 +145,7 @@ In this build, `--repository-id` is copied as given into the plan's `source.repo
 
 A request, lock or recipe nested deeper than 64 levels is refused as `invalid_document`, whether the nesting is in JSON or comes from TOML arrays, inline tables or dotted keys.
 
-**Provisional.** A version, in a document, a comparator or `--version`, is at most 256 characters, and each numeric identifier (major, minor, patch, or an all-digit prerelease identifier) has at most 15 digits. A longer one is refused as `invalid_value` at its member before it is parsed; a MEP version past the bound is `unsupported_case`, because it is off the supported 0.2 line.
+A version, in a document, a comparator or `--version`, is at most 256 characters, and each numeric identifier (major, minor, patch, or an all-digit prerelease identifier) has at most 15 digits, as the contract states. A longer one is refused as `invalid_value` at its member before it is parsed. That holds for a MEP version (`protocolVersion`, `protocolVersions`) too: any text that is not a version in canonical SemVer spelling, such as `0.1`, `v0.2.0` or a patch of 16 digits, is `invalid_value`, and only a SemVer version off the supported 0.2 line, such as `0.1.0` or `0.3.0`, is `unsupported_case`.
 
 ### Files
 
@@ -174,21 +174,29 @@ Without `--boundary`, discovery searches up to the root of the file system: `/` 
 
 `doctor` reads the lock beside the request: the one it found, or the file given with `--request`, unless `--lock` names another.
 
+### Dry runs
+
+Every `morphirup` command that creates, updates, repairs or removes persistent state has a `--dry-run` option. A dry run takes the same planning and validation path as the command itself. It refuses whatever the command would refuse, with the same codes, paths and exit codes, and it makes no persistent change: it writes no request, lock, receipt, journal, cache, home or activation file, downloads nothing and runs no readiness probe. Its result reports only what is true: an action it would take is `planned`, never `succeeded`, and an action it cannot complete is reported with the diagnostic that blocks it.
+
+In this build, only `setup` could change state, and it only plans, so `setup --dry-run` is `setup --plan` under another name (see below). `doctor` reads and never changes anything, so it has no `--dry-run`. A future `doctor --fix`, and every later command that installs, activates, updates, rolls back, repairs or removes, will come with `--dry-run` from the start; none of them is implemented yet.
+
 ### `morphirup --version`
 
 Prints the version and nothing else.
 
-### `morphirup setup --plan`
+### `morphirup setup --plan` and `--dry-run`
 
 ```text
-morphirup setup --plan --recipe <file> --repository-id <sha256> --artifact-sizes <file>
+morphirup setup (--plan | --dry-run) --recipe <file> --repository-id <sha256> --artifact-sizes <file>
                 [--project <dir> [--boundary <dir>] | --request <file> | <selector options>]
                 [--platform <rid>] [--expect-plan <sha256>] [--recipe-target <path>]
 ```
 
 Reads the request, resolves it against the recipe for every platform the lock would record (the request's `platforms` plus the platform being set up), and prints a `planned` result with the plan and its `planSha256`. The plan names the host artifact, each provider, where each comes from, its sizes, its update owner, the prerequisites that apply on its platform and its probe. It also carries the complete lock setup would write, with every platform's closure, so `planSha256` pins all of it. The host and every `process` or `dotnet-tool` provider are `process-with-user-rights`: setup's readiness checks would run that code with your rights. A built-in or WASM provider is `in-host`. Planning runs nothing.
 
-Plan-only setup is the only setup in this build: without `--plan`, or with `--yes`, it exits with code 2 and changes nothing. Installing is not implemented yet.
+Plan-only setup is the only setup in this build: without `--plan` or `--dry-run`, or with `--yes`, it exits with code 2 and changes nothing. Installing is not implemented yet.
+
+`--dry-run` is the same request as `--plan`: the same plan and `planSha256`, the same result bytes, the same refusals and the same exit codes. Both may be given together and mean the same; each may be given once. Neither permits `--yes`, so a dry run can never install or activate anything. A dry run reads only the request, recipe and sizes files, and creates, changes or removes nothing in the project or the Morphir home.
 
 | Option | Meaning |
 | --- | --- |
@@ -198,15 +206,16 @@ Plan-only setup is the only setup in this build: without `--plan`, or with `--ye
 | `--platform <rid>` | Plan for this platform instead of the current one |
 | `--expect-plan <sha256>` | Refuse with a `failed` result (exit 1) when the plan's digest differs: `plan_changed` at `planSha256`, naming both digests. Nothing is changed |
 | `--recipe <file>` | **Provisional.** The recipe document. Later builds take it from authenticated TUF metadata; this build trusts the file you give it |
-| `--repository-id <sha256>` | **Provisional.** The repository that publishes the recipe and the host artifacts. A recipe provider bound to another repository is `repository_mismatch` |
+| `--repository-id <sha256>` | **Provisional.** The repository that publishes the recipe and the host artifacts. A recipe provider bound to another repository is `repository_mismatch`, a `trust-failure` diagnostic whose `document` and `path` name that provider's `repositoryId` |
 | `--recipe-target <path>` | **Provisional.** The recipe's target path, by default `toolchains/recipes/<preset>/<version>.json`. A target that is not portable, such as one with a `con` segment, is `non_portable_path` before the recipe is read |
 | `--artifact-sizes <file>` | **Provisional.** A JSON object from target path to `{"downloadBytes": n, "installedBytes": n}`. A plan needs both sizes for every downloaded artifact. Later builds take `downloadBytes` from the authenticated target length; the contract has not settled where `installedBytes` comes from |
 | `--request <file>` | **Provisional.** Read this request file |
 
-A request the recipe cannot satisfy gives a `failed` result with an `unsupported-artifact` diagnostic. The manager never substitutes another implementation, deployment, release, platform or WASM ABI. A missing platform lists the recipe's alternatives; a WASM provider whose ABI the host lacks is `abi_unavailable` unless the request chooses another ABI explicitly.
+A request the recipe cannot satisfy gives a `failed` result with an `unsupported-artifact` diagnostic, whose `document` (`request`) and `path` name the request member it concerns, such as `toolset.providers[1]`. The manager never substitutes another implementation, deployment, release, platform or WASM ABI. A missing platform lists the recipe's alternatives; a WASM provider whose ABI the host lacks is `abi_unavailable` unless the request chooses another ABI explicitly.
 
 ```powershell
 morphirup setup --plan --recipe fsharp-1.0.0.json --repository-id <sha256> --artifact-sizes sizes.json
+morphirup setup --dry-run --recipe fsharp-1.0.0.json --repository-id <sha256> --artifact-sizes sizes.json
 morphirup setup --plan --implementation dotnet --deployment native-aot --preset fsharp --channel stable `
     --recipe fsharp-1.0.0.json --repository-id <sha256> --artifact-sizes sizes.json --expect-plan <sha256>
 ```
@@ -223,10 +232,23 @@ Checks a project's request and lock without changing anything:
 - both documents can be read (`document_unavailable` otherwise) and read as documents;
 - the lock binds the exact request bytes, hashed as read (`request_changed` otherwise). When the bytes differ only by CRLF line endings, a UTF-8 byte order mark or both, the diagnostic's `cause` says so and its message names the `.gitattributes` entry, `.morphir/toolchain.toml text eol=lf`, that prevents it. A converted file is never accepted;
 - the lock records the current platform (`platform_not_locked` otherwise). An explicit setup for that platform will extend the lock; this build does not implement it yet. The diagnostic says so and names only `morphirup setup --plan --platform <rid>`, which shows the plan;
-- with `--recipe` and `--repository-id`, the lock names that repository (`repository_mismatch` otherwise) and every closure is one the recipe allows (`lock_recipe_mismatch`). `--recipe` needs `--repository-id`, because the lock-against-recipe check takes the repository as an input.
+- with `--recipe` and `--repository-id`, the lock names that repository (`repository_mismatch` otherwise, with `document` `lock` and the `path` of the member that names another one) and every closure is one the recipe allows (`lock_recipe_mismatch`). `--recipe` needs `--repository-id`, because the lock-against-recipe check takes the repository as an input.
 
 A recipe that is refused is reported even when the lock is refused too. The result is `succeeded` with no diagnostics, or `failed` with every diagnostic found. Installed generations are not checked yet. `--project`, `--boundary`, `--request`, `--lock`, `--recipe` and `--repository-id` are provisional.
 
+## Recipe binding checks
+
+`Morphir.Toolchain` can check a recipe's bindings against the repository that authenticated it: every host and provider row of the toolset recipe page's authenticated recipe targets. It reads three documents for this, each at the one version the toolchain contract lists, and no earlier one:
+
+- the tool release metadata v1 release descriptor of a `tool-release` host offering (`schemaVersion` `1`);
+- the extension release descriptor a provider binds (`schemaVersion` `2.0.0-draft.2`);
+- the capability claim set of each of its artifacts (`claimsVersion` `0.1.0-draft.2`).
+
+It also selects a tool release by the tool release metadata v1 rules for channels, CLI compatibility and platforms.
+
+No `morphirup` command uses any of this yet. Nothing downloads anything, and nothing here verifies repository metadata: the checks take the authenticated targets and their bytes as inputs. **This code has not had a security review. It must not be used to authenticate a production release until it has.**
+
+A provider's claims say what its publisher claims the artifact does. Checking that they name the provider's capability, MEP version, language or target and model tuple is not running the artifact. A recipe digest authenticates the bytes; the descriptor's `claimCheck` says whether anyone ran them to read the claims. The two are kept apart, and a recipe never changes `claimCheck`.
 ## Platforms and prerequisites
 
 `morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure. These are the platforms it can plan for; releases publish the executable for four of them, listed under [Download and verify](#download-and-verify).
@@ -235,14 +257,25 @@ The executable needs no .NET runtime, no ICU and no OpenSSL: it is built in inva
 
 ## Common errors
 
-- `this build plans only`: pass `--plan`. Installing is not implemented yet.
+- `this build plans only`: pass `--plan` or `--dry-run`, without `--yes`. Installing is not implemented yet.
 - `document_unavailable`: the named request, lock or recipe does not exist, is over the bound in [Files](#files), or is not a regular file. Without `--request`, check where [discovery](#finding-the-project) looked.
 - `request_changed` with `cause` `crlf-line-endings`: Git converted the request's line endings. Add `.morphir/toolchain.toml text eol=lf` and `.morphir/toolchain.lock.json text eol=lf` to `.gitattributes` and check the files out again.
 - `the size of <target> is unknown`: add the target to the `--artifact-sizes` file.
 - `unsupported_contract_version` at `schemaVersion`: this build reads `0.1.0-draft.1` documents only, never another draft or the released `0.1.0`.
 - `credential_in_document`: no toolchain document may hold a member such as `token`, `password` or `apiKey`, at any depth and in any letter case. The result names the member, never its value.
 
+## Repository metadata verification
+
+`Morphir.Toolchain` has the verification part of a TUF client for the tool release metadata v1 profile: it reads root, timestamp, snapshot and targets metadata, checks Ed25519 signature thresholds, follows root rotation, and checks rollback, links and expiry. No `morphirup` command uses it yet, and nothing in this release downloads or authenticates repository metadata. **This code has not had a security review. It must not be used to authenticate a production release until it has.**
+
+A trust anchor has a purpose, `TestOnly` or `Production`, and every root the client later accepts by rotation must meet the same rules as the anchor. A production anchor must be the repository whose identity the caller names: no root is production on the strength of the checks below alone, and no production identity ships with this build. The production checks then refuse:
+
+- a root threshold below two, at the anchor and at every rotation;
+- any of the five public keys of this repository's TEST-ONLY signed fixture, wherever a root lists them.
+
+That deny list stops those five keys and nothing else. It does not stop any other published test seed, of which this repository has several, and it says nothing about which repository is meant. That is why production also needs the repository identity.
+
 ## Related
 
-- [Toolchain acquisition contracts](https://github.com/finos/morphir/blob/1451c081f56cf5b74618302d315dcdbe573028a1/docs/spec/toolchain/index.md) in finos/morphir: a draft, in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to
+- [Toolchain acquisition contracts](https://github.com/finos/morphir/blob/9e1f853b7ef64c160bd3ec9c238e246d84a23802/docs/spec/toolchain/index.md) in finos/morphir: a draft, in the unmerged [finos/morphir#1147](https://github.com/finos/morphir/pull/1147), at the commit this build is pinned to
 - `src/Morphir.Toolchain`, the document readers, resolution and planning this command uses

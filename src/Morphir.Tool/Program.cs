@@ -13,7 +13,8 @@ internal static class Program
     /// entry point states who it is.
     /// </summary>
     internal static Morphir.Extensions.HostIdentity Host =>
-        new(Morphir.Extensions.MorphirHost.DotnetTool, Morphir.Extensions.ReleaseVersion.Create(VersionInfo.Version));
+        Morphir.Extensions.HostIdentity.Create(Morphir.Extensions.MorphirHost.DotnetTool, Morphir.Extensions.ReleaseVersion.Create(VersionInfo.Version),
+            BuildProfileInfo.EntryPoint, BuildProfileInfo.Profile, Morphir.Extensions.ExecutionMode.OfThisProcess);
 
     /// <summary>The composition of the dotnet tool on top of the shared one: the managed composition.</summary>
     internal static void Compose(MorphirCliBuilder builder) => ManagedComposition.Compose(builder);

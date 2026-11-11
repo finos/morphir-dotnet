@@ -68,12 +68,31 @@ type ModelFamily =
     | Classic
     | V4
 
+    /// <summary>The family as reports write it, for C# callers: Classic or V4.</summary>
+    member this.WireValue =
+        match this with
+        | Classic -> "Classic"
+        | V4 -> "V4"
+
+    /// <summary>The wire value.</summary>
+    override this.ToString() = this.WireValue
+
 /// A distribution's purpose. A specification is not an empty library.
 [<RequireQualifiedAccess>]
 type DistributionKind =
     | Library
     | Specs
     | Application
+
+    /// <summary>The kind as reports write it, for C# callers: Library, Specs or Application.</summary>
+    member this.WireValue =
+        match this with
+        | Library -> "Library"
+        | Specs -> "Specs"
+        | Application -> "Application"
+
+    /// <summary>The wire value.</summary>
+    override this.ToString() = this.WireValue
 
 /// Existing typed models without migration or a dependency on a serialization package.
 [<RequireQualifiedAccess>]
