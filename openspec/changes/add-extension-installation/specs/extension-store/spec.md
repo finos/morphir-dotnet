@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Keeps installed extensions under Morphir Home in the shared store, catalog and lock files, with the members and values the shared contract defines, so that a reader never sees partial state and every current host shares global installs. The documents belong to the extension state family, versioned once by a required `$schema` (maintainer Decision 15A, 10 November 2026). finos/morphir#1149 (merged) puts every id in one catalog; the shared-file rules marked provisional below come from finos/morphir#1150 (open, read at `6e15650`). The Rust product CLI is to be deleted (Decision 16), and keeping it working on a shared home is not a goal.
+Keeps installed extensions under Morphir Home in the shared store, catalog and lock files, with the members and values the shared contract defines, so that a reader never sees partial state and every current host shares global installs. The documents belong to the extension state family, versioned once by a required `$schema` (maintainer Decision 15A, 10 November 2026). finos/morphir#1149 (merged) puts every id in one catalog; the shared-file rules marked provisional below come from finos/morphir#1150 (merged, original inspection at `6e15650`). The Rust product CLI is to be deleted (Decision 16), and keeping it working on a shared home is not a goal.
 
 ## ADDED Requirements
 
@@ -18,7 +18,7 @@ The installer SHALL keep extension state under Morphir Home: a nonempty `MORPHIR
 - **THEN** it is used as an absolute path and is not joined onto the current directory
 
 ### Requirement: A home on a network file system is refused
-Provisional pending finos/morphir#1150. A home on a network file system SHALL be outside the contract, because the lock primitive does not keep its guarantees there. When the host can tell that Morphir Home is on a network file system, it SHALL refuse every command that reads or writes extension state, naming the home. A host is not required to detect it.
+The plan in finos/morphir#1150 is merged; implementation waits for parent group 1's published tables and cases. A home on a network file system SHALL be outside the contract, because the lock primitive does not keep its guarantees there. When the host can tell that Morphir Home is on a network file system, it SHALL refuse every command that reads or writes extension state, naming the home. A host is not required to detect it.
 
 #### Scenario: Home on NFS
 - **WHEN** on Linux `statfs` reports that `MORPHIR_HOME` is on NFS and a user runs an install
@@ -85,7 +85,7 @@ Writers SHALL write every extension state document (descriptor, index record, ca
 
 #### Scenario: A lock at the family version
 - **WHEN** a user installs `acme-backend`
-- **THEN** `locks/extensions/acme-backend.json` starts with a `$schema` naming the lock schema at `0.1.0-preview.1`, as finos/morphir#1150 proposes it (`https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/lock.schema.json`), and has no `schemaVersion`
+- **THEN** `locks/extensions/acme-backend.json` starts with a `$schema` naming the lock schema at `0.1.0-preview.1`, as merged finos/morphir#1150 defines it (`https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/lock.schema.json`), and has no `schemaVersion`
 
 #### Scenario: Embedded claims
 - **WHEN** a catalog entry holds the installed claim set
@@ -209,7 +209,7 @@ The installer SHALL write each catalog, lock, journal, repositories configuratio
 - **THEN** it considers only the journal and leaves `.stage-3f2a` in place
 
 ### Requirement: Shared documents are I-JSON compared by parsed values
-Provisional pending finos/morphir#1150. Every shared document SHALL be UTF-8 without a byte order mark and I-JSON, with no repeated member names and integer numbers only. An absent member SHALL differ from `null`. Two writers SHALL conform when their documents are equal as parsed values; bytes, member order and spacing need not be equal.
+The plan in finos/morphir#1150 is merged; implementation waits for parent group 1's published tables and cases. Every shared document SHALL be UTF-8 without a byte order mark and I-JSON, with no repeated member names and integer numbers only. An absent member SHALL differ from `null`. Two writers SHALL conform when their documents are equal as parsed values; bytes, member order and spacing need not be equal.
 
 #### Scenario: A fraction in a journal
 - **WHEN** a host reads a journal whose `nextLock` holds `123.0`

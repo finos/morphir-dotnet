@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Semver" />
+    <ProjectReference Include="../Morphir.Extensions/Morphir.Extensions.fsproj" />
+    <ProjectReference Include="../Morphir.Mep/Morphir.Mep.fsproj" />
+    <ProjectReference Include="../Morphir.Toolchain/Morphir.Toolchain.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="Identifiers.fs" />
+    <Compile Include="Platforms.fs" />
+    <Compile Include="MepSupport.fs" />
+  </ItemGroup>
+</Project>

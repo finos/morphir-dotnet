@@ -11,6 +11,8 @@ type ParseFailure =
     | InvalidCharacter of field: string * index: int
     /// <summary>The dot-separated segment at the index is not a lowercase portable token.</summary>
     | InvalidSegment of field: string * segment: int
+    /// <summary>The first segment names a Windows device and cannot begin a portable filename.</summary>
+    | DeviceName of field: string
     /// <summary>The text is not a canonical SemVer 2.0.0 version.</summary>
     | InvalidVersion of field: string * detail: string
     /// <summary>The file extension at the index is null, or not a dot followed by at least one character.</summary>
@@ -23,6 +25,7 @@ type ParseFailure =
         | TooLong(field, _)
         | InvalidCharacter(field, _)
         | InvalidSegment(field, _)
+        | DeviceName field
         | InvalidVersion(field, _)
         | InvalidFileExtension(field, _) -> field
 
@@ -35,6 +38,7 @@ type ParseFailure =
             $"{field} has white space at its start or end, or a control character, at index {index}"
         | InvalidSegment(field, segment) ->
             $"{field} segment {segment} is not a lowercase portable token ([a-z]([a-z0-9-]*[a-z0-9])?)"
+        | DeviceName field -> $"{field} begins with a Windows device name"
         | InvalidVersion(field, detail) ->
             $"{field} is not a canonical SemVer 2.0.0 version: {detail}"
         | InvalidFileExtension(field, index) ->

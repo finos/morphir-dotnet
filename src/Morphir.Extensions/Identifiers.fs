@@ -6,7 +6,8 @@ open System.Runtime.InteropServices
 
 /// <summary>
 /// An extension id: one or more lowercase portable tokens joined by dots, at most 238 characters,
-/// for example <c>morphir.csharp</c>. Each token follows the upstream rule; dots are a morphir-dotnet superset.
+/// for example <c>morphir.csharp</c>. The first segment cannot be a Windows device name.
+/// Dotted ids follow the shared extension contract, finos/morphir#1149.
 /// </summary>
 /// <remarks>Equality and order are ordinal. F# callers use <c>Parse</c>; C# callers use <c>TryParse</c>.</remarks>
 [<CustomEquality; CustomComparison>]
@@ -26,7 +27,8 @@ type ExtensionId =
     /// True when the id is reserved for a host's built-in frontends and backends: it starts with <c>morphir.</c>
     /// (<see cref="Morphir.Mep.ReservedExtensionIds"/>). A host refuses a guest that reports such an id.
     /// </summary>
-    member this.ReservedForBuiltIns = Morphir.Mep.ReservedExtensionIds.IsReserved this.Value
+    member this.ReservedForBuiltIns =
+        Morphir.Mep.ReservedExtensionIds.IsReserved this.Value
 
     /// <summary>True for a value of the same type with equal content. Text is compared ordinally.</summary>
     override this.Equals(other: obj | null) =
@@ -46,7 +48,7 @@ type ExtensionId =
 
     /// <summary>Parses untrusted text. For F# callers.</summary>
     static member Parse(text: string | null) : Result<ExtensionId, ParseFailure> =
-        Text.dotted "extension id" 238 text
+        Text.extensionId text
         |> Result.map ExtensionId
 
     /// <summary>Parses untrusted text. For C# callers.</summary>

@@ -29,7 +29,7 @@ Installs, updates, removes and describes external extensions from local sources 
 - **THEN** the command fails and the repositories file is unchanged
 
 ### Requirement: Repository identities are ordinary absolute paths
-Provisional pending finos/morphir#1150. The installer SHALL write a repository path and a lock's `index.identity` as the final path the operating system reports for the open repository root, without the verbatim prefix `\\?\`, with `\\?\UNC\server\share` written as `\\server\share`, an uppercase drive letter and no trailing separator except at a volume root. Readers SHALL refuse a verbatim path and compare paths by their bytes.
+The installer SHALL write repository paths and lock `index.identity` as final OS paths of open roots. It SHALL strip `\\?\`, rewrite `\\?\UNC\server\share` as `\\server\share`, uppercase drive letters and omit trailing separators except at volume roots. Readers SHALL refuse verbatim paths and compare paths by bytes. Merged finos/morphir#1150 defines these rules; implementation waits for parent group 1 publication.
 
 #### Scenario: Verbatim final path
 - **WHEN** on Windows a user adds `C:\ext-repo` and the operating system reports its final path as `\\?\C:\ext-repo`
@@ -180,7 +180,7 @@ For a `process` artifact the installer SHALL start the staged copy and call `mor
 - **THEN** the install fails with `extension.probe_failed`, which deliberately differs from the reference
 
 ### Requirement: A describe answer carries the claims schema
-Provisional pending finos/morphir#1150. A claim set that `describe` returns SHALL carry the `$schema` of the claims schema at the family version, in place of `claimsVersion` (Decision 15A). An answer without it, or with another URL, SHALL fail the probe with `extension.unsupported_contract_version`, naming the URL this host reads.
+The plan in finos/morphir#1150 is merged; implementation waits for parent group 1's published tables and cases. A claim set that `describe` returns SHALL carry the `$schema` of the claims schema at the family version, in place of `claimsVersion` (Decision 15A). An answer without it, or with another URL, SHALL fail the probe with `extension.unsupported_contract_version`, naming the URL this host reads.
 
 #### Scenario: An answer at an earlier claims version
 - **WHEN** the staged guest answers `describe` with `claimsVersion` `0.1.0-draft.2` and no `$schema`

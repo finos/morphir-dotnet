@@ -304,7 +304,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | Roslyn AOT spike | Done: feasible; ships as an optional extension for now ([report](../spikes/extension-model/roslyn-aot.md)) | Spike | Decision recorded |
 | WASM analyzers | Planned | 2a | MCK suite passes in both hosts |
 | Process analyzers and .NET guest SDK | Planned | 2b | C# and F# samples pass the MCK suite in both hosts |
-| Installation, levels and staged folders | Planned | 3 | MCK suite; an upstream CLI reads a global install; level files documented as a superset |
+| Installation, levels and staged folders | In progress: distribution parsers, platform mappings and MEP eligibility implemented; installation/levels/staging unfinished | 3 | #558; installer Expecto suite and C# JIT probe. Parent schemas/tables and remaining maintainer choices still gate integration; MCK and AOT qualification remain outstanding |
 | Extension package archive (zip and tar gzip) | Planned | 3 | MCK suite installs the avro WASM release and the elm-classic process release from a `.zip` and from a `.tar.gz` package; the unsafe-archive cases fail with no store change in both formats |
 | Generator capability | Planned | 4 | MCK suite |
 | Transformer capability | Planned | 4 | MCK suite |

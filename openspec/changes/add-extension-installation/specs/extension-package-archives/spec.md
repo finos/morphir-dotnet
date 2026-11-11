@@ -103,20 +103,23 @@ The installer SHALL read the descriptor only when its `$schema` is the release s
 - **WHEN** a descriptor lists a `wasm` and a `process` artifact
 - **THEN** the install fails with `extension.unsupported_package`
 
-### Requirement: A target archive holds exactly one executable
-Provisional pending Q-ARCHIVE and finos/morphir#1151 (open), whose `package` member would replace this rule. When a process artifact is a `.zip`, `.tgz` or `.tar.gz` target archive, the installer SHALL read it with the same entry rules and limits, require exactly one regular file, and install that file. Its digest SHALL be the installed digest; the archive's digest SHALL be kept only in the .NET inventory. More than one file SHALL be refused with `extension.multi_file_artifact`.
+### Requirement: A target archive follows the parent package contract
+Target archives, including one-file archives, SHALL follow merged finos/morphir#1151's package identity, manifest and entry-point rules. The installer SHALL NOT flatten a package to a raw file or refuse it for having multiple files. Readers wait for parent group 1 publication; this change adds no format. Q-ARCHIVE's outer release-assets file-set question remains unresolved.
 
 #### Scenario: One executable
 - **WHEN** the selected target archive holds only `acme-backend.exe`
-- **THEN** that file is staged, its digest is recorded as the installed digest, and the archive's digest is recorded in the .NET inventory
+- **THEN** it is installed as a one-file package with the identity and digests the parent package contract defines
 
 #### Scenario: Self-contained folder
 - **WHEN** the selected target archive holds an executable and its runtime folder
-- **THEN** the install fails with `extension.multi_file_artifact`
+- **THEN** its files and entry point are installed and verified as one package under that contract
 
-#### Scenario: Unix permissions
-- **WHEN** the executable is installed on Linux
-- **THEN** its owner execute bit is set, whatever mode its archive entry had
+### Requirement: Package verification and launch follow the merged decisions
+The installer and host SHALL follow VERIFY-B and LAUNCH-A from finos/morphir#1151: full verification at install and explicit verification, structural verification under the state lock at activation, and launch from the shared store with a lease tied to the guest's process tree. Raw single-file artifacts SHALL retain their distinct verified private-copy activation rule. Package collection SHALL follow the parent's explicit collection contract rather than delete a package at uninstall.
+
+#### Scenario: Package activation
+- **WHEN** an installed multi-file frontend is activated
+- **THEN** the host performs the parent structural check and launches its entry point from the shared tree with its process-tree lease, without copying the package at launch
 
 ### Requirement: Windows process artifacts are launchable
 Provisional pending Q-WINLAUNCH. On Windows the installer SHALL refuse a process executable whose file name does not end in `.exe`, with `extension.not_launchable`.

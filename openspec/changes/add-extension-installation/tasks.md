@@ -1,6 +1,8 @@
 # Tasks
 
-This is the implementation breakdown of the .NET extension installer (extension-model PRD step 3). Each checkbox is one small pull request. The indented notes under it name the first failing test, the test project that carries it and the narrowest command; they are planning detail and are not tracked.
+This is the implementation breakdown of the .NET extension installer (extension-model PRD step 3). The current implementation stays on one cohesive branch; checkboxes describe reviewable increments, not a requirement to open a scaffold-only pull request. The indented notes name the first failing test, its project and the narrowest command.
+
+Implementation boundary, 11 November 2026: #567, finos/morphir#1147, #1150, #1151 and #1152, and this repository's #590 are merged. Parent group 1 is still publishing the seven schemas, normative member tables, identity/package cases and publication audit. The merged plans do not complete that publication. Do not implement competing catalog, lock or package formats before that evidence is available. Remaining levels, overlay/configuration, commands and developer-policy choices are still gated on the maintainer. Every later mutating command needs `--dry-run`.
 
 GitHub issue: [finos/morphir-dotnet#558](https://github.com/finos/morphir-dotnet/issues/558) owns the deployment and acquisition effort.
 <!-- TRACKING: link the dedicated installer issue here once it exists. -->
@@ -8,14 +10,14 @@ No Beads id is recorded; do not invent one.
 
 Dependencies. The design groups its questions in two. One group follows today's reference behavior or an open parent proposal, which stands in for the shared contract until finos/morphir writes it down; those need no maintainer answer to start, and a change in the parent's review changes the named specs first. The other group needs the maintainer. Parent contracts are named where a task waits on them.
 
-- Can start now: group 1; 2.1 to 2.3 and 2.10; 3.3 and 3.4; 5.1.
+- Can start now: group 1; the unqualified part of 2.1; 3.3; the run-copy ownership portion of 3.4; 5.1. Tasks 2.2, 2.3 and 2.10 are implemented. Full 3.4 inventory/rebuild needs the shared pair types from the parent tables; do not invent their shape to start it early.
 - Waits on parent contracts in finos/morphir:
-  - 2.4 to 2.8, 3.1, 3.2, 3.5, 3.6, 4.1 and 4.9 on finos/morphir#1150 (open, read at `6e15650`). It gives the family's schema URLs (Decision 15A), the journal, the history rule and the old-state move (Decisions 10 and 11).
+  - 2.4 to 2.8, 3.1, 3.2, 3.5, 3.6, 4.1 and 4.9 on parent group 1's published schemas and tables implementing merged finos/morphir#1150. It gives the family's schema URLs (Decision 15A), the journal, the history rule and the old-state move (Decisions 10 and 11).
   - 2.7, 2.8 and 4.1 also on the member tables of finos/morphir#1149's task 1.4, which is not done yet. #1149 is merged, but its task 1.4 page is the authority for the catalog, lock and repositories members. Until then, the reference behavior is the only evidence.
   - 4.3 also on the claims `$schema` in `describe` answers: the probe refuses an answer without it, so the test guest, and every guest built on `Morphir.Mep`, must answer with it first (provisional on #1150).
   - 8.1 on the shared case manifest of #1149's task 1.2.
-  - 5.3, and the F# frontend for adoption task 3.3, on finos/morphir#1151 (open), the multi-file package contract the maintainer decided on 9 November 2026.
-  - 6.1, 6.4 and 7.1's plan answer on the shared toolchain contract (finos/morphir#1147, open). Without that contract, the pin and overlay formats would be a .NET-only parallel design.
+  - 5.3, and the F# frontend for adoption task 3.3, on parent group 1's package tables and cases implementing merged finos/morphir#1151. VERIFY-B and LAUNCH-A supersede the one-executable recommendation for packages; single-file activation remains distinct.
+  - 6.1 and 6.4 still wait on the level/overlay decisions and their shared contract. finos/morphir#1147 is merged; it does not settle those remaining choices. 7.1 uses its plan rules after the installer prerequisites.
 - Waits on a maintainer answer:
   - 4.4 to 4.8 on Q-COMMANDS, Q-DIAG and Q-DEVPOLICY.
   - 5.2 on Q-ARCHIVE. 5.3 on Q-ARCHIVE and Q-WINLAUNCH. 5.4 on Q-PROVENANCE.
@@ -52,13 +54,14 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 
 ## 2. Installation library and pure readers
 
-- [ ] 2.1 Create `src/Morphir.Extensions.Installation` (F#, referencing `Morphir.Extensions` and `Morphir.Mep`, not `Morphir.Tooling`), `tests/Morphir.Extensions.Installation.Tests` (Expecto) and an AOT probe `tests/Morphir.Extensions.Installation.AotProbe` run in the pull request lane like `TestMepAot`; verify the solution builds and the probe publishes with Native AOT with zero IL2026 and IL3050 warnings.
+- [ ] 2.1 Create `src/Morphir.Extensions.Installation` (F#, referencing `Morphir.Extensions`, `Morphir.Mep` and existing `Morphir.Toolchain` values, not `Morphir.Tooling`), its Expecto tests and a C# AOT probe. Use existing appropriate checks or the manual `TestExtensionInstallationAot` lane; add no qualification job to PR CI. Native AOT qualification still requires zero IL2026 and IL3050 warnings.
   - Files: `Morphir.slnx`, `build/Build.Testing.cs` (test project lists), the probe target beside `TestMepAot`.
   - Follow the `fsharp-csharp-interop` skill for every public member C# will call.
-- [ ] 2.2 Add distribution identifiers: the id rule of finos/morphir#1149 (merged) with its first-segment device-name rule, the reserved `morphir.` prefix, artifact file names, declared relative paths, channels, selections and SHA-256 digests; verify the `Identifiers` tests pass.
+  - Implemented: library/test/probe scaffolding, solution and test-list registration, manual probe target. Targeted project builds and JIT probe passed. Still unchecked: no full-solution build or Native AOT publish was authorized for the CPU2 burst, so this is not AOT qualification.
+- [x] 2.2 Add distribution identifiers: the id rule of finos/morphir#1149 (merged) with its first-segment device-name rule, the reserved `morphir.` prefix, artifact file names, declared relative paths, channels, selections and SHA-256 digests; verify the `Identifiers` tests pass.
   - First failing tests: `con`, `con.tools`, `a-`, `A`, `a..b` and 239 characters are refused with `extension.id_not_portable`; `morphir-elm` and `org.finos.morphir.fsharp-frontend` are accepted; `morphir.example` is refused with `extension.reserved_id`; a declared path of 513 UTF-8 bytes or 241 UTF-16 units is refused. Until 8.1 brings in #1149's shared cases, the cases come from #1149's spec scenarios and the toolchain target path tables.
   - Command: build `tests/Morphir.Extensions.Installation.Tests/Morphir.Extensions.Installation.Tests.fsproj`, then `dotnet exec <inst> --filter-test-list "Identifiers"`.
-- [ ] 2.3 Add the platform table from the toolchain contracts: RID to descriptor triple to the "Tool release v1 platform" `os` and `arch`, with musl giving no index platform; verify the `Platforms` tests pass.
+- [x] 2.3 Add the platform table from the toolchain contracts: RID to descriptor triple to the "Tool release v1 platform" `os` and `arch`, with musl giving no index platform; verify the `Platforms` tests pass.
   - First failing test: each row of the table maps both ways; `linux-musl-x64` has no index platform, and resolution names it in `extension.no_matching_artifact`.
   - Command: `dotnet exec <inst> --filter-test-list "Platforms"` after the build above.
 - [ ] 2.4 Add claim sets that keep their JSON beside the typed `Morphir.Mep` view, compare over the typed projection without schema members, check `critical` and evaluate `requires.host`; verify the `Claims` tests pass.
@@ -105,12 +108,8 @@ Commands follow the repository's build settings. Build one project with `dotnet 
     - a journal or repositories configuration with `schemaVersion` and no `$schema` is reported as old state;
     - on Windows, a final path reported as `\\?\C:\ext-repo` is written as `C:\ext-repo`, and a current file that names `\\?\C:\ext-repo` is refused.
   - Command: `dotnet exec <inst> --filter-test-list "StateCodecs"`.
-- [ ] 2.10 Add the supported MEP line and the implemented set: the comparators `>=0.2.0-0` and `<0.3.0` under the npm and Cargo prerelease rule, the implemented versions (today `0.2.0-draft.1`), and the runnable check with its two reasons; verify the `MepLine` tests pass.
-  - Library: the repository has no SemVer range library in product code. `Morphir.Models/IR/Versioning.fs` parses and prints versions but has no precedence or ranges, and `NuGet.Versioning` reaches only the build projects, transitively.
-    - Use the `Semver` NuGet package's `SemVersionRange` with its default options, which follow that prerelease rule, after the AOT probe from 2.1 shows no new warning.
-    - Do not use `NuGet.Versioning`. Its ranges compare by precedence alone, so `[0.2.0-0, 0.3.0)` would also admit `0.2.1-rc.1` and `0.3.0-draft.1` (Assumed; one test case pins it).
-    - If the package is not admitted, implement the two comparators and SemVer precedence over the in-house `SemanticVersion`.
-    - The test matrix below is the contract either way.
+- [x] 2.10 Add the supported MEP line and the implemented set: the comparators `>=0.2.0-0` and `<0.3.0` under the npm and Cargo prerelease rule, the implemented versions (today `0.2.0-draft.1`), and the runnable check with its two reasons; verify the `MepLine` tests pass.
+  - Reuse centrally pinned `Semver` 3.0.0, already used by `Morphir.Toolchain`. Use `SemVersionRange.ParseNpm` with the default prerelease rule, the existing bounded `SemVer` reader and `Morphir.Mep.Lifecycle.protocolVersions`. No handwritten version fallback or second implementation list. The C# probe exercises it; Native AOT evidence remains outstanding under 2.1.
   - First failing tests:
     - `0.2.0-draft.1`, `0.2.0-rc.1`, `0.2.0` and `0.2.7` are in the line;
     - `0.1`, `0.1.0`, `0.2.1-rc.1`, `0.3.0-draft.1` and `0.3.0` are not;
@@ -251,9 +250,9 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - Waits on Q-ARCHIVE.
   - First failing test: a zip of release assets for the current RID is accepted; two descriptors are refused naming both; a replaced artifact with a matching replaced `.sha256` but the original descriptor digest fails with `extension.digest_mismatch`.
   - Command: `dotnet exec <inst> --filter-test-list "PackageLayout"`.
-- [ ] 5.3 Install a process artifact from a target archive that holds exactly one file, with the Windows `.exe` rule; verify the `TargetArchives` tests pass.
-  - Waits on Q-ARCHIVE and Q-WINLAUNCH, and on finos/morphir#1151: if its `package` member is approved as proposed, a one-file target archive installs as a one-file package instead, and this task follows that contract.
-  - First failing test: a target archive with one `.exe` installs that file's digest, and its archive digest is only in the inventory; two files fail with `extension.multi_file_artifact`; on Windows, a file without `.exe` fails with `extension.not_launchable`.
+- [ ] 5.3 Install target archives as packages under merged finos/morphir#1151, including multi-file packages; verify the `TargetArchives` tests pass against parent group 1's published cases.
+  - Waits on those package tables/cases and Q-WINLAUNCH. Q-ARCHIVE's outer release-assets packaging question remains separate; its one-executable target recommendation is superseded.
+  - First failing tests: a one-file target archive remains a package with its package digest; a self-contained multi-file frontend installs with its manifest and entry point. Full verification at install and explicit verification, structural verification under the state lock at activation (VERIFY-B), and launch from the store with a process-tree lease (LAUNCH-A) follow the parent contract. A raw single-file artifact still uses its private verified run copy. Do not invent package members in advance of the parent tables.
   - Command: `dotnet exec <inst> --filter-test-list "TargetArchives"`.
 - [ ] 5.4 Install a package archive given as a file through the pipeline, with generated local repositories for entries that enter the shared catalog and WASM packages unchecked; verify the `PackageInstall` tests pass.
   - Waits on Q-PROVENANCE and 5.2.
@@ -350,7 +349,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - Official qualification of a release belongs to finos/morphir's build orchestration and qualification (Decision 16A). This task records a development check only.
 ## Workflow follow-up
 
-- Link the dedicated installer issue, when it exists, in the proposal and here before claiming tasks.
+- Track this work under existing #558 while the Beads conflict persists. Link a dedicated installer issue only if the maintainer creates one; do not block work or invent an id.
 - Follow AGENTS.md and `openspec/config.yaml` for review and explicit approval before merge.
-- Archive only after the implemented scope passes. Split 5.6, 7.2, 8.1 and 9.1 into a follow-up change if they are still waiting. Multi-file packages (finos/morphir#1151) get their own change once that contract is approved.
+- Archive only after the implemented scope passes. Full installer and user/technical documentation remain the destination. Keep package work under merged finos/morphir#1151 and its published tables/cases; do not revive the single-executable recommendation. Unfinished tasks remain unchecked.
 - The `extension-registry` delta is written against the text of `add-deployment-and-acquisition`, which is active on main. If that change archives first, this delta applies as written. If this change archives first, the adoption change's MODIFIED block must take this one's installed-entry sentences.

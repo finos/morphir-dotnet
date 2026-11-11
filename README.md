@@ -513,6 +513,11 @@ SDK runtime delivery and archival evidence is recorded in the [runtime delivery 
 
 ## OpenSpec change proposals
 
+The [extension installation library](src/Morphir.Extensions.Installation/README.md)
+documents the implemented distribution parsers, platform mappings and MEP
+eligibility checks, along with the remaining installer work tracked by #558.
+Extension installation commands are not implemented yet.
+
 The [Morphir Compatibility Kit seed](conformance/README.md) contains portable
 F# frontend cases, a closed step vocabulary and the deterministic library runner.
 Its reader/runner tests and Native AOT smoke check are independent of the
