@@ -69,10 +69,11 @@ jobs:
                   set -uo pipefail
                   image=ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11
                   case "$MORPHIRUP_DNS_RID" in
-                      linux-x64) hosts=(archive.ubuntu.com security.ubuntu.com) ;;
-                      linux-arm64) hosts=(ports.ubuntu.com) ;;
+                      linux-x64) repo_hosts=(archive.ubuntu.com security.ubuntu.com) ;;
+                      linux-arm64) repo_hosts=(ports.ubuntu.com) ;;
                       *) echo "Unsupported diagnostic RID" >&2; exit 1 ;;
                   esac
+                  hosts=("${repo_hosts[@]}" api.nuget.org github.com registry-1.docker.io)
                   containers=()
                   cleanup() {
                       local name status result=0
@@ -103,28 +104,74 @@ jobs:
                       printf 'diagnostic=%s status=%s\n' "$label" "$status"
                   }
                   printf 'diagnostic_only rid=%s image=%s\n' "$MORPHIRUP_DNS_RID" "$image"
-                  record host-os timeout --signal=TERM --kill-after=5s 10s cat /etc/os-release
-                  record host-architecture timeout --signal=TERM --kill-after=5s 10s uname -m
-                  record daemon-version timeout --signal=TERM --kill-after=5s 10s docker version --format 'server={{.Server.Version}} os={{.Server.Os}} arch={{.Server.Arch}}'
-                  record host-resolver timeout --signal=TERM --kill-after=5s 10s cat /etc/resolv.conf
+                  record host-architecture timeout --signal=TERM --kill-after=1s 5s uname -m
+                  record daemon-version timeout --signal=TERM --kill-after=1s 5s docker version --format 'server={{.Server.Version}} os={{.Server.Os}} arch={{.Server.Arch}}'
+                  installed() {
+                      local label="$1"
+                      shift
+                      if command -v "$1" >/dev/null 2>&1; then
+                          record "$label" timeout --signal=TERM --kill-after=1s 5s "$@"
+                      else
+                          printf 'diagnostic=%s status=tool-unavailable\n' "$label"
+                      fi
+                  }
+                  installed host-resolved-status resolvectl --no-pager status
+                  installed host-resolved-service systemctl --no-pager show systemd-resolved.service --property=LoadState,ActiveState,SubState,MainPID
+                  installed host-dns-listeners ss -4 -H -lnut '( sport = :53 )'
+                  installed host-default-route ip -4 route show default
+                  record host-repoint-tool-location timeout --signal=TERM --kill-after=1s 5s sh -c 'command -v repoint-resolv-conf'
+                  # Inspect routes to the host's first three configured IPv4 resolvers without sending DNS queries.
+                  if command -v ip >/dev/null 2>&1; then
+                      if resolver_ips=$(timeout --signal=TERM --kill-after=1s 2s sed -n -E 's/^nameserver[[:space:]]+([0-9.]+)([[:space:]]|$).*/\1/p' /etc/resolv.conf); then status=0; else status=$?; fi
+                      printf 'diagnostic=host-configured-resolver-read status=%s\n' "$status"
+                      resolver_count=0
+                      for resolver in $resolver_ips; do
+                          if [ "$resolver_count" -ge 3 ]; then break; fi
+                          case "$resolver" in
+                              *:*|*[!0-9.]*|'') continue ;;
+                          esac
+                          resolver_count=$((resolver_count + 1))
+                          record "host-configured-resolver-route-$resolver" timeout --signal=TERM --kill-after=1s 5s ip -4 route get "$resolver"
+                      done
+                  fi
                   probe=$(cat <<'PROBE'
-                  cat /etc/os-release; cat /etc/resolv.conf; result=0
+                  scope="$1"; shift
+                  result=0
+                  metadata() {
+                      label="$1"; shift
+                      if timeout --signal=TERM --kill-after=1s 2s "$@"; then status=0; else status=$?; fi
+                      printf 'resolver_metadata scope=%s item=%s status=%s\n' "$scope" "$label" "$status"
+                  }
+                  metadata os cat /etc/os-release
+                  metadata resolver-link ls -l /etc/resolv.conf
+                  metadata resolver-target readlink -f /etc/resolv.conf
+                  metadata resolver-config cat /etc/resolv.conf
+                  metadata hosts-nss-order sed -n '/^[[:space:]]*hosts:/p' /etc/nsswitch.conf
+                  metadata ipv4-route-table cat /proc/net/route
                   for host in "$@"; do
-                      getent hosts "$host"; status=$?
-                      printf "resolver_host=%s status=%s\n" "$host" "$status"
-                      if [ "$status" -ne 0 ]; then result=1; fi
+                      case "$host" in
+                          archive.ubuntu.com|security.ubuntu.com|ports.ubuntu.com) category=ubuntu-repository ;;
+                          *) category=workflow-control ;;
+                      esac
+                      for family in hosts ahostsv4; do
+                          printf 'dns_probe_begin scope=%s category=%s name=%s family=%s\n' "$scope" "$category" "$host" "$family"
+                          if timeout --signal=TERM --kill-after=1s 2s getent "$family" "$host"; then status=0; else status=$?; fi
+                          printf 'dns_probe_end scope=%s category=%s name=%s family=%s status=%s\n' "$scope" "$category" "$host" "$family" "$status"
+                          if [ "$status" -ne 0 ]; then result=1; fi
+                      done
                   done
                   exit "$result"
                   PROBE
                   )
-                  record host-dns timeout --signal=TERM --kill-after=5s 30s sh -c "$probe" sh "${hosts[@]}"
-                  record pinned-image-pull timeout --signal=TERM --kill-after=5s 30s docker pull "$image"
-                  record pinned-image-identity timeout --signal=TERM --kill-after=5s 10s docker image inspect --format '{{.Id}} {{json .RepoDigests}}' "$image"
+                  # The outer bound leaves room for every short per-name probe, metadata, and cleanup.
+                  record runner-dns timeout --signal=TERM --kill-after=3s 55s sh -c "$probe" sh runner "${hosts[@]}"
+                  record pinned-image-pull timeout --signal=TERM --kill-after=5s 20s docker pull "$image"
+                  record pinned-image-identity timeout --signal=TERM --kill-after=1s 5s docker image inspect --format '{{.Id}} {{json .RepoDigests}}' "$image"
                   for network in bridge host; do
                       name="morphirup-dns-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${MORPHIRUP_DNS_RID}-${network}"
                       containers+=("$name")
-                      if timeout --signal=TERM --kill-after=5s 30s docker create --pull=never --name "$name" --network "$network" "$image" sh -c "$probe" sh "${hosts[@]}"; then
-                          record "$network-dns" timeout --signal=TERM --kill-after=5s 30s docker start --attach "$name"
+                      if timeout --signal=TERM --kill-after=5s 10s docker create --pull=never --name "$name" --network "$network" "$image" sh -c "$probe" sh "container-$network" "${hosts[@]}"; then
+                          record "container-$network-dns" timeout --signal=TERM --kill-after=3s 55s docker start --attach "$name"
                       else
                           status=$?
                           printf 'diagnostic=%s-create status=%s\n' "$network" "$status"
