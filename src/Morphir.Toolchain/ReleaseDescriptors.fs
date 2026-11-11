@@ -267,9 +267,10 @@ type ClaimSet =
 /// </summary>
 /// <remarks>Left unread: <c>extension.name</c> beyond being non-blank; every capability member except
 /// <c>frontend.compile</c>, <c>frontend.languages[].id</c>, <c>backend.generate</c>, <c>backend.targets</c> and
-/// <c>modelTransport.tuples</c>. Provisional, the stricter reading: <c>requires.host</c> is refused (it must be in
-/// <c>critical</c>, and no binding check evaluates a requirement on the host), <c>protocolVersions</c> must be
-/// non-empty and distinct, and <c>extension.types</c> distinct.</remarks>
+/// <c>modelTransport.tuples</c>. As the toolset recipe page says (finos/morphir <c>837164580</c>): an empty or repeated
+/// <c>protocolVersions</c> and a repeated capability kind are read, not refused, so an empty list fails the binding
+/// check's protocol row; and <c>requires.host</c>, which must be listed in <c>critical</c>, is refused because no
+/// binding row evaluates it (open question Q4).</remarks>
 module ClaimSetDocument =
     open Reading
 
@@ -277,26 +278,23 @@ module ClaimSetDocument =
     let claimsVersion = "0.1.0-draft.2"
 
     /// The member paths this reader reads, which a <c>critical</c> list may name.
+    /// <summary>The claim set paths a <c>critical</c> list may name: exactly the members a binding check reads, as the
+    /// toolset recipe page lists them ("What a binding check reads", at finos/morphir <c>837164580</c>). Any other path,
+    /// even one a host understands, is refused.</summary>
     let understoodPaths =
         set
             [ "claimsVersion"
               "protocolVersions"
               "extension"
               "extension.id"
-              "extension.name"
               "extension.version"
               "extension.types"
-              "capabilities"
-              "capabilities.frontend"
               "capabilities.frontend.compile"
               "capabilities.frontend.languages"
               "capabilities.frontend.languages.id"
-              "capabilities.backend"
               "capabilities.backend.generate"
               "capabilities.backend.targets"
-              "capabilities.modelTransport"
-              "capabilities.modelTransport.tuples"
-              "critical" ]
+              "capabilities.modelTransport.tuples" ]
 
     let private boolean (n: Node) : Read<bool> =
         match n.Value with
@@ -319,7 +317,9 @@ module ClaimSetDocument =
             let! id = required "id" extensionId o
             let! name = required "name" (validated NonBlankText.tryParse) o
             let! version = required "version" version o
-            let! types = required "types" (distinctArray (tag kinds)) o
+            // A repeated kind changes no binding outcome and is not refused: whether the list may repeat is the claim set
+            // contract's rule (toolset recipe page, at finos/morphir 837164580).
+            let! types = required "types" (array (tag kinds)) o
             return { Id = id; Name = name; Version = version; Types = types }
         }
 
@@ -374,10 +374,9 @@ module ClaimSetDocument =
                     return! refuse ReaderCode.InconsistentDocument (o.Path.Child "critical")
             | None -> ()
 
-            let! protocolVersions = required "protocolVersions" (distinctArray nonBlank) o
-
-            if protocolVersions.IsEmpty then
-                return! refuse ReaderCode.InconsistentDocument (o.Path.Child "protocolVersions")
+            // An empty list fails the provider-claims-protocol row, not the reading, and a repeated entry is not refused
+            // (toolset recipe page, at finos/morphir 837164580).
+            let! protocolVersions = required "protocolVersions" (array nonBlank) o
 
             let! extension = required "extension" extension o
             let! capabilities = objectMember "capabilities" o
@@ -438,10 +437,11 @@ type ExtensionRelease =
 /// converted. Unknown members are ignored unless <c>critical</c> names them, as the extension formats say; a critical
 /// path this reader does not read is refused.
 /// </summary>
-/// <remarks>Left unread: <c>gitCommit</c> and <c>platformDifferences</c>, which no binding check uses. Provisional,
-/// the stricter readings: the bound is 1 MiB, as the v1 profile bounds a release descriptor; <c>requires.host</c>,
-/// at the top or on an artifact, is refused, because no binding check evaluates it; two artifacts with one filename
-/// are refused; an absent <c>claimCheck</c> is <c>unchecked</c>.</remarks>
+/// <remarks>Left unread: <c>gitCommit</c>, <c>platformDifferences</c> and <c>shortId</c> beyond its shape, which no
+/// binding check uses. As the toolset recipe page says (finos/morphir <c>837164580</c>): the bound is 1 MiB; a
+/// critical path is understood only when it names a member a binding check reads; <c>requires.host</c>, at the top or
+/// on an artifact, is refused, because no binding check evaluates it; two artifacts with one filename are refused; and
+/// <c>claimCheck</c> is not read, so no value of it is refused and only the word <c>probed</c> reads as probed.</remarks>
 module ExtensionReleaseDocument =
     open Reading
 
@@ -451,13 +451,13 @@ module ExtensionReleaseDocument =
     /// The bound applied before parsing. Provisional: the distribution page states none.
     let limit = 1024 * 1024
 
-    let private artifactPaths = [ "platform"; "runtime"; "filename"; "sha256"; "claims"; "claimCheck"; "critical" ]
+    /// The paths an artifact's own critical list may name: the artifact members a binding check reads.
+    let private artifactPaths = [ "runtime"; "platform"; "filename"; "sha256"; "claims" ]
 
-    /// The paths a critical list may name: the members read, and claims members under <c>claims.</c>.
+    /// The paths a critical list may name: exactly the members read, written as that list writes them (toolset recipe
+    /// page, "Critical paths", at finos/morphir 837164580). A claim set path belongs in the claim set's own list.
     let private understood (prefix: string) (paths: string list) (path: string) =
         List.contains path (paths |> List.map (fun p -> prefix + p))
-        || (path.StartsWith(prefix + "claims.", System.StringComparison.Ordinal)
-            && ClaimSetDocument.understoodPaths.Contains(path.Substring(prefix.Length + 7)))
 
     /// The critical list and requirement rules of one object.
     let private criticalAndRequires (isUnderstood: string -> bool) (o: ObjectNode) : Read<unit> =
@@ -498,8 +498,12 @@ module ExtensionReleaseDocument =
             let! sha = required "sha256" sha256 o
             let! claims = required "claims" ClaimSetDocument.readAt o
 
-            let! claimCheck =
-                optional "claimCheck" (tag [ "unchecked", DescriptorClaimCheck.Unchecked; "probed", DescriptorClaimCheck.Probed ]) o
+            // A binding check does not read claimCheck, so no value of it is refused; only the exact word probed is ever
+            // read as probed (toolset recipe page, at finos/morphir 837164580).
+            let claimCheck =
+                match tryMember "claimCheck" o with
+                | Some { Value = Value.String "probed" } -> Some DescriptorClaimCheck.Probed
+                | _ -> None
 
             return
                 { Runtime = runtime
@@ -517,7 +521,7 @@ module ExtensionReleaseDocument =
             | Some { Value = Value.String _; Path = path } -> return! refuse ReaderCode.UnsupportedContractVersion path
             | _ -> return! refuse ReaderCode.InvalidDocument (o.Path.Child "schemaVersion")
 
-            let topPaths = [ "schemaVersion"; "extensionId"; "shortId"; "version"; "artifacts"; "critical" ]
+            let topPaths = [ "schemaVersion"; "extensionId"; "version"; "artifacts" ]
 
             let isUnderstood (path: string) =
                 List.contains path topPaths || understood "artifacts." artifactPaths path
