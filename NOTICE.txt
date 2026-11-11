@@ -1,6 +1,15 @@
 Morphir - FINOS
 Copyright 2014 - 2020 Morgan Stanley
 
+Generic guest kit adoption planning
+Copyright 2026 FINOS contributors.
+The approved decision narrative, SVG and requirements/scenarios in
+openspec/changes/adopt-generic-guest-kit are adapted from finos/morphir
+revision 9e7d90e2fb5708580baef7cdd323cd994030c237,
+openspec/changes/drop-generic-guest-legacy-tier, under Apache-2.0.
+Existing FINOS and Morgan Stanley notices remain applicable. Local ownership,
+development CLI design, test plan and PRD are new contributions under Apache-2.0.
+
 F# source frontend and compile steel thread (#499)
 Copyright 2026 FINOS contributors.
 The frontend tracking, conformance probes, tests and documentation are original
