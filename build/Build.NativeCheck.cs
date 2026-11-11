@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Morphir.Build.Helpers;
-using Nuke.Common.IO;
+using Fallout.Common.IO;
 
 /// <summary>
 /// The shared check of a Native AOT executable, used by CheckMorphirup and ProbeMorphirNative: the Linux publish inside the

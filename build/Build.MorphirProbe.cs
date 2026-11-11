@@ -8,8 +8,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Morphir.Build.Helpers;
-using Nuke.Common;
-using Nuke.Common.IO;
+using Fallout.Common;
+using Fallout.Common.IO;
 
 /// <summary>
 /// A report-mode probe of the Native AOT <c>morphir</c>: what it needs from a machine, measured, before the legacy

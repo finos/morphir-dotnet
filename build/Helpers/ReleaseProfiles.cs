@@ -13,7 +13,7 @@ namespace Morphir.Build.Helpers;
 
 // The named release profiles (approved decision DEP-1, spec dotnet-deployment-profiles). This file is pure apart from
 // the archive writer: it names the four deployment offerings, the six first-delivery platforms, the publish properties
-// of each profile, the artifact identity of each pair that the build defines and its launch metadata. The Nuke targets
+// of each profile, the artifact identity of each pair that the build defines and its launch metadata. The Fallout targets
 // in Build.ReleaseProfiles.cs publish and pack from it.
 
 /// <summary>How a deployment runs: native code, or managed code on the .NET runtime.</summary>
@@ -434,7 +434,7 @@ public static class ReleaseArtifacts
 
     /// <summary>
     /// Refuses a release that is not exact SemVer 2.0.0 in its canonical spelling, and one with build metadata.
-    /// NuGet.Versioning (which Nuke already brings) parses it: its <c>SemanticVersion</c> follows SemVer 2.0.0 and
+    /// NuGet.Versioning (which Fallout already brings) parses it: its <c>SemanticVersion</c> follows SemVer 2.0.0 and
     /// refuses leading zeros in numeric identifiers, empty identifiers and wildcards.
     /// </summary>
     private static void CheckRelease(string release)

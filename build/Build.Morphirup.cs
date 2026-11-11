@@ -8,8 +8,8 @@ using System.IO.Compression;
 using System.Linq;
 using System.Formats.Tar;
 using Morphir.Build.Helpers;
-using Nuke.Common;
-using Nuke.Common.IO;
+using Fallout.Common;
+using Fallout.Common.IO;
 
 /// <summary>
 /// The release artifacts of the morphirup manager, and a check on them. The release workflow and the pull request
