@@ -304,11 +304,64 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | Roslyn AOT spike | Done: feasible; ships as an optional extension for now ([report](../spikes/extension-model/roslyn-aot.md)) | Spike | Decision recorded |
 | WASM analyzers | Planned | 2a | MCK suite passes in both hosts |
 | Process analyzers and .NET guest SDK | Planned | 2b | C# and F# samples pass the MCK suite in both hosts |
-| Installation, levels and staged folders | Planned | 3 | MCK suite; an upstream CLI reads a global install; level files documented as a superset |
-| Extension package archive (zip and tar gzip) | Planned | 3 | MCK suite installs the avro WASM release and the elm-classic process release from a `.zip` and from a `.tar.gz` package; the unsafe-archive cases fail with no store change in both formats |
+| Installation, levels and staged folders | In progress: domain foundations and corrected I/O; complete installation/levels/staging unfinished | 3 | #558; security corrections pass 131 executed Windows tests with three Unix-only cases ignored. Static re-review of b6936ba5 found no concrete remaining finding under the approved Home boundary; Unix/MCK/AOT evidence remain. Selection/developer/command choices are approved; portable pin/overlay publication and implementation remain |
+| Extension package archive (zip and tar gzip) | In progress: generic inspection, no extraction or package-format adoption | 3 | Corrected raw gzip budgets/cancellation and metadata counts pass Windows tests. Parent tables/cases are published at `0439c4c0`; typed corpus adoption, MCK installs, extraction, full pipeline and AOT remain |
 | Generator capability | Planned | 4 | MCK suite |
 | Transformer capability | Planned | 4 | MCK suite |
 | Upstream bundles and grants | Planned | 5 | A published upstream bundle runs in both hosts |
+
+## Installation implementation notes
+
+11 November 2026, work on #558: `Morphir.Extensions.Installation` now has the raw
+single-file store, generic ZIP/tar-gzip inspection and .NET run-directory
+ownership. It reuses the toolchain hash and existing test sandbox/cleanup
+helpers. Native filesystem operations add no-follow containment and no-clobber
+publication; they do not create a second installer or shared metadata format.
+The store never repairs a mismatched object. Archive inspection writes nothing
+and does not authorize later extraction from a path whose bytes may have changed.
+
+Initial `f6d991bb` author evidence, before independent security review: two
+additional failing runtime regressions caught nested archive detection after
+short stream reads and late aggregate ZIP size checks. Both fixes pass in the
+123-test Windows suite. The C# JIT probe covers both archive formats, store
+publication and live run ownership. Linux/macOS filesystem runs and Native AOT
+qualification remain pending. Parent group 1's final tables/cases, full package
+verification and activation, shared inventory and remaining maintainer choices
+still gate the complete installer. Multi-file packages retain VERIFY-B/LAUNCH-A;
+the single-file publication rule is separate.
+
+Independent review of `f6d991bb` reopened the store task. Six runtime failures
+proved stage substitution, missing raw gzip budgets/cancellation, global PAX
+counting and the creator/sweeper race. Corrections now pass 131 executed Windows
+tests, with three Unix-only rename/disposal cases ignored. Publication binds the
+verified open descriptor; supported mutations share an interprocess lease and
+check directory/owner identity. Independent security/interop re-review of exact
+`b6936ba5` found no concrete remaining finding in the four I/O sources/delta under
+the approved cooperating Home boundary. Unix runtime evidence remains pending.
+
+On 11 November the maintainer approved portable inventory-resolved pins, overlay
+precedence, explicit id configuration, CMD-1/stable diagnostics, generated local
+provenance and explicit developer consent. An omitted staged setting inheriting
+historical `auto` is not consent for effectful unsigned installation. Explicit
+`auto` or a command naming the source is consent; no schema default or member is
+changed here. Omission-versus-explicit-auto tests remain pending with staging
+integration. User-owned Home requires cooperating writer locks and tamper
+detection, without arbitrary malicious same-UID isolation.
+
+Parent group 1 is now published by finos/morphir#1156 at
+`0439c4c06d8ca6d4a46e41afb226ba0872f9bff8`; the older pending-publication note
+above records the earlier state. Typed readers/comparison, inventory,
+locks/journal/recovery and probes will use that source/corpus next. Portable
+pin/overlay shapes still belong to the separate parent toolchain authority.
+
+The internal current-family claim reader now retains JSON with existing MEP
+identity/protocol values, projects understood recursive metadata for comparison,
+checks critical paths and evaluates host requirements through the existing
+Toolchain comparator library. Its Claims runtime RED had 27 failures. Windows
+GREEN passes Claims 27/27 and affected SharedReaders 19/19, both repeated after
+pinned formatting. These focused author tests do not execute all 137 identity or
+66 package cases, qualify Unix/AOT, migrate public codecs or finish install-time
+probes and lifecycle integration. Those tasks remain open.
 
 ## Testing approach
 

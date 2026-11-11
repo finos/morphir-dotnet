@@ -29,7 +29,7 @@ Installs, updates, removes and describes external extensions from local sources 
 - **THEN** the command fails and the repositories file is unchanged
 
 ### Requirement: Repository identities are ordinary absolute paths
-Provisional pending finos/morphir#1150. The installer SHALL write a repository path and a lock's `index.identity` as the final path the operating system reports for the open repository root, without the verbatim prefix `\\?\`, with `\\?\UNC\server\share` written as `\\server\share`, an uppercase drive letter and no trailing separator except at a volume root. Readers SHALL refuse a verbatim path and compare paths by their bytes.
+The installer SHALL write repository paths and lock `index.identity` as final OS paths of open roots. It SHALL strip `\\?\`, rewrite `\\?\UNC\server\share` as `\\server\share`, uppercase drive letters and omit trailing separators except at volume roots. Readers SHALL refuse verbatim paths and compare paths by bytes. Parent #1156 at `0439c4c0` publishes these rules; implementation follows that authority.
 
 #### Scenario: Verbatim final path
 - **WHEN** on Windows a user adds `C:\ext-repo` and the operating system reports its final path as `\\?\C:\ext-repo`
@@ -180,7 +180,7 @@ For a `process` artifact the installer SHALL start the staged copy and call `mor
 - **THEN** the install fails with `extension.probe_failed`, which deliberately differs from the reference
 
 ### Requirement: A describe answer carries the claims schema
-Provisional pending finos/morphir#1150. A claim set that `describe` returns SHALL carry the `$schema` of the claims schema at the family version, in place of `claimsVersion` (Decision 15A). An answer without it, or with another URL, SHALL fail the probe with `extension.unsupported_contract_version`, naming the URL this host reads.
+Parent group 1 is published at `0439c4c0`; its schema/member tables and corpus are authoritative. A claim set that `describe` returns SHALL carry the `$schema` of the claims schema at the family version, in place of `claimsVersion` (Decision 15A). An answer without it, or with another URL, SHALL fail the probe with `extension.unsupported_contract_version`, naming the URL this host reads.
 
 #### Scenario: An answer at an earlier claims version
 - **WHEN** the staged guest answers `describe` with `claimsVersion` `0.1.0-draft.2` and no `$schema`
@@ -255,7 +255,7 @@ No `extension` command SHALL download. An argument that is a URL SHALL be a usag
 - **THEN** compile fails with `extension.not_installed` and the install command to run, and opens no network connection
 
 ### Requirement: Authentication and claim checks are reported separately
-Provisional pending Q-DEVPOLICY. Each install report SHALL state `authentication` apart from `claimCheck`. An install from a local repository, a file or a staged folder SHALL report kind `local-developer` with `policy` `developer`. A matching checksum SHALL be reported as integrity, never as authentication. The label SHALL appear only in the installer's reports and inventory, never in a receipt.
+Each install report SHALL state `authentication` apart from `claimCheck`. An install from a local repository, a file or a staged folder SHALL report kind `local-developer` with `policy` `developer`. A matching checksum SHALL be reported as integrity, never as authentication. The label SHALL appear only in the installer's reports and inventory, never in a receipt.
 
 #### Scenario: Local repository install
 - **WHEN** a user installs from a local repository and the probe passes
@@ -302,7 +302,7 @@ When the release that an install reads has artifacts whose claim sets differ fro
 - **THEN** the command fails with `extension.not_installed`, exit code 1
 
 ### Requirement: Commands write results on stdout and messages on stderr
-Provisional pending Q-COMMANDS and Q-DIAG. Every `extension` command SHALL write its result on stdout, and progress, notes, warnings and diagnostics only on stderr. With `--json` stdout SHALL hold one JSON document. Exit codes SHALL be 0 on success, 1 for a refused operation and 2 for a usage error. Only `extension list` SHALL accept `--platform`.
+Every `extension` command SHALL write its result on stdout, and progress, notes, warnings and diagnostics only on stderr. With `--json` stdout SHALL hold one JSON document. Exit codes SHALL be 0 on success, 1 for a refused operation and 2 for a usage error. Only `extension list` SHALL accept `--platform`.
 
 #### Scenario: JSON install
 - **WHEN** a user runs `morphir extension install --repository local-dev acme-backend --json`
@@ -314,8 +314,26 @@ Provisional pending Q-COMMANDS and Q-DIAG. Every `extension` command SHALL write
 - **THEN** the command fails with a usage error, exit code 2, saying that an install is for the running platform only
 
 ### Requirement: Refusals use stable codes
-Provisional pending Q-DIAG. Each refusal SHALL carry one stable code from this capability and its sibling capabilities, the id it concerns when there is one, and a message for a person. Codes SHALL begin with `extension.` and SHALL NOT change meaning between releases.
+Each refusal SHALL carry one stable code from this capability and its sibling capabilities, the id it concerns when there is one, and a message for a person. Codes SHALL begin with `extension.` and SHALL NOT change meaning between releases.
 
 #### Scenario: Code in the JSON report
 - **WHEN** an install fails because the digest differs
 - **THEN** the JSON report's `diagnostics` has one entry with `code` `extension.digest_mismatch`, `severity` `error` and the extension id
+
+### Requirement: Local developer consent is explicit
+An explicit command naming a local repository, file or staged source SHALL be developer consent. Automatic unsigned staged installation SHALL require an explicitly configured `auto` setting. An omitted setting inheriting historical default `auto` SHALL NOT authorize installation. This reconciles the 11 November consent decision without changing the schema default or adding a configuration member.
+
+#### Scenario: Inherited auto is not consent
+- **WHEN** no staged setting was explicitly configured and a staged WASM package is discovered
+- **THEN** automatic installation writes no installation state and reports how to opt in
+
+#### Scenario: Explicit local source is consent
+- **WHEN** a user explicitly installs from a local repository or file
+- **THEN** the installer uses developer policy and retains the `local-developer` label, without claiming publisher authentication
+
+### Requirement: Mutating commands have a dry run
+Every command that changes installation state SHALL accept `--dry-run`, validate the request and report its proposed changes without changing persistent state or running a guest. The implementation SHALL use the same planning path as the corresponding mutation.
+
+#### Scenario: Dry run of uninstall
+- **WHEN** a user uninstalls an installed extension with `--dry-run`
+- **THEN** the result names the selection changes and no catalog, lock, pin, inventory or store object changes
