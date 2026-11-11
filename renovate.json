@@ -135,6 +135,16 @@
       "allowedVersions": "/^11\\./"
     },
     {
+      "description": "The development container copies the .NET 10 shared runtime, so the tests can run the net10.0 consumers of the library packages. Keep this image on .NET 10.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "mcr.microsoft.com/dotnet/runtime"
+      ],
+      "allowedVersions": "/^10\\./"
+    },
+    {
       "description": "The MSBuild tasks target net10.0 and load into the MSBuild of the .NET 10 SDK. Microsoft.Build.* 18.1 and later ship only net11.0 and net472 assets. Keep the 18.0 line until the tasks move to a newer hosted target framework.",
       "matchDatasources": [
         "nuget"

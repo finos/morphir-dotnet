@@ -141,14 +141,14 @@ jobs:
             - name: Pull the clean runtime container
               if: runner.os == 'Linux' && github.event.inputs.executable-type != 'trimmed'
               shell: bash
-              run: docker pull mcr.microsoft.com/dotnet/runtime-deps:10.0
+              run: docker pull mcr.microsoft.com/dotnet/runtime-deps:11.0
 
             # For the offerings, scripts/run-e2e-tests.cs packs each release profile that has no artifact, then runs
             # every non-manual scenario, including Features/Packaged/PackagedArtifacts.feature, from the installed artifact.
             - name: Run E2E tests for ${{ matrix.rid }}
               shell: bash
               env:
-                  MORPHIR_E2E_RUNTIME_CONTAINER: ${{ runner.os == 'Linux' && 'mcr.microsoft.com/dotnet/runtime-deps:10.0' || '' }}
+                  MORPHIR_E2E_RUNTIME_CONTAINER: ${{ runner.os == 'Linux' && 'mcr.microsoft.com/dotnet/runtime-deps:11.0' || '' }}
               run: ./build.sh --target TestE2E --executable-type ${{ github.event.inputs.executable-type }} --configuration ${{ env.CONFIGURATION }}
 
             - name: Upload the packaged-size report and launch metadata

@@ -121,7 +121,7 @@ jobs:
               if: github.event.inputs.test-suite == 'packaged'
               shell: bash
               env:
-                  MORPHIR_E2E_RUNTIME_CONTAINER: ${{ runner.os == 'Linux' && 'mcr.microsoft.com/dotnet/runtime-deps:10.0' || '' }}
+                  MORPHIR_E2E_RUNTIME_CONTAINER: ${{ runner.os == 'Linux' && 'mcr.microsoft.com/dotnet/runtime-deps:11.0' || '' }}
               run: |
                   ./build.sh --target PackRelease --deployment native-aot --rid ${{ github.event.inputs.platform }} --configuration ${{ env.CONFIGURATION }}
                   ./build.sh --target TestE2E --executable-type native-aot --configuration ${{ env.CONFIGURATION }}
