@@ -27,6 +27,9 @@ let private parentLayoutOfPin (into: string) =
     copy (Path.Combine(Fixtures.pinRoot, "pages")) Fixtures.Layout.pages
     copy (Path.Combine(Fixtures.pinRoot, "schemas")) Fixtures.Layout.schemas
     copy Fixtures.pinnedWorkflow Fixtures.Layout.workflow
+    // The old pin does not hold this external-only schema. These root/marker tests supply a rejecting schema:
+    // the single platform-table test does not use it, and the descriptor control below must fail against it.
+    File.WriteAllText(Path.Combine(into, "website", "static", "schemas", "tool-release-v1.schema.json"), "false")
     into
 
 type private Child = { Exit: int; Stdout: string; Stderr: string }
@@ -87,6 +90,22 @@ let tests =
             use sandbox = TestSandbox.Create "corpus-"
             let parent = parentLayoutOfPin (Path.Combine(sandbox.Work, "morphir"))
             Expect.equal (Fixtures.validateExternal (parent + string Path.DirectorySeparatorChar)) (Ok parent) "the root")
+
+        testCase "external mode requires the v1 release schema before running any test" (fun () ->
+            use sandbox = TestSandbox.Create "corpus-"
+            let parent = parentLayoutOfPin (Path.Combine(sandbox.Work, "morphir"))
+            File.Delete(Path.Combine(parent, "website", "static", "schemas", "tool-release-v1.schema.json"))
+
+            match Fixtures.validateExternal parent with
+            | Error reason -> Expect.stringContains reason "tool-release-v1.schema.json" "the missing schema"
+            | Ok _ -> failtest "the required release schema is absent")
+
+        testCase "external descriptors actually apply the supplied v1 release schema" (fun () ->
+            use sandbox = TestSandbox.Create "corpus-"
+            let parent = parentLayoutOfPin (Path.Combine(sandbox.Work, "morphir"))
+            let child = runChild (Some parent) [ "--filter-test-list"; "v1Descriptors"; "--summary" ]
+            Expect.equal child.Exit 1 $"a rejecting schema must fail; stdout: {child.Stdout}; stderr: {child.Stderr}"
+            Expect.stringContains (child.Stdout + child.Stderr) "validates against the tool-release schema" "schema validation caused the failure")
 
         testCase "a refused root stops the run with exit 2 and no marker" (fun () ->
             use sandbox = TestSandbox.Create "corpus-"

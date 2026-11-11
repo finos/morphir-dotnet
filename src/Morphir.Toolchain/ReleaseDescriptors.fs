@@ -277,7 +277,6 @@ module ClaimSetDocument =
     /// The current claim set format; no other is read or converted.
     let claimsVersion = "0.1.0-draft.2"
 
-    /// The member paths this reader reads, which a <c>critical</c> list may name.
     /// <summary>The claim set paths a <c>critical</c> list may name: exactly the members a binding check reads, as the
     /// toolset recipe page lists them ("What a binding check reads", at finos/morphir <c>837164580</c>). Any other path,
     /// even one a host understands, is refused.</summary>
@@ -448,7 +447,7 @@ module ExtensionReleaseDocument =
     /// The one descriptor format read.
     let schemaVersion = "2.0.0-draft.2"
 
-    /// The bound applied before parsing. Provisional: the distribution page states none.
+    /// The 1 MiB bound applied before parsing, as the toolset recipe page requires.
     let limit = 1024 * 1024
 
     /// The paths an artifact's own critical list may name: the artifact members a binding check reads.

@@ -7,7 +7,8 @@
 /// <list type="bullet">
 /// <item>The members a document may omit are decided by the JSON Schema alone, never by what the reader accepts, and
 /// must be exactly <see cref="optionalMembers"/>, the list the pages state.</item>
-/// <item>A member the schema requires must be refused by the reader, and a member whose absence the reader refuses as
+/// <item>For each listed optional member the reader must accept at least one schema-valid removal. A member the
+/// schema requires must be refused by the reader, and a member whose absence the reader refuses as
 /// missing (<c>invalid_document</c> at that member) must be required by the schema. Other refusals of a removal, such
 /// as a consistency rule the schema does not express, are not part of this check.</item>
 /// </list>
@@ -202,10 +203,11 @@ let private withPlanDigest (steps: Step list) (value: Value) =
     | _ -> value
 
 /// The schema-optional members, the disagreements between schema and reader, and how many removals were judged.
-let sweep () =
+let sweepWith (readRemoval: string -> string -> byte array -> Result<unit, ReaderCode * string>) =
     let failures = ResizeArray<string>()
     let optional = Collections.Generic.HashSet<string>()
     let present = Collections.Generic.HashSet<string>()
+    let acceptedOptional = Collections.Generic.HashSet<string>()
     let mutable checkedRemovals = 0
 
     for case in documents () do
@@ -219,7 +221,7 @@ let sweep () =
                     present.Add $"{case.Contract}: {generic steps}" |> ignore
                     let changed = without steps original |> withPlanDigest steps
                     let path = spelled steps
-                    let outcome = read case.Contract (encode case.Contract changed)
+                    let outcome = readRemoval case.Contract path (encode case.Contract changed)
                     let requiredBySchema = not (fst (SchemaTests.validates case.Contract changed))
                     checkedRemovals <- checkedRemovals + 1
 
@@ -232,11 +234,29 @@ let sweep () =
                     if not requiredBySchema then
                         optional.Add $"{case.Contract}: {generic steps}" |> ignore
 
+                        if Result.isOk outcome then
+                            acceptedOptional.Add $"{case.Contract}: {generic steps}" |> ignore
+
+    for member' in Set.difference (Set.intersect optionalMembers (set present)) (set acceptedOptional) do
+        failures.Add $"{member'}: the reader never accepts its schema-valid absence"
+
     set optional, set present, (failures |> Seq.distinct |> Seq.sort |> List.ofSeq), checkedRemovals
+
+let sweep () = sweepWith (fun contract _ bytes -> read contract bytes)
 
 [<Tests>]
 let tests =
     testList "Required and optional members" [
+        testCase "a reader cannot turn an optional member's absence into a different refusal" (fun () ->
+            let mutant contract (path: string) bytes =
+                match read contract bytes with
+                | Ok() when contract = "result" && path.StartsWith("diagnostics[", StringComparison.Ordinal) && path.EndsWith(".role", StringComparison.Ordinal) ->
+                    Error(ReaderCode.InconsistentDocument, path)
+                | outcome -> outcome
+
+            let _, _, failures, _ = sweepWith mutant
+            Expect.isNonEmpty failures "the diagnostics.role omission mutation must be caught")
+
         testCase "the schemas and readers require the same members, and only the pages' members are optional" (fun () ->
             let optional, present, failures, checkedRemovals = sweep ()
             Expect.isGreaterThan checkedRemovals 1000 "removals judged"

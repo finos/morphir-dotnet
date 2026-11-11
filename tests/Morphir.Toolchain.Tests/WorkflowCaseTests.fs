@@ -175,11 +175,11 @@ let tests =
 
                 for file in set.GetProperty("files").EnumerateArray() do
                     let bytes = caseBytes (str file "file")
-                    let text = UTF8Encoding(false, true).GetString bytes
+                    UTF8Encoding(false, true).GetString bytes |> ignore
                     // Bytes, not culture-sensitive text: StartsWith with a string ignores a zero-width U+FEFF.
                     Expect.isFalse (bytes.Length >= 3 && bytes[0] = 0xEFuy && bytes[1] = 0xBBuy && bytes[2] = 0xBFuy) "no byte order mark"
                     Expect.isFalse (Array.contains 13uy bytes) "LF line endings only"
-                    Expect.isTrue (text.EndsWith "\n" && not (text.EndsWith "\n\n")) "exactly one final line feed"
+                    Expect.isTrue (bytes.Length > 0 && bytes[bytes.Length - 1] = 10uy && (bytes.Length = 1 || bytes[bytes.Length - 2] <> 10uy)) "exactly one final line feed"
 
                 // The producers are not released and have been observed on one platform; a squash-merging repository
                 // drops branch commits, so the provenance names the pull request.
