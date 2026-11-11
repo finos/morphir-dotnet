@@ -53,7 +53,9 @@ public sealed class PackagedArtifactTests
         release.Write("framework-dependent", "linux-x64", "morphir-dotnet-1.2.4-framework-dependent-linux-x64.tar.gz", "1.2.4");
 
         FluentActions.Invoking(() => PackagedArtifact.Find(release.Root, "framework-dependent", "linux-x64"))
-            .Should().Throw<InvalidOperationException>().WithMessage("*2 packaged framework-dependent artifacts*1.2.3*1.2.4*");
+            .Should().Throw<InvalidOperationException>().WithMessage("*2 packaged framework-dependent artifacts*")
+            .Which.Message.Should().Contain("morphir-dotnet-1.2.3-framework-dependent-linux-x64.tar.gz")
+            .And.Contain("morphir-dotnet-1.2.4-framework-dependent-linux-x64.tar.gz");
     }
 
     private sealed class ReleaseFolder : IDisposable
