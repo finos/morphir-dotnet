@@ -535,7 +535,7 @@ $ morphir compile --language fsharp --input src/Rates.fs --package-name acme/dem
     {
       "severity": "error",
       "code": "compile.frontend_unavailable",
-      "message": "No registered frontend reads the language 'fsharp'. This build registers no frontend. The dotnet tool dotnet-morphir has a built-in F# frontend. Set [frontend.fsharp].extension in morphir.toml, or use --extension, to configure a frontend extension."
+      "message": "No registered frontend reads the language 'fsharp'. This build registers no frontend. The self-contained and framework-dependent morphir and dotnet-morphir have a built-in F# frontend; this offering uses the F# frontend process delivery morphir-fsharp-frontend. Set [frontend.fsharp].extension in morphir.toml, or use --extension, to configure a frontend extension."
     }
   ],
   "failureKind": "configuration",

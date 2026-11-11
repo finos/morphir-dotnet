@@ -14,7 +14,8 @@ internal static class Program
     /// The host identity of this entry point, with the version of this build. This is the one place where this entry
     /// point states who it is. It runs as the command <c>morphir</c>.
     /// </summary>
-    internal static HostIdentity Host => new(MorphirHost.Native, ReleaseVersion.Create(VersionInfo.Version));
+    internal static HostIdentity Host => HostIdentity.Create(MorphirHost.Native, ReleaseVersion.Create(VersionInfo.Version),
+        BuildProfileInfo.EntryPoint, BuildProfileInfo.Profile, ExecutionMode.OfThisProcess);
 
     /// <summary>The composition of the managed morphir on top of the shared one.</summary>
     internal static void Compose(MorphirCliBuilder builder) => ManagedComposition.Compose(builder);

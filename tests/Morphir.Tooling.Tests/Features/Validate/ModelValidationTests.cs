@@ -12,7 +12,7 @@ namespace Morphir.Tooling.Tests.Features.Validate;
 /// <summary><c>morphir validate</c> below the command line: loading, configuration, the runner and the report.</summary>
 public sealed class ModelValidationTests
 {
-    private static readonly HostIdentity Native = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+    private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
 
     internal static string Fixture(string name)
     {

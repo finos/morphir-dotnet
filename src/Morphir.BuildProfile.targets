@@ -1,0 +1,71 @@
+<Project>
+
+    <!--
+      The build profile of a Morphir entry point (HOST-1, task 2.3): which of the four offerings this build is, fixed at
+      build time and never inferred at run time.
+
+      Each entry point sets MorphirEntryPointDeployments to the offerings it can be published as. A named release
+      profile (build/Helpers/ReleaseProfiles.cs) sets MorphirDeployment to one of them, and the publish sets
+      RuntimeIdentifier. Without MorphirDeployment the build states no deployment: a development build, a test host, or
+      a publish that no named profile made. This target writes BuildProfileInfo.g.cs with the F# union cases, so the
+      executable reads its profile without parsing text or reflection. A change of profile changes the generated file,
+      which makes the compiler run again.
+    -->
+    <ItemGroup>
+        <_MorphirKnownDeployment Include="native-aot" Case="NativeAot" Platform="true" />
+        <_MorphirKnownDeployment Include="self-contained" Case="SelfContained" Platform="true" />
+        <_MorphirKnownDeployment Include="framework-dependent" Case="FrameworkDependent" Platform="true" />
+        <_MorphirKnownDeployment Include="dotnet-tool" Case="DotnetTool" Platform="false" />
+        <_MorphirKnownPlatform Include="win-x64" Case="WinX64" />
+        <_MorphirKnownPlatform Include="win-arm64" Case="WinArm64" />
+        <_MorphirKnownPlatform Include="osx-x64" Case="OsxX64" />
+        <_MorphirKnownPlatform Include="osx-arm64" Case="OsxArm64" />
+        <_MorphirKnownPlatform Include="linux-x64" Case="LinuxX64" />
+        <_MorphirKnownPlatform Include="linux-arm64" Case="LinuxArm64" />
+    </ItemGroup>
+
+    <Target Name="MorphirGenerateBuildProfile" BeforeTargets="CoreCompile">
+        <ItemGroup>
+            <_MorphirEntryPointDeployment Include="@(_MorphirKnownDeployment)"
+                Condition="$([System.String]::Copy(';$(MorphirEntryPointDeployments);').Contains(';%(Identity);'))" />
+            <_MorphirProfileDeployment Include="@(_MorphirKnownDeployment)" Condition="'%(Identity)' == '$(MorphirDeployment)'" />
+            <_MorphirProfilePlatform Include="@(_MorphirKnownPlatform)" Condition="'%(Identity)' == '$(RuntimeIdentifier)'" />
+        </ItemGroup>
+        <PropertyGroup>
+            <_MorphirEntryPointCases>@(_MorphirEntryPointDeployment->'Morphir.Extensions.Deployment.%(Case)', ', ')</_MorphirEntryPointCases>
+            <_MorphirDeploymentCase>@(_MorphirProfileDeployment->'%(Case)')</_MorphirDeploymentCase>
+            <_MorphirDeploymentNeedsPlatform>@(_MorphirProfileDeployment->'%(Platform)')</_MorphirDeploymentNeedsPlatform>
+            <_MorphirPlatformCase>@(_MorphirProfilePlatform->'%(Case)')</_MorphirPlatformCase>
+            <_MorphirProfileExpression>Morphir.Extensions.BuildProfile.NoProfile</_MorphirProfileExpression>
+            <_MorphirProfileExpression Condition="'$(_MorphirDeploymentCase)' != '' And '$(_MorphirDeploymentNeedsPlatform)' == 'true'">Morphir.Extensions.BuildProfile.Of(Morphir.Extensions.Deployment.$(_MorphirDeploymentCase), Morphir.Extensions.Platform.$(_MorphirPlatformCase))</_MorphirProfileExpression>
+            <_MorphirProfileExpression Condition="'$(_MorphirDeploymentCase)' != '' And '$(_MorphirDeploymentNeedsPlatform)' == 'false'">Morphir.Extensions.BuildProfile.Portable(Morphir.Extensions.Deployment.$(_MorphirDeploymentCase))</_MorphirProfileExpression>
+        </PropertyGroup>
+
+        <Error Condition="'$(_MorphirEntryPointCases)' == ''"
+            Text="MorphirEntryPointDeployments must name the offerings this entry point can be published as (native-aot, self-contained, framework-dependent, dotnet-tool); it is '$(MorphirEntryPointDeployments)'." />
+        <Error Condition="'$(MorphirDeployment)' != '' And '$(_MorphirDeploymentCase)' == ''"
+            Text="MorphirDeployment '$(MorphirDeployment)' is not one of native-aot, self-contained, framework-dependent and dotnet-tool." />
+        <Error Condition="'$(_MorphirDeploymentCase)' != '' And !$([System.String]::Copy(';$(MorphirEntryPointDeployments);').Contains(';$(MorphirDeployment);'))"
+            Text="$(MSBuildProjectName) is published as $(MorphirEntryPointDeployments), not as $(MorphirDeployment)." />
+        <Error Condition="'$(_MorphirDeploymentNeedsPlatform)' == 'true' And '$(_MorphirPlatformCase)' == ''"
+            Text="The $(MorphirDeployment) profile needs one of the six first-delivery runtime identifiers (win-x64, win-arm64, osx-x64, osx-arm64, linux-x64, linux-arm64); RuntimeIdentifier is '$(RuntimeIdentifier)'." />
+
+        <ItemGroup>
+            <_MorphirBuildProfileLines Include="// &lt;auto-generated/&gt;" />
+            <_MorphirBuildProfileLines Include="namespace $(RootNamespace)%3B" />
+            <_MorphirBuildProfileLines Include=" " />
+            <_MorphirBuildProfileLines Include="/// &lt;summary&gt;The offerings this entry point can be published as, and the release profile that built it.&lt;/summary&gt;" />
+            <_MorphirBuildProfileLines Include="internal static class BuildProfileInfo" />
+            <_MorphirBuildProfileLines Include="{" />
+            <_MorphirBuildProfileLines Include="    internal static Morphir.Extensions.NonEmptySet&lt;Morphir.Extensions.Deployment&gt; EntryPoint =&gt; Morphir.Extensions.NonEmptySet&lt;Morphir.Extensions.Deployment&gt;.Create($(_MorphirEntryPointCases))%3B" />
+            <_MorphirBuildProfileLines Include="    internal static Morphir.Extensions.BuildProfile Profile =&gt; $(_MorphirProfileExpression)%3B" />
+            <_MorphirBuildProfileLines Include="}" />
+        </ItemGroup>
+        <WriteLinesToFile File="$(IntermediateOutputPath)BuildProfileInfo.g.cs" Lines="@(_MorphirBuildProfileLines)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+        <ItemGroup>
+            <Compile Include="$(IntermediateOutputPath)BuildProfileInfo.g.cs" />
+            <FileWrites Include="$(IntermediateOutputPath)BuildProfileInfo.g.cs" />
+        </ItemGroup>
+    </Target>
+
+</Project>

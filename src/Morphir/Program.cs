@@ -4,6 +4,7 @@ using Morphir.Compilation;
 using Morphir.Extensions;
 using Morphir.Tooling;
 using Morphir.Tooling.Features.Compile;
+using Morphir.Tooling.Features.Extensions;
 
 namespace Morphir;
 
@@ -27,7 +28,8 @@ public static class Program
     /// The host identity of this entry point, with the version of this build. This is the one place where this entry
     /// point states who it is.
     /// </summary>
-    internal static HostIdentity Host => new(MorphirHost.Native, ReleaseVersion.Create(VersionInfo.Version));
+    internal static HostIdentity Host => HostIdentity.Create(MorphirHost.Native, ReleaseVersion.Create(VersionInfo.Version),
+        BuildProfileInfo.EntryPoint, BuildProfileInfo.Profile, ExecutionMode.OfThisProcess);
 
     /// <summary>
     /// Main entry point for the CLI application.
@@ -39,8 +41,8 @@ public static class Program
     /// says where to find one.
     /// </summary>
     public static void NativeComposition(MorphirCliBuilder builder) =>
-        builder.ConfigureServices(services => services.AddSingleton(new FrontendHint(LanguageId.Create("fsharp"),
-            "The dotnet tool dotnet-morphir has a built-in F# frontend.")));
+        builder.ConfigureServices(services => services.AddSingleton(new FrontendHint(FrontendExtensionSource.FSharpLanguage,
+            FrontendExtensionSource.FSharpCompileHint)));
 
     /// <summary>
     /// Runs the CLI as the given host, through the shared command layer <see cref="MorphirApplication"/>.
