@@ -175,15 +175,20 @@ module RecipeTargets =
     /// <summary>
     /// Launch and rollback against learned revocations (installation receipt page): before a generation is launched or
     /// selected by rollback, its lock is checked against the trust state, in this order. The lock names the trust
-    /// state's repository (<c>repository_mismatch</c> at <c>recipe.repositoryId</c>); its recipe target is not revoked
-    /// (<c>release_revoked</c> at <c>recipe.target</c>); and, for a <c>tool-release</c> offering, its host release is
-    /// not revoked (<c>release_revoked</c> at <c>host.version</c>). A provider has no release status of its own:
-    /// revoking the recipe that binds it is how it is revoked. Keeping learned revocations durable is the caller's.
+    /// state's repository (<c>repository_mismatch</c> at <c>recipe.repositoryId</c>); the trust state lists its recipe
+    /// target, so its status can be known (<c>target_not_authenticated</c> at <c>recipe.target</c>); its recipe target is
+    /// not revoked (<c>release_revoked</c> at <c>recipe.target</c>); and, for a <c>tool-release</c> offering, its host
+    /// release is not revoked (<c>release_revoked</c> at <c>host.version</c>). A provider has no release status of its
+    /// own: revoking the recipe that binds it is how it is revoked. Keeping learned revocations durable is the caller's.
+    /// <paramref name="recipe"/> gives the generation's stored recipe, asked for only for the host release row: a
+    /// refusal it returns is the check's, and an exception it throws is <c>invalid_document</c> at
+    /// <c>recipe.target</c>, so no exception leaves the check. (It was a <c>Lazy</c>, which caches an exception; review of
+    /// #582, R7.)
     /// </summary>
     let checkLockedGeneration
         (repository: Sha256)
         (targets: Map<string, AuthenticatedTarget>)
-        (recipe: Recipe)
+        (recipe: unit -> Result<Recipe, TargetRefusal>)
         (lock: Lock)
         : Result<unit, TargetRefusal> =
         let root = DocumentPath.root
@@ -205,9 +210,18 @@ module RecipeTargets =
             if lock.Recipe.RepositoryId <> repository then
                 return! refuse (Code.Trust TrustCode.RepositoryMismatch) ((root.Child "recipe").Child "repositoryId")
 
+            let recipeTarget = (root.Child "recipe").Child "target"
+
             match targets.TryFind lock.Recipe.Target.Text |> Option.map state with
-            | Some(Ok state) when state.Status = RecipeStatus.Revoked -> return! revoked ((root.Child "recipe").Child "target")
-            | _ -> ()
+            | None -> return! refuse (Code.Trust TrustCode.TargetNotAuthenticated) recipeTarget
+            | Some(Ok state) when state.Status = RecipeStatus.Revoked -> return! revoked recipeTarget
+            | Some _ -> ()
+
+            let! recipe =
+                try
+                    recipe ()
+                with _ ->
+                    refuse (Code.Reader ReaderCode.InvalidDocument) ((root.Child "recipe").Child "target")
 
             let offering =
                 recipe.Hosts

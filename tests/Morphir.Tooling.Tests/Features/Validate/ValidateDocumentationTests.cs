@@ -50,7 +50,7 @@ public sealed partial class ValidateDocumentationTests
         await using var sandbox = TestSandbox.Create("morphir-validate-docs-");
         await File.WriteAllTextAsync(Path.Combine(sandbox.Work, "morphir.toml"), toml + "\n");
         File.Copy(Model, Path.Combine(sandbox.Work, "model.json"));
-        var host = new HostIdentity(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+        var host = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
         var validation = new ModelValidation(new GenerationModelLoader(new BoundedModelCapture()), new AnalyzerRegistry(host),
             new LayeredAnalyzerConfiguration(sandbox.EnvironmentSnapshot(Containment.CurrentEnvironment())), host);
         var report = await validation.RunAsync(new ValidateOverrides("model.json"), new InvocationContext(sandbox.Work), default);

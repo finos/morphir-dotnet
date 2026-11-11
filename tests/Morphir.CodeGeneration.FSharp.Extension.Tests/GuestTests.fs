@@ -94,9 +94,15 @@ let tests =
               Expect.equal builtIn.Descriptor.Id.Value "morphir.fsharp" "The built-in keeps its id"
               Expect.notEqual id builtIn.Descriptor.Id.Value "The guest does not impersonate the built-in"
 
+              // A development build of the tool, which no named profile produced.
               let host =
-                  { Host = MorphirHost.DotnetTool
-                    Version = ReleaseVersion.Create "1.0.0" }
+                  HostIdentity.Create(
+                      MorphirHost.DotnetTool,
+                      ReleaseVersion.Create "1.0.0",
+                      NonEmptySet.create Deployment.DotnetTool [],
+                      BuildProfile.NoProfile,
+                      ExecutionMode.Jit
+                  )
 
               let entries =
                   BackendExtensionSource([ builtIn :> IGenerationBackend; CSharpGenerationBackend() ], host).Entries

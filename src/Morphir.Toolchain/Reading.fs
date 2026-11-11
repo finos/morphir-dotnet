@@ -101,8 +101,14 @@ module internal Reading =
             | Some(_, case) -> Ok case
             | None -> refuse ReaderCode.UnsupportedCase n.Path)
 
+    /// <summary>The integer bound of the toolchain documents: 2^53 - 1 (9007199254740991), the I-JSON (RFC 7493) range,
+    /// exact in a JavaScript number and in any 64-bit integer (index.md, "The integer bound", at finos/morphir
+    /// <c>2041a6673</c>).</summary>
+    [<Literal>]
+    let maxInteger = 9007199254740991UL
+
     /// A non-negative integer in plain decimal. Any other spelling, such as <c>1.0</c>, <c>1e3</c> or <c>-1</c>, or
-    /// another JSON type, is <c>invalid_document</c>; a value beyond 64 bits is <c>invalid_value</c>.
+    /// another JSON type, is <c>invalid_document</c>; a value past <see cref="maxInteger"/> is <c>invalid_value</c>.
     let integer (n: Node) : Read<uint64> =
         match n.Value with
         | Value.Number spelling when
@@ -111,8 +117,8 @@ module internal Reading =
             && (spelling = "0" || spelling[0] <> '0')
             ->
             match UInt64.TryParse(spelling, Globalization.NumberStyles.None, Globalization.CultureInfo.InvariantCulture) with
-            | true, value -> Ok value
-            | false, _ -> refuse ReaderCode.InvalidValue n.Path
+            | true, value when value <= maxInteger -> Ok value
+            | _ -> refuse ReaderCode.InvalidValue n.Path
         | _ -> refuse ReaderCode.InvalidDocument n.Path
 
     let items (n: Node) : Read<Node list> =
@@ -123,6 +129,25 @@ module internal Reading =
     /// An array whose elements are read in index order.
     let array (read: Node -> Read<'T>) (n: Node) : Read<'T list> =
         items n |> Result.bind (Result.traverse read)
+
+    /// <summary>An array of strings whose elements are read in index order and listed once each: an element whose text
+    /// equals an earlier one's, compared ordinally, is <c>inconsistent_document</c> at the repetition, checked as it is
+    /// read. The earlier texts are kept in a hash set, so the check is linear in the array: a list scan made a recipe
+    /// of 453 KB take 85 s (review of #582, R1). The values read are compared by their text, which is how every value
+    /// read here is equal (<c>ProtocolVersion</c> and <c>Token</c>).</summary>
+    let distinctArray (read: Node -> Read<'T>) (n: Node) : Read<'T list> =
+        let seen = System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal)
+
+        let rec go (earlier: 'T list) (rest: Node list) =
+            match rest with
+            | [] -> Ok(List.rev earlier)
+            | element :: rest ->
+                match read element, element.Value with
+                | Error refusal, _ -> Error refusal
+                | Ok _, Value.String text when not (seen.Add text) -> refuse ReaderCode.InconsistentDocument element.Path
+                | Ok value, _ -> go (value :: earlier) rest
+
+        items n |> Result.bind (go [])
 
     /// <summary>A map keyed by platform ids. Every key is checked first: the first invalid key in UTF-8 byte order is
     /// <c>invalid_value</c> at that key. The entries are then read in platform table order.</summary>
@@ -238,16 +263,16 @@ module internal Reading =
         | Operation.Compile _ -> "modelOutput"
         | Operation.Generate _ -> "modelInput"
 
-    /// <summary>A built-in's model: the member its operation names, required; the other member present is
-    /// <c>inconsistent_document</c> at that member.</summary>
+    /// <summary>A built-in's model: the member its operation names, required. A built-in has no MEP session, so
+    /// <c>protocolVersion</c>, <c>modelTuple</c> and the other model member are each <c>inconsistent_document</c> at
+    /// that member, checked in that order before the model member (index.md, order of checks).</summary>
     let builtInModel (operation: Operation) (o: ObjectNode) : Read<ModelFormat> =
         let wanted = builtInModelMember operation
         let other = if wanted = "modelInput" then "modelOutput" else "modelInput"
 
-        if has other o then
-            refuse ReaderCode.InconsistentDocument (o.Path.Child other)
-        else
-            required wanted modelFormat o
+        match [ "protocolVersion"; "modelTuple"; other ] |> List.tryFind (fun name -> has name o) with
+        | Some name -> refuse ReaderCode.InconsistentDocument (o.Path.Child name)
+        | None -> required wanted modelFormat o
 
     let modelTuple (n: Node) : Read<ModelTuple> =
         result {

@@ -23,6 +23,8 @@
     <!-- Reference to build project for helper classes -->
     <ProjectReference Include="../../build/_build.csproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <!-- The stub morphir-mck is the runnable entry point of the tool packages in ToolPackageInstallTests. -->
+    <ProjectReference Include="../Morphir.Mck.Stub/Morphir.Mck.Stub.csproj" />
   </ItemGroup>
 
   <ItemGroup>

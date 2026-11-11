@@ -14,10 +14,18 @@
         "resolved": "10.0.14",
         "contentHash": "YlTamXppEQls6DYWt7RdUuwWDb0lyw/vXCaGeQpLCpsLmfwGuCkOz/vIGgMTV7ECsJcavkCOkxZXv9s8rdAHkQ=="
       },
+      "morphir.compilation": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.extensions": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
+          "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Mep": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }

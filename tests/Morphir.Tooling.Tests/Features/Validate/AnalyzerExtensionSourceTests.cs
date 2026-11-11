@@ -7,7 +7,7 @@ namespace Morphir.Tooling.Tests.Features.Validate;
 /// <summary>The registry entries of the built-in analyzers come from the analyzers themselves.</summary>
 public sealed class AnalyzerExtensionSourceTests
 {
-    private static readonly HostIdentity Native = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+    private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
 
     [Test]
     public void TheSourceHasOneEntryForEachBuiltInAnalyzer()

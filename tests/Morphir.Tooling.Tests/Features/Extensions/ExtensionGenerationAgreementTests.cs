@@ -10,7 +10,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// <summary>The extension list and <c>morphir generate</c> must agree on the built-in backends.</summary>
 public sealed class ExtensionGenerationAgreementTests
 {
-    private static readonly HostIdentity Host = new(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+    private static readonly HostIdentity Host = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
 
     /// <summary>The disagreements between the registered backends and the entries of a source; empty when they agree.</summary>
     private static List<string> Disagreements(IReadOnlyList<IGenerationBackend> backends, IExtensionSource source)

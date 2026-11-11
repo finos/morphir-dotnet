@@ -32,6 +32,12 @@
         <PackageReference Include="Serilog.Sinks.Console" />
     </ItemGroup>
 
+    <!-- The offerings this entry point can be published as; a named release profile states which one it is (HOST-1). -->
+    <PropertyGroup>
+        <MorphirEntryPointDeployments>self-contained;framework-dependent</MorphirEntryPointDeployments>
+    </PropertyGroup>
+    <Import Project="..\Morphir.BuildProfile.targets" />
+
     <!-- Generate version constant file at build time (same as the Morphir and Morphir.Tool projects) -->
     <Target Name="GenerateVersionFile" BeforeTargets="CoreCompile">
         <PropertyGroup>

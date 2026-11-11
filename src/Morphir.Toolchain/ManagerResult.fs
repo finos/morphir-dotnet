@@ -198,17 +198,30 @@ module BindingProblem =
         | BindingCode.ReceiptLockMismatch -> DocumentKind.Receipt
         | BindingCode.PlanChanged -> DocumentKind.Result
 
+/// <summary>The member of one document a diagnostic concerns: <c>document</c> and <c>path</c>, which come together
+/// (manager-result.md, Diagnostics).</summary>
+type DocumentMember = { Document: DocumentKind; Path: DocumentPath }
+
 /// A diagnostic's kind-specific members. The case is the diagnostic kind, so a code of another kind cannot be written.
 [<RequireQualifiedAccess>]
 type DiagnosticDetail =
-    | UnsupportedArtifact of problem: ArtifactProblem * on: Component * platform: Platform * alternatives: Alternative list option
+    /// <c>concerns</c> names the member a check of one document reported, such as a request's provider choice.
+    | UnsupportedArtifact of
+        problem: ArtifactProblem *
+        on: Component *
+        platform: Platform *
+        alternatives: Alternative list option *
+        concerns: DocumentMember option
     | MissingPrerequisite of on: Component * prerequisite: Prerequisite * alternatives: Alternative list option
+    /// <c>concerns</c> names the member a check of one document reported; a failure about no single document, such as
+    /// an expired timestamp, has none.
     | TrustFailure of
         code: TrustCode *
         repositoryId: Sha256 *
         role: TufRole option *
         target: TargetPath option *
-        mirror: Mirror option
+        mirror: Mirror option *
+        concerns: DocumentMember option
     | OfflineContentUnavailable of on: Component * target: TargetPath * sha256: Sha256
     | OwnershipConflict of on: Component * ownership: Ownership
     | ReadinessFailed of on: Component * check: CheckKind * reached: Readiness
@@ -221,13 +234,13 @@ type DiagnosticDetail =
 module DiagnosticDetail =
     let code (detail: DiagnosticDetail) =
         match detail with
-        | DiagnosticDetail.UnsupportedArtifact(problem, _, _, _) ->
+        | DiagnosticDetail.UnsupportedArtifact(problem, _, _, _, _) ->
             match problem with
             | ArtifactProblem.Unsupported -> Code.Artifact ArtifactCode.UnsupportedArtifact
             | ArtifactProblem.AbiUnavailable _ -> Code.Artifact ArtifactCode.AbiUnavailable
             | ArtifactProblem.NoCompatibleRelease -> Code.Artifact ArtifactCode.NoCompatibleRelease
         | DiagnosticDetail.MissingPrerequisite _ -> Code.MissingPrerequisite
-        | DiagnosticDetail.TrustFailure(code, _, _, _, _) -> Code.Trust code
+        | DiagnosticDetail.TrustFailure(code, _, _, _, _, _) -> Code.Trust code
         | DiagnosticDetail.OfflineContentUnavailable _ -> Code.OfflineContentUnavailable
         | DiagnosticDetail.OwnershipConflict _ -> Code.OwnershipConflict
         | DiagnosticDetail.ReadinessFailed _ -> Code.ReadinessFailed
@@ -373,6 +386,12 @@ type ManagerResult =
     member this.Selection = this.selection
     member this.Diagnostics = this.diagnostics
 /// The manager result reader and writer (manager-result page).
+/// The role whose source kinds a plan component is checked against.
+[<RequireQualifiedAccess>]
+type internal SourceRole =
+    | Host
+    | Provider
+
 module ResultDocument =
     open Reading
 
@@ -438,6 +457,26 @@ module ResultDocument =
             | SelectionTag.UserDefault -> return SelectionSource.UserDefault
         }
 
+    let private documentKind = tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))
+
+    /// <summary>The optional <c>document</c> and <c>path</c> of an <c>unsupported-artifact</c> or <c>trust-failure</c>
+    /// diagnostic: together, or neither. One without the other is <c>inconsistent_document</c> at the one present.</summary>
+    let private concerns (o: ObjectNode) : Read<DocumentMember option> =
+        result {
+            let! document = optional "document" documentKind o
+            let! path = optional "path" text o
+
+            match document, path with
+            | Some document, Some path ->
+                return
+                    Some
+                        { Document = document
+                          Path = DocumentPath.verbatim path }
+            | None, None -> return None
+            | Some _, None -> return! refuse ReaderCode.InconsistentDocument (o.Path.Child "document")
+            | None, Some _ -> return! refuse ReaderCode.InconsistentDocument (o.Path.Child "path")
+        }
+
     let private diagnostic (n: Node) : Read<Diagnostic> =
         result {
             let! o = asObject n
@@ -488,7 +527,8 @@ module ResultDocument =
                                 | Some abi -> token abi |> Result.map ArtifactProblem.AbiUnavailable
 
                         let! alternatives = alternatives
-                        return DiagnosticDetail.UnsupportedArtifact(problem, on, platform, alternatives)
+                        let! concerns = concerns o
+                        return DiagnosticDetail.UnsupportedArtifact(problem, on, platform, alternatives, concerns)
                     }
                 | Code.MissingPrerequisite ->
                     result {
@@ -506,7 +546,8 @@ module ResultDocument =
 
                         let! target = optional "target" targetPath o
                         let! mirror = optional "mirror" (validated Mirror.tryParse) o
-                        return DiagnosticDetail.TrustFailure(trustCode, repositoryId, role, target, mirror)
+                        let! concerns = concerns o
+                        return DiagnosticDetail.TrustFailure(trustCode, repositoryId, role, target, mirror, concerns)
                     }
                 | Code.OfflineContentUnavailable ->
                     result {
@@ -538,13 +579,13 @@ module ResultDocument =
                     }
                 | Code.Reader readerCode ->
                     result {
-                        let! document = required "document" (tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))) o
+                        let! document = required "document" documentKind o
                         let! path = required "path" text o
                         return DiagnosticDetail.UnsupportedContract(readerCode, document, DocumentPath.verbatim path)
                     }
                 | Code.DocumentUnavailable ->
                     result {
-                        let! document = required "document" (tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))) o
+                        let! document = required "document" documentKind o
                         let! path = required "path" text o
 
                         // The document as a whole is unavailable, so the path is the empty path.
@@ -557,7 +598,7 @@ module ResultDocument =
                     required "source" selectionSource o |> Result.map DiagnosticDetail.SelectionUnavailable
                 | Code.Binding bindingCode ->
                     result {
-                        let! document = required "document" (tag (DocumentKind.all |> List.map (fun (kind, name) -> name, kind))) o
+                        let! document = required "document" documentKind o
                         let! path = required "path" text o
 
                         if document <> BindingProblem.document bindingCode then
@@ -710,19 +751,34 @@ module ResultDocument =
             then
                 return! refuse ReaderCode.InconsistentDocument componentsPath
 
-            // A bound source names the expected bytes, from the recipe's repository.
-            let boundTo (at: DocumentPath) (expected: TargetBinding) (source: ComponentSource) =
-                match source with
-                | ComponentSource.RepositoryTarget(repositoryId, target, sha)
-                | ComponentSource.RecipeDigest(repositoryId, target, sha) ->
-                    if target <> expected.Target || sha <> expected.Sha256 then
+            // A source has a kind its component's role allows (manager-result.md): a host release is authenticated by
+            // its own TUF target, an external provider by the recipe's digest, and either may be externally owned.
+            // A bound source then names the expected bytes, from the recipe's repository: a host's source target is the
+            // platform's host artifact, at source.target, and a provider's source names its artifact, at source.
+            let boundTo (at: DocumentPath) (role: SourceRole) (expected: TargetBinding) (source: ComponentSource) =
+                match role, source with
+                | SourceRole.Host, ComponentSource.RecipeDigest _
+                | SourceRole.Provider, ComponentSource.RepositoryTarget _ -> refuse ReaderCode.InconsistentDocument (at.Child "source")
+                | _, ComponentSource.RepositoryTarget(repositoryId, target, sha)
+                | _, ComponentSource.RecipeDigest(repositoryId, target, sha) ->
+                    // A host source is checked target, then digest, each at its own member (the contract author's
+                    // decision on review of #582, R5; the coming case result/negative/plan-host-source-other-digest).
+                    if role = SourceRole.Host && target <> expected.Target then
+                        refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "target")
+                    elif role = SourceRole.Host && sha <> expected.Sha256 then
+                        refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "sha256")
+                    elif target <> expected.Target || sha <> expected.Sha256 then
                         refuse ReaderCode.InconsistentDocument (at.Child "source")
                     elif repositoryId <> plan.Recipe.RepositoryId then
                         refuse ReaderCode.InconsistentDocument ((at.Child "source").Child "repositoryId")
                     else
                         Ok()
-                | ComponentSource.ExternalOwner -> Ok()
-                | ComponentSource.BuiltIn -> refuse ReaderCode.InconsistentDocument (at.Child "source")
+                | _, ComponentSource.ExternalOwner -> Ok()
+                | _, ComponentSource.BuiltIn -> refuse ReaderCode.InconsistentDocument (at.Child "source")
+
+            // The locked provider of each operation, looked up once per component rather than by a scan.
+            let lockedFor =
+                closure.Providers |> List.map (fun provider -> provider.Operation, provider) |> dict
 
             for index, planned in List.indexed plan.Components do
                 let at = componentsPath.At index
@@ -737,9 +793,9 @@ module ResultDocument =
                     then
                         return! refuse ReaderCode.InconsistentDocument at
 
-                    do! boundTo at closure.Host host.Source
+                    do! boundTo at SourceRole.Host closure.Host host.Source
                 | PlannedComponent.Provider(operation, id, delivery, provider) ->
-                    let locked = closure.Providers |> List.find (fun p -> p.Operation = operation)
+                    let locked = lockedFor[operation]
 
                     if
                         id <> locked.ExtensionId
@@ -753,9 +809,9 @@ module ResultDocument =
                         if provider.Source <> ComponentSource.BuiltIn then
                             return! refuse ReaderCode.InconsistentDocument (at.Child "source")
                     | LockedDelivery.Process(_, artifact, _)
-                    | LockedDelivery.Wasm(_, _, artifact, _) -> do! boundTo at artifact provider.Source
+                    | LockedDelivery.Wasm(_, _, artifact, _) -> do! boundTo at SourceRole.Provider artifact provider.Source
                     | LockedDelivery.DotnetTool(_, package, _) ->
-                        do! boundTo at { Target = package.Target; Sha256 = package.Sha256 } provider.Source
+                        do! boundTo at SourceRole.Provider { Target = package.Target; Sha256 = package.Sha256 } provider.Source
         }
 
     let private plan (n: Node) : Read<Plan> =
@@ -827,6 +883,23 @@ module ResultDocument =
         | Outcome.Succeeded -> not hasError
         | Outcome.Planned -> not hasError && Option.isSome plan
 
+    /// Every number inside a plan is covered by its digest, including unknown members. Other documents ignore
+    /// unknown members, but plans must apply the document integer rules at every depth (index.md, integer bound).
+    let rec private planNumbers (n: Node) : Read<unit> =
+        match n.Value with
+        | Value.Number _ -> integer n |> Result.map ignore
+        | Value.Object members ->
+            result {
+                for name, value in members do
+                    do! planNumbers (node value (n.Path.Child name))
+            }
+        | Value.Array values ->
+            result {
+                for index, value in List.indexed values do
+                    do! planNumbers (node value (n.Path.At index))
+            }
+        | _ -> Ok()
+
     let private body (o: ObjectNode) : Read<ManagerResult> =
         result {
             let! command = required "command" (tag (Command.all |> List.map (fun (command, name) -> name, command))) o
@@ -844,7 +917,8 @@ module ResultDocument =
                 match plan, planSha256, tryMember "plan" o with
                 | None, None, _ -> Ok None
                 | Some plan, Some stated, Some planNode ->
-                    Canonical.bytesAt planNode.Path planNode.Value
+                    planNumbers planNode
+                    |> Result.bind (fun () -> Canonical.bytesAt planNode.Path planNode.Value)
                     |> Result.bind (fun canonical ->
                         let actual = Sha256.ofBytes canonical
 
@@ -852,6 +926,9 @@ module ResultDocument =
                             refuse ReaderCode.InconsistentDocument shaPath
                         else
                             Ok(Some { Plan = plan; Canonical = canonical; Sha256 = actual }))
+                // A plan without planSha256 lacks a required member (manager-result.md); a planSha256 without a
+                // plan is out of place.
+                | Some _, None, _ -> refuse ReaderCode.InvalidDocument shaPath
                 | _ -> refuse ReaderCode.InconsistentDocument shaPath
 
             if not (outcomeIsConsistent outcome digested diagnostics) then
@@ -1011,23 +1088,31 @@ module ResultDocument =
                               | Some platform -> "platform", Value.String(Platform.name platform)
                               | None -> () ] ] ]
 
+    let private concernsMembers (concerns: DocumentMember option) =
+        match concerns with
+        | Some concerns ->
+            [ "document", Value.String(DocumentKind.name concerns.Document)
+              "path", Value.String(DocumentPath.render concerns.Path) ]
+        | None -> []
+
     let private diagnosticValue (diagnostic: Diagnostic) =
         let code = DiagnosticDetail.code diagnostic.Detail
 
         let detail =
             match diagnostic.Detail with
-            | DiagnosticDetail.UnsupportedArtifact(problem, on, platform, alternatives) ->
+            | DiagnosticDetail.UnsupportedArtifact(problem, on, platform, alternatives, concerns) ->
                 [ "component", componentValue on
                   "platform", Value.String(Platform.name platform)
                   match problem with
                   | ArtifactProblem.AbiUnavailable abi -> "abi", tokenValue abi
                   | _ -> ()
-                  yield! alternativesMembers alternatives ]
+                  yield! alternativesMembers alternatives
+                  yield! concernsMembers concerns ]
             | DiagnosticDetail.MissingPrerequisite(on, prerequisite, alternatives) ->
                 [ "component", componentValue on
                   "prerequisite", prerequisiteValue prerequisite
                   yield! alternativesMembers alternatives ]
-            | DiagnosticDetail.TrustFailure(_, repositoryId, role, target, mirror) ->
+            | DiagnosticDetail.TrustFailure(_, repositoryId, role, target, mirror, concerns) ->
                 [ "repositoryId", Value.String repositoryId.Text
                   match role with
                   | Some role ->
@@ -1045,7 +1130,8 @@ module ResultDocument =
                   | None -> ()
                   match mirror with
                   | Some mirror -> "mirror", Value.String mirror.Text
-                  | None -> () ]
+                  | None -> ()
+                  yield! concernsMembers concerns ]
             | DiagnosticDetail.OfflineContentUnavailable(on, target, sha) ->
                 [ "component", componentValue on
                   "target", Value.String target.Text

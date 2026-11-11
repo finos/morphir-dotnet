@@ -270,6 +270,16 @@ type MepFrontend
 
             match! MepGuestProcess.StartAsync(guestOptions, offer, cancellation) with
             | Error failed -> return Error(failure (codeOf failed) failed.Message)
+            | Ok guest when ReservedExtensionIds.IsReserved guest.Session.Extension.Id ->
+                // A guest must not pass as a built-in frontend: every morphir. id is reserved for built-ins.
+                do! (guest :> IAsyncDisposable).DisposeAsync()
+
+                return
+                    Error(
+                        failure
+                            MepFrontendCodes.unavailable
+                            $"Extension {options.Executable} reported the extension id {guest.Session.Extension.Id}, which is reserved for built-in frontends and backends (every id that starts with {ReservedExtensionIds.Prefix}). An extension must have its own id."
+                    )
             | Ok guest ->
                 let negotiated = guest.Session
 
