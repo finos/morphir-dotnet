@@ -120,15 +120,74 @@ module private NativeFiles =
     )
 
     [<DllImport("libc", EntryPoint = "open", SetLastError = true)>]
-    extern int unixOpen([<MarshalAs(UnmanagedType.LPUTF8Str)>] string path, int flags, uint32 mode)
+    extern int unixOpenFixed(
+        [<MarshalAs(UnmanagedType.LPUTF8Str)>] string path,
+        int flags,
+        uint32 mode
+    )
 
     [<DllImport("libc", EntryPoint = "openat", SetLastError = true)>]
-    extern int openAt(
+    extern int openAtFixed(
         int directory,
         [<MarshalAs(UnmanagedType.LPUTF8Str)>] string path,
         int flags,
         uint32 mode
     )
+
+    // Darwin arm64 places variadic arguments on the stack. Fill the eight integer
+    // argument registers so mode occupies the first stack slot, for both entrypoints.
+    // open/openat read mode only with O_CREAT; the same ABI is used for all calls.
+    // Apple: Writing ARM64 code for Apple platforms; xnu libsyscall/wrappers/open-base.c.
+    [<DllImport("libc", EntryPoint = "open", SetLastError = true)>]
+    extern int unixOpenDarwinArm64(
+        [<MarshalAs(UnmanagedType.LPUTF8Str)>] string path,
+        int flags,
+        nativeint padding2,
+        nativeint padding3,
+        nativeint padding4,
+        nativeint padding5,
+        nativeint padding6,
+        nativeint padding7,
+        uint32 mode
+    )
+
+    [<DllImport("libc", EntryPoint = "openat", SetLastError = true)>]
+    extern int openAtDarwinArm64(
+        int directory,
+        [<MarshalAs(UnmanagedType.LPUTF8Str)>] string path,
+        int flags,
+        nativeint padding3,
+        nativeint padding4,
+        nativeint padding5,
+        nativeint padding6,
+        nativeint padding7,
+        uint32 mode
+    )
+
+    let unixOpen (path, flags, mode) =
+        match RuntimeInformation.ProcessArchitecture with
+        | Architecture.Arm64 when OperatingSystem.IsMacOS() ->
+            unixOpenDarwinArm64 (path, flags, 0n, 0n, 0n, 0n, 0n, 0n, mode)
+        | Architecture.X64 when
+            OperatingSystem.IsMacOS()
+            || OperatingSystem.IsLinux()
+            ->
+            unixOpenFixed (path, flags, mode)
+        | Architecture.Arm64 when OperatingSystem.IsLinux() -> unixOpenFixed (path, flags, mode)
+        | _ -> Operations.fail "extension.io_error" "Unsupported native open ABI."
+
+    let openAt (directory, path, flags, mode) =
+        match RuntimeInformation.ProcessArchitecture with
+        | Architecture.Arm64 when OperatingSystem.IsMacOS() ->
+            openAtDarwinArm64 (directory, path, flags, 0n, 0n, 0n, 0n, 0n, mode)
+        | Architecture.X64 when
+            OperatingSystem.IsMacOS()
+            || OperatingSystem.IsLinux()
+            ->
+            openAtFixed (directory, path, flags, mode)
+        | Architecture.Arm64 when OperatingSystem.IsLinux() ->
+            openAtFixed (directory, path, flags, mode)
+        | _ -> Operations.fail "extension.io_error" "Unsupported native openat ABI."
 
     [<DllImport("libc", EntryPoint = "mkdirat", SetLastError = true)>]
     extern int mkdirAt(

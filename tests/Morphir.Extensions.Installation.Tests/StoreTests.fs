@@ -22,6 +22,61 @@ let private publish root source expected =
 [<Tests>]
 let tests =
     testList "Store" [
+        test "new native files retain private owner permissions and reopen read-write" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+            let source = staged sandbox bytes
+
+            let stored =
+                publish root source (digest bytes)
+                |> get
+
+            let leasePath = Path.Combine(root, ".morphir-dotnet-io.lock")
+
+            if not (OperatingSystem.IsWindows()) then
+                Expect.equal
+                    (File.GetUnixFileMode leasePath)
+                    (UnixFileMode.UserRead
+                     ||| UnixFileMode.UserWrite)
+                    "native O_CREAT mode is private owner read-write"
+
+                Expect.equal
+                    (File.GetUnixFileMode stored.AbsolutePath)
+                    (UnixFileMode.UserRead
+                     ||| UnixFileMode.UserWrite
+                     ||| UnixFileMode.UserExecute)
+                    "publication preserves the intended source mode, including on a clone"
+
+            // Dispose these observations before reacquiring the installer's cooperative lease.
+            do
+                use lease =
+                    File.Open(leasePath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite)
+
+                Expect.isTrue lease.CanWrite "coordination file can be reopened by its owner"
+
+            do
+                use artifact =
+                    File.Open(
+                        stored.AbsolutePath,
+                        FileMode.Open,
+                        FileAccess.ReadWrite,
+                        FileShare.Read
+                    )
+
+                Expect.equal
+                    artifact.Length
+                    (int64 bytes.Length)
+                    "published object can be reopened read-write"
+
+            let reused =
+                publish root source (digest bytes)
+                |> get
+
+            Expect.equal
+                (File.ReadAllBytes reused.AbsolutePath)
+                bytes
+                "reopening did not alter the winner"
+        }
         test "publishes the bytes at the contract digest path without state metadata" {
             use sandbox = TestSandbox.Create()
             let root = home sandbox

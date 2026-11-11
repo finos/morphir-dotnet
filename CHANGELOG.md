@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GenerationOptions` (`Morphir.CodeGeneration.FSharp`) has the new field `Format`, so a record expression that sets every field needs it, and C# that calls its two-argument constructor must pass both; `{ GenerationOptions.Default with Optimize = ... }` and `GenerationOptions.Default.WithOptimize(...)` keep working
 
 ### Fixed
+
+- Corrected Darwin ARM64 variadic mode placement for installer `open`/`openat`, preserving no-follow/exclusive flags and descriptor identity. Hosted macOS failures at `4c908047` are the regression evidence. Focused Windows Store 15/15 and RunCopies 5/5 pass, with three Unix-only tests ignored; exact-head macOS/Linux verification remains pending ([#593](https://github.com/finos/morphir-dotnet/pull/593)).
+
 - Configuration: a member of `[frontend]` that is not a table (for example `[frontend]` `note = "x"`) is no longer refused as an invalid language table. Only an object-valued member is a `[frontend.<language>]` table with `project_file` and `extension`; any other member stays unconstrained, as the upstream schema leaves it
 - `compile --extension`: a frontend guest that never answers `compileModel` now fails with `extension.timeout` at the deadline, and a guest that does not answer `shutdown` or take `exit` within the deadline (for example one whose handler blocks its read loop) has its process tree stopped. Before, the host could wait indefinitely in both cases. The same holds for `generate --extension`, so a timed-out request ends within about two deadlines
 - A frontend or backend guest that fails to start or initialize no longer leaves its stderr reader or process handle behind

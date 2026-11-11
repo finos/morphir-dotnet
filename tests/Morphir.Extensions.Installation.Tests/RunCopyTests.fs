@@ -13,6 +13,39 @@ open Morphir.Extensions.Installation.Tests.IoTestSupport
 [<Tests>]
 let tests =
     testList "RunCopies" [
+        test "native owner permissions support repeated ownership and disposal" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            for _ in 1..2 do
+                let owned =
+                    RunCopies.CreateAsync(root, ct).GetAwaiter().GetResult()
+                    |> get
+
+                use lifetime = owned :> IDisposable
+                let path = owned.Path
+
+                if not (OperatingSystem.IsWindows()) then
+                    let privateMode =
+                        UnixFileMode.UserRead
+                        ||| UnixFileMode.UserWrite
+
+                    Expect.equal
+                        (File.GetUnixFileMode(Path.Combine(root, ".morphir-dotnet-io.lock")))
+                        privateMode
+                        "coordination mode permits its next native read-write open"
+
+                    Expect.equal
+                        (File.GetUnixFileMode(Path.Combine(path, ".owner")))
+                        privateMode
+                        "owner mode permits the native reopen required for disposal"
+
+                lifetime.Dispose()
+
+                Expect.isFalse
+                    (Directory.Exists path)
+                    "disposal reopens and removes exactly its owned directory"
+        }
         test "a live owner keeps its directory until disposal" {
             use sandbox = TestSandbox.Create()
             let root = home sandbox

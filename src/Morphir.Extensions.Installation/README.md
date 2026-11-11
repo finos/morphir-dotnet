@@ -46,6 +46,24 @@ correction's Windows run passed 131 executed tests, with three Unix-only
 interleavings explicitly ignored. This is static review plus Windows test
 evidence. Linux/macOS native paths and Native AOT remain qualification gates.
 
+Hosted macOS CI at `4c908047` subsequently ran all 180 installer tests: 177 passed,
+two failed and one errored. Disposal, coordination-file reopening and tampered
+object rewriting exposed the Darwin ARM64 variadic `openat` binding. Both native
+`open` and `openat` now dispatch to stack-mode bindings on Darwin ARM64; Darwin
+x64 and Linux x64/ARM64 retain their fixed-position conventions. Unsupported ABIs
+refuse explicitly. No-follow/exclusive flags and descriptor identity are unchanged.
+The correction adds private-mode and repeated reopen/disposal regressions.
+Focused Windows Store 15/15 and RunCopies 5/5 passed before and after formatting,
+with three existing Unix-only tests ignored. The new Unix permission assertions
+did not execute on Windows. Exact-head hosted macOS and Linux results are still
+required; this Windows result does not close the macOS failure.
+
+The ABI correction follows Apple's
+[ARM64 calling convention](https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms)
+and [variadic open wrappers](https://github.com/apple-oss-distributions/xnu/blob/main/libsyscall/wrappers/open-base.c),
+corroborated by the first-party
+[.NET macOS binding](https://source.dot.net/Aspire.Tray.Tests/src/Aspire.Tray/Mac/MacTrayLog.cs.html).
+
 Primary API references for the publication and identity mechanisms are
 [Windows handle rename](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_rename_info),
 [Windows file identity](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_id_info),

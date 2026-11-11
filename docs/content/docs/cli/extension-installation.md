@@ -18,6 +18,13 @@ remaining finding under the approved cooperating Home boundary. Unix runtime
 evidence and Native AOT remain qualification gates. These results do not qualify
 a released installer.
 
+Subsequent macOS CI at `4c908047` ran 180 tests, with 177 passing, two failing and
+one error in file permissions/reopening and temporary-directory disposal. A
+Darwin ARM64 native-call correction and permission regressions are now under
+review. Focused Windows verification passes Store 15/15 and RunCopies 5/5, with
+three Unix-only tests ignored and Unix permission assertions unexecuted. The
+correction still needs hosted macOS and Linux verification at its exact commit.
+
 The installation library can verify and publish a staged single file to a
 content-addressed store, validate ZIP and tar-gzip archives without extracting
 them, and clean stale temporary directories owned by this host. It checks a
