@@ -183,14 +183,6 @@
         "resolved": "10.0.14",
         "contentHash": "RXaeKIj2fJEEXghowZLAqTBOm2D+aGcLmQgCD/BMHkWjkhnBQ9QND0fOctxrisdojsg1lmF+aRWA7L5qa1pE8g=="
       },
-      "Microsoft.AspNetCore.WebUtilities": {
-        "type": "Transitive",
-        "resolved": "9.0.19",
-        "contentHash": "6vrCHj+2kmklfd3bOLslFIKGLG2fBDB581k4sK+TPiaMhdCN7KML7cU7n5zOpB9O74ctCaKR+EkoatM1N8Nu+Q==",
-        "dependencies": {
-          "Microsoft.Net.Http.Headers": "9.0.19"
-        }
-      },
       "Microsoft.DiaSymReader": {
         "type": "Transitive",
         "resolved": "2.2.10",
@@ -381,10 +373,10 @@
       },
       "Microsoft.Net.Http.Headers": {
         "type": "Transitive",
-        "resolved": "9.0.19",
-        "contentHash": "uKdTNrukupdt04MAR2ABdRQQ6gGy6CTRFSJ+fegNb8c1j5TA5ZpukuU8j59xReV8vA71Aok2Nw3ZBKIuiJRGzA==",
+        "resolved": "9.0.23",
+        "contentHash": "bBUawKx+f9Kv2gup/nwtSU7ABAnjiiuNbN5blmMDYt8Vmuu7YlUCHnCaXgZdItYnfG0G6MFSZClEsYOdKCfNAA==",
         "dependencies": {
-          "Microsoft.Extensions.Primitives": "9.0.19"
+          "Microsoft.Extensions.Primitives": "9.0.23"
         }
       },
       "Microsoft.Testing.Extensions.Telemetry": {
@@ -528,6 +520,15 @@
           "Microsoft.Extensions.Configuration.Json": "10.0.14",
           "Microsoft.Extensions.Logging": "10.0.14",
           "Microsoft.JSInterop.WebAssembly": "10.0.14"
+        }
+      },
+      "Microsoft.AspNetCore.WebUtilities": {
+        "type": "CentralTransitive",
+        "requested": "[9.0.23, )",
+        "resolved": "9.0.23",
+        "contentHash": "l0pfseV9wvMlSCsp1gldV9Uv++05zTbc4Rvj4lXntAE0Y9WCG0z/rdu61dlYvwvzekj5Q40zIyMP7Ir27XO7wQ==",
+        "dependencies": {
+          "Microsoft.Net.Http.Headers": "9.0.23"
         }
       },
       "Microsoft.Extensions.Configuration": {
