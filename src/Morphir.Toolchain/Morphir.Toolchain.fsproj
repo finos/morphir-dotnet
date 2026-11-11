@@ -41,6 +41,9 @@
         <Compile Include="ManagerResult.fs" />
         <Compile Include="Bindings.fs" />
         <Compile Include="RecipeTargets.fs" />
+    <Compile Include="ReleaseDescriptors.fs" />
+    <Compile Include="RecipeBindings.fs" />
+    <Compile Include="ToolResolver.fs" />
         <Compile Include="TufMetadata.fs" />
         <Compile Include="TufClient.fs" />
         <Compile Include="Resolution.fs" />

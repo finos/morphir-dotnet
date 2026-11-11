@@ -151,7 +151,7 @@ let tests =
             // The one disagreement: SemVer precedence ignores build metadata, so the range admits it.
             Expect.isFalse (onLine "0.2.0+build.1") "the page refuses build metadata"
             Expect.isTrue (inRange "0.2.0+build.1") "the range admits it")
-        testCase "a version is at most 256 characters with numeric identifiers of at most 15 digits (provisional)" (fun () ->
+        testCase "a version is at most 256 characters with numeric identifiers of at most 15 digits" (fun () ->
             let accepted (text: string) = SemVer.tryParse text |> Result.map _.Text
 
             // Up to the bound, a long prerelease is a version and on the MEP 0.2 line.
@@ -163,7 +163,7 @@ let tests =
             for text in [ "999999999999999.0.0"; "0.999999999999999.0"; "1.0.0-999999999999999"; "1.0.0+1234567890123456789" ] do
                 Expect.equal (accepted text) (Ok text) text
 
-            // Past the bound: invalid_value as a version, and off the line as a MEP version.
+            // Past the bound: invalid_value as a version, and as a MEP version too, before the line is consulted.
             let tooLong = longest + "a"
 
             for text in
@@ -174,7 +174,7 @@ let tests =
                   "1" + String.replicate 1_000_000 "0" + ".0.0" ] do
                 Expect.equal (accepted text) (Error ReaderCode.InvalidValue) (text.Substring(0, min 40 text.Length))
 
-            Expect.equal (ProtocolVersion.tryParse tooLong |> Result.map ignore) (Error ReaderCode.UnsupportedCase) "off the line"
+            Expect.equal (ProtocolVersion.tryParse tooLong |> Result.map ignore) (Error ReaderCode.InvalidValue) "not a version"
             Expect.equal (Comparator.tryParse (">=" + tooLong) |> Result.map ignore) (Error ReaderCode.InvalidValue) "a comparator")
 
         testCase "a version of a million digits is refused before it is parsed" (fun () ->

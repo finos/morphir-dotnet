@@ -173,9 +173,9 @@ module RequestDocument =
             let providers = defaultArg providers []
             let providersPath = n.Path.Child "providers"
 
-            for index, choice in List.indexed providers do
-                if providers |> List.take index |> List.exists (fun earlier -> earlier.Operation = choice.Operation) then
-                    return! refuse ReaderCode.InconsistentDocument (providersPath.At index)
+            match firstRepeatBy _.Operation providers with
+            | Some index -> return! refuse ReaderCode.InconsistentDocument (providersPath.At index)
+            | None -> ()
 
             return { Preset = preset; Providers = providers }
         }
