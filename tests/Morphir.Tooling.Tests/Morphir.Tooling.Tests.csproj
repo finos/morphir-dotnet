@@ -46,6 +46,8 @@
 
   <ItemGroup>
     <!-- Test data files -->
+    <!-- Keep direct adapter tests compiling while the dedicated morphir-mck entry point adopts this donor. -->
+    <Compile Include="../../src/Morphir.Tooling/Features/Mck/MckCommands.cs" Link="Features/Mck/Donor/MckCommands.cs" />
     <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!--
       The pinned WASM profile contract, crafted corpus and modules, for the configured-module loader; see

@@ -11,6 +11,13 @@ Feature: Select an external generation backend
     And the report names the external F# backend over MEP
     And the generated files equal those of the built-in F# backend
 
+  Scenario: The report of an external backend has no formatting member, even when the host asked for format false
+    Given a daily-rate model at version "4" in "json"
+    When I generate F# with the external F# backend extension and the option "format=false"
+    Then generation exits with 0 and one JSON report
+    And the report names the external F# backend over MEP
+    And the report has no formatting member
+
   Scenario: The configuration key selects the extension, and --extension overrides it
     Given a daily-rate model at version "4" in "json"
     And a project whose configuration selects the external F# backend

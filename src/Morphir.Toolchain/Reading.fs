@@ -101,8 +101,14 @@ module internal Reading =
             | Some(_, case) -> Ok case
             | None -> refuse ReaderCode.UnsupportedCase n.Path)
 
+    /// <summary>The integer bound of the toolchain documents: 2^53 - 1 (9007199254740991), the I-JSON (RFC 7493) range,
+    /// exact in a JavaScript number and in any 64-bit integer (index.md, "The integer bound", at finos/morphir
+    /// <c>2041a6673</c>).</summary>
+    [<Literal>]
+    let maxInteger = 9007199254740991UL
+
     /// A non-negative integer in plain decimal. Any other spelling, such as <c>1.0</c>, <c>1e3</c> or <c>-1</c>, or
-    /// another JSON type, is <c>invalid_document</c>; a value beyond 64 bits is <c>invalid_value</c>.
+    /// another JSON type, is <c>invalid_document</c>; a value past <see cref="maxInteger"/> is <c>invalid_value</c>.
     let integer (n: Node) : Read<uint64> =
         match n.Value with
         | Value.Number spelling when
@@ -111,8 +117,8 @@ module internal Reading =
             && (spelling = "0" || spelling[0] <> '0')
             ->
             match UInt64.TryParse(spelling, Globalization.NumberStyles.None, Globalization.CultureInfo.InvariantCulture) with
-            | true, value -> Ok value
-            | false, _ -> refuse ReaderCode.InvalidValue n.Path
+            | true, value when value <= maxInteger -> Ok value
+            | _ -> refuse ReaderCode.InvalidValue n.Path
         | _ -> refuse ReaderCode.InvalidDocument n.Path
 
     let items (n: Node) : Read<Node list> =

@@ -78,11 +78,20 @@ public sealed record CompileReportGeneration(
     string[] Unchanged,
     string[] Removed)
 {
+    /// <summary>
+    /// Whether the backend formatted the generated files, as in the <c>generate</c> report: <c>applied</c>, <c>off</c> or
+    /// <c>unavailable</c> (this host cannot run the formatter, as the Native AOT <c>morphir</c> cannot run Fantomas).
+    /// Written only when the backend reports it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Formatting { get; init; }
+
     /// <summary>The report shape of <paramref name="generation"/>.</summary>
     public static CompileReportGeneration From(CompileGeneration generation) => generation.Result is { } result
         ? new(result.Target, result.Backend, result.OutputDirectory, result.SourceVersion, result.Family, result.DistributionKind,
             result.Representation, [.. result.Publication.Artifacts], [.. result.Publication.Written], [.. result.Publication.Unchanged],
             [.. result.Publication.Removed])
+        { Formatting = result.Formatting }
         : new(generation.Target, generation.Backend, generation.OutputDirectory, null, null, null, null, [], [], [], []);
 }
 

@@ -20,6 +20,11 @@ type ResolveExpected =
     | Providers of hostTarget: string option * providers: ExpectedProvider list
     | ResolveRefused of code: string * path: string
 
+/// What a cli-requirement case expects: the requirement reads or is refused, or a CLI version meets it or not.
+type CliExpected =
+    | CliRead of Expected
+    | CliMet of bool
+
 type DocumentCase =
     { Contract: string
       Document: string
@@ -51,6 +56,10 @@ type BindingCase =
     | PrerequisiteVersions of name: string * versions: string list * installed: string * met: bool
     /// Whether a version, or a comparator when comparator is true, reads within the bounds.
     | Version of name: string * comparator: bool * version: string * expected: Expected
+    /// A value's canonical JSON text, and the text the TUF reference encoder writes for the same value.
+    | CanonicalJson of name: string * value: string * expected: string * referenceTuf: string
+    /// Whether a CLI requirement is in the grammar, or, with a CLI version, whether that version meets it.
+    | CliRequirement of name: string * requirement: string * cliVersion: string option * expected: CliExpected
 
     member this.Name =
         match this with
@@ -66,7 +75,9 @@ type BindingCase =
         | Nfc(name, _, _)
         | SetupPlatforms(name, _, _, _)
         | PrerequisiteVersions(name, _, _, _)
-        | Version(name, _, _, _) -> name
+        | Version(name, _, _, _)
+        | CanonicalJson(name, _, _, _)
+        | CliRequirement(name, _, _, _) -> name
 
     member this.Kind =
         match this with
@@ -78,6 +89,8 @@ type BindingCase =
         | LockRequestBytes _ -> "lock-request-bytes"
         | PlanLock _ -> "plan-lock"
         | Discover _ -> "discover"
+        | CanonicalJson _ -> "canonical-json"
+        | CliRequirement _ -> "cli-requirement"
         | MepVersion _ -> "mep-version"
         | Nfc _ -> "nfc"
         | SetupPlatforms _ -> "setup-platforms"
@@ -247,4 +260,23 @@ let bindings () : BindingCase list =
           | "version" ->
               requireKnown name (common @ [ "comparator"; "version" ]) case
               Version(name, optBool case "comparator", str case "version", expected name case)
+          | "canonical-json" ->
+              requireKnown name (common @ [ "value"; "referenceTuf" ]) case
+              CanonicalJson(name, case.GetProperty("value").GetRawText(), str case "expected", str case "referenceTuf")
+          | "cli-requirement" ->
+              requireKnown name (common @ [ "requirement"; "cliVersion" ]) case
+              let value = case.GetProperty "expected"
+
+              let outcome =
+                  if value.ValueKind = JsonValueKind.Object && (value.TryGetProperty "met" |> fst) then
+                      requireKnown $"{name} expected" [ "met" ] value
+
+                      match value.GetProperty("met").ValueKind with
+                      | JsonValueKind.True -> CliMet true
+                      | JsonValueKind.False -> CliMet false
+                      | _ -> failwithf "%s expected met is not a boolean" name
+                  else
+                      CliRead(expected name case)
+
+              CliRequirement(name, str case "requirement", optStr case "cliVersion", outcome)
           | other -> failwithf "binding %s has kind %s, which this suite does not run" name other ]

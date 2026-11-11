@@ -245,6 +245,10 @@ module internal Emit =
         | FloatLiteral value -> TargetSyntax.floatLiteral value
         | DecimalLiteral value -> TargetSyntax.decimalLiteral value
 
+    /// Formats with Fantomas, which needs dynamic generic reflection. Native AOT cannot run it, so its only caller,
+    /// render, calls it behind RuntimeFeature.IsDynamicCodeSupported; ILC removes that branch. The attribute makes ILC
+    /// report IL3050 for any call it keeps, and the Native AOT publish of morphir treats IL3050 as an error.
+    [<System.Diagnostics.CodeAnalysis.RequiresDynamicCode("Fantomas formats through dynamic generic reflection, which Native AOT cannot run. Call it only behind RuntimeFeature.IsDynamicCodeSupported.")>]
     let private formatCore source =
         let parsed =
             Fantomas.Core.CodeFormatter.ParseOakAsync(false, source)
@@ -259,14 +263,35 @@ module internal Emit =
         |> Fantomas.Core.CodeFormatter.FormatOakAsync
         |> Async.RunSynchronously
 
-    let format source =
+
+    /// What rendering does for the setting in this runtime. Fantomas needs dynamic generic reflection, so a
+    /// Native AOT host keeps the emitter's text.
+    let formattingFor (format: bool) =
+        if not format then
+            FSharpFormatting.Off
+        elif System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported then
+            FSharpFormatting.Applied
+        else
+            FSharpFormatting.Unavailable
+
+    /// The emitter's own text, with the unformatted rule: LF line endings only, and exactly one final LF.
+    let private unformatted (source: string) =
+        source.Replace("\r\n", "\n").Replace('\r', '\n').TrimEnd('\n')
+        + "\n"
+
+    /// Renders the emitter's complete F# source as the formatting decision says.
+    let render (formatting: FSharpFormatting) source =
         try
-            // The emitter already produces complete F# source. Fantomas requires dynamic generic
-            // reflection, so native hosts retain that source and validate it through the same corpus.
-            if System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported then
-                formatCore source
-            else
-                source
+            match formatting with
+            // The check stays here, around the only call of Fantomas: Native AOT compiles IsDynamicCodeSupported to
+            // false and removes this branch, so Fantomas and its reflection are not in the native image.
+            | FSharpFormatting.Applied when System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported -> formatCore source
+            // Every path that does not format applies the same rule, so the default without the formatter (Native AOT)
+            // writes the bytes of Format false by construction. The emitter's text already follows the rule (it joins
+            // with LF and ends with one LF), so these bytes are those the default wrote before.
+            | FSharpFormatting.Applied
+            | FSharpFormatting.Off
+            | FSharpFormatting.Unavailable -> unformatted source
         with error ->
             Decode.fail
                 "fsharp-generation"
@@ -274,7 +299,7 @@ module internal Emit =
                 ("F# rendering failed: "
                  + error.Message)
 
-    let generate (model: Decode.Model) =
+    let generate (formatting: FSharpFormatting) (model: Decode.Model) =
         packageNames model.Package
         |> ignore
 
@@ -1210,7 +1235,7 @@ module internal Emit =
                          @ valueDeclarations)
                     + "\n"
 
-                let formatted = format source
+                let formatted = render formatting source
 
                 path,
                 dependencies,

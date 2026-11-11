@@ -53,6 +53,9 @@ public static class PackagedRun
     /// <summary>The working directory of a run, below the sandbox root; its name contains a space.</summary>
     public const string WorkDirectoryName = "work dir";
 
+    internal static string CreateWorkingDirectory(string sandboxRoot) =>
+        CanonicalPath.Of(Directory.CreateDirectory(Path.Combine(sandboxRoot, WorkDirectoryName)).FullName);
+
     public static Task<PackagedRunResult> RunAsync(
         PackagedInstallation installation, string[] arguments, RuntimeAccess access, Action<string>? prepare = null) =>
         RunLaunchAsync(installation.LaunchPath, installation.Directory, () => arguments, access, prepare);
@@ -78,7 +81,7 @@ public static class PackagedRun
         string launchPath, string installationDirectory, Func<string[]> arguments, RuntimeAccess access, Action<string>? prepare)
     {
         await using var sandbox = TestSandbox.Create("morphir-packaged-");
-        var work = Directory.CreateDirectory(Path.Combine(sandbox.Root, WorkDirectoryName)).FullName;
+        var work = CreateWorkingDirectory(sandbox.Root);
         prepare?.Invoke(work);
         var trace = Path.Combine(sandbox.Root, "host-trace.txt");
 

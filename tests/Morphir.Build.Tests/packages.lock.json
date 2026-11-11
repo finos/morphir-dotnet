@@ -548,6 +548,9 @@
           "TUnit.Core": "1.81.10"
         }
       },
+      "morphir-mck": {
+        "type": "Project"
+      },
       "morphir.testsupport": {
         "type": "Project"
       },

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using Microsoft.Extensions.DependencyInjection;
 using Morphir.Extensions;
+using Morphir.Tooling.Features.Mck;
 using Morphir.Tooling.Scenarios;
 
 namespace Morphir.Tooling;
@@ -29,6 +30,11 @@ public static class MorphirApplication
         {
             return Features.Extensions.ExtensionWorkerProcess.Run(args, host);
         }
+
+        // MCK-1: "mck" routes the rest of the command line, unparsed, to the separately installed morphir-mck. This
+        // runs before the command tree is built, so no help, response-file expansion or console redirection applies.
+        if (args.Length > 0 && args[0] == MckTool.Command)
+            return MckTool.Run(args[1..]);
 
         // Handle --version flag explicitly to output only the version string
         // This must be done before creating the builder to avoid console redirection
@@ -63,9 +69,8 @@ public static class MorphirApplication
             .AddScenario<ConfigurationScenario>()
             .AddScenario<ProjectScenario>()
             .AddScenario<WorkspaceScenario>()
-            // Experimental and internal: morphir mck wasm-host run and report-check (add-wasm-extension-host 1.5).
-            .AddScenario<MckScenario>()
-            .AddCommand(CreateInfoCommand());
+            .AddCommand(CreateInfoCommand())
+            .AddCommand(CreateMckCommand());
         extend?.Invoke(builder);
         return builder.Build();
     }
@@ -81,5 +86,34 @@ public static class MorphirApplication
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout("Morphir command line info:");
         });
         return infoCommand;
+    }
+
+    /// <summary>
+    /// The 'mck' command, mainly so that help lists it. <see cref="Run"/>, which every entry point calls, routes
+    /// <c>mck</c> before the command tree is built, and only that path passes the arguments through unchanged.
+    /// When an app built with <see cref="CreateApp"/> parses <c>mck</c> itself, System.CommandLine has already applied
+    /// its own processing: <c>--help</c> or <c>-h</c> after <c>mck</c> shows this command's help instead of reaching the
+    /// tool, and an <c>@file</c> argument is expanded as a response file. The tokens left after <c>mck</c> are then
+    /// passed on in order.
+    /// </summary>
+    private static System.CommandLine.Command CreateMckCommand()
+    {
+        var arguments = new System.CommandLine.Argument<string[]>("arguments")
+        {
+            Arity = System.CommandLine.ArgumentArity.ZeroOrMore,
+            Description = "The arguments for morphir-mck. The morphir command passes them on unchanged",
+        };
+        var mck = new System.CommandLine.Command(MckTool.Command,
+            "Run the separately installed Morphir Compatibility Kit (morphir-mck) with the arguments that follow")
+        {
+            arguments,
+        };
+        mck.TreatUnmatchedTokensAsErrors = false;
+        mck.SetAction((parseResult, cancellationToken) =>
+        {
+            var tokens = parseResult.Tokens.Select(token => token.Value).SkipWhile(value => value != MckTool.Command).Skip(1).ToArray();
+            return Task.FromResult(MckTool.Run(tokens, cancellationToken: cancellationToken));
+        });
+        return mck;
     }
 }

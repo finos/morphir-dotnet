@@ -109,8 +109,9 @@ module FSharpGuest =
     /// The guest trusts no evidence. It claims no guarantee, so a required guarantee is refused before trust applies.
     let private trustNone = Func<ModelGuaranteeEvidence, bool>(fun _ -> false)
 
-    /// The generation options, with the rule of the built-in backend: only the Boolean option optimize, which is
-    /// true when absent.
+    /// The generation options, with the rule of the built-in backend: the Boolean options optimize (exact constant
+    /// folding) and format (Fantomas formatting; false writes the emitter's own text with LF line endings and one
+    /// final LF), each true when absent.
     let options (values: IReadOnlyDictionary<string, JsonElement>) : Result<GenerationOptions, RpcError> =
         values
         |> Seq.fold
@@ -119,7 +120,9 @@ module FSharpGuest =
                 |> Result.bind (fun current ->
                     match key, value.ValueKind with
                     | "optimize", (JsonValueKind.True | JsonValueKind.False) -> Ok { current with Optimize = value.GetBoolean() }
-                    | _ -> Error(invalidParams $"The F# backend accepts only the Boolean option 'optimize'; received '{key}'.")))
+                    | "format", (JsonValueKind.True | JsonValueKind.False) -> Ok { current with Format = value.GetBoolean() }
+                    | _ ->
+                        Error(invalidParams $"The F# backend accepts only the Boolean options 'optimize' and 'format'; received '{key}'.")))
             (Ok GenerationOptions.Default)
 
     /// The declared formatVersion text of a JSON model: a string, or the raw text of a number.

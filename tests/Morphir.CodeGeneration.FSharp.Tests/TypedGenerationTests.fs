@@ -68,7 +68,7 @@ open Morphir.CodeGeneration.FSharp
 let generateLibrary (model: VersionedModel) =
     Transpiler.generateModel model (VFile.fromPath "retained/model.ion")
 let generateWithoutFolding (model: VersionedModel) =
-    Transpiler.generateModelWith { Optimize = false } model (VFile.fromPath "retained/model.ion")
+    Transpiler.generateModelWith { GenerationOptions.Default with Optimize = false } model (VFile.fromPath "retained/model.ion")
 printfn "%b" GenerationOptions.Default.Optimize
 """
 

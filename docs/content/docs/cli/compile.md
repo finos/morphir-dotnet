@@ -182,7 +182,7 @@ An extension failure is exit code 2 with one of these codes:
 
 | Code | Meaning |
 | --- | --- |
-| `extension.unavailable` | The guest did not start, or the session did not initialize. |
+| `extension.unavailable` | The guest did not start, the session did not initialize, or the guest gave an id reserved for built-ins (every id that starts with `morphir.`). |
 | `extension.not_admitted` | The agreed session does not admit the request, for example its IR version. |
 | `extension.tuple_unavailable` | The host and the guest agreed no `compileModel` tuple, so no request can be sent. |
 | `extension.protocol_error` | The guest broke the protocol, for example it wrote a log line to stdout. |
@@ -229,6 +229,10 @@ must write is already there and an earlier install did not write it, the command
 
 ## Compile and generate
 
+`compile` writes its task output and record, and can install IR or generated files.
+It currently has no `--dry-run` option; `--option format=false` controls formatting
+of generated F# only.
+
 With `--target <id> --generate-output <directory>`, a successful compile continues into generation in the
 same run. The command gives the exact IR bytes that it wrote to the model loader of `generate --input`, and
 then runs the generation stages of `generate`: backend selection, `--option` validation, generation and
@@ -243,7 +247,10 @@ Both give the same files with the same bytes, and both reports name the same bac
 configuration selects no backend extension. `compile --target` always runs the built-in backend of the target
 and does not read `[codegen.<target>].extension`; when that key is set, the command prints a note on stderr,
 and only `morphir generate` runs the extension. Classic IR versions
-(`1`, `2` and `3`) give a classic model, and the backend uses its classic path.
+(`1`, `2` and `3`) give a classic model, and the backend uses its classic path. As in `generate`, the
+`generation` member says whether the built-in backend formatted the files (`formatting`: `applied`, `off` or
+`unavailable`), and a host that cannot run the formatter (the Native AOT `morphir`) writes a warning on stderr,
+never on stdout or in the JSON output. Pass `--option format=false` for the unformatted files without the warning.
 
 - Generation does not run when the compile fails.
 - When generation fails, the compiled IR stays published. The report has `success: false`, the `output`
@@ -313,7 +320,8 @@ $ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --
       "Totals.fs"
     ],
     "unchanged": [],
-    "removed": []
+    "removed": [],
+    "formatting": "applied"
   }
 }
 ```
@@ -406,7 +414,7 @@ The report members are:
 | `diagnostics` | Every diagnostic of the run, ordered by stage, then document, then position. |
 | `failureKind` | `source`, `invocation`, `configuration`, `operational` or `cancelled`, or null. |
 | `origins` | Where each setting came from: `cli` with its `flag`, `configuration` with its `file` and `key`, or `default`. |
-| `generation` | Only with `--target`: `target`, `backend` (null when selection failed), `output`, and the `generate` report members `sourceVersion`, `family`, `distributionKind`, `representation`, `artifacts`, `written`, `unchanged` and `removed`. |
+| `generation` | Only with `--target`: `target`, `backend` (null when selection failed), `output`, and the `generate` report members `sourceVersion`, `family`, `distributionKind`, `representation`, `artifacts`, `written`, `unchanged` and `removed`, and `formatting` when the backend reports it. |
 
 Diagnostics have the frontend (MEP) shape: `severity`, `code`, `message`, and optional `location` (a
 document `uri` and a zero-based `range` in UTF-16 code units), `related` and `data`. A location `uri` is

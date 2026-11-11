@@ -883,6 +883,23 @@ module ResultDocument =
         | Outcome.Succeeded -> not hasError
         | Outcome.Planned -> not hasError && Option.isSome plan
 
+    /// Every number inside a plan is covered by its digest, including unknown members. Other documents ignore
+    /// unknown members, but plans must apply the document integer rules at every depth (index.md, integer bound).
+    let rec private planNumbers (n: Node) : Read<unit> =
+        match n.Value with
+        | Value.Number _ -> integer n |> Result.map ignore
+        | Value.Object members ->
+            result {
+                for name, value in members do
+                    do! planNumbers (node value (n.Path.Child name))
+            }
+        | Value.Array values ->
+            result {
+                for index, value in List.indexed values do
+                    do! planNumbers (node value (n.Path.At index))
+            }
+        | _ -> Ok()
+
     let private body (o: ObjectNode) : Read<ManagerResult> =
         result {
             let! command = required "command" (tag (Command.all |> List.map (fun (command, name) -> name, command))) o
@@ -900,7 +917,8 @@ module ResultDocument =
                 match plan, planSha256, tryMember "plan" o with
                 | None, None, _ -> Ok None
                 | Some plan, Some stated, Some planNode ->
-                    Canonical.bytesAt planNode.Path planNode.Value
+                    planNumbers planNode
+                    |> Result.bind (fun () -> Canonical.bytesAt planNode.Path planNode.Value)
                     |> Result.bind (fun canonical ->
                         let actual = Sha256.ofBytes canonical
 

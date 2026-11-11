@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-parent-cli-delivery-and-mck-dispatch: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-parent-cli-delivery-and-mck-dispatch: design</h1>
+<p class="meta">OpenSpec change | 11 November 2026 | approved by the maintainer (finos/morphir-dotnet#589, finos/morphir#1153)</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for why. The requirements are in
+<a href="specs/cli-tool-dispatch/spec.md">specs/cli-tool-dispatch</a> and
+<a href="specs/cli-build-interface/spec.md">specs/cli-build-interface</a>.</p>
+<ul>
+<li><strong>One command layer.</strong> All three entry points (the Native AOT <code>morphir</code> in <code>src/Morphir</code>, the
+managed <code>morphir</code> in <code>src/Morphir.Managed</code> and <code>dotnet-morphir</code> in <code>src/Morphir.Tool</code>) call
+<code>MorphirApplication.Run</code> in <code>src/Morphir.Tooling</code>. It handles <code>--version</code> before System.CommandLine is
+built, and the rest goes through <code>MorphirCliBuilder</code>, which redirects <code>Console.Out</code> to standard error so that
+only command output reaches standard output.</li>
+<li><strong>No MCK in the CLI today.</strong> <code>src/Morphir.Conformance</code> is a library: the case reader, the comparisons, the runner,
+<code>FrontendAdapter</code> (in-process frontends through <code>Morphir.Compilation</code>) and <code>CliAdapter</code> (runs a CLI executable).
+No entry point references it; only test projects do. The parent's <code>morphir-mck</code>, extracted under modified
+Decision 16A, is the only MCK executable for now.</li>
+<li><strong>Process code already exists.</strong> <code>Morphir.Tooling/Infrastructure/BoundedProcess.cs</code> runs a child with captured pipes, a
+deadline and a byte budget, and stops its tree, with <code>kill</code> on a process group on Unix. Routing needs the
+opposite: inherited streams and no budget.</li>
+<li><strong>Publication in this change.</strong> <code>.github/workflows/deployment.yml</code> publishes libraries and both F# extension tools.
+It builds and publishes the legacy CLI assets, morphirup and <code>Morphir.Tool</code> only behind the rollback variable.
+The parent owns official delivery through <code>cli-offering.yml</code> and the named release profiles
+<code>PublishRelease</code> and <code>PackRelease</code>. This change publishes no release.</li>
+<li><strong>Main integration.</strong> The 11 November refresh retains main at <code>017e05b1</code>, including build-time offering identity,
+<code>setup --dry-run</code>, the contract corpus, reserved Morphir IDs, frontend schema object members, the cancellation test fix
+and the recorded macOS minimum. Every entry point still calls <code>MorphirApplication.Run</code>, so routing stays before parsing
+and does not alter the host or offering identities.</li>
+</ul>
+<p>The shared-contract authorities are merged parent changes, not decisions made here. finos/morphir#1147 owns the
+toolchain contracts; #1152 requires one version per family, published schema URLs and exact prerelease matching without
+conversion. Any valid SemVer prerelease label is allowed; the extension state family keeps <code>0.1.0-preview.1</code>.
+MEP 0.2, IR and tool release metadata v1 retain their separate authorities. #1150 owns shared extension state, locks and
+old-state backups. #1151's VERIFY-B checks manifest digest, names, sizes and modes at activation, with full file hashes
+at install and on request; LAUNCH-A launches packages from the shared store with a process-tree lease and deletes bytes
+only by explicit collection, never uninstall. Package-version timing is still its task 1.1. Package implementation is
+outside this change, and those leases do not change the approved <code>mck</code> process contract.</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals.</strong></p>
+<ul>
+<li>A routing of <code>mck</code> that behaves like running the standalone tool, in every entry point.</li>
+<li>One switch that stops CLI publication here without touching library publication.</li>
+<li>A build interface that finos/morphir can call at a pinned commit and that starts the executables it produces.</li>
+</ul>
+<p><strong>Non-goals.</strong></p>
+<ul>
+<li>A general plugin mechanism (<code>morphir &lt;name&gt;</code> running <code>morphir-&lt;name&gt;</code>).</li>
+<li>Implementing or porting MCK commands, or moving <code>Morphir.Conformance</code> into a tool.</li>
+<li>The parent's workflows, its <code>.gitmodules</code>, its docs and the removal of the Rust CLI, which the parent worker owns.</li>
+<li>A production release, CET mitigation or WASM engine changes.</li>
+</ul>
+
+<svg viewBox="0 0 760 210" role="img" aria-labelledby="flow-title flow-desc">
+<title id="flow-title">Routing of morphir mck</title>
+<desc id="flow-desc">The user runs morphir mck with arguments. MorphirApplication.Run sees mck first, resolves morphir-mck through MORPHIR_MCK or the absolute PATH folders, and starts it with the same arguments, working directory and inherited standard streams. On Windows the CLI process is in a job object that ends the tool's tree when the CLI ends. The CLI exits with the tool's exit code. With no tool found, it writes a diagnostic to standard error and exits with 127.</desc>
+<g fill="none" stroke="var(--line)" stroke-width="2">
+<rect x="10" y="20" width="170" height="60" rx="8"/><rect x="230" y="20" width="230" height="60" rx="8"/>
+<rect x="510" y="20" width="240" height="60" rx="8"/><rect x="230" y="130" width="230" height="60" rx="8"/>
+</g>
+<g fill="var(--fg)" font-size="14" text-anchor="middle">
+<text x="95" y="46">morphir mck &lt;args&gt;</text><text x="95" y="66">any entry point</text>
+<text x="345" y="46">MorphirApplication.Run</text><text x="345" y="66">resolve morphir-mck</text>
+<text x="630" y="46">morphir-mck &lt;args&gt;</text><text x="630" y="66">same cwd, streams; its exit code</text>
+<text x="345" y="156">not found: stderr diagnostic</text><text x="345" y="176">exit 127, nothing on stdout</text>
+</g>
+<g fill="none" stroke="var(--link)" stroke-width="2"><path d="M180 50H230M460 50H510M345 80V130"/></g>
+</svg>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="mck-1">MCK-1. Route before System.CommandLine parses</h3>
+<p><code>MorphirApplication.Run</code> checks whether the first argument is exactly <code>mck</code>, before it builds the command
+tree, and routes the rest of the arguments unparsed.</p>
+<ul>
+<li><strong>Why before the parser.</strong> Pass-through must be exact. System.CommandLine applies its recursive <code>--help</code> and its
+response-file (<code>@file</code>) expansion before any action runs.</li>
+<li><strong>Why it is still a command.</strong> The tree also gets an <code>mck</code> command that takes the remaining tokens and routes them the
+same way, so that <code>morphir --help</code> lists it. A host built with <code>CreateApp</code> alone parses first: System.CommandLine
+handles help and expands response files before the action. Only <code>Run</code> gives the unparsed pass-through contract.</li>
+<li><strong>Alternative.</strong> Only a command with <code>TreatUnmatchedTokensAsErrors = false</code>. Rejected, because help and response
+files would still be interpreted.</li>
+</ul>
+
+<h3 id="mck-2">MCK-2. Inherit the streams, the working directory and the environment</h3>
+<p>The tool starts with <code>UseShellExecute = false</code> and no redirection, so it inherits the CLI's operating-system
+standard handles. Pipes, redirection, terminal detection and colours then behave as for the standalone tool, and
+nothing is copied or buffered. The working directory is the CLI's current directory and the environment is the CLI's.
+The routing runs before the CLI builder, so the CLI writes nothing to standard output and no logging is set up.</p>
+<p><strong>Alternative.</strong> Redirecting and pumping the streams. Rejected: it breaks TTY detection and adds a buffer that can
+reorder standard output and standard error.</p>
+
+<h3 id="mck-3">MCK-3. Resolve through MORPHIR_MCK or absolute PATH folders only</h3>
+<p>A pure resolver takes <code>MORPHIR_MCK</code>, <code>PATH</code>, the platform and a file probe, and returns either an absolute path or a
+refusal.</p>
+<ul>
+<li><strong><code>MORPHIR_MCK</code>,</strong> when set, must be an absolute path to an existing file. A relative path is refused, not
+resolved against the current directory.</li>
+<li><strong>Otherwise,</strong> the <code>PATH</code> entries are taken in order. Empty and relative entries, <code>.</code> included, are skipped.</li>
+<li><strong>The candidate</strong> is <code>morphir-mck.exe</code> on Windows: <code>.cmd</code> and <code>.bat</code> would need <code>cmd.exe</code>. Elsewhere it is
+<code>morphir-mck</code>, a regular file with an execute bit.</li>
+<li><strong>The resolved absolute path</strong> is what starts. So the Windows search order of <code>CreateProcess</code>, which includes the
+application folder and the current directory, never applies.</li>
+</ul>
+<p>The resolver is the unit-tested core. The process start is tested end to end (see <a href="#mck-6">MCK-6</a>).</p>
+
+<h3 id="mck-4">MCK-4. Interrupts reach the tool; termination stops its tree</h3>
+<ul>
+<li><strong>Ctrl+C</strong> reaches every process of the console (Windows) or of the foreground process group (Unix), so the tool gets it
+directly. The CLI cancels its own default handling (<code>Console.CancelKeyPress</code>, <code>SIGINT</code>), waits, and exits with the
+tool's code, as <code>dotnet run</code> does.</li>
+<li><strong>SIGTERM or SIGHUP</strong> on Linux and macOS stops the tool's process tree, and the CLI exits with 143. A forwarded
+SIGTERM would reach only the tool, and its children would be orphaned once it exited, so the tree is stopped while
+the CLI can still find it. A graceful stop is what Ctrl+C is for.</li>
+<li><strong>Windows.</strong> Before the tool starts, the CLI puts itself into a job object with
+<code>JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE</code>. The tool and everything it starts inherit the job, so there is no window
+between start and assignment. When the CLI process ends, even by <code>TerminateProcess</code>, its handle closes and Windows
+ends every process in the job. If the job cannot be created (an old system that refuses nested jobs), routing goes on
+without it and says so on standard error.</li>
+<li><strong>A cancellation token</strong> (the command-tree path) kills the tool's tree.</li>
+</ul>
+<p>Signal handlers and cancellation are registered before process start. An already cancelled token starts nothing and
+returns 130. A request during start stops the tree once it attaches. Partial tree-stop failures are reported on standard
+error rather than escaping a signal handler. These paths use <code>MckTermination</code>; no package-store lease is involved.</p>
+<p><strong>Alternative.</strong> Assigning the child to a job after <code>Process.Start</code>. Rejected: the child can start processes before it
+is assigned.</p>
+
+<h3 id="mck-5">MCK-5. Exit code 127 for a missing tool</h3>
+<p>127 is the shell's "command not found". It does not collide with the codes a gate tool uses for its own results
+(0, 1, 2), so a CI job can tell "no tool" from "gate failed". A refused <code>MORPHIR_MCK</code> also exits with 127, and a
+resolved file that cannot be started exits with 126, the shell's "not executable". The diagnostic names
+<code>morphir-mck</code>, where it looked (<code>MORPHIR_MCK</code> and the absolute folders on PATH, not the current directory),
+and that the tool is a separately installed, development-only tool from finos/morphir.</p>
+
+<h3 id="mck-6">MCK-6. Test with a stub tool and the produced apphosts</h3>
+<ul>
+<li><strong>The stub.</strong> <code>tests/Morphir.Mck.Stub</code> builds an apphost named <code>morphir-mck</code>. It writes its arguments, working
+directory and standard input as JSON, writes a line to standard error, exits with a requested code, and can start a
+grandchild and wait.</li>
+<li><strong>What runs.</strong> The tests start the produced apphosts (<code>morphir</code>, <code>dotnet-morphir</code>, the managed <code>morphir</code>), not
+<code>dotnet exec</code>, with <code>PATH</code> set to the stub's folder.</li>
+<li><strong>What they compare.</strong> Arguments, working directory, standard input, the separation of standard output and standard
+error, the exit code, routed against standalone output, the missing-tool diagnostic, and that killing the CLI stops
+the stub and its grandchild.</li>
+</ul>
+
+<h3 id="dlv-1">DLV-1. Stop CLI publication behind one repository variable</h3>
+<p>In <code>deployment.yml</code>:</p>
+<ul>
+<li><code>build-executables</code>, <code>build-morphirup</code> and the CLI parts of <code>create-github-release</code> run only when
+<code>vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled'</code>.</li>
+<li>The <code>release</code> job always runs <code>PublishLibs</code> and <code>PublishExtensionTools</code>, and runs
+<code>PublishCliTool</code> only under the same condition. <code>PublishTool</code> still combines both tool targets,
+and <code>PublishAll</code> keeps its earlier scope.</li>
+<li>The GitHub release of this repository is still created, for the library release notes, with no CLI assets unless
+enabled.</li>
+</ul>
+<p>Unset, the default stops competing publication at once. Setting the variable is the rollback, with no code change.</p>
+<p><strong>The legacy names are decided, not open.</strong> Under REL-1 of <code>add-deployment-and-acquisition</code>
+(maintainer decision of 9 November 2026, finos/morphir#1146), future official <code>morphir-&lt;rid&gt;</code> assets carry
+the same Native AOT bytes as the <code>native-aot</code> archive, published once, and the trimmed managed single-file
+build is retired as a product build. The assets of published releases stay as they are. The parent gets those bytes
+from the <code>native-aot</code> offering of <a href="#dlv-2">DLV-2</a> and publishes them under the legacy names; it does
+not need <code>PublishSingleFile</code>. The gated <code>build-executables</code> job here still runs
+<code>PublishSingleFile</code>: it is the earlier release path kept unchanged as a rollback, not the decided product
+build.</p>
+<p><strong>Alternative.</strong> Deleting the jobs. Rejected for now: the parent's channel is not yet live, and the jobs are the
+rollback.</p>
+
+<h3 id="dlv-2">DLV-2. A reusable workflow at a pinned commit</h3>
+<p><code>.github/workflows/cli-offering.yml</code> is a <code>workflow_call</code>. It takes these inputs:</p>
+<ul>
+<li><code>repository</code>, default <code>finos/morphir-dotnet</code>;</li>
+<li><code>ref</code>, a commit SHA, required;</li>
+<li><code>deployment</code>: <code>native-aot</code>, <code>self-contained</code>, <code>framework-dependent</code> or <code>dotnet-tool</code>;</li>
+<li><code>rid</code>, empty for <code>dotnet-tool</code>;</li>
+<li><code>os</code>;</li>
+<li><code>configuration</code>.</li>
+</ul>
+<p>It checks out that repository at that ref with full history, because the version comes from the CHANGELOG and the
+commit. It sets up the SDK from the checkout's <code>global.json</code> and runs <code>./build.sh --target PackRelease</code>. It
+checks that the result starts:</p>
+<ul>
+<li>an archive is extracted and its <code>morphir</code> apphost or Native AOT executable is started with <code>--version</code>;</li>
+<li>the tool package is installed into a tool path by <code>.github/scripts/install-tool-package.ps1</code> and
+<code>dotnet-morphir --version</code> is started. The helper uses a feed containing only the built package, an isolated
+NuGet configuration and fresh caches, then checks the installed package and every extracted tool file against the built bytes.</li>
+</ul>
+<p>It uploads the artifact <code>morphir-dotnet-&lt;deployment&gt;-&lt;rid|any&gt;</code>, with the archive or package, its
+<code>.build-launch.json</code>, <code>.build-contents.json</code> and a <code>.sha256</code> file. Its outputs are the artifact name,
+the file name, the SHA-256 and the release version. The executable's version before <code>+</code> must match that release.</p>
+<p>The same helper supports <code>-Local</code> for a manifest install invoked as <code>dotnet morphir</code>, and
+<code>-ResultFile</code> for internal JSON evidence written only after all checks pass. Both install modes verify the built bytes.
+The parent consumes this helper; it must not gain a second installer or checker. These are build checks, not acquisition.</p>
+<p>The parent owns official <code>v&lt;version&gt;</code> release tags. This workflow publishes nothing and has not itself run on
+GitHub. Its start check on an SDK-equipped runner proves neither .NET-free execution nor a glibc floor. It grants no
+release or platform qualification. The parent's contract-test pin <code>f89dda45</code> is separate from its CLI delivery
+source candidate; this refresh changes neither pin.</p>
+<ul>
+<li><strong>Why the caller's ref is checked out.</strong> In a reusable workflow, <code>actions/checkout</code> checks out the caller's
+repository by default.</li>
+<li><strong>Why it is a workflow.</strong> The parent can call it at the same commit it pins as <code>ecosystem/morphir-dotnet</code>, without copying
+the build logic.</li>
+<li><strong>Alternative.</strong> The parent runs the Nuke targets in its submodule directly. That stays possible, and the targets are
+part of the documented interface.</li>
+</ul>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Between this change and the parent's first release, no CLI is published anywhere.</td><td>No production release is planned. <code>MORPHIR_DOTNET_CLI_PUBLICATION=enabled</code> restores publication here if one is needed.</td></tr>
+<tr><td>The job object also ends a process that the tool meant to leave running after it exits.</td><td>A gate tool has no reason to leave daemons; this is stated in the docs. The job applies only to <code>mck</code>.</td></tr>
+<tr><td>On Linux and macOS a SIGKILL of the CLI cannot be forwarded, so the tool keeps running.</td><td>Stated as a limit. Strict SIGTERM checks passed for the native-composition and dotnet-tool apphosts. Ctrl+C, SIGHUP and managed Unix SIGTERM lack automated coverage.</td></tr>
+<tr><td>At <code>8c15df59</code>, Linux SIGTERM tests timed out waiting for the grandchild.</td><td>Later passes at <code>5b84ddda</code> and <code>51be09f2</code> do not explain the failure. Retain it as unresolved evidence; do not claim a root cause or qualify a platform.</td></tr>
+<tr><td>Ctrl+C sent to the CLI's process id alone (<code>kill -INT</code>), not to its group, does not reach the tool.</td><td>The tool still stops on SIGTERM or when the CLI's tree is stopped. Interactive Ctrl+C reaches the whole group.</td></tr>
+<tr><td>The reusable workflow builds what the profiles define. A qualification gap in a profile (the macOS packaged input path under <code>/var</code>, which resolves to <code>/private/var</code>) carries into the parent.</td><td>It is recorded as unqualified evidence, and no link check is weakened.</td></tr>
+<tr><td>Tests that start apphosts depend on the runtime being found.</td><td>The tests pass <code>DOTNET_ROOT</code> from the test's own runtime.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ol>
+<li>This change lands. A release tag here then publishes libraries only.</li>
+<li>finos/morphir pins this repository as <code>ecosystem/morphir-dotnet</code> and calls <code>cli-offering.yml</code> at the pinned
+commit for each offering and platform. It qualifies the artifacts and publishes them, <code>Morphir.Tool</code> included,
+under its release tags.</li>
+<li>The parent provides <code>morphir-mck</code> (modified Decision 16A). Its development gates run through it, standalone or as
+<code>morphir mck</code>.</li>
+<li>Rollback: set <code>MORPHIR_DOTNET_CLI_PUBLICATION=enabled</code> in this repository. Routing <code>mck</code> needs no rollback: without
+a tool it is a diagnostic.</li>
+</ol>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li><strong>When the job definitions are deleted.</strong> The variable-gated jobs can be removed once the parent has published a
+release. That is a follow-up change, not part of this one.</li>
+<li><strong>Validation of the refreshed head.</strong> All 13 checks and the independent no-blocker review concern exactly
+<code>51be09f25107145f10c3046da333cc781dc2724a</code>. They do not review or validate the new main integration. Root owns
+new-head CI and review; this merge/docs refresh runs no local .NET build, test or publish while its heavy CPU slot is reserved.</li>
+</ul>
+
+</main>
+</body>
+</html>

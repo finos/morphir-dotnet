@@ -1,6 +1,8 @@
 namespace Morphir.CodeGeneration.FSharp
 
+open System.Diagnostics.CodeAnalysis
 open System.IO
+open System.Runtime.InteropServices
 open System.Text.Json
 open Morphir.IR.Classic
 open Morphir.IR.Model
@@ -12,6 +14,12 @@ open Morphir.IR.Pipeline.Plugins
 module Transpiler =
     /// The generated modules in dependency order, stored as tree metadata.
     let manifest = Property.create<ManifestEntry list> "morphir.fsharp.manifest"
+
+    /// <summary>
+    /// Whether the files of the tree were formatted: applied, off (GenerationOptions.Format is false) or unavailable
+    /// (formatting was asked for, but the runtime cannot run Fantomas, as under Native AOT).
+    /// </summary>
+    let formatting = Property.create<FSharpFormatting> "morphir.fsharp.formatting"
 
     /// Requirements supplied by admission/callers, separately from opaque IR extension data.
     let requiredSemantics =
@@ -42,7 +50,13 @@ module Transpiler =
         match error with
         | GenerationFailure(category, location, message) -> Some(category, location, message)
         | :? JsonException as ex ->
-            Some("parse", (if isNull ex.Path then "$" else ex.Path), ex.Message)
+            Some(
+                "parse",
+                (match ex.Path with
+                 | null -> "$"
+                 | path -> path),
+                ex.Message
+            )
         | :? System.InvalidOperationException as ex -> Some("decode", "$", ex.Message)
         | :? System.FormatException as ex -> Some("decode", "$", ex.Message)
         | _ -> None
@@ -107,7 +121,7 @@ module Transpiler =
             with ExpectedFailure(rule, location, message) ->
                 invalid rule location message
 
-    let private artifacts (modules: GeneratedModule list) =
+    let private artifacts (rendered: FSharpFormatting) (modules: GeneratedModule list) =
         let tree =
             modules
             |> List.map (fun generated ->
@@ -121,6 +135,7 @@ module Transpiler =
             VFileTree.declaredOrder
             (modules
              |> List.map (fun generated -> generated.RelativePath))
+        |> VFileTree.set formatting rendered
         |> VFileTree.set
             manifest
             (modules
@@ -130,9 +145,9 @@ module Transpiler =
              }))
 
     /// Emits one file per module, declaring dependency order separately from directory structure.
-    let private compile (model: Decode.Model) (_: VFile) : VFileTree =
+    let private compile (rendered: FSharpFormatting) (model: Decode.Model) (_: VFile) : VFileTree =
         try
-            artifacts (Emit.generate model)
+            artifacts rendered (Emit.generate rendered model)
         with ExpectedFailure(rule, location, message) ->
             VFileTree.empty
             |> VFileTree.report
@@ -188,21 +203,21 @@ module Transpiler =
                 Some model, checkedFile
             )
 
-    let private withoutOptimizer: MorphirProcessor<Decode.Model> = pipeline {
+    let private withoutOptimizer (rendered: FSharpFormatting) : MorphirProcessor<Decode.Model> = pipeline {
         parse (Parser.forFile parseModel)
         uses scopeValidator
         uses typeValidator
-        stringify compile
+        stringify (compile rendered)
     }
 
     // Folding only: other rewrites could delete code that emission would reject, which would change
     // which models are accepted.
-    let private processor: MorphirProcessor<Decode.Model> = pipeline {
+    let private processor (rendered: FSharpFormatting) : MorphirProcessor<Decode.Model> = pipeline {
         parse (Parser.forFile parseModel)
         uses scopeValidator
         uses typeValidator
         uses (onPackage (Optimizer.create Optimizer.foldingOnly))
-        stringify compile
+        stringify (compile rendered)
     }
 
     let private run (selected: MorphirProcessor<Decode.Model>) (input: VFile) : VFileTree =
@@ -228,7 +243,9 @@ module Transpiler =
     let generateWithOptions (options: GenerationOptions) (input: VFile) : VFileTree =
         match requirementsFailure input with
         | Some failure -> failure
-        | None -> run (if options.Optimize then processor else withoutOptimizer) input
+        | None ->
+            let rendered = Emit.formattingFor options.Format
+            run (if options.Optimize then processor rendered else withoutOptimizer rendered) input
 
     /// Generates with the existing optimization default.
     let generate (input: VFile) : VFileTree =
@@ -275,7 +292,8 @@ module Transpiler =
                     Definition = definition
                 }
 
-                let selected = if options.Optimize then processor else withoutOptimizer
+                let rendered = Emit.formattingFor options.Format
+                let selected = if options.Optimize then processor rendered else withoutOptimizer rendered
 
                 run
                     { selected with
@@ -291,7 +309,7 @@ module Transpiler =
             | "4"
             | "4.0.0" ->
                 try
-                    artifacts (V4Emit.generate options distribution)
+                    artifacts (Emit.formattingFor options.Format) (V4Emit.generate options distribution)
                 with ExpectedFailure(rule, location, message) ->
                     VFileTree.empty
                     |> VFileTree.report
@@ -310,4 +328,32 @@ module Transpiler =
 
     /// Generates with the optimizer on or off, so tests can compare behaviour.
     let internal generateWith (optimize: bool) (input: VFile) : VFileTree =
-        generateWithOptions { Optimize = optimize } input
+        generateWithOptions { GenerationOptions.Default with Optimize = optimize } input
+
+/// <summary>
+/// The generation metadata of <see cref="Transpiler"/> for C# callers (the built-in F# generation backend): the members
+/// take and return .NET types, so C# reads no F# option and builds no F# set.
+/// </summary>
+[<AbstractClass; Sealed>]
+type FSharpGeneration =
+
+    /// <summary>
+    /// What the generator recorded about formatting (<see cref="Transpiler.formatting"/>), for C# callers: true and the
+    /// value, or false when the tree records nothing. C# writes the value as text with <c>WireValue</c>.
+    /// </summary>
+    static member TryGetFormatting
+        (
+            tree: VFileTree,
+            [<Out; MaybeNullWhen(false)>] formatting: byref<FSharpFormatting>
+        ) : bool =
+        match VFileTree.tryGet Transpiler.formatting tree with
+        | Some recorded ->
+            formatting <- recorded
+            true
+        | None ->
+            formatting <- Unchecked.defaultof<_>
+            false
+
+    /// <summary>The context with its required semantics (<see cref="Transpiler.requiredSemantics"/>), given as any sequence.</summary>
+    static member WithRequiredSemantics(context: VFile, semantics: seq<string>) : VFile =
+        VFile.set Transpiler.requiredSemantics (Set.ofSeq semantics) context

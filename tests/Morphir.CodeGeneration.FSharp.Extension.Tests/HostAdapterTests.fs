@@ -206,6 +206,73 @@ let tests =
               finally
                   dispose backend
 
+          testCase "The fixed generated set of the toolchain case fsharp-compile-generate is pinned, for the built-in and the guest"
+          <| fun _ ->
+              // The case's expected IR, from the pinned finos/morphir contract in tests/Fixtures/Toolchain/workflows, with
+              // format false gives one unformatted LF file.
+              let rec root (directory: DirectoryInfo | null) =
+                  match directory with
+                  | null -> failtest "The repository root has no Morphir.slnx"
+                  | found when File.Exists(Path.Combine(found.FullName, "Morphir.slnx")) -> found.FullName
+                  | found -> root found.Parent
+
+              let case =
+                  Path.Combine(root (DirectoryInfo AppContext.BaseDirectory), "tests", "Fixtures", "Toolchain", "workflows", "fsharp-compile-generate")
+
+              let ir = Path.Combine(case, "expected", "ir-4.0.0.json")
+
+              // The contract pinned at finos/morphir 9e1f853b7 includes expected/generated/Pricing.fs. Keep the frozen
+              // size and SHA-256 explicit, and compare the pinned file's bytes when present in the fixture checkout.
+              let pinned = [ "Pricing.fs", 112, "64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0" ]
+              let frozen = Path.Combine(case, "expected", "generated", "Pricing.fs")
+
+              let expectFrozen (label: string) (artifacts: GenerationArtifacts) =
+                  let files = [ for path, text in filesOf artifacts.Tree -> path, Text.Encoding.UTF8.GetBytes(text: string) ]
+
+                  let observed =
+                      [ for path, bytes in files -> path, bytes.Length, Convert.ToHexStringLower(Security.Cryptography.SHA256.HashData bytes) ]
+
+                  Expect.equal observed pinned $"{label}: the frozen size and SHA-256"
+
+                  if File.Exists frozen then
+                      Expect.equal files [ "Pricing.fs", File.ReadAllBytes frozen ] $"{label}: the bytes of the pinned expected/generated/Pricing.fs"
+
+              let model = load ir
+              expectFrozen "the built-in backend" (artifactsOf (generateWith (FSharpGenerationBackend()) model [ "format", "false" ]))
+
+              let backend = connect (realGuest ())
+
+              try
+                  expectFrozen "the external guest" (artifactsOf (generateWith backend model [ "format", "false" ]))
+              finally
+                  dispose backend
+
+          testCase "With format false the guest writes the same bytes as the built-in backend, and the adapter reports no formatting"
+          <| fun _ ->
+              let backend = connect (realGuest ())
+
+              try
+                  for fixture in [ "daily-rate-v4.json"; "daily-rate-v3.json" ] do
+                      let model = load (irFixture fixture)
+                      let external = artifactsOf (generateWith backend model [ "format", "false" ])
+                      // A MEP generate result does not say whether the guest formatted, so the host reports nothing.
+                      Expect.isNull external.Formatting $"{fixture}: the adapter reports no formatting it did not observe"
+
+                      let builtIn =
+                          artifactsOf (generateWith (FSharpGenerationBackend()) model [ "format", "false" ])
+
+                      Expect.equal builtIn.Formatting "off" $"{fixture}: the built-in reports off"
+
+                      let bytesOf (artifacts: GenerationArtifacts) =
+                          [ for path, text in filesOf artifacts.Tree -> path, Text.Encoding.UTF8.GetBytes(text: string) ]
+
+                      Expect.equal (bytesOf external) (bytesOf builtIn) $"{fixture}: the same paths, order and bytes"
+
+                      for path, text in filesOf external.Tree do
+                          Expect.isFalse (text.Contains '\r') $"{fixture}/{path}: LF only"
+              finally
+                  dispose backend
+
           testCase "A model with no generateModel tuple for its family and version is refused, naming the host's offer and the agreed tuples"
           <| fun _ ->
               // A classic version 2 model: the host sends JSON IR only for IR 4.0.0 and 3.0.0, so no tuple carries it.
@@ -440,6 +507,13 @@ let tests =
               Expect.contains (codes failure) "extension.tuple_unavailable" "the code"
               Expect.stringContains (messages failure) "ion-binary" "the guest's tuple is named"
               Expect.stringContains (messages failure) "morphir-json" "the host's offer is named"
+
+          testCase "A guest that reports an id reserved for built-ins (morphir.) does not connect, and the failure names the id"
+          <| fun _ ->
+              let failure = failureOf (connectOutcome (fakeGuest "reserved-id" (TimeSpan.FromMinutes 1.0)))
+              Expect.equal (codes failure) [ "extension.unavailable" ] "the code"
+              Expect.stringContains (messages failure) "morphir.fake-backend" "names the id"
+              Expect.stringContains (messages failure) "reserved" "says why"
 
           testCase "A model in a tuple that the session did not agree is refused before any request, naming the tuple"
           <| fun _ ->

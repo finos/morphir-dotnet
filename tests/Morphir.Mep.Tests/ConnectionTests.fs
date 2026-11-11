@@ -57,6 +57,22 @@ type private BrokenStream() =
     override _.SetLength _ = raise (NotSupportedException())
     override _.Write(_, _, _) = raise (NotSupportedException())
 
+/// A handler that waits until its token cancels and records that it saw the cancellation, where Task.Delay ends
+/// with it. It does not use token.Register inside `use` (issue 585): the cancel can run Task.Delay's callback first;
+/// the handler then resumes on another thread and disposes that registration before the cancelling thread reaches
+/// it, so the callback is lost although the token cancelled.
+let private slowHandler (cancelled: TaskCompletionSource<unit>) =
+    Handlers.raw (fun _ token ->
+        task {
+            try
+                do! Task.Delay(Timeout.Infinite, token)
+            with :? OperationCanceledException when token.IsCancellationRequested ->
+                cancelled.TrySetResult() |> ignore
+                raise (OperationCanceledException(token))
+
+            return Ok(JsonRpc.Constant "{}")
+        })
+
 /// A guest connection over two pipes, with a slow method that records its cancellation.
 let private guest (cancelled: TaskCompletionSource<unit>) =
     let toGuest = Wire()
@@ -69,13 +85,7 @@ let private guest (cancelled: TaskCompletionSource<unit>) =
                   Method.Describe.WireValue,
                   Handlers.request MepJson.Default.DescribeParams MepJson.Default.DescribeParams (fun value _ ->
                       Task.FromResult(Ok value))
-                  "test.slow",
-                  Handlers.raw (fun _ token ->
-                      task {
-                          use _ = token.Register(fun () -> cancelled.TrySetResult() |> ignore)
-                          do! Task.Delay(Timeout.Infinite, token)
-                          return Ok(JsonRpc.Constant "{}")
-                      }) ]
+                  "test.slow", slowHandler cancelled ]
         )
 
     let connection = Connection(toGuest.Reader, toHost.Writer, dispatcher)
@@ -191,16 +201,7 @@ let tests =
               let toHost = Wire()
 
               let dispatcher =
-                  Dispatcher(
-                      readOnlyDict
-                          [ "test.slow",
-                            Handlers.raw (fun _ token ->
-                                task {
-                                    use _ = token.Register(fun () -> cancelled.TrySetResult() |> ignore)
-                                    do! Task.Delay(Timeout.Infinite, token)
-                                    return Ok(JsonRpc.Constant "{}")
-                                }) ]
-                  )
+                  Dispatcher(readOnlyDict [ "test.slow", slowHandler cancelled ])
 
               use source = new CancellationTokenSource()
               let run = Connection(toGuest.Reader, toHost.Writer, dispatcher).RunAsync source.Token

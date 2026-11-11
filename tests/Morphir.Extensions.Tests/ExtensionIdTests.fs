@@ -49,6 +49,13 @@ let tests =
         refused "a_b" (ParseFailure.InvalidSegment(field, 0))
         refused (String('a', 239)) (ParseFailure.TooLong(field, 238))
 
+        test "ReservedForBuiltIns: every id that starts with morphir. is reserved; org.finos.morphir ids are not" {
+            Expect.isTrue (ExtensionId.Create "morphir.fsharp").ReservedForBuiltIns "morphir.fsharp"
+            Expect.isTrue (ExtensionId.Create "morphir.not-yet-shipped").ReservedForBuiltIns "a future built-in"
+            Expect.isFalse (ExtensionId.Create "org.finos.morphir.fsharp-backend").ReservedForBuiltIns "the F# backend guest"
+            Expect.isFalse (ExtensionId.Create "morphir-dotnet.fsharp").ReservedForBuiltIns "another first token"
+        }
+
         test "TryParse gives the id or the failure" {
             let ok, id, failure = ExtensionId.TryParse "morphir.csharp"
             Expect.isTrue ok "parsed"

@@ -22,6 +22,12 @@ type ExtensionId =
     /// <summary>The canonical text.</summary>
     override this.ToString() = this.Value
 
+    /// <summary>
+    /// True when the id is reserved for a host's built-in frontends and backends: it starts with <c>morphir.</c>
+    /// (<see cref="Morphir.Mep.ReservedExtensionIds"/>). A host refuses a guest that reports such an id.
+    /// </summary>
+    member this.ReservedForBuiltIns = Morphir.Mep.ReservedExtensionIds.IsReserved this.Value
+
     /// <summary>True for a value of the same type with equal content. Text is compared ordinally.</summary>
     override this.Equals(other: obj | null) =
         match other with

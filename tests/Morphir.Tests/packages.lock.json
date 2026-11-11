@@ -519,6 +519,9 @@
           "System.CommandLine": "[2.0.14, )"
         }
       },
+      "morphir-mck": {
+        "type": "Project"
+      },
       "morphir.analyzers": {
         "type": "Project",
         "dependencies": {

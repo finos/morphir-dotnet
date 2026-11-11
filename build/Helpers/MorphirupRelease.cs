@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Immutable;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Morphir.Build.Helpers;
 
@@ -131,93 +130,24 @@ public static class MorphirupRelease
         return problems;
     }
 
-    /// <summary>
-    /// The environment of an artifact check: <c>PATH</c> reduced to the system folders, no <c>DOTNET_*</c> variable, and
-    /// only the variables that any process needs (on Windows <c>SystemRoot</c>, <c>windir</c>, <c>TEMP</c> and
-    /// <c>TMP</c>; elsewhere <c>HOME</c>, <c>TMPDIR</c> and <c>LANG</c>).
-    /// </summary>
-    public static IReadOnlyDictionary<string, string> CheckEnvironment(IReadOnlyDictionary<string, string?> inherited, bool windows)
-    {
-        string[] kept = windows ? ["SystemRoot", "windir", "TEMP", "TMP", "SystemDrive", "ComSpec"] : ["HOME", "TMPDIR", "LANG"];
-        var comparer = windows ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        var environment = new Dictionary<string, string>(comparer);
-        foreach (var (key, value) in inherited)
-            if (value is not null && kept.Contains(key, comparer))
-                environment[key] = value;
+    /// <summary>The environment of an artifact check; see <see cref="NativeCheck.CheckEnvironment"/>.</summary>
+    public static IReadOnlyDictionary<string, string> CheckEnvironment(IReadOnlyDictionary<string, string?> inherited, bool windows) =>
+        NativeCheck.CheckEnvironment(inherited, windows);
 
-        if (windows)
-        {
-            var systemRoot = environment.TryGetValue("SystemRoot", out var root) ? root : @"C:\Windows";
-            environment["PATH"] = $@"{systemRoot}\System32;{systemRoot}";
-        }
-        else
-        {
-            environment["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin";
-        }
+    /// <summary>The highest glibc the Linux executables may need; see <see cref="NativeCheck.GlibcFloor"/>.</summary>
+    public static Version GlibcFloor => NativeCheck.GlibcFloor;
 
-        return environment;
-    }
+    /// <summary>The pinned image the Linux executables are published in; see <see cref="NativeCheck.LinuxBuildImage"/>.</summary>
+    public const string LinuxBuildImage = NativeCheck.LinuxBuildImage;
 
-    /// <summary>
-    /// The highest glibc the Linux executables may need: Ubuntu 22.04's. A Native AOT executable needs the glibc of the
-    /// machine that linked it, or newer, so the Linux publish runs in <see cref="LinuxBuildImage"/>, and the check reads
-    /// the versions the executable needs and refuses one above this floor.
-    /// </summary>
-    public static Version GlibcFloor { get; } = new(2, 35);
+    /// <summary>The highest glibc version an executable needs; see <see cref="NativeCheck.HighestGlibc"/>.</summary>
+    public static (Version Version, string File)? HighestGlibc(string readelf) => NativeCheck.HighestGlibc(readelf);
 
-    /// <summary>
-    /// The image the Linux executables are published in: Ubuntu 22.04 (glibc 2.35), pinned by the digest of its
-    /// multi-architecture index (linux/amd64 and linux/arm64), so the floor moves only with a commit.
-    /// </summary>
-    public const string LinuxBuildImage = "ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11";
+    /// <summary>Whether a needed glibc version is above the floor; see <see cref="NativeCheck.IsAboveFloor"/>.</summary>
+    public static bool IsAboveFloor(Version needed) => NativeCheck.IsAboveFloor(needed);
 
-    /// <summary>
-    /// The highest <c>GLIBC_x.y</c> version in the version needs section (<c>.gnu.version_r</c>) of
-    /// <c>readelf --version-info --wide</c> output, with the library that defines it, or null when it needs none.
-    /// </summary>
-    public static (Version Version, string File)? HighestGlibc(string readelf)
-    {
-        (Version Version, string File)? highest = null;
-        var inNeeds = false;
-        var file = "";
-        foreach (var line in readelf.Split('\n'))
-        {
-            if (line.StartsWith("Version ", StringComparison.Ordinal))
-            {
-                inNeeds = line.StartsWith("Version needs section", StringComparison.Ordinal);
-                continue;
-            }
-
-            if (!inNeeds) continue;
-            var fileMatch = Regex.Match(line, @"\bFile:\s+(\S+)");
-            if (fileMatch.Success) file = fileMatch.Groups[1].Value;
-            var name = Regex.Match(line, @"\bName:\s+GLIBC_(\d+(?:\.\d+)+)\s");
-            if (name.Success && Version.TryParse(name.Groups[1].Value, out var version) && (highest is null || Normal(version) > Normal(highest.Value.Version)))
-                highest = (version, file);
-        }
-
-        return highest;
-    }
-
-    /// <summary>Whether a needed glibc version is above <see cref="GlibcFloor"/>.</summary>
-    public static bool IsAboveFloor(Version needed) => Normal(needed) > Normal(GlibcFloor);
-
-    /// <summary>The <c>minos</c> of the <c>LC_BUILD_VERSION</c> load command in <c>otool -l</c> output, or null.</summary>
-    public static string? MacOsMinimum(string otool)
-    {
-        var inBuildVersion = false;
-        foreach (var line in otool.Split('\n').Select(line => line.Trim()))
-        {
-            if (line.StartsWith("cmd ", StringComparison.Ordinal))
-                inBuildVersion = line == "cmd LC_BUILD_VERSION";
-            else if (inBuildVersion && line.StartsWith("minos ", StringComparison.Ordinal))
-                return line["minos ".Length..].Trim();
-        }
-
-        return null;
-    }
-
-    private static Version Normal(Version version) => new(version.Major, version.Minor, Math.Max(version.Build, 0));
+    /// <summary>The minimum macOS version an executable declares; see <see cref="NativeCheck.MacOsMinimum"/>.</summary>
+    public static string? MacOsMinimum(string otool) => NativeCheck.MacOsMinimum(otool);
 
     private static IEnumerable<string> Assets(string assets) =>
         Directory.GetFiles(assets)

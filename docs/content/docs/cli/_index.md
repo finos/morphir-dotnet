@@ -18,6 +18,7 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 - [morphir extension runtimes](./extension-runtimes/) - Report whether this host can run WASM extensions, or why not
 - [morphir mck wasm-host](./mck-wasm-host/) - _Experimental and internal:_ run the crafted WASM host cases against a host's worker mode
 - [morphir extension worker](./extension-worker/) - _Experimental and internal:_ serve one WASM extension module over stdio for a conformance runner
+- [morphir mck](./mck/) - Run the separately installed Morphir Compatibility Kit, `morphir-mck`, with the same arguments
 
 ### Toolchain manager
 

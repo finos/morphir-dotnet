@@ -66,7 +66,7 @@ let tests =
             Expect.equal (rows (text.Replace("\n", "\r\n"))) (rows text) "checkout newlines do not change the table")
 
         testCase "the readiness workflow files have the digests its case manifest states" (fun () ->
-            use case = Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(Fixtures.workflow, "case.json")))
+            use case = Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(Fixtures.pinnedWorkflow, "case.json")))
 
             let listed =
                 [ for source in case.RootElement.GetProperty("sources").EnumerateArray() do
@@ -79,6 +79,6 @@ let tests =
             Expect.isNonEmpty listed "the case lists files"
 
             for file, expected in listed do
-                let actual = Fixtures.bytesIn Fixtures.workflow file |> SHA256.HashData |> Convert.ToHexStringLower
+                let actual = Fixtures.bytesIn Fixtures.pinnedWorkflow file |> SHA256.HashData |> Convert.ToHexStringLower
                 Expect.equal actual expected $"{file} has its stated SHA-256")
     ]

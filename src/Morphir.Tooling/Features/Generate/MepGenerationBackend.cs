@@ -153,6 +153,10 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
 
         if (!ExtensionId.TryParse(extension.Id, out var id, out _))
             return Refuse("extension.unavailable", $"Extension {label}: its id is not a valid extension id.");
+        // A guest must not pass as a built-in backend, now or when new built-ins ship.
+        if (id.ReservedForBuiltIns)
+            return Refuse("extension.unavailable",
+                $"Extension {label} reported the extension id {id.Value}, which is reserved for built-in frontends and backends (every id that starts with {ReservedExtensionIds.Prefix}). An extension must have its own id.");
 
         var backend = session.Capabilities.BackendOrNull();
         if (backend is null || !backend.Targets.Contains(options.Target.Value, StringComparer.Ordinal))
@@ -322,7 +326,8 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 files.Add(KeyValuePair.Create(artifact.Path, VFileModule.ofText(artifact.Path, artifact.Content)));
         }
 
-        // The guest's order is the declared order.
+        // The guest's order is the declared order. A MEP generate result does not say whether the guest formatted, so
+        // the artifacts carry no Formatting: the host reports only what it observes.
         var tree = VFileTree.OfFiles(files);
         return new Outcome<GenerationArtifacts>.Success(new(tree, diagnostics));
     }

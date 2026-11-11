@@ -517,6 +517,25 @@ let tests =
                     (errorsFor language (obj [ "extension", text " padded " ]))
                     $"{language} extension has no surrounding space"
         }
+        test "only object-valued members of [frontend] are language tables; any other member stays as upstream leaves it" {
+            let errorsFor (frontend: ConfigValue) =
+                let identity = source "frontend.toml" SourceRole.RootPrimary DocumentFormat.Toml
+
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [ supplied identity (obj [ "frontend", frontend ]) ]
+                    }
+                |> fun result ->
+                    result.Diagnostics
+                    |> List.filter (fun d -> d.Severity = DiagnosticSeverity.Error)
+
+            // Upstream's [frontend] has additionalProperties: true, so a member that is not a table is not a language.
+            for value in [ text "note"; ConfigValue.Integer 1L; ConfigValue.Boolean true; ConfigValue.Array [ text "a" ] ] do
+                Expect.isEmpty (errorsFor (obj [ "custom", value ])) $"[frontend] custom = {value} is not a language table"
+
+            // A table member is still a language table, with the shared rules.
+            Expect.isNonEmpty (errorsFor (obj [ "gleam", obj [ "project_file", ConfigValue.Integer 1L ] ])) "a table is a language table"
+        }
         test "a codegen target table has extension, and other codegen members stay unconstrained as upstream" {
             let errorsFor (codegen: ConfigValue) =
                 let identity = source "codegen.toml" SourceRole.RootPrimary DocumentFormat.Toml

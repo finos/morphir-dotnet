@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.Collections.Immutable;
 using Foundatio.Mediator;
 using Microsoft.Extensions.DependencyInjection;
+using Morphir.CodeGeneration.FSharp;
 using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Generate;
@@ -51,8 +52,25 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
         return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(failure), new()), json);
     }
 
+    /// <summary>
+    /// The warnings of a report, for stderr only: today one, when the backend was asked to format (the default) but
+    /// this host cannot run the formatter, as the Native AOT <c>morphir</c> cannot run Fantomas.
+    /// </summary>
+    public static IReadOnlyList<string> Warnings(GenerationReport report) => FormattingWarnings(report.Formatting, report.Backend ?? report.Target);
+
+    /// <summary>
+    /// The formatting warning of a generation, for stderr only, shared by <c>generate</c> and <c>compile --target</c>:
+    /// one when the backend reports <c>unavailable</c>, else none.
+    /// </summary>
+    public static IReadOnlyList<string> FormattingWarnings(string? formatting, string? backend) =>
+        formatting == FSharpFormatting.Unavailable.WireValue
+            ? [$"warning: {backend ?? "the backend"} did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unformatted text. Pass --option format=false to ask for that text explicitly, or use dotnet-morphir for formatted files."]
+            : [];
+
     private static int Render(GenerationReport report, bool json)
     {
+        // Warnings go to stderr in every mode; stdout holds only the report or the artifact paths.
+        foreach (var warning in Warnings(report)) Console.Error.WriteLine(warning);
         if (json) ConsoleOutputHelper.WriteLineToStdout(report.ToJson());
         else
         {

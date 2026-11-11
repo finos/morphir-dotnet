@@ -178,10 +178,8 @@ let claimSetTests =
                 [ "claimsVersion 0.1.0-draft.1", setAt [ "claimsVersion" ] (str "0.1.0-draft.1"), ReaderCode.UnsupportedContractVersion, "claimsVersion"
                   "no claimsVersion", removeAt [ "claimsVersion" ], ReaderCode.InvalidDocument, "claimsVersion"
                   "an unknown capability kind", setAt [ "extension"; "types" ] (Value.Array [ str "linter" ]), ReaderCode.UnsupportedCase, "extension.types[0]"
-                  "a repeated capability kind", setAt [ "extension"; "types" ] (Value.Array [ str "frontend"; str "frontend" ]), ReaderCode.InconsistentDocument, "extension.types[1]"
                   "an extension version that is not SemVer", setAt [ "extension"; "version" ] (str "0.6"), ReaderCode.InvalidValue, "extension.version"
                   "a blank extension name", setAt [ "extension"; "name" ] (str " "), ReaderCode.InvalidValue, "extension.name"
-                  "no protocol versions", setAt [ "protocolVersions" ] (Value.Array []), ReaderCode.InconsistentDocument, "protocolVersions"
                   "compile that is not a boolean", setAt [ "capabilities"; "frontend"; "compile" ] (str "true"), ReaderCode.InvalidDocument, "capabilities.frontend.compile"
                   "a language without an id", setAt [ "capabilities"; "frontend"; "languages" ] (Value.Array [ Value.Object [] ]), ReaderCode.InvalidDocument, "capabilities.frontend.languages[0].id"
                   "tuples that are not an array", setAt [ "capabilities"; "modelTransport"; "tuples" ] (str "x"), ReaderCode.InvalidDocument, "capabilities.modelTransport.tuples"
@@ -208,6 +206,24 @@ let claimSetTests =
 let private frontendDescriptor () = valueOf "extensions/fsharp-frontend/0.6.0/release.json"
 let private readDescriptor (value: Value) = ExtensionReleaseDocument.read (bytesOf value)
 
+[<Tests>]
+let claimListTests =
+    // The toolset recipe page at finos/morphir 837164580: a binding check adds no rule to the claim set's lists. An
+    // empty protocolVersions fails the protocol row, not the reading, and a repeated entry or kind is not refused.
+    testList "Claim set lists a binding check leaves alone" [
+        for name, edit, check in
+            [ "no protocol versions", setAt [ "protocolVersions" ] (Value.Array []), (fun (claims: ClaimSet) -> Expect.isEmpty claims.ProtocolVersions "empty")
+              "a repeated protocol version",
+              setAt [ "protocolVersions" ] (Value.Array [ str "0.2.0-draft.1"; str "0.2.0-draft.1" ]),
+              (fun claims -> Expect.equal claims.ProtocolVersions [ "0.2.0-draft.1"; "0.2.0-draft.1" ] "both")
+              "a repeated capability kind",
+              setAt [ "extension"; "types" ] (Value.Array [ str "frontend"; str "frontend" ]),
+              (fun claims -> Expect.equal claims.Extension.Types [ CapabilityKind.Frontend; CapabilityKind.Frontend ] "both") ] ->
+            testCase name (fun () ->
+                match readClaims (edit (frontendClaims ())) with
+                | Ok claims -> check claims
+                | Error refusal -> failtestf "refused: %A" refusal)
+    ]
 [<Tests>]
 let extensionReleaseTests =
     testList "Extension release descriptors" [
@@ -256,7 +272,6 @@ let extensionReleaseTests =
                   "an artifact digest that is not SHA-256", setAt [ "artifacts"; "0"; "sha256" ] (str "abc"), ReaderCode.InvalidValue, "artifacts[0].sha256"
                   "an artifact without claims", removeAt [ "artifacts"; "0"; "claims" ], ReaderCode.InvalidDocument, "artifacts[0].claims"
                   "claims of another claimsVersion", setAt [ "artifacts"; "0"; "claims"; "claimsVersion" ] (str "0.1.0-draft.1"), ReaderCode.UnsupportedContractVersion, "artifacts[0].claims.claimsVersion"
-                  "an unknown claim check", setAt [ "artifacts"; "0"; "claimCheck" ] (str "trusted"), ReaderCode.UnsupportedCase, "artifacts[0].claimCheck"
                   "a critical member this reader does not read", setAt [ "critical" ] (Value.Array [ str "gitCommit" ]), ReaderCode.UnsupportedCriticalMember, "gitCommit"
                   "requires.host, which no binding check evaluates",
                   (setAt [ "requires" ] (Value.Object [ "host", Value.Array [ str ">=0.4.0" ] ]) >> setAt [ "critical" ] (Value.Array [ str "requires.host" ])),
@@ -271,9 +286,34 @@ let extensionReleaseTests =
                 |> setAt [ "gitCommit" ] (str (String.replicate 40 "a"))
                 |> setAt [ "note" ] (str "x")
                 |> setAt [ "artifacts"; "0"; "note" ] (str "x")
-                |> setAt [ "critical" ] (Value.Array [ str "artifacts.sha256"; str "artifacts.claims.capabilities.frontend.compile" ])
+                |> setAt [ "critical" ] (Value.Array [ str "artifacts.sha256"; str "artifacts.claims" ])
+                |> setAt [ "artifacts"; "0"; "critical" ] (Value.Array [ str "filename"; str "claims" ])
+                |> setAt [ "artifacts"; "0"; "claims"; "critical" ] (Value.Array [ str "capabilities.frontend.compile" ])
 
             Expect.isOk (readDescriptor edited) "read")
+
+        // The toolset recipe page at finos/morphir 837164580: a critical path is understood only as the list that holds
+        // it writes it, so a claim set path belongs in the claim set's own critical list.
+        testList "a critical path the list that holds it does not write is refused" [
+            for name, edit, path in
+                [ "a claim set path in the descriptor's critical",
+                  setAt [ "critical" ] (Value.Array [ str "artifacts.claims.capabilities.frontend.compile" ]),
+                  "artifacts.claims.capabilities.frontend.compile"
+                  "a claim set path in an artifact's critical",
+                  setAt [ "artifacts"; "0"; "critical" ] (Value.Array [ str "claims.protocolVersions" ]),
+                  "artifacts[0].claims.protocolVersions"
+                  "shortId, which no binding check reads", setAt [ "critical" ] (Value.Array [ str "shortId" ]), "shortId"
+                  "claimCheck, which no binding check reads", setAt [ "artifacts"; "0"; "critical" ] (Value.Array [ str "claimCheck" ]), "artifacts[0].claimCheck"
+                  "extension.name, which no binding check reads",
+                  setAt [ "artifacts"; "0"; "claims"; "critical" ] (Value.Array [ str "extension.name" ]),
+                  "artifacts[0].claims.extension.name" ] ->
+                testCase name (fun () -> refusedWith ReaderCode.UnsupportedCriticalMember path (readDescriptor (edit (frontendDescriptor ()))))
+        ]
+
+        testCase "claimCheck is not read: an unknown value is not refused and is never probed" (fun () ->
+            match readDescriptor (setAt [ "artifacts"; "0"; "claimCheck" ] (str "trusted") (frontendDescriptor ())) with
+            | Ok release -> Expect.equal release.Artifacts.Head.ClaimCheck DescriptorClaimCheck.Unchecked "unchecked"
+            | Error refusal -> failtestf "refused: %A" refusal)
 
         testCase "a descriptor over 1 MiB is refused before it is parsed" (fun () ->
             refusedWith ReaderCode.InvalidDocument "" (ExtensionReleaseDocument.read (Array.create (1024 * 1024 + 1) (byte ' '))))
