@@ -199,7 +199,7 @@ public sealed class GenerationExtensionSelectionTests
         using var json = System.Text.Json.JsonDocument.Parse(GenerationReport.From(outcome, Explicit(workspace)).ToJson());
         json.RootElement.EnumerateObject().Select(member => member.Name).Should().Equal(
             "success", "exitCode", "target", "backend", "input", "output", "sourceVersion", "family", "distributionKind",
-            "representation", "artifacts", "written", "unchanged", "removed", "diagnostics", "failureKind");
+            "representation", "artifacts", "written", "unchanged", "removed", "diagnostics", "failureKind", "formatting");
     }
 
     [Test]

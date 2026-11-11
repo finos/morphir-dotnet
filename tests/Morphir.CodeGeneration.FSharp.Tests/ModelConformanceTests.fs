@@ -11,7 +11,7 @@ open Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
 let private generateWith optimize model =
     let tree =
         Morphir.CodeGeneration.FSharp.Transpiler.generateModelWith
-            { Optimize = optimize }
+            { GenerationOptions.Default with Optimize = optimize }
             model
             (VFile.fromPath "model")
 

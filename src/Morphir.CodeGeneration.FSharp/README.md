@@ -14,7 +14,7 @@ let generateLibrary (model: VersionedModel) =
 
 let generateWithoutFolding (model: VersionedModel) =
     Transpiler.generateModelWith
-        { Optimize = false }
+        { GenerationOptions.Default with Optimize = false }
         model
         (VFile.fromPath "retained/model.ion")
 ```
@@ -31,7 +31,11 @@ contract: integer formatVersion 1, 2 or 3 and Library implementations. Missing,
 fractional, string or future versions fail. It does not accept Ion, trees or v4.
 `generateWithOptions` applies the same JSON contract with explicit options.
 
-`GenerationOptions.Default` enables exact constant folding. Disabling it does
+`GenerationOptions.Default` enables exact constant folding and formatting. `Format = false` writes the
+emitter's own text, with LF line endings only and exactly one final LF, the same bytes on every OS,
+runtime and culture; `Transpiler.formatting` records an `FSharpFormatting`: `Applied`, `Off` or `Unavailable` (formatting
+asked for under Native AOT, which cannot run Fantomas). C# reads it with
+`FSharpGeneration.TryGetFormatting` and writes it as text with `WireValue`. Disabling constant folding does
 not disable scope, type, naming, SDK or dependency checks. Both typed and file
 APIs share the target profile and dependency ordering. Constructed typed models
 cannot bypass generation's name rules or type-application arity checks.

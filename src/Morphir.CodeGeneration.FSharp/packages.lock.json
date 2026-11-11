@@ -33,6 +33,12 @@
         "resolved": "0.4.0",
         "contentHash": "uMqvbhnXYIbsn8zsFaBpNskl7A5gKP0EFRyEzGicmJiOSn/au5FWhi8P1/tBFbbyfrPap9d+N3scboVk/VQ6ZQ=="
       },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "YlTamXppEQls6DYWt7RdUuwWDb0lyw/vXCaGeQpLCpsLmfwGuCkOz/vIGgMTV7ECsJcavkCOkxZXv9s8rdAHkQ=="
+      },
       "Fantomas.FCS": {
         "type": "Transitive",
         "resolved": "7.0.5",

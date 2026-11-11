@@ -38,6 +38,7 @@
     <Compile Include="RoundTripTests.fs" />
     <Compile Include="ClassicReencodingTests.fs" />
     <Compile Include="CoverageTests.fs" />
+    <Compile Include="ToolchainCaseTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
