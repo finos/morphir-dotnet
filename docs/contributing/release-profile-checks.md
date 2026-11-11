@@ -54,6 +54,11 @@ On demand per platform, without a pull request job:
   A failed build or infrastructure step fails the job. Command outcomes remain report-only, so a green job does not
   mean every command passed. It publishes no release and does not replace acquired-artifact qualification.
 
+Linux `PublishInContainer` setup is shared with morphirup. It bootstraps CA certificates through authenticated
+Ubuntu APT metadata, then requires an authenticated HTTPS refresh before installing native dependencies. See the
+[bootstrap decision and pinned-image evidence](evidence/2026-11-11-morphirup-linux-bootstrap.md), including its
+hermetic regression checks and the hosted validation still required.
+
 The two manual AOT suites ran no test before this change: their filters `*/AOT*` and `*/Trimming*` were not full
 TUnit tree paths, so they selected nothing, and the run ended with "zero tests ran" (exit code 8). They now name
 the feature classes (`/*/*/NativeAOTCompilationFeature/*`, `/*/*/AssemblyTrimmingFeature/*`), 10 scenarios each,
