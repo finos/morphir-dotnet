@@ -143,7 +143,7 @@ with error diagnostics:
 
 | Code | Meaning |
 | --- | --- |
-| `extension.unavailable` | The command is not on `PATH`, the guest did not start, the session did not initialize, the guest does not claim the target, or the guest gave the id of a built-in backend (such as `morphir.fsharp`). |
+| `extension.unavailable` | The command is not on `PATH`, the guest did not start, the session did not initialize, the guest does not claim the target, or the guest gave an id reserved for built-ins: every id that starts with `morphir.` (such as `morphir.fsharp`), and the id of any registered built-in backend. |
 | `extension.tuple_unavailable` | The host and the guest agreed no `generateModel` tuple, or the model needs a tuple that the session did not agree. The message names the tuples. |
 | `extension.not_admitted` | The guest refused the request, for example an option, or the host did not send the model because it is over the limits that the session agreed (by default 45 MiB decoded, 60 MiB of base64, depth 4096, 50,000,000 nodes). |
 | `extension.unsafe_artifact` | The guest returned an artifact path that is not a plain relative path; a segment that ends in a period or a space, or is a reserved Windows device name (`CON`, `NUL`, `COM1` and the like, also with an extension); two paths that differ only in case; or a path that is also the directory of another path. Nothing is published. |
