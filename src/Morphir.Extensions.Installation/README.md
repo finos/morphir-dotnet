@@ -12,13 +12,29 @@ internal descriptor reader is an unfinished increment, with no installation or
 activation consumer. Its first tests use six named parent release/schema cases,
 two I-JSON cases and additional semantic regressions. The copied corpus and seven
 schemas are hash-checked offline from test output; their presence does not mean
-all 137 identity or 66 package cases have run. Complete recursive metadata,
-standalone claims, package semantics and state readers remain open. It does not
+all 137 identity or 66 package cases have run. Package semantics, state readers,
+public claim-reader boundaries and probe integration remain open. It does not
 call the older MEP/Toolchain claim codecs that convert `claimsVersion` documents.
 The first focused Windows `SharedReaders` run passes 19/19 tests, repeated after
 pinned formatting. Both I-JSON refusal cases first prove acceptance of a valid
 document. This is separate from the earlier 131-test I/O run and does not
 establish complete shared-file conformance.
+
+The internal `Claims` reader now handles standalone claims at the exact family
+schema URL and embedded claims without a schema/version member. It retains the
+supplied JSON beside existing MEP identity/protocol values and a projection of
+understood members. Comparisons ignore object member order and unknown optional
+members recursively, preserve array order, and equate absent `critical` with an
+empty array. Known optional metadata is type-checked even when its capability
+kind is not declared. Host requirements reuse `Toolchain.Comparator.tryParse`
+and `Comparator.allMet`, backed by the established Semver library. None of these
+facts establishes publisher authentication or that an artifact was probed.
+
+Claims runtime RED recorded 27 failures. The focused Windows GREEN passes 27/27;
+the affected SharedReaders 19/19 also passes, with both repeated after formatting.
+These include positive and negative equivalence/host controls. Public MEP and
+Toolchain codecs are unchanged. Install-time probing and full parent-corpus
+execution remain unfinished.
 
 Independent security review of `f6d991bb` requested changes to stage-file identity,
 Unix rename-out containment, total gzip expansion/cancellation and run-directory

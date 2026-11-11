@@ -65,6 +65,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - First failing test: each row of the table maps both ways; `linux-musl-x64` has no index platform, and resolution names it in `extension.no_matching_artifact`.
   - Command: `dotnet exec <inst> --filter-test-list "Platforms"` after the build above.
 - [ ] 2.4 Add claim sets that keep their JSON beside the typed `Morphir.Mep` view, compare over the typed projection without schema members, check `critical` and evaluate `requires.host`; verify the `Claims` tests pass.
+  - In progress: Claims runtime RED recorded 27 executed failures after separate missing-API/setup evidence. Claims GREEN now passes 27/27, with the affected SharedReaders 19/19 also passing; both repeated after pinned Fantomas formatting and no-restore rebuild. Equivalence and host-range controls execute production code. The internal reader extracts embedded parsing from Descriptors rather than retaining two readers, and reuses Toolchain.Comparator.tryParse/allMet for the published single-comparator rule. Complete public boundaries, full corpus conformance and install-time probe integration remain unfinished; the task stays unchecked.
   - First failing tests:
     - a claim set holding `1.0` is refused, because shared documents hold integers only (provisional on #1150);
     - key order is ignored and array order is not;

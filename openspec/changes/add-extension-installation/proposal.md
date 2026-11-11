@@ -38,6 +38,13 @@ default staged `auto` is not consent for automatic unsigned installation. Only
 explicit configuration or a command naming the local/staged source grants it.
 This supersedes old default-auto consent wording without changing a schema default.
 
+The internal current-family reader now shares embedded and standalone claim
+parsing, retains supplied JSON, projects understood recursive metadata and reuses
+the existing Toolchain comparator library. Claims 27/27 and the affected
+SharedReaders 19/19 pass in focused Windows runs, repeated after pinned formatting.
+Full corpus conformance, public codecs, probes and installation lifecycle remain
+unfinished. This is separate from the earlier Windows I/O evidence.
+
 A developer on Windows adds a local extension repository and installs a process backend from it. A second project pins a newer version of the same backend without changing the global selection, and a `morphirup` toolchain generation selects its own versions over the shared store. A teammate who clones a repository with an extension package archive in `.morphir/extensions/staged/` gets a clear message, and no code from the clone runs until they install it.
 
 This host does not support MEP `0.1` (maintainer decision, 9 November 2026): "we don't have users to support the cost of maintaining 2 versions". The maintainer said the same day what is supported instead: "We should support 0.2.0 all prerelease and final 0.2.x releases".

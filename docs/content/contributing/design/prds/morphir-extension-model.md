@@ -354,6 +354,15 @@ above records the earlier state. Typed readers/comparison, inventory,
 locks/journal/recovery and probes will use that source/corpus next. Portable
 pin/overlay shapes still belong to the separate parent toolchain authority.
 
+The internal current-family claim reader now retains JSON with existing MEP
+identity/protocol values, projects understood recursive metadata for comparison,
+checks critical paths and evaluates host requirements through the existing
+Toolchain comparator library. Its Claims runtime RED had 27 failures. Windows
+GREEN passes Claims 27/27 and affected SharedReaders 19/19, both repeated after
+pinned formatting. These focused author tests do not execute all 137 identity or
+66 package cases, qualify Unix/AOT, migrate public codecs or finish install-time
+probes and lifecycle integration. Those tasks remain open.
+
 ## Testing approach
 
 - Follow test-driven development in each step.

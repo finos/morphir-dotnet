@@ -302,3 +302,257 @@ let tests =
             |> refused "extension.claims_mismatch" "capabilities.frontend.compile"
         }
     ]
+
+let private claimsSchema =
+    "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/claims.schema.json"
+
+let private standaloneNode () =
+    let release =
+        JsonNode.Parse(published ())
+        |> nonNull
+
+    let claims =
+        (release
+         |> artifact
+         |> child "claims")
+            .DeepClone()
+
+    claims["$schema"] <- JsonValue.Create claimsSchema
+    claims
+
+let private editClaims change =
+    let node = standaloneNode ()
+    change node
+
+    node.ToJsonString()
+    |> bytes
+
+let private readClaims input =
+    match Claims.readStandalone input with
+    | Ok claims -> claims
+    | Error error -> failtest (error.ToString())
+
+[<Tests>]
+let claimTests =
+    testList "Claims" [
+        for name in [ "nested-members-claims"; "current-protocol-claims" ] do
+            testCase
+                $"parent standalone case {name}"
+                (fun () ->
+                    let input = (namedCase name).GetProperty("input").GetProperty("document")
+
+                    input.GetRawText()
+                    |> bytes
+                    |> Claims.readStandalone
+                    |> accepted
+                )
+        test "current standalone claims project existing MEP identity and protocols" {
+            let parsed =
+                (standaloneNode ()).ToJsonString()
+                |> bytes
+                |> readClaims
+
+            Expect.equal parsed.Extension.Id "morphir-elm" "existing MEP identity record"
+
+            Expect.equal
+                parsed.ProtocolVersions.Head.Value
+                "0.2.0-draft.1"
+                "existing protocol value"
+        }
+        test "a missing standalone schema is not converted from claimsVersion" {
+            editClaims (fun node ->
+                node.AsObject().Remove "$schema"
+                |> ignore
+
+                node["claimsVersion"] <- JsonValue.Create "0.1.0-draft.2"
+            )
+            |> Claims.readStandalone
+            |> refused "extension.unsupported_contract_version" claimsSchema
+        }
+        for oldName in [ "claimsVersion"; "statementVersion" ] do
+            testCase
+                $"a current schema does not authorize legacy {oldName}"
+                (fun () ->
+                    editClaims (fun node -> node[oldName] <- JsonValue.Create "0.1.0-draft.2")
+                    |> Claims.readStandalone
+                    |> refused "extension.unsupported_contract_version" oldName
+                )
+        test "a different prerelease schema is refused exactly" {
+            editClaims (fun node ->
+                node["$schema"] <- JsonValue.Create(claimsSchema.Replace("preview.1", "preview.2"))
+            )
+            |> Claims.readStandalone
+            |> refused "extension.unsupported_contract_version" claimsSchema
+        }
+        test "comparison ignores member order and optional unknown members recursively" {
+            let first =
+                (standaloneNode ()).ToJsonString()
+                |> bytes
+                |> readClaims
+
+            let other =
+                editClaims (fun node ->
+                    node["future"] <- JsonValue.Create 7
+
+                    let language =
+                        (node
+                         |> child "capabilities"
+                         |> child "frontend"
+                         |> child "languages")[0]
+                        |> nonNull
+
+                    language["future"] <- JsonValue.Create "ignored"
+                    let identity = child "extension" node
+                    let name = identity["name"]
+
+                    identity.AsObject().Remove "name"
+                    |> ignore
+
+                    identity["name"] <- name
+                )
+                |> readClaims
+
+            Expect.isTrue
+                (Claims.equivalent first other)
+                "projection compares understood values only"
+        }
+        test "comparison preserves array order" {
+            let left =
+                editClaims (fun node ->
+                    node["protocolVersions"] <- JsonNode.Parse("[\"0.2.0-draft.1\",\"0.2.0\"]")
+                )
+                |> readClaims
+
+            let right =
+                editClaims (fun node ->
+                    node["protocolVersions"] <- JsonNode.Parse("[\"0.2.0\",\"0.2.0-draft.1\"]")
+                )
+                |> readClaims
+
+            Expect.isFalse (Claims.equivalent left right) "array order is significant"
+        }
+        test "absent critical equals an empty critical array" {
+            let left =
+                (standaloneNode ()).ToJsonString()
+                |> bytes
+                |> readClaims
+
+            let right =
+                editClaims (fun node -> node["critical"] <- JsonNode.Parse "[]")
+                |> readClaims
+
+            Expect.isTrue (Claims.equivalent left right) "explicit contract default"
+        }
+        test "unknown critical nested metadata is refused" {
+            editClaims (fun node ->
+                let language =
+                    (node
+                     |> child "capabilities"
+                     |> child "frontend"
+                     |> child "languages")[0]
+                    |> nonNull
+
+                language["future"] <- JsonValue.Create true
+                node["critical"] <- JsonNode.Parse "[\"capabilities.frontend.languages.future\"]"
+            )
+            |> Claims.readStandalone
+            |> refused
+                "extension.unsupported_critical_member"
+                "capabilities.frontend.languages.future"
+        }
+        for field in [ "incremental"; "fragments"; "multiDocument" ] do
+            testCase
+                $"frontend optional boolean {field} rejects null"
+                (fun () ->
+                    editClaims (fun node ->
+                        (node
+                         |> child "capabilities"
+                         |> child "frontend")[field] <- null
+                    )
+                    |> Claims.readStandalone
+                    |> refused "extension.invalid_document" $"frontend.{field}"
+                )
+        for suffixes in [ "[]"; "[\"elm\"]"; "[\" .elm\"]"; "[\".elm\",\".elm\"]" ] do
+            testCase
+                $"language suffix constraints {suffixes}"
+                (fun () ->
+                    editClaims (fun node ->
+                        let language =
+                            (node
+                             |> child "capabilities"
+                             |> child "frontend"
+                             |> child "languages")[0]
+                            |> nonNull
+
+                        language["fileExtensions"] <- JsonNode.Parse suffixes
+                    )
+                    |> Claims.readStandalone
+                    |> refused "extension.invalid_document" "fileExtensions"
+                )
+        test "undeclared but known capability metadata is still type checked" {
+            editClaims (fun node ->
+                (child "capabilities" node)["workspace"] <-
+                    JsonNode.Parse "{\"protocolVersions\":[\"0.1.0-draft.1\"],\"discover\":null}"
+            )
+            |> Claims.readStandalone
+            |> refused "extension.invalid_document" "workspace.discover"
+        }
+        test "model transport limits remain positive integers" {
+            let input =
+                (namedCase "nested-members-claims").GetProperty("input").GetProperty("document")
+
+            let node =
+                JsonNode.Parse(input.GetRawText())
+                |> nonNull
+
+            (node
+             |> child "capabilities"
+             |> child "modelTransport"
+             |> child "limits")["maxDepth"] <- JsonValue.Create 0
+
+            node.ToJsonString()
+            |> bytes
+            |> Claims.readStandalone
+            |> refused "extension.invalid_document" "maxDepth"
+        }
+        test "requires host is checked using the established comparator values" {
+            let input =
+                (namedCase "current-protocol-claims")
+                    .GetProperty("input")
+                    .GetProperty("document")
+                    .GetRawText()
+                |> bytes
+
+            let parsed = readClaims input
+
+            let host value =
+                match SemVer.tryParse value with
+                | Ok version -> version
+                | Error _ -> failtest "Invalid test literal"
+
+            Expect.isTrue
+                (Claims.supportsHost (host "0.4.0-alpha.7") parsed)
+                "exact prerelease comparator admitted"
+
+            Expect.isTrue (Claims.supportsHost (host "0.4.1") parsed) "later final version"
+            Expect.isFalse (Claims.supportsHost (host "0.4.0-alpha.6") parsed) "earlier prerelease"
+        }
+        for requirement in [ "[]"; "[\"^0.4.0\"]"; "[\">=0.4.0 <1.0.0\"]"; "[\">=0.4\"]"; "null" ] do
+            testCase
+                $"requires host single-comparator grammar {requirement}"
+                (fun () ->
+                    editClaims (fun node ->
+                        let requirements = JsonObject()
+                        requirements["host"] <- JsonNode.Parse requirement
+                        node["requires"] <- requirements
+                        node["critical"] <- JsonNode.Parse "[\"requires.host\"]"
+                    )
+                    |> Claims.readStandalone
+                    |> refused "extension.invalid_document" "requires.host"
+                )
+        test "requires host must be named critical" {
+            editClaims (fun node -> node["requires"] <- JsonNode.Parse "{\"host\":[\">=0.4.0\"]}")
+            |> Claims.readStandalone
+            |> refused "extension.invalid_document" "critical"
+        }
+    ]

@@ -37,6 +37,12 @@ data pinned to that parent commit, including six release/schema cases and two
 I-JSON cases. It is not connected to installation commands. The remaining parent
 case operations and full claim/package validation are still being implemented.
 
+The internal claims reader additionally passes 27 focused Windows tests for
+current-schema claims, recursive metadata/comparison and host requirements. It
+shares embedded parsing with the descriptor reader and uses the existing version
+comparator library. This reads claims supplied in metadata; install-time probing
+and publisher authentication remain separate, unfinished integrations.
+
 The maintainer approved project/workspace pins resolved from local inventory and
 `MORPHIR_EXTENSION_OVERLAY` above project pins. Explicit frontend `extension_id`
 and `extensions` table `id` fields will select installed identities without
