@@ -50,6 +50,30 @@ pending. The reviewed hashing dependency was merged normally;
 publication, host mapping, manager integration and later safe orphan collection
 remain unfinished. This adds no working installation command.
 
+The next increment drafts tests for publishing sealed private bytes through the
+existing single-file store. Declaration-only refusal stubs now compile; a focused
+Windows run executed 17 cases, all errored, with four Unix-only cases ignored.
+No publication mechanism ran in that stub check. A source implementation now
+connects sealed ownership to the same store publisher/verifier as the path API.
+Two fresh focused Windows builds succeed, each with four existing dependency
+warnings and zero errors. Before and after pinned formatting, the permitted
+lists each pass 17 sealed-publication, 25 staging, 15 Store and five RunCopies
+tests. Seven Unix-only cases are ignored in each run. No working command,
+current Unix qualification or AOT qualification follows from these checks.
+Independent review found no finding within this sealed-publication scope. The
+public C# JIT consumer subsequently passes with 27 output lines, preserving its
+original 24 and adding checks for published bytes/digest/length, nullable cleanup
+and one-time sealed ownership. Its fresh build has four existing dependency
+warnings and zero errors; the run has empty stderr. This remains Windows
+development evidence.
+Required final verification
+includes the actual published bytes and Unix mode, including a macOS clone.
+Orphan collection, host mapping and acquisition lifecycle integration remain
+unfinished. Prior Windows results do not qualify the newly merged source or
+replace hosted Unix evidence. The coordinator separately verified the earlier
+`56665f6c` installer suite on hosted macOS and Ubuntu, 207/207 each with zero
+ignored, failed or errored. That evidence belongs to that exact earlier source.
+
 The installation library can verify and publish a staged single file to a
 content-addressed store, validate ZIP and tar-gzip archives without extracting
 them, and clean stale temporary directories owned by this host. It checks a

@@ -176,3 +176,55 @@ finally
     catch (IOException) { }
     catch (UnauthorizedAccessException) { }
 }
+
+// Public sealed-owner publication consumer; the original 24 output cases above stay unchanged.
+var publicationRoot = Directory.CreateTempSubdirectory("morphir-sealed-publication-probe-").FullName;
+try
+{
+    var publicationBytes = System.Text.Encoding.UTF8.GetBytes("C# sealed publication");
+    var publicationDigest = Sha256Digest.Create(Morphir.Toolchain.Digest.ofBytes(publicationBytes));
+    var publicationLength = (ulong)publicationBytes.Length;
+    if (!DistributionIdentifiers.TryParseArtifactFileName("sealed.exe", out var publicationName, out failure))
+        throw new InvalidOperationException(failure.ToString());
+    await using var publicationWriter = (await PrivateStaging.BeginAsync(
+        publicationRoot, publicationLength, publicationDigest, publicationLength, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    await publicationWriter.WriteAsync(publicationBytes, CancellationToken.None);
+    await using var publicationStage = (await publicationWriter.SealAsync(CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    var publication = (await SingleFileStore.PublishAsync(
+        publicationStage, publicationName, false, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    var publishedBytes = await File.ReadAllBytesAsync(publication.AbsolutePath);
+    if (!publishedBytes.AsSpan().SequenceEqual(publicationBytes)
+        || publication.Length != publicationBytes.LongLength
+        || !publication.Digest.Equals(publicationDigest)
+        || Morphir.Toolchain.Digest.ofBytes(publishedBytes) != publication.Digest.Value)
+        throw new InvalidOperationException("Published bytes, length or digest differ from the sealed owner.");
+    Console.WriteLine($"sealed publication:verified:{publication.Length}:{publication.Digest.Value}");
+
+    StageCleanupReport publicationCleanup = publicationStage.CleanupReport
+        ?? throw new InvalidOperationException("Publication omitted awaited cleanup observation.");
+    InstallationFailure? publicationCleanupFailure = publicationCleanup.Failure;
+    if (publicationCleanupFailure is not null)
+        throw new InvalidOperationException(publicationCleanupFailure.ToString());
+    if (publicationCleanup.IsDeferred)
+        throw new InvalidOperationException("Uncontended publication cleanup was deferred.");
+    Console.WriteLine("sealed publication cleanup:removed:no-error");
+
+    var refusedDuplicatePublication = false;
+    try
+    {
+        await SingleFileStore.PublishAsync(publicationStage, publicationName, false, CancellationToken.None);
+    }
+    catch (InvalidOperationException) { refusedDuplicatePublication = true; }
+    if (!refusedDuplicatePublication)
+        throw new InvalidOperationException("Publication admitted the consumed sealed owner twice.");
+    Console.WriteLine("sealed publication ownership:consumed-once");
+}
+finally
+{
+    try { Directory.Delete(publicationRoot, recursive: true); }
+    catch (IOException) { }
+    catch (UnauthorizedAccessException) { }
+}

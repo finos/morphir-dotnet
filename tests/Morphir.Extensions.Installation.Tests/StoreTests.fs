@@ -6,6 +6,7 @@ open System
 open System.IO
 open System.Text
 open System.Threading
+open System.Threading.Tasks
 open Expecto
 open Morphir.Extensions.Installation
 open Morphir.TestSupport
@@ -18,6 +19,121 @@ let private publish root source expected =
         .PublishAsync(root, source, filename "backend.exe", expected, true, ct)
         .GetAwaiter()
         .GetResult()
+
+// Proposed sealed-publication contract. No production declarations or implementation
+// are added by this draft; all existing Store tests below remain unchanged.
+let private sealedBytes
+    (root: string)
+    (content: byte array)
+    (maximum: uint64)
+    : Task<SealedArtifactStage * Stream> =
+    task {
+        let mutable observed: Stream option = None
+
+        let writer =
+            Func<Stream, ReadOnlyMemory<byte>, CancellationToken, ValueTask>(fun output chunk token ->
+                observed <- Some output
+                output.WriteAsync(chunk, token)
+            )
+
+        let! started =
+            PrivateStaging.BeginWithWriterAsync(
+                root,
+                uint64 content.Length,
+                digest content,
+                maximum,
+                writer,
+                ct
+            )
+
+        use! (writable: PrivateArtifactStage) = Task.FromResult(get started)
+        do! writable.WriteAsync(ReadOnlyMemory<byte>(content), ct)
+        let! result = writable.SealAsync ct
+
+        let owned =
+            observed
+            |> Option.defaultWith (fun () ->
+                failtest "Positive control never reached the owned writer."
+            )
+
+        return get result, owned
+    }
+
+let private sealedPublish
+    (stage: SealedArtifactStage)
+    (token: CancellationToken)
+    : Task<InstallationResult<StoredArtifact>> =
+    SingleFileStore.PublishAsync(stage, filename "backend.exe", true, token)
+
+let private sealedHooks
+    (stage: SealedArtifactStage)
+    (before: Func<CancellationToken, Task>)
+    (after: Action<string>)
+    (cleanup: Action)
+    (token: CancellationToken)
+    : Task<InstallationResult<StoredArtifact>> =
+    SingleFileStore.PublishSealedWithHooksAsync(
+        stage,
+        filename "backend.exe",
+        true,
+        before,
+        after,
+        cleanup,
+        token
+    )
+
+let private sealedBefore (action: unit -> unit) =
+    Func<CancellationToken, Task>(fun _ ->
+        action ()
+        Task.CompletedTask
+    )
+
+let private sealedAfter = Action<string>(ignore)
+let private sealedCleanup = Action(ignore)
+
+let private sealedTarget root =
+    Path.Combine(root, "store", "extensions", "sha256", (digest bytes).Value, "backend.exe")
+
+let private sealedOverwrite (stream: Stream) (content: byte array) =
+    stream.Position <- 0L
+    stream.SetLength(int64 content.Length)
+    stream.Write(content, 0, content.Length)
+    (stream :?> FileStream).Flush true
+
+let private sealedReport (stage: SealedArtifactStage) =
+    stage.CleanupReport
+    |> Option.ofObj
+    |> Option.defaultWith (fun () ->
+        failtest "Awaited publication omitted its cleanup observation."
+    )
+
+let private sealedCancelled
+    (token: CancellationToken)
+    (operation: unit -> Task<InstallationResult<StoredArtifact>>)
+    =
+    task {
+        let mutable observed = false
+
+        try
+            let! _ = operation ()
+            ()
+        with :? OperationCanceledException as error ->
+            observed <- true
+
+            Expect.equal
+                error.CancellationToken
+                token
+                "primary caller cancellation survives cleanup"
+
+        Expect.isTrue observed "async publication propagates cancellation before commit"
+    }
+
+let private sealedLifetime (owned: IDisposable) =
+    { new IAsyncDisposable with
+        member _.DisposeAsync() =
+            owned.Dispose()
+            ValueTask.CompletedTask
+    }
 
 [<Tests>]
 let tests =
@@ -369,5 +485,637 @@ let tests =
             Expect.isFalse
                 (File.Exists(Path.Combine(outside, "backend.exe")))
                 "no commit through a moved directory descriptor"
+        }
+    ]
+
+[<Tests>]
+let sealedPublicationTests =
+    testList "SealedPublication" [
+        testTask "publishes sealed bytes with verified final identity and mode" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), (owned: Stream)) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let! (result: InstallationResult<StoredArtifact>) = sealedPublish sealedStage ct
+            let (stored: StoredArtifact) = get result
+
+            Expect.equal
+                stored.AbsolutePath
+                (sealedTarget root)
+                "extension policy selects the existing store"
+
+            Expect.equal stored.Length (int64 bytes.Length) "final verified length"
+            Expect.equal stored.Digest (digest bytes) "final verified digest"
+
+            Expect.equal
+                (File.ReadAllBytes stored.AbsolutePath)
+                bytes
+                "actual published bytes, including a Darwin clone"
+
+            if not (OperatingSystem.IsWindows()) then
+                Expect.equal
+                    (File.GetUnixFileMode stored.AbsolutePath)
+                    (UnixFileMode.UserRead
+                     ||| UnixFileMode.UserWrite
+                     ||| UnixFileMode.UserExecute)
+                    "actual published object has private launchable mode"
+
+            Expect.isFalse
+                owned.CanRead
+                "publication releases transferred source ownership before returning"
+
+            Expect.isFalse
+                (sealedReport sealedStage).IsDeferred
+                "uncontended private cleanup completes"
+
+            Expect.equal
+                (Directory.GetFiles(parent stored.AbsolutePath)).Length
+                1
+                "no second publication stage remains"
+
+            Expect.isFalse
+                (Directory.Exists(Path.Combine(root, "catalog")))
+                "no shared metadata or activation"
+        }
+        testTask "small extension bytes accept a generic caller limit above 256 MiB" {
+            use sandbox = TestSandbox.Create()
+
+            let! ((sealedStage: SealedArtifactStage), _) =
+                sealedBytes
+                    (home sandbox)
+                    bytes
+                    (uint64 InstallationLimits.MaxArtifactBytes
+                     + 1UL)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let! (result: InstallationResult<StoredArtifact>) = sealedPublish sealedStage ct
+
+            Expect.equal
+                (File.ReadAllBytes (get result).AbsolutePath)
+                bytes
+                "caller limit is not a host layout or extension size"
+        }
+        testTask "reuses a path-published winner without rewriting it" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+            let winner = get (publish root (staged sandbox bytes) (digest bytes))
+            let stamp = DateTime(2010, 1, 2, 3, 4, 6, DateTimeKind.Utc)
+            File.SetLastWriteTimeUtc(winner.AbsolutePath, stamp)
+
+            let! ((sealedStage: SealedArtifactStage), _) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let! (result: InstallationResult<StoredArtifact>) = sealedPublish sealedStage ct
+            let (reused: StoredArtifact) = get result
+            Expect.equal reused.AbsolutePath winner.AbsolutePath "same common store entry"
+
+            Expect.equal
+                (File.GetLastWriteTimeUtc reused.AbsolutePath)
+                stamp
+                "matching winner is not rewritten"
+
+            Expect.equal (File.ReadAllBytes reused.AbsolutePath) bytes "reuse verifies actual bytes"
+        }
+        testTask "refuses and preserves a corrupt existing winner" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+            let winner = get (publish root (staged sandbox bytes) (digest bytes))
+            let corrupt = Encoding.UTF8.GetBytes "foreign corrupt winner"
+            File.WriteAllBytes(winner.AbsolutePath, corrupt)
+
+            let! ((sealedStage: SealedArtifactStage), _) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let! (result: InstallationResult<StoredArtifact>) = sealedPublish sealedStage ct
+            refused "extension.store_object_mismatch" result
+            Expect.equal (File.ReadAllBytes winner.AbsolutePath) corrupt "no repair or replacement"
+        }
+        testTask "Unix reuse refuses a winner without owner execute permission" {
+            if OperatingSystem.IsWindows() then
+                skiptest "Unix owner execute policy"
+
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+            let winner = get (publish root (staged sandbox bytes) (digest bytes))
+
+            File.SetUnixFileMode(
+                winner.AbsolutePath,
+                UnixFileMode.UserRead
+                ||| UnixFileMode.UserWrite
+            )
+
+            let! ((sealedStage: SealedArtifactStage), _) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let! (result: InstallationResult<StoredArtifact>) = sealedPublish sealedStage ct
+            refused "extension.not_launchable" result
+
+            Expect.equal
+                (File.GetUnixFileMode winner.AbsolutePath)
+                (UnixFileMode.UserRead
+                 ||| UnixFileMode.UserWrite)
+                "reuse does not repair permissions"
+        }
+        for matching in [ true; false ] do
+            testTask (
+                if matching then
+                    "rehashes a matching racing winner"
+                else
+                    "preserves a corrupt racing winner"
+            ) {
+                use sandbox = TestSandbox.Create()
+                let root = home sandbox
+                let target = sealedTarget root
+
+                let winner =
+                    if matching then
+                        bytes
+                    else
+                        Encoding.UTF8.GetBytes "racing foreign object"
+
+                let! ((sealedStage: SealedArtifactStage), _) =
+                    sealedBytes root bytes (uint64 bytes.Length)
+
+                use! stageLifetime = Task.FromResult(sealedStage)
+
+                let before =
+                    sealedBefore (fun () ->
+                        File.WriteAllBytes(target, winner)
+
+                        if not (OperatingSystem.IsWindows()) then
+                            File.SetUnixFileMode(
+                                target,
+                                UnixFileMode.UserRead
+                                ||| UnixFileMode.UserWrite
+                                ||| UnixFileMode.UserExecute
+                            )
+                    )
+
+                let! (result: InstallationResult<StoredArtifact>) =
+                    sealedHooks sealedStage before sealedAfter sealedCleanup ct
+
+                if matching then
+                    Expect.equal (get result).AbsolutePath target "verified race winner is reused"
+                else
+                    refused "extension.store_object_mismatch" result
+
+                Expect.equal
+                    (File.ReadAllBytes target)
+                    winner
+                    "atomic no-clobber preserves the racing object"
+            }
+        for mutation in [ "changed"; "short"; "extra" ] do
+            testTask ($"refuses {mutation} bytes in the sealed open object") {
+                use sandbox = TestSandbox.Create()
+                let root = home sandbox
+
+                let! ((sealedStage: SealedArtifactStage), (owned: Stream)) =
+                    sealedBytes root bytes (uint64 bytes.Length)
+
+                use! stageLifetime = Task.FromResult(sealedStage)
+
+                let modified =
+                    match mutation with
+                    | "short" ->
+                        bytes[0 .. bytes.Length
+                                   - 2]
+                    | "extra" -> Array.append bytes [| 0uy |]
+                    | _ ->
+                        Array.map
+                            (fun value ->
+                                value
+                                ^^^ 1uy
+                            )
+                            bytes
+
+                sealedOverwrite owned modified
+                let! (result: InstallationResult<StoredArtifact>) = sealedPublish sealedStage ct
+                refused "extension.digest_mismatch" result
+
+                Expect.isFalse
+                    (File.Exists(sealedTarget root))
+                    "seal metadata alone never authorizes changed bytes"
+            }
+        testTask "rehashes after the before-commit seam before publishing" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), (owned: Stream)) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let mutable reached = false
+
+            let before =
+                sealedBefore (fun () ->
+                    reached <- true
+
+                    sealedOverwrite
+                        owned
+                        (Array.map
+                            (fun value ->
+                                value
+                                ^^^ 1uy
+                            )
+                            bytes)
+                )
+
+            let! (result: InstallationResult<StoredArtifact>) =
+                sealedHooks sealedStage before sealedAfter sealedCleanup ct
+
+            Expect.isTrue reached "actual commit boundary was reached"
+            refused "extension.digest_mismatch" result
+
+            Expect.isFalse
+                (File.Exists(sealedTarget root))
+                "changed open bytes never become visible"
+        }
+        testTask "Unix refuses a substituted private source name and preserves foreign bytes" {
+            if OperatingSystem.IsWindows() then
+                skiptest "Windows sharing forbids this live-name substitution"
+
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), _) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+
+            let source =
+                Directory.GetFiles(Path.Combine(root, "tmp"), "bytes", SearchOption.AllDirectories)
+                |> Array.exactlyOne
+
+            let moved =
+                source
+                + ".original"
+
+            let foreign = Encoding.UTF8.GetBytes "foreign source name"
+            File.Move(source, moved)
+            File.WriteAllBytes(source, foreign)
+            let! (result: InstallationResult<StoredArtifact>) = sealedPublish sealedStage ct
+            refused "extension.path_escape" result
+            Expect.isFalse (File.Exists(sealedTarget root)) "no pathname fallback"
+            Expect.equal (File.ReadAllBytes source) foreign "foreign replacement remains"
+            Expect.equal (File.ReadAllBytes moved) bytes "renamed original remains"
+        }
+        testTask "Unix refuses captured Home renamed out at the commit boundary" {
+            if OperatingSystem.IsWindows() then
+                skiptest "Windows denies this directory rename while handles are held"
+
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+            let away = Path.Combine(sandbox.Root, "renamed-home")
+
+            let! ((sealedStage: SealedArtifactStage), _) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let before = sealedBefore (fun () -> Directory.Move(root, away))
+
+            let! (result: InstallationResult<StoredArtifact>) =
+                sealedHooks sealedStage before sealedAfter sealedCleanup ct
+
+            refused "extension.path_escape" result
+
+            Expect.isFalse
+                (File.Exists(sealedTarget away))
+                "no writes through a renamed-out directory descriptor"
+        }
+        testTask "pre-cancelled publication propagates its token without publishing" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), _) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let cancellation = new CancellationTokenSource()
+            use! cancellationLifetime = Task.FromResult(sealedLifetime cancellation)
+            cancellation.Cancel()
+
+            do!
+                sealedCancelled
+                    cancellation.Token
+                    (fun () -> sealedPublish sealedStage cancellation.Token)
+
+            Expect.isFalse (File.Exists(sealedTarget root)) "pre-cancellation has no commit"
+        }
+        testTask "cancellation before atomic commit releases ownership and publishes nothing" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), (owned: Stream)) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let cancellation = new CancellationTokenSource()
+            use! cancellationLifetime = Task.FromResult(sealedLifetime cancellation)
+            let before = sealedBefore cancellation.Cancel
+
+            do!
+                sealedCancelled
+                    cancellation.Token
+                    (fun () ->
+                        sealedHooks sealedStage before sealedAfter sealedCleanup cancellation.Token
+                    )
+
+            Expect.isFalse (File.Exists(sealedTarget root)) "no false committed outcome"
+            Expect.isFalse owned.CanRead "admitted ownership is closed before cancellation returns"
+
+            sealedReport sealedStage
+            |> ignore
+        }
+        testTask "cancellation after the actual commit cannot report rollback" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), (owned: Stream)) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let cancellation = new CancellationTokenSource()
+            use! cancellationLifetime = Task.FromResult(sealedLifetime cancellation)
+
+            let after =
+                Action<string>(fun target ->
+                    Expect.isTrue (File.Exists target) "hook follows actual native commit"
+                    cancellation.Cancel()
+                )
+
+            let! (result: InstallationResult<StoredArtifact>) =
+                sealedHooks sealedStage (sealedBefore ignore) after sealedCleanup cancellation.Token
+
+            let (stored: StoredArtifact) = get result
+            Expect.isTrue cancellation.IsCancellationRequested "late cancellation control executed"
+
+            Expect.equal
+                (File.ReadAllBytes stored.AbsolutePath)
+                bytes
+                "confirmed commit still receives final verification"
+
+            Expect.isFalse owned.CanRead "no detached cleanup or live owner"
+
+            sealedReport sealedStage
+            |> ignore
+        }
+        testTask "verifies actual published bytes including the Darwin clone" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), (owned: Stream)) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+
+            let corrupt =
+                Array.map
+                    (fun value ->
+                        value
+                        ^^^ 1uy
+                    )
+                    bytes
+
+            let mutable reached = false
+
+            let after =
+                Action<string>(fun target ->
+                    reached <- true
+
+                    if OperatingSystem.IsMacOS() then
+                        // A real fclonefileat result has a new inode. Mutating only
+                        // its source would not test final clone verification.
+                        File.WriteAllBytes(target, corrupt)
+                    else
+                        sealedOverwrite owned corrupt
+                )
+
+            let! (result: InstallationResult<StoredArtifact>) =
+                sealedHooks sealedStage (sealedBefore ignore) after sealedCleanup ct
+
+            Expect.isTrue reached "actual native publication happened"
+
+            result.Match(
+                Func<StoredArtifact, unit>(fun _ ->
+                    failtest "Unverified visible bytes cannot report success."
+                ),
+                Func<InstallationFailure, unit>(fun failure ->
+                    Expect.equal
+                        failure.Code
+                        "extension.store_object_mismatch"
+                        "required final verification failed"
+
+                    Expect.isTrue
+                        (failure.Message.Contains(sealedTarget root, StringComparison.Ordinal))
+                        "failure identifies the already-visible object"
+                )
+            )
+
+            Expect.equal
+                (File.ReadAllBytes(sealedTarget root))
+                corrupt
+                "visible unverified object is retained, never silently repaired"
+        }
+        testTask "Unix verifies actual published mode after the native commit" {
+            if OperatingSystem.IsWindows() then
+                skiptest "Unix owner execute policy"
+
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), _) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+
+            let after =
+                Action<string>(fun target ->
+                    File.SetUnixFileMode(
+                        target,
+                        UnixFileMode.UserRead
+                        ||| UnixFileMode.UserWrite
+                    )
+                )
+
+            let! (result: InstallationResult<StoredArtifact>) =
+                sealedHooks sealedStage (sealedBefore ignore) after sealedCleanup ct
+
+            refused "extension.not_launchable" result
+
+            Expect.isTrue
+                (File.Exists(sealedTarget root))
+                "a visible clone/link is not mislabeled as rollback"
+
+            Expect.equal
+                (File.GetUnixFileMode(sealedTarget root))
+                (UnixFileMode.UserRead
+                 ||| UnixFileMode.UserWrite)
+                "final mode was observed, not assumed from source"
+        }
+        testTask "consumed sealed ownership cannot publish a second destination name" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), _) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let! (first: InstallationResult<StoredArtifact>) = sealedPublish sealedStage ct
+
+            get first
+            |> ignore
+
+            let mutable refusedAgain = false
+
+            try
+                let! _ = SingleFileStore.PublishAsync(sealedStage, filename "second.exe", true, ct)
+                ()
+            with :? InvalidOperationException ->
+                refusedAgain <- true
+
+            Expect.isTrue refusedAgain "single transferred owner is consumed at most once"
+
+            Expect.isFalse
+                (File.Exists(Path.Combine(parent (sealedTarget root), "second.exe")))
+                "no duplicate commit"
+        }
+        testTask "concurrent publication refuses and disposal joins the admitted commit" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), (owned: Stream)) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+
+            let entered =
+                TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+
+            let resume =
+                TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+
+            let before =
+                Func<CancellationToken, Task>(fun token -> task {
+                    entered.TrySetResult(())
+                    |> ignore
+
+                    do! resume.Task.WaitAsync(TimeSpan.FromSeconds 10., token)
+                })
+
+            let admitted = sealedHooks sealedStage before sealedAfter sealedCleanup ct
+            // Even a failing assertion must release the pause and observe the
+            // operation before the stage lifetime closes its native resources.
+            let join =
+                { new IAsyncDisposable with
+                    member _.DisposeAsync() =
+                        ValueTask(
+                            task {
+                                resume.TrySetResult(())
+                                |> ignore
+
+                                try
+                                    let! _ = admitted
+                                    ()
+                                with _ ->
+                                    ()
+                            }
+                        )
+                }
+
+            use! admittedLifetime = Task.FromResult(join)
+
+            try
+                do! entered.Task.WaitAsync(TimeSpan.FromSeconds 10.)
+                let mutable refusedConcurrent = false
+
+                try
+                    let! _ = sealedPublish sealedStage ct
+                    ()
+                with :? InvalidOperationException ->
+                    refusedConcurrent <- true
+
+                Expect.isTrue refusedConcurrent "overlapping commits cannot share ownership"
+                let disposal = (sealedStage :> IAsyncDisposable).DisposeAsync().AsTask()
+                Expect.isFalse disposal.IsCompleted "disposal waits for the admitted commit"
+                Expect.isTrue owned.CanRead "source stays open while commit is paused"
+
+                resume.TrySetResult(())
+                |> ignore
+
+                let! (result: InstallationResult<StoredArtifact>) =
+                    admitted.WaitAsync(TimeSpan.FromSeconds 10.)
+
+                get result
+                |> ignore
+
+                do! disposal.WaitAsync(TimeSpan.FromSeconds 10.)
+                Expect.isFalse owned.CanRead "both operations finish before ownership is closed"
+
+                Expect.equal
+                    (File.ReadAllBytes(sealedTarget root))
+                    bytes
+                    "one verified committed object"
+            finally
+                resume.TrySetResult(())
+                |> ignore
+        }
+        testTask "busy postcommit cleanup reports a closed unowned private orphan" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+
+            let! ((sealedStage: SealedArtifactStage), (owned: Stream)) =
+                sealedBytes root bytes (uint64 bytes.Length)
+
+            use! stageLifetime = Task.FromResult(sealedStage)
+            let rootDirectory = SafeDirectory.Open(root, true)
+            use! rootLifetime = Task.FromResult(sealedLifetime rootDirectory)
+            let mutable busy: IDisposable option = None
+
+            let beforeCleanup =
+                Action(fun () -> busy <- Some(FileSafety.mutationLease rootDirectory))
+
+            try
+                let! (result: InstallationResult<StoredArtifact>) =
+                    sealedHooks sealedStage (sealedBefore ignore) sealedAfter beforeCleanup ct
+
+                let (stored: StoredArtifact) = get result
+
+                Expect.equal
+                    (File.ReadAllBytes stored.AbsolutePath)
+                    bytes
+                    "cleanup cannot invent rollback"
+
+                let report = sealedReport sealedStage
+
+                Expect.isTrue
+                    report.IsDeferred
+                    "busy supported-writer lease leaves observable physical deferral"
+
+                Expect.isSome
+                    (Option.ofObj report.Failure)
+                    "cleanup diagnostic is available through nullable metadata"
+
+                Expect.isFalse owned.CanRead "deferred cleanup retains no live data owner"
+
+                let owner =
+                    Directory.GetFiles(
+                        Path.Combine(root, "tmp"),
+                        ".owner",
+                        SearchOption.AllDirectories
+                    )
+                    |> Array.exactlyOne
+
+                let released = File.Open(owner, FileMode.Open, FileAccess.ReadWrite, FileShare.None)
+                use! releasedLifetime = Task.FromResult(sealedLifetime released)
+                Expect.isTrue released.CanRead "orphan owner lease was released before return"
+            finally
+                busy
+                |> Option.iter (fun lease -> lease.Dispose())
         }
     ]

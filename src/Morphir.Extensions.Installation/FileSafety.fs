@@ -643,7 +643,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
     member this.File(name: string, createNew: bool, lease: bool) =
         this.File(name, createNew, lease, false)
 
-    member this.Publish(source: SafeFileHandle, name: string) =
+    member this.Publish(source: SafeFileHandle, name: string, committed: Action) =
         this.ValidateLocation()
 
         let published =
@@ -666,6 +666,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                     "Descriptor-bound publication is not supported on this platform."
 
         if published then
+            // Native visibility precedes validation, which can itself fail.
+            // Record that fact before any managed postcommit operation.
+            committed.Invoke()
             this.ValidateLocation()
             true
         else
@@ -681,6 +684,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                 false
             else
                 NativeFiles.error path code
+
+    member this.Publish(source: SafeFileHandle, name: string) =
+        this.Publish(source, name, Action(ignore))
 
     member _.FileIdentity(file: FileStream) =
         NativeFiles.identity file.SafeFileHandle

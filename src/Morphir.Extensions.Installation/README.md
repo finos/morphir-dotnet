@@ -225,6 +225,104 @@ runs. Passing conditional tests on Windows does not exercise those branches.
 
 ## Remaining integration
 
+The sealed-publication increment now has focused Windows development evidence.
+A separate `SealedPublication` list in the existing Store test
+module contains 21 cases, including four Unix-only controls. Existing Store,
+PrivateStaging, RunCopies and public C# consumer cases are preserved. A bounded
+RED burst first captured 25 compile diagnostics: the absent overload/seam and
+test inference errors. Declaration-only refusal stubs and explicit test-local
+types then compiled, four existing dependency TFM warnings and zero errors.
+The exact list ran once: 17 executed, zero passed/failed, four ignored and 17
+errored. Sixteen errors are NotImplementedException; the concurrency control's
+ten-second wait timed out because the stub never invokes its pause hook. The
+admitted task was observed during awaited test cleanup. This is missing-behavior
+evidence only, not commit, tamper, ownership or cleanup mechanism coverage.
+The proposed overload takes a sealed owner,
+parsed filename, executable policy and cancellation token; captured Home, digest
+and exact length come from the owner. Its implementation must share today's
+SingleFileStore verifier and SafeDirectory.Publish, with serialized ownership
+transfer and actual commit-state observation. No second store or checker is
+proposed.
+
+Draft controls cover verified final bytes/mode, path/sealed reuse, no-clobber
+races, changed/truncated/appended open bytes, identity replacement, cancellation
+before/after actual commit, duplicate/concurrent publication, disposal joining
+and observable closed-orphan cleanup deferral. The Darwin control mutates the
+actual clone result before final verification. A visible object that fails
+required verification is proposed to remain visible with a refusal identifying
+its path, without a receipt, repair or successful publication claim. This test
+contract still needs mechanism review. Those earlier declarations always returned
+faulted NotImplemented tasks without I/O, hook invocation or ownership transfer.
+The current source replaces them with one shared publisher/verifier for the
+path-copy and sealed-owner APIs. Its first and formatted Windows runs each pass
+17/17 SealedPublication tests, with four Unix-only cases ignored. This does not
+establish final API approval or Unix qualification.
+
+The draft admits one sealed publisher in the existing phase machine. Duplicate
+or overlapping admission refuses; disposal joins admitted publication, while the
+old writable wrapper cannot close its transferred owner. Publication validates
+captured Home/source identity, takes the existing private lease and rehashes the
+same open source after the awaited before-commit hook. Reuse, racing winners and
+new objects share final digest/length/identity/launch-mode verification. There is
+no second hash, store or native implementation. The extension cap is applied
+only by SingleFileStore; generic staging retains its caller-supplied bound.
+
+A minimal SafeDirectory callback records successful native visibility before
+postcommit location validation can throw. The after-commit hook runs only there.
+After a successful commit, final verification observes the actual named object
+with a noncancelled token, including the new Darwin clone inode. A failure returns
+a typed refusal identifying the committed path; it leaves the visible object
+without returning a StoredArtifact, repairing it or claiming rollback. Late
+cancellation cannot fabricate a failed commit. Windows source handles retain
+DELETE access through rename, then close before the final readonly open, whose
+identity must still match the captured source identity. This ordering follows
+[Windows sharing rules](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew),
+not a pathname fallback for publication.
+
+The publishing lease ends before private cleanup. All retained ownership closes
+before the existing cooperative deletion attempt, with CleanupReport exposing
+deferred physical cleanup. Primary precommit cancellation propagates after
+awaited release. No native operation is detached and no hard kernel deadline is
+promised. All 21 test cases and existing guards remain unchanged from the recorded
+RED source apart from pinned formatting. Two fresh Release no-restore builds each
+succeeded with four existing dependency TFM warnings and zero errors. Before and
+after Fantomas 5.2.4 formatting, the exact lists each pass SealedPublication 17/17,
+PrivateStaging 25/25, Store 15/15 and RunCopies 5/5. Seven Unix-only cases are
+ignored in each run. No compile or behavior correction was needed. All 90 locks
+and protected test/project/C# sources remain unchanged. Safe orphan collection
+and host mapping remain unimplemented.
+
+Independent review `6e79` found no security, correctness or interop finding in
+this sealed-publication source. It checked the frozen source hashes and Windows
+62/62 results twice, with seven Unix-only cases ignored each time. A subsequent
+public C# consumer appends three cases to the original 24-case source prefix.
+Its fresh Release no-restore build succeeds with four existing dependency
+warnings and zero errors. One JIT run emits exactly 27 lines with empty stderr;
+the original 24 lines are unchanged. The new cases check actual published
+bytes/digest/length, nullable cleanup observations and consumed-owner refusal
+through the public sealed `PublishAsync` overload. This adds Windows C# consumer
+evidence, not current Unix, Darwin clone or Native AOT qualification.
+
+The cohesive intermediate checkpoint uses the maintainer's sequencing exception.
+Local full-suite, coverage, full-format, changelog and repository Precommit
+checks are omitted. The actual Git hooks directory has no installed hooks, so
+ordinary commit/push runs without a bypass. Final exact-head CI, security,
+platform and review gates remain required. No full task is completed by this
+checkpoint.
+
+The checkout normally merged reviewed main `b2b24b81d7f622b118275881e1868520bebec66b`
+as `af7ac67f7372d4321c94ec25a4a74c713d3d8526`, retaining installer head `56665f6c`
+and acquisition ancestry. The merge preserves the security/bootstrap changes and
+both changelog histories without conflicts. This merge remains unpushed; its
+targeted declaration/stub evidence above does not qualify the full merged source.
+Prior Windows evidence belongs to the exact `56665f6c` source. The coordinator
+subsequently inspected full hosted logs at that head and reported macOS and
+Ubuntu each ran/passed 207 installer tests with zero ignored, failed or errored.
+Those raw logs are retained separately by the coordinator; they do not qualify
+this later merge or sealed-publication draft. Safe orphan sweep,
+host publication mapping, acquisition composition and the full lifecycle remain
+unfinished.
+
 Private asynchronous byte staging now has an implementation draft of
 Begin/Write/Seal. Earlier missing-API/setup logs are retained separately from the
 first runtime-stub RED: 16 executed, all 16 errored at intentional Begin refusal,
@@ -333,13 +431,15 @@ cleanup observations and Task/ValueTask/IAsyncDisposable ownership; no F# option
 or unions cross that boundary. The API has focused C# JIT/nullable evidence;
 independent review and native/AOT consumer qualification remain outstanding.
 
-Later slices must verify additional Home/name replacement interleavings, full
-cancellation/deadline boundaries and safe orphan sweep, and add sealed publication
-through the existing Store/FileSafety implementation. Store.fs is unchanged in
-these first two slices. Actual commit state including Darwin clone final
-verification, read-only reuse, host publication mapping and manager composition
-remain unimplemented. Generic staging chooses no extension layout or 256 MiB
-policy. Unix and Native AOT qualification of this new source remain pending.
+Later Unix verification must execute the sealed-publication draft's Home/name
+and Darwin clone controls. Focused Windows runs execute its cancellation, actual
+commit and ownership controls alongside the existing store/staging/run-copy
+guards. Store.fs remained unchanged in the first two
+Begin/Write/Seal slices; the current source increment shares its publisher with
+sealed ownership. Read-only reuse, safe orphan sweep, host publication mapping
+and manager composition remain unimplemented. Generic staging chooses no
+extension layout or 256 MiB policy. Current Unix, independent security/interop
+review and Native AOT qualification remain pending.
 
 Parent group 1 published the seven schemas, normative member tables,
 identity/package cases and publication audit in finos/morphir#1156, immutable main

@@ -155,6 +155,7 @@ type internal StageResources
     ) =
     let dataHandle = output.SafeFileHandle
     member _.Output = output
+    member _.Root = root
 
     member _.Validate() =
         root.ValidateLocation()
@@ -169,8 +170,8 @@ type internal StageResources
             ()
         | _ -> Operations.fail "extension.path_escape" "Private staging object changed identity."
 
-    member _.CloseAsync() : Task<StageCleanupReport> = task {
-        let mutable closeFailure = None
+    member _.CloseAsync(initialFailure: InstallationFailure option) : Task<StageCleanupReport> = task {
+        let mutable closeFailure = initialFailure
         // Await even a slow native close/flush. No timeout detaches work from its owner.
         try
             do! output.DisposeAsync()
@@ -196,6 +197,8 @@ type internal StageResources
 
         return StageCleanupReport(StageFiles.cleanup location closeFailure)
     }
+
+    member this.CloseAsync() = this.CloseAsync(None)
 
     static member CreateAsync(home: string, ct: CancellationToken) : Task<StageResources> = task {
         ct.ThrowIfCancellationRequested()
@@ -304,6 +307,7 @@ type private StagePhase =
     | Writing of TaskCompletionSource<unit>
     | Sealing of TaskCompletionSource<unit>
     | Sealed
+    | Publishing of TaskCompletionSource<unit>
     | Faulted of InstallationFailure * Task
     | Closing of TaskCompletionSource<unit>
     | Disposed of StageCleanupReport
@@ -562,6 +566,63 @@ type internal StageCore
                 finish operation
     }
 
+    member _.PublishAsync<'T>
+        (
+            operation: Func<StageResources, Task<'T>>,
+            beforeCleanup: Action,
+            ct: CancellationToken
+        ) : Task<'T> =
+        ct.ThrowIfCancellationRequested()
+
+        let signal =
+            lock
+                gate
+                (fun () ->
+                    match phase with
+                    | StagePhase.Sealed ->
+                        let signal = completion ()
+                        phase <- StagePhase.Publishing signal
+                        signal
+                    | _ ->
+                        invalidOp
+                            "Sealed stage is consumed, disposed or another operation owns it."
+                )
+
+        task {
+            try
+                let! outcome = task {
+                    try
+                        let! value = operation.Invoke resources
+                        return Ok value
+                    with error ->
+                        return Error error
+                }
+                // The publisher has left its mutation-lease scope before this
+                // hook and close. Cleanup never waits while holding that lease.
+                let mutable cleanupFailure = None
+
+                try
+                    beforeCleanup.Invoke()
+                with error ->
+                    cleanupFailure <- Some(StageFiles.failure error)
+
+                let! report = resources.CloseAsync(cleanupFailure)
+                lock gate (fun () -> phase <- StagePhase.Disposed report)
+                finish signal
+
+                match outcome with
+                | Ok value -> return value
+                | Error error -> return raise error
+            with error ->
+                // Unexpected close failure is observable to a disposal joining
+                // this owner; no task or native work is detached.
+                if not signal.Task.IsCompleted then
+                    signal.TrySetException error
+                    |> ignore
+
+                return raise error
+        }
+
     member _.DisposeAsync(sealedOwner: bool) : ValueTask =
         let admission =
             lock
@@ -569,6 +630,13 @@ type internal StageCore
                 (fun () ->
                     match phase with
                     | StagePhase.Sealed when not sealedOwner -> Choice1Of2 Task.CompletedTask
+                    | StagePhase.Publishing signal ->
+                        Choice1Of2(
+                            if sealedOwner then
+                                (signal.Task :> Task)
+                            else
+                                Task.CompletedTask
+                        )
                     | StagePhase.Disposed _ -> Choice1Of2 Task.CompletedTask
                     | StagePhase.Closing signal -> Choice1Of2(signal.Task :> Task)
                     | current ->
@@ -614,6 +682,15 @@ type SealedArtifactStage internal (core: StageCore) =
     member _.Digest = core.Digest
     /// Physical cleanup result after awaited disposal; null while ownership remains live.
     member _.CleanupReport = core.CleanupReport
+
+    member internal _.PublishAsync<'T>
+        (
+            operation: Func<StageResources, Task<'T>>,
+            beforeCleanup: Action,
+            ct: CancellationToken
+        ) =
+        core.PublishAsync(operation, beforeCleanup, ct)
+
     /// Stable description without reflection.
     override _.ToString() = "Sealed private artifact stage."
 
