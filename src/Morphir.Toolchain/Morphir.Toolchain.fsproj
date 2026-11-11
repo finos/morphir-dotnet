@@ -44,6 +44,8 @@
     <Compile Include="ReleaseDescriptors.fs" />
     <Compile Include="RecipeBindings.fs" />
     <Compile Include="ToolResolver.fs" />
+        <Compile Include="TufMetadata.fs" />
+        <Compile Include="TufClient.fs" />
         <Compile Include="Resolution.fs" />
         <Compile Include="Planning.fs" />
         <Compile Include="Diagnostics.fs" />

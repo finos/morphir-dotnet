@@ -1,14 +1,16 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 /// <summary>
-/// The cases of the TEST-ONLY signed manifest that need no metadata verification. The suite treats the targets
-/// metadata in <c>repository.json</c> as already authenticated, as a TUF client would hand it over, and runs every
-/// check that is a pure function of that metadata and the target bytes: resolution, frozen locks, lock against
-/// recipe, the recipe target rows, the provider repository row, target authentication and channel selection. Every
-/// other rule, operation and section is listed with the reason it is not run, and a test fails on anything unlisted.
+/// The cases of the TEST-ONLY signed manifest. The TUF client subset (not security reviewed) authenticates each
+/// metadata set from the fixture's trusted root at its reference time, and the suite runs the trust cases that load
+/// the repository through it, and every check that is a pure function of the authenticated metadata and the target
+/// bytes: resolution, frozen locks, lock against recipe, the recipe target rows, the provider repository row, target
+/// authentication, channel selection and the locked-generation checks. Every other rule, operation and section is
+/// listed with the reason it is not run, and a test fails on anything unlisted.
 /// </summary>
 module Morphir.Toolchain.Tests.SignedCaseTests
 
+open System
 open System.Text
 open System.Text.Json
 open Expecto
@@ -70,9 +72,7 @@ let ranRecipeRules =
 let skippedRecipeRules: Map<string, string> = Map.empty
 
 /// Trust operations, and the check-recipe rules, that this suite does not run, with their reasons.
-let skippedTrust =
-    Map.ofList
-        [ "load", "loads the mutated repository through a TUF client: signatures, snapshot links and expiry are metadata verification" ]
+let skippedTrust: Map<string, string> = Map.empty
 
 let private manifest () = JsonDocument.Parse(Fixtures.bytesIn Fixtures.signed "cases.json")
 
@@ -101,32 +101,62 @@ let repository () =
     | Ok id -> id
     | Error _ -> failtest "repository.json has no valid repositoryId"
 
-/// The targets of a metadata set (<c>metadata</c> or <c>learnedRevocation</c>), as the authenticated entries a TUF
-/// client would hand over.
+/// The TEST-ONLY anchor of the signed repository: its trusted root.
+let private anchor () =
+    match TrustAnchor.load TrustAnchorPurpose.TestOnly (TufFixture.canonical (TufFixture.metadataSet "metadata").Root) with
+    | Ok(trusted, _) -> trusted
+    | Error refusal -> failtestf "the fixture root does not load: %A" refusal
+
+/// <summary>The targets of a metadata set (<c>metadata</c>, <c>learnedRevocation</c> or <c>recipeRevocation</c>), as
+/// the TUF client authenticates them: a refresh from the trusted root at the fixture's reference time.</summary>
 let authenticatedTargets (set: string) : Map<string, AuthenticatedTarget> =
-    use repository = repositoryDocument ()
-    let targets = repository.RootElement.GetProperty(set).GetProperty("targets").GetProperty("signed").GetProperty("targets")
+    match TufClient.refresh TufFixture.referenceTime (anchor ()) (TufFixture.sourceOf (TufFixture.metadataSet set) []) with
+    | RefreshResult.Refreshed trusted -> (Option.get trusted.Targets).Targets
+    | other -> failtestf "the %s metadata set does not refresh: %A" set other
 
-    [ for target in targets.EnumerateObject() ->
-          let custom =
-              match target.Value.TryGetProperty "custom" with
-              | true, custom ->
-                  match Syntax.parseJson (Encoding.UTF8.GetBytes(custom.GetRawText())) with
-                  | Ok value -> Some value
-                  | Error _ -> failtest "custom does not parse"
-              | false, _ -> None
+/// A JSON pointer into a role's signed object as member names.
+let private pointerPath (pointer: string) =
+    pointer.Split('/', StringSplitOptions.RemoveEmptyEntries)
+    |> Array.map (fun segment -> segment.Replace("~1", "/").Replace("~0", "~"))
+    |> List.ofArray
 
-          let sha =
-              match Sha256.tryParse (nonNull (target.Value.GetProperty("hashes").GetProperty("sha256").GetString())) with
-              | Ok sha -> sha
-              | Error _ -> failtest "not a digest"
+/// The metadata set of a trust case after its metadata mutations.
+let private mutatedSet (case: JsonElement) =
+    let mutations =
+        match case.TryGetProperty "mutations" with
+        | true, m when m.ValueKind = JsonValueKind.Array -> [ for x in m.EnumerateArray() -> x ]
+        | _ -> []
 
-          target.Name,
-          { Length = target.Value.GetProperty("length").GetUInt64()
-            Sha256 = sha
-            Custom = custom } ]
-    |> Map.ofList
+    let withRole (role: string) (value: Value) (set: TufFixture.MetadataSet) =
+        match role with
+        | "timestamp" -> { set with Timestamp = value }
+        | "snapshot" -> { set with Snapshot = value }
+        | "targets" -> { set with Targets = value }
+        | other -> failtestf "mutation of role %s" other
 
+    let roleOf (role: string) (set: TufFixture.MetadataSet) =
+        match role with
+        | "timestamp" -> set.Timestamp
+        | "snapshot" -> set.Snapshot
+        | "targets" -> set.Targets
+        | other -> failtestf "role %s" other
+
+    (TufFixture.metadataSet (str case "metadata"), mutations)
+    ||> List.fold (fun set m ->
+        match str m "op" with
+        | "set-signed-member" ->
+            let value =
+                // Wrapped in an object, since a document is not a bare string.
+                match Syntax.parseJson (Encoding.UTF8.GetBytes("{\"value\":" + m.GetProperty("value").GetRawText() + "}")) with
+                | Ok wrapped -> TufFixture.memberOf "value" wrapped
+                | Error _ -> failtest "the mutation's value does not parse"
+
+            let role = str m "role"
+            withRole role (TufFixture.setAt ("signed" :: pointerPath (str m "pointer")) value (roleOf role set)) set
+        | "relink" -> TufFixture.relink set
+        | "replace-role" -> withRole (str m "role") (TufFixture.at (List.ofArray ((str m "from").Split '.')) (TufFixture.repository ())) set
+        | target when target.EndsWith "-target-bytes" || target.EndsWith "-target-text" -> set
+        | other -> failtestf "metadata mutation %s" other)
 let signedRecipe (target: string) =
     RecipeDocument.read (targetBytes target) |> valid target
 
@@ -358,6 +388,16 @@ let private trustTests () =
                       let recipe = RecipeDocument.read (JsonText.toBytes edited) |> valid target
                       let actual = withServedTargets case (fun bytesOf -> RecipeBindings.check (repository ()) listed bytesOf recipe) |> targetOutcome
                       Expect.equal actual (Manifest.expected name case) name)
+          | "load", _ ->
+              yield
+                  testCase name (fun () ->
+                      let actual =
+                          match TufClient.refresh TufFixture.referenceTime (anchor ()) (TufFixture.sourceOf (mutatedSet case) []) with
+                          | RefreshResult.Refreshed _ -> Valid
+                          | RefreshResult.Failed(failure, _) -> Refused(Code.name (TufFailure.code failure), "")
+                          | other -> failtestf "%s did not complete: %A" name other
+
+                      Expect.equal actual (Manifest.expected name case) name)
           | "check-locked-generation", _ ->
               yield
                   testCase name (fun () ->
@@ -495,14 +535,14 @@ let private channelTests () =
 /// Why a trust case is not run, or None when it is.
 let trustSkipReason (op: string) (rule: string option) =
     match op, rule with
-    | ("read" | "authenticate" | "check-locked-generation" | "check-recipe-bindings"), _ -> None
+    | ("read" | "authenticate" | "check-locked-generation" | "check-recipe-bindings" | "load"), _ -> None
     | "check-recipe", Some rule when ranRecipeRules.Contains rule -> None
     | "check-recipe", Some rule -> skippedRecipeRules.TryFind rule |> Option.orElse (Some "unlisted")
     | _ -> skippedTrust.TryFind op |> Option.orElse (Some "unlisted")
 
 [<Tests>]
 let tests =
-    testList "Signed cases without metadata verification" [
+    testList "Signed cases" [
         testCase "every section of the signed manifest is run or listed with a reason" (fun () ->
             use document = manifest ()
             let sections = document.RootElement.EnumerateObject() |> Seq.map _.Name |> set
