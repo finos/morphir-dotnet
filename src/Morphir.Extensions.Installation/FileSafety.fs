@@ -772,19 +772,24 @@ module internal FileSafety =
             None
 
     // Retry only actual interprocess contention. Permission/identity failures are refusals.
-    let rec mutationLeaseAsync root (ct: CancellationToken) = task {
-        ct.ThrowIfCancellationRequested()
+    let mutationLeaseAsync root (ct: CancellationToken) = task {
+        // One state machine owns the wait, including prolonged contention.
+        // Recursive task expressions would retain a parent task per retry.
+        let mutable acquired: FileStream option = None
 
-        match tryMutationLease root with
-        | Some lease ->
-            if ct.IsCancellationRequested then
-                lease.Dispose()
-                ct.ThrowIfCancellationRequested()
+        while acquired.IsNone do
+            ct.ThrowIfCancellationRequested()
 
-            return lease
-        | None ->
-            do! Task.Delay(25, ct)
-            return! mutationLeaseAsync root ct
+            match tryMutationLease root with
+            | Some lease ->
+                if ct.IsCancellationRequested then
+                    lease.Dispose()
+                    ct.ThrowIfCancellationRequested()
+
+                acquired <- Some lease
+            | None -> do! Task.Delay(25, ct)
+
+        return acquired.Value
     }
 
     let rec withDirectories (root: SafeDirectory) (parts: string list) create work =

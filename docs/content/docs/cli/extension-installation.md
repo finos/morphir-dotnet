@@ -33,8 +33,9 @@ missing-API and setup diagnostics, a fresh build succeeded and 16 tests ran.
 All 16 errored at the declaration stub's intentional refusal; zero passed or were
 ignored. No staging mechanism executed, and no behavior or public API approval
 is established by that earlier stub run. The Begin/Write/Seal implementation now
-passes 24/24 focused Windows tests that execute byte ownership, integrity,
-interrupted-write and concurrency controls. Affected Store 15/15 and RunCopies
+passes 25/25 focused Windows tests that execute byte ownership, integrity,
+interrupted-write and concurrency controls, including cancellation while waiting
+for creation admission. Affected Store 15/15 and RunCopies
 5/5 pass, with three Unix-only cases ignored. The public C# JIT probe also passes
 its original 15 output cases plus nine staging cases, including ownership,
 nullable cleanup, refusal and cancellation controls. New staging Unix and AOT

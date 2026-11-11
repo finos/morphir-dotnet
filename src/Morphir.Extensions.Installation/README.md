@@ -225,11 +225,11 @@ runs. Passing conditional tests on Windows does not exercise those branches.
 
 ## Remaining integration
 
-Private asynchronous byte staging now has a source-only implementation draft of
+Private asynchronous byte staging now has an implementation draft of
 Begin/Write/Seal. Earlier missing-API/setup logs are retained separately from the
 first runtime-stub RED: 16 executed, all 16 errored at intentional Begin refusal,
 zero passed, ignored or failed. No staging mechanism executed in that run. The
-current implementation now passes the focused Windows PrivateStaging list: 24
+initial implementation passed the focused Windows PrivateStaging list: 24
 executed, 24 passed, zero ignored/failed/errored. These tests execute real owned
 stream writes, flushed partial-prefix cancellation/error, one-time ownership
 transfer, same-object tamper checks, disposal joins, interprocess lease access
@@ -244,6 +244,16 @@ deliberately unsafe accesses produced CS8602 for CleanupReport and Failure;
 the guarded consumer then built and ran. Explicit disposal uses IAsyncDisposable.
 This was two focused no-restore probe builds and one successful fresh assembly
 run, with no production API or mechanism change, native publish or AOT inference.
+
+The lease wait now uses one iterative task instead of recursive task expressions,
+so prolonged contention does not retain a parent task per retry. A new control
+first passed against the initial implementation: cancelled Begin while the lease
+is held creates no stage and preserves the caller token; releasing the lease
+permits a verified retry. After the refactor and pinned formatting, PrivateStaging
+passes 25/25, Store 15/15 and RunCopies 5/5, with the same three Unix-only cases
+ignored. The freshly rebuilt public C# probe still emits all 24 lines. This is
+functional regression evidence, not a measured heap-growth reproduction or new
+Unix/AOT qualification. Independent review remains required before integration.
 
 This burst used three focused no-restore builds. The first two recorded tuple
 alias/await syntax diagnostics separately; the third succeeded after pinned

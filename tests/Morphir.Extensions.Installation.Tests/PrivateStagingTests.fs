@@ -14,7 +14,7 @@ open Morphir.TestSupport
 open Morphir.Mep
 open Morphir.Extensions.Installation.Tests.IoTestSupport
 
-// Test-first draft against the proposed API. Only declaration stubs exist so far.
+// The original test-first draft ran against refusal stubs before implementation.
 // The internal writer replaces only the awaited byte write, inside the real stage's
 // admission/count/hash/ownership machinery. It must receive the actual owned stream.
 let private bytes = Encoding.UTF8.GetBytes "private streamed bytes"
@@ -660,5 +660,56 @@ let tests =
             let owner = directory.File(".owner", false, true)
             use! ownerLifetime = Task.FromResult(asyncCleanup owner)
             Expect.isTrue owner.CanRead "disposal released the original native owner lease"
+        }
+        testTask "cancelled creation waiting for mutation lease leaves no stage and allows retry" {
+            use sandbox = TestSandbox.Create()
+            let rootPath = home sandbox
+            let root = SafeDirectory.Open(rootPath, false)
+            use! rootLifetime = Task.FromResult(asyncCleanup root)
+            let mutation = FileSafety.mutationLease root
+            use! mutationLifetime = Task.FromResult(asyncCleanup mutation)
+            let cancellation = new CancellationTokenSource()
+            use! cancellationLifetime = Task.FromResult(asyncCleanup cancellation)
+
+            let waiting =
+                PrivateStaging.BeginAsync(
+                    rootPath,
+                    uint64 bytes.Length,
+                    digest bytes,
+                    uint64 bytes.Length,
+                    cancellation.Token
+                )
+
+            Expect.isFalse waiting.IsCompleted "held lease prevents creation admission"
+            cancellation.Cancel()
+
+            let mutable cancelled = false
+
+            try
+                let! _ = waiting.WaitAsync deadline
+                failtest "Cancelled lease admission must not return a private stage."
+            with :? OperationCanceledException as error ->
+                cancelled <- true
+                Expect.equal error.CancellationToken cancellation.Token "caller token is preserved"
+
+            Expect.isTrue cancelled "waiting operation settles by cancellation"
+
+            Expect.isFalse
+                (Directory.Exists(Path.Combine(rootPath, "tmp")))
+                "no stage directory before admission"
+
+            mutation.Dispose()
+
+            use! (stage: PrivateArtifactStage) =
+                beginStage rootPath (uint64 bytes.Length) (digest bytes) (uint64 bytes.Length)
+
+            do! write stage bytes
+            let! result = stage.SealAsync ct
+            use! (sealedStage: SealedArtifactStage) = Task.FromResult(get result)
+
+            Expect.equal
+                sealedStage.Digest.Value
+                (digest bytes).Value
+                "released lease permits verified retry"
         }
     ]
