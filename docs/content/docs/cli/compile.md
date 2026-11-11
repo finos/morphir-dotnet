@@ -249,7 +249,8 @@ and does not read `[codegen.<target>].extension`; when that key is set, the comm
 and only `morphir generate` runs the extension. Classic IR versions
 (`1`, `2` and `3`) give a classic model, and the backend uses its classic path. As in `generate`, the
 `generation` member says whether the built-in backend formatted the files (`formatting`: `applied`, `off` or
-`unavailable`), and a host that cannot run the formatter (the Native AOT `morphir`) writes a warning on stderr, on stdout or in the JSON output; pass `--option format=false` for the unformatted files without the warning.
+`unavailable`), and a host that cannot run the formatter (the Native AOT `morphir`) writes a warning on stderr,
+never on stdout or in the JSON output. Pass `--option format=false` for the unformatted files without the warning.
 
 - Generation does not run when the compile fails.
 - When generation fails, the compiled IR stays published. The report has `success: false`, the `output`

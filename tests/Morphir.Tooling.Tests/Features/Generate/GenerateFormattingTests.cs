@@ -118,8 +118,8 @@ public class GenerateFormattingTests
         Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "Toolchain", "workflows", "fsharp-compile-generate");
 
     /// <summary>
-    /// The frozen generated file of the case at finos/morphir 9e1f853b7. main's pin (1451c081f) does not have
-    /// expected/generated/Pricing.fs yet; it arrives with #582, and then the bytes are compared with it too.
+    /// The frozen generated file of the case at finos/morphir 9e1f853b7, also compared with the pinned
+    /// expected/generated/Pricing.fs bytes on disk.
     /// </summary>
     private const int FrozenLength = 112;
     private const string FrozenSha256 = "64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0";

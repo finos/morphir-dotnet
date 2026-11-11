@@ -11,6 +11,7 @@ open System
 open System.IO
 open System.Security.Cryptography
 open System.Text.Json
+open System.Text.Json.Nodes
 open System.Threading
 open Expecto
 open Morphir.Compilation
@@ -103,13 +104,21 @@ let tests =
             let case = compileCase json
             Expect.equal (inputOf case).Package case.Package "the package of case.json"
 
-            let changed =
-                compileCase (
-                    json
-                        .Replace($"\"name\": \"{case.Package}\"", "\"name\": \"acme/changed\"")
-                        .Replace("\"exposedModules\": [\"Pricing\"]", "\"exposedModules\": [\"Changed\"]")
-                        .Replace("\"formatVersion\": 4", "\"formatVersion\": 3")
-                )
+            let changedDocument = JsonNode.Parse json |> nonNull
+            let package = changedDocument["package"] |> nonNull
+            package["name"] <- JsonValue.Create "acme/changed"
+            package["exposedModules"] <- JsonArray(JsonValue.Create "Changed" :> JsonNode)
+
+            let compileStep =
+                (changedDocument["steps"] |> nonNull).AsArray()
+                |> Seq.map nonNull
+                |> Seq.filter (fun step -> (step["operation"] |> nonNull).GetValue<string>() = "compile")
+                |> Seq.exactlyOne
+
+            let expected = compileStep["expected"] |> nonNull
+            let ir = expected["ir"] |> nonNull
+            ir["formatVersion"] <- JsonValue.Create 3
+            let changed = compileCase (changedDocument.ToJsonString())
 
             let input = inputOf changed
             Expect.equal input.Package "acme/changed" "the package"
