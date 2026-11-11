@@ -17,6 +17,28 @@ let private refusedAt value =
     | Ok _ -> failtest "a number that is not a plain integer must not encode"
     | Error refusal -> Code.readerName refusal.Code, DocumentPath.render refusal.Path
 
+let private resultWithUnknownInteger (spelling: string) (updateDigest: bool) =
+    let original =
+        match Syntax.parseJson (Fixtures.bytes "result/setup-plan-escaping.json") with
+        | Ok(Value.Object members) -> members
+        | _ -> failtest "the result fixture is an object"
+
+    let plan =
+        match original |> List.find (fst >> (=) "plan") |> snd with
+        | Value.Object members -> Value.Object(("unknown", Value.Array [ Value.Object [ "x", Value.Number spelling ] ]) :: members)
+        | _ -> failtest "the plan is an object"
+
+    let digest = Sha256.ofBytes (Canonical.bytes plan |> Result.defaultWith (fun _ -> failtest "the plan has canonical bytes"))
+
+    original
+    |> List.map (fun (name, item) ->
+        match name with
+        | "plan" -> name, plan
+        | "planSha256" when updateDigest -> name, Value.String digest.Text
+        | _ -> name, item)
+    |> Value.Object
+    |> JsonText.toBytes
+
 [<Tests>]
 let tests =
     testList "Canonical JSON" [
@@ -52,6 +74,21 @@ let tests =
             for spelling in [ "41943040.0"; "1e3"; "-1"; "01" ] do
                 let value = Value.Object [ "plan", Value.Array [ Value.Object [ "downloadBytes", Value.Number spelling ] ] ]
                 Expect.equal (refusedAt value) ("invalid_document", "plan[0].downloadBytes") spelling)
+
+        testCase "integers inside unknown plan members obey the same bound at every depth" (fun () ->
+            for spelling in [ "9007199254740992"; "18446744073709551616"; System.String('9', 80) ] do
+                match ResultDocument.read (resultWithUnknownInteger spelling true) with
+                | Error refusal ->
+                    Expect.equal (Code.readerName refusal.Code, DocumentPath.render refusal.Path) ("invalid_value", "plan.unknown[0].x") spelling
+                | Ok _ -> failtestf "the plan accepted %s" spelling
+
+            Expect.isOk (ResultDocument.read (resultWithUnknownInteger "9007199254740991" true)) "the bound is inclusive")
+
+        testCase "the result reader bounds unknown plan integers before checking the plan digest" (fun () ->
+            match ResultDocument.read (resultWithUnknownInteger "9007199254740992" false) with
+            | Error refusal ->
+                Expect.equal (Code.readerName refusal.Code, DocumentPath.render refusal.Path) ("invalid_value", "plan.unknown[0].x") "the exact member"
+            | Ok _ -> failtest "a plan cannot carry an integer past the bound")
 
         testCase "the escaping fixture's plan digest is the SHA-256 of its canonical bytes" (fun () ->
             let canonical = Fixtures.bytes "result/setup-plan-escaping.plan.canonical.json"
