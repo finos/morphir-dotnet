@@ -174,7 +174,7 @@ type ModelTierRun
     /// The kit language the plan selected, or null when none was selected.
     member _.Language = language
 
-    /// The IR versions the plan selected for both tiers.
+    /// The usable JSON IR versions selected by the frontend/backend claims and complete model tuple pairs.
     member _.IrVersions = irVersions
 
     /// The IR versions of the model tier; empty when the plan has no model tier.
@@ -338,7 +338,7 @@ module internal KitJson =
 
         Json.compact (obj ([ "code", num (int64 error.Code); "message", str error.Message ] @ data))
 
-/// The plan the guest's describe claim selects, as crates/morphir-mck/src/mep/generic.rs selects it.
+/// The usable JSON versions selected by approved adoption SEL-1, with one version set in both projections.
 type internal Selection =
     {
         Language: KitLanguage
@@ -347,8 +347,8 @@ type internal Selection =
         ModelVersions: IrVersion list
     }
 
-/// The plan, the requests and the checks of the kit's model tier, as crates/morphir-mck/src/mep/generic.rs at the
-/// pinned commit plans, builds and compares them.
+/// Selection and required plan data follow approved adoption SEL-1/TIER-1. Request/model comparisons retain the
+/// pinned baseline behavior; the executor and public legacy result projection are still transitional.
 module internal ModelTierPlan =
     open KitJson
 
@@ -402,62 +402,50 @@ module internal ModelTierPlan =
             | JsonValue.String text -> Some text
             | _ -> None)
 
-    /// What a claim selects: the language, its file extensions, the IR versions and the model tier's IR versions.
+    /// SEL-1 capability projection, also used to check initialize's selected capabilities. Protocol support is
+    /// checked by checkDescribe because initialize supplies its chosen protocol separately.
     let select (kit: GuestKit) (claim: JsonValue) : Result<Selection, string> =
         let frontend = claim |> at [ "capabilities"; "frontend" ]
         let backend = claim |> at [ "capabilities"; "backend" ]
+        let claimed = frontend |> Option.bind (memberOf "languages") |> array
+        let targets = backend |> Option.bind (memberOf "targets") |> array
 
-        let compiles =
-            frontend |> Option.bind (memberOf "compile") = Some(JsonValue.Bool true)
-            && backend |> Option.bind (memberOf "generate") = Some(JsonValue.Bool true)
+        let languageClaim (id: string) =
+            claimed |> List.tryFind (fun language -> memberOf "id" language = Some(str id))
 
-        if not compiles then
-            Error "compile/generate capabilities missing"
-        else
-            let claimed = frontend |> Option.bind (memberOf "languages") |> array
-            let targets = backend |> Option.bind (memberOf "targets") |> array
+        match
+            kit.LanguageSets
+            |> List.tryFind (fun language ->
+                (languageClaim language.Id).IsSome && List.contains (str language.Id) targets)
+        with
+        | None -> Error "guest claims no kit language as both frontend language and backend target"
+        | Some language ->
+            let extensions =
+                languageClaim language.Id
+                |> Option.bind (memberOf "fileExtensions")
+                |> strings
 
-            let languageClaim (id: string) =
-                claimed |> List.tryFind (fun language -> memberOf "id" language = Some(str id))
+            let tuples = claim |> at [ "capabilities"; "modelTransport"; "tuples" ] |> array
 
-            match
-                kit.LanguageSets
-                |> List.tryFind (fun language ->
-                    (languageClaim language.Id).IsSome && List.contains (str language.Id) targets)
-            with
-            | None -> Error "guest claims no kit language as both frontend language and backend target"
-            | Some language ->
-                let extensions =
-                    languageClaim language.Id
-                    |> Option.bind (memberOf "fileExtensions")
-                    |> strings
+            let claims operation version =
+                tuples |> List.exists (same (jsonTuple operation version))
 
-                let versions =
-                    [ IrVersion.V3; IrVersion.V4 ]
-                    |> List.filter (fun version ->
-                        claimsVersion (frontend |> Option.bind (memberOf "irVersions")) version
-                        && claimsVersion (backend |> Option.bind (memberOf "irVersions")) version)
+            let versions =
+                [ IrVersion.V3; IrVersion.V4 ]
+                |> List.filter (fun version ->
+                    claimsVersion (frontend |> Option.bind (memberOf "irVersions")) version
+                    && claimsVersion (backend |> Option.bind (memberOf "irVersions")) version
+                    && claims Compile version
+                    && claims Generate version)
 
-                if versions.IsEmpty then
-                    Error "guest claims no IR version 3 or 4 for both frontend and backend"
-                else
-                    let modelVersions =
-                        if List.contains (str ModelProtocol) (array (memberOf "protocolVersions" claim)) then
-                            let tuples = claim |> at [ "capabilities"; "modelTransport"; "tuples" ] |> array
-
-                            let claims operation version =
-                                tuples |> List.exists (same (jsonTuple operation version))
-
-                            versions
-                            |> List.filter (fun version -> claims Compile version && claims Generate version)
-                        else
-                            []
-
-                    Ok
-                        { Language = language
-                          Extensions = extensions
-                          Versions = versions
-                          ModelVersions = modelVersions }
+            if versions.IsEmpty then
+                Error $"guest claims no JSON {Compile} and {Generate} tuple pair at IR 3 or 4 claimed by both frontend and backend"
+            else
+                Ok
+                    { Language = language
+                      Extensions = extensions
+                      Versions = versions
+                      ModelVersions = versions }
 
     /// Why a selection has no model tier.
     let noModelTier (claim: JsonValue) (selection: Selection) =
@@ -506,6 +494,10 @@ module internal ModelTierPlan =
         format
         |> Result.bind critical
         |> Result.bind identity
+        |> Result.bind (fun () ->
+            require
+                (List.contains (str ModelProtocol) (array (memberOf "protocolVersions" result)))
+                $"guest does not claim MEP {ModelProtocol}")
         |> Result.bind (fun () -> select kit result)
 
     /// The id and version the describe result gives, or None.
@@ -776,7 +768,29 @@ module internal ModelTierPlan =
                 |> List.forall (fun operation -> ofOperation actual operation = ofOperation expected operation))
             "selected tuples missing, duplicated, unoffered or reordered"
 
-    /// The legacy tier's cases for a selection, with their methods, as the kit plans them.
+    /// TIER-1 required plan data, independent of which operations the transitional executor can observe.
+    /// This does not create KitSteps, record requests or assign outcomes to unexecuted lifecycle cases.
+    let requiredCases (selection: Selection) =
+        [ yield "describe", "morphir.extension.describe"
+          yield "model-initialize", "morphir.initialize"
+          yield "model-initialized-silent", "morphir.initialized"
+          yield "unknown-notification-silent", "morphir.mck.unknown"
+          for version in selection.Versions do
+              let suffix = suffix version
+              yield $"compile-model-{suffix}", Compile
+              yield $"generate-model-{suffix}", Generate
+              yield $"roundtrip-model-{suffix}", Compile
+              yield $"generate-model-independent-{suffix}", Generate
+              yield $"roundtrip-model-independent-{suffix}", Compile
+          yield "bad-digest", Generate
+          yield "malformed-source", Compile
+          yield "unknown-method", "morphir.mck.unknown"
+          yield "describe-immutable", "morphir.extension.describe"
+          yield "model-shutdown", "morphir.shutdown"
+          yield "after-shutdown", "morphir.ping"
+          yield "model-exit", "morphir.exit" ]
+
+    /// Transitional legacy result projection; not the adopted required plan. Retained until result migration is coordinated.
     let legacyCases (selection: Selection) =
         [ yield "initialize", "morphir.initialize"
           yield "initialized-silent", "morphir.initialized"

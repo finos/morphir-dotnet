@@ -337,11 +337,6 @@ let comparisonTests =
         }
     ]
 
-let private notRunReason (step: KitStep) =
-    match step.Outcome with
-    | StepOutcome.NotRun reason -> reason
-    | _ -> failtest $"{step.Id} ran: {step.Outcome}"
-
 let private modelStepIds (versions: string list) = [
     "model-initialize"
     "model-initialized-silent"
@@ -474,10 +469,7 @@ let runnerTests =
 
             Expect.sequenceEqual result.ModelIrVersions [ "4.0.0" ] "model IR versions"
 
-            Expect.isFalse
-                (result.LegacyTier
-                 |> Seq.exists (fun step -> step.Id.EndsWith "-vthree"))
-                "no legacy vthree case"
+            Expect.sequenceEqual result.IrVersions [ "4.0.0" ] "no unsupported version in the broad projection"
         }
 
         test "A guest that claims model tuples at one of two IR versions gets the model cases of that version" {
@@ -487,13 +479,8 @@ let runnerTests =
                         ModelVersions = [ "4.0.0" ]
                 }
 
-            Expect.sequenceEqual result.IrVersions [ "3.0.0"; "4.0.0" ] "both versions selected"
+            Expect.sequenceEqual result.IrVersions [ "4.0.0" ] "SEL-1 excludes the version without a JSON tuple pair"
             Expect.sequenceEqual result.ModelIrVersions [ "4.0.0" ] "model tier at 4.0.0 only"
-
-            Expect.isTrue
-                (result.LegacyTier
-                 |> Seq.exists (fun step -> step.Id = "compile-vthree"))
-                "the legacy plan keeps vthree"
         }
 
         test "A wrong IR fails the compile case with the difference" {
@@ -553,7 +540,7 @@ let runnerTests =
             Expect.stringStarts ((step "model-initialize" result).Outcome.ToString()) "failed: " "fails"
         }
 
-        test "A guest that claims no model tuples has no model tier, and the result says why" {
+        test "A guest that claims no model tuples fails describe and opens no model session" {
             let result, opened =
                 run {
                     faithful with
@@ -568,11 +555,13 @@ let runnerTests =
                 "only describe"
 
             Expect.isNotNull result.ModelTierReason "a reason"
-            Expect.stringContains result.ModelTierReason "compileModel" "says what is missing"
+            Expect.stringContains ((step "describe" result).Outcome.ToString()) "compileModel" "describe names the missing tuple pair"
+            Expect.isEmpty result.IrVersions "no usable broad version"
+            Expect.isEmpty result.ModelIrVersions "no usable model version"
             Expect.equal opened.Length 1 "no model session"
         }
 
-        test "A guest that claims only MEP 0.1 has no model tier" {
+        test "A guest that claims only MEP 0.1 fails describe" {
             let result, _ =
                 run {
                     faithful with
@@ -580,48 +569,20 @@ let runnerTests =
                 }
 
             Expect.isEmpty result.ModelIrVersions "no model tier"
-            Expect.stringContains result.ModelTierReason "0.2.0-draft.1" "says why"
+            Expect.isEmpty result.IrVersions "no usable broad version"
+            Expect.stringContains ((step "describe" result).Outcome.ToString()) "0.2.0-draft.1" "describe names the required protocol"
         }
 
-        test "The legacy tier is listed as not run because this host does not speak MEP 0.1" {
+        test "The adopted required plan retains moved cases and never calls legacy model methods" {
             let result, opened = run faithful
 
-            let ids =
-                result.LegacyTier
-                |> Seq.map _.Id
-                |> List.ofSeq
+            match ModelTierPlan.checkDescribe kit.Value GuestKitPlanFixture.claimBoth with
+            | Error reason -> failtest reason
+            | Ok selection ->
+                Expect.equal (ModelTierPlan.requiredCases selection) GuestKitPlanFixture.bothCases "all 21 adopted case ids and methods"
 
-            Expect.equal
-                ids
-                [
-                    "initialize"
-                    "initialized-silent"
-                    "unknown-notification-silent"
-                    for suffix in [ "vthree"; "vfour" ] do
-                        for name in [
-                            "compile"
-                            "generate"
-                            "roundtrip"
-                            "generate-independent"
-                            "roundtrip-independent"
-                        ] do
-                            $"{name}-{suffix}"
-                    "malformed-source"
-                    "unknown-method"
-                    "describe-immutable"
-                    "shutdown"
-                    "after-shutdown"
-                    "exit"
-                ]
-                "the kit's legacy plan"
-
-            for step in result.LegacyTier do
-                Expect.equal step.Tier KitTier.Legacy step.Id
-                Expect.stringContains (notRunReason step) "MEP 0.1" step.Id
-                Expect.equal step.Requests 0 step.Id
-
-            Expect.isTrue result.ModelTierOnly "model tier only"
-            Expect.stringContains result.LegacyTierReason "MEP 0.1" "reason"
+            // The data above does not imply execution. Public result migration and the internal runtime seam remain pending.
+            Expect.isTrue result.ModelTierOnly "the transitional executor still cannot qualify the complete kit"
 
             let methods =
                 opened
