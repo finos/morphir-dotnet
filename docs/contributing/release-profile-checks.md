@@ -79,11 +79,12 @@ commit as the artifact.
 | No installed .NET runtime | See below. Skipped, with the reason, where the runtime cannot be hidden |
 | The declared runtime | framework-dependent and dotnet-tool run on the machine's runtime: the host loads `hostfxr` from a machine runtime root and chooses a `Microsoft.NETCore.App` 10.x, read from the first `Chose FX version` line of the host trace. native-aot and self-contained never load the machine's runtime, even when it is reachable |
 
-The harness resolves its working directory to a physical path before preparing input files. On macOS, `/var` is an
-alias for `/private/var`. Passing that alias in an absolute input path previously failed the input scenario because
-bounded capture rejects linked ancestors. The product's link refusal remains in force. Regression tests cover a
-linked temporary root and verify that the prepared working directory has no linked ancestor. A fresh macOS packaged
-run is still needed to establish the scenario's result for a candidate artifact.
+The harness resolves both its discovery boundary and working directory to physical paths before preparing input
+files. On macOS, `/var` is an alias for `/private/var`. Passing that alias in an absolute input path fails bounded
+capture's linked-ancestor check. Resolving only the input path is insufficient: discovery then compares a physical
+working directory with an aliased boundary and refuses it. The product's containment and link checks remain in
+force. Regression tests cover a linked temporary root, the physical boundary passed in the environment, and a
+working directory with no linked ancestor.
 
 ### How "no installed .NET runtime" is shown
 
@@ -135,8 +136,9 @@ No offering claims a .NET single-file bundle, so there is no bundle extraction a
 one native executable that needs no extraction; the layout scenario checks that it holds no managed runtime or
 assembly and that it is not a bundle. The managed offerings are folders, because the in-process F# frontend reads
 compiler references from assembly locations, which a single-file bundle does not have. They stay untrimmed. The
-legacy release asset (`LegacyAsset.TrimmedSingleFile`) is a managed trimmed single-file build; these checks do not
-cover it.
+legacy release asset in this repository's rollback publication path (`LegacyAsset.TrimmedSingleFile`) is a managed
+trimmed single-file build; these checks do not cover it. Official delivery in finos/morphir instead aliases the
+Native AOT executable's exact bytes under the legacy `morphir-<rid>` names. That alias is not another offering.
 
 ## Packaged sizes
 
@@ -165,7 +167,7 @@ against 25,158 then, in 20 assemblies and no other entry. The fix
 |---|---|---|---|---|
 | win-arm64 | Packaged checks pass: local build, run on the build machine. Not qualified | Packaged checks pass: local build, run on the build machine. Not qualified | Packaged checks pass: local build, run on the build machine. Not qualified | Packaged checks pass: local build, run on the build machine. Not qualified |
 | win-x64 | Not run | Not run | Not run | Not run |
-| osx-arm64 | Not run | Not run | Not run | Not run |
+| osx-arm64 | Corrected-harness packaged run at 1b9b6367: 72 passed, two skipped. Source-built on the runner. Not qualified | Not run | Not run | Not run |
 | osx-x64 | Not run | Not run | Not run | Not run |
 | linux-x64 | Not run | Not run | Not run | Not run |
 | linux-arm64 | Not run | Not run | Not run | Not run |
@@ -176,6 +178,23 @@ or registered location (the machine's .NET 10.0.13 and 10.0.14 runtimes are in a
 38 other non-manual E2E scenarios pass; the 38th, "Verify with quiet mode", is tagged `@Ignore` in the existing suite.
 The release lanes of task 2.5 and the acquired-artifact checks of group 6 still apply before anything is qualified.
 The `dotnet-tool` package is portable; only its win-arm64 installation has been run.
+
+[macOS packaged run 43010471928](https://github.com/finos/morphir-dotnet/actions/runs/43010471928), at
+`f4fc12a2a80072b5739cf1922911d8f72ac3d21a`, built and packed Native AOT, then actually ran 73 tests:
+69 passed, two failed and two were skipped. The input-file scenario failed with `discovery.boundary` because the
+physical working directory was compared with the aliased sandbox root. The duplicate-artifact infrastructure
+test correctly received a refusal naming both artifacts, but assumed their filesystem enumeration order. The
+harness now supplies a physical discovery boundary, and that assertion checks both names without assuming order.
+A Windows linked-root regression failed before the boundary correction; the eight packaged-run and four
+artifact-discovery infrastructure tests then passed.
+
+The corrected [macOS packaged run 43014397958](https://github.com/finos/morphir-dotnet/actions/runs/43014397958),
+at `1b9b6367f01127efa3b03f52dba36cf526ec5093`, built and packed Native AOT on the hosted osx-arm64 runner.
+It ran 74 tests: 72 passed, none failed, and two were skipped. The skips were the existing quiet-mode scenario
+and the Windows-only short-name test. The input-file and duplicate-artifact checks passed, along with the new
+linked-root regression. This establishes the corrected harness on macOS, not an acquired release, execution on
+the minimum OS, or production qualification. The [run record](evidence/macos-packaged-1b9b6367.json) records the
+source commit and test totals.
 
 Unsupported, and refused by `PackRelease`:
 
@@ -204,6 +223,36 @@ Not established, to be recorded from runner evidence with acquired artifacts:
   `InvariantGlobalization`).
 - macOS: the minimum macOS version, and what Gatekeeper does with a downloaded, unsigned executable.
 - Windows x64: anything beyond the operating system itself.
+
+### Six-platform source-build observations
+
+[Run 43010468595](https://github.com/finos/morphir-dotnet/actions/runs/43010468595) ran the manual native probe on
+`f4fc12a2a80072b5739cf1922911d8f72ac3d21a`, after #578 and #584 merged. All six jobs produced reports. The
+[evidence record](evidence/native-probe-f4fc12a2.json) retains the 248 command outcomes, generated-file comparisons,
+and SHA-256 of each original report and publish log. Executable sizes below exclude archives and notices.
+
+| Platform | Executable bytes | Measured requirement |
+|---|---:|---|
+| linux-x64 | 23,706,800 | Highest required glibc symbol 2.34; linked inside pinned Ubuntu 22.04, tested at its glibc 2.35 |
+| linux-arm64 | 24,394,912 | Highest required glibc symbol 2.34; linked inside pinned Ubuntu 22.04, tested at its glibc 2.35 |
+| osx-arm64 | 23,216,856 | `LC_BUILD_VERSION` declares macOS 12.0; tested on the hosted runner, not macOS 12.0 |
+| osx-x64 | 23,756,696 | `LC_BUILD_VERSION` declares macOS 12.0; tested on the hosted runner, not macOS 12.0 |
+| win-arm64 | 28,806,656 | Command execution on the hosted runner; no Windows minimum established |
+| win-x64 | 28,118,016 | Command execution on the hosted runner; no Windows minimum established |
+
+Both Linux reports distinguish the native libraries a command reaches:
+
+- With neither ICU nor OpenSSL, every command stops at startup for missing ICU.
+- In invariant mode, or with ICU installed and OpenSSL removed, `--version`, extension listing and validation run.
+  C# generation, F# generation, configuration hashing and Ion generation stop for missing libssl.
+- The generated files match the runner's outputs in invariant mode and under `tr-TR` where those runs succeed.
+  This compares the probe's own inputs and outputs, not the frozen F# acquisition journey.
+
+The deliberate MSBuild overflow case exits 2 and reaches its child-stop marker. `dist install` still reports
+unimplemented, so it provides no HTTPS evidence. A successful probe job does not require all its commands to pass.
+The reports describe Native AOT builds without the separate WASM engine. They do not establish a minimum OS by
+running on it, exercise acquired release archives, or qualify the full installer/offline workflow. No new version,
+tag or release was created. In particular, the build's existing `0.4.0-alpha.4` version is not a new release identity.
 
 ### Historical native probe evidence
 

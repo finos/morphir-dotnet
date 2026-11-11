@@ -1,0 +1,2287 @@
+{
+  "evidenceKind": "native-aot-source-build-observations",
+  "sourceCommit": "f4fc12a2a80072b5739cf1922911d8f72ac3d21a",
+  "workflowRun": 43010468595,
+  "workflowUrl": "https://github.com/finos/morphir-dotnet/actions/runs/43010468595",
+  "qualificationClaim": false,
+  "acquiredReleaseArtifacts": false,
+  "description": "Internal evidence record, not an installer input or a versioned Morphir document contract. Command outcomes are report-only. Sizes are executable bytes, not archive sizes.",
+  "platforms": [
+    {
+      "rid": "linux-arm64",
+      "executableBytes": 24394912,
+      "requiredGlibcSymbol": "GLIBC_2.34",
+      "declaredMacosMinimum": null,
+      "probeReportSha256": "cd1b0f746c3a3a515f936dab730bc1bd2a09d29eda9d895f65d32782e485b384",
+      "publishLogSha256": "08b504b7ab3169c0fa011e092fae877ee9cf72b3445b2c4dd2c286cc0d18c85b",
+      "generatedFileComparisons": [
+        {
+          "command": "generate-csharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "runner, tr-TR",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "debian:12-slim",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "debian:12-slim, invariant",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "debian:12-slim + libicu",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "ubuntu:22.04",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "ubuntu:22.04, invariant",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "ubuntu:22.04 + libicu",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, tr-TR",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "debian:12-slim",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "debian:12-slim, invariant",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "debian:12-slim + libicu",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "ubuntu:22.04",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "ubuntu:22.04, invariant",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "ubuntu:22.04 + libicu",
+          "result": "not compared: exit 133 (SIGTRAP)"
+        }
+      ],
+      "commandOutcomes": [
+        {
+          "environment": "runner",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "133 (SIGTRAP)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "rid": "linux-x64",
+      "executableBytes": 23706800,
+      "requiredGlibcSymbol": "GLIBC_2.34",
+      "declaredMacosMinimum": null,
+      "probeReportSha256": "fd1bc48bf786fb09aaeb613ca002054569e6cf141beec49450761432f9453dec",
+      "publishLogSha256": "bb3e7f633a223429066e325d7f3ccc60617b1d0aa3c87bceb441de2b4fd2d67a",
+      "generatedFileComparisons": [
+        {
+          "command": "generate-csharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "runner, tr-TR",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "debian:12-slim",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "debian:12-slim, invariant",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "debian:12-slim + libicu",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "ubuntu:22.04",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "ubuntu:22.04, invariant",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "ubuntu:22.04 + libicu",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, tr-TR",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "debian:12-slim",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "debian:12-slim, invariant",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "debian:12-slim + libicu",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "ubuntu:22.04",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "ubuntu:22.04, invariant",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "ubuntu:22.04 + libicu",
+          "result": "not compared: exit 139 (SIGSEGV)"
+        }
+      ],
+      "commandOutcomes": [
+        {
+          "environment": "runner",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "debian:12-slim, invariant",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "debian:12-slim + libicu",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "Process terminated. Couldn't find a valid ICU package installed on the system. Please install libicu (or icu-libs) using your package manager and try again. Alternatively you can set the configuration…"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "ubuntu:22.04, invariant",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "139 (SIGSEGV)",
+          "reached": "unknown",
+          "stderr": "No usable version of libssl was found"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "ubuntu:22.04 + libicu",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "rid": "osx-arm64",
+      "executableBytes": 23216856,
+      "requiredGlibcSymbol": null,
+      "declaredMacosMinimum": "12.0",
+      "probeReportSha256": "1fff9979bd4ad07f63c43f0f5e3dac0ba47845f0ade61b6ced7e6a95548c8175",
+      "publishLogSha256": "cc4c6bb1d0acf0e8a7efb2f0cf80950a4b64b48ad584691cdfdd576e7a46fccf",
+      "generatedFileComparisons": [
+        {
+          "command": "generate-csharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "runner, tr-TR",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, tr-TR",
+          "result": "identical (2 files)"
+        }
+      ],
+      "commandOutcomes": [
+        {
+          "environment": "runner",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "rid": "osx-x64",
+      "executableBytes": 23756696,
+      "requiredGlibcSymbol": null,
+      "declaredMacosMinimum": "12.0",
+      "probeReportSha256": "28bb7030ae6ac6d50cf08367115cbe7331ccdf669cf855fa5fea8faf203e1da3",
+      "publishLogSha256": "1d5c4966951481f58acf62aa74346a245165f6562646b52a9be7bfb12f98f4e5",
+      "generatedFileComparisons": [
+        {
+          "command": "generate-csharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-csharp",
+          "environment": "runner, tr-TR",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, tr-TR",
+          "result": "identical (2 files)"
+        }
+      ],
+      "commandOutcomes": [
+        {
+          "environment": "runner",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, tr-TR",
+          "command": "compile-project-file",
+          "exercises": "kill (libc, BoundedProcess stops a child that writes too much)",
+          "exit": "2",
+          "reached": "yes",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "rid": "win-arm64",
+      "executableBytes": 28806656,
+      "requiredGlibcSymbol": null,
+      "declaredMacosMinimum": null,
+      "probeReportSha256": "809a7d0bec3bbebcb7f24ca6b75809d41ca5534d9789e0bedbcd5a99e5e34f77",
+      "publishLogSha256": "0f4e5ede4eff09d7600b03be88d682e5317c6b26ee609e9ea5afaac22ce0352e",
+      "generatedFileComparisons": [
+        {
+          "command": "generate-csharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        }
+      ],
+      "commandOutcomes": [
+        {
+          "environment": "runner",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        }
+      ]
+    },
+    {
+      "rid": "win-x64",
+      "executableBytes": 28118016,
+      "requiredGlibcSymbol": null,
+      "declaredMacosMinimum": null,
+      "probeReportSha256": "f96292a16c44df369a41cb9aad6fd33f5df1232f8c222a1e06c4af58d515bfdc",
+      "publishLogSha256": "607b0e3c6c8f1bc183c8b2158294520d828832d6ce4791608db4dc010f8f3e90",
+      "generatedFileComparisons": [
+        {
+          "command": "generate-csharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        },
+        {
+          "command": "generate-fsharp",
+          "environment": "runner, invariant",
+          "result": "identical (2 files)"
+        }
+      ],
+      "commandOutcomes": [
+        {
+          "environment": "runner",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "version",
+          "exercises": "startup; ICU at startup (no invariant globalization)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "extension-list",
+          "exercises": "registry",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-csharp",
+          "exercises": "C# generator: names upper-cased with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text; lstat (libSystem.Native SystemNative_LStat, model capture)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "generate-fsharp",
+          "exercises": "F# generator: names capitalized with ToUpperInvariant; CurrentCulture title-casing (Morphir.Models Name.toTitleCase) in display text",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "validate",
+          "exercises": "model reading and analyzers",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "config-set",
+          "exercises": "SHA-256 (configuration transaction, ConfigurationTransaction.Hash)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": ""
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "ion-tree",
+          "exercises": "SHA-256 (Ion tree cut stem, TreeStems.digestOf)",
+          "exit": "0",
+          "reached": "yes",
+          "stderr": "warning: morphir.fsharp did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unfo…"
+        },
+        {
+          "environment": "runner, invariant",
+          "command": "dist-install",
+          "exercises": "HTTPS (HttpClient in the dist, tool and extension handlers), no network",
+          "exit": "1",
+          "reached": "no",
+          "stderr": "Error: morphir dist install is not implemented yet. Track progress at https://github.com/finos/morphir-dotnet/issues/490"
+        }
+      ]
+    }
+  ]
+}
