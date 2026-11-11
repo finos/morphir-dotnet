@@ -35,6 +35,7 @@ module Layout =
           yield unsigned @ [ "signed"; "cases.json" ]
           yield unsigned @ [ "signed"; "repository.json" ]
           yield workflow @ [ "case.json" ]
+          yield schemas @ [ "tool-release-v1.schema.json" ]
           for page in [ "index"; "installation-receipt"; "manager-result"; "readiness-workflow"; "toolchain-lock"; "toolchain-request"; "toolset-recipe" ] ->
               pages @ [ $"{page}.md" ]
           for schema in [ "morphirup-result"; "toolchain-lock"; "toolchain-receipt"; "toolchain-request"; "toolchain-workflow-case"; "toolset-recipe" ] ->

@@ -20,7 +20,8 @@ let private schemaFiles =
           "lock", "toolchain-lock-0.1.0-draft.1.schema.json"
           "receipt", "toolchain-receipt-0.1.0-draft.1.schema.json"
           "result", "morphirup-result-0.1.0-draft.1.schema.json"
-          "workflow-case", "toolchain-workflow-case-0.1.0-draft.1.schema.json" ]
+          "workflow-case", "toolchain-workflow-case-0.1.0-draft.1.schema.json"
+          "tool-release", "tool-release-v1.schema.json" ]
 
 /// <summary>A schema's text with every pattern's end anchored as ECMA-262 anchors it: a final <c>$</c> without the m
 /// flag matches only at the end, where .NET's, which JsonSchema.Net uses, also matches before a final line feed. So

@@ -23,8 +23,11 @@ let ranSections = [ "selection"; "frozen"; "lockRecipe"; "recipeChecks"; "trust"
 
 /// Parts of a section this suite runs that it does not run, each with its reason.
 let notRunClauses =
-    [ "v1Descriptors",
-      "Validation against tool-release-v1.schema.json, which this pin does not hold: the v1 reader checks the schema's rules, written from it by hand." ]
+    match Fixtures.external with
+    | Ok(Some _) -> []
+    | _ ->
+        [ "v1Descriptors",
+          "Validation against tool-release-v1.schema.json, which this pin does not hold: the v1 reader checks the schema's rules, written from it by hand." ]
 
 /// Sections this suite does not run, each with its reason. Every section is run.
 let notRunSections: (string * string) list = []
@@ -428,6 +431,7 @@ let private v1DescriptorTests () =
     use document = manifest ()
     let section = document.RootElement.GetProperty "v1Descriptors"
     requireKnown "v1Descriptors" [ "note"; "schema"; "releases" ] section
+    Expect.equal (str section "schema") "tool-release-v1.schema.json" "the manifest names the v1 schema"
     let releases = [ for r in section.GetProperty("releases").EnumerateArray() -> nonNull (r.GetString()) ]
     let listed = authenticatedTargets "metadata"
 
@@ -451,7 +455,15 @@ let private v1DescriptorTests () =
                   Expect.contains members ("schemaVersion", Value.Number "1") "custom.morphir.schemaVersion"
               | _ -> failtestf "%s has no custom.morphir" release
 
-              Expect.isOk (ToolReleaseDocument.read (targetBytes release)) "a v1 descriptor")
+              let bytes = targetBytes release
+              Expect.isOk (ToolReleaseDocument.read bytes) "a v1 descriptor"
+
+              match Fixtures.external with
+              | Ok(Some _) ->
+                  match Syntax.parseJson bytes with
+                  | Ok value -> SchemaTests.expectValid "tool-release" release value
+                  | Error _ -> failtestf "%s is not JSON" release
+              | _ -> ())
       yield testCase "every other release target is the deliberate negative" (fun () ->
           // The v1Client controls' own release (finos/morphir 837164580) is not an offering; the control cases read it.
           let controlTools =

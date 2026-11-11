@@ -238,10 +238,10 @@ module RecipeBindings =
                 | _ -> source TrustCode.ReleaseDescriptorMismatch
 
     /// <summary>The release record of a <c>tool-release</c> offering: its descriptor target is an authenticated
-    /// <c>tool-release</c> for the tool and version (provisional: with a known status), not revoked, served with the
-    /// authenticated length and digest, and readable as a v1 tool release. Provisional, the stricter reading: the
-    /// descriptor's own tool id and version are the offering's, since the profile calls a mismatch in those immutable
-    /// values <c>release_descriptor_mismatch</c>. Read once per check for each tool and version.</summary>
+    /// <c>tool-release</c> for the tool and version with a known status, not revoked, served with the authenticated
+    /// length and digest, and readable as a v1 tool release. Its tool id and version must equal the offering's and
+    /// <c>morphirCli</c> must follow the CLI requirement grammar; a mismatch is
+    /// <c>release_descriptor_mismatch</c>. Read once per check for each tool and version.</summary>
     let private hostRelease
         (reads: Reads)
         (targets: Map<string, AuthenticatedTarget>)
