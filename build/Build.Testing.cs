@@ -2,10 +2,10 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using Nuke.Common;
-using Nuke.Common.IO;
-using Nuke.Common.Tools.DotNet;
-using static Nuke.Common.Tools.DotNet.DotNetTasks;
+using Fallout.Common;
+using Fallout.Common.IO;
+using Fallout.Common.Tools.DotNet;
+using static Fallout.Common.Tools.DotNet.DotNetTasks;
 
 /// <summary>
 /// Build targets for testing (unit tests, E2E tests)

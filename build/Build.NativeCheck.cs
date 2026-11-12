@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Morphir.Build.Helpers;
-using Nuke.Common.IO;
+using Fallout.Common.IO;
 
 /// <summary>
 /// The shared check of a Native AOT executable, used by CheckMorphirup and ProbeMorphirNative: the Linux publish inside the
@@ -48,8 +48,8 @@ partial class Build
         const string script = """
             set -eu
             export DEBIAN_FRONTEND=noninteractive
-            apt-get update -qq
-            apt-get install -y -qq --no-install-recommends clang zlib1g-dev libicu70 libssl3 ca-certificates > /dev/null
+            . "$MORPHIRUP_REPOSITORY/build/ubuntu-native-dependencies.sh"
+            ubuntu_native_dependencies
             printf '[safe]\n\tdirectory = *\n' > "$HOME/.gitconfig"
             echo "Publishing in $(. /etc/os-release && echo "$PRETTY_NAME"), $(ldd --version | head -n 1)"
             status=0

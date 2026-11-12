@@ -6,26 +6,25 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Morphir.Build.Helpers;
-using Nuke.Common;
-using Nuke.Common.IO;
-using Nuke.Common.ProjectModel;
-using Nuke.Common.Tooling;
-using Nuke.Common.Tools.DotNet;
-using Nuke.Common.Utilities.Collections;
+using Fallout.Common;
+using Fallout.Common.IO;
+using Fallout.Common.Tooling;
+using Fallout.Common.Tools.DotNet;
+using Fallout.Common.Utilities.Collections;
 using SemVersion;
-using static Nuke.Common.Tools.DotNet.DotNetTasks;
+using static Fallout.Common.Tools.DotNet.DotNetTasks;
 
 /// <summary>
-/// Morphir .NET build orchestration using Nuke
-/// Migrated from justfile + C# scripts to provide strongly-typed, cross-platform build automation
+/// Morphir .NET build orchestration using Fallout (https://fallout.build/).
+/// Migrated from Nuke, which replaced the justfile and C# scripts.
 /// </summary>
-partial class Build : NukeBuild
+partial class Build : FalloutBuild
 {
     /// Support plugins are available for:
-    ///   - JetBrains ReSharper        https://nuke.build/resharper
-    ///   - JetBrains Rider            https://nuke.build/rider
-    ///   - Microsoft VisualStudio     https://nuke.build/visualstudio
-    ///   - Microsoft VSCode           https://nuke.build/vscode
+    ///   - JetBrains ReSharper        https://fallout.build/resharper
+    ///   - JetBrains Rider            https://fallout.build/rider
+    ///   - Microsoft VisualStudio     https://fallout.build/visualstudio
+    ///   - Microsoft VSCode           https://fallout.build/vscode
 
     public static int Main() => Execute<Build>(x => x.Compile);
 

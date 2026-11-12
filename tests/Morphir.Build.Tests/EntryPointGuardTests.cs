@@ -60,7 +60,7 @@ public class EntryPointGuardTests
     [Arguments("-p:MorphirProbeAot=true")]
     public async Task MorphirupAcceptsANativeAotPublish(string property)
     {
-        // -p:MorphirProbeAot=true is how the Nuke probe publishes it.
+        // -p:MorphirProbeAot=true is how the Fallout probe publishes it.
         var result = await MsBuild(Path.Combine(TestFixture.GetRepositoryRoot(), MorphirupProject), MorphirupGuard, property);
 
         result.ExitCode.Should().Be(0, result.CombinedOutput);

@@ -79,7 +79,7 @@ morphir-dotnet/
 ├── CLAUDE.md              # Claude-specific features
 ├── src/                   # Source code
 ├── tests/                 # Tests
-├── build/                 # Nuke build system
+├── build/                 # Fallout build system
 └── docs/                  # Documentation
 ```
 
