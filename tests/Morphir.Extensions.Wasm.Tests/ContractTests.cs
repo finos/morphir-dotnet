@@ -52,6 +52,9 @@ public class ContractTests
     [Test]
     public async Task The_engine_defines_every_function_of_the_contract_WASI_surface()
     {
+        if (OperatingSystem.IsWindows() && System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.X64)
+            Skip.Test("win_x64_trap_unsupported: the engine's WASI surface is unavailable; #609.");
+
         // The classifier takes WASI signatures from the engine's own preview 1 definitions; the contract names the
         // witx definition and its 46 functions instead of a table.
         var surface = WasmProfileContract.Pinned.Profile(WasmAbi.ExtismKernel);
