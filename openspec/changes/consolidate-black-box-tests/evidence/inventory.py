@@ -12,7 +12,9 @@ import subprocess
 
 PROCESS = re.compile(
     r"CliTestHelper|ExecutableRunner|ExecutableLocator|PackagedRun|PackagedInstallation|ChildProcess\.|"
-    r"ProcessStartInfo|Process\.Start|BoundedProcess|WorkerHarness")
+    r"ProcessStartInfo|Process\.Start|BoundedProcess|WorkerHarness|"
+    # The helpers on the CLI driver of the testing library (from pull request 1).
+    r"DevelopmentCli\.|\bCliDriver\b")
 BUILD_VERB = re.compile(r'"(build|pack|publish|restore|run|msbuild|fsi)"')
 ARTIFACT = re.compile(
     r'\.nupkg|\.snupkg|ZipFile|ZipArchive|TarReader|\.tar\.gz|"artifacts"|artifacts/|PackagesDir|packages-dir|'

@@ -55,6 +55,7 @@ svg .ret { stroke-dasharray: 6 4; }
 <li><a href="#risks">Risks and trade-offs</a></li>
 <li><a href="#migration">Migration plan</a></li>
 <li><a href="#open-questions">Open questions</a></li>
+<li><a href="#record">Implementation record</a></li>
 </ul>
 </nav>
 
@@ -721,6 +722,83 @@ stay. It does not change slices 0 to 4.</li>
 <li>Should a scheduled workflow run the journey and smoke groups against each published target? It is a new
 schedule, so it needs an owner and a decision. The groups and targets do not depend on it.</li>
 </ul>
+
+<h2 id="record">Implementation record</h2>
+<p>What the implementation found or decided that this design did not say. The evidence is in
+<code>evidence/</code>.</p>
+
+<h3 id="record-pr1">Pull request 1 (task groups 1 to 5), 2026-11-12</h3>
+<table>
+<thead><tr><th>Decision</th><th>What happened</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><a href="#drv-4">DRV-4</a>, the process limit</td>
+<td>The fixed share is implemented as written. With the default limit of the gate, a run on a CI runner (3 or 4
+processors, 2 test processes at the same time) gets a share of 1, where each test process had 2 before. The two
+slowest suites then take almost two times as long (<code>Morphir.Tooling.Tests</code> 112 s against 58 s,
+<code>Morphir.Frontend.FSharp.Tests</code> 200 s against 124 s, alone on an 18-processor machine). So the test jobs of
+<code>development.yml</code> set <code>MORPHIR_TEST_MAX_PROCESSES: 4</code>: the caller gives the limit of the
+machine, as the formula permits, and each test process keeps 2. On a developer machine the default limit costs
+about 10 % of the <code>Test</code> run (247 s against 224 s).</td>
+<td><code>slice-1-times.md</code></td></tr>
+<tr><td><a href="#comp-1">COMP-1</a>, the tests that have not moved</td>
+<td>Four step classes start the CLI themselves, not three: <code>ProjectMigrationSteps</code> too. They already
+started the built assembly with <code>dotnet</code>. They now call the CLI driver through
+<code>Integration/CLI/DevelopmentCli.cs</code> with their own folder and their own environment, because their
+scenarios test discovery and containment: the helper removes the isolation variables that a workspace adds.
+<code>CliRunOptions.WorkingDirectory</code> exists for these tests. They read a fifth old variable,
+<code>MORPHIR_CONFIGURATION_CLI</code>, which the first inventory did not have.</td>
+<td><code>tooling-baseline.md</code>, <code>inventory.md</code></td></tr>
+<tr><td><a href="#comp-1">COMP-1</a>, the gain</td>
+<td>The pass, fail and skip counts of <code>Morphir.Tooling.Tests</code> are equal before and after (1,283, 0, 4).
+The summed time of its tests goes from 1,151 s to 750 s.</td>
+<td><code>tooling-baseline.md</code></td></tr>
+<tr><td>Tasks 2.1 to 2.3, the fixtures</td>
+<td>The fixture scenarios and fixture tests of the hook and filter checks were temporary files. A permanent fixture
+with a lane or with an unsupported capability is a test that no pull request run executes, and
+<a href="#guard-1">GUARD-1</a> refuses it. The decision has permanent unit tests in
+<code>Morphir.TestSupport.Tests</code>. The engine accepts the filter with the exclusion, so a group suite uses
+<code>[(Category=&lt;group&gt;)&amp;(Category!=lane)]</code>.</td>
+<td><code>hooks.md</code>, <code>filters.md</code></td></tr>
+<tr><td>Task 2.1, the Debug build</td>
+<td><strong>Not verified.</strong> <code>src/Morphir.Toolchain.IO</code> does not compile in the Debug configuration
+on <code>main</code> (<code>WindowsProcess.fs(567,9): error FS3511</code>), so a Debug build of the entry points fails
+before it reaches the test project. The Debug metadata of the targets file is verified, and unit tests check that
+the driver uses only the paths of the configuration of the test assembly. The repair of the Debug build is not in
+the scope of this change.</td>
+<td><code>hooks.md</code></td></tr>
+<tr><td><a href="#drv-2">DRV-2</a>, the host names</td>
+<td><code>MORPHIR_TEST_HOST</code> takes <code>native</code>, <code>managed</code> and <code>tool</code>, the names of
+the host tags. <code>dotnet-morphir</code> is also the tool host. A target other than <code>dev</code> and
+<code>executable</code> stops the session with a message until pull request 2 adds its resolution.</td>
+<td><code>tests/Morphir.TestSupport/README.md</code></td></tr>
+<tr><td><a href="#asrt-1">ASRT-1</a>, the text checks</td>
+<td>The checks of text in the output compare with the case, as the checks of the moved tests did. The old check of
+two alternatives ignored the case; the new one does not, so it is not weaker.</td>
+<td><code>slice-1-moves.md</code></td></tr>
+<tr><td>Task 2.2, the smoke feature</td>
+<td><code>Smoke/Version.feature</code> has four scenarios: the default host of the run, and each of the three hosts
+by its tag. With three scenarios, the one with no host tag failed its host check when the run set another default
+host.</td>
+<td><code>hooks.md</code></td></tr>
+<tr><td>Task 4.3, the journey</td>
+<td>The journey uses <code>tests/Fixtures/MorphirIR/daily-rate-v3.json</code>. <code>morphir ir verify</code> does not
+complete on the car rental model (it runs for 2 minutes and the operating system stops it), and it says that
+<code>v3-daily-rate.json</code> is not valid while <code>generate</code> accepts it. These are findings about the
+product, not about this change.</td>
+<td><code>slice-1-moves.md</code></td></tr>
+<tr><td>Task 4.5, a solution build after the tests</td>
+<td>The compile after the black-box groups and after the users of the CLI driver builds no project. After
+<code>Morphir.Myriad.SystemTextJson.Tests</code> or <code>Morphir.Mep.Tests</code>, which this change does not touch,
+the next compile builds 48 projects again. Pull request 4 moves their fixture builds to <code>IPackageDriver</code>
+(task 8.2).</td>
+<td><code>slice-1-times.md</code></td></tr>
+<tr><td><a href="#skill-1">SKILL-1</a>, the skill</td>
+<td>A guard test, <code>TestManagerSkillTests</code>, keeps each path, tag, command, guard test name and type of the
+skill equal to the repository. The reviewer instruction also reads the files that are not tracked. Two checks with
+new agents gave the five expected classes; the unclear places that they found are corrected.</td>
+<td><code>skill-check.md</code></td></tr>
+</tbody>
+</table>
 
 </main>
 </body>

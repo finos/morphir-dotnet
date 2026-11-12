@@ -123,6 +123,12 @@ jobs:
             # (build/Helpers/TestPlan.cs). A manual run and a call from another workflow run every test on every
             # selected operating system. See docs/contributing/ci-os-matrix.md.
             TEST_SCOPE: ${{ (github.event_name == 'pull_request' && matrix.os != 'ubuntu-latest') && 'platform' || 'all' }}
+            # The limit of product processes at the same time for the complete Test run. The build gives each test
+            # process a fixed share (build/Helpers/TestPlan.cs). A runner has 3 or 4 processors and runs two test
+            # processes at the same time, so 4 gives each one 2, which is the limit that a test process had before
+            # the share. With no value the limit is 2 and the share is 1, and the two slowest suites take almost two
+            # times as long.
+            MORPHIR_TEST_MAX_PROCESSES: 4
 
         steps:
             - uses: actions/checkout@v6.1.0

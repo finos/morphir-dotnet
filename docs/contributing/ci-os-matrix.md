@@ -115,6 +115,10 @@ limit for the machine, in `MORPHIR_TEST_MAX_PROCESSES`:
 For example, a limit of 8 with 2 test processes at the same time gives 4 to each, and with 3 it gives 2 to each.
 The first lines of the `Test` log show the limit and the share.
 
+The test jobs of `development.yml` set `MORPHIR_TEST_MAX_PROCESSES` to 4. A runner has 3 or 4 processors and runs 2
+test processes at the same time, so each test process gets 2. On a machine with many processors you can set a
+larger limit for a faster run, for example `MORPHIR_TEST_MAX_PROCESSES=18 ./build.sh --target Test`.
+
 All test assemblies share the `obj` and `bin` folders of the repository. A test that runs `dotnet build`, `pack` or
 `publish` on a project of the repository must obey these rules:
 
