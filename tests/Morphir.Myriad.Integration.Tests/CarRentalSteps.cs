@@ -22,8 +22,11 @@ public sealed class CarRentalSteps
         var root = FindRoot();
         var feed = Path.Combine(packageWorkspace, "feed");
         var version = "0.1.0-test." + Guid.NewGuid().ToString("N");
+        // --no-build: the project reference in the test project builds Morphir.Myriad first. A pack that builds
+        // with this PackageVersion replaces the assemblies of the solution build in obj and bin, the next build
+        // compiles them and their users again, and test assemblies that run at the same time write the same files.
         await Run(root, "pack", Path.Combine(root, "src", "Morphir.Myriad", "Morphir.Myriad.fsproj"),
-            "-c", "Release", "-o", feed, "-p:PackageVersion=" + version);
+            "-c", "Release", "--no-build", "-o", feed, "-p:PackageVersion=" + version);
         return new PackageArtifact(feed, version);
     }
 
