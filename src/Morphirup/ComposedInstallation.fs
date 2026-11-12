@@ -44,6 +44,34 @@ let private currentSnapshot home directory ct = task {
     return successful result
 }
 
+let readLaunchReport code (output: byte array) (errors: string) =
+    let parsed = Syntax.parseJson output
+    let failed fallback =
+        let diagnostics =
+            match parsed with
+            | Ok(Value.Object fields) ->
+                match List.tryFind (fun (name,_) -> name="diagnostics") fields |> Option.map snd with
+                | Some(Value.Array diagnostics) ->
+                    diagnostics |> List.choose (function
+                        | Value.Object fields ->
+                            match List.tryFind (fun (name,_) -> name="code") fields |> Option.map snd,
+                                  List.tryFind (fun (name,_) -> name="message") fields |> Option.map snd with
+                            | Some(Value.String code),Some(Value.String message) when code<>"" && message<>"" -> Some(code+": "+message)
+                            | _ -> None
+                        | _ -> None)
+                | _ -> []
+            | _ -> []
+        let reason = if diagnostics.IsEmpty then fallback else String.concat "; " diagnostics
+        refuse "setup.readiness_failed" ("The installed host refused readiness: "+reason)
+    if code <> 0 then failed errors
+    let report = parsed |> reader
+    let fields = match report with Value.Object fields -> fields | _ -> refuse "setup.readiness_failed" "The host did not return a report."
+    if (List.tryFind(fun (name,_) -> name="success") fields |> Option.map snd) <> Some(Value.Boolean true) then
+        failed "The host report did not record success."
+    let provider = fields |> List.tryFind(fun (name,_) -> name="provider") |> Option.map snd
+                   |> Option.defaultWith(fun () -> refuse "setup.readiness_failed" "An installed process observation is missing.")
+    provider,fields
+
 let private launchReport program args directory home overlay (ct: CancellationToken) = task {
     use timeout = CancellationTokenSource.CreateLinkedTokenSource ct
     timeout.CancelAfter(TimeSpan.FromSeconds 90.0)
@@ -52,14 +80,7 @@ let private launchReport program args directory home overlay (ct: CancellationTo
     use errorBytes = new LocalProcess.LimitedCapture(2L <<< 20)
     use errors = new StreamWriter(errorBytes,UTF8Encoding(false),AutoFlush=true)
     let! code = LocalProcess.runWithOverlayAsync program args directory home (LocalProcess.Input.Redirect input) output errors overlay timeout.Token
-    if code <> 0 then refuse "setup.readiness_failed" ("The installed host refused readiness: "+Encoding.UTF8.GetString(errorBytes.ToArray()))
-    let report = Syntax.parseJson(output.ToArray()) |> reader
-    let fields = match report with Value.Object fields -> fields | _ -> refuse "setup.readiness_failed" "The host did not return a report."
-    if (List.tryFind(fun (name,_) -> name="success") fields |> Option.map snd) <> Some(Value.Boolean true) then
-        refuse "setup.readiness_failed" "The host report did not record success."
-    let provider = fields |> List.tryFind(fun (name,_) -> name="provider") |> Option.map snd
-                   |> Option.defaultWith(fun () -> refuse "setup.readiness_failed" "An installed process observation is missing.")
-    return provider,fields
+    return readLaunchReport code (output.ToArray()) (Encoding.UTF8.GetString(errorBytes.ToArray()))
 }
 
 let checkGeneratedSet (entries: string array) artifacts =
@@ -169,6 +190,11 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
             refuse "acquisition.binding_mismatch" "The release descriptor differs from its independently selected archive or canonical manifest."
         descriptors.Add(role,raw,plan)
     if pins.Length <> descriptors.Count then refuse "acquisition.selection_mismatch" "This release setup supports the two selected F# processes only."
+    LocalInstallation.checkExecutablePaths candidate.Host.Platform home [
+        path home (LocalCandidateDocument.installationPath candidate.Host+"/"+candidate.Host.EntryPoint.Target.Text)
+        for _,_,plan in descriptors do
+            path home $"store/extensions/packages/sha256/{plan.TreeDigest.Value}/tree/{plan.EntryPoint.Text}"
+    ]
     if dryRun then return candidate.Host.ManifestSha256,None
     else
         use root = SafeDirectory.Open(home,true)
@@ -176,75 +202,77 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
         FileSafety.withDirectories root ["tmp";stageName] true ignore
         use stage = SafeDirectory.Open(path home ("tmp/"+stageName),false)
         use owner = stage.File(".owner",true,true)
-        FileSafety.withDirectories stage ["downloads"] true ignore
-        let downloads = Path.Combine(stage.Path,"downloads")
-        for asset in bundle.Assets do
-            let! _ = AcquisitionDelivery.downloadAsync home downloads transport asset ct
-            ()
-        let local role = Path.Combine(downloads,(asset bundle role).Name.Text)
-        do! LocalInstallation.prepareComposedHostAsync home rawCandidate candidate.Host (local "host-archive") false ct
-        for role,raw,plan in descriptors do
-            let repository = Path.Combine(stage.Path,"repositories",role)
-            FileSafety.withDirectories stage ["repositories";role] true ignore
-            let! result = InstalledExtensions.InstallLocalUncheckedAsync(home,plan,local(role+"-archive"),repository,Array.AsReadOnly [||],candidate.Host.Host.Version,ct)
-            use installed = successful result
-            ()
-        let ids = Array.AsReadOnly(pins |> List.map(fun pin -> Morphir.Extensions.ExtensionId.Create pin.Id.Text) |> Array.ofList)
-        let! result = InstalledExtensions.CaptureManyAsync(home,ids,candidate.Host.Host.Version,ct)
-        use captures = successful result
-        let locks = captures.Captures |> Seq.map(fun capture ->
-            let id = ExtensionId.tryParsePreview capture.Record.ExtensionId.Value |> function Ok id -> id | Error _ -> invalidOp "Validated installed id."
-            id,capture.Record.LockBytes) |> List.ofSeq
-        let metadata = descriptors |> Seq.map(fun (role,raw,plan) ->
-            let id = ExtensionId.tryParsePreview plan.Descriptor.ExtensionId.Value |> function Ok id -> id | Error _ -> invalidOp "Validated installed id."
-            let path = TargetPath.tryParse $"extensions/metadata/{id.Text}/release.json" |> function Ok path -> path | Error _ -> invalidOp "Validated metadata path."
-            id,path,raw) |> List.ofSeq
-        FileSafety.withDirectories stage ["generation"] true (fun generation ->
-            LocalInstallation.writeFile generation "candidate.json" rawCandidate
-            LocalInstallation.writeFile generation "extensions/selection.json" selection
-            LocalInstallation.writeFile generation "extensions/catalog.json" captures.CatalogBytes
-            for id,bytes in locks do LocalInstallation.writeFile generation $"extensions/locks/{id.Text}.json" bytes
-            for _,path,bytes in metadata do LocalInstallation.writeFile generation path.Text bytes
-            match acquisition with
-            | Some(rawBundle,checksums) ->
-                LocalInstallation.writeFile generation "acquisition/bundle.json" rawBundle
-                LocalInstallation.writeFile generation "acquisition/SHA256SUMS" checksums
-            | None -> ())
-        let! workflow = readiness root stage candidate captures.CatalogBytes captures.Captures home ct
-        let proof = acquisition |> Option.map(fun (rawBundle,checksums) -> Value.Object [
-            "repository",value AcquisitionDelivery.repository;"tag",value("v"+bundle.Version.Text)
-            "bundle",Value.Object ["path",value "acquisition/bundle.json";"sha256",value (Sha256.ofBytes rawBundle).Text]
-            "checksums",Value.Object ["path",value "acquisition/SHA256SUMS";"sha256",value (Sha256.ofBytes checksums).Text]])
-        let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.3" candidate captures.CatalogBytes locks metadata workflow proof
-        let manifest = ComposedDocuments.readManifest "0.1.0-preview.3" candidate manifestBytes |> reader
-        let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate manifest.Identity
-        let preparedIdentity =
-            use generation = stage.Child("generation",false)
-            LocalInstallation.writeFile generation "generation.json" manifestBytes
-            LocalInstallation.writeFile generation "receipt.json" receipt
-            generation.Identity
-        let expectedLocks = locks |> List.map(fun (id,bytes) -> id.Text,bytes) |> readOnlyDict
-        let publishExpected callback = task {
-            let! result = InstalledExtensions.PublishExpectedAsync(home,captures.CatalogBytes,expectedLocks,candidate.Host.Host.Version,callback,ct)
-            successful result
-        }
-        do! publishGenerationAsync (fun () -> FileSafety.mutationLeaseAsync root ct) publishExpected (fun () -> task {
-            stage.ValidateLocation()
-            use prepared = stage.Child("generation",false)
-            if prepared.Identity <> preparedIdentity then refuse "setup.generation_changed" "The prepared generation directory changed before publication."
-            // Windows directory publication requires closing this child handle,
-            // as in the installer's existing package publication path.
-            (prepared :> IDisposable).Dispose()
-            FileSafety.withDirectories root ["toolchains";"generations"] true (fun parent ->
-                let published = parent.PublishDirectory(stage,"generation",manifest.Identity.Text)
-                use final = parent.Child(manifest.Identity.Text,false)
-                if published && final.Identity <> preparedIdentity then refuse "setup.generation_changed" "Published generation identity differs from the prepared directory."
-                let current = GenerationBinding.load root final.Path
-                if current.Receipt <> Some receipt then refuse "setup.generation_conflict" "Existing generation is not the verified publication.")
+        return! LocalInstallation.withPrivateStageAsync root stage owner Console.Error (fun () -> task {
+            FileSafety.withDirectories stage ["downloads"] true ignore
+            let downloads = Path.Combine(stage.Path,"downloads")
+            for asset in bundle.Assets do
+                let! _ = AcquisitionDelivery.downloadAsync home downloads transport asset ct
+                ()
+            let local role = Path.Combine(downloads,(asset bundle role).Name.Text)
+            do! LocalInstallation.prepareComposedHostAsync home rawCandidate candidate.Host (local "host-archive") false ct
+            for role,raw,plan in descriptors do
+                let repository = Path.Combine(stage.Path,"repositories",role)
+                FileSafety.withDirectories stage ["repositories";role] true ignore
+                let! result = InstalledExtensions.InstallLocalUncheckedAsync(home,plan,local(role+"-archive"),repository,Array.AsReadOnly [||],candidate.Host.Host.Version,ct)
+                use installed = successful result
+                ()
+            let ids = Array.AsReadOnly(pins |> List.map(fun pin -> Morphir.Extensions.ExtensionId.Create pin.Id.Text) |> Array.ofList)
+            let! result = InstalledExtensions.CaptureManyAsync(home,ids,candidate.Host.Host.Version,ct)
+            use captures = successful result
+            let locks = captures.Captures |> Seq.map(fun capture ->
+                let id = ExtensionId.tryParsePreview capture.Record.ExtensionId.Value |> function Ok id -> id | Error _ -> invalidOp "Validated installed id."
+                id,capture.Record.LockBytes) |> List.ofSeq
+            let metadata = descriptors |> Seq.map(fun (role,raw,plan) ->
+                let id = ExtensionId.tryParsePreview plan.Descriptor.ExtensionId.Value |> function Ok id -> id | Error _ -> invalidOp "Validated installed id."
+                let path = TargetPath.tryParse $"extensions/metadata/{id.Text}/release.json" |> function Ok path -> path | Error _ -> invalidOp "Validated metadata path."
+                id,path,raw) |> List.ofSeq
+            FileSafety.withDirectories stage ["generation"] true (fun generation ->
+                LocalInstallation.writeFile generation "candidate.json" rawCandidate
+                LocalInstallation.writeFile generation "extensions/selection.json" selection
+                LocalInstallation.writeFile generation "extensions/catalog.json" captures.CatalogBytes
+                for id,bytes in locks do LocalInstallation.writeFile generation $"extensions/locks/{id.Text}.json" bytes
+                for _,path,bytes in metadata do LocalInstallation.writeFile generation path.Text bytes
+                match acquisition with
+                | Some(rawBundle,checksums) ->
+                    LocalInstallation.writeFile generation "acquisition/bundle.json" rawBundle
+                    LocalInstallation.writeFile generation "acquisition/SHA256SUMS" checksums
+                | None -> ())
+            let! workflow = readiness root stage candidate captures.CatalogBytes captures.Captures home ct
+            let proof = acquisition |> Option.map(fun (rawBundle,checksums) -> Value.Object [
+                "repository",value AcquisitionDelivery.repository;"tag",value("v"+bundle.Version.Text)
+                "bundle",Value.Object ["path",value "acquisition/bundle.json";"sha256",value (Sha256.ofBytes rawBundle).Text]
+                "checksums",Value.Object ["path",value "acquisition/SHA256SUMS";"sha256",value (Sha256.ofBytes checksums).Text]])
+            let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.3" candidate captures.CatalogBytes locks metadata workflow proof
+            let manifest = ComposedDocuments.readManifest "0.1.0-preview.3" candidate manifestBytes |> reader
+            let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate manifest.Identity
+            let preparedIdentity =
+                use generation = stage.Child("generation",false)
+                LocalInstallation.writeFile generation "generation.json" manifestBytes
+                LocalInstallation.writeFile generation "receipt.json" receipt
+                generation.Identity
+            let expectedLocks = locks |> List.map(fun (id,bytes) -> id.Text,bytes) |> readOnlyDict
+            let publishExpected callback = task {
+                let! result = InstalledExtensions.PublishExpectedAsync(home,captures.CatalogBytes,expectedLocks,candidate.Host.Host.Version,callback,ct)
+                successful result
+            }
+            do! publishGenerationAsync (fun () -> FileSafety.mutationLeaseAsync root ct) publishExpected (fun () -> task {
+                stage.ValidateLocation()
+                use prepared = stage.Child("generation",false)
+                if prepared.Identity <> preparedIdentity then refuse "setup.generation_changed" "The prepared generation directory changed before publication."
+                // Windows directory publication requires closing this child handle,
+                // as in the installer's existing package publication path.
+                (prepared :> IDisposable).Dispose()
+                FileSafety.withDirectories root ["toolchains";"generations"] true (fun parent ->
+                    let published = parent.PublishDirectory(stage,"generation",manifest.Identity.Text)
+                    use final = parent.Child(manifest.Identity.Text,false)
+                    if published && final.Identity <> preparedIdentity then refuse "setup.generation_changed" "Published generation identity differs from the prepared directory."
+                    let current = GenerationBinding.load root final.Path
+                    if current.Receipt <> Some receipt then refuse "setup.generation_conflict" "Existing generation is not the verified publication.")
+            })
+            let snapshot = GenerationBinding.load root (path home (LocalCandidateDocument.generationPath manifest.Identity))
+            if Option.isSome acquisition then do! publishSelection root snapshot ct
+            return candidate.Host.ManifestSha256,Some manifest.Identity
         })
-        let snapshot = GenerationBinding.load root (path home (LocalCandidateDocument.generationPath manifest.Identity))
-        if Option.isSome acquisition then do! publishSelection root snapshot ct
-        return candidate.Host.ManifestSha256,Some manifest.Identity
 }
 
 /// The one release setup path. Dry-run reads metadata and plans without creating Home or running code.
@@ -352,16 +380,43 @@ let selectAsync platform home identity dryRun ct = task {
     return snapshot
 }
 
+let private optionToken names (token: string) =
+    names |> List.tryPick (fun name ->
+        if token.StartsWith(name+"=",StringComparison.Ordinal) || token.StartsWith(name+":",StringComparison.Ordinal) then
+            Some(token.Substring(name.Length+1))
+        elif name="-l" && token.StartsWith(name,StringComparison.Ordinal) && token.Length>name.Length then
+            Some(token.Substring(name.Length))
+        else None)
+
+let private optionValue names args =
+    let rec find = function
+        | [] | "--"::_ -> None
+        | token::rest ->
+            if List.contains token names then rest |> List.tryHead
+            else match optionToken names token with Some value -> Some value | None -> find rest
+    find args
+
+let providerArguments (frontend: Morphir.Toolchain.ExtensionId) (backend: Morphir.Toolchain.ExtensionId) args =
+    let explicitSelection =
+        args |> List.takeWhile ((<>) "--") |> List.exists (fun token ->
+            List.contains token ["--extension";"--extension-id"] || Option.isSome(optionToken ["--extension";"--extension-id"] token))
+    let selected =
+        if explicitSelection then None
+        else match args with
+             | "compile"::_ when optionValue ["--language";"-l"] args = Some "fsharp" -> Some frontend
+             | "generate"::_ when optionValue ["--target"] args = Some "fsharp" -> Some backend
+             | _ -> None
+    match selected with
+    | None -> args
+    | Some id ->
+        let before,after = List.splitAt (args |> List.tryFindIndex ((=) "--") |> Option.defaultValue args.Length) args
+        before @ ["--extension-id";id.Text] @ after
+
 let runAsync platform home args directory input output (errors: TextWriter) ct = task {
     let! snapshot = selected home ct
     executionPlatform platform snapshot
     let candidate = snapshot.Candidate
-    let args =
-        if args |> List.exists(fun arg -> arg="--extension" || arg="--extension-id") then args
-        else match args with
-             | "compile"::_ -> args @ ["--extension-id";candidate.FrontendId.Text]
-             | "generate"::_ when args |> List.contains "fsharp" -> args @ ["--extension-id";candidate.BackendId.Text]
-             | _ -> args
+    let args = providerArguments candidate.FrontendId candidate.BackendId args
     use root = SafeDirectory.Open(home,false)
     use! lease = FileSafety.mutationLeaseAsync root ct
     checkHost root candidate.Host false ct
