@@ -19,6 +19,12 @@ public sealed record ScenarioMachine(WorkspaceDirectory WorkingDirectory)
     /// <summary>The variables that a <see cref="Home"/> sets: the home and the machine configuration locations.</summary>
     public static IReadOnlyList<string> HomeVariables { get; } = ["HOME", "USERPROFILE", "APPDATA", "PROGRAMDATA", "XDG_CONFIG_HOME"];
 
+    /// <summary>
+    /// True when the system configuration root of this machine (<c>/etc</c>) is a symbolic link, as on macOS. The
+    /// product does not follow such a link for an edit, so a scenario of a system edit expects a refusal here.
+    /// </summary>
+    public static bool SystemConfigurationRootIsALink { get; } = !OperatingSystem.IsWindows() && new DirectoryInfo("/etc").LinkTarget is not null;
+
     /// <summary>The time limit of one command of a scenario of this kind.</summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
 

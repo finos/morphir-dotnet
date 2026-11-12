@@ -22,6 +22,8 @@
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Reqnroll" />
     <PackageReference Include="Reqnroll.TUnit" />
+    <!-- The checks of a report against its published JSON schema (Steps/ReportSchema.cs). -->
+    <PackageReference Include="JsonSchema.Net" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,6 +47,11 @@
     <None Include="../Morphir.Tooling.Tests/TestData/valid-ir-v3.json" Link="Fixtures/Models/valid-ir-v3.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Morphir.Tooling.Tests/TestData/invalid-missing-formatversion.json" Link="Fixtures/Models/invalid-missing-formatversion.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Morphir.Tooling.Tests/TestData/malformed.json" Link="Fixtures/Models/malformed.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The published JSON schemas of the configuration and migration reports. -->
+    <None Include="../../docs/spec/schemas/config-inspection-result.schema.json" Link="Fixtures/Schemas/config-inspection-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/spec/schemas/config-edit-result.schema.json" Link="Fixtures/Schemas/config-edit-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/spec/schemas/project-migration-result.schema.json" Link="Fixtures/Schemas/project-migration-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/spec/schemas/workspace-migration-result.schema.json" Link="Fixtures/Schemas/workspace-migration-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

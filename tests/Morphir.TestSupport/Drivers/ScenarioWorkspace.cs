@@ -112,6 +112,15 @@ public interface IScenarioWorkspace : IAsyncDisposable
 
     /// <summary>Keeps the folder when the workspace is disposed, as evidence of a failed test.</summary>
     void Keep();
+
+    /// <summary>Makes the directory, with its parents, when it is not there.</summary>
+    void CreateDirectory(WorkspaceDirectory directory);
+
+    /// <summary>Removes the file when it is there.</summary>
+    void Delete(WorkspaceFile file);
+
+    /// <summary>The text of a fixture file of the test project, with no copy in the work area.</summary>
+    string ReadFixtureText(string fixture);
 }
 
 /// <summary>The workspace on a <see cref="TestSandbox"/>.</summary>
@@ -235,6 +244,18 @@ public sealed class ScenarioWorkspace : IScenarioWorkspace
     }
 
     public void Keep() => _keep = true;
+
+    public void CreateDirectory(WorkspaceDirectory directory) => System.IO.Directory.CreateDirectory(directory.Path);
+
+    public void Delete(WorkspaceFile file) => System.IO.File.Delete(file.Path);
+
+    public string ReadFixtureText(string fixture)
+    {
+        var source = Below(_fixtures, [fixture]);
+        return System.IO.File.Exists(source)
+            ? System.IO.File.ReadAllText(source)
+            : throw new TestSessionException($"The fixture file '{fixture}' is not in the fixture folder {_fixtures}.");
+    }
 
     public async ValueTask DisposeAsync()
     {

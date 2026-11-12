@@ -102,6 +102,77 @@ two steps have the same pattern.
 | Generation | `Then the output has no file {string}` |
 | Generation | `Given each file of the output has the time of the year 2000` |
 | Generation | `Then each file of the output still has the time of the year 2000` |
+| Configuration editing | `Given a configuration editing project` |
+| Configuration editing | `Given the editing project has mixed primary layouts and a personal override` |
+| Configuration editing | `Given the editing project is a workspace with two members` |
+| Configuration editing | `Then editing uses the existing personal target` |
+| Configuration editing | `Then the personal edit is a member output of the personal file` |
+| Configuration editing | `Given an editing environment winner` |
+| Configuration editing | `Given the editing target has an opaque reference` |
+| Configuration editing | `Then editing streams redact opaque reference inputs` |
+| Configuration editing | `Then editing preserves unrelated comments` |
+| Configuration editing | `When I edit configuration with {string}` |
+| Configuration editing | `Given the editing project is a member below an outer workspace` |
+| Configuration editing | `Given the editing home has a global configuration` |
+| Configuration editing | `Given editing environment variable {word} is {string}` |
+| Configuration editing | `When I edit configuration without a boundary flag with {string}` |
+| Configuration editing | `Then the editing plan consults no project source outside {string}` |
+| Configuration editing | `Then the editing plan consults no machine or personal sources` |
+| Configuration editing | `When I set a complete typed object` |
+| Configuration editing | `When I set an opaque typed reference` |
+| Configuration editing | `When I edit a literal dotted key` |
+| Configuration editing | `Then the persisted editing value has type {string}` |
+| Configuration editing | `Given a classic JSON value below the editing target` |
+| Configuration editing | `Then the lower JSON bytes and origin are retained` |
+| Configuration editing | `Then system preview respects the native no-follow policy` |
+| Configuration editing | `Then editing exits {int} with outcome {string}` |
+| Configuration editing | `Then the editing target retains its original bytes` |
+| Configuration editing | `Then the editing effective value is {string}` |
+| Configuration | `Given an inspection workspace with a member and a personal override` |
+| Configuration | `Given the inspection workspace contains sibling YAML` |
+| Configuration | `Given the inspection workspace has an invalid default member` |
+| Configuration | `Given the inspection member configuration is malformed` |
+| Configuration | `Given the invocation directory contains malformed host appsettings` |
+| Configuration | `Given environment profiles contain an empty name` |
+| Configuration | `Given the member contains a TOML table with {int} path segments` |
+| Configuration | `Then the nested table at {int} path segments retains its values` |
+| Configuration | `Given the member contains nonfinite and temporal values` |
+| Configuration | `Given environment variable {word} is {string}` |
+| Configuration | `When I inspect without a boundary flag with {string}` |
+| Configuration | `Then inspection consults no project source outside {string}` |
+| Configuration | `Then inspection consults the workspace primary` |
+| Configuration | `Then inspection consults no sources` |
+| Configuration | `Then machine and personal sources are not consulted` |
+| Configuration | `Then machine and personal sources are consulted` |
+| Configuration | `Then the reported boundary is {string} from {string}` |
+| Configuration | `Then the reported isolation is {word} from {string}` |
+| Configuration | `Then the inspection diagnostic names {string}` |
+| Configuration | `Given a home directory with a global Morphir file and a bare project below it` |
+| Configuration | `Given MORPHIR_HOME is the native path of the global Morphir home` |
+| Configuration | `When I inspect the bare project with {string}` |
+| Configuration | `Then the global Morphir file is consulted only as a global source` |
+| Configuration | `When I inspect with {string}` |
+| Configuration | `When I inspect a key containing a literal dot` |
+| Configuration | `When I request human inspection output` |
+| Configuration | `When I request inspection help` |
+| Configuration | `Then inspection exits with {int} and one JSON result` |
+| Configuration | `Then special values preserve their canonical kinds` |
+| Configuration | `Then nonfinite explanation metadata identifies its value and contribution` |
+| Configuration | `Then the failure is a usage diagnostic without a source read` |
+| Configuration | `Then the inspection result operation is {string}` |
+| Configuration | `Then the inspection value is true` |
+| Configuration | `Then the inspection value is {string}` |
+| Configuration | `Then the inspection value is an empty array` |
+| Configuration | `Then the queried key is absent` |
+| Configuration | `Then inspection diagnostics include {string}` |
+| Configuration | `Then inspection diagnostics exclude {string}` |
+| Configuration | `Then the get entry identifies its member origin` |
+| Configuration | `Then human inspection succeeds without exposing sensitive values` |
+| Configuration | `Then the explanation identifies workspace and member sources` |
+| Configuration | `Then structured warnings appear in JSON and human diagnostics only on stderr` |
+| Configuration | `Then the mixed format warning is suppressed` |
+| Configuration | `Then neither stream exposes secret values or executes the secret command` |
+| Configuration | `Then inspection help succeeds without configuration diagnostics` |
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.
