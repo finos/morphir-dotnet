@@ -12,12 +12,21 @@ namespace Morphir.TestSupport.Drivers;
 /// <param name="VersionRange">The version or the version range, for example <c>0.3.0</c> or <c>[0.3.0]</c>.</param>
 public sealed record PackageDependency(string Id, string VersionRange)
 {
-    /// <summary>True when the range is exactly <paramref name="version"/>: <c>v</c>, <c>[v]</c> or <c>[v, v]</c>.</summary>
+    /// <summary>True when the range admits only <paramref name="version"/>: <c>[v]</c> or <c>[v, v]</c>.</summary>
     public bool IsExactly(string version)
     {
-        var bounds = VersionRange.Trim('[', ']', '(', ')').Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        return bounds.Length > 0 && bounds.All(bound => string.Equals(bound, version, StringComparison.OrdinalIgnoreCase));
+        var range = VersionRange.Trim();
+        if (!range.StartsWith('[') || !range.EndsWith(']')) return false;
+        var bounds = range[1..^1].Split(',', StringSplitOptions.TrimEntries);
+        return bounds.Length is 1 or 2 && bounds.All(bound => string.Equals(bound, version, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// True when the range names <paramref name="version"/> as a minimum (<c>v</c>) or exactly (<c>[v]</c>): the two
+    /// forms in which a project reference packs.
+    /// </summary>
+    public bool NamesVersion(string version) =>
+        string.Equals(VersionRange.Trim(), version, StringComparison.OrdinalIgnoreCase) || IsExactly(version);
 }
 
 /// <summary>The manifest (the <c>.nuspec</c> file) of a package.</summary>

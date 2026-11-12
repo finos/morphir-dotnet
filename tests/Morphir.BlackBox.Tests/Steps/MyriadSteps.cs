@@ -54,10 +54,8 @@ public sealed class MyriadSteps(IPackageDriver packages, IScenarioWorkspace work
 
     /// <summary>The program prints the daily rate of one module, or the sum for <c>A + B</c>.</summary>
     [Given("the consumer program prints the daily rate of {string}")]
-    public void TheProgramPrintsTheDailyRateOf(string modules) => workspace.WriteText(Consumer.File("Program.fs"), PrintDailyRate(modules));
-
     [When("the consumer program prints the daily rate of {string}")]
-    public void TheProgramNowPrintsTheDailyRateOf(string modules) => TheProgramPrintsTheDailyRateOf(modules);
+    public void TheProgramPrintsTheDailyRateOf(string modules) => workspace.WriteText(Consumer.File("Program.fs"), PrintDailyRate(modules));
 
     /// <summary>A consumer of the System.Text.Json plugin that also compiles a model with the Myriad plugin.</summary>
     [Given("the consumer also uses the Myriad plugin with the model fixture {string}")]
@@ -92,6 +90,8 @@ public sealed class MyriadSteps(IPackageDriver packages, IScenarioWorkspace work
     /// <summary>
     /// The consumer folder <paramref name="link"/> is a symbolic link to its folder <paramref name="target"/>. A
     /// symbolic link of a directory needs a privilege on Windows, so there the scenario is skipped with that reason.
+    /// The old check did nothing on Windows and passed. This skip is not a decision of the eligibility check, so the
+    /// skip counts of the run do not have it.
     /// </summary>
     [Given("the consumer folder {string} is a symbolic link to its folder {string}")]
     public void TheFolderIsASymbolicLink(string link, string target)
@@ -167,7 +167,7 @@ public sealed class MyriadSteps(IPackageDriver packages, IScenarioWorkspace work
 
     private void NewConsumer(params ConsumerModel[] models)
     {
-        state.Consumer = new ConsumerProject(workspace.Directory("consumer"));
+        state.Consumer = new ConsumerProject(workspace.Directory("consumer with a space"));
         Consumer.Packages.Add((Plugin, state.VersionOf(Plugin), false));
         Consumer.Models.AddRange(models);
         packages.WriteNuGetConfig(Consumer.Folder, includeNuGetOrg: true);

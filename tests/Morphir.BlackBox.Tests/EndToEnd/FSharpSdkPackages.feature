@@ -1,4 +1,4 @@
-@journey @needs-development-packages
+@e2e @needs-development-packages
 Feature: The migrated F# SDK packages keep the existing consumers working
   The canonical package Morphir.SDK.FSharp owns the runtime assembly Morphir.SDK.dll. The compatibility package
   Morphir.SDK has no assembly and only a dependency on the canonical package. A consumer that installs either

@@ -84,8 +84,8 @@ A group is a suite of the `Test` target (`build/Helpers/TestPlan.cs`): it runs a
 time as other suites, with its own row in the report and its own result directory. A group suite has one filter in
 both scopes, `[(Category=<group>)&(Category!=lane)]`. A group with no test fails its run, so a group is in the plan
 from the change that adds its first test. `--test-group <group>` runs only the suites of that group and no other
-suite. The `integration` and `journey` groups pack projects of the repository with no build (the package driver),
-so they run as suites that use the source projects.
+suite. The `integration` and `e2e` groups pack projects of the repository (the package driver), so they run as
+suites that use the source projects.
 
 A test that needs more than the development build has the tag `@lane` and one lane tag (`@packages`,
 `@native-aot` or `@published`). The run of a group does not select it. If another run selects it, the test is

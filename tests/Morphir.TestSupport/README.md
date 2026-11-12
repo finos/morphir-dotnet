@@ -75,14 +75,17 @@ assembly of an entry point is visible to the test code.
 
 A test project that uses the package driver imports `build/Morphir.PackageSources.targets`. That file adds
 build-order references to the projects that the driver packs with no build (`Morphir.Myriad`,
-`Morphir.Myriad.SystemTextJson`, `Morphir.Myriad.SystemTextJson.Annotations` and the two F# extensions), and writes
+`Morphir.Myriad.SystemTextJson` and `Morphir.Myriad.SystemTextJson.Annotations`), and writes
 the path of each project file, of each built assembly and the configuration into the test assembly as assembly
 metadata. The SDK projects (`Morphir.SDK.FSharp`, `Morphir.SDK`) are not built first: the driver builds and packs
 them in the workspace.
 
 A command of the package driver for a consumer gets `NUGET_PACKAGES` set to the packages folder of the workspace, so
 no package of a test goes into the NuGet folder of the machine, and `NUGET_HTTP_CACHE_PATH` set to the HTTP cache of
-NuGet of the machine, so a restore does not download a package from nuget.org again.
+NuGet of the machine, so a restore does not download a package from nuget.org again. A restore from nuget.org writes
+that cache. A build and pack in the workspace restores the projects of the repository with the NuGet folder of the
+machine, as the solution build does. The driver packs no dotnet tool: a pack of a tool publishes into the `obj` and
+`bin` folders of its project, so a test reads a tool package of the packages lane.
 
 ### Environment variables
 

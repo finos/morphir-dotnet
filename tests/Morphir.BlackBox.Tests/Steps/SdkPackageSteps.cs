@@ -16,7 +16,7 @@ public sealed class SdkPackageSteps(IPackageDriver packages, IScenarioWorkspace 
     private const string Canonical = "Morphir.SDK.FSharp";
     private const string Legacy = "Morphir.SDK";
 
-    /// <summary>The SHA-256 of the precompiled consumer that the legacy package built before the migration (Fixtures/SdkPackages/README.md).</summary>
+    /// <summary>The SHA-256 of the precompiled consumer that the legacy package built before the migration (Fixtures/SdkPackages/Baseline/README.md).</summary>
     private const string PrecompiledHash = "41afc3e57b4ebf350467d0d812d0fdb63eda1878eecd9099d30c992d60768228";
 
     // The consumers target net10.0. The .NET 11 SDK has no .NET 10 targeting or host packs, so they come from nuget.org.

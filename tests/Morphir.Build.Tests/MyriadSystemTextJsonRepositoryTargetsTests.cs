@@ -85,19 +85,4 @@ public class MyriadSystemTextJsonRepositoryTargetsTests
         result.ExitCode.Should().Be(0, $"the project load targets pass: {result.CombinedOutput}");
         RestoreFiles(root).Should().Equal(before, "the load of the fixture does not restore the source projects again");
     }
-
-    [Test]
-    public void TheCompatibilityProjectOfTheSdkHasNoAssemblyInItsBuildOutput()
-    {
-        // Morphir.SDK is the package that has only a dependency on Morphir.SDK.FSharp. Its build must not emit an
-        // empty compatibility assembly anywhere. TestBuild runs after the solution build and the pack step.
-        var project = Path.Combine(TestFixture.GetRepositoryRoot(), "src", "Morphir.SDK");
-        var assemblies = new[] { "bin", "obj" }
-            .Select(folder => Path.Combine(project, folder))
-            .Where(Directory.Exists)
-            .SelectMany(folder => Directory.EnumerateFiles(folder, "*.dll", SearchOption.AllDirectories))
-            .ToArray();
-
-        assemblies.Should().BeEmpty("the compatibility project emits no assembly");
-    }
 }

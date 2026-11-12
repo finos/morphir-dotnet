@@ -182,6 +182,22 @@ public class PackageDriverTests
     }
 
     [Test]
+    [Arguments("[1.0.0]", true, true)]
+    [Arguments("[1.0.0, 1.0.0]", true, true)]
+    [Arguments("1.0.0", false, true)]
+    [Arguments("[1.0.0, )", false, false)]
+    [Arguments("(1.0.0, 1.0.0]", false, false)]
+    [Arguments("[1.0.0, 2.0.0]", false, false)]
+    [Arguments("[1.0.1]", false, false)]
+    public void ADependencyRangeIsExactOnlyWithBothBoundsIncluded(string range, bool exactly, bool names)
+    {
+        var dependency = new PackageDependency("Morphir.Two", range);
+
+        dependency.IsExactly("1.0.0").Should().Be(exactly);
+        dependency.NamesVersion("1.0.0").Should().Be(names);
+    }
+
+    [Test]
     public void TheTestAssemblyHasThePackageSourcesOfTheConfigurationOfItsBuild()
     {
         var sources = PackageSources.OfDevelopmentBuild(ThisAssembly);

@@ -56,6 +56,7 @@
     <None Include="../Morphir.SDK.Tests/Packaging/LegacyConsumer.fs" Link="Fixtures/SdkPackages/LegacyConsumer.fs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Morphir.SDK.Tests/Packaging/Baseline/LegacyConsumer.dll" Link="Fixtures/SdkPackages/Baseline/LegacyConsumer.dll" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Morphir.SDK.Tests/Packaging/Baseline/public-api.txt" Link="Fixtures/SdkPackages/Baseline/public-api.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.SDK.Tests/Packaging/Baseline/README.md" Link="Fixtures/SdkPackages/Baseline/README.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Morphir.SDK.Tests/Packaging/Generated/Ordering.fs" Link="Fixtures/SdkPackages/Generated/Ordering.fs" CopyToOutputDirectory="PreserveNewest" />
     <!-- The changelog gives the version of the packed packages; global.json gives the SDK of a consumer. -->
     <None Include="../../CHANGELOG.md" Link="Fixtures/Repository/CHANGELOG.md" CopyToOutputDirectory="PreserveNewest" />

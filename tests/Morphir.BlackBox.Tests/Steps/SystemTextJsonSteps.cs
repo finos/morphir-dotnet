@@ -21,7 +21,7 @@ public sealed class SystemTextJsonSteps(IPackageDriver packages, IScenarioWorksp
     [Given("a System.Text.Json consumer")]
     public void ASystemTextJsonConsumer()
     {
-        state.Consumer = new ConsumerProject(workspace.Directory("consumer")) { Strict = true };
+        state.Consumer = new ConsumerProject(workspace.Directory("consumer with a space")) { Strict = true };
         Consumer.Packages.Add((Plugin, state.VersionOf(Plugin), true));
         Consumer.Packages.Add((Annotations, state.VersionOf(Annotations), false));
         Consumer.Sources.Add("Types.fs");

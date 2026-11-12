@@ -31,19 +31,13 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj"
                       ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
                       OutputItemType="MorphirPackageSourceArtifact" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj"
-                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
-                      OutputItemType="MorphirPackageSourceArtifact" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj"
-                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
-                      OutputItemType="MorphirPackageSourceArtifact" />
   </ItemGroup>
 
   <!-- ResolveProjectReferences gives the target path of each reference in the item that OutputItemType names. -->
   <Target Name="AddMorphirPackageSourceMetadata"
           DependsOnTargets="ResolveProjectReferences"
           BeforeTargets="GetAssemblyAttributes;CoreGenerateAssemblyInfo">
-    <Error Condition="'@(MorphirPackageSourceArtifact->Count())' != '5'"
+    <Error Condition="'@(MorphirPackageSourceArtifact->Count())' != '3'"
            Text="Morphir.PackageSources.targets needs one target path for each project that the package driver packs with no build. It has: '@(MorphirPackageSourceArtifact)'." />
     <!-- The name of each project file is the id of its package. -->
     <ItemGroup>

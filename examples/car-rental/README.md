@@ -51,8 +51,7 @@ The script requires no packages beyond the .NET SDK. It is optional for running 
 Run the package-consumer scenarios of the black-box tests with:
 
 ```sh
-./build.sh --target Test --skip Restore Compile --test-group journey
 ./build.sh --target Test --skip Restore Compile --test-group integration
 ```
 
-The scenarios build clean consumers from locally packed packages, check all three IR versions, verify the full lifecycle and business rejections, and exercise the tutorial's rate change (`tests/Morphir.BlackBox.Tests/Journeys/MyriadCarRental.feature`). The F# package checks also cover cold restore, stale output, module additions/removals, paths, cleanup and concurrent configurations (`Integration/MyriadConsumer.feature`). The `Test` target runs them.
+The scenarios build clean consumers from locally packed packages, check all three IR versions, verify the full lifecycle and business rejections, and exercise the tutorial's rate change (`tests/Morphir.BlackBox.Tests/Integration/MyriadCarRental.feature`). The F# package checks also cover cold restore, stale output, module additions/removals, paths, cleanup and concurrent configurations (`Integration/MyriadConsumer.feature`). The `Test` target runs them.

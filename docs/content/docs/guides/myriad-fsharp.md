@@ -69,10 +69,9 @@ dotnet run --project tests/Morphir.Myriad.Tests
 dotnet run --project tests/Morphir.Internal.CodeGeneration.Tests
 dotnet run --project tests/Morphir.Myriad.SystemTextJson.Tests
 ./build.sh --target Test --skip Restore Compile --test-group integration
-./build.sh --target Test --skip Restore Compile --test-group journey
 ```
 
-The scaffold regression test builds a new plugin in a sandbox and runs it through the real host. The package-consumer scenarios (`tests/Morphir.BlackBox.Tests/Integration/MyriadConsumer.feature`, `Integration/SystemTextJsonConsumer.feature` and `Journeys/MyriadCarRental.feature`) pack the plugins from the build, and check cold restores, repeat builds, failures, and consumers using both Morphir plugins.
+The scaffold regression test builds a new plugin in a sandbox and runs it through the real host. The package-consumer scenarios (`tests/Morphir.BlackBox.Tests/Integration/MyriadConsumer.feature`, `Integration/SystemTextJsonConsumer.feature` and `Integration/MyriadCarRental.feature`) pack the plugins from the build, and check cold restores, repeat builds, failures, and consumers using both Morphir plugins.
 
 ## Supported inputs and declarations
 

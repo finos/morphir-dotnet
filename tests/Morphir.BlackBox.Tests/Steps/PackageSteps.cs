@@ -93,7 +93,7 @@ public sealed class PackageSteps(IPackageDriver packages, IScenarioWorkspace wor
             .SelectMany(package => package.Manifest.Dependencies
                 .Where(dependency => dependency.Id.StartsWith("Morphir", StringComparison.OrdinalIgnoreCase))
                 .Select(dependency => (From: package.Id, Dependency: dependency)))
-            .Where(item => !packed.TryGetValue(item.Dependency.Id, out var version) || !item.Dependency.IsExactly(version))
+            .Where(item => !packed.TryGetValue(item.Dependency.Id, out var version) || !item.Dependency.NamesVersion(version))
             .Select(item => $"{item.From} -> {item.Dependency.Id} {item.Dependency.VersionRange}")
             .Distinct()
             .ToArray();

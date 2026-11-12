@@ -204,10 +204,11 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Myriad.SystemTextJson.Tests"),
         // The groups of the black-box project. A group is registered here in the change that adds its first test,
         // because a group that selects no test fails its run.
-        // The integration and journey groups pack projects of the repository with no build (IPackageDriver).
+        // The integration and e2e groups pack projects of the repository with no build or in the workspace (IPackageDriver).
         TestSuite.TUnit(BlackBoxProject).InGroup("integration").WithSourceProjects(),
         TestSuite.TUnit(BlackBoxProject).InGroup("smoke"),
-        TestSuite.TUnit(BlackBoxProject).InGroup("journey").WithSourceProjects(),
+        TestSuite.TUnit(BlackBoxProject).InGroup("journey"),
+        TestSuite.TUnit(BlackBoxProject).InGroup("e2e").WithSourceProjects(),
     ];
 
     /// <summary>

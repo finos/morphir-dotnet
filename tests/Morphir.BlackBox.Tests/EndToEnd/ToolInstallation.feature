@@ -12,14 +12,16 @@ Feature: The packed tools install from a local feed and start
   Scenario: The command of the installed tool runs
     Given the packed package "Morphir.Tool" in the feed of the workspace
     When I install the tool "Morphir.Tool" from the feed into a tool folder
-    And I run the installed command "dotnet-morphir" with "--version"
+    Then the exit code is 0
+    When I run the installed command "dotnet-morphir" with "--version"
     Then the exit code is 0
     And standard output is a version
 
   Scenario: The installed tool uninstalls
     Given the packed package "Morphir.Tool" in the feed of the workspace
     When I install the tool "Morphir.Tool" from the feed into a tool folder
-    And I uninstall the tool "Morphir.Tool" from the tool folder
+    Then the exit code is 0
+    When I uninstall the tool "Morphir.Tool" from the tool folder
     Then the exit code is 0
     And the tool folder has no command "dotnet-morphir"
 

@@ -3,19 +3,17 @@
 Date: 2026-11-12. The rows are the tests that the runner discovers, from the reports of the source projects before
 the move: the TRX report of `Morphir.Myriad.Integration.Tests` and of the complete `Morphir.Build.Tests`, the test
 lists of the Expecto projects (`--filter-test-list`), and the `PASS` lines of the two `package-tests.fsx` scripts
-(a script is not a test project, so its checks are the lines that it prints). All ran on macOS arm64 in Release. After the move: the complete `./build.sh --target Test` passed (37 suites, 293 s; the
-groups `integration` 66 s and `journey` 68 s), and `./build.sh --target TestBuild` after `PackAll` passed (460 build
-tests, then 19 tests of the packages lane in 2 s).
+(a script is not a test project, so its checks are the lines that it prints). All ran on macOS arm64 in Release. AFTER_THE_MOVE
 
 ## Counts
 
 | Source | Discovered before | Passed / failed / skipped before | New tests | Passed / failed / skipped after |
 | --- | ---: | ---: | --- | ---: |
-| `Morphir.Myriad.Integration.Tests` (project removed) | 12 | 12 / 0 / 0 | 12 scenarios, `Journeys/MyriadCarRental.feature` | 12 / 0 / 0 |
+| `Morphir.Myriad.Integration.Tests` (project removed) | 12 | 12 / 0 / 0 | 12 scenarios, `Integration/MyriadCarRental.feature` | 12 / 0 / 0 |
 | `tests/Morphir.Myriad.Tests/package-tests.fsx` (removed) | 15 checks | 15 / 0 / 0 | 15 scenarios, `Integration/MyriadConsumer.feature` | 15 / 0 / 0 |
 | `tests/Morphir.Myriad.SystemTextJson.Tests/package-tests.fsx` (removed) | 7 checks | 7 / 0 / 0 | 5 scenarios of `Integration/SystemTextJsonConsumer.feature`, 2 of `EndToEnd/PackedPackages.feature` | 7 / 0 / 0 |
-| `Morphir.Myriad.SystemTextJson.Tests/BuildTests.fs` (removed) | 5 | 5 / 0 / 0 | 6 scenarios of `Integration/SystemTextJsonConsumer.feature` (2 of them shared with the script), 1 build test | 7 / 0 / 0 |
-| `Morphir.SDK.Tests/PackageMigrationTests.fs` with `Packaging/package-tests.ps1` (removed) | 2 | 2 / 0 / 0 | 2 scenarios, `Journeys/FSharpSdkPackages.feature`, 1 build test | 3 / 0 / 0 |
+| `Morphir.Myriad.SystemTextJson.Tests/BuildTests.fs` (removed) | 5 | 5 / 0 / 0 | 8 scenarios of `Integration/SystemTextJsonConsumer.feature` (2 of them shared with the script; 5 are the examples of one outline), 1 build test | 7 / 0 / 0 |
+| `Morphir.SDK.Tests/PackageMigrationTests.fs` with `Packaging/package-tests.ps1` (removed) | 2 | 2 / 0 / 0 | 2 scenarios, `EndToEnd/FSharpSdkPackages.feature`, 1 build test | 3 / 0 / 0 |
 | `Morphir.Frontend.FSharp.Extension.Tests/PackageTests.fs` (removed) | 1 | 1 / 0 / 0 | 1 example of `EndToEnd/ToolInstallation.feature` | 1 / 0 / 0 |
 | `Morphir.CodeGeneration.FSharp.Extension.Tests/PackageTests.fs` (removed) | 1 | 1 / 0 / 0 | 1 example of `EndToEnd/ToolInstallation.feature` | 1 / 0 / 0 |
 | `Morphir.Frontend.FSharp.Extension.Tests/SelfContainedTests.fs` | 2 | 0 / 0 / 2 (macOS skips both) | None: it stays (see below) | 0 / 0 / 2 |
@@ -23,8 +21,8 @@ tests, then 19 tests of the packages lane in 2 s).
 
 | Project | Before | After |
 | --- | ---: | ---: |
-| `Morphir.Build.Tests`, passed / failed / skipped | 472 / 0 / 0 | 460 / 0 / 0 (15 moved; 2 new build tests; `TestPlanTests` has 2 tests of the packages lane run and no test of the removed `RunsPackageConsumerScripts`) |
-| `Morphir.BlackBox.Tests`, tests with no lane (integration, journey) | 0 of this slice | 40: integration 26, journey 14 |
+| `Morphir.Build.Tests`, passed / failed / skipped | 472 / 0 / 0 | 461 / 0 / 0 (15 moved; 2 new build tests; `TestPlanTests` has 2 tests of the packages lane run, 1 more case for the `e2e` suite, and no test of the removed `RunsPackageConsumerScripts`) |
+| `Morphir.BlackBox.Tests`, tests with no lane | 0 of this slice | 40: integration 38, e2e 2 |
 | `Morphir.BlackBox.Tests`, tests of the packages lane | 0 | 19: e2e 19 |
 
 58 old tests and checks become 61 new tests: two pairs of old tests had the same check and became one scenario
@@ -39,7 +37,12 @@ each, two old tests became a scenario outline with 5 and 2 examples, and two che
   slice writes a file below the `bin` and `obj` folders of the repository (task 8.2, below).
 - A consumer restores into the packages folder of its workspace. The old Myriad integration tests restored into the
   NuGet folder of the machine and deleted their package version after the run; `LocalInstallationTests` installed
-  `Morphir.Tool` from the real NuGet folder. No package of a test goes there now.
+  `Morphir.Tool` from the real NuGet folder. No package of a test goes there now. Two writes outside the workspace
+  stay: a consumer restore from nuget.org writes the HTTP cache of NuGet of the machine (`NUGET_HTTP_CACHE_PATH`),
+  and a build and pack of the SDK projects restores them with the NuGet folder of the machine, as the solution build
+  and the old script did.
+- The consumers, the feed and the packages folder have a space in their paths (`consumer with a space`,
+  `package feed`, `nuget packages`), as the folders of the old scripts and tests had.
 - A check that a build fails is `When I build the consumer and it fails`: the build must exit with a code that is not
   0, as `build consumer false` and `WhenBuildFails` did. A check of the build output reads standard output and
   standard error (`the output contains`), as the old checks read both.
@@ -48,8 +51,12 @@ each, two old tests became a scenario outline with 5 and 2 examples, and two che
   so the folder has one. `AllPackages_HaveSameVersion` and `AllPackages_HaveReleaseNotes` passed when some of the four
   packages were missing; the new scenarios need each of the four packages.
 - `ToolCommand_AvailableAfterInstall` checked that the output has a version (`\d+\.\d+\.\d+`). The new step
-  `standard output is a version` also refuses text before or after the version. `ToolPackage_UninstallsSuccessfully`
-  did not check the exit code of the install; the new scenario does.
+  `standard output is a version` (a step of the CLI) also refuses text before or after the version.
+  `ToolCommand_AvailableAfterInstall` and `ToolPackage_UninstallsSuccessfully` did not check the exit code of the
+  install; the new scenarios do.
+- The old dependency check accepted a version range that names the version (`v`, `[v]`); the step keeps that
+  (`PackageDependency.NamesVersion`). The SDK check accepted only `[v]` or `[v, v]`; the step "depends only on ... at
+  exactly its own version" keeps that (`PackageDependency.IsExactly`).
 - The describe reply of an extension tool is read by the step class, not with `ContentLengthFraming` of
   `Morphir.Mep`. The old backend test compared the extension id with `FSharpGuest.extension.Id`; the scenario checks
   the literal id, and the in-process test `GuestTests` of each extension test project keeps the comparison with the
@@ -58,8 +65,10 @@ each, two old tests became a scenario outline with 5 and 2 examples, and two che
 
 ## `Morphir.Myriad.Integration.Tests/CarRental.feature` (12 scenarios)
 
-New file: `Journeys/MyriadCarRental.feature`, `@journey @needs-development-packages`. Each scenario has the same
-steps and checks. The package is packed for each scenario, not once for each run.
+New file: `Integration/MyriadCarRental.feature`, `@integration @needs-development-packages`. The inventory said
+journey. The scenarios use one capability, the generation of the plugin when a consumer builds (a rebuild is the
+same command again), so the class is integration. Each scenario has the same steps and checks. The package is packed
+for each scenario, not once for each run.
 
 | Old scenario | New scenario |
 | --- | --- |
@@ -87,7 +96,7 @@ is built from `tests/Fixtures/MorphirIR/daily-rate-v3.json`, as the script did.
 | models with the same basename have distinct output directories | Two models with the same file name have different output directories |
 | explicit output directories support spaces | An output directory can have a space in its name |
 | duplicate output ownership is rejected | Two models cannot own one output directory |
-| symbolic-link output roots cannot redirect generation | An output directory that is a symbolic link cannot send the generation to another folder. On Windows the old check did nothing and passed; the scenario is skipped there with the reason (a symbolic link of a directory needs a privilege). |
+| symbolic-link output roots cannot redirect generation | An output directory that is a symbolic link cannot send the generation to another folder. On Windows the old check did nothing and passed; the scenario is skipped there with the reason (a symbolic link of a directory needs a privilege). The skip comes from the step, after the pack of the Background, so the skip counts of the eligibility check do not have it. |
 | concurrent configurations use isolated generated outputs | Two configurations that build at the same time have their own generated output |
 | clean removes default intermediate generated artifacts | A clean removes the generated output of the default directory. The old check looked for the one generated file; the new one checks that no file `Inventory.fs` is below `obj`, which is not weaker. |
 
@@ -116,8 +125,11 @@ of their success path still stops the build.
 
 ## `Morphir.SDK.Tests/PackageMigrationTests.fs` and `Packaging/package-tests.ps1` (2 tests)
 
-New file: `Journeys/FSharpSdkPackages.feature`, `@journey @needs-development-packages`, on
-`IPackageDriver.BuildAndPackAsync` (`--artifacts-path` in the workspace).
+New file: `EndToEnd/FSharpSdkPackages.feature`, `@e2e @needs-development-packages`, with no lane, on
+`IPackageDriver.BuildAndPackAsync` (`--artifacts-path` in the workspace). The inventory said journey. The
+scenarios prove properties of the delivered packages (classification step 5): the layout and the dependency of the
+compatibility package, one runtime for each package graph, and the binary compatibility. So the class is end-to-end,
+and the plan has the `e2e` suite from this pull request.
 
 | Old test | New scenario |
 | --- | --- |
@@ -133,7 +145,7 @@ at its first failed step.
 
 The script checked that `src/Morphir.SDK/bin` and `obj` of the repository have no assembly. The scenario checks the
 build of the test in the workspace (`the build of the package "Morphir.SDK" in the workspace made no assembly`), and
-the build test `TheCompatibilityProjectOfTheSdkHasNoAssemblyInItsBuildOutput` keeps the check of the repository after
+the build test `SdkCompatibilityProjectTests` keeps the check of the repository after
 the solution build and the pack step. The script also set `DOTNET_PROCESSOR_COUNT=2` for its commands; that is not a
 check, and the driver does not set it.
 
@@ -158,7 +170,8 @@ stays a conformance test (classification step 1): `FixedPackage.load` reads the 
 `Corpus.read` of `Morphir.Conformance`, the kit library, in the test process, and the comparison with the
 framework-dependent guest reads the replies with `Morphir.Mep` types. The negative control is the control of the
 environment of the second test, and it stays with it. This machine (macOS) skips both tests, so a split could be
-checked only in CI. `inventory.md` has the changed row.
+checked only in CI. `inventory.md` has the changed row. **Open:** when finos/morphir publishes its frozen F# source
+package and the comparison reads raw JSON in place of `Morphir.Mep` types, this test can become an end-to-end test.
 
 ## The five package files of `Morphir.Build.Tests` (15 tests)
 
@@ -209,14 +222,16 @@ Each other class that the runner discovers, with its class from the classificati
 | `Helpers.NativeCheckTests`, `Helpers.NativeNoticeDeclarationsTests`, `Helpers.ThirdPartyNoticesTests` | 15, 4, 9 | build | The native checks and notices of the build. |
 | `Helpers.PackagedContentsTests`, `Helpers.PackagedEngineTests`, `Helpers.PublishedLayoutTests` | 10, 15, 11 | build | The helpers of the packaged and published layouts. |
 | `Helpers.RepositoryTargetFrameworksTests` | 2 | build | The target frameworks of the repository. |
-| `MyriadSystemTextJsonRepositoryTargetsTests` (new) | 2 | build | The repository targets of the System.Text.Json plugin, and the build output of `Morphir.SDK`. |
+| `MyriadSystemTextJsonRepositoryTargetsTests` (new) | 1 | build | The repository targets of the System.Text.Json plugin. |
+| `SdkCompatibilityProjectTests` (new) | 1 | build | The build output of `Morphir.SDK`. |
 
 ## Task 8.6: tutorial and documentation tests
 
 The parent agent decided that pull request 3 moves all tutorial and documentation tests. `evidence/slice-3-moves.md`
 is not on a branch yet (`git fetch origin` on 2026-11-12), and `evidence/inventory.md` gives no tutorial or
 documentation test to pull request 4. So this pull request moves none. The car rental tutorial of the Myriad plugin
-is a journey of this slice (`Journeys/MyriadCarRental.feature`), from `Morphir.Myriad.Integration.Tests`.
+is an integration feature of this slice (`Integration/MyriadCarRental.feature`), from
+`Morphir.Myriad.Integration.Tests`.
 
 ## Task 8.2: a solution build after the package driver
 
@@ -225,7 +240,7 @@ between them. The count is the assemblies below `obj/` that were written after t
 
 | Tests between the two compiles | Assemblies written by the tests | Assemblies written by the second compile |
 | --- | ---: | ---: |
-| The 40 scenarios with no lane of this slice, the 19 scenarios of the packages lane, `PackageDriverTests` (15), `MyriadSystemTextJsonRepositoryTargetsTests` (2) | 0 | 0 |
+| The 40 scenarios with no lane of this slice, the 19 scenarios of the packages lane, `PackageDriverTests` (22), `MyriadSystemTextJsonRepositoryTargetsTests` (1) | 0 | 0 |
 | Before this slice: `Morphir.Myriad.SystemTextJson.Tests` alone (with `BuildTests.fs`) | 0 | 58 |
 
 The tests wrote no file below an `obj` folder outside the black-box project. The unit test

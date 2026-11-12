@@ -103,7 +103,7 @@ public class TestPlanTests
             "Morphir.Myriad.Tests",
             // The package driver packs projects of the repository with no build: it reads their obj and bin folders.
             "Morphir.BlackBox.Tests (integration)",
-            "Morphir.BlackBox.Tests (journey)");
+            "Morphir.BlackBox.Tests (e2e)");
 
     [Test]
     public void ThePackagesLaneRunSelectsOnlyTheTestsOfThePackagesLane()
@@ -191,7 +191,7 @@ public class TestPlanTests
     [Test]
     public void TheSuitesOfTheTestTargetAreUnique()
     {
-        TestPlan.Suites.Should().HaveCount(37);
+        TestPlan.Suites.Should().HaveCount(38);
         TestPlan.Suites.Select(suite => suite.Name).Should().OnlyHaveUniqueItems();
         TestPlan.Suites.Where(suite => suite.Group is null).Select(suite => suite.Project).Should().OnlyHaveUniqueItems();
     }
@@ -304,6 +304,7 @@ public class TestPlanTests
 
     [Test]
     [Arguments("integration")]
+    [Arguments("e2e")]
     [Arguments("smoke")]
     [Arguments("journey")]
     public void AGroupOfTheBlackBoxProjectThatHasATestIsASuiteOfThePlan(string group)

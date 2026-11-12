@@ -1,4 +1,4 @@
-@journey @needs-development-packages
+@integration @needs-development-packages
 Feature: Compile Morphir car rental models through Myriad
   An F# application uses the business rules that the Myriad plugin generates from a classic Morphir JSON model.
   The test packs the plugin from the development build into the feed of its workspace.

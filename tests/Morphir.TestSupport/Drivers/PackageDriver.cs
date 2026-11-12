@@ -13,8 +13,6 @@ public enum PackageProject
     Myriad,
     MyriadSystemTextJson,
     MyriadSystemTextJsonAnnotations,
-    FSharpFrontendExtension,
-    FSharpBackendExtension,
     SdkFSharp,
     Sdk,
 }
@@ -27,8 +25,6 @@ public static class PackageProjects
         KeyValuePair.Create(PackageProject.Myriad, "Morphir.Myriad"),
         KeyValuePair.Create(PackageProject.MyriadSystemTextJson, "Morphir.Myriad.SystemTextJson"),
         KeyValuePair.Create(PackageProject.MyriadSystemTextJsonAnnotations, "Morphir.Myriad.SystemTextJson.Annotations"),
-        KeyValuePair.Create(PackageProject.FSharpFrontendExtension, "Morphir.Frontend.FSharp.Extension"),
-        KeyValuePair.Create(PackageProject.FSharpBackendExtension, "Morphir.CodeGeneration.FSharp.Extension"),
         KeyValuePair.Create(PackageProject.SdkFSharp, "Morphir.SDK.FSharp"),
         KeyValuePair.Create(PackageProject.Sdk, "Morphir.SDK"),
     ]);
@@ -200,8 +196,7 @@ public sealed class PackageDriver : IPackageDriver
     /// <summary>The time limit of a build and a pack in the workspace.</summary>
     public static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(10);
 
-    // A pack of a dotnet tool publishes into the obj and bin folders of its project, so two packs of one project
-    // in one test process wait for each other.
+    // Two packs of one project in one test process wait for each other.
     private static readonly ImmutableDictionary<PackageProject, SemaphoreSlim> ProjectLocks =
         PackageProjects.All.ToImmutableDictionary(project => project, _ => new SemaphoreSlim(1, 1));
 
@@ -221,9 +216,10 @@ public sealed class PackageDriver : IPackageDriver
         _sources = sources;
         _packed = packed;
         _gate = gate;
-        // Beside the work area, not in it: the mark of the files that a command writes reads only the work area.
-        Feed = new WorkspaceDirectory(Path.Combine(workspace.Root, "feed"));
-        Packages = new WorkspaceDirectory(Path.Combine(workspace.Root, "packages"));
+        // Beside the work area, not in it: the mark of the files that a command writes reads only the work area. The
+        // names have a space, so each command gets paths with a space.
+        Feed = new WorkspaceDirectory(Path.Combine(workspace.Root, "package feed"));
+        Packages = new WorkspaceDirectory(Path.Combine(workspace.Root, "nuget packages"));
         Artifacts = new WorkspaceDirectory(Path.Combine(workspace.Root, "artifacts"));
     }
 
