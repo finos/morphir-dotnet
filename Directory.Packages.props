@@ -38,7 +38,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.23" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Autofac" Version="7.1.0" />
+    <PackageVersion Include="Autofac" Version="9.3.4" />
     <PackageVersion Include="Gherkin" Version="35.1.0" />
     <PackageVersion Include="Autofac.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageVersion Include="Bogus" Version="34.0.2" />
