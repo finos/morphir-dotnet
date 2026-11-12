@@ -121,6 +121,14 @@ public sealed class CliArtifacts
     /// <summary>The one executable of the target <see cref="TestTarget.Executable"/>.</summary>
     public static CliArtifacts Of(TestTarget.Executable executable) =>
         new(executable, new Dictionary<MorphirHost, string> { [executable.Host] = executable.Path }, configuration: null);
+
+    /// <summary>
+    /// The one executable of a published or packaged target, which has one host. Resolve the file with
+    /// <see cref="PublishedExecutables"/> or <see cref="PackagedTarget"/>: the file of its own form.
+    /// </summary>
+    public static CliArtifacts OfPublished(TestTarget target, string executable) => target.Hosts.Length == 1
+        ? new(target, new Dictionary<MorphirHost, string> { [target.DefaultHost] = executable }, configuration: null)
+        : throw new ArgumentException($"The target {target.Name} has more than one host.", nameof(target));
 }
 
 /// <summary>The CLI driver for a host that is one file: an assembly, which it starts with <c>dotnet</c>, or an executable.</summary>

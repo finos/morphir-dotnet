@@ -271,7 +271,7 @@ morphir-dotnet/
 ├── tests/
 │   ├── Morphir.Core.Tests/    # Unit tests for Core
 │   ├── Morphir.Tooling.Tests/ # Unit tests for Tooling
-│   └── Morphir.E2E.Tests/     # End-to-end tests (BDD/Gherkin)
+│   └── Morphir.BlackBox.Tests/ # Black-box tests of the built artifacts (BDD/Gherkin)
 ├── build/
 │   ├── _build.csproj          # Nuke build project
 │   └── Build.cs               # Build orchestration (strongly-typed)
@@ -424,7 +424,7 @@ build.cmd --target Test                                       # Windows
 ./build.sh --target Test --configuration Debug
 build.cmd --target Test --configuration Debug
 
-# Build E2E test project
+# Build the black-box test project for the published targets
 ./build.sh --target BuildE2ETests
 build.cmd --target BuildE2ETests
 
@@ -432,7 +432,7 @@ build.cmd --target BuildE2ETests
 ./build.sh --target TestE2E                                   # Unix/macOS
 build.cmd --target TestE2E                                    # Windows
 
-# Run E2E tests for specific executable type (aot, trimmed, untrimmed, or all)
+# Run the black-box tests on one target (a value of MORPHIR_TEST_TARGET, or tool, all or offerings)
 ./build.sh --target TestE2E --executable-type trimmed
 build.cmd --target TestE2E --executable-type trimmed
 ```
@@ -492,7 +492,7 @@ Key targets:
 - `PublishSingleFile` - Publish the legacy trimmed single-file release asset (requires `--rid`)
 - `PublishExecutable` - Publish AOT executable (requires `--rid`)
 - `PublishSingleFileUntrimmed` - Publish untrimmed single-file executable (requires `--rid`)
-- `TestE2E` - Run end-to-end tests
+- `TestE2E` - Run each group of the black-box tests against a published or packaged target
 - `PublishLibs` - Publish library packages to NuGet
 - `PublishTool` - Publish tool package to NuGet
 - `PublishAll` - Publish all packages to NuGet

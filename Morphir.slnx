@@ -84,7 +84,6 @@
     <Project Path="tests/Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" />
     <Project Path="tests/Morphir.Compilation.Tests/Morphir.Compilation.Tests.fsproj" />
     <Project Path="tests/Morphir.Configuration.Inspection.Smoke/Morphir.Configuration.Inspection.Smoke.csproj" />
-    <Project Path="tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj" />
     <Project Path="tests/Morphir.Internal.CodeGeneration.Tests/Morphir.Internal.CodeGeneration.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Tests/Morphir.IR.Pipeline.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Plugins.Tests/Morphir.IR.Pipeline.Plugins.Tests.fsproj" />

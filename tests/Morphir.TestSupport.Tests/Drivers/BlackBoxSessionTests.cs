@@ -81,21 +81,6 @@ public class BlackBoxSessionTests
     }
 
     [Test]
-    [Arguments("trimmed")]
-    [Arguments("untrimmed")]
-    [Arguments("aot")]
-    [Arguments("native-aot")]
-    [Arguments("self-contained")]
-    [Arguments("framework-dependent")]
-    [Arguments("dotnet-tool")]
-    public void ATargetWithNoDriverYetStopsTheSessionAndDoesNotUseTheDevelopmentBuild(string target)
-    {
-        var start = () => Session(("MORPHIR_TEST_TARGET", target));
-
-        start.Should().Throw<TestSessionException>().WithMessage($"*'{target}'*").WithMessage("*dev, executable*");
-    }
-
-    [Test]
     public async Task AnExecutableAtAPathIsTheOneArtifactOfTheSession()
     {
         var executable = CliArtifacts.OfDevelopmentBuild(ThisAssembly).PathOf(MorphirHost.DotnetTool);

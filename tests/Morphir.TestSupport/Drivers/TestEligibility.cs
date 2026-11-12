@@ -52,6 +52,18 @@ public enum DriverCapability
 
     /// <summary>The routing of a command to an external tool, as <c>morphir mck</c> runs <c>morphir-mck</c> (<see cref="IToolRoutingDriver"/>).</summary>
     ToolRouting,
+
+    /// <summary>An installed packaged offering with its launch metadata: the four packaged targets.</summary>
+    PackagedInstallation,
+
+    /// <summary>A Native AOT executable of a release: the targets <c>aot</c> and <c>native-aot</c>.</summary>
+    NativeAotExecutable,
+
+    /// <summary>A target whose form is known, so its build states a known deployment: each target except an executable at a path.</summary>
+    KnownForm,
+
+    /// <summary>A WASM guest that the host runs: each platform except Windows x64, where the host refuses each guest (#609).</summary>
+    WasmGuests,
     /// <summary>
     /// The package driver packs the projects of the development build in the test (<see cref="IPackageDriver.PackAsync"/>,
     /// <see cref="IPackageDriver.BuildAndPackAsync"/>). Only the target dev has them.
@@ -92,10 +104,11 @@ public static class DriverCapabilities
     }
 
     /// <summary>
-    /// The capabilities that the drivers support for <paramref name="host"/> of <paramref name="target"/>. A host
-    /// that the target does not have supports none. Add a capability here in the change that adds its driver.
+    /// The capabilities that the drivers support for <paramref name="host"/> of <paramref name="target"/> on the
+    /// platform <paramref name="rid"/> (default: this machine). A host that the target does not have supports none.
+    /// Add a capability here in the change that adds its driver.
     /// </summary>
-    public static ImmutableHashSet<DriverCapability> Of(TestTarget target, MorphirHost host)
+    public static ImmutableHashSet<DriverCapability> Of(TestTarget target, MorphirHost host, string? rid = null)
     {
         if (!target.Has(host)) return [];
 
@@ -119,6 +132,12 @@ public static class DriverCapabilities
             ]);
         }
 
+        if (target is TestTarget.Packaged) commands = commands.Add(DriverCapability.PackagedInstallation);
+        if (target is TestTarget.NativeAot or TestTarget.Packaged { Offering: PackagedOffering.NativeAot })
+            commands = commands.Add(DriverCapability.NativeAotExecutable);
+        if (target is not TestTarget.Executable) commands = commands.Add(DriverCapability.KnownForm);
+        // The host on Windows x64 reports win_x64_trap_unsupported and refuses each guest (#609).
+        if ((rid ?? RuntimeIdentifiers.Current) != "win-x64") commands = commands.Add(DriverCapability.WasmGuests);
         return commands;
     }
 }

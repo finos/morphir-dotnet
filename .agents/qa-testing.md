@@ -29,7 +29,7 @@ morphir-dotnet follows Test-Driven Development (TDD):
 | Unit Tests | TUnit | `tests/*.Tests/` | `./build.sh Test` |
 | Snapshot Tests | Verify | `tests/*.Tests/` | `./build.sh Test` |
 | BDD Tests | Reqnroll | `tests/*/Features/*.feature` | `./build.sh Test` |
-| E2E Tests | CLI Execution | `tests/Morphir.E2E.Tests/` | `./build.sh TestE2E` |
+| Black-box tests | CLI execution, by purpose group | `tests/Morphir.BlackBox.Tests/` | `./build.sh --target Test` (development build), `./build.sh TestE2E` (published targets) |
 | Build Tests | Nuke | `build/Build*.cs` | `./build.sh DevWorkflow` |
 
 **Snapshot Testing with Verify:**
@@ -366,28 +366,27 @@ Examples:
 - `Validate_ShouldReturnErrors_WhenSchemaInvalid`
 - `Parse_ShouldThrowException_WhenFileNotFound`
 
-## E2E Testing
+## Black-box Testing
 
-### Test Structure
+A black-box test reaches the product only through a built artifact. It is a Gherkin scenario in
+`tests/Morphir.BlackBox.Tests`, in the folder of its group, and its steps call the drivers of
+`tests/Morphir.TestSupport`. Use the `test-manager` skill (`.agents/skills/test-manager/SKILL.md`) to classify a
+new test.
 
-```csharp
-[Test]
-public async Task CLI_ShouldOutputJSON_WhenJsonFlagProvided()
-{
-    // Arrange
-    var executable = GetExecutablePath();
-    var testFile = "TestData/valid-ir-v3.json";
+```gherkin
+@integration @needs-model-verification
+Feature: Verify a Morphir IR file
 
-    // Act
-    var result = await RunCLI(executable, $"ir verify {testFile} --json");
-
-    // Assert
-    result.ExitCode.Should().Be(0);
-    var json = JsonSerializer.Deserialize<VerifyIRResult>(result.Output);
-    json.Should().NotBeNull();
-    json.IsValid.Should().BeTrue();
-}
+  Scenario: The result of a valid file as JSON
+    Given the model fixture "Models/valid-ir-v3.json"
+    When I verify the model as JSON
+    Then the exit code is 0
+    And standard output is one JSON document
+    And the verification report says that the model is valid
 ```
+
+The pull request runs each group on the development build. `./build.sh --target TestE2E --executable-type <target>`
+runs each group on a published or packaged target (`MORPHIR_TEST_TARGET`).
 
 ## CI/CD Integration
 
@@ -416,8 +415,9 @@ Tests run automatically on:
 ### Issue: Tests fail on Windows with CS2012 (file locked)
 **Solution**: Build system now handles this. If recurring, check for VBCSCompiler processes.
 
-### Issue: E2E tests fail with "executable not found"
-**Solution**: Run `./build.sh BuildE2ETests` first to build executables.
+### Issue: The black-box run stops with "has no executable at"
+**Solution**: The target has no published artifact. Run the command that the message gives (for example
+`./build.sh --target PublishExecutable --rid linux-x64`), or let `TestE2E` publish it.
 
 ### Issue: Package validation fails
 **Solution**: Run `./build.sh PackAll` to rebuild packages.

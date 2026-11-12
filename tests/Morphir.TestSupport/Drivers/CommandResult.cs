@@ -109,6 +109,12 @@ public static class CommandResultAssertions
             ? result
             : throw new CommandAssertionException("Standard output is not empty.", result);
 
+    /// <summary>The text is on standard output, with the same case.</summary>
+    public static CommandResult StandardOutputShouldContain(this CommandResult result, string text) =>
+        result.StandardOutput.Contains(text, StringComparison.Ordinal)
+            ? result
+            : throw new CommandAssertionException($"Standard output does not contain '{text}'.", result);
+
     private static bool Contains(CommandResult result, string text) =>
         result.StandardOutput.Contains(text, StringComparison.Ordinal)
         || result.StandardError.Contains(text, StringComparison.Ordinal);

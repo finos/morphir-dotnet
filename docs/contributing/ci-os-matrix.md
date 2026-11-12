@@ -96,6 +96,11 @@ A test that needs more than the development build has the tag `@lane` and one la
 skipped before its first step, with the lane of the test and the lane of the run as the reason. The report row of a
 black-box suite shows the count of skipped tests by reason (lane, host, capability).
 
+The release and manual workflows (`deployment.yml`, `manual-e2e-test.yml`, `manual-aot-test.yml`) run each group
+against a published or packaged target with `TestE2E` (`scripts/run-e2e-tests.cs`): one test process for each group,
+with `MORPHIR_TEST_TARGET` and `MORPHIR_TEST_LANE=published`. That run executes the tests with no lane and the tests
+of the published lane, and skips each test that the target does not support with its reason.
+
 The packages lane (`@lane @packages`) has the tests of the packages that the pack step makes: their layout, their
 metadata, their versions, and the install of the tools. In a pull request, each operating system runs it in the step
 "Run build tests", after "Pack packages for build testing": the `TestBuild` target runs the build tests and then the

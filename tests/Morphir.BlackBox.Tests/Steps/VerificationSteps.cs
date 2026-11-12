@@ -17,6 +17,10 @@ public sealed class VerificationSteps(IModelVerificationDriver verification, Sce
     public async Task VerifyTheModelAsJson() =>
         run.Result = await verification.VerifyAsync(run.Model, new VerificationOptions { Json = true });
 
+    [When("I verify the model with the schema version {int} as JSON")]
+    public async Task VerifyTheModelWithTheSchemaVersionAsJson(int version) =>
+        run.Result = await verification.VerifyAsync(run.Model, new VerificationOptions { SchemaVersion = version, Json = true });
+
     [When("I verify the model in quiet mode")]
     public async Task VerifyTheModelInQuietMode() =>
         run.Result = await verification.VerifyAsync(run.Model, new VerificationOptions { Quiet = true });
@@ -33,6 +37,14 @@ public sealed class VerificationSteps(IModelVerificationDriver verification, Sce
         var report = VerificationReport.Of(run.Result);
         if (report.SchemaVersion != version)
             throw new CommandAssertionException($"The schema version of the verification report is {report.SchemaVersion ?? "null"}, not {version}.", run.Result);
+    }
+
+    [Then("the verification report has the detection method {string}")]
+    public void TheReportHasTheDetectionMethod(string method)
+    {
+        var report = VerificationReport.Of(run.Result);
+        if (report.DetectionMethod != method)
+            throw new CommandAssertionException($"The detection method of the verification report is {report.DetectionMethod ?? "null"}, not {method}.", run.Result);
     }
 
     [Then("the verification report has errors")]

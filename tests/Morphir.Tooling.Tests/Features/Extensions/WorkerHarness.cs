@@ -73,7 +73,7 @@ internal static class WorkerHarness
     /// <summary>A module of the pinned crafted corpus.</summary>
     public static string Corpus(string name) => Path.Combine(Fixtures, "fixtures", "wasm", $"{name}.wasm");
 
-    /// <summary>A crafted module of this repository's worker tests (tests/Morphir.E2E.Tests/TestData/Wasm).</summary>
+    /// <summary>A crafted module of this repository's worker tests (tests/Fixtures/WorkerGuests).</summary>
     public static string TestGuest(string name) => Path.Combine(AppContext.BaseDirectory, "WorkerGuests", $"{name}.wasm");
 
     public static string Sha256(string path) => Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)));

@@ -819,6 +819,118 @@ new agents gave the five expected classes; the unclear places that they found ar
 </tbody>
 </table>
 
+<h3 id="record-pr2">Pull request 2 (task group 6), 2026-11-12</h3>
+<table>
+<thead><tr><th>Decision</th><th>What happened</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><a href="#drv-2">DRV-2</a>, the published targets</td>
+<td>A published executable is only in the folder of its own publish target and platform
+(<code>artifacts/&lt;folder&gt;/&lt;rid&gt;/morphir</code>); the flat folder that the old locator also tried is not a
+place of a target. <code>Morphir.CliArtifacts.targets</code> also writes the <code>artifacts</code> folder of the
+repository into the test assembly (<code>Morphir.TestSupport.Artifacts</code>), so no path is computed from a search
+for the repository root. A packaged offering is installed once before the first test (<code>PackagedTarget</code>,
+with a space in its path) and removed at the end of the run. <code>MORPHIR_RELEASE_DIR</code> stays: it names the
+release folder, which is not a target.</td>
+<td><code>tests/Morphir.TestSupport/README.md</code>, <code>PublishedTargetsTests</code></td></tr>
+<tr><td><a href="#drv-1">DRV-1</a>, <code>IProcessSessionDriver</code></td>
+<td><code>ChildProcess.ConverseAsync</code> gives each line of stderr to a callback, so a session reads its events as
+they come. The conversation lasts until the process closes its standard output; the exit time of a session is that
+moment. The tests of the driver use the scripted fake worker of <code>tests/Morphir.Conformance.FakeWorker</code> as
+the fixture process. A test that makes more than one session keeps each one with <code>DriverSet.Own</code>, and the
+end of the test stops it.</td>
+<td><code>ProcessSessionDriverTests</code></td></tr>
+<tr><td><a href="#drv-5">DRV-5</a>, the capabilities</td>
+<td>Four cases are new: <code>PackagedInstallation</code>, <code>NativeAotExecutable</code>, <code>KnownForm</code> and
+<code>WasmGuests</code>. The cases <code>Validation</code> and <code>NativeAndToolHosts</code> of this pull request
+are the cases <code>ModelValidation</code> and <code>AllHosts</code> of pull request 3 after the merge of
+<code>main</code> at <code>3637856a</code>. A scenario that compares two hosts ran the other host
+from a build folder on each published type before; because a target uses only its own form, it runs on the
+development build now, which has both hosts, in each pull request.</td>
+<td><code>slice-2-moves.md</code></td></tr>
+<tr><td><a href="#drv-1">DRV-1</a>, the driver of a command family</td>
+<td>The scenarios of <code>validate</code> use <code>IModelValidationDriver</code> of pull request 3; the merge of
+<code>main</code> at <code>3637856a</code> replaced the <code>IValidationDriver</code> of this pull request with it.
+<code>IExtensionDriver</code> belongs to pull request 3 (task 7.2), so the steps of <code>extension list</code> and
+<code>extension runtimes</code> give the arguments of their report types (<code>ExtensionListReport</code>,
+<code>ExtensionRuntimesReport</code>) to <code>ICliDriver</code>; a later change can move them onto its interface.
+Pull request 3 also added these two report types; the merge kept its types and added the members that the steps of
+this pull request read.</td>
+<td><code>tests/Morphir.BlackBox.Tests/README.md</code></td></tr>
+<tr><td><a href="#form-1">FORM-1</a>, the framework tests</td>
+<td>The eight tests of the log filter of <code>ExecutableRunner</code> are removed, not moved: the CLI driver removes
+no line of the output, and <code>ShouldWriteOneJsonDocument</code> refuses a log line on standard output, so the filter
+has no successor. The four methods of <code>ExecutableExtensionRuntimesTests</code> are not one of the three forms, so
+they are Gherkin scenarios now. <code>LocalDeveloperToolchainTests</code> is a journey with a time budget, so a
+framework test of the journey group in the published lane; its file work is in the driver
+<code>LocalCandidateJourney</code>, because a test of the project reads no file and no variable.</td>
+<td><code>slice-2-moves.md</code></td></tr>
+<tr><td><a href="#grp-2">GRP-2</a>, the manual AOT and trimming features</td>
+<td>The 20 <code>@manual-only</code> scenarios published <code>src/Morphir</code> themselves with their own settings. A
+check of the delivered executable is an end-to-end test of the published lane now
+(<code>EndToEnd/NativeAotExecutable.feature</code>, <code>NativeAotStartupTests</code>), or a group on the target. The
+other checks are removed with their reason: most checked only the exit code of the publish; the size limits
+(12 MB and less) are for settings that no release uses (the Native AOT <code>morphir</code> is 37 MB on osx-arm64);
+the cross-platform scenario cannot pass, because Native AOT does not compile for another operating system. Open point
+for the owner: the check that the trimmed executable is half the size of the untrimmed one compares two forms in one
+test, which a target cannot do.</td>
+<td><code>slice-2-moves.md</code></td></tr>
+<tr><td><a href="#proj-2">PROJ-2</a>, the guest kit test</td>
+<td>The test of the model tier through the worker judges the run with the kit library, so it moved to
+<code>Morphir.Extensions.Wasm.Tests</code>, which has the kit and the pin of the Python guest, and gets its executable
+from the target of the testing library (<code>TargetCli</code>).</td>
+<td><code>WorkerGuestKitModelTierTests</code></td></tr>
+<tr><td>The <code>mck wasm-host</code> scenarios</td>
+<td>The four scenarios of <code>ExecutableMckWasmHost.feature</code> fail on <code>main</code> with exit code 127:
+since <code>7e9ebdeb</code>, <code>morphir mck</code> starts the external <code>morphir-mck</code>. They are removed;
+the routing tests are in pull request 3.</td>
+<td><code>slice-2-moves.md</code></td></tr>
+<tr><td>A finding of the published targets</td>
+<td>The Native AOT <code>morphir</code> ends with an unhandled <code>DirectoryNotFoundException</code> for
+<code>ir verify</code> of a file in a directory that is not there. The scenario of pull request 1 used such a path; it
+uses a missing file in the work area now, as the old tests did. The product defect is not in the scope of this
+change.</td>
+<td><code>slice-2-moves.md</code></td></tr>
+<tr><td><code>TestE2E</code></td>
+<td><code>scripts/run-e2e-tests.cs</code> runs each of the four groups as its own process, with one group filter and
+<code>MORPHIR_TEST_LANE=published</code>, and writes a TRX report for each. A group in which each selected test is
+skipped exits with 0 (verified on the pinned TUnit). The target <code>executable</code> of the manual workflow is the
+trimmed executable, published to a folder of its own, with the native host.</td>
+<td><code>slice-2-runs.md</code></td></tr>
+<tr><td><a href="#grp-1">GRP-1</a>, the integration suite</td>
+<td>The integration group has tests with a time budget now (the interrupt of a worker within one second, the bounds
+of the corpus cases, the peak working set), so its suite runs alone (<code>Alone()</code>), as the rule of the skill
+says. On this machine the group takes 25 s. Pull request 3 moves more tests into this group; a split of the
+time-budget tests into a suite of their own is an option then.</td>
+<td><code>build/Helpers/TestPlan.cs</code>, <code>TestPlanTests</code></td></tr>
+<tr><td>Open point: the trim warnings of the CLI publish</td>
+<td>The removed manual scenario "Successful AOT compilation" refused <code>IL2026</code>, <code>IL2060</code> and
+<code>IL2070</code> in its own publish output. The release publish of <code>src/Morphir</code> fails on
+<code>IL3050</code> only, and slice 5 checks the warnings of the library hosts and the probes, not of the CLI. So no
+check refuses those warnings for the CLI now. It needs an owner and a decision.</td>
+<td><code>slice-2-moves.md</code></td></tr>
+<tr><td><a href="#drv-5">DRV-5</a>, Windows x64</td>
+<td>The host on Windows x64 refuses each WASM guest (#609). The capability <code>WasmGuests</code> is on each platform
+except win-x64, so the scenarios and the corpus cases that run a guest are skipped there with one reason, as
+<code>WasmPlatformTests</code> of <code>Morphir.Extensions.Wasm.Tests</code> skips them. <code>DriverCapabilities.Of</code>
+takes the platform; the guard <code>EachPullRequestTestHasOneRunThatSupportsIt</code> uses linux-x64, an operating
+system of the pull request run, and not the machine of the build tests. On Windows the read-only installation refuses
+new files and writes to files; a hosted runner can still make a folder in it, so that probe is for Linux and macOS
+only.</td>
+<td><code>slice-2-moves.md</code></td></tr>
+<tr><td>The worker guests</td>
+<td>The two guests of the worker moved from the removed project to <code>tests/Fixtures/WorkerGuests</code>, with a
+README. <code>Morphir.Tooling.Tests</code> links them from there: a one-line change of its project file.</td>
+<td><code>tests/Fixtures/WorkerGuests/README.md</code></td></tr>
+<tr><td>The flood check of the worker</td>
+<td>On Linux CI the peak working set of the worker that serves the flood guest is 161 MB against 72 MB for an echo
+session, in two runs of run 43317111664; the bound is 64 MiB above the echo session. The old E2E project never ran
+this scenario in pull request CI. The scenario is now a test of the published lane (<code>@lane @published</code>),
+so the manual and release workflows run it; the bound and the step are not changed. The cause is open in issue
+#618.</td>
+<td><code>slice-2-moves.md</code></td></tr>
+</tbody>
+</table>
+
 <h3 id="record-pr3">Pull request 3 (task group 7), 2026-11-12</h3>
 <table>
 <thead><tr><th>Decision</th><th>What happened</th><th>Evidence</th></tr></thead>

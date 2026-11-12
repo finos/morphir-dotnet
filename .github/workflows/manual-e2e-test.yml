@@ -17,12 +17,16 @@ on:
                 default: "linux-x64,osx-arm64"
                 type: string
             executable-type:
-                description: "What to test: the legacy trimmed single-file executable, all four packaged offerings, or one offering"
+                description: "The target of the black-box tests (MORPHIR_TEST_TARGET): a published executable, the development build with the tool host (tool), a packaged offering or all four (offerings), or the trimmed executable at a path (executable)"
                 required: true
                 default: "trimmed"
                 type: choice
                 options:
                     - trimmed
+                    - untrimmed
+                    - aot
+                    - tool
+                    - executable
                     - offerings
                     - native-aot
                     - self-contained
@@ -97,7 +101,8 @@ jobs:
         # about 4.5 minutes after the build (native-aot 125 s, self-contained 50 s, framework-dependent 49 s,
         # dotnet-tool 45 s, each with its pack). The 60 minutes allow for the Compile and Restore targets, slower
         # hosted runners and the clean-container pull, with headroom; one offering or the legacy type keeps 30.
-        timeout-minutes: ${{ github.event.inputs.executable-type == 'offerings' && 60 || 30 }}
+        # The Native AOT publish of aot takes longer than the other publishes, so it has the time of offerings.
+        timeout-minutes: ${{ (github.event.inputs.executable-type == 'offerings' || github.event.inputs.executable-type == 'aot') && 60 || 30 }}
         strategy:
             fail-fast: false
             matrix: ${{fromJson(needs.setup.outputs.matrix)}}
@@ -136,23 +141,46 @@ jobs:
               shell: bash
               run: ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --single-file-dir ./artifacts/single-file
 
+            # The target executable: one executable at a path, here the trimmed single-file executable published to
+            # a folder of its own, with the native host.
+            - name: Publish the executable at a path for ${{ matrix.rid }}
+              if: github.event.inputs.executable-type == 'executable'
+              shell: bash
+              run: |
+                  ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --single-file-dir ./artifacts/test-executable
+                  executable="$PWD/artifacts/test-executable/${{ matrix.rid }}/morphir"
+                  [ -f "$executable" ] || executable="$executable.exe"
+                  echo "MORPHIR_TEST_EXECUTABLE=$executable" >> "$GITHUB_ENV"
+                  echo "MORPHIR_TEST_HOST=native" >> "$GITHUB_ENV"
+
             # The "No installed .NET runtime" scenario cannot hide a runtime at the default location, which
             # actions/setup-dotnet uses. On Linux it runs in a clean container without .NET instead.
             - name: Pull the clean runtime container
-              if: runner.os == 'Linux' && github.event.inputs.executable-type != 'trimmed'
+              if: runner.os == 'Linux' && contains(fromJSON('["offerings", "native-aot", "self-contained", "framework-dependent", "dotnet-tool"]'), github.event.inputs.executable-type)
               shell: bash
               run: docker pull mcr.microsoft.com/dotnet/runtime-deps:11.0
 
-            # For the offerings, scripts/run-e2e-tests.cs packs each release profile that has no artifact, then runs
-            # every non-manual scenario, including Features/Packaged/PackagedArtifacts.feature, from the installed artifact.
-            - name: Run E2E tests for ${{ matrix.rid }}
+            # scripts/run-e2e-tests.cs publishes or packs a target that has no artifact (a packaged offering is packed
+            # with PackRelease), then runs every group of tests/Morphir.BlackBox.Tests against it with
+            # MORPHIR_TEST_TARGET and MORPHIR_TEST_LANE=published, including EndToEnd/PackagedArtifacts.feature for an
+            # offering.
+            - name: Run the black-box tests on ${{ github.event.inputs.executable-type }} for ${{ matrix.rid }}
               shell: bash
               env:
                   MORPHIR_E2E_RUNTIME_CONTAINER: ${{ runner.os == 'Linux' && 'mcr.microsoft.com/dotnet/runtime-deps:11.0' || '' }}
               run: ./build.sh --target TestE2E --executable-type ${{ github.event.inputs.executable-type }} --configuration ${{ env.CONFIGURATION }}
 
+            - name: Upload the test reports
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: black-box-results-${{ github.event.inputs.executable-type }}-${{ matrix.rid }}
+                  path: ./artifacts/test-results/black-box/
+                  if-no-files-found: ignore
+                  retention-days: 14
+
             - name: Upload the packaged-size report and launch metadata
-              if: always() && github.event.inputs.executable-type != 'trimmed'
+              if: always() && contains(fromJSON('["offerings", "native-aot", "self-contained", "framework-dependent", "dotnet-tool"]'), github.event.inputs.executable-type)
               uses: actions/upload-artifact@v6
               with:
                   name: release-profiles-${{ matrix.rid }}

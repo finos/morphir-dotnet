@@ -75,7 +75,7 @@ When filing bugs:
 ### morphir-dotnet Testing Stack
 - **Unit Tests**: TUnit framework in `tests/*.Tests/`
 - **BDD Tests**: Reqnroll (SpecFlow) with Gherkin features
-- **E2E Tests**: CLI execution tests in `tests/Morphir.E2E.Tests/`
+- **Black-box tests**: tests of the built artifacts in `tests/Morphir.BlackBox.Tests/`, in groups by purpose (see the `test-manager` skill)
 - **Build System**: Nuke build with test targets
 - **Test Coverage**: >= 80% required
 

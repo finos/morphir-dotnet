@@ -17,8 +17,8 @@ public sealed class DriverSet : IAsyncDisposable
 
     internal DriverSet(
         TestTarget target, MorphirHost host, string artifact, IScenarioWorkspace workspace, bool keepFailed, TestPrograms programs,
-        ExtensionArtifacts? guests = null, Func<MorphirHost, string>? artifactOf = null,
-        PackageSources? packageSources = null, PackedPackages? packedPackages = null)
+        ExtensionArtifacts? guests = null, Func<MorphirHost, string>? artifactOf = null, PackagedTarget? packaged = null,
+        HostCopies? hostCopies = null, PackageSources? packageSources = null, PackedPackages? packedPackages = null)
     {
         _artifactOf = artifactOf;
         _keepFailed = keepFailed;
@@ -38,7 +38,49 @@ public sealed class DriverSet : IAsyncDisposable
         BuiltFiles = new ArtifactInspectionDriver(programs);
         Packages = new PackageDriver(workspace, packageSources, packedPackages);
         Capabilities = DriverCapabilities.Of(target, host);
+        _hostCopies = hostCopies;
+        Sessions = new ProcessSessionDriver(target, host, artifact, workspace);
+        if (packaged is not null) _packaged = new PackagedArtifactDriver(packaged, target, host, workspace);
     }
+
+    private readonly HostCopies? _hostCopies;
+    private readonly PackagedArtifactDriver? _packaged;
+    private readonly List<IProcessSession> _sessions = [];
+
+    /// <summary>The session driver of the host: a product process that stays alive.</summary>
+    public IProcessSessionDriver Sessions { get; }
+
+    /// <summary>The installed offering of a packaged target. Only a test with the capability PackagedInstallation uses it.</summary>
+    public IPackagedArtifactDriver Packaged =>
+        _packaged ?? throw new TestSessionException($"The target {Target.Name} is not a packaged offering, so it has no packaged artifact driver.");
+
+    /// <summary>The host of a test that compares two hosts: the tool host, or the native host when the test runs on the tool host.</summary>
+    public MorphirHost OtherHost => Host == MorphirHost.DotnetTool ? MorphirHost.Native : MorphirHost.DotnetTool;
+
+    /// <summary>
+    /// A copy of the folder of the host with each WASM engine library deleted, and the drivers of the copy. The real
+    /// build output is not changed.
+    /// </summary>
+    public (HostCopy Copy, ICliDriver Cli, IProcessSessionDriver Sessions) WithoutEngineLibraries()
+    {
+        var copies = _hostCopies ?? throw new TestSessionException("This driver set has no host copies.");
+        var copy = copies.WithoutEngineLibraries(ArtifactOf(Host));
+        return (copy, new CliDriver(Target, Host, copy.Artifact, Workspace), new ProcessSessionDriver(Target, Host, copy.Artifact, Workspace));
+    }
+
+    /// <summary>The names of the files in the folder of the file of the host, in ordinal order.</summary>
+    public IReadOnlyList<string> FilesBesideTheHost() =>
+        [.. Directory.EnumerateFiles(Path.GetDirectoryName(Path.GetFullPath(ArtifactOf(Host)))!).Select(file => Path.GetFileName(file)).Order(StringComparer.Ordinal)];
+
+    /// <summary>Keeps <paramref name="session"/> so that the end of the test stops it when it is still alive.</summary>
+    public IProcessSession Own(IProcessSession session)
+    {
+        lock (_sessions) _sessions.Add(session);
+        return session;
+    }
+
+    private string ArtifactOf(MorphirHost host) =>
+        (_artifactOf ?? throw new TestSessionException("This driver set knows only the artifact of its own host."))(host);
 
     public TestTarget Target { get; }
 
@@ -73,6 +115,7 @@ public sealed class DriverSet : IAsyncDisposable
 
     /// <summary>The validation driver of another host of the target, on <see cref="CliOf"/>.</summary>
     public IModelValidationDriver ValidationOf(MorphirHost host) => host == Host ? Validation : new ModelValidationDriver(CliOf(host));
+
     /// <summary>The programs of the repository that are not the CLI: run, publish, compare.</summary>
     public ILibraryHostDriver LibraryHosts { get; }
 
@@ -92,6 +135,10 @@ public sealed class DriverSet : IAsyncDisposable
     {
         if (_ended) return null;
         _ended = true;
+        IProcessSession[] sessions;
+        lock (_sessions) sessions = [.. _sessions];
+        foreach (var session in sessions) await session.DisposeAsync().ConfigureAwait(false);
+        if (_packaged is not null) await _packaged.DisposeAsync().ConfigureAwait(false);
         var keep = failed && _keepFailed;
         if (keep) Workspace.Keep();
         await Workspace.DisposeAsync().ConfigureAwait(false);
@@ -113,7 +160,8 @@ public sealed class BlackBoxSession
 
     private BlackBoxSession(
         TestRunSettings settings, CliArtifacts artifacts, TestPrograms programs, string fixtures, MachineTripwire? tripwire = null,
-        ExtensionArtifacts? guests = null, PackageSources? packageSources = null, Func<string, string?>? variable = null)
+        ExtensionArtifacts? guests = null, PackagedTarget? packaged = null, PackageSources? packageSources = null,
+        Func<string, string?>? variable = null)
     {
         _guests = settings.Target is TestTarget.DevelopmentBuild ? guests ?? ExtensionArtifacts.None : ExtensionArtifacts.None;
         Settings = settings;
@@ -127,7 +175,11 @@ public sealed class BlackBoxSession
         Profile = RunProfile.Of(settings);
         _fixtures = fixtures;
         _tripwire = tripwire;
+        Packaged = packaged;
     }
+
+    /// <summary>The installed offering of a packaged target, or null for another target.</summary>
+    public PackagedTarget? Packaged { get; }
 
     public TestRunSettings Settings { get; }
 
@@ -163,13 +215,17 @@ public sealed class BlackBoxSession
         Assembly testAssembly, Func<string, string?> variable, Func<string, bool> fileExists, string fixtures, MachineTripwire? tripwire = null)
     {
         var settings = TestRunSettings.Parse(variable, fileExists);
+        var (artifacts, packaged) = Resolve(
+            settings, () => CliArtifacts.OfDevelopmentBuild(testAssembly),
+            () => ArtifactLocations.Of(ArtifactLocations.MetadataOf(testAssembly), testAssembly.GetName().Name ?? "the test assembly", variable), fileExists);
         return new BlackBoxSession(
             settings,
-            Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(testAssembly)),
+            artifacts,
             settings.Target is TestTarget.DevelopmentBuild ? TestPrograms.OfTestAssembly(testAssembly) : TestPrograms.None,
             fixtures,
             tripwire,
             ExtensionArtifacts.OfTestAssembly(testAssembly),
+            packaged,
             PackageSources.OfDevelopmentBuild(testAssembly),
             variable);
     }
@@ -179,12 +235,16 @@ public sealed class BlackBoxSession
         IReadOnlyDictionary<string, string> metadata, string testAssembly, Func<string, string?> variable, Func<string, bool> fileExists, string fixtures)
     {
         var settings = TestRunSettings.Parse(variable, fileExists);
+        var (artifacts, packaged) = Resolve(
+            settings, () => CliArtifacts.OfDevelopmentBuild(metadata, testAssembly, fileExists),
+            () => ArtifactLocations.Of(metadata, testAssembly, variable), fileExists);
         return new BlackBoxSession(
             settings,
-            Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(metadata, testAssembly, fileExists)),
+            artifacts,
             settings.Target is TestTarget.DevelopmentBuild ? TestPrograms.Of(metadata, testAssembly, fileExists) : TestPrograms.None,
             fixtures,
             guests: ExtensionArtifacts.Of(metadata, fileExists),
+            packaged: packaged,
             packageSources: PackageSources.Of(metadata),
             variable: variable);
     }
@@ -205,6 +265,8 @@ public sealed class BlackBoxSession
     public void EndRun(TextWriter output)
     {
         output.WriteLine(Skips.ReportLine());
+        Packaged?.Dispose();
+        _hostCopies.Dispose();
         _tripwire?.AssertUnchanged();
     }
 
@@ -214,15 +276,28 @@ public sealed class BlackBoxSession
         var artifact = Artifacts.PathOf(host);
         return new DriverSet(
             Settings.Target, host, artifact, ScenarioWorkspace.Create(_fixtures), Settings.KeepFailed, Programs, _guests, Artifacts.PathOf,
-            PackageSources, PackedPackages);
+            Packaged, _hostCopies, PackageSources, PackedPackages);
     }
 
+    private readonly HostCopies _hostCopies = new();
+
     // Each target resolves to the artifact of its own form. No target uses the artifact of another form.
-    private static CliArtifacts Resolve(TestRunSettings settings, Func<CliArtifacts> developmentBuild) => settings.Target switch
+    private static (CliArtifacts Artifacts, PackagedTarget? Packaged) Resolve(
+        TestRunSettings settings, Func<CliArtifacts> developmentBuild, Func<ArtifactLocations> locations, Func<string, bool> fileExists)
     {
-        TestTarget.DevelopmentBuild => developmentBuild(),
-        TestTarget.Executable executable => CliArtifacts.Of(executable),
-        _ => throw new TestSessionException(
-            $"The CLI driver has no artifact resolution for the target '{settings.Target.Name}' yet. The targets with a driver are: dev, executable."),
-    };
+        switch (settings.Target)
+        {
+            case TestTarget.DevelopmentBuild:
+                return (developmentBuild(), null);
+            case TestTarget.Executable executable:
+                return (CliArtifacts.Of(executable), null);
+            case TestTarget.Trimmed or TestTarget.Untrimmed or TestTarget.NativeAot:
+                return (CliArtifacts.OfPublished(settings.Target, PublishedExecutables.PathOf(settings.Target, locations(), fileExists)), null);
+            case TestTarget.Packaged packaged:
+                var installed = PackagedTarget.Install(packaged, locations());
+                return (CliArtifacts.OfPublished(packaged, installed.Installation.LaunchPath), installed);
+            default:
+                throw new TestSessionException($"The target '{settings.Target.Name}' has no artifact resolution.");
+        }
+    }
 }

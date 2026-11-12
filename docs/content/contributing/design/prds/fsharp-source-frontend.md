@@ -293,7 +293,8 @@ dotnet build Morphir.slnx
 dotnet publish src/Morphir/Morphir.csproj -c Release -r osx-arm64 -p:PublishAot=true -p:PublishTrimmed=true -o /tmp/morphir-aot
 dotnet pack src/Morphir.Frontend.FSharp.Extension -c Release -o /tmp/guest-pkg
 dotnet tool install Morphir.Frontend.FSharp.Extension --version <version> --tool-path /tmp/guest-tool --configfile <nuget.config with /tmp/guest-pkg>
-MORPHIR_AOT_CLI=/tmp/morphir-aot/morphir MORPHIR_FSHARP_GUEST=/tmp/guest-tool/morphir-fsharp-frontend MORPHIR_MCK_REPORT_DIR=/tmp/mck-reports \
+MORPHIR_TEST_TARGET=executable MORPHIR_TEST_EXECUTABLE=/tmp/morphir-aot/morphir MORPHIR_TEST_HOST=native \
+MORPHIR_FSHARP_GUEST=/tmp/guest-tool/morphir-fsharp-frontend MORPHIR_MCK_REPORT_DIR=/tmp/mck-reports \
   dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenced --filter-test-case "AOT morphir"
 ```
 

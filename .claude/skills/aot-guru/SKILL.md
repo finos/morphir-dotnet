@@ -596,254 +596,45 @@ Location: `templates/aot-workaround.md`
 [Links to related issues]
 ```
 
-## BDD Testing for AOT
+## Black-box tests of the published executables
 
-### Automated AOT Test Suite
+The black-box tests of `tests/Morphir.BlackBox.Tests` run against each published form of the product. The form is
+the target of the run (`MORPHIR_TEST_TARGET`), not the group of a test: a smoke, integration or journey test runs
+on the Native AOT executable in the same way as on the development build. See `tests/Morphir.TestSupport/README.md`
+for the targets and `tests/Morphir.BlackBox.Tests/README.md` for the groups and the tags.
 
-morphir-dotnet has a comprehensive BDD test suite for AOT and trimming validation located at:
-- `tests/Morphir.E2E.Tests/Features/AOT/AssemblyTrimming.feature` (11 scenarios)
-- `tests/Morphir.E2E.Tests/Features/AOT/NativeAOTCompilation.feature` (9 scenarios)
+The checks that only the published forms have are end-to-end tests of the published lane (`@lane @published`):
 
-**Step Definitions:**
-- `AssemblyTrimmingSteps.cs` - Implements all 11 trimming scenarios
-- `NativeAOTCompilationSteps.cs` - Implements all 9 AOT compilation scenarios
+- `EndToEnd/NativeAotExecutable.feature` (`@needs-native-aot-executable`): no `morphir.deps.json` and no
+  `morphir.runtimeconfig.json` beside the Native AOT executable.
+- `EndToEnd/NativeAotStartupTests.cs` (`@needs-native-aot-executable`): `--version` in less than 100 ms.
+- `EndToEnd/PackagedArtifacts.feature` (`@needs-packaged-installation`): the four packaged offerings.
 
-**Documentation:**
-- `tests/Morphir.E2E.Tests/Features/AOT/README.md` - Complete usage guide
-
-### When to Run AOT Tests
-
-**Run AOT tests when:**
-1. **Before releasing** trimmed or AOT executables
-2. **After dependency updates** that might affect AOT compatibility
-3. **After significant CLI changes** that could impact build configuration
-4. **When investigating** trimming warnings or size regressions
-5. **To validate** new features work with trimming/AOT
-
-**DO NOT run in regular CI** - These tests are long-running (45-90 minutes total) and should only be executed manually for release preparation.
-
-### How to Run AOT Tests
-
-#### Manual Workflow (Recommended)
-
-The AOT tests run in a dedicated GitHub Actions workflow:
-
-1. Go to **Actions** → **Manual AOT Testing**
-2. Click **Run workflow**
-3. Select inputs:
-   - **Configuration**: Release or Debug
-   - **Platform**: linux-x64, osx-arm64, win-x64, linux-arm64, osx-x64
-   - **Test Suite**: both, trimming, or aot-compilation
-   - **Test Version**: Version to use for executables (e.g., 0.0.0-test)
-4. Click **Run workflow**
-
-The workflow will:
-- Build required executables (trimmed, untrimmed, AOT)
-- Run selected test suite with platform-specific validations
-- Upload artifacts on failure for debugging
-- Complete in approximately 45-90 minutes
-
-#### Local Execution
-
-To run AOT tests locally:
+### How to run them
 
 ```bash
-# 1. Build executables first
-./build.sh --target PublishSingleFile --rid linux-x64
-./build.sh --target PublishSingleFileUntrimmed --rid linux-x64  # For baseline comparisons
-./build.sh --target PublishExecutable --rid linux-x64           # For AOT tests
+# The workflow: Actions -> Manual AOT Testing (trimming, aot-compilation, both or packaged),
+# or Actions -> Manual E2E Testing (one target on the platforms that you select).
 
-# 2. Run trimming tests
-cd tests/Morphir.E2E.Tests
-MORPHIR_EXECUTABLE_TYPE=trimmed dotnet run -- --treenode-filter "*/Trimming*"
+# Locally. TestE2E publishes a target that has no executable, then runs each group against it.
+./build.sh --target TestE2E --executable-type aot
+./build.sh --target TestE2E --executable-type trimmed
+./build.sh --target TestE2E --executable-type untrimmed
 
-# 3. Run AOT tests
-MORPHIR_EXECUTABLE_TYPE=aot dotnet run -- --treenode-filter "*/AOT*"
-
-# 4. Run both test suites
-INCLUDE_MANUAL_TESTS=true dotnet run
+# The test assembly directly, on an executable that is published.
+MORPHIR_TEST_TARGET=aot MORPHIR_TEST_LANE=published \
+  dotnet exec tests/Morphir.BlackBox.Tests/bin/Release/net11.0/Morphir.BlackBox.Tests.dll --treenode-filter "/*/*/*/*[Category=e2e]"
 ```
 
-### Test Scenarios Covered
+A target with no executable stops the run with the command that publishes it; a missing trimmed executable does
+not run the untrimmed one.
 
-#### Assembly Trimming (11 scenarios)
+### Recommending additional tests
 
-1. **Trimming with link mode** - Validates link mode trimming effectiveness
-2. **Preserving types with DynamicDependency** - Ensures attributes preserve types
-3. **Trimming warnings detection** - Validates trim analyzers detect issues
-4. **JSON serialization preservation** - Tests source-generated serialization
-5. **Embedded resources in trimmed build** - Validates resource preservation
-6. **Trimmed build size comparison** - Compares trimmed vs untrimmed sizes
-7. **Trimming with third-party dependencies** - Tests dependency compatibility
-8. **Feature switches for size reduction** - Validates feature switch effectiveness
-9. **Trimmer root descriptors** - Tests custom preservation rules
-10. **Invariant globalization size savings** - Measures globalization impact
-11. Additional trimming validation scenarios
-
-#### Native AOT Compilation (9 scenarios)
-
-1. **Successful AOT compilation** - Validates basic AOT build
-2. **AOT with size optimizations** - Tests size optimization flags
-3. **AOT executable runs correctly** - Validates runtime behavior
-4. **All CLI commands work in AOT** - Tests command compatibility
-5. **JSON output works in AOT** - Validates source-generated serialization
-6. **Detecting reflection usage during build** - Checks IL2XXX warnings
-7. **Size target for minimal CLI** - Validates minimal build size (5-8 MB)
-8. **Size target for feature-rich CLI** - Validates full build size (8-12 MB)
-9. **Cross-platform AOT builds** - Tests linux-x64, win-x64, osx-x64, ARM variants
-10. **AOT build performance** - Measures startup time and memory usage
-
-### Test Implementation Details
-
-**Build Strategy:**
-- Tests invoke `dotnet publish` with scenario-specific MSBuild properties
-- Each scenario builds executables in isolated `artifacts/test-builds/{guid}` directories
-- Native AOT tests reuse existing artifacts from `artifacts/executables/` when available
-- Cross-platform RID detection handles platform-specific differences
-
-**Validations:**
-- Exit code checks for build success
-- File size comparisons and range validations
-- Build warning detection (IL2026, IL2060, IL2070, etc.)
-- Runtime command execution (--version, --help, ir verify)
-- JSON output validation using JsonDocument parsing
-- Platform-specific size assertions
-
-**Duration:**
-- Assembly Trimming tests: ~15-30 minutes (builds trimmed + untrimmed executables)
-- Native AOT Compilation tests: ~30-60 minutes (AOT compilation is slower)
-- Total for both suites: ~45-90 minutes
-
-### Recommending Additional Tests
-
-When recommending new AOT tests or changes:
-
-**Consider adding tests for:**
-1. **New CLI commands** - Ensure they work with trimming/AOT
-2. **New dependencies** - Validate AOT compatibility
-3. **Size-impacting features** - Track size regressions
-4. **Reflection-heavy code** - Validate preservation mechanisms
-5. **Platform-specific behavior** - Test on all target platforms
-
-**Test patterns to follow:**
-- Use Given/When/Then Gherkin syntax
-- Focus on build-time validation (step definitions build executables)
-- Include size assertions for size-sensitive features
-- Test both success and failure paths
-- Validate platform-specific behavior
-
-**Example new scenario:**
-```gherkin
-Scenario: New feature works with trimming
-  Given a morphir-dotnet CLI with new feature enabled
-  And PublishTrimmed is enabled
-  When I build the application
-  Then the build should succeed without warnings
-  And the new feature should work correctly
-  And the size should not increase by more than 500 KB
-```
-
-### Modifying Test Execution
-
-**To modify test execution workflow:**
-1. Update `.github/workflows/manual-aot-test.yml` for workflow changes
-2. Update `scripts/run-e2e-tests.cs` for filtering logic
-3. Update step definitions in `tests/Morphir.E2E.Tests/Features/AOT/*Steps.cs`
-4. Update `tests/Morphir.E2E.Tests/Features/AOT/README.md` documentation
-
-**To add platform support:**
-1. Add platform to workflow inputs in `manual-aot-test.yml`
-2. Update runs-on mapping for new platform
-3. Test locally on the platform first
-4. Document platform-specific size targets
-
-**To add new scenarios:**
-1. Add Gherkin scenario to appropriate `.feature` file
-2. Implement step definitions in corresponding `*Steps.cs` file
-3. Test locally with `dotnet run -- --treenode-filter "*/Scenario Name*"`
-4. Update README with new scenario documentation
-
-### Troubleshooting AOT Tests
-
-**Common test failures:**
-
-1. **"Executable not found"**
-   - Ensure build succeeded (check `BuildExitCode` in scenario context)
-   - Check artifacts directory structure
-   - Verify RID matches platform
-
-2. **"Size exceeds threshold"**
-   - Review recent changes for size regressions
-   - Check if new dependencies were added
-   - Run size analysis: `ls -lh artifacts/*/morphir*`
-
-3. **"IL2XXX warnings present"**
-   - Expected for reflection usage scenarios
-   - Validate warnings are documented
-   - Check if source generators are missing
-
-4. **"Runtime command failed"**
-   - Check stderr output for errors
-   - Validate executable has correct permissions
-   - Test executable manually: `./artifacts/.../morphir --version`
-
-**Debug techniques:**
-- Check uploaded artifacts in failed workflow runs
-- Run tests locally with verbose output
-- Inspect scenario context values in step definitions
-- Review build logs in `artifacts/test-builds/*/build.log`
-
-### Feature: Native AOT Compilation
-
-```gherkin
-Feature: Native AOT Compilation
-  As a CLI developer
-  I want to compile morphir-dotnet to Native AOT
-  So that I have fast startup and small binaries
-
-  Scenario: Successful AOT compilation
-    Given a morphir-dotnet CLI project
-    And PublishAot is enabled
-    When I build the project with PublishAot=true
-    Then the build should succeed
-    And the output should be a native executable
-    And the executable size should be less than 12 MB
-
-  Scenario: AOT with all optimizations
-    Given a morphir-dotnet CLI project
-    And all size optimizations are enabled
-    When I build with PublishAot=true and size optimizations
-    Then the executable size should be less than 8 MB
-    And all smoke tests should pass
-
-  Scenario: Detecting reflection usage
-    Given a project using reflection
-    When I enable AOT analyzers
-    Then I should see IL2026 warnings
-    And I should see suggestions for source generators
-```
-
-### Feature: Assembly Trimming
-
-```gherkin
-Feature: Assembly Trimming
-  As a CLI developer
-  I want trimmed assemblies
-  So that I reduce deployment size
-
-  Scenario: Trimming with link mode
-    Given a self-contained morphir-dotnet build
-    When I enable PublishTrimmed with TrimMode=link
-    Then unused assemblies should be removed
-    And unused types should be trimmed
-    And the output size should be reduced
-
-  Scenario: Preserving necessary types
-    Given types marked with DynamicDependency
-    When I trim the application
-    Then those types should not be removed
-    And reflection should still work on them
-```
+Use the `test-manager` skill for each new test. A check of a property of the published form (its size, its layout,
+its start) is an end-to-end test in the published lane, with a capability tag when only some targets have the
+property. A check of the publish itself (trim and AOT warnings of a library host) is the Native AOT lane
+(`@lane @native-aot`) of change `consolidate-black-box-tests`, slice 5.
 
 ## Decision Trees
 
