@@ -81,6 +81,9 @@ public static class PackagedRun
         string traceFile)
     {
         var start = ChildProcess.StartInfo(launchPath, [.. arguments]);
+        // The product writes UTF-8 on each operating system; Windows reads a redirected stream in the code page of the console.
+        start.StandardOutputEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        start.StandardErrorEncoding = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         contain(start);
         start.WorkingDirectory = workDirectory;
         start.Environment["COREHOST_TRACE"] = "1";
