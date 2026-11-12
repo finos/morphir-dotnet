@@ -1,8 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
     <IsAotCompatible>true</IsAotCompatible>
-    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Description>Portable Morphir Compatibility Kit case reader, comparisons and runner.</Description>
   </PropertyGroup>
   <ItemGroup>
@@ -17,11 +21,30 @@
     <Compile Include="Report.fs" />
     <Compile Include="FrontendAdapter.fs" />
     <Compile Include="CliAdapter.fs" />
+    <Compile Include="WasmHost/Model.fs" />
+    <Compile Include="WasmHost/CorpusJson.fs" />
+    <Compile Include="WasmHost/CaseIds.fs" />
+    <Compile Include="WasmHost/FeatureWriter.fs" />
+    <Compile Include="WasmHost/Generation.fs" />
+    <Compile Include="WasmHost/FeatureReader.fs" />
+    <Compile Include="WasmHost/Worker.fs" />
+    <Compile Include="WasmHost/Comparer.fs" />
+    <Compile Include="WasmHost/Judge.fs" />
+    <Compile Include="WasmHost/HostRunner.fs" />
+    <Compile Include="WasmHost/HostReport.fs" />
+    <Compile Include="WasmHost/Commands.fs" />
+    <Compile Include="GuestKit/Kit.fs" />
+    <Compile Include="GuestKit/IrComparison.fs" />
+    <Compile Include="GuestKit/ModelTier.fs" />
+    <Compile Include="GuestKit/WorkerSessions.fs" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />
+    <InternalsVisibleTo Include="Morphir.Conformance.Tests" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
+    <!-- The generic guest kit's model-tier runner drives a HostSession (task 3.5). -->
+    <ProjectReference Include="..\Morphir.Mep\Morphir.Mep.fsproj" />
   </ItemGroup>
 </Project>

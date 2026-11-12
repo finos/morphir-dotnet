@@ -6,9 +6,12 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
 schema = json.loads((root / 'tests/Fixtures/Configuration/morphir-config-v1.json').read_text())
+# The pinned WASM execution profile contract (add-wasm-extension-host, PIN-1): the source of the profile ids.
+profiles = json.loads((root / 'tests/Fixtures/MepWasm/wasm-execution-profiles.json').read_text())['profiles']
 
-# Local amendments (add-fsharp-compile, VER-1 and SRC-2; generate --extension, codegen tables). The pinned upstream fixture stays unchanged; these
-# changes are applied to the parsed schema before generation, and PROVENANCE.md records them.
+# Local amendments (add-fsharp-compile, VER-1 and SRC-2; generate --extension, codegen tables; add-wasm-extension-host,
+# CFG-1). The pinned upstream fixture stays unchanged; these changes are applied to the parsed schema before
+# generation, and PROVENANCE.md records them.
 SEMVER = (r'^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
           r'(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$')
 
@@ -49,6 +52,11 @@ def amend(schema):
     codegen['additionalProperties'] = {
         'anyOf': [{'$ref': '#/definitions/codegenTarget'}, {'not': {'type': 'object'}}],
     }
+    # 4. Every [extensions.<name>] table may declare the ABI profile and the SHA-256 of its module (CFG-1). abi is
+    #    a profile id of the pinned contract; sha256 is 64 lowercase hexadecimal digits.
+    entry = schema['definitions']['extension']['properties']
+    entry['abi'] = {'type': 'string', 'enum': list(profiles)}
+    entry['sha256'] = {'type': 'string', 'pattern': '^[0-9a-f]{64}$'}
     return schema
 
 
@@ -107,7 +115,7 @@ text = '''namespace Morphir.Configuration
 // Schema SHA-256 b5b2f636b8fbbdcc4dc3636ffe7bcee81776d0dbd73810d9c9391f1ee2813901.
 // Amendments: ir.format_version takes a SemVer string; every [frontend.<language>] table (an object-valued member of
 // [frontend]) has project_file and extension; every [codegen.<target>] table (an object-valued member of [codegen])
-// has extension.
+// has extension; every [extensions.<name>] table has abi and sha256.
 module internal ConfigurationSchema =
     type Rule =
         | Reference of string

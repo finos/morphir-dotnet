@@ -40,6 +40,13 @@ public sealed record PackagedContents(
     };
 
     /// <summary>
+    /// The WASM engine the artifact carries, one entry per engine library or linked engine, as
+    /// <see cref="PackagedEngines.Check"/> found it in the artifact; null when it was not read (tasks 5.2 and 5.3 of
+    /// add-wasm-extension-host).
+    /// </summary>
+    public IReadOnlyList<PackagedEngine>? Engines { get; init; }
+
+    /// <summary>
     /// The folders that hold satellite resource assemblies (<c>*.resources.dll</c>, one folder per culture), in ordinal
     /// order. They hold the translated messages of the F# compiler and FSharp.Core.
     /// </summary>
@@ -114,6 +121,7 @@ public sealed record PackagedContents(
             contents.ArchiveBytes,
             contents.FileCount,
             contents.ExtractedBytes,
+            contents.Engines,
             contents.Files,
         }, Options) + "\n";
 

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Description>The WASM extension runtime of morphir-dotnet: Wasmtime with the embedded Extism kernel module.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Wasmtime" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The host session's single-message channel and the MEP wire types (design LAY-1, CHAN-1). -->
+    <ProjectReference Include="../Morphir.Mep/Morphir.Mep.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The Extism kernel module of moonrockz/extism; see Kernel/PROVENANCE.md. -->
+    <EmbeddedResource Include="Kernel/extism-kernel.wasm" LogicalName="Morphir.Extensions.Wasm.Kernel.extism-kernel.wasm" />
+    <!-- The kernel is Apache-2.0: its licence, notice and provenance travel with the package that embeds it. -->
+    <None Include="Kernel/LICENSE;Kernel/NOTICE;Kernel/PROVENANCE.md" Pack="true" PackagePath="licenses/extism-kernel/" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      The pinned WASM execution profile contract, linked from the pin and not copied, so the classifier's
+      import table is the pinned file (design PIN-1). See tests/Fixtures/MepWasm/PROVENANCE.md.
+    -->
+    <EmbeddedResource Include="../../tests/Fixtures/MepWasm/wasm-execution-profiles.json" Link="Contract/wasm-execution-profiles.json" LogicalName="Morphir.Extensions.Wasm.Contract.wasm-execution-profiles.json" />
+  </ItemGroup>
+</Project>

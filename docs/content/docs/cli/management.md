@@ -222,6 +222,7 @@ An extension adds a capability to Morphir, such as a code generator. The plan is
 
 ```bash
 morphir extension list [--json] [--platform <rid>] [--local]
+morphir extension runtimes [--json]
 morphir extension install <name> <url> <version> [--platform <rid>] [--local]   # not implemented yet
 morphir extension use <name> <version> [--platform <rid>] [--local]             # not implemented yet
 morphir extension remove <name> <version> [--platform <rid>] [--local]          # not implemented yet
@@ -230,6 +231,13 @@ morphir extension which <name> [--platform <rid>]                               
 
 `install`, `use`, `remove` and `which` fail with exit code 1 and a link to
 [issue #492](https://github.com/finos/morphir-dotnet/issues/492). They arrive with step 3 of the PRD.
+
+`morphir extension runtimes` reports whether this host can run WASM extensions, with its engine, profiles and bounds,
+or the reason it cannot. See [morphir extension runtimes](../extension-runtimes/).
+
+`morphir extension worker` is internal and experimental, and is not in this list or in the help: it serves one
+WASM module over stdio for a conformance runner, and no product command uses it. See
+[morphir extension worker](../extension-worker/).
 
 ### extension list
 
@@ -336,9 +344,9 @@ the top-level `prerequisites`, and never reports one of the four names. It still
 | `version` | Canonical SemVer 2.0.0. |
 | `description` | Left out when the extension has none. |
 | `types` | MEP extension types: `frontend`, `backend`, `transform`, `validator` or `workspace`. They come from the capabilities. |
-| `delivery` | How the extension is delivered. Now always `built-in`. |
+| `delivery` | How the extension is delivered: `built-in` (compiled into the host) or `wasm` (a WASM module that the host's WASM runtime runs). Every entry listed today is `built-in`: listing configured WASM modules is planned in [issue #565](https://github.com/finos/morphir-dotnet/issues/565). |
 | `hosts` | The hosts that the extension runs in. |
-| `available` | `true` when the extension runs in this host and offering. An extension for the other host, or for other offerings, is listed with `false` and a `reason`. |
+| `available` | `true` when the extension runs in this host and offering. An extension for the other host, or for other offerings, is listed with `false` and a `reason`. A `wasm` extension in a host whose WASM runtime is unavailable is listed with `false`. |
 | `capabilities.frontend` | The MEP frontend claim: the languages with their file extensions, and the IR versions that it produces. |
 | `capabilities.backend` | The MEP backend claim: targets, IR versions in their declared spelling, and `generate`. |
 | `capabilities.validator` | The IR versions that a validator reads, in the spelling of the model readers. This is a morphir-dotnet report member: MEP `0.2.0-draft.1` has no validator capability, so hosts do not write it into MEP messages. |

@@ -1,0 +1,8 @@
+{
+  "name": "libwasmtime.a",
+  "version": "50.0.1",
+  "license": "Apache-2.0 WITH LLVM-exception",
+  "licenseFile": "wasmtime.LICENSE.txt",
+  "source": "https://github.com/bytecodealliance/wasmtime/releases/download/v50.0.1/wasmtime-v50.0.1-aarch64-macos-c-api.tar.xz",
+  "sha256": "397ae01d5101046cbaac5d67deff0c0b4ca274d9848d7e7fc6e2d13d2f2f6cda"
+}

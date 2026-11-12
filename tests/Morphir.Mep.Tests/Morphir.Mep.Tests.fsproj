@@ -32,6 +32,7 @@
     <Compile Include="DispatcherTests.fs" />
     <Compile Include="ConnectionTests.fs" />
     <Compile Include="SessionTests.fs" />
+    <Compile Include="ChannelTests.fs" />
     <Compile Include="ReadmeTests.fs" />
     <Compile Include="ProposalTests.fs" />
     <Compile Include="FramingTests.fs" />

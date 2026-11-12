@@ -233,10 +233,12 @@ partial class Build
         {
             "Morphir.TestSupport.Tests",
             "Morphir.Frontend.FSharp.Tests",
+            "Morphir.Conformance.Tests",
             "Morphir.SDK.Conformance.Tests",
             "Morphir.SDK.CSharp.Tests",
             "Morphir.IR.Pipeline.Plugins.Tests",
             "Morphir.Extensions.Tests",
+            "Morphir.Extensions.Wasm.Tests",
             "Morphir.Extensions.Installation.Tests",
             "Morphir.Analyzers.Tests",
             "Morphir.Mep.Tests",

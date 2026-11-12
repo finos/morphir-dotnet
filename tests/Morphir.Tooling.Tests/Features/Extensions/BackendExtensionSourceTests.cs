@@ -41,7 +41,7 @@ public sealed class BackendExtensionSourceTests
     [Test]
     public void TheRegistryComposesEverySource()
     {
-        var registry = new ExtensionRegistry([new BackendExtensionSource([new CSharpGenerationBackend()], Host), new BackendExtensionSource([new FSharpGenerationBackend()], Host)], Host);
+        var registry = new ExtensionRegistry([new BackendExtensionSource([new CSharpGenerationBackend()], Host), new BackendExtensionSource([new FSharpGenerationBackend()], Host)], Host, WasmRuntime.Process);
         registry.TryRead(out var catalog, out var error).Should().BeTrue(error?.ToString());
         catalog!.Entries.Should().HaveCount(2);
         catalog.Host.Should().Be(Host);
@@ -50,7 +50,7 @@ public sealed class BackendExtensionSourceTests
     [Test]
     public void TheRegistryRefusesTheSameBackendTwice()
     {
-        var registry = new ExtensionRegistry([new BackendExtensionSource([new CSharpGenerationBackend(), new CSharpGenerationBackend()], Host)], Host);
+        var registry = new ExtensionRegistry([new BackendExtensionSource([new CSharpGenerationBackend(), new CSharpGenerationBackend()], Host)], Host, WasmRuntime.Process);
         registry.TryRead(out _, out var error).Should().BeFalse();
         error!.Diagnostics.Single().Message.Should().Contain("morphir.csharp");
     }

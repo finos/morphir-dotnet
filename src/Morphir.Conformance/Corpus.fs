@@ -22,9 +22,9 @@ module Corpus =
                 let finish = range.GetProperty("end")
 
                 yield {
-                    Severity = diagnostic.GetProperty("severity").GetString()
-                    Code = diagnostic.GetProperty("code").GetString()
-                    Uri = location.GetProperty("uri").GetString()
+                    Severity = nonNull (diagnostic.GetProperty("severity").GetString())
+                    Code = nonNull (diagnostic.GetProperty("code").GetString())
+                    Uri = nonNull (location.GetProperty("uri").GetString())
                     StartLine = start.GetProperty("line").GetInt32()
                     StartCharacter = start.GetProperty("character").GetInt32()
                     EndLine = finish.GetProperty("line").GetInt32()
@@ -549,7 +549,17 @@ module Corpus =
                 |> List.sortWith (fun left right ->
                     System.StringComparer.Ordinal.Compare(left.Path, right.Path)
                 ) do
-                if artifact.Path.EndsWith(".feature", System.StringComparison.Ordinal) then
+                // Each suite has its own directory and reader: the wasm-host suite beside this
+                // one has another vocabulary, so only the features of the requested suite are read.
+                if
+                    artifact.Path.EndsWith(".feature", System.StringComparison.Ordinal)
+                    && artifact.Path.StartsWith(
+                        "suites/"
+                        + options.Suite
+                        + "/",
+                        System.StringComparison.Ordinal
+                    )
+                then
                     let parsed =
                         try
                             use reader = new StringReader(Encoding.UTF8.GetString artifact.Bytes)
@@ -710,8 +720,10 @@ module Corpus =
                                                         let path =
                                                             Path
                                                                 .Combine(
-                                                                    Path.GetDirectoryName
-                                                                        artifact.Path,
+                                                                    nonNull (
+                                                                        Path.GetDirectoryName
+                                                                            artifact.Path
+                                                                    ),
                                                                     relative
                                                                 )
                                                                 .Replace(

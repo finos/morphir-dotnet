@@ -33,6 +33,13 @@ public static class PublishedLayout
         if (!Has(artifact.Launch.LaunchPath))
             problems.Add($"the launch path {artifact.Launch.LaunchPath} is not in the publish folder");
 
+        // A single-file artifact is its launch path and nothing else: a library beside it would make it two files.
+        if (deployment.Layout == ArtifactLayout.SingleFile)
+        {
+            foreach (var file in files.Where(file => file.Name != artifact.Launch.LaunchPath))
+                problems.Add($"the metadata says the artifact is single-file, {artifact.Launch.LaunchPath} alone, but the publish folder also holds {file.Name}");
+        }
+
         var coreclr = artifact.Platform.OperatingSystem switch
         {
             "windows" => "coreclr.dll",
