@@ -63,14 +63,16 @@ jobs:
             - name: Download the morphirup assets of every platform
               uses: actions/download-artifact@v7
               with:
-                  path: ./artifacts/release-assets
+                  path: ./artifacts/downloads/morphirup
                   pattern: morphirup-*
-                  merge-multiple: true
+                  merge-multiple: false
 
+            # Each platform's output is in a folder of its own and is flattened once, refusing two different files under
+            # one name, as the release job does.
             - name: Write and verify the checksum file, as the release job does
               shell: bash
               run: |
                   set -euo pipefail
-                  ./build.sh --target MorphirupChecksums --release-assets-dir ./artifacts/release-assets
+                  ./build.sh --target FlattenReleaseAssets MorphirupChecksums --release-asset-sources ./artifacts/downloads/morphirup/* --release-assets-dir ./artifacts/release-assets
                   cd ./artifacts/release-assets
                   sha256sum -c morphirup-v*.sha256

@@ -140,8 +140,18 @@ public class MorphirupReleaseTests
         workflow.Should().Contain("uses: ./.github/workflows/morphirup-build.yml", "the release builds morphirup with the pull request's definition");
         workflow.Should().Contain("pattern: morphirup-*");
         workflow.Should().Contain("./artifacts/release-assets/morphirup-*");
-        workflow.Should().Contain("--target MorphirupChecksums");
+        workflow.Should().Contain("MorphirupChecksums");
         workflow.Should().Contain("pattern: morphir-*", "the morphir executables keep their own download");
+
+        // Each platform's output is downloaded apart and flattened once, so two different files under one name fail
+        // instead of the later download silently replacing the earlier.
+        foreach (var name in new[] { "deployment.yml", "morphirup.yml" })
+        {
+            var text = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", name));
+            text.Should().Contain("--target FlattenReleaseAssets MorphirupChecksums --release-asset-sources ./artifacts/downloads/morphirup/*", name);
+            Regex.Matches(text, @"pattern: morphirup-\*\s*\n\s*merge-multiple: (\S+)").Select(match => match.Groups[1].Value)
+                .Should().Equal(new[] { "false" }, $"{name} downloads each morphirup output into a folder of its own");
+        }
 
         var build = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", "morphirup-build.yml"));
         build.Should().Contain("./artifacts/release-assets/morphirup-v*-THIRD-PARTY-NOTICES.txt",

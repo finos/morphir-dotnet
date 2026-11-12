@@ -88,10 +88,7 @@ public static class MorphirupRelease
     public static string WriteChecksums(string assets, string version)
     {
         var path = Path.Combine(assets, ChecksumFileName(version));
-        var text = new StringBuilder();
-        foreach (var name in Assets(assets))
-            text.Append(ReleaseArchive.Sha256(Path.Combine(assets, name))).Append("  ").Append(name).Append('\n');
-        File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
+        File.WriteAllText(path, ReleaseAssets.Sha256Lines(assets, Assets(assets)), new UTF8Encoding(false));
         return path;
     }
 
