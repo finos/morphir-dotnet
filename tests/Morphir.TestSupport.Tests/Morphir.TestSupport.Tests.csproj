@@ -18,11 +18,15 @@
 
   <ItemGroup>
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <!-- The fixture process of the session driver tests: a scripted worker that reads and writes frames. -->
+    <ProjectReference Include="../Morphir.Conformance.FakeWorker/Morphir.Conformance.FakeWorker.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Fixture files for the workspace and driver tests. -->
     <None Include="Fixtures/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The .NET host traces of the packaged run tests. -->
+    <None Include="Packaging/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
     <!-- The README of the library, for the test that keeps its names equal to the code. -->
     <None Include="../Morphir.TestSupport/README.md" Link="Fixtures/TestSupport.README.md" CopyToOutputDirectory="PreserveNewest" />
     <!-- Real models for the tests that start the CLI. -->

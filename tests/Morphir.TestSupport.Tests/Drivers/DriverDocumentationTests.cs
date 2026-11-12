@@ -36,6 +36,7 @@ public class DriverDocumentationTests
         [
             TestRunSettings.TargetVariable, TestRunSettings.HostVariable, TestRunSettings.ExecutableVariable,
             TestRunSettings.LaneVariable, TestRunSettings.KeepVariable, ProcessGate.LimitVariable,
+            ArtifactLocations.ReleaseDirectoryVariable, WorkerCorpus.AllCasesVariable,
         ];
         // The names that the new settings replace. The table "Old names" of the README is the only place for them.
         string[] old = ["MORPHIR_EXECUTABLE_TYPE", "MORPHIR_EXECUTABLE_PATH", "MORPHIR_GENERATION_CLI", "MORPHIR_DOTNET_TOOL_CLI", "MORPHIR_AOT_CLI", "MORPHIR_CONFIGURATION_CLI"];

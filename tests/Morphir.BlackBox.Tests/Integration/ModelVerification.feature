@@ -41,6 +41,15 @@ Feature: Verify a Morphir IR file
     And the output contains "VALID" or "✓ VALID"
     And the output contains "Schema Version: v3 (manual)"
 
+  Scenario: The schema version can be given with the result as JSON
+    Given the model fixture "Models/valid-ir-v3.json"
+    When I verify the model with the schema version 3 as JSON
+    Then the exit code is 0
+    And standard output is one JSON document
+    And the verification report says that the model is valid
+    And the verification report has the schema version "3"
+    And the verification report has the detection method "manual"
+
   Scenario: The result of a valid file as JSON
     Given the model fixture "Models/valid-ir-v3.json"
     When I verify the model as JSON
@@ -69,7 +78,7 @@ Feature: Verify a Morphir IR file
     And the output contains "Found:"
 
   Scenario: A file that is not there is an error
-    Given no model file "Models/nonexistent.json"
+    Given no model file "nonexistent.json"
     When I verify the model
     Then the exit code is 1
     And the output contains "error" or "not found"

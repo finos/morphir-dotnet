@@ -23,6 +23,12 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `IGenerationDriver` (`GenerationDriver`) | The `generate` command as an intent, with `GenerationOptions`. Its report is `GenerationReport`. |
 | `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. It records the Morphir locations of the machine at the start (`MachineTripwire`), and at the end of the run it prints the skip counts and fails if a test changed those locations. |
 | `DriverSet` | The workspace and the drivers of one test on one host. |
+| `IProcessSessionDriver` (`ProcessSessionDriver`) | A product process that stays alive: framed input (`ContentLengthFrames`), output as it comes, an interrupt (SIGINT, or `ConsoleControlEvent` on Windows), and the exit with the time from the interrupt to the exit (`SessionExit`). It runs on `ChildProcess.ConverseAsync`. `ExtensionWorker` and `WorkerCorpus` use it for `extension worker`. |
+| `IValidationDriver` (`ValidationDriver`) | The `validate` command as an intent, with `ValidationOptions`. Its report is `ValidationReport`. |
+| `ExtensionListReport`, `ExtensionRuntimesReport` | The reports of `extension list --json` and `extension runtimes --json`. Their steps give the arguments of the report to `ICliDriver`. |
+| `IPackagedArtifactDriver` (`PackagedArtifactDriver`) | The installed packaged offering of the run: its launch metadata, runs of the installed executable from new empty directories with the runtime of the machine reachable or hidden, the layout claim, the engine files, and a second installation that is read-only. The helpers are in the namespace `Morphir.TestSupport.Packaging`. |
+| `HostCopies` | A copy of the folder of a host with each WASM engine library deleted (`HostCopy`), made once for each run. |
+| `TargetCli` | The executable of the target of the run, for a test outside the black-box project that starts it with its own runner (a conformance test). |
 
 A capability driver builds its command line and calls `ICliDriver`. Only `ICliDriver` and `IScenarioWorkspace` know
 the target and the machine.
@@ -53,6 +59,17 @@ lists the valid values.
 | `dotnet-tool` | `tool` | `tool` |
 | `executable`, with `MORPHIR_TEST_EXECUTABLE` | the host that `MORPHIR_TEST_HOST` names | that host |
 
+Each target resolves to the artifact of its own form, once before the first test (`BlackBoxSession`):
+
+| Target | Artifact | Command that makes it |
+| --- | --- | --- |
+| `dev` | The build output of the three entry points, from the assembly metadata | `dotnet build`, or the build of the test project |
+| `trimmed` | `artifacts/single-file/<rid>/morphir` | `./build.sh --target PublishSingleFile --rid <rid>` |
+| `untrimmed` | `artifacts/single-file-untrimmed/<rid>/morphir` | `./build.sh --target PublishSingleFileUntrimmed --rid <rid>` |
+| `aot` | `artifacts/executables/<rid>/morphir` | `./build.sh --target PublishExecutable --rid <rid>` |
+| `native-aot`, `self-contained`, `framework-dependent`, `dotnet-tool` | The archive or the tool package in the release folder (`ArtifactLocations`), installed into a new directory whose path has a space (`PackagedTarget`) | `./build.sh --target PackRelease --deployment <offering> --rid <rid>` |
+| `executable` | The file at `MORPHIR_TEST_EXECUTABLE` | |
+
 | Host | Project | Executable |
 | --- | --- | --- |
 | `native` | `src/Morphir` | `morphir` |
@@ -60,8 +77,7 @@ lists the valid values.
 | `tool` | `src/Morphir.Tool` | `dotnet-morphir` |
 
 A target never uses the artifact of another form or another configuration. A missing artifact stops the run with
-the command that builds it. The CLI driver has the targets `dev` and `executable` now; a later pull request of the
-change `consolidate-black-box-tests` adds the published and packaged targets.
+the command that builds it: a missing trimmed executable does not run the untrimmed one.
 
 ### The development build
 
@@ -80,6 +96,8 @@ assembly of an entry point is visible to the test code.
 | `MORPHIR_TEST_LANE` | The lane of the run: `none` (default), `packages`, `native-aot` or `published`. The build sets it. |
 | `MORPHIR_TEST_KEEP` | `failed` keeps the workspace of a failed test and prints its path. |
 | `MORPHIR_TEST_MAX_PROCESSES` | The limit of product processes at the same time in one test process (`ProcessGate`). The build gives each test process its share. |
+| `MORPHIR_RELEASE_DIR` | The release folder of the packaged offerings. Default: `artifacts/release`. |
+| `MORPHIR_WORKER_CORPUS` | `all` runs each case of the crafted worker corpus, not the sample. |
 
 ### Old names
 
@@ -105,6 +123,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build (`TestLane`). |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | The test needs that `DriverCapability`. |
+| `@needs-validation`, `@needs-native-and-tool-hosts`, `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form` | The test needs the `validate` command; the native host and the tool host of one build (`dev`); an installed packaged offering; a Native AOT executable of a release (`aot`, `native-aot`); a target whose form is known (each target except `executable`). |
 
 ## How to add a capability
 
@@ -116,3 +135,12 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 5. Add the tag to this document and to `tests/Morphir.BlackBox.Tests/README.md`.
 
 Add an interface in the change that has its first two scenarios, not before.
+
+## A test outside the black-box project
+
+A conformance test judges the output of an executable with the kit library in the test process, so it stays in a
+project that references the kit. It gets its executable from the target of the run with `TargetCli.OfTestRun`, with
+a default host for a run that names none, and imports `build/Morphir.CliArtifacts.targets`. Examples:
+`tests/Morphir.Frontend.FSharp.Tests/CliAdapterTests.fs` (the tool host by default) and
+`tests/Morphir.Extensions.Wasm.Tests/WorkerGuestKitModelTierTests.cs`.
+

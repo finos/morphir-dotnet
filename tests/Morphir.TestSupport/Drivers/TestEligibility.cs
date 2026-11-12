@@ -22,6 +22,21 @@ public enum DriverCapability
 
     /// <summary>The self-contained F# frontend process, which the native host starts as an extension.</summary>
     SelfContainedFrontend,
+
+    /// <summary>The <c>validate</c> command.</summary>
+    Validation,
+
+    /// <summary>The native host and the tool host of one build, for a test that compares them: the development build.</summary>
+    NativeAndToolHosts,
+
+    /// <summary>An installed packaged offering with its launch metadata: the four packaged targets.</summary>
+    PackagedInstallation,
+
+    /// <summary>A Native AOT executable of a release: the targets <c>aot</c> and <c>native-aot</c>.</summary>
+    NativeAotExecutable,
+
+    /// <summary>A target whose form is known, so its build states a known deployment: each target except an executable at a path.</summary>
+    KnownForm,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -59,10 +74,16 @@ public static class DriverCapabilities
 
         // Each host has the commands. The F# frontend is in the managed host and in the tool host. No target gives
         // the self-contained frontend process yet.
-        ImmutableHashSet<DriverCapability> commands = [DriverCapability.ModelVerification, DriverCapability.Generation];
-        return host is MorphirHost.Managed or MorphirHost.DotnetTool
+        ImmutableHashSet<DriverCapability> commands = [DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Validation];
+        var supported = host is MorphirHost.Managed or MorphirHost.DotnetTool
             ? commands.Add(DriverCapability.InProcessFSharpFrontend)
             : commands;
+        if (target.Has(MorphirHost.Native) && target.Has(MorphirHost.DotnetTool)) supported = supported.Add(DriverCapability.NativeAndToolHosts);
+        if (target is TestTarget.Packaged) supported = supported.Add(DriverCapability.PackagedInstallation);
+        if (target is TestTarget.NativeAot or TestTarget.Packaged { Offering: PackagedOffering.NativeAot })
+            supported = supported.Add(DriverCapability.NativeAotExecutable);
+        if (target is not TestTarget.Executable) supported = supported.Add(DriverCapability.KnownForm);
+        return supported;
     }
 }
 

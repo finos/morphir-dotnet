@@ -147,7 +147,8 @@ jobs:
               shell: bash
               run: ./build.sh --target PublishSingleFile --rid ${{ matrix.rid }} --configuration ${{ env.CONFIGURATION }} --single-file-dir ./artifacts/single-file
 
-            - name: Run E2E tests for ${{ matrix.rid }}
+            # Every group of tests/Morphir.BlackBox.Tests on the trimmed executable (MORPHIR_TEST_TARGET=trimmed).
+            - name: Run the black-box tests on the trimmed executable for ${{ matrix.rid }}
               shell: bash
               run: ./build.sh --target TestE2E --executable-type trimmed --configuration ${{ env.CONFIGURATION }}
 

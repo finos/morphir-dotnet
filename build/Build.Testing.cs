@@ -12,7 +12,7 @@ using Morphir.Build.Helpers;
 using static Fallout.Common.Tools.DotNet.DotNetTasks;
 
 /// <summary>
-/// Build targets for testing (unit tests, E2E tests)
+/// Build targets for testing (the test suites, and the black-box tests on the published targets)
 /// </summary>
 partial class Build
 {
@@ -143,38 +143,39 @@ partial class Build
     }
 
     /// <summary>
-    /// Build the E2E test project (Morphir.E2E.Tests)
-    /// E2E tests use Reqnroll (BDD/Gherkin) to test executables
+    /// Build the black-box test project (Morphir.BlackBox.Tests) for TestE2E. Its build also builds the three hosts of
+    /// the development build (tests/Morphir.TestSupport/build/Morphir.CliArtifacts.targets).
     /// </summary>
     Target BuildE2ETests => _ => _
         .DependsOn(Compile)
-        .Description("Build the E2E test project")
+        .Description("Build the black-box test project for the published targets")
         .Executes(() =>
         {
             DotNetBuild(s => s
-                .SetProjectFile(MorphirE2ETestsProject)
+                .SetProjectFile(BlackBoxTestsProject)
                 .SetConfiguration(Configuration)
                 .SetNoRestore(false));
         });
 
     /// <summary>
-    /// Run end-to-end tests against Morphir executables (BDD/Gherkin using Reqnroll)
-    /// Parameters: --executable-type (aot, trimmed, untrimmed, tool, all - default: all; or a packaged release profile:
-    /// native-aot, self-contained, framework-dependent, dotnet-tool, or offerings for all four, which run from PackRelease artifacts)
-    /// Note: Requires executables to be published first (PublishExecutable, PublishSingleFile, etc.)
+    /// Run every group of the black-box tests against a published or packaged target (scripts/run-e2e-tests.cs).
+    /// Parameter --executable-type: a value of MORPHIR_TEST_TARGET (dev, aot, trimmed, untrimmed, native-aot,
+    /// self-contained, framework-dependent, dotnet-tool, executable), or tool (the development build with the tool
+    /// host), all (aot, trimmed, untrimmed, tool) or offerings (the four packaged offerings). Default: all. The script
+    /// publishes or packs a target that has no artifact.
     /// </summary>
     Target TestE2E => _ => _
         .DependsOn(BuildE2ETests)
-        .Description("Run end-to-end tests against Morphir executables (BDD/Gherkin)")
+        .Description("Run every group of the black-box tests against a published or packaged target")
         .Executes(() =>
         {
-            Serilog.Log.Information($"Running E2E tests for executable type: {ExecutableType}");
+            Serilog.Log.Information($"Running the black-box tests against the target: {ExecutableType}");
             var exitCode = RunCommand("dotnet",
                 ScriptsDirectory / "run-e2e-tests.cs", ExecutableType, Configuration);
 
             if (exitCode != 0)
             {
-                throw new Exception($"E2E tests failed with exit code {exitCode}");
+                throw new Exception($"The black-box tests failed with exit code {exitCode}");
             }
         });
 

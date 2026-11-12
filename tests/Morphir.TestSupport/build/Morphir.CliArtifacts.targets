@@ -49,6 +49,11 @@
         <_Parameter1>Morphir.TestSupport.Cli.Configuration</_Parameter1>
         <_Parameter2>$(Configuration)</_Parameter2>
       </AssemblyAttribute>
+      <!-- The artifacts folder of the repository, where the publish and pack targets write the published targets. -->
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Artifacts</_Parameter1>
+        <_Parameter2>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../../artifacts'))</_Parameter2>
+      </AssemblyAttribute>
     </ItemGroup>
   </Target>
 

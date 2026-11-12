@@ -71,6 +71,9 @@ public interface IScenarioWorkspace : IAsyncDisposable
     /// <summary>A directory below the work area. A path that leaves the work area is refused.</summary>
     WorkspaceDirectory Directory(params string[] segments);
 
+    /// <summary>Makes the directory below the work area, empty when it is new, and returns it.</summary>
+    WorkspaceDirectory MakeDirectory(params string[] segments);
+
     /// <summary>Copies a fixture file of the test project into the work area, with the same relative path or with <paramref name="destination"/>.</summary>
     WorkspaceFile CopyFixture(string fixture, string? destination = null);
 
@@ -92,6 +95,12 @@ public interface IScenarioWorkspace : IAsyncDisposable
     IReadOnlyList<string> FilesIn(WorkspaceDirectory directory);
 
     DateTime LastWriteTimeUtc(WorkspaceFile file);
+
+    /// <summary>
+    /// Each file and each directory below <paramref name="directory"/>, as relative paths with <c>/</c> (a directory
+    /// ends with <c>/</c>), in ordinal order. Empty when the directory is not there.
+    /// </summary>
+    IReadOnlyList<string> EntriesIn(WorkspaceDirectory directory);
 
     void SetLastWriteTimeUtc(WorkspaceFile file, DateTime time);
 
@@ -164,6 +173,13 @@ public sealed class ScenarioWorkspace : IScenarioWorkspace
 
     public WorkspaceDirectory Directory(params string[] segments) => Work.Directory(segments);
 
+    public WorkspaceDirectory MakeDirectory(params string[] segments)
+    {
+        var directory = Directory(segments);
+        System.IO.Directory.CreateDirectory(directory.Path);
+        return directory;
+    }
+
     public WorkspaceFile CopyFixture(string fixture, string? destination = null)
     {
         var source = Below(_fixtures, [fixture]);
@@ -211,6 +227,14 @@ public sealed class ScenarioWorkspace : IScenarioWorkspace
         [.. Snapshot(directory.Path).Keys.Order(StringComparer.Ordinal)];
 
     public DateTime LastWriteTimeUtc(WorkspaceFile file) => System.IO.File.GetLastWriteTimeUtc(file.Path);
+
+    public IReadOnlyList<string> EntriesIn(WorkspaceDirectory directory) =>
+        !System.IO.Directory.Exists(directory.Path)
+            ? []
+            : [.. System.IO.Directory.EnumerateFileSystemEntries(directory.Path, "*", SearchOption.AllDirectories)
+                .Select(entry => Path.GetRelativePath(directory.Path, entry).Replace(Path.DirectorySeparatorChar, '/')
+                    + (System.IO.Directory.Exists(entry) ? "/" : ""))
+                .Order(StringComparer.Ordinal)];
 
     public void SetLastWriteTimeUtc(WorkspaceFile file, DateTime time) => System.IO.File.SetLastWriteTimeUtc(file.Path, time);
 

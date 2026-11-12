@@ -81,7 +81,7 @@ partial class Build : FalloutBuild
     [Parameter("Install tool globally (true) or locally (false)")]
     readonly bool Global = false;
 
-    [Parameter("Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)")]
+    [Parameter("Target of TestE2E, a value of MORPHIR_TEST_TARGET: dev, aot, trimmed, untrimmed, native-aot, self-contained, framework-dependent, dotnet-tool or executable (with MORPHIR_TEST_EXECUTABLE and MORPHIR_TEST_HOST); or tool (the development build with the tool host), all (aot, trimmed, untrimmed and tool) or offerings (the four packaged offerings)")]
     readonly string ExecutableType = "all";
 
     /// <summary>The target frameworks from Directory.Build.props. Outputs are below bin/&lt;configuration&gt;/&lt;tfm&gt;/.</summary>
@@ -175,7 +175,7 @@ partial class Build : FalloutBuild
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
     AbsolutePath MorphirModelsTestsProject => TestsDirectory / "Morphir.Models.Tests" / "Morphir.Models.Tests.fsproj";
     AbsolutePath MorphirIRPipelineTestsProject => TestsDirectory / "Morphir.IR.Pipeline.Tests" / "Morphir.IR.Pipeline.Tests.fsproj";
-    AbsolutePath MorphirE2ETestsProject => TestsDirectory / "Morphir.E2E.Tests" / "Morphir.E2E.Tests.csproj";
+    AbsolutePath BlackBoxTestsProject => TestsDirectory / "Morphir.BlackBox.Tests" / "Morphir.BlackBox.Tests.csproj";
     AbsolutePath MorphirBuildTestsProject => TestsDirectory / "Morphir.Build.Tests" / "Morphir.Build.Tests.csproj";
 
     /// <summary>
@@ -305,7 +305,7 @@ partial class Build : FalloutBuild
     /// <summary>
     /// Publish the Native AOT executable (the native-aot profile's settings) for the specified runtime identifier (RID)
     /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
-    /// Output: artifacts/executables/{rid}/ (used by the E2E executable type "aot")
+    /// Output: artifacts/executables/{rid}/ (the black-box target "aot", MORPHIR_TEST_TARGET=aot)
     /// </summary>
     Target PublishExecutable => _ => _
         .Description("Publish the Native AOT executable for a specific platform (requires --rid parameter)")

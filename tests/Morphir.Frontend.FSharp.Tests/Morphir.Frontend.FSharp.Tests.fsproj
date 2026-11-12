@@ -41,4 +41,9 @@
     <Compile Include="ToolchainCaseTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
+  <!--
+    The CLI entry points of the development build, for the kit test CliAdapterTests.fs: built first, and their paths in
+    the assembly metadata. The test gets its executable from the target of the testing library.
+  -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
 </Project>

@@ -26,8 +26,18 @@ public sealed class CliSteps(ICliDriver cli, ScenarioRun run)
     [Then("standard output is empty")]
     public void StandardOutputIsEmpty() => run.Result.StandardOutputShouldBeEmpty();
 
+    [Then("standard output contains {string}")]
+    public void StandardOutputContains(string text) => run.Result.StandardOutputShouldContain(text);
+
     [Then("standard error contains {string}")]
     public void StandardErrorContains(string text) => run.Result.StandardErrorShouldContain(text);
+
+    [Then("standard error does not contain {string}")]
+    public void StandardErrorDoesNotContain(string text)
+    {
+        if (run.Result.StandardError.Contains(text, StringComparison.Ordinal))
+            throw new CommandAssertionException($"Standard error contains '{text}'.", run.Result);
+    }
 
     [Then("standard output is one JSON document")]
     public void StandardOutputIsOneJsonDocument() => run.Result.ShouldWriteOneJsonDocument();
@@ -35,7 +45,9 @@ public sealed class CliSteps(ICliDriver cli, ScenarioRun run)
     [Then("standard output is a version")]
     public void StandardOutputIsAVersion()
     {
-        if (!Regex.IsMatch(run.Result.StandardOutput.Trim(), @"^\d+\.\d+\.\d+\S*$"))
+        // Semantic Versioning 2.0: MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD].
+        if (!Regex.IsMatch(run.Result.StandardOutput.Trim(),
+                @"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$"))
             throw new CommandAssertionException("Standard output is not one version.", run.Result);
     }
 

@@ -33,6 +33,8 @@ public sealed class ScenarioHooks(IObjectContainer container, ScenarioContext sc
         container.RegisterInstanceAs(_drivers.Cli);
         container.RegisterInstanceAs(_drivers.Verification);
         container.RegisterInstanceAs(_drivers.Generation);
+        container.RegisterInstanceAs(_drivers.Sessions);
+        container.RegisterInstanceAs(_drivers.Validation);
     }
 
     [AfterScenario(Order = int.MaxValue)]
