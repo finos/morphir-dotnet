@@ -62,17 +62,17 @@ The starter parses F# input and emits no code until you implement its attribute 
 
 The scaffold copies runtime dependencies beside the plugin. When invoking the upstream host directly, align its FSharp.Core with the plugin as described above. Building the plugin alone does not configure a consumer's code generation.
 
-Renovate groups Myriad's host, core, SDK and plugins with Fantomas.Core and Fabulous.AST in `fsharp-codegen`, separately from general .NET updates. Before merging an upgrade, run the generator suites and both package-consumer scripts:
+Renovate groups Myriad's host, core, SDK and plugins with Fantomas.Core and Fabulous.AST in `fsharp-codegen`, separately from general .NET updates. Before merging an upgrade, run the generator suites and the package-consumer scenarios of the black-box tests:
 
 ```powershell
 dotnet run --project tests/Morphir.Myriad.Tests
 dotnet run --project tests/Morphir.Internal.CodeGeneration.Tests
 dotnet run --project tests/Morphir.Myriad.SystemTextJson.Tests
-dotnet fsi tests/Morphir.Myriad.Tests/package-tests.fsx
-dotnet fsi tests/Morphir.Myriad.SystemTextJson.Tests/package-tests.fsx
+./build.sh --target Test --skip Restore Compile --test-group integration
+./build.sh --target Test --skip Restore Compile --test-group journey
 ```
 
-The scaffold regression test builds a new plugin in a sandbox and runs it through the real host. The package scripts also check cold restores, repeat builds, failures, and consumers using both Morphir plugins.
+The scaffold regression test builds a new plugin in a sandbox and runs it through the real host. The package-consumer scenarios (`tests/Morphir.BlackBox.Tests/Integration/MyriadConsumer.feature`, `Integration/SystemTextJsonConsumer.feature` and `Journeys/MyriadCarRental.feature`) pack the plugins from the build, and check cold restores, repeat builds, failures, and consumers using both Morphir plugins.
 
 ## Supported inputs and declarations
 

@@ -55,9 +55,8 @@ The `Test` target has the parameter `--test-scope` (`build/Build.Testing.cs`, `b
 
 The scope `platform` finds the test assemblies with a search for the three marker forms in the sources below
 `tests/<project>/`. The word `PlatformSpecific` alone is not the marker, because a Morphir IR type has a case with
-that name. An assembly that has a marker but selects no test fails the run. The Myriad package-consumer checks run
-in both scopes. To run every test on every operating system for a branch, use a manual
-run with `os=full`.
+that name. An assembly that has a marker but selects no test fails the run. To run every test on every operating
+system for a branch, use a manual run with `os=full`.
 
 ```bash
 ./build.sh --target Test --test-scope platform   # only the marked tests
@@ -84,13 +83,21 @@ change the group.
 A group is a suite of the `Test` target (`build/Helpers/TestPlan.cs`): it runs as its own test process, at the same
 time as other suites, with its own row in the report and its own result directory. A group suite has one filter in
 both scopes, `[(Category=<group>)&(Category!=lane)]`. A group with no test fails its run, so a group is in the plan
-from the change that adds its first test. `--test-group <group>` runs only the suites of that group: no other suite,
-and not the Myriad package-consumer checks.
+from the change that adds its first test. `--test-group <group>` runs only the suites of that group and no other
+suite. The `integration` and `journey` groups pack projects of the repository with no build (the package driver),
+so they run as suites that use the source projects.
 
 A test that needs more than the development build has the tag `@lane` and one lane tag (`@packages`,
 `@native-aot` or `@published`). The run of a group does not select it. If another run selects it, the test is
 skipped before its first step, with the lane of the test and the lane of the run as the reason. The report row of a
 black-box suite shows the count of skipped tests by reason (lane, host, capability).
+
+The packages lane (`@lane @packages`) has the tests of the packages that the pack step makes: their layout, their
+metadata, their versions, and the install of the tools. In a pull request, each operating system runs it in the step
+"Run build tests", after "Pack packages for build testing": the `TestBuild` target runs the build tests and then the
+black-box project with the filter `[Category=packages]`, `MORPHIR_TEST_LANE=packages` and
+`MORPHIR_TEST_PACKAGES` set to the output folder of `PackAll`. The package driver reads only that folder; a run with
+no package there stops before its first test with the pack command.
 
 ## Parallel builds and tests
 

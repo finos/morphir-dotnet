@@ -71,6 +71,6 @@ Hard cases:
 | To publish a program with Native AOT in the test (a library host or a probe) | `@lane @native-aot` |
 | An executable that a release publishes or packs, also its Native AOT executable, when the test cannot run on the development build | `@lane @published` |
 | One entry point (`morphir` of `src/Morphir`, `morphir` of `src/Morphir.Managed`, `dotnet-morphir` of `src/Morphir.Tool`) | `@host-native`, `@host-managed` or `@host-tool` |
-| A driver capability | The tag of the capability: `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` |
+| A driver capability | The tag of the capability: `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-development-packages` |
 
 A test with a lane does not run in the run of its group. The lane decides where it runs. Do not give a test a lane that it does not need: a test with no lane runs in a pull request on each operating system, and also on each published target in the release and manual workflows.
