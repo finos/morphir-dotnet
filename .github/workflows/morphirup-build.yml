@@ -97,9 +97,22 @@ jobs:
                   $hostArch = if ($process -eq 'Arm64') { 'Hostarm64' } else { 'Hostx64' }
                   $targetArch = if ($env:PROOF_RID -eq 'win-arm64') { 'arm64' } else { 'x64' }
                   $link = Join-Path $installation "VC/Tools/MSVC/$version/bin/$hostArch/$targetArch/link.exe"
-                  "Default VC toolset: $version; linker: $link; FileVersion: $((Get-Item -LiteralPath $link).VersionInfo.FileVersion)"
-                  $banner = @(& $link /? 2>&1)
-                  if ($LASTEXITCODE) { throw 'Linker banner inventory failed.' }
+                  $fileVersion = (Get-Item -LiteralPath $link).VersionInfo.FileVersion
+                  if ([string]::IsNullOrWhiteSpace($fileVersion)) { throw 'The resolved linker has no FileVersion.' }
+                  "Default VC toolset: $version; linker: $link; FileVersion: $fileVersion"
+                  $previousNativePreference = $PSNativeCommandUseErrorActionPreference
+                  try {
+                      $PSNativeCommandUseErrorActionPreference = $false
+                      $banner = @(& $link /? 2>&1)
+                      $helpExit = $LASTEXITCODE
+                  } catch {
+                      $banner = @("Linker help unavailable: $($_.Exception.Message)")
+                      $helpExit = $LASTEXITCODE
+                  } finally {
+                      $PSNativeCommandUseErrorActionPreference = $previousNativePreference
+                      $global:LASTEXITCODE = 0
+                  }
+                  "Linker help exit code, diagnostic only: $helpExit"
                   $banner | Select-Object -First 3
 
             # Diagnose Linux resolver failures without changing the publish network or treating DNS as qualification.

@@ -431,6 +431,11 @@ module private ChildOwnership =
         return firstError
     }
 
+    // Keep the constrained generic operation outside resumable task code.
+    let keep (resources: ResizeArray<IDisposable>) (value: #IDisposable) =
+        resources.Add(value :> IDisposable)
+        value
+
     let disposeAll (resources: ResizeArray<IDisposable>) =
         let errors = ResizeArray<exn>()
 
@@ -591,19 +596,15 @@ type internal WindowsChild
 
             let resources = ResizeArray<IDisposable>()
 
-            let keep (value: #IDisposable) =
-                resources.Add(value :> IDisposable)
-                value
-
             let mutable ownedJob: OwnedJob option = None
 
             try
                 ct.ThrowIfCancellationRequested()
-                let job = keep (OwnedJob.Create())
+                let job = ChildOwnership.keep resources (OwnedJob.Create())
                 ownedJob <- Some job
 
                 let output =
-                    keep (
+                    ChildOwnership.keep resources (
                         new System.IO.Pipes.AnonymousPipeServerStream(
                             System.IO.Pipes.PipeDirection.In,
                             System.IO.HandleInheritability.Inheritable
@@ -611,7 +612,7 @@ type internal WindowsChild
                     )
 
                 let errors =
-                    keep (
+                    ChildOwnership.keep resources (
                         new System.IO.Pipes.AnonymousPipeServerStream(
                             System.IO.Pipes.PipeDirection.In,
                             System.IO.HandleInheritability.Inheritable
@@ -621,7 +622,7 @@ type internal WindowsChild
                 let input =
                     if start.RedirectStandardInput then
                         Some(
-                            keep (
+                            ChildOwnership.keep resources (
                                 new System.IO.Pipes.AnonymousPipeServerStream(
                                     System.IO.Pipes.PipeDirection.Out,
                                     System.IO.HandleInheritability.Inheritable
@@ -641,7 +642,7 @@ type internal WindowsChild
                             source = 0n
                             || source = -1n
                         then
-                            let file = keep (System.IO.File.OpenRead("NUL"))
+                            let file = ChildOwnership.keep resources (System.IO.File.OpenRead("NUL"))
                             let mutable duplicate = 0n
 
                             if
@@ -659,7 +660,7 @@ type internal WindowsChild
                             then
                                 raise (JobNative.error "DuplicateHandle input")
 
-                            Some(keep (new JobHandle(duplicate)))
+                            Some(ChildOwnership.keep resources (new JobHandle(duplicate)))
                         else
                             let mutable duplicate = 0n
 
@@ -678,7 +679,7 @@ type internal WindowsChild
                             then
                                 raise (JobNative.error "DuplicateHandle input")
 
-                            Some(keep (new JobHandle(duplicate)))
+                            Some(ChildOwnership.keep resources (new JobHandle(duplicate)))
 
                 let inputHandle =
                     match input, inheritedInput with
@@ -784,7 +785,7 @@ type internal WindowsChild
                 then
                     raise (JobNative.error "CreateProcessW")
 
-                let root = keep (new JobHandle(result.Process))
+                let root = ChildOwnership.keep resources (new JobHandle(result.Process))
                 use thread = new JobHandle(result.Thread)
                 output.DisposeLocalCopyOfClientHandle()
                 errors.DisposeLocalCopyOfClientHandle()
