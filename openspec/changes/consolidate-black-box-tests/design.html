@@ -856,6 +856,17 @@ used the sources of two corpus cases through the kit library, which the black-bo
 (<a href="#proj-2">PROJ-2</a>), so the feature has those sources as doc strings. A tutorial test with three commands
 is a journey; the documented refusal of one compile is integration.</td>
 <td><code>slice-3-moves.md</code></td></tr>
+<tr><td>Review of the branch</td>
+<td>The <code>test-manager-reviewer</code> agent compared the old tests with their new tests and gave 13 findings.
+Twelve are corrected: a missing row of the move table; a configuration report with no list of sources, and a
+validation report with no <code>success</code>, no longer pass; a check that no project source is outside the boundary
+needs one project source; the stub of an unknown tool keeps the name of its assembly, so the check that it did not run
+can fail (the old harness had the same defect); three driver defects; the facts of the machine come through the
+drivers; and the tags and host checks of the routing feature. The thirteenth asked for a change of
+<code>docs/contributing/ci-os-matrix.md</code>: it names no capability tag, so it does not change. The reviewer also
+found steps of the moved features that say one thing in the words of their feature; the README of the project says
+why they stay.</td>
+<td><code>slice-3-moves.md</code></td></tr>
 <tr><td>Gherkin, the host of a row</td>
 <td>A tag on an <code>Examples</code> block of a scenario outline is a category of its rows, so one outline runs on
 the native host and on the tool host. Each such outline checks that the command ran on the host of its row.</td>
