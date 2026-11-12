@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0.403
+FROM mcr.microsoft.com/dotnet/sdk:10.0.404
 
 # Copy endpoint specific user settings into container to specify
 # .NET Core should be used as the runtime.
