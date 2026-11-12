@@ -63,8 +63,8 @@ public sealed class WasmRuntime
 /// is there. .NET on Linux and macOS reports every <c>dlopen</c> failure as <see cref="DllNotFoundException"/>, and on
 /// Windows a library whose own dependency is missing; the file then decides between the two.</item>
 /// </list>
-/// These are the three reasons of the requirement "Unavailable runtime fails by name". No switch turns the runtime off,
-/// so there is no fourth.
+/// Windows x64 is refused before any load because its trap handling is not compatible with the retained process
+/// protections (issue #609). No configuration or environment switch enables that platform.
 /// </summary>
 public static class WasmRuntimeProbe
 {
@@ -109,6 +109,8 @@ public static class WasmRuntimeProbe
         ArgumentNullException.ThrowIfNull(platform);
         ArgumentNullException.ThrowIfNull(startEngine);
         ArgumentNullException.ThrowIfNull(engineLibraryIsPresent);
+        if (platform == "win-x64")
+            return WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.WinX64TrapUnsupported);
         if (!EnginePlatforms.Contains(platform, StringComparer.Ordinal))
             return WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.PlatformUnsupported);
 

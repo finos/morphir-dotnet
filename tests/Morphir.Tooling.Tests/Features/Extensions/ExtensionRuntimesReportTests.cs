@@ -23,6 +23,7 @@ public sealed class ExtensionRuntimesReportTests
         ("platform_unsupported", "linux-musl-x64"),
         ("engine_missing", "win-arm64"),
         ("engine_load_failed", "linux-x64"),
+        ("win_x64_trap_unsupported", "win-x64"),
     ];
 
     private static WasmRuntimeUnavailableReason Reason(string wire) => wire switch
@@ -30,6 +31,7 @@ public sealed class ExtensionRuntimesReportTests
         "platform_unsupported" => WasmRuntimeUnavailableReason.PlatformUnsupported,
         "engine_missing" => WasmRuntimeUnavailableReason.EngineMissing,
         "engine_load_failed" => WasmRuntimeUnavailableReason.EngineLoadFailed,
+        "win_x64_trap_unsupported" => WasmRuntimeUnavailableReason.WinX64TrapUnsupported,
         _ => throw new ArgumentOutOfRangeException(nameof(wire), wire, null),
     };
 
@@ -170,7 +172,9 @@ public sealed class ExtensionRuntimesReportTests
         document.RootElement.GetProperty("host").GetString().Should().Be("morphir");
         document.RootElement.GetProperty("platform").GetString().Should().Be(WasmRuntime.Process.Platform);
         var wasm = document.RootElement.GetProperty("runtimes")[0];
-        wasm.GetProperty("available").GetBoolean().Should().BeTrue(result.StandardOutput);
+        wasm.GetProperty("available").GetBoolean().Should().Be(WasmRuntime.Process.Platform != "win-x64", result.StandardOutput);
+        if (WasmRuntime.Process.Platform == "win-x64")
+            wasm.GetProperty("reason").GetString().Should().Be("win_x64_trap_unsupported");
         wasm.GetProperty("engine").GetProperty("version").GetString().Should().Be(WasmRuntimeIdentity.EngineVersion);
     }
 
@@ -181,6 +185,8 @@ public sealed class ExtensionRuntimesReportTests
             .ExecuteCommandAsync("extension runtimes", timeout: TimeSpan.FromSeconds(60));
 
         result.ExitCode.Should().Be(0, result.CombinedOutput);
-        result.StandardOutput.Should().Contain("wasm: available").And.Contain($"Engine: {WasmRuntimeIdentity.Engine}");
+        result.StandardOutput.Should().Contain(WasmRuntime.Process.Platform == "win-x64"
+            ? "wasm: unavailable (win_x64_trap_unsupported)" : "wasm: available");
+        result.StandardOutput.Should().Contain($"Engine: {WasmRuntimeIdentity.Engine}");
     }
 }

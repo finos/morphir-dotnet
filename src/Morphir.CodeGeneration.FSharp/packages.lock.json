@@ -35,9 +35,76 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.14, )",
-        "resolved": "10.0.14",
-        "contentHash": "YlTamXppEQls6DYWt7RdUuwWDb0lyw/vXCaGeQpLCpsLmfwGuCkOz/vIGgMTV7ECsJcavkCOkxZXv9s8rdAHkQ=="
+        "requested": "[10.0.15, )",
+        "resolved": "10.0.15",
+        "contentHash": "u0WnRcZgBZYHlVFpbe/3Adpmb9rmNJ8/fmEwqc/xjB7fFppq+gfaLJd3Sdaw+J02zV0eP/T9dneQ3Dv5jWw6bw=="
+      },
+      "Fantomas.FCS": {
+        "type": "Transitive",
+        "resolved": "7.0.5",
+        "contentHash": "WxifhpLkDuv/WronO8UcEe8gsSTuuMqrUjnke/kUd11vTJ9T8IYouGidT+sSDaf1dAMaf1bb6maz/h+/dSu6wg==",
+        "dependencies": {
+          "FSharp.Core": "8.0.100"
+        }
+      },
+      "morphir.ir.pipeline": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.ir.pipeline.plugins": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.models": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )"
+        }
+      }
+    },
+    "net11.0": {
+      "Fabulous.AST": {
+        "type": "Direct",
+        "requested": "[1.10.0, )",
+        "resolved": "1.10.0",
+        "contentHash": "7Hr980JrpWQGLs/kiM+d0cCtaCtl8Za8SHMYbM9Xuc2+ICysHEwz3fAOidNMv8oAiA87gpGEfZArsaVUtK64Uw==",
+        "dependencies": {
+          "Fantomas.Core": "[7.0.1]"
+        }
+      },
+      "Fantomas.Core": {
+        "type": "Direct",
+        "requested": "[7.0.5, )",
+        "resolved": "7.0.5",
+        "contentHash": "wGbCsAqKhyhuDwMsOXh4p9GJvw7OzJX/OwoPAVw913Fae2rbczREl8L8U5hZIadoJmhuyIu0Dp/8UJToykZs6Q==",
+        "dependencies": {
+          "FSharp.Core": "8.0.100",
+          "Fantomas.FCS": "7.0.5"
+        }
+      },
+      "FSharp.Core": {
+        "type": "Direct",
+        "requested": "[10.1.403, )",
+        "resolved": "10.1.403",
+        "contentHash": "SpKxPt90eSC3pfSKGLnSyucXXKVWokv1KVMTy2uQG36seOgJg14qUxjlcaWjZNWgxJtG5MeH9WpI6PQg4OR4tA=="
+      },
+      "Ionide.KeepAChangelog.Tasks": {
+        "type": "Direct",
+        "requested": "[0.4.0, )",
+        "resolved": "0.4.0",
+        "contentHash": "uMqvbhnXYIbsn8zsFaBpNskl7A5gKP0EFRyEzGicmJiOSn/au5FWhi8P1/tBFbbyfrPap9d+N3scboVk/VQ6ZQ=="
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[11.0.0, )",
+        "resolved": "11.0.0",
+        "contentHash": "gK2aq4XvChj5kvozpPHrkfKkr7zc5Z4xoTrJb4GPZzDEPMlCk0TX632bwY3LsWcX2UVcVRQBBGzsBGC2lq6YhA=="
       },
       "Fantomas.FCS": {
         "type": "Transitive",

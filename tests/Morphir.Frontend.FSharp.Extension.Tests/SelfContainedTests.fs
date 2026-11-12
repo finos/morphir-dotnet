@@ -181,10 +181,10 @@ let rec private copy (source: string) (target: string) =
     Directory.CreateDirectory target |> ignore
 
     for file in Directory.GetFiles source do
-        File.Copy(file, Path.Combine(target, Path.GetFileName file |> nonNull))
+        File.Copy(file, Path.Combine(target, Path.GetFileName file))
 
     for directory in Directory.GetDirectories source do
-        copy directory (Path.Combine(target, Path.GetFileName directory |> nonNull))
+        copy directory (Path.Combine(target, Path.GetFileName directory))
 
 /// The directories of every dotnet that this machine could resolve: the runtime of this test host, DOTNET_ROOT
 /// variables, every PATH entry with a dotnet executable, and the default install locations.

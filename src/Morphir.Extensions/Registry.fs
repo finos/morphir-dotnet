@@ -158,7 +158,7 @@ type HostAvailability =
     /// <summary>The command names of the hosts.</summary>
     override this.ToString() = String.Join(", ", this.WireValues)
 
-/// <summary>Why the WASM runtime of a host is unavailable: the three reasons of the runtime report. Nothing turns the runtime off, so no reason says it is.</summary>
+/// <summary>Why the WASM runtime of a host is unavailable.</summary>
 [<RequireQualifiedAccess>]
 type WasmRuntimeUnavailableReason =
     /// <summary>The engine has no build for this platform.</summary>
@@ -167,6 +167,8 @@ type WasmRuntimeUnavailableReason =
     | EngineMissing
     /// <summary>The engine library is present but did not load.</summary>
     | EngineLoadFailed
+    /// <summary>Windows x64 trap handling is not compatible with the retained process protections.</summary>
+    | WinX64TrapUnsupported
 
     /// <summary>The text that the runtime report writes.</summary>
     member this.WireValue =
@@ -174,6 +176,7 @@ type WasmRuntimeUnavailableReason =
         | PlatformUnsupported -> "platform_unsupported"
         | EngineMissing -> "engine_missing"
         | EngineLoadFailed -> "engine_load_failed"
+        | WinX64TrapUnsupported -> "win_x64_trap_unsupported"
 
     /// <summary>What the reason means, as a clause the runtime report and its diagnostics write after the wire value.</summary>
     member this.Description =
@@ -181,6 +184,7 @@ type WasmRuntimeUnavailableReason =
         | PlatformUnsupported -> "the engine has no build for this platform"
         | EngineMissing -> "the engine's native library is not in this installation"
         | EngineLoadFailed -> "the engine's native library is present but did not load"
+        | WinX64TrapUnsupported -> "Windows x64 trap handling is unavailable with the required process protections (issue #609)"
 
     /// <summary>The common registry reason; the runtime report keeps the separate wire code.</summary>
     member internal this.CommonReason =

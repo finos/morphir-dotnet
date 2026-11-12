@@ -126,7 +126,7 @@ run can hide:
   `/usr/share/dotnet`, `/usr/lib/dotnet`), which `actions/setup-dotnet` installs into. When
   `MORPHIR_E2E_RUNTIME_CONTAINER` names an image, the hidden-runtime run executes in that container instead: no
   network, the installation mounted read-only and the sandbox writable at their own paths, and only the sandbox,
-  Morphir and host-trace variables passed in. The manual workflows set it to `mcr.microsoft.com/dotnet/runtime-deps:10.0`,
+  Morphir and host-trace variables passed in. The manual workflows set it to `mcr.microsoft.com/dotnet/runtime-deps:11.0`,
   which has the native libraries .NET needs and no .NET. Without the variable, the scenario is skipped with the
   reason. The container path has not been run yet: the machine where this was written is Windows.
 - **macOS**: nothing can hide a runtime at `/usr/local/share/dotnet`; there the scenario is skipped with the reason.

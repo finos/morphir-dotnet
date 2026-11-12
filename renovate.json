@@ -115,16 +115,16 @@
       "groupName": "rust-major"
     },
     {
-      "description": "Update global.json and mise.toml SDK pins together on .NET 10 LTS. Review the next LTS baseline explicitly instead of taking an STS major upgrade.",
+      "description": "Update global.json and mise.toml SDK pins together on the .NET 11 SDK. Libraries also target .NET 10 LTS through MorphirLibraryTargetFrameworks in Directory.Build.props. Review the next SDK major explicitly.",
       "matchDatasources": [
         "dotnet-version"
       ],
       "groupName": "dotnet-sdk",
       "groupSingleUpdates": true,
-      "allowedVersions": "/^10\\./"
+      "allowedVersions": "/^11\\./"
     },
     {
-      "description": "Keep the development-container SDK on the same .NET 10 LTS baseline and in the same update PR as global.json and mise.toml.",
+      "description": "Keep the development-container SDK on the same .NET 11 SDK baseline and in the same update PR as global.json and mise.toml.",
       "matchDatasources": [
         "docker"
       ],
@@ -132,7 +132,28 @@
         "mcr.microsoft.com/dotnet/sdk"
       ],
       "groupName": "dotnet-sdk",
+      "allowedVersions": "/^11\\./"
+    },
+    {
+      "description": "The development container copies the .NET 10 shared runtime, so the tests can run the net10.0 consumers of the library packages. Keep this image on .NET 10.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "mcr.microsoft.com/dotnet/runtime"
+      ],
       "allowedVersions": "/^10\\./"
+    },
+    {
+      "description": "The MSBuild tasks target net10.0 and load into the MSBuild of the .NET 10 SDK. Microsoft.Build.* 18.1 and later ship only net11.0 and net472 assets. Keep the 18.0 line until the tasks move to a newer hosted target framework.",
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchPackageNames": [
+        "Microsoft.Build.Framework",
+        "Microsoft.Build.Utilities.Core"
+      ],
+      "allowedVersions": "/^18\\.0\\./"
     },
     {
       "description": "Shouldly.Json minor releases can require major JSON library upgrades. Update the assertion helper and JSON libraries together, and review schema validation compatibility before merging.",

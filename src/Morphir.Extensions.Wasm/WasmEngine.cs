@@ -25,19 +25,17 @@ public sealed class WasmEngine
 
     WasmEngine()
     {
+        // Refuse before touching Wasmtime. The published native library exists, but a guest trap can crash
+        // Windows x64 under the retained CET/context-validation policy. No caller may bypass the CLI probe.
+        if (OperatingSystem.IsWindows() && System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.X64)
+            throw new PlatformNotSupportedException("win_x64_trap_unsupported: WASM is unavailable on Windows x64 until issue #609 is fixed without weakening process protections.");
+
         var config = new Config()
             .WithFuelConsumption(true)
             .WithEpochInterruption(true)
             .WithWasmThreads(false)
             .WithMemory64(false)
             .WithMultiMemory(false);
-        // Experiment switch of the ci/wasm-win-x64-trap diagnosis, off by default: with the variable set to "false",
-        // the engine detects traps with explicit checks instead of exception handlers (Config.WithSignalsBasedTraps).
-        if (Environment.GetEnvironmentVariable(SignalsBasedTrapsExperimentVariable) == "false")
-        {
-            config = config.WithSignalsBasedTraps(false);
-        }
-
         Engine = new Engine(config);
         kernel = new(LoadKernel, LazyThreadSafetyMode.ExecutionAndPublication);
         // A thread of its own, not a thread-pool timer: the pool adds no thread while every processor is busy, and
@@ -54,9 +52,6 @@ public sealed class WasmEngine
             Engine.IncrementEpoch();
         }
     }
-
-    /// <summary>The environment variable of the signals-based-traps experiment (ci/wasm-win-x64-trap only).</summary>
-    internal const string SignalsBasedTrapsExperimentVariable = "MORPHIR_WASM_EXPERIMENT_SIGNALS_BASED_TRAPS";
 
     /// <summary>The engine of this process.</summary>
     public static WasmEngine Shared => SharedEngine.Value;

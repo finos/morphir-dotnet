@@ -17,6 +17,26 @@
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
+    <!--
+      Target frameworks. Projects use these properties, not literal TFMs. The Fallout build reads them from this file.
+      - MorphirCurrentTargetFramework: applications, .NET tools, tests and internal projects run on the current .NET.
+      - MorphirLibraryTargetFrameworks: packable libraries also ship for .NET 10 LTS. .NET 8 and .NET 9 reached the
+        end of support on 2026-11-10, so .NET 10 is the oldest supported floor. A library that targets netstandard2.0
+        keeps that target.
+      - MorphirHostedTargetFramework: MSBuild tasks and Myriad plugins load into a host process (MSBuild or Myriad).
+        They target the oldest supported SDK, so a consumer that builds with the .NET 10 SDK can load them.
+    -->
+    <PropertyGroup>
+        <MorphirCurrentTargetFramework>net11.0</MorphirCurrentTargetFramework>
+        <MorphirLibraryTargetFrameworks>net11.0;net10.0</MorphirLibraryTargetFrameworks>
+        <MorphirHostedTargetFramework>net10.0</MorphirHostedTargetFramework>
+    </PropertyGroup>
+
+    <!-- All C# projects use C# 15, also for their net10.0 and netstandard2.0 targets. -->
+    <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+        <LangVersion>15</LangVersion>
+    </PropertyGroup>
+
     <!-- Include LICENSE and README files in all NuGet packages -->
     <ItemGroup>
         <None Include="$(MSBuildThisFileDirectory)LICENSE.md" Pack="true" PackagePath="\" />

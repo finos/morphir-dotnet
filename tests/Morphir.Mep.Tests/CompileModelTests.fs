@@ -93,10 +93,12 @@ let private documentedContext (request: CompileModelRequest) =
 
     let context = JsonObject()
     context["languageId"] <- JsonValue.Create request.LanguageId
-    context["sourceRoot"] <-
+    let sourceRoot: JsonNode | null =
         match request.Sources.Root with
         | Some root -> JsonValue.Create root
         | None -> null
+
+    context["sourceRoot"] <- sourceRoot
 
     let documents = JsonArray()
 

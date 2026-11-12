@@ -679,6 +679,21 @@ let tests =
             use! ownerLifetime = Task.FromResult(asyncCleanup owner)
             Expect.isTrue owner.CanRead "disposal released the original native owner lease"
         }
+        test "a file opened through a directory descriptor is synchronous, so a rewind re-reads its bytes" {
+            // The descriptor is opened with O_NONBLOCK, so that opening a planted FIFO cannot block. From .NET 11,
+            // SafeFileHandle.IsAsync reads O_NONBLOCK from the descriptor, and an async handle ignores the file
+            // offset: after a rewind, reads continue at the end of the written bytes and return nothing.
+            use sandbox = TestSandbox.Create()
+            use directory = SafeDirectory.Open(home sandbox, false)
+            use file = directory.File("sync-" + Guid.NewGuid().ToString("N"), true, false)
+            Expect.isFalse file.SafeFileHandle.IsAsync "a regular file needs no non-blocking I/O"
+            file.Write(bytes, 0, bytes.Length)
+            file.Flush true
+            file.Position <- 0L
+            let read = Array.zeroCreate<byte> (bytes.Length + 1)
+            Expect.equal (file.Read(read, 0, read.Length)) bytes.Length "the rewind reads from offset 0"
+            Expect.sequenceEqual read[0 .. bytes.Length - 1] bytes "the written bytes"
+        }
         testTask "cancelled creation waiting for mutation lease leaves no stage and allows retry" {
             use sandbox = TestSandbox.Create()
             let rootPath = home sandbox

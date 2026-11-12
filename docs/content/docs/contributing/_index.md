@@ -19,7 +19,7 @@ Thank you for your interest in contributing to Morphir .NET! This section provid
 
 ### Prerequisites
 
-- .NET SDK 10.0 or higher
+- .NET SDK 11.0 or higher (the version in `global.json`)
 - Git
 
 ### Build & Test

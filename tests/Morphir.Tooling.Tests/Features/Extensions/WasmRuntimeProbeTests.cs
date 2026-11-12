@@ -31,6 +31,18 @@ public sealed class WasmRuntimeProbeTests
         WasmRuntimeProbe.Probe(Supported, () => { }, Absent).Should().Be(WasmRuntimeAvailability.Available);
 
     [Test]
+    public void WindowsX64RefusesBeforeLoadingTheEngineOrInspectingItsLibrary()
+    {
+        var availability = WasmRuntimeProbe.Probe("win-x64",
+            () => throw new InvalidOperationException("must not load an unsafe engine"),
+            () => throw new InvalidOperationException("must not inspect the library"));
+
+        availability.CanRunModules.Should().BeFalse();
+        availability.Match(() => "available", reason => reason.WireValue)
+            .Should().Be("win_x64_trap_unsupported");
+    }
+
+    [Test]
     [Arguments("linux-musl-x64")]
     [Arguments("linux-musl-arm64")]
     [Arguments("freebsd-x64")]
@@ -79,6 +91,8 @@ public sealed class WasmRuntimeProbeTests
     {
         var platform = WasmRuntimeProbe.CurrentPlatform;
         var system = platform[..platform.LastIndexOf('-')];
+        if (platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: the engine is refused before loading; #609.");
         var other = WasmRuntimeProbe.EnginePlatforms.FirstOrDefault(candidate =>
             candidate != platform && candidate[..candidate.LastIndexOf('-')] == system);
         if (other is null || WasmRuntimeProbe.EngineLibraryFileName(other) is not { } name)
@@ -159,7 +173,9 @@ public sealed class WasmRuntimeProbeTests
     public void ThisProcessIsOnAPlatformWithAnEngineAndItsEngineIsAvailable()
     {
         WasmRuntimeProbe.EnginePlatforms.Should().Contain(WasmRuntime.Process.Platform);
-        WasmRuntime.Process.Availability.Should().Be(WasmRuntimeAvailability.Available);
+        WasmRuntime.Process.Availability.Should().Be(WasmRuntime.Process.Platform == "win-x64"
+            ? Unavailable(WasmRuntimeUnavailableReason.WinX64TrapUnsupported)
+            : WasmRuntimeAvailability.Available);
     }
 
     // --- First need, once ---------------------------------------------------------------------------------------

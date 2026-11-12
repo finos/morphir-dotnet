@@ -246,7 +246,10 @@ module internal CompilerEdge =
             let framework =
                 layout.Trusted
                 |> List.filter (fun path ->
-                    match Path.GetDirectoryName path, Path.GetFileName path with
+                    // net10.0 declares the file name nullable and net11.0 does not; the annotation keeps one check.
+                    let name: string | null = Path.GetFileName path
+
+                    match Path.GetDirectoryName path, name with
                     | null, _
                     | _, null -> false
                     | directory, name ->

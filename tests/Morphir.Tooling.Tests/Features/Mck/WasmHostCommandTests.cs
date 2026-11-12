@@ -225,16 +225,20 @@ public sealed class WasmHostCommandTests
     [Test]
     [Arguments(CliHost.Morphir)]
     [Arguments(CliHost.DotnetTool)]
-    public async Task BothHostsHaveTheExperimentalCommands(CliHost host)
+    public async Task BothHostsForwardExperimentalCommandsToTheSeparateRunner(CliHost host)
     {
+        await using var sandbox = TestSandbox.Create("morphir-mck-missing-");
         var helper = new CliTestHelper(null, host);
-        var help = await helper.ExecuteCommandAsync("mck wasm-host run --help", timeout: TimeSpan.FromMinutes(5));
-        help.ExitCode.Should().Be(0, help.CombinedOutput);
-        // Help goes to stderr in this CLI, as for every command; stdout stays free for results.
-
-        var usage = await helper.ExecuteCommandAsync("mck wasm-host report-check", timeout: TimeSpan.FromMinutes(5));
-        usage.ExitCode.Should().Be(2, usage.CombinedOutput);
-        using var document = JsonDocument.Parse(usage.StandardOutput);
-        document.RootElement.GetProperty("command").GetString().Should().Be("mck wasm-host report-check");
+        var environment = new Dictionary<string, string?>
+        {
+            ["MORPHIR_MCK"] = sandbox.PathOf("missing-morphir-mck"),
+        };
+        foreach (var command in new[] { "mck wasm-host run --help", "mck wasm-host report-check" })
+        {
+            var result = await helper.ExecuteCommandAsync(command, timeout: TimeSpan.FromMinutes(2), environment: environment);
+            result.ExitCode.Should().Be(127, result.CombinedOutput);
+            result.StandardOutput.Should().BeEmpty();
+            result.StandardError.Should().Contain("morphir-mck").And.Contain("MORPHIR_MCK");
+        }
     }
 }

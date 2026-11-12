@@ -50,12 +50,12 @@ public class ExecutableLocator
     private static string AppHost(string name) => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? name + ".exe" : name;
 
     /// <summary>
-    /// The app host of the built dotnet tool, <c>src/Morphir.Tool/bin/&lt;configuration&gt;/net10.0/dotnet-morphir</c>.
+    /// The app host of the built dotnet tool, <c>src/Morphir.Tool/bin/&lt;configuration&gt;/net11.0/dotnet-morphir</c>.
     /// It runs <c>dotnet-morphir.dll</c> on the installed .NET runtime, as the packed tool does.
     /// </summary>
     public string? GetToolPath()
     {
-        var path = Path.Combine(_repositoryRoot, "src", "Morphir.Tool", "bin", Configuration, "net10.0", AppHost("dotnet-morphir"));
+        var path = Path.Combine(_repositoryRoot, "src", "Morphir.Tool", "bin", Configuration, "net11.0", AppHost("dotnet-morphir"));
         return File.Exists(path) ? path : null;
     }
 
@@ -67,7 +67,7 @@ public class ExecutableLocator
         foreach (var type in new[] { "aot", "trimmed", "untrimmed" })
             if (GetExecutablePath(type) is { } path && !path.Contains(Path.Combine("src", "Morphir.Tool"), StringComparison.Ordinal))
                 return path;
-        var appHost = Path.Combine(_repositoryRoot, "src", "Morphir", "bin", Configuration, "net10.0", AppHost("morphir"));
+        var appHost = Path.Combine(_repositoryRoot, "src", "Morphir", "bin", Configuration, "net11.0", AppHost("morphir"));
         return File.Exists(appHost) ? appHost : null;
     }
 

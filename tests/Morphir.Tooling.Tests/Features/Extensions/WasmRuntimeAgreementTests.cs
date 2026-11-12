@@ -41,6 +41,7 @@ public sealed class WasmRuntimeAgreementTests
         "platform_unsupported" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.PlatformUnsupported),
         "engine_missing" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.EngineMissing),
         "engine_load_failed" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.EngineLoadFailed),
+        "win_x64_trap_unsupported" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.WinX64TrapUnsupported),
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
     };
 
@@ -77,6 +78,8 @@ public sealed class WasmRuntimeAgreementTests
     [MethodDataSource(nameof(States))]
     public void TheListTheReportAndTheLoaderAgreeWithOneProbe(string? reason)
     {
+        if (reason is null && WasmRuntime.Process.Platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: the successful guest load is unavailable; #609.");
         using var sandbox = TestSandbox.Create();
         var module = Path.Combine(sandbox.Work, "python.wasm");
         File.Copy(WorkerHarness.Corpus("extism-echo"), module);

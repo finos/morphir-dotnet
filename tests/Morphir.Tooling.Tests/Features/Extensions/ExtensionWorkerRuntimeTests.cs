@@ -35,6 +35,7 @@ public sealed class ExtensionWorkerRuntimeTests
         ("platform_unsupported", "linux-musl-x64"),
         ("engine_missing", "win-arm64"),
         ("engine_load_failed", "linux-x64"),
+        ("win_x64_trap_unsupported", "win-x64"),
     ];
 
     private static WasmRuntimeAvailability Unavailable(string reason) => WasmRuntimeAvailability.UnavailableBecause(reason switch
@@ -42,6 +43,7 @@ public sealed class ExtensionWorkerRuntimeTests
         "platform_unsupported" => WasmRuntimeUnavailableReason.PlatformUnsupported,
         "engine_missing" => WasmRuntimeUnavailableReason.EngineMissing,
         "engine_load_failed" => WasmRuntimeUnavailableReason.EngineLoadFailed,
+        "win_x64_trap_unsupported" => WasmRuntimeUnavailableReason.WinX64TrapUnsupported,
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
     });
 

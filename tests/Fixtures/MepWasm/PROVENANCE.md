@@ -183,3 +183,18 @@ parent is corrected, rather than changing a file here.
 | `fixtures/wasm/shared-memory.wat` | `spec/mep/mck/fixtures/wasm/shared-memory.wat` | `48a0398f64f7ee7f11da8ff811686e22fbd92826a608f5aef832145b8ffe4003` |
 | `fixtures/wasm/two-memories.wasm` | `spec/mep/mck/fixtures/wasm/two-memories.wasm` | `1675608ae18fd79913d2bfc61c5f04cd3652607b7d8d3e9655c6be5388a39126` |
 | `fixtures/wasm/two-memories.wat` | `spec/mep/mck/fixtures/wasm/two-memories.wat` | `422406cb0c58c8d2b50318ae6aa4947ca90fc70054825da8a5f408546662baf4` |
+
+## Report contract pin added separately
+
+The following four contract inputs are from finos/morphir commit
+`d5890d00f4d7839a5edfbcca100ffaaf45281508` (#1159). This does not move the runtime corpus pin.
+The README and manifest are locally authored fixture metadata, not copied upstream inputs.
+
+| File | Source at the report pin, or local metadata | SHA-256 |
+| --- | --- | --- |
+| `ReportContract/parent-d5890d00/manifest.json` | `local digest manifest` | `edb2e75c82d89d2126d05c1f5d733e24f7f21f6ecc2f2dcf96f4cc1c95455c33` |
+| `ReportContract/parent-d5890d00/README.md` | `local fixture documentation` | `56d067dfbc899eb6b9659f7d1151cee5585c7a56e563c12a8c9f8a2745752b29` |
+| `ReportContract/parent-d5890d00/wasm-execution-profiles.json` | `spec/mep/wasm-execution-profiles.json` | `fa74189809390dfcc03fd25b380a14ea1de2bf3c654ecceecf5bbcfc5a13cb99` |
+| `ReportContract/parent-d5890d00/wasm-host-report.controls.json` | `spec/mep/mck/wasm-host-report.controls.json` | `8dc3188b6ec1284c86a32304a2c1b6262fa7971f51f8ec216c84dc6b2cda5169` |
+| `ReportContract/parent-d5890d00/wasm-host-report.md` | `spec/mep/mck/wasm-host-report.md` | `ba3d417bb7c465fb857c5f7f89fc33f45fd29d6ba2f07c6ef919bb1d2d32621f` |
+| `ReportContract/parent-d5890d00/wasm-host.cases.json` | `spec/mep/mck/wasm-host.cases.json` | `b97f18174214aac8a0a4d972db38564fcbea0b780ebcf6e1120d13bb145e9e19` |

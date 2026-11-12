@@ -17,7 +17,7 @@
     <Error Condition="'$(MyriadTaskProjectDirectory)' == ''" Text="Set MyriadTaskProjectDirectory before importing MyriadHostPackaging.targets." />
     <ItemGroup>
       <None Include="$(TargetDir)*.dll;$(TargetDir)*.deps.json" Pack="true" PackagePath="tools/plugin/" />
-      <None Include="$(MyriadTaskProjectDirectory)/bin/$(Configuration)/net10.0/*.dll;$(MyriadTaskProjectDirectory)/bin/$(Configuration)/net10.0/*.deps.json" Pack="true" PackagePath="tasks/net10.0/" />
+      <None Include="$(MyriadTaskProjectDirectory)/bin/$(Configuration)/$(MorphirHostedTargetFramework)/*.dll;$(MyriadTaskProjectDirectory)/bin/$(Configuration)/$(MorphirHostedTargetFramework)/*.deps.json" Pack="true" PackagePath="tasks/net10.0/" />
       <_MorphirHostFile Include="$(_MyriadHostRoot)/**/*" Exclude="$(_MyriadHostRoot)/FSharp.Core.dll" />
       <None Include="@(_MorphirHostFile)" Pack="true" PackagePath="tools/host/%(_MorphirHostFile.RecursiveDir)" />
       <None Include="$(TargetDir)FSharp.Core.dll" Pack="true" PackagePath="tools/host/" />

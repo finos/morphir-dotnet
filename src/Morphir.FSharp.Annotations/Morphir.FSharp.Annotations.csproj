@@ -3,7 +3,6 @@
     <PropertyGroup>
         <!-- netstandard2.0 with no dependency, so any F# project can reference it with any FSharp.Core. -->
         <TargetFramework>netstandard2.0</TargetFramework>
-        <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>

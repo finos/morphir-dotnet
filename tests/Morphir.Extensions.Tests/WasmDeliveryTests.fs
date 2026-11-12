@@ -36,6 +36,7 @@ let private reasons = [
     WasmRuntimeUnavailableReason.PlatformUnsupported
     WasmRuntimeUnavailableReason.EngineMissing
     WasmRuntimeUnavailableReason.EngineLoadFailed
+    WasmRuntimeUnavailableReason.WinX64TrapUnsupported
 ]
 
 /// A development build of the managed entry point, which every built-in's deployments provide.
@@ -233,13 +234,18 @@ let tests =
             Expect.equal
                 (reasons
                  |> List.map (fun reason -> reason.WireValue))
-                [ "platform_unsupported"; "engine_missing"; "engine_load_failed" ]
+                [
+                    "platform_unsupported"
+                    "engine_missing"
+                    "engine_load_failed"
+                    "win_x64_trap_unsupported"
+                ]
                 "wire values"
 
             Expect.equal (string WasmRuntimeUnavailableReason.EngineMissing) "engine_missing" "text"
         }
 
-        test "the host can report exactly the three reasons the requirement lists" {
+        test "the host reports the load reasons and the guarded Windows x64 reason" {
             // Requirement "Unavailable runtime fails by name" (finos/morphir 938f798): platform_unsupported,
             // engine_missing or engine_load_failed. The parent dropped disabled with the switch that would give it.
             let cases =
@@ -255,7 +261,12 @@ let tests =
 
             Expect.equal
                 cases
-                (set [ "platform_unsupported"; "engine_missing"; "engine_load_failed" ])
+                (set [
+                    "platform_unsupported"
+                    "engine_missing"
+                    "engine_load_failed"
+                    "win_x64_trap_unsupported"
+                ])
                 "every case of the union is a reason the requirement lists, and every listed reason is a case"
 
             Expect.equal
@@ -396,6 +407,7 @@ let tests =
                     "the engine has no build for this platform"
                     "the engine's native library is not in this installation"
                     "the engine's native library is present but did not load"
+                    "Windows x64 trap handling is unavailable with the required process protections (issue #609)"
                 ]
                 "descriptions"
         }

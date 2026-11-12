@@ -52,6 +52,7 @@ public sealed class ExtensionListWasmTests
         WasmRuntimeUnavailableReason.PlatformUnsupported,
         WasmRuntimeUnavailableReason.EngineMissing,
         WasmRuntimeUnavailableReason.EngineLoadFailed,
+        WasmRuntimeUnavailableReason.WinX64TrapUnsupported,
     ];
 
     [Test]

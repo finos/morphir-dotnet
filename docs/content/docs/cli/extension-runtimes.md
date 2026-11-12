@@ -113,10 +113,10 @@ offering is given it as an input.
 | `platform_unsupported` | The engine has no build for this platform, for example Linux with musl (Alpine). | Use a supported platform for WASM extensions. Every other command works here. |
 | `engine_missing` | The engine's native library (`wasmtime.dll`, `libwasmtime.so` or `libwasmtime.dylib`) is not where the host looks for it. A copy, an archive or a package lost the file. | Reinstall or extract the release again, keeping every file beside the executable, including the `runtimes` folder of the dotnet tool. |
 | `engine_load_failed` | The library is there but did not load: it is for another architecture, it is damaged or of another version, or one of its own dependencies is missing. | Reinstall the release for your platform and architecture. If that does not help, report it with the output of this command. |
+| `win_x64_trap_unsupported` | WASM execution on Windows x64 is unavailable because trap handling is not compatible with the required process protections. The host refuses before loading the engine or reading a module. | Use another supported platform for WASM. Other CLI commands remain available. The protection-preserving fix is tracked in [#609](https://github.com/finos/morphir-dotnet/issues/609). |
 
-There are no other reasons. No setting or release switch turns the WASM runtime off: if an engine
-defect is found after a release, it is fixed in a patch release, and until then you avoid it by not
-configuring a WASM extension. No other command loads the engine.
+No configuration or environment setting enables WASM on Windows x64. CET, context validation,
+signal-based traps and Spectre mitigations retain their defaults. No other command loads the engine.
 
 The host decides the reason the first time something needs the engine: this report, loading a module,
 or listing a WASM extension. `--version`, `--help` and the worker's argument and build-identity checks

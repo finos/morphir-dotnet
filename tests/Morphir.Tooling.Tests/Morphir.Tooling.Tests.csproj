@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Foundatio.Mediator.Generated</InterceptorsNamespaces>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>

@@ -71,7 +71,8 @@ public class CliTestHelper
     /// long queue for the gate uses the budget. Use <paramref name="timeout"/> for a budget.
     /// </param>
     /// <param name="timeout">The time budget for the command. It starts once a process slot is held.</param>
-    public async Task<CliExecutionResult> ExecuteCommandAsync(string arguments, CancellationToken ct = default, TimeSpan? timeout = null)
+    public async Task<CliExecutionResult> ExecuteCommandAsync(string arguments, CancellationToken ct = default, TimeSpan? timeout = null,
+        IReadOnlyDictionary<string, string?>? environment = null)
     {
         // Replace <test-data> placeholder with actual path
         arguments = arguments.Replace("<test-data>", _testDataDirectory);
@@ -93,6 +94,9 @@ public class CliTestHelper
         await using var sandbox = TestSandbox.Create("morphir-cli-");
         startInfo.WorkingDirectory = sandbox.Work;
         sandbox.Apply(startInfo);
+        if (environment is not null)
+            foreach (var (name, value) in environment)
+                startInfo.Environment[name] = value;
 
         // The shared runner gates concurrency, reads both streams, and kills and awaits the tree on timeout.
         var result = await ChildProcess.RunAsync(startInfo, timeout ?? DefaultTimeout, ct, _gate);

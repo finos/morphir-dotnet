@@ -151,15 +151,15 @@ public class ReleaseProfilesTests
         var frameworkDependent = Defined(Deployment.FrameworkDependent, "win-x64", "1.2.3").Launch;
         frameworkDependent.Execution.Should().Be("managed");
         frameworkDependent.BundledRuntime.Should().BeFalse();
-        frameworkDependent.RequiredRuntime.Should().Be("Microsoft.NETCore.App 10.0");
+        frameworkDependent.RequiredRuntime.Should().Be("Microsoft.NETCore.App 11.0");
         frameworkDependent.RequiredSdk.Should().BeNull();
         frameworkDependent.InProcessFSharpFrontend.Should().BeTrue();
 
         var tool = Defined(Deployment.DotnetTool, "win-x64", "1.2.3").Launch;
         tool.Execution.Should().Be("managed");
         tool.BundledRuntime.Should().BeFalse();
-        tool.RequiredRuntime.Should().Be("Microsoft.NETCore.App 10.0");
-        tool.RequiredSdk.Should().Be(".NET SDK 10.0", "installing a .NET tool needs the SDK");
+        tool.RequiredRuntime.Should().Be("Microsoft.NETCore.App 11.0");
+        tool.RequiredSdk.Should().Be(".NET SDK 11.0", "installing a .NET tool needs the SDK");
         tool.InProcessFSharpFrontend.Should().BeTrue();
     }
 
@@ -281,7 +281,7 @@ public class ReleaseProfilesTests
         root.GetProperty("deployment").GetString().Should().Be("framework-dependent");
         root.GetProperty("platform").GetString().Should().Be("win-arm64");
         root.GetProperty("launchPath").GetString().Should().Be("morphir.exe");
-        root.GetProperty("requiredRuntime").GetString().Should().Be("Microsoft.NETCore.App 10.0");
+        root.GetProperty("requiredRuntime").GetString().Should().Be("Microsoft.NETCore.App 11.0");
         root.GetProperty("sha256").GetString().Should().Be("ab12");
         BuildLaunchInfo.FileNameFor("x.zip").Should().Be("x.zip.build-launch.json");
     }
@@ -351,11 +351,11 @@ public class ReleaseProfilesTests
 
         using var fd = JsonDocument.Parse(Json(Deployment.FrameworkDependent, "win-arm64"));
         fd.RootElement.GetProperty("layout").GetString().Should().Be("folder");
-        fd.RootElement.GetProperty("prerequisites").GetProperty("runtime").GetString().Should().Be("Microsoft.NETCore.App 10.0");
+        fd.RootElement.GetProperty("prerequisites").GetProperty("runtime").GetString().Should().Be("Microsoft.NETCore.App 11.0");
 
         using var tool = JsonDocument.Parse(Json(Deployment.DotnetTool, null));
         tool.RootElement.GetProperty("layout").GetString().Should().Be("tool-package");
-        tool.RootElement.GetProperty("prerequisites").GetProperty("installation").GetString().Should().Be(".NET SDK 10.0");
+        tool.RootElement.GetProperty("prerequisites").GetProperty("installation").GetString().Should().Be(".NET SDK 11.0");
 
         foreach (var document in new[] { aot, fd, tool })
             Regex.IsMatch(document.RootElement.GetProperty("note").GetString()!, @"\btask\b|\b\d+\.\d+\b").Should().BeFalse("a build output names no plan tasks");

@@ -18,6 +18,13 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// </summary>
 public sealed class ExtensionWorkerTests
 {
+    [TUnit.Core.Before(HookType.Test)]
+    public void RequireRuntime()
+    {
+        if (WasmRuntime.Process.Platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: guest worker execution is unavailable; #609.");
+    }
+
     private static readonly string[] Envelope = ["profile", "contractVersion", "command", "sequence", "event"];
 
     // --- Help and usage -------------------------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.Toolchain</RootNamespace>
         <Description>Readers and writers for the morphirup toolchain acquisition contracts (toolset recipe, project request, portable lock, installation receipt and manager result 0.1.0-draft.1), and the pure resolution and planning over them</Description>
         <PackageTags>$(PackageTags);morphir;fsharp;toolchain;morphirup</PackageTags>
