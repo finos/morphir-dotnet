@@ -34,6 +34,7 @@ This matrix helps you understand what's available for your agent and how to acce
 | **AOT Guru** | ✅ `@skill aot-guru` | ✅ Via docs | ✅ Via docs | ✅ Via docs | ✅ Via docs | Claude: Interactive<br>Others: Documentation |
 | **Release Manager** | ✅ `@skill release-manager` | ✅ Via docs | ✅ Via docs | ✅ Via docs | ✅ Via docs | Claude: Interactive<br>Others: Documentation |
 | **F# and C# interop** | ✅ Skill + subagent | ✅ Skill + custom agent + `applyTo` instructions | ✅ Skill + subagent + rule | ⚠️ Via docs | ⚠️ Via docs | Native `SKILL.md` in every tool; Codex, Grok Build and Muse Code also. See [skills-reference.md](./skills-reference.md#project-skills-and-agents) |
+| **Test manager** (class and place of a test) | ✅ Skill + subagent | ✅ Skill + custom agent | ✅ Skill + subagent | ⚠️ Via docs | ⚠️ Via docs | Native `SKILL.md` in every tool; Codex, Grok Build and Muse Code also. See [skills-reference.md](./skills-reference.md#project-skills-and-agents) |
 
 ### Review Capabilities
 

@@ -15,7 +15,7 @@ open System
 open System.IO
 
 /// Skills that this repository owns. Edit them only under .agents/skills/<name>/.
-let ownedSkills = [ "fsharp-csharp-interop" ]
+let ownedSkills = [ "fsharp-csharp-interop"; "test-manager" ]
 
 /// Skill folders of the agents that do not read .agents/skills.
 let mirrors = [ ".claude/skills"; ".grok/skills" ]
