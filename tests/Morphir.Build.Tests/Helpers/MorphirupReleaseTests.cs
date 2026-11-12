@@ -20,8 +20,11 @@ public class MorphirupReleaseTests
     public void TheAssetsAreNamedLikeTheMorphirAssets()
     {
         MorphirupRelease.ExecutableName("win-x64").Should().Be("morphirup-win-x64.exe");
+        MorphirupRelease.ExecutableName("win-arm64").Should().Be("morphirup-win-arm64.exe");
         MorphirupRelease.ExecutableName("linux-arm64").Should().Be("morphirup-linux-arm64");
         MorphirupRelease.ArchiveName("osx-arm64", "0.4.0-alpha.4").Should().Be("morphirup-osx-arm64-v0.4.0-alpha.4.tar.gz");
+        MorphirupRelease.ArchiveName("win-arm64", "0.4.0-alpha.4").Should().Be("morphirup-win-arm64-v0.4.0-alpha.4.tar.gz");
+        MorphirupRelease.LaunchName("win-arm64").Should().Be("morphirup.exe");
         MorphirupRelease.ChecksumFileName("0.4.0-alpha.4").Should().Be("morphirup-v0.4.0-alpha.4.sha256");
         MorphirupRelease.NoticesFileName("0.4.0-alpha.4").Should().Be("morphirup-v0.4.0-alpha.4-THIRD-PARTY-NOTICES.txt");
         MorphirupRelease.LaunchName("win-x64").Should().Be("morphirup.exe");
@@ -47,7 +50,7 @@ public class MorphirupReleaseTests
     [Category("PlatformSpecific")]
     public void ThePlatformsAreTheOnesTheReleaseWorkflowBuilds()
     {
-        MorphirupRelease.Platforms.Should().Equal("linux-x64", "linux-arm64", "win-x64", "osx-arm64");
+        MorphirupRelease.Platforms.Should().Equal("linux-x64", "linux-arm64", "win-x64", "win-arm64", "osx-arm64");
         string Workflow(string name) => File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", name));
 
         // The morphir executables (block style) and the morphirup matrices (flow style) list the same platforms and runners.
@@ -140,8 +143,18 @@ public class MorphirupReleaseTests
         workflow.Should().Contain("uses: ./.github/workflows/morphirup-build.yml", "the release builds morphirup with the pull request's definition");
         workflow.Should().Contain("pattern: morphirup-*");
         workflow.Should().Contain("./artifacts/release-assets/morphirup-*");
-        workflow.Should().Contain("--target MorphirupChecksums");
+        workflow.Should().Contain("MorphirupChecksums");
         workflow.Should().Contain("pattern: morphir-*", "the morphir executables keep their own download");
+
+        // Each platform's output is downloaded apart and flattened once, so two different files under one name fail
+        // instead of the later download silently replacing the earlier.
+        foreach (var name in new[] { "deployment.yml", "morphirup.yml" })
+        {
+            var text = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", name));
+            text.Should().Contain("--target FlattenReleaseAssets MorphirupChecksums --release-asset-sources ./artifacts/downloads/morphirup/*", name);
+            Regex.Matches(text, @"pattern: morphirup-\*\s*\n\s*merge-multiple: (\S+)").Select(match => match.Groups[1].Value)
+                .Should().Equal(new[] { "false" }, $"{name} downloads each morphirup output into a folder of its own");
+        }
 
         var build = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", "morphirup-build.yml"));
         build.Should().Contain("./artifacts/release-assets/morphirup-v*-THIRD-PARTY-NOTICES.txt",
@@ -152,6 +165,7 @@ public class MorphirupReleaseTests
     [Category("PlatformSpecific")]
     [Arguments("linux-x64")]
     [Arguments("win-x64")]
+    [Arguments("win-arm64")]
     public async Task TheArchiveHoldsTheExecutableAndItsNoticesUnderTheRidFolder(string rid)
     {
         await using var sandbox = TestSandbox.Create("morphirup-release-");

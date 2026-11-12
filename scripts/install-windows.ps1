@@ -95,13 +95,22 @@ if (-not $InstallDir) {
 
 $IncludePreview = $Preview -or ($env:MORPHIR_INCLUDE_PREVIEW -eq "true")
 
-# Detect architecture
+# Detect the machine's architecture. An x64 PowerShell under emulation on Windows ARM64 reports AMD64 in
+# PROCESSOR_ARCHITECTURE, so the operating system's architecture decides when .NET can report it.
 $Arch = $env:PROCESSOR_ARCHITECTURE
+try {
+    $OsArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    if ($OsArch -eq "X64") { $Arch = "AMD64" } elseif ($OsArch -eq "Arm64") { $Arch = "ARM64" }
+} catch {
+    # Older .NET Framework has no RuntimeInformation; keep PROCESSOR_ARCHITECTURE.
+}
 if ($Arch -eq "AMD64") {
     $RID = "win-x64"
+} elseif ($Arch -eq "ARM64") {
+    $RID = "win-arm64"
 } else {
     Write-Host "Error: Unsupported architecture: $Arch" -ForegroundColor Red
-    Write-Host "Supported architectures: AMD64"
+    Write-Host "Supported architectures: AMD64, ARM64"
     exit 1
 }
 

@@ -24,7 +24,7 @@ This plugin enables proto to install and manage Morphir CLI executables across m
 - **Platform Support**: Automatically detects and installs the correct Morphir executable for:
   - Linux (x64, arm64)
   - macOS (x64, arm64)
-  - Windows (x64)
+  - Windows (x64, arm64)
 - **Version Management**: Install and switch between different Morphir versions
 - **Automatic Updates**: Easy upgrades to new Morphir releases
 - **Integration**: Works seamlessly with proto's tool management
@@ -173,6 +173,7 @@ Where `{rid}` is one of:
 - `linux-x64`
 - `linux-arm64`
 - `win-x64`
+- `win-arm64`
 - `osx-x64`
 - `osx-arm64`
 
@@ -192,7 +193,7 @@ morphir-{rid}-v{version}.tar.gz
 The plugin currently supports:
 - Linux: x64, arm64
 - macOS: x64, arm64 (Apple Silicon)
-- Windows: x64
+- Windows: x64, arm64
 
 If you're on an unsupported platform, you can install Morphir using alternative methods documented in the main Morphir repository.
 

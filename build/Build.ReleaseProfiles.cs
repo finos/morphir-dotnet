@@ -140,6 +140,28 @@ partial class Build
             Serilog.Log.Information($"✓ {artifact.FileName}: {contents.FileCount} files, {contents.ExtractedBytes:N0} bytes extracted; see {ReleaseDir / "size-report.md"}");
         });
 
+    /// <summary>
+    /// Fail unless this machine builds <c>--rid</c> natively: its operating system and architecture, with a .NET SDK
+    /// process of that architecture (not an x64 SDK under emulation on ARM64). The release jobs run it before they build
+    /// and log what the runner is, so the job's log records the machine that built the artifacts.
+    /// </summary>
+    Target CheckBuildMachine => _ => _
+        .Description("Fail unless this machine and its .NET SDK are native for --rid")
+        .Requires(() => Rid)
+        .Executes(() =>
+        {
+            if (!TargetPlatform.TryParse(Rid, out var platform) || platform is null)
+                throw new Exception($"--rid must be one of {string.Join(", ", TargetPlatform.All.Select(candidate => candidate.Rid))}; got '{Rid}'.");
+
+            var osArchitecture = BuildMachine.ArchitectureName(RuntimeInformation.OSArchitecture);
+            var processArchitecture = BuildMachine.ArchitectureName(RuntimeInformation.ProcessArchitecture);
+            var problems = BuildMachine.Problems(platform, HostOperatingSystem(), osArchitecture, processArchitecture);
+            var machine = $"{RuntimeInformation.OSDescription}, OS architecture {osArchitecture}, .NET {RuntimeInformation.FrameworkDescription} as {RuntimeInformation.RuntimeIdentifier} ({processArchitecture})";
+            if (problems.Count > 0)
+                throw new Exception($"This machine ({machine}) is not a native build machine for {platform.Rid}:{Environment.NewLine}  {string.Join($"{Environment.NewLine}  ", problems)}");
+            Serilog.Log.Information("✓ {Rid}: native build machine: {Machine}", platform.Rid, machine);
+        });
+
     /// <summary>The artifact that <c>--deployment</c> and <c>--rid</c> name, or a build failure that says why there is none.</summary>
     ReleaseArtifact ResolveRequestedArtifact()
     {

@@ -16,7 +16,7 @@ public static class MorphirupRelease
     private const string Prefix = "morphirup-";
 
     /// <summary>The platforms that releases build, in the order of the release workflow's matrix.</summary>
-    public static ImmutableArray<string> Platforms { get; } = ["linux-x64", "linux-arm64", "win-x64", "osx-arm64"];
+    public static ImmutableArray<string> Platforms { get; } = ["linux-x64", "linux-arm64", "win-x64", "win-arm64", "osx-arm64"];
 
     /// <summary>The executable's own name on the platform: <c>morphirup</c> or <c>morphirup.exe</c>.</summary>
     public static string LaunchName(string rid) => IsWindows(rid) ? "morphirup.exe" : "morphirup";
@@ -88,10 +88,7 @@ public static class MorphirupRelease
     public static string WriteChecksums(string assets, string version)
     {
         var path = Path.Combine(assets, ChecksumFileName(version));
-        var text = new StringBuilder();
-        foreach (var name in Assets(assets))
-            text.Append(ReleaseArchive.Sha256(Path.Combine(assets, name))).Append("  ").Append(name).Append('\n');
-        File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
+        File.WriteAllText(path, ReleaseAssets.Sha256Lines(assets, Assets(assets)), new UTF8Encoding(false));
         return path;
     }
 

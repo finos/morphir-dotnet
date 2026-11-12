@@ -46,7 +46,7 @@ definition and the source come from one commit.
 | `ref` | yes | The commit to build. A full SHA. |
 | `deployment` | yes | `native-aot`, `self-contained`, `framework-dependent` or `dotnet-tool`. |
 | `rid` | for all but `dotnet-tool` | `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64` or `linux-arm64`. Empty for `dotnet-tool`. |
-| `os` | yes | The runner label. `native-aot` needs a runner of the RID's operating system. |
+| `os` | yes | The runner label: a native runner of the RID's operating system and architecture, for example `windows-11-arm` for `win-arm64`. |
 | `configuration` | no | Default `Release`. |
 
 | Output | Meaning |
@@ -66,10 +66,13 @@ The artifact holds the file, `<file>.build-launch.json`, `<file>.build-contents.
 ### What the workflow checks
 
 1. The inputs: one of the four offerings, and a RID for every offering except `dotnet-tool`.
-2. `./build.sh --target PackRelease --deployment <deployment> [--rid <rid>]` builds and packs the offering. It fails
+2. For an offering with a RID, `./build.sh --target CheckBuildMachine --rid <rid>` fails unless the runner's operating
+   system and architecture are the RID's and the .NET SDK runs natively there, not as x64 under emulation on ARM64. It
+   logs the machine, so the job's log records what built the file. No offering is cross-built for another architecture.
+3. `./build.sh --target PackRelease --deployment <deployment> [--rid <rid>]` builds and packs the offering. It fails
    when the publish folder contradicts the launch metadata, as described in the README.
-3. The file's SHA-256 matches its launch metadata.
-4. The produced executable starts. The archive is extracted into a folder whose path has a space, and its launch path
+4. The file's SHA-256 matches its launch metadata.
+5. The produced executable starts. The archive is extracted into a folder whose path has a space, and its launch path
    (`launchPath` in the launch metadata) runs with `--version`. For `dotnet-tool`,
    `.github/scripts/install-tool-package.ps1` installs the package into a new tool path, and the installed
    `dotnet-morphir` runs. The install reads only a new `nuget.config` that lists a feed holding nothing but the built
@@ -134,8 +137,16 @@ assets of published releases stay as they are.
 
 So the parent builds the `native-aot` offering with `cli-offering.yml` and publishes that executable under the legacy
 names too; it does not run `PublishSingleFile`. The gated `build-executables` job of `deployment.yml` still runs
-`PublishSingleFile`. That is the earlier release path kept unchanged as the rollback, and it is not the decided product
+`PublishSingleFile`. That is the earlier release path kept as the rollback, and it is not the decided product
 build.
+
+`win-arm64` is a released platform (maintainer decision, 12 November 2026). The rollback `build-executables` and
+`build-morphirup` matrices build it on the hosted `windows-11-arm` runner, so a rollback release attaches
+`morphir-win-arm64.exe`, `morphir-win-arm64-v<version>.tar.gz`, `morphirup-win-arm64.exe` and
+`morphirup-win-arm64-v<version>.tar.gz`, and the morphirup checksum file lists the morphirup ones. The pull request
+workflow `morphirup.yml` builds and checks `morphirup` there too. The parent's official release calls `cli-offering.yml`
+with `rid: win-arm64` and `os: windows-11-arm` for each platform offering, and builds `morphirup` for `win-arm64` with
+`PackMorphirup` and `CheckMorphirup` on that runner. Published releases keep the assets they have.
 
 ## The compatibility kit
 

@@ -471,7 +471,7 @@ public sealed class LegacyAsset
             ("TrimMode", "partial"),
             ("TreatWarningsAsErrors", "false")),
         // The RIDs of the build-executables matrix in .github/workflows/deployment.yml.
-        [TargetPlatform.WinX64, TargetPlatform.OsxArm64, TargetPlatform.LinuxX64, TargetPlatform.LinuxArm64]);
+        [TargetPlatform.WinX64, TargetPlatform.WinArm64, TargetPlatform.OsxArm64, TargetPlatform.LinuxX64, TargetPlatform.LinuxArm64]);
 
     /// <summary>The untrimmed baseline that the manual AOT workflow compares with. Never released.</summary>
     public static readonly LegacyAsset UntrimmedSingleFile = new(

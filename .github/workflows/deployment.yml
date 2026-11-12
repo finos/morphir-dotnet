@@ -106,6 +106,9 @@ jobs:
                       os: ubuntu-24.04-arm
                     - rid: win-x64
                       os: windows-latest
+                    # The hosted Windows 11 ARM64 runner: win-arm64 is built and tested natively, not cross-built on x64.
+                    - rid: win-arm64
+                      os: windows-11-arm
                     - rid: osx-arm64
                       os: macos-latest
         runs-on: ${{ matrix.os }}
@@ -130,6 +133,11 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
+
+            # Fails unless the runner and its .NET SDK are native for the RID, and logs the machine that builds it.
+            - name: Check the build machine for ${{ matrix.rid }}
+              shell: bash
+              run: ./build.sh --target CheckBuildMachine --rid ${{ matrix.rid }}
 
             - name: Restore dependencies
               shell: bash
@@ -163,6 +171,7 @@ jobs:
                     - { rid: linux-x64, os: ubuntu-latest }
                     - { rid: linux-arm64, os: ubuntu-24.04-arm }
                     - { rid: win-x64, os: windows-latest }
+                    - { rid: win-arm64, os: windows-11-arm }
                     - { rid: osx-arm64, os: macos-latest }
         uses: ./.github/workflows/morphirup-build.yml
         with:
@@ -281,19 +290,21 @@ jobs:
                   merge-multiple: false
 
             # morphir-* does not match morphirup-* (the eighth character differs), so the two downloads stay apart.
+            # Each platform's output lands in a folder of its own; FlattenReleaseAssets copies them into the release
+            # assets once and fails on two different files under one name, instead of a silent overwrite.
             - name: Download the morphirup release assets
               if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               uses: actions/download-artifact@v7
               with:
-                  path: ./artifacts/release-assets
+                  path: ./artifacts/downloads/morphirup
                   pattern: morphirup-*
-                  merge-multiple: true
+                  merge-multiple: false
 
             - name: List downloaded artifacts
               if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               run: |
                   echo "Downloaded artifacts:"
-                  find ./artifacts/executables ./artifacts/release-assets -type f -ls
+                  find ./artifacts/executables ./artifacts/downloads/morphirup -type f -ls
 
             - name: Prepare executables for release
               if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
@@ -305,7 +316,7 @@ jobs:
                   # For each platform publish the bare executable and a proto tarball.
                   # The proto plugin downloads morphir-{rid}-v{version}.tar.gz and strips
                   # the {rid}/ prefix (archive_prefix), so the executable must sit under it.
-                  for rid in linux-x64 linux-arm64 win-x64 osx-arm64; do
+                  for rid in linux-x64 linux-arm64 win-x64 win-arm64 osx-arm64; do
                     artifact_dir="./artifacts/executables/morphir-$rid"
                     if [ -f "$artifact_dir/morphir" ]; then
                       exe=morphir; suffix=""
@@ -344,7 +355,7 @@ jobs:
               shell: bash
               run: |
                   set -euo pipefail
-                  ./build.sh --target MorphirupChecksums --release-assets-dir ./artifacts/release-assets
+                  ./build.sh --target FlattenReleaseAssets MorphirupChecksums --release-asset-sources ./artifacts/downloads/morphirup/* --release-assets-dir ./artifacts/release-assets
                   cd ./artifacts/release-assets
                   sha256sum -c "morphirup-v${{ needs.validate-version.outputs.version }}.sha256"
 

@@ -115,6 +115,47 @@ public class CliDeliveryWorkflowTests
         upload["with"]["path"].ToString().Should().Contain(".build-launch.json").And.Contain(".sha256");
     }
 
+    // The runner of each released platform, native for its RID: Native AOT does not cross-compile between operating
+    // systems, and each job runs what it built. win-arm64 builds on the hosted Windows 11 ARM64 runner, not on x64.
+    private static readonly IReadOnlyDictionary<string, string> NativeRunners = new Dictionary<string, string>
+    {
+        ["linux-x64"] = "ubuntu-latest",
+        ["linux-arm64"] = "ubuntu-24.04-arm",
+        ["win-x64"] = "windows-latest",
+        ["win-arm64"] = "windows-11-arm",
+        ["osx-arm64"] = "macos-latest",
+    };
+
+    [Test]
+    [Arguments("deployment.yml", "build-executables")]
+    [Arguments("deployment.yml", "build-morphirup")]
+    [Arguments("morphirup.yml", "build")]
+    public void TheCliReleaseMatricesBuildEveryPlatformOnItsNativeRunner(string workflow, string job)
+    {
+        var include = (YamlSequenceNode)Job(Read(workflow), job)["strategy"]["matrix"]["include"];
+        var entries = include.Children.Cast<YamlMappingNode>()
+            .Select(entry => (Rid: entry["rid"].ToString(), Os: entry["os"].ToString())).ToList();
+
+        entries.Select(entry => entry.Rid).Should().Equal(Morphir.Build.Helpers.MorphirupRelease.Platforms);
+        entries.Should().Contain(("win-arm64", "windows-11-arm"), "Windows ARM64 is released, built on the native ARM64 runner");
+        foreach (var (rid, os) in entries)
+            os.Should().Be(NativeRunners[rid], $"{workflow} {job} builds {rid} on a native runner");
+    }
+
+    [Test]
+    [Arguments("deployment.yml", "build-executables", "--target PublishSingleFile")]
+    [Arguments("morphirup-build.yml", "build", "--target PackMorphirup")]
+    [Arguments("cli-offering.yml", "build", "--target PackRelease")]
+    public void TheCliBuildsCheckTheMachineIsNativeBeforeTheyBuild(string workflow, string job, string build)
+    {
+        var steps = Steps(Job(Read(workflow), job));
+        var check = steps.FindIndex(step => Run(step).Contains("--target CheckBuildMachine", StringComparison.Ordinal));
+        var publish = steps.FindIndex(step => Run(step).Contains(build, StringComparison.Ordinal));
+
+        check.Should().BeGreaterThanOrEqualTo(0, $"{workflow} checks that the runner and its .NET SDK are native for the RID");
+        publish.Should().BeGreaterThan(check, "the check runs before anything is built");
+    }
+
     private static YamlMappingNode Deployment() => Read("deployment.yml");
 
     private static YamlMappingNode Offering() => Read("cli-offering.yml");
