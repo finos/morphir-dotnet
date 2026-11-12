@@ -33,7 +33,7 @@ public class DevelopmentWorkflowTests
     {
         var plan = Job(Development(), "plan");
         Steps(plan).Should().Contain(step => Run(step).StartsWith("./build.sh --target CIPlan", StringComparison.Ordinal));
-        foreach (var output in new[] { "lint", "openspec", "test", "matrix", "plan" })
+        foreach (var output in new[] { "lint", "openspec", "test", "matrix", "selection", "plan" })
         {
             plan["outputs"][output].ToString().Should().Be($"${{{{ steps.plan.outputs.{output} }}}}");
         }
@@ -58,6 +58,14 @@ public class DevelopmentWorkflowTests
         CiCheck.Lint.JobName.Should().Be("lint");
         CiCheck.All.Where(check => check.Runner is not null)
             .Should().OnlyContain(check => check.JobName == $"test ({check.Runner})");
+    }
+
+    [Test]
+    public void TheOsInputIsFreeTextSoItCanListPlatforms()
+    {
+        var os = Development()["on"]["workflow_dispatch"]["inputs"]["os"];
+        os["type"].ToString().Should().Be("string");
+        os["default"].ToString().Should().Be("auto");
     }
 
     [Test]

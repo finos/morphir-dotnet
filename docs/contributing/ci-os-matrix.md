@@ -8,15 +8,30 @@ reads its outputs.
 
 ## What runs
 
+Linux always runs: lint, OpenSpec and the Linux tests. Labels add the other platforms.
+
 | Pull request | Operating systems | The `ci` check |
 | --- | --- | --- |
-| Draft | Linux | Passes with a warning that Windows and macOS did not run |
-| Draft with the `ci:full` label | Linux, Windows, macOS | Passes when all pass |
-| Ready for review | Linux, Windows, macOS | Passes when all pass |
-| Ready for review with the `ci:linux-only` label | Linux | Fails: a merge needs Windows and macOS |
+| Draft, no platform label | Linux | Passes with a warning that Windows and macOS did not run |
+| Ready for review, no platform label | Linux, Windows, macOS | Passes when all pass |
+| `ci:windows` | Linux, Windows | Passes with a warning on a draft; fails on a ready pull request |
+| `ci:macos` | Linux, macOS | Passes with a warning on a draft; fails on a ready pull request |
+| `ci:windows` and `ci:macos`, or `ci:full` | Linux, Windows, macOS | Passes when all pass |
+| `ci:linux-only` | Linux | Passes with a warning on a draft; fails on a ready pull request |
 | Release call (`workflow_call`) | Linux, Windows, macOS, all run again | Passes when all pass |
 
-When both labels are set, `ci:full` wins.
+When a pull request has a platform label, the labels give the exact set, on a draft and on a ready pull request.
+Labels combine, and the larger set wins: `ci:linux-only` with `ci:windows` runs Linux and Windows.
+
+A pull request that is ready for review needs every platform before it can merge. The `ci` check names the missing
+platform and the label that adds it.
+
+## Where the selection shows
+
+- The run page shows a "CI plan" notice, for example `Linux, Windows (label ci:windows). Runs: ...`.
+- The job summary of the `plan` job shows the selection, why it was selected, and for each check: runs, passed in an
+  earlier run (with a link to that job), or not selected (with the label that adds it).
+- The job summary of the `ci` job shows the verdict and the result of each check.
 
 ## Jobs that already passed do not run again
 
@@ -24,7 +39,7 @@ The plan job looks up the Development runs for the same head commit. A lint, Ope
 of them does not run again. Thus:
 
 - When a draft becomes ready for review, only Windows and macOS run.
-- When you add `ci:full`, only Windows and macOS run.
+- When you add `ci:macos` to a pull request that ran Linux and Windows, only macOS runs.
 - A new push changes the head commit, so every selected job runs again.
 
 The job summary of the plan job shows each check as "runs", "passed in an earlier run for this commit" or
@@ -34,10 +49,11 @@ The job summary of the plan job shows each check as "runs", "passed in an earlie
 
 - Change a `ci:*` label. The CI request workflow (`.github/workflows/ci-request.yml`) starts a Development run for
   the pull request. Other labels start nothing.
-- Run the Development workflow by hand. Set `os` to `auto`, `linux` or `full`, and `pr` to the pull request number:
+- Run the Development workflow by hand. Set `os` to `auto`, `linux`, `full`, or a list of `windows` and `macos`,
+  and `pr` to the pull request number:
 
   ```bash
-  gh workflow run development.yml --ref <branch> -f os=full -f pr=<number>
+  gh workflow run development.yml --ref <branch> -f os=windows -f pr=<number>
   ```
 
   With `pr`, the run tests the merge commit of the pull request, and `os=auto` uses its draft state and labels.

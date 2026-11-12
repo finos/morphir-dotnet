@@ -63,16 +63,17 @@ partial class Build
             Serilog.Log.Information("  .github/workflows/development.yml");
         });
 
-    [Parameter("CIPlan: the os input of a manual or label-dispatched run (auto, linux or full)")]
+    [Parameter("CIPlan: the os input of a manual or label-dispatched run (auto, linux, full, or a comma-separated list of windows and macos)")]
     readonly string CiOs = "";
 
     [Parameter("CIPlan: the pull request number of a manual or label-dispatched run")]
     readonly string CiPullRequest = "";
 
     /// <summary>
-    /// The plan job of development.yml. Selects the checks of this run from the event (pull request draft state,
-    /// the ci:full and ci:linux-only labels, the os input of a dispatched run), and skips the checks that passed
-    /// in an earlier development.yml run for the same head commit. Writes the plan to GITHUB_OUTPUT.
+    /// The plan job of development.yml. Selects the platforms of this run from the event (pull request draft state,
+    /// the ci:windows, ci:macos, ci:full and ci:linux-only labels, the os input of a dispatched run), and skips the
+    /// checks that passed in an earlier development.yml run for the same head commit. Writes the plan to
+    /// GITHUB_OUTPUT, the selection to the job summary and a notice annotation to the run page.
     /// </summary>
     Target CIPlan => _ => _
         .Description("Select the CI checks of this GitHub Actions run and write them to GITHUB_OUTPUT")
@@ -85,10 +86,12 @@ partial class Build
                 : [];
             var plan = CiPlan.Create(request, passed);
 
-            Serilog.Log.Information("CI plan: {Selection} ({Reason}). Runs: {Run}. Passed earlier for {Sha}: {Reused}",
-                plan.Selection, plan.Reason, string.Join(", ", plan.Run), headSha ?? "-", string.Join(", ", plan.Reused));
+            var notice = CiReport.PlanNotice(plan);
+            Serilog.Log.Information("CI plan for {Sha}: {Notice}", headSha ?? "-", notice);
+            // GitHub Actions reads workflow commands from stdout. The notice shows on the run page.
+            Console.WriteLine($"::notice title=CI plan::{notice}");
             AppendGitHubFile("GITHUB_OUTPUT", string.Concat(plan.Outputs().Select(output => $"{output.Key}={output.Value}\n")));
-            AppendGitHubFile("GITHUB_STEP_SUMMARY", plan.Summary());
+            AppendGitHubFile("GITHUB_STEP_SUMMARY", CiReport.PlanSummary(plan));
         });
 
     /// <summary>
@@ -102,14 +105,14 @@ partial class Build
             var needs = Environment.GetEnvironmentVariable("CI_NEEDS");
             if (string.IsNullOrWhiteSpace(needs)) throw new Exception("CI_NEEDS is not set. The ci job passes toJSON(needs).");
 
-            var verdict = CiGate.FromNeeds(needs);
-            var summary = new System.Text.StringBuilder($"### ci: {verdict.Outcome}\n\n");
-            foreach (var message in verdict.Messages) summary.Append($"- {message}\n");
-            AppendGitHubFile("GITHUB_STEP_SUMMARY", summary.ToString());
+            var evaluation = CiGate.FromNeeds(needs);
+            var verdict = evaluation.Verdict;
+            AppendGitHubFile("GITHUB_STEP_SUMMARY", CiReport.GateSummary(evaluation.Plan, verdict, evaluation.Results));
 
             // GitHub Actions reads workflow commands from stdout.
             var command = verdict.Outcome == CiOutcome.Fail ? "error" : "warning";
             foreach (var message in verdict.Messages) Console.WriteLine($"::{command} title=ci::{message}");
+            Serilog.Log.Information("ci: {Outcome}. Selection: {Selection}", verdict.Outcome, evaluation.Plan?.Selection ?? "unknown");
 
             if (verdict.Outcome == CiOutcome.Fail)
                 throw new Exception($"The ci check failed: {string.Join(" ", verdict.Messages)}");
@@ -130,7 +133,7 @@ partial class Build
             case "workflow_dispatch":
                 {
                     if (!CiPolicy.TryParseOsChoice(CiOs, out var choice))
-                        throw new Exception($"The os input '{CiOs}' is not auto, linux or full.");
+                        throw new Exception($"The os input '{CiOs}' is not auto, linux, full, or a comma-separated list of windows and macos.");
                     var sha = Environment.GetEnvironmentVariable("GITHUB_SHA");
                     if (CiPullRequest.Length == 0) return (new CiTrigger.Dispatch(choice, null), sha);
                     if (!int.TryParse(CiPullRequest, out var number) || number <= 0)
@@ -153,7 +156,7 @@ partial class Build
     }
 
     /// <summary>The checks that succeeded in other development.yml runs for the head commit.</summary>
-    IEnumerable<CiCheck> PassedChecksFor(string headSha)
+    IEnumerable<CiEvidence> PassedChecksFor(string headSha)
     {
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_TOKEN")))
         {

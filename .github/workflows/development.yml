@@ -11,9 +11,8 @@ on:
     workflow_dispatch:
         inputs:
             os:
-                description: "Operating systems: auto (pull request state and labels), linux or full"
-                type: choice
-                options: [auto, linux, full]
+                description: "Platforms besides Linux: auto (pull request state and labels), linux, full, or a list such as windows or windows,macos"
+                type: string
                 default: auto
             pr:
                 description: "Pull request number. The run tests its merge commit and uses its draft state and labels."
@@ -43,10 +42,10 @@ env:
     RELEASE_VERSION: ${{ inputs.release-version }}
 
 jobs:
-    # The Fallout target CIPlan (build/Build.CI.cs, build/Helpers/CiPlan.cs) selects the checks of this run. A draft
-    # runs Linux only; a pull request that is ready for review runs Linux, Windows and macOS. The ci:full and
-    # ci:linux-only labels and the os input change the selection. Jobs that passed in an earlier run for the same
-    # head commit do not run again.
+    # The Fallout target CIPlan (build/Build.CI.cs, build/Helpers/CiPlan.cs) selects the checks of this run. Linux
+    # always runs. A draft adds no platform; a pull request that is ready for review adds Windows and macOS. The
+    # ci:windows, ci:macos, ci:full and ci:linux-only labels and the os input change the selection. Jobs that passed
+    # in an earlier run for the same head commit do not run again. The job summaries of plan and ci show the selection.
     plan:
         runs-on: ubuntu-latest
         timeout-minutes: 10
@@ -59,6 +58,7 @@ jobs:
             openspec: ${{ steps.plan.outputs.openspec }}
             test: ${{ steps.plan.outputs.test }}
             matrix: ${{ steps.plan.outputs.matrix }}
+            selection: ${{ steps.plan.outputs.selection }}
             plan: ${{ steps.plan.outputs.plan }}
         steps:
             - uses: actions/checkout@v6.1.0
