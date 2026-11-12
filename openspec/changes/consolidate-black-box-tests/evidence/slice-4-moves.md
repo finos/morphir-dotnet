@@ -3,7 +3,9 @@
 Date: 2026-11-12. The rows are the tests that the runner discovers, from the reports of the source projects before
 the move: the TRX report of `Morphir.Myriad.Integration.Tests` and of the complete `Morphir.Build.Tests`, the test
 lists of the Expecto projects (`--filter-test-list`), and the `PASS` lines of the two `package-tests.fsx` scripts
-(a script is not a test project, so its checks are the lines that it prints). All ran on macOS arm64 in Release.
+(a script is not a test project, so its checks are the lines that it prints). All ran on macOS arm64 in Release. After the move: the complete `./build.sh --target Test` passed (37 suites, 293 s; the
+groups `integration` 66 s and `journey` 68 s), and `./build.sh --target TestBuild` after `PackAll` passed (460 build
+tests, then 19 tests of the packages lane in 2 s).
 
 ## Counts
 
@@ -21,7 +23,7 @@ lists of the Expecto projects (`--filter-test-list`), and the `PASS` lines of th
 
 | Project | Before | After |
 | --- | ---: | ---: |
-| `Morphir.Build.Tests`, passed / failed / skipped | 472 / 0 / 0 | 459 / 0 / 0 (15 moved, 2 new build tests) |
+| `Morphir.Build.Tests`, passed / failed / skipped | 472 / 0 / 0 | 460 / 0 / 0 (15 moved; 2 new build tests; `TestPlanTests` has 2 tests of the packages lane run and no test of the removed `RunsPackageConsumerScripts`) |
 | `Morphir.BlackBox.Tests`, tests with no lane (integration, journey) | 0 of this slice | 40: integration 26, journey 14 |
 | `Morphir.BlackBox.Tests`, tests of the packages lane | 0 | 19: e2e 19 |
 
@@ -202,7 +204,7 @@ Each other class that the runner discovers, with its class from the classificati
 | `Helpers.PackageValidatorTests` | 15 | build | The helper `PackageValidator`. Two cases give it a packed package as input. |
 | `Helpers.PathHelperTests` | 14 | build | The helper `PathHelper`, with the package folder as input. |
 | `Helpers.BlackBoxRulesTests`, `Helpers.TestManagerSkillTests` | 50, 11 | build | The guard tests of this change. |
-| `Helpers.TestPlanTests`, `Helpers.CiPlanTests`, `Helpers.BuildMachineTests` | 65, 49, 10 | build | The plan of the `Test` target, the CI plan, the build machine. |
+| `Helpers.TestPlanTests`, `Helpers.CiPlanTests`, `Helpers.BuildMachineTests` | 64 (65 after), 49, 10 | build | The plan of the `Test` target, the CI plan, the build machine. |
 | `Helpers.MorphirupReleaseTests`, `Helpers.ReleaseArchiveTests`, `Helpers.ReleaseAssetsTests`, `Helpers.ReleaseProfilesTests` | 13, 16, 11, 44 | build | The release helpers. |
 | `Helpers.NativeCheckTests`, `Helpers.NativeNoticeDeclarationsTests`, `Helpers.ThirdPartyNoticesTests` | 15, 4, 9 | build | The native checks and notices of the build. |
 | `Helpers.PackagedContentsTests`, `Helpers.PackagedEngineTests`, `Helpers.PublishedLayoutTests` | 10, 15, 11 | build | The helpers of the packaged and published layouts. |
