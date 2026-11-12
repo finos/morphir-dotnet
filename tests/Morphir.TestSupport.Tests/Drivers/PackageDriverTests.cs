@@ -361,6 +361,20 @@ public class PackageDriverTests
         properties.RootElement.GetProperty("Properties").GetProperty("NuGetPackageFolders").GetString().Should().Be(folder);
     }
 
+    // On Linux a command starts in a session of its own (setsid), which finds the program with the PATH of the
+    // command. The dotnet host of the test process starts each dotnet command, so a PATH with no dotnet works.
+    [Test]
+    public async Task ACommandStartsTheDotnetHostOfTheTestProcess()
+    {
+        await using var workspace = Workspace();
+        var driver = new PackageDriver(workspace, PackageSources.OfDevelopmentBuild(ThisAssembly), packed: null);
+        var noDotnet = new PackageCommandOptions { Environment = new Dictionary<string, string?> { ["PATH"] = workspace.Temp.Path } };
+
+        var result = await driver.DotnetAsync(workspace.Work, ["--version"], noDotnet);
+
+        result.ShouldExitWith(0).CommandLine.Should().StartWith(DotnetHost.Path.Contains(' ') ? "\"" + DotnetHost.Path : DotnetHost.Path);
+    }
+
     [Test]
     public async Task APackOfAProjectThatIsNotBuiltFirstIsRefused()
     {

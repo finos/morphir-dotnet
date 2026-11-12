@@ -335,7 +335,9 @@ public sealed class PackageDriver : IPackageDriver
         WorkspaceDirectory directory, IReadOnlyList<string> arguments, bool consumer, PackageCommandOptions? options, CancellationToken cancellation)
     {
         Directory.CreateDirectory(directory.Path);
-        return RunProcessAsync("dotnet", directory.Path, consumer ? arguments : [.. arguments, .. SolutionRestoreFolders], consumer, options, cancellation);
+        // The dotnet host of the test process, not the name: on Linux a command starts in a session of its own
+        // (setsid), which finds a program by name with the PATH of the command.
+        return RunProcessAsync(DotnetHost.Path, directory.Path, consumer ? arguments : [.. arguments, .. SolutionRestoreFolders], consumer, options, cancellation);
     }
 
     // On Windows the restore writes the package folder of a project in its obj/*.nuget.g.props as
@@ -410,7 +412,7 @@ public sealed class PackageDriver : IPackageDriver
         if (System.Environment.GetEnvironmentVariable("NUGET_HTTP_CACHE_PATH") is { Length: > 0 } configured) return configured;
         try
         {
-            var info = new ProcessStartInfo("dotnet") { ArgumentList = { "nuget", "locals", "http-cache", "--list" } };
+            var info = new ProcessStartInfo(DotnetHost.Path) { ArgumentList = { "nuget", "locals", "http-cache", "--list" } };
             var result = ChildProcess.RunAsync(info, TimeSpan.FromMinutes(1)).GetAwaiter().GetResult();
             const string prefix = "http-cache:";
             return result.StandardOutput.Split('\n').Select(line => line.Trim())
