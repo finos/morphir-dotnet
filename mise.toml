@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [tools]
-dotnet = "10.0.403"
+dotnet = "10.0.404"
 powershell = "7.5.3"
 "npm:@fission-ai/openspec" = "1.16.1"
 node = "24.22.2"
