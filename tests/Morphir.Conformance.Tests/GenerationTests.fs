@@ -73,7 +73,10 @@ let private scenarioTags (text: string) (caseId: string) =
 
 [<Tests>]
 let tests =
-    testList "WASM host feature generation (task 1.5)" [
+    // PlatformSpecific: these tests use the real file system, the checkout or worker processes, so the platform
+    // scope of the Test target runs them on every operating system (docs/contributing/ci-os-matrix.md).
+    testLabel "PlatformSpecific"
+    <| testList "WASM host feature generation (task 1.5)" [
         test "Generating twice gives identical bytes, with LF line endings" {
             let first = generated ()
             let second = generated ()

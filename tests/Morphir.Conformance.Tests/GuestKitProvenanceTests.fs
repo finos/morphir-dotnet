@@ -46,7 +46,10 @@ let SpecRules =
 
 [<Tests>]
 let tests =
-    testList "Generic guest kit pin (task 3.5)" [
+    // PlatformSpecific: these tests use the real file system, the checkout or worker processes, so the platform
+    // scope of the Test target runs them on every operating system (docs/contributing/ci-os-matrix.md).
+    testLabel "PlatformSpecific"
+    <| testList "Generic guest kit pin (task 3.5)" [
         test "Every recorded file keeps its recorded SHA-256" {
             let entries = rows (provenance ())
             Expect.isGreaterThan entries.Count 0 "rows"
