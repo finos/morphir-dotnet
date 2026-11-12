@@ -707,3 +707,101 @@ let conformanceSelectedOfferTests =
             Expect.isError ((CF.control session).BindSelectedOffer(receipt, CF.offer ())) "Failed attempt cannot reset binding"
             Expect.equal (CF.ids edge.Bodies) [1UL; 2UL] "No rebind message"
     ]
+
+[<Tests>]
+let operationProjectionSessionTests =
+    testSequenced <| testList "MEP conformance operation projections" [
+        testCase "unbound initialize is explicitly local and invents no operation or wire bytes" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            let result = CF.wait ((CF.control session).InitializeAsync CancellationToken.None)
+            Expect.isError result.Result "InitializeFailure remains typed"
+            Expect.isNone result.Observation.Operation "No admission"
+            Expect.isNone result.Observation.RequestId "No allocator reservation"
+            Expect.isNone result.Observation.RequestBody "No prepared body"
+            Expect.isNone result.Observation.ResponseBody "No peer answer"
+            Expect.isEmpty result.Notifications "No initialized notification"
+            Expect.isEmpty edge.Bodies "Same existing guard"
+            match result.Observation.Origin with
+            | ConformanceOperationOrigin.AnsweredLocally(ConformanceOperationFailure.LocalLifecycleRefusal _) -> ()
+            | _ -> failtest "Local refusal must remain distinct"
+
+        testCase "request shutdown and postshutdown probe expose their own correlated exchanges" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            CF.initialize session
+            let control = CF.control session
+            let ping = CF.wait (control.RequestAsync(Method.Ping, Nullable(), CancellationToken.None))
+            ping.Result |> CF.expectOk |> ignore
+            Expect.equal ping.Observation.RequestId (Some(RequestId.Number 3UL)) "Ping's actual ID"
+            Expect.equal ping.Observation.RequestBody (Some edge.Bodies[3]) "Ping's actual body"
+            Expect.isSome ping.Observation.ResponseBody "Correlated ping answer"
+            let shutdown = CF.wait (control.ShutdownAsync CancellationToken.None)
+            shutdown.Result |> CF.expectOk |> ignore
+            Expect.equal shutdown.Observation.RequestId (Some(RequestId.Number 4UL)) "Shutdown's actual ID"
+            Expect.equal shutdown.Observation.RequestBody (Some edge.Bodies[4]) "Shutdown's actual body"
+            let probe = CF.wait (control.ProbeAfterShutdownObservedAsync CancellationToken.None)
+            Expect.isError probe.Result "Actual peer refusal remains an RpcError"
+            Expect.equal probe.Observation.RequestId (Some(RequestId.Number 5UL)) "Probe's actual ID"
+            Expect.equal probe.Observation.RequestBody (Some edge.Bodies[5]) "Probe's actual canonical params"
+            Expect.isSome probe.Observation.ResponseBody "Peer error body is evidence"
+            match probe.Observation.Origin with
+            | ConformanceOperationOrigin.Submitted -> ()
+            | _ -> failtest "A correlated peer error is not a local answer"
+            let refused = CF.wait (control.RequestAsync(Method.Ping, Nullable(), CancellationToken.None))
+            Expect.isError refused.Result "Ordinary postshutdown guard remains"
+            Expect.isNone refused.Observation.RequestId "Local refusal allocates no ID"
+            Expect.equal edge.Bodies.Length 6 "No hidden second send or factory"
+
+        testCase "queued cancelled projection does not borrow an admitted operation" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            CF.initialize session
+            let control = CF.control session
+            use barrier = new CF.Barrier()
+            edge.Before <- fun method token -> if method = "morphir.ping" then barrier.Pause token :> Task else Task.CompletedTask
+            let first = control.RequestAsync(Method.Ping, Nullable(), CancellationToken.None)
+            CF.wait barrier.Entered |> ignore
+            use cancellation = new CancellationTokenSource()
+            let queued = control.RequestAsync(Method.Ping, Nullable(), cancellation.Token)
+            cancellation.Cancel()
+            let refused = CF.wait queued
+            Expect.isError refused.Result "Queued cancellation settles"
+            Expect.isNone refused.Observation.Operation "No borrowed admission"
+            Expect.isNone refused.Observation.RequestId "No borrowed ID"
+            Expect.isNone refused.Observation.RequestBody "No borrowed body"
+            Expect.isNone refused.Observation.ResponseBody "No borrowed answer"
+            match refused.Observation.Origin with
+            | ConformanceOperationOrigin.AnsweredLocally(ConformanceOperationFailure.Cancelled _) -> ()
+            | _ -> failtest "Queued cancellation retains its primary cause"
+            barrier.Release()
+            (CF.wait first).Result |> CF.expectOk |> ignore
+            Expect.equal (CF.ids edge.Bodies) [1UL; 2UL; 3UL] "Only admitted operations use the allocator"
+    ]
+
+[<Tests>]
+let fixedUnknownOperationProjectionTests =
+    testSequenced <| testList "MEP conformance operation projections" [
+        testCase "fixed unknown-method request is initialized-only and retains its peer error exchange" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            let control = CF.control session
+            let local = CF.wait (control.RequestUnknownMethodAsync CancellationToken.None)
+            Expect.isError local.Result "Created state refuses locally"
+            Expect.isNone local.Observation.Operation "No admission before initialize"
+            Expect.isNone local.Observation.RequestId "No allocator use before initialize"
+            Expect.isEmpty edge.Bodies "No raw unknown send"
+            CF.initialize session
+            let result = CF.wait (control.RequestUnknownMethodAsync CancellationToken.None)
+            Expect.isError result.Result "Unknown method is an actual peer refusal"
+            Expect.equal result.Observation.RequestId (Some(RequestId.Number 3UL)) "Actual fixed request ID"
+            Expect.equal (CF.methods [result.Observation.RequestBody |> Option.get]) ["morphir.mck.unknown"] "The only admitted unknown request name"
+            Expect.isSome result.Observation.ResponseBody "Correlated peer error retained"
+            match result.Observation.Origin with
+            | ConformanceOperationOrigin.Submitted -> ()
+            | _ -> failtest "A checked peer error must not be relabeled local"
+    ]

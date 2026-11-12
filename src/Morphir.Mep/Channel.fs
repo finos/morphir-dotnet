@@ -116,6 +116,7 @@ type internal IHostChannel =
     abstract AdmitOperation: unit -> ConformanceOperationId option
     abstract LocalRefused: RpcError -> unit
     abstract OperationCancelled: ConformanceOperationId -> unit
+    abstract OperationFacts: ConformanceOperationId -> (RequestId option * ConformanceTransportFact list) option
     abstract RequestObservedAsync:
         operation: ConformanceOperationId * method: string * parameters: JsonElement option * cancellation: CancellationToken -> Task<ConformanceCallResult<JsonElement>>
     abstract NotifyObservedAsync:
@@ -147,6 +148,7 @@ type internal StreamChannel(connection: Connection) =
         member _.AdmitOperation() = connection.AdmitOperation()
         member _.LocalRefused cause = connection.LocalRefused cause
         member _.OperationCancelled operation = connection.OperationCancelled operation
+        member _.OperationFacts operation = connection.OperationFacts operation
         member _.RequestObservedAsync(operation, method, parameters, cancellation) = connection.RequestObservedAsync(operation, method, parameters, cancellation)
         member _.NotifyObservedAsync(operation, method, parameters, _) = connection.NotifyObservedAsync(operation, method, parameters)
         member _.RunAsync cancellation = connection.RunAsync cancellation
@@ -228,6 +230,7 @@ type internal SingleMessageChannel private
         task {
             try
                 let! reply = call transportCancellation
+                match capture, operation with Some owned, Some key -> owned.AdapterCompleted key | _ -> ()
                 let observed =
                     match capture, operation with
                     | Some owned, Some key ->
@@ -319,6 +322,7 @@ type internal SingleMessageChannel private
                                 let validatedOutcome = outcome |> Result.bind (fun (bytes, original) -> check bytes |> Result.map (fun result -> result, original))
                                 match validatedOutcome with
                                 | Ok(result, original) ->
+                                    match capture, operation with Some owned, Some key -> owned.AdapterValidated key | _ -> ()
                                     let observed =
                                         match capture, admission, id, original with
                                         | Some owned, Some owner, Some requestId, Some body -> owned.CompleteExchange(owner, requestId, body)
@@ -333,6 +337,7 @@ type internal SingleMessageChannel private
 
     let request admission method parameters cancellation =
         let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
+        match capture, admission with Some owned, Some key -> owned.RequestAllocated(key, id) | _ -> ()
         task {
             let message = encode (JsonRpcMessage.Request(id, method, parameters))
             return! exchange admission method (Some id) message cancellation
@@ -371,6 +376,7 @@ type internal SingleMessageChannel private
         member _.AdmitOperation() = capture |> Option.bind (fun owned -> owned.AdmitOperation())
         member _.LocalRefused cause = capture |> Option.iter (fun owned -> owned.LocalRefused cause)
         member _.OperationCancelled operation = capture |> Option.iter (fun owned -> owned.OperationCancelled operation)
+        member _.OperationFacts operation = capture |> Option.bind (fun owned -> owned.OperationFacts operation)
         member _.RequestObservedAsync(operation, method, parameters, cancellation) = request (Some operation) method parameters cancellation
         member _.NotifyObservedAsync(operation, method, parameters, cancellation) = notify (Some operation) method parameters cancellation
         member _.RunAsync cancellation = ended.Task.WaitAsync cancellation
