@@ -149,8 +149,7 @@ public sealed class CliDriver : ICliDriver
         var info = new ProcessStartInfo(IsAssembly ? "dotnet" : _artifact);
         if (IsAssembly) info.ArgumentList.Add(_artifact);
         foreach (var argument in arguments) info.ArgumentList.Add(argument);
-        var commandLine = string.Join(' ', new[] { info.FileName }.Concat(info.ArgumentList).Select(Quoted));
-        return RunAsync(info, commandLine, options, cancellation);
+        return RunAsync(info, CommandLineOf(info), options, cancellation);
     }
 
     public Task<CommandResult> RunCommandLineAsync(string commandLine, CliRunOptions? options = null, CancellationToken cancellation = default)
@@ -162,9 +161,26 @@ public sealed class CliDriver : ICliDriver
         return RunAsync(info, $"{Quoted(info.FileName)} {info.Arguments}", options, cancellation);
     }
 
-    private async Task<CommandResult> RunAsync(ProcessStartInfo info, string commandLine, CliRunOptions? options, CancellationToken cancellation)
+    private Task<CommandResult> RunAsync(ProcessStartInfo info, string commandLine, CliRunOptions? options, CancellationToken cancellation) =>
+        ProductProcess.RunAsync(info, commandLine, _workspace, _gate, options, DefaultTimeout, cancellation);
+
+    internal static string CommandLineOf(ProcessStartInfo info) =>
+        string.Join(' ', new[] { info.FileName }.Concat(info.ArgumentList).Select(Quoted));
+
+    private static string Quoted(string argument) =>
+        argument.Length > 0 && !argument.Any(char.IsWhiteSpace) && !argument.Contains('"') ? argument : "\"" + argument.Replace("\"", "\\\"") + "\"";
+}
+
+/// <summary>Runs one product process in a workspace: the one way in which a driver starts a program of the product.</summary>
+internal static class ProductProcess
+{
+    private static readonly System.Text.UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
+
+    public static async Task<CommandResult> RunAsync(
+        ProcessStartInfo info, string commandLine, IScenarioWorkspace workspace, ProcessGate? gate, CliRunOptions? options,
+        TimeSpan defaultTimeout, CancellationToken cancellation)
     {
-        _workspace.Contain(info);
+        workspace.Contain(info);
         if (options?.Environment is { } environment)
         {
             foreach (var (name, value) in environment)
@@ -181,21 +197,16 @@ public sealed class CliDriver : ICliDriver
         info.StandardOutputEncoding = Utf8;
         info.StandardErrorEncoding = Utf8;
 
-        var mark = _workspace.Mark();
+        var mark = workspace.Mark();
         // The runner holds a place of the gate, reads both streams, and stops the process tree at the time limit.
         var result = await ChildProcess.RunAsync(
-            info, options?.Timeout ?? DefaultTimeout, cancellation, _gate, options?.StandardInput).ConfigureAwait(false);
+            info, options?.Timeout ?? defaultTimeout, cancellation, gate, options?.StandardInput).ConfigureAwait(false);
         return new CommandResult(
             commandLine,
             result.ExitCode,
             result.StandardOutput,
             result.StandardError,
             result.ExitedAt - result.StartedAt,
-            _workspace.FilesWrittenSince(mark));
+            workspace.FilesWrittenSince(mark));
     }
-
-    private static readonly System.Text.UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
-
-    private static string Quoted(string argument) =>
-        argument.Length > 0 && !argument.Any(char.IsWhiteSpace) && !argument.Contains('"') ? argument : "\"" + argument.Replace("\"", "\\\"") + "\"";
 }

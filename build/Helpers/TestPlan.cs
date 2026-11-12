@@ -169,13 +169,12 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Configuration.Tests", "--sequenced"),
         TestSuite.TUnit("Morphir.Configuration.IO.Tests", "--maximum-parallel-tests", "1"),
         TestSuite.TUnit("Morphir.Configuration.Microsoft.Tests", "--maximum-parallel-tests", "1"),
-        // Exercises the generated CLI DTO source without loading the CLI host.
-        TestSuite.Program("Morphir.Configuration.Inspection.Smoke"),
         TestSuite.Expecto("Morphir.Internal.CodeGeneration.Tests"),
         TestSuite.Expecto("Morphir.Models.Tests"),
         TestSuite.Expecto("Morphir.IR.Pipeline.Tests"),
         TestSuite.Expecto("Morphir.SDK.Tests"),
-        // The tests of the package driver pack a project of the repository with no build.
+        // The tests of the package driver pack a project of the repository with no build, and LibraryHostDriverTests
+        // publishes a host of the repository (its lock files go below obj/ of src/ projects).
         TestSuite.TUnit("Morphir.TestSupport.Tests").WithSourceProjects(),
         TestSuite.Expecto("Morphir.Frontend.FSharp.Tests"),
         TestSuite.Expecto("Morphir.Conformance.Tests"),
@@ -204,11 +203,12 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Myriad.SystemTextJson.Tests"),
         // The groups of the black-box project. A group is registered here in the change that adds its first test,
         // because a group that selects no test fails its run.
-        // The integration and e2e groups pack projects of the repository with no build or in the workspace (IPackageDriver).
+        // The integration and e2e groups pack projects of the repository with no build or in the workspace
+        // (IPackageDriver), and the e2e group reads the build output of the programs of the repository.
         TestSuite.TUnit(BlackBoxProject).InGroup("integration").WithSourceProjects(),
+        TestSuite.TUnit(BlackBoxProject).InGroup("e2e").WithSourceProjects(),
         TestSuite.TUnit(BlackBoxProject).InGroup("smoke"),
         TestSuite.TUnit(BlackBoxProject).InGroup("journey"),
-        TestSuite.TUnit(BlackBoxProject).InGroup("e2e").WithSourceProjects(),
     ];
 
     /// <summary>
@@ -289,6 +289,17 @@ public static class TestPlan
     }
 
     /// <summary>
+    /// The run of the tests of one lane of the black-box project: all its groups, with the filter of the lane. The
+    /// build gives the test process the lane in <c>MORPHIR_TEST_LANE</c>.
+    /// </summary>
+    public static TestRun LaneRun(string lane)
+    {
+        if (lane is not ("packages" or "native-aot" or "published"))
+            throw new ArgumentException($"'{lane}' is not a lane. The lanes are: packages, native-aot, published.", nameof(lane));
+        return new TestRun(TestSuite.TUnit(BlackBoxProject), ["--treenode-filter", $"/*/*/*/*[Category={lane}]"]);
+    }
+
+    /// <summary>
     /// The suites that the option <c>--test-group</c> selects: with no group, all of <paramref name="suites"/>; with
     /// a group, only the suites of that group. A value that is not a group, or a group with no suite, is an error.
     /// </summary>
@@ -313,8 +324,7 @@ public static class TestPlan
     /// The run of the packages lane: the tests of the black-box project with the lane <c>packages</c>, of each group.
     /// The TestBuild target starts it after the build tests, when the pack step made the packages.
     /// </summary>
-    public static TestRun PackagesLaneRun { get; } =
-        new(TestSuite.TUnit(BlackBoxProject), ["--treenode-filter", $"/*/*/*/*[Category={PackagesLane}]"]);
+    public static TestRun PackagesLaneRun => LaneRun(PackagesLane);
 
     /// <summary>
     /// The variables of the packages lane run: its lane, and the folder of the packed packages, which the package

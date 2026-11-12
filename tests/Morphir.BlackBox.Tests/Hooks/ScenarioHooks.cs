@@ -33,6 +33,8 @@ public sealed class ScenarioHooks(IObjectContainer container, ScenarioContext sc
         container.RegisterInstanceAs(_drivers.Cli);
         container.RegisterInstanceAs(_drivers.Verification);
         container.RegisterInstanceAs(_drivers.Generation);
+        container.RegisterInstanceAs(_drivers.LibraryHosts);
+        container.RegisterInstanceAs(_drivers.BuiltFiles);
         container.RegisterInstanceAs(_drivers.Packages);
     }
 

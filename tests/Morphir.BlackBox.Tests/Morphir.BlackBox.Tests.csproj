@@ -29,7 +29,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="**/*.feature" />
+    <Content Include="**/*.feature" Exclude="bin/**;obj/**" />
+    <!-- The kit suites are fixtures of the conformance host: the build copies them to bin/, and they are not tests here. -->
+    <ReqnrollFeatureFile Remove="bin/**;obj/**" />
     <!-- The fixture files that a workspace copies (IScenarioWorkspace.CopyFixture). -->
     <None Include="Fixtures/**/*" CopyToOutputDirectory="PreserveNewest" />
     <!-- Fixtures that have one source in the repository: the car rental example and the shared IR fixtures. -->
@@ -39,6 +41,10 @@
     <None Include="../Fixtures/MorphirIR/daily-rate-v4.json" Link="Fixtures/WireForms/daily-rate-4.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../examples/car-rental/models/car-rental-v3.json" Link="Fixtures/Models/car-rental-v3.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/MorphirIR/daily-rate-v3.json" Link="Fixtures/Models/daily-rate-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The inputs of the library hosts and of the morphirup plan. -->
+    <None Include="../Fixtures/Configuration/**/*" Link="Fixtures/Configuration/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../conformance/**/*" Link="Fixtures/Conformance/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.Toolchain.Tests/AotProbe/*" Link="Fixtures/Morphirup/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- The unit tests of Morphir.Tooling.Tests read the same five models in their TestData folder. -->
     <None Include="../Morphir.Tooling.Tests/TestData/valid-ir-v1.json" Link="Fixtures/Models/valid-ir-v1.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Morphir.Tooling.Tests/TestData/valid-ir-v2.json" Link="Fixtures/Models/valid-ir-v2.json" CopyToOutputDirectory="PreserveNewest" />
@@ -73,5 +79,22 @@
 
   <!-- The projects that the package driver packs: built first, and their paths in the assembly metadata. -->
   <Import Project="../Morphir.TestSupport/build/Morphir.PackageSources.targets" />
+  <!--
+    The programs of the repository that are not the CLI, which the library host driver and the inspection driver use:
+    the hosts of shipped libraries that the CLI does not reach (evidence/library-hosts.md of the change
+    consolidate-black-box-tests), the Native AOT probes, and morphirup. Built first, and their paths in the assembly
+    metadata.
+  -->
+  <ItemGroup>
+    <MorphirTestProgram Include="../Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" Name="compilation-smoke" />
+    <MorphirTestProgram Include="../Morphir.Configuration.IO.Smoke/Morphir.Configuration.IO.Smoke.csproj" Name="configuration-io-smoke" />
+    <MorphirTestProgram Include="../Morphir.Configuration.Inspection.Smoke/Morphir.Configuration.Inspection.Smoke.csproj" Name="configuration-inspection-smoke" />
+    <MorphirTestProgram Include="../Morphir.Configuration.Microsoft.Smoke/Morphir.Configuration.Microsoft.Smoke.csproj" Name="configuration-microsoft-smoke" />
+    <MorphirTestProgram Include="../Morphir.Conformance.Smoke/Morphir.Conformance.Smoke.fsproj" Name="conformance-smoke" />
+    <MorphirTestProgram Include="../Morphir.Myriad.SystemTextJson.AotProbe/Morphir.Myriad.SystemTextJson.AotProbe.fsproj" Name="myriad-json-probe" />
+    <MorphirTestProgram Include="../Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" Name="mep-probe" />
+    <MorphirTestProgram Include="../../src/Morphirup/Morphirup.fsproj" Name="morphirup" />
+  </ItemGroup>
+  <Import Project="../Morphir.TestSupport/build/Morphir.TestPrograms.targets" />
 
 </Project>

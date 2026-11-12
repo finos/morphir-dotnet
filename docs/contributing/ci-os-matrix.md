@@ -74,7 +74,7 @@ A black-box test reaches the product only through a built artifact. Those tests 
 | --- | --- | --- | --- |
 | `integration` | The components behind one capability work together. | Development build | Also each published target that supports the capabilities of the test |
 | `journey` | One user goal that needs two or more capabilities. | Development build | Also each published target |
-| `smoke` | An artifact starts and does one basic function. | Development build | Also the published targets |
+| `smoke` | An artifact starts and does one basic function. For the host of a library that the CLI does not reach: the host runs and passes its checks. | Development build, with the managed library hosts. The Native AOT lane (`TestAot`, the probes and the hosts): Linux only | Also the published targets |
 | `e2e` | The delivered form itself: installation, layout, start. | Development build, for a test with no lane | Each published and packaged target |
 
 The group states the purpose. The form of the product on which a test runs is the target, and the target does not
@@ -86,6 +86,10 @@ both scopes, `[(Category=<group>)&(Category!=lane)]`. A group with no test fails
 from the change that adds its first test. `--test-group <group>` runs only the suites of that group and no other
 suite. The `integration` and `e2e` groups pack projects of the repository (the package driver), so they run as
 suites that use the source projects.
+
+The Linux test job runs the Native AOT lane after the tests: `./build.sh --target TestAot` publishes each probe,
+each library host and morphirup with Native AOT, checks the trim and AOT warnings of each publish, and compares the
+native output with the managed output.
 
 A test that needs more than the development build has the tag `@lane` and one lane tag (`@packages`,
 `@native-aot` or `@published`). The run of a group does not select it. If another run selects it, the test is

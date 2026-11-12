@@ -36,5 +36,10 @@
 
   <!-- The projects that the package driver packs, for the tests of the package driver. -->
   <Import Project="../Morphir.TestSupport/build/Morphir.PackageSources.targets" />
+  <!-- A small host program, for the real-process tests of the library host driver and the inspection driver. -->
+  <ItemGroup>
+    <MorphirTestProgram Include="../Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" Name="compilation-smoke" />
+  </ItemGroup>
+  <Import Project="../Morphir.TestSupport/build/Morphir.TestPrograms.targets" />
 
 </Project>

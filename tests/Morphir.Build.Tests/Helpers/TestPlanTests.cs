@@ -397,6 +397,17 @@ public class TestPlanTests
         TestPlan.ReportsNoTests(line).Should().Be(expected);
 
     [Test]
+    public void ALaneRunSelectsEachGroupOfTheBlackBoxProjectWithTheFilterOfTheLane()
+    {
+        var run = TestPlan.LaneRun("native-aot");
+
+        run.Suite.Project.Should().Be("Morphir.BlackBox.Tests");
+        run.Suite.Group.Should().BeNull();
+        run.Arguments.Should().Equal("--treenode-filter", "/*/*/*/*[Category=native-aot]");
+        ((Action)(() => TestPlan.LaneRun("none"))).Should().Throw<ArgumentException>().WithMessage("*packages, native-aot, published*");
+    }
+
+    [Test]
     [Arguments("Skipped tests by reason: lane 2, host 0, capability 1", "lane 2, host 0, capability 1")]
     [Arguments("[10:01:02 INF] Skipped tests by reason: lane 0, host 0, capability 0 ", "lane 0, host 0, capability 0")]
     [Arguments("Test run summary: Passed!", null)]

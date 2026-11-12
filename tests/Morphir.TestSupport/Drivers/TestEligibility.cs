@@ -28,6 +28,13 @@ public enum DriverCapability
     /// <see cref="IPackageDriver.BuildAndPackAsync"/>). Only the target dev has them.
     /// </summary>
     DevelopmentPackages,
+
+    /// <summary>
+    /// The build output and the project files of the programs of the repository that are not the CLI: the library
+    /// hosts, the probes and <c>morphirup</c> (<see cref="ILibraryHostDriver"/>, <see cref="IArtifactInspectionDriver"/>).
+    /// Only the development build has them.
+    /// </summary>
+    BuiltPrograms,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -66,12 +73,11 @@ public static class DriverCapabilities
         // Each host has the commands. The F# frontend is in the managed host and in the tool host. No target gives
         // the self-contained frontend process yet.
         ImmutableHashSet<DriverCapability> commands = [DriverCapability.ModelVerification, DriverCapability.Generation];
-        var supported = host is MorphirHost.Managed or MorphirHost.DotnetTool
-            ? commands.Add(DriverCapability.InProcessFSharpFrontend)
-            : commands;
-
+        if (host is MorphirHost.Managed or MorphirHost.DotnetTool) commands = commands.Add(DriverCapability.InProcessFSharpFrontend);
+        if (target is TestTarget.DevelopmentBuild) commands = commands.Add(DriverCapability.BuiltPrograms);
         // The projects of the repository are packed from the development build, so only that target has them.
-        return target is TestTarget.DevelopmentBuild ? supported.Add(DriverCapability.DevelopmentPackages) : supported;
+        if (target is TestTarget.DevelopmentBuild) commands = commands.Add(DriverCapability.DevelopmentPackages);
+        return commands;
     }
 }
 

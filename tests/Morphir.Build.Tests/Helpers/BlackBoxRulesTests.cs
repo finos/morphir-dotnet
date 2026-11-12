@@ -471,6 +471,8 @@ public class BlackBoxRulesTests
             new PullRequestRun(TestLane.None.Name(), "the development build (each operating system)", target.DefaultHost.Name(), capabilities),
             // TestBuild runs the packages lane on the development build after the pack step (TestPlan.PackagesLaneRun).
             new PullRequestRun(TestLane.Packages.Name(), "the packages lane after the pack step (each operating system)", target.DefaultHost.Name(), capabilities),
+            // The step of the Linux job that runs TestAot, on the development build.
+            new PullRequestRun(TestLane.NativeAot.Name(), "the Native AOT step (Linux)", target.DefaultHost.Name(), capabilities),
         ];
     }
 
@@ -501,12 +503,16 @@ public class BlackBoxRulesTests
         var project = File.ReadAllText(Path.Combine(ProjectDirectory, "Morphir.BlackBox.Tests.csproj"));
         var targets = File.ReadAllText(Path.Combine(Root, "tests", "Morphir.TestSupport", "build", "Morphir.CliArtifacts.targets"));
         var packages = File.ReadAllText(Path.Combine(Root, "tests", "Morphir.TestSupport", "build", "Morphir.PackageSources.targets"));
+        var programs = File.ReadAllText(Path.Combine(Root, "tests", "Morphir.TestSupport", "build", "Morphir.TestPrograms.targets"));
 
         project.Should().Contain("Morphir.CliArtifacts.targets", "the build of the project builds the CLI entry points first");
         project.Should().Contain("Morphir.PackageSources.targets", "the build of the project builds the projects that the package driver packs first");
         BlackBoxRules.ReferenceViolations($"{Project}/Morphir.BlackBox.Tests.csproj", project).Should().BeEmpty();
         BlackBoxRules.ReferenceViolations("tests/Morphir.TestSupport/build/Morphir.CliArtifacts.targets", targets).Should().BeEmpty();
         BlackBoxRules.ReferenceViolations("tests/Morphir.TestSupport/build/Morphir.PackageSources.targets", packages).Should().BeEmpty();
+        // The programs of a test (hosts, probes, morphirup) are build-order references too.
+        BlackBoxRules.ProjectReferences("tests/Morphir.TestSupport/build/Morphir.TestPrograms.targets", programs)
+            .Should().ContainSingle().Which.ExposesAssembly.Should().BeFalse();
         BlackBoxRules.ProjectReferences($"{Project}/Morphir.BlackBox.Tests.csproj", project).Select(reference => reference.Path)
             .Should().Equal("tests/Morphir.TestSupport/Morphir.TestSupport.csproj");
     }

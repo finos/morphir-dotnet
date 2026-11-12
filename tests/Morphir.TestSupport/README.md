@@ -24,6 +24,8 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. It records the Morphir locations of the machine at the start (`MachineTripwire`), and at the end of the run it prints the skip counts and fails if a test changed those locations. |
 | `DriverSet` | The workspace and the drivers of one test on one host. |
 | `IPackageDriver` (`PackageDriver`) | Packs, installs and consumes packages in the workspace. It packs a project of the development build with no build and no restore (`IPackageDriver.PackAsync`), or builds and packs it with `--artifacts-path` in the workspace (`IPackageDriver.BuildAndPackAsync`), into the feed of the workspace. So no file of the solution build changes. A consumer restores into the packages folder of the workspace. In the packages lane it reads the packed packages (`PackedPackages`) only from the folder that the build gives. A package is a `PackedPackage`: its `PackageManifest`, its entries and the `AssemblyIdentity` of each assembly. |
+| `ILibraryHostDriver` (`LibraryHostDriver`) | A program of the repository that is not the CLI (`TestProgram`, from `TestPrograms`): a library host, a probe or `morphirup`. It runs the built assembly, or publishes the program into the workspace in a `ProgramForm` (managed, trimmed, Native AOT) and runs the `PublishedProgram`. A `PublishWarning` is a trim or AOT warning of the publish; `AllowedWarning` permits one. |
+| `IArtifactInspectionDriver` (`ArtifactInspectionDriver`) | A `BuiltFile` of the build output of such a program, and its metadata: `AssemblyFacts` (the assemblies, namespaces and members that an assembly references) or the file as JSON. |
 
 A capability driver builds its command line and calls `ICliDriver`. Only `ICliDriver` and `IScenarioWorkspace` know
 the target and the machine.
@@ -70,6 +72,22 @@ A test project that uses the CLI driver imports `build/Morphir.CliArtifacts.targ
 references to the three entry point projects and writes their target paths into the test assembly as assembly
 metadata. So a build of the test project builds the hosts first, a Debug test build runs the Debug hosts, and no
 assembly of an entry point is visible to the test code.
+
+### Other programs of the repository
+
+A test project that runs or inspects a program that is not the CLI names it with an item and imports
+`build/Morphir.TestPrograms.targets`:
+
+```xml
+<ItemGroup>
+  <MorphirTestProgram Include="../Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" Name="compilation-smoke" />
+</ItemGroup>
+<Import Project="../Morphir.TestSupport/build/Morphir.TestPrograms.targets" />
+```
+
+The build of the test project then builds the program first, and writes its target path and its project path into
+the test assembly. A publish of `ILibraryHostDriver` uses `--artifacts-path` in the workspace, so it replaces no
+assembly of the solution build, and a publish for a runtime identifier writes its lock files below `obj/`.
 
 ### The packages
 
@@ -122,7 +140,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | --- | --- |
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build (`TestLane`). |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
-| `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | The test needs that `DriverCapability`. |
+| `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs` | The test needs that `DriverCapability`. `@needs-built-programs`: the build output and the project files of the programs of the repository; only the development build has them. |
 | `@needs-development-packages` | The test packs a project of the development build (`IPackageDriver`). Only the target `dev` has it. |
 
 ## How to add a capability
