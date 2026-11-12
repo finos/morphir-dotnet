@@ -40,6 +40,13 @@ public enum DriverCapability
 
     /// <summary>A WASM guest that the host runs: each platform except Windows x64, where the host refuses each guest (#609).</summary>
     WasmGuests,
+
+    /// <summary>
+    /// The build output and the project files of the programs of the repository that are not the CLI: the library
+    /// hosts, the probes and <c>morphirup</c> (<see cref="ILibraryHostDriver"/>, <see cref="IArtifactInspectionDriver"/>).
+    /// Only the development build has them.
+    /// </summary>
+    BuiltPrograms,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -82,6 +89,7 @@ public static class DriverCapabilities
         var supported = host is MorphirHost.Managed or MorphirHost.DotnetTool
             ? commands.Add(DriverCapability.InProcessFSharpFrontend)
             : commands;
+        if (target is TestTarget.DevelopmentBuild) supported = supported.Add(DriverCapability.BuiltPrograms);
         if (target.Has(MorphirHost.Native) && target.Has(MorphirHost.DotnetTool)) supported = supported.Add(DriverCapability.NativeAndToolHosts);
         if (target is TestTarget.Packaged) supported = supported.Add(DriverCapability.PackagedInstallation);
         if (target is TestTarget.NativeAot or TestTarget.Packaged { Offering: PackagedOffering.NativeAot })

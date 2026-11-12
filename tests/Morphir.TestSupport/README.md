@@ -29,6 +29,8 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `IPackagedArtifactDriver` (`PackagedArtifactDriver`) | The installed packaged offering of the run: its launch metadata, runs of the installed executable from new empty directories with the runtime of the machine reachable or hidden, the layout claim, the engine files, and a second installation that is read-only. The helpers are in the namespace `Morphir.TestSupport.Packaging`. |
 | `HostCopies` | A copy of the folder of a host with each WASM engine library deleted (`HostCopy`), made once for each run. |
 | `TargetCli` | The executable of the target of the run, for a test outside the black-box project that starts it with its own runner (a conformance test). |
+| `ILibraryHostDriver` (`LibraryHostDriver`) | A program of the repository that is not the CLI (`TestProgram`, from `TestPrograms`): a library host, a probe or `morphirup`. It runs the built assembly, or publishes the program into the workspace in a `ProgramForm` (managed, trimmed, Native AOT) and runs the `PublishedProgram`. A `PublishWarning` is a trim or AOT warning of the publish; `AllowedWarning` permits one. |
+| `IArtifactInspectionDriver` (`ArtifactInspectionDriver`) | A `BuiltFile` of the build output of such a program, and its metadata: `AssemblyFacts` (the assemblies, namespaces and members that an assembly references) or the file as JSON. |
 
 A capability driver builds its command line and calls `ICliDriver`. Only `ICliDriver` and `IScenarioWorkspace` know
 the target and the machine.
@@ -86,6 +88,22 @@ references to the three entry point projects and writes their target paths into 
 metadata. So a build of the test project builds the hosts first, a Debug test build runs the Debug hosts, and no
 assembly of an entry point is visible to the test code.
 
+### Other programs of the repository
+
+A test project that runs or inspects a program that is not the CLI names it with an item and imports
+`build/Morphir.TestPrograms.targets`:
+
+```xml
+<ItemGroup>
+  <MorphirTestProgram Include="../Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" Name="compilation-smoke" />
+</ItemGroup>
+<Import Project="../Morphir.TestSupport/build/Morphir.TestPrograms.targets" />
+```
+
+The build of the test project then builds the program first, and writes its target path and its project path into
+the test assembly. A publish of `ILibraryHostDriver` uses `--artifacts-path` in the workspace, so it replaces no
+assembly of the solution build, and a publish for a runtime identifier writes its lock files below `obj/`.
+
 ### Environment variables
 
 | Variable | Values |
@@ -122,7 +140,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | --- | --- |
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build (`TestLane`). |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
-| `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | The test needs that `DriverCapability`. |
+| `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs` | The test needs that `DriverCapability`. `@needs-built-programs`: the build output and the project files of the programs of the repository; only the development build has them. |
 | `@needs-validation`, `@needs-native-and-tool-hosts`, `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form` | The test needs the `validate` command; the native host and the tool host of one build (`dev`); an installed packaged offering; a Native AOT executable of a release (`aot`, `native-aot`); a target whose form is known (each target except `executable`). |
 | `@needs-wasm-guests` | The test runs a WASM guest. Each platform except Windows x64 has it: there the host refuses each guest (#609). `DriverCapabilities.Of` takes the platform; the default is this machine. |
 

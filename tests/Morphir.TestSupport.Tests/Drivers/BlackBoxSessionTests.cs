@@ -117,6 +117,27 @@ public class BlackBoxSessionTests
     }
 
     [Test]
+    public async Task TheDriverSetOfTheDevelopmentBuildHasTheProgramsOfTheTestAssembly()
+    {
+        var session = Session();
+        await using var drivers = session.BeginTest(MorphirHost.Native);
+
+        session.Programs.Names.Should().Contain("compilation-smoke");
+        (await drivers.LibraryHosts.RunBuiltAsync("compilation-smoke", [])).ShouldExitWith(0);
+        drivers.BuiltFiles.BuiltFile("compilation-smoke", "Morphir.Compilation.dll").Exists.Should().BeTrue();
+    }
+
+    [Test]
+    public void ASessionOnAnotherTargetHasNoProgram()
+    {
+        var executable = CliArtifacts.OfDevelopmentBuild(ThisAssembly).PathOf(MorphirHost.Native);
+
+        var session = Session(("MORPHIR_TEST_TARGET", "executable"), ("MORPHIR_TEST_EXECUTABLE", executable), ("MORPHIR_TEST_HOST", "native"));
+
+        session.Programs.Names.Should().BeEmpty();
+    }
+
+    [Test]
     public void ADriverSetForAHostThatTheTargetDoesNotHaveIsAnError()
     {
         var executable = CliArtifacts.OfDevelopmentBuild(ThisAssembly).PathOf(MorphirHost.Native);

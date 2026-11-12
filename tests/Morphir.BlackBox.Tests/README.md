@@ -41,7 +41,7 @@ its library. A test that needs both an artifact and a product assembly is two te
 | `@integration`, `@e2e`, `@smoke`, `@journey` | The group. One for each test, on the feature or on the scenario. |
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build: the packed packages, a Native AOT publish, or a published executable. A group run does not select it. |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that entry point. With no host tag, a test runs on the default host of the run. |
-| `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | A capability that the test needs from the drivers. |
+| `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs` | A capability that the test needs from the drivers. `@needs-built-programs`: the build output of the programs of the repository that are not the CLI (library hosts, probes, morphirup); only the development build has them. |
 | `@needs-validation`, `@needs-native-and-tool-hosts`, `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form`, `@needs-wasm-guests` | A capability that the test needs from the drivers (see `tests/Morphir.TestSupport/README.md`). `@needs-wasm-guests` is not on Windows x64 (#609). |
 
 Before the first step, one decision says if the test runs: the lane, then the host, then the capabilities. A test
@@ -187,6 +187,18 @@ two steps have the same pattern.
 | Packaged artifact | `Given a second installation of the artifact of the run, made read-only before its first run` |
 | Packaged artifact | `Then the read-only installation holds the same files as before its first run` |
 | Host file | `Then the folder of the host has no file {string}` |
+| CLI | `Then the JSON document on standard output has the field {string} with the value true` |
+| Library hosts | `When I run the program {string}` |
+| Library hosts | `When I plan the morphirup setup of the probe with no ICU` |
+| Library hosts | `When I publish the program with Native AOT` |
+| Library hosts | `When I run the published program` |
+| Library hosts | `Then the published program writes the same output as the built program` |
+| Library hosts | `Then the publish has no trim or AOT warning except the summary warnings of {string}` |
+| Build output | `Given the build output of the program {string}` |
+| Build output | `Then the runtime configuration {string} sets {string} to true` |
+| Build output | `Then the assembly {string} references no member {string} of {string}` |
+| Build output | `Then the assembly {string} references no assembly {string} and no type of its namespace` |
+| Build output | `Then the assembly {string} uses no type of the namespace {string}` |
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.
@@ -201,6 +213,9 @@ Build first (`./build.sh --target Compile`), or let the build of the project bui
 
 # One group, and no other suite or check.
 ./build.sh --target Test --skip Restore Compile --test-group smoke
+
+# The Native AOT lane: publish each probe, each library host and morphirup with Native AOT, and compare.
+./build.sh --target TestAot --skip Restore Compile
 
 # The test assembly, with the filter of a group.
 dotnet exec tests/Morphir.BlackBox.Tests/bin/Release/net11.0/Morphir.BlackBox.Tests.dll --treenode-filter "/*/*/*/*[(Category=smoke)&(Category!=lane)]"

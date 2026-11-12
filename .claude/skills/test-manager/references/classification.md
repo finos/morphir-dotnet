@@ -60,6 +60,7 @@ Hard cases:
 - **`--help` of one command** is smoke if it proves only that the artifact starts. A check of the options that the help text shows is integration.
 - **One command on one input.** `ir verify` on one model, with a check of the exit code and the text, checks the capability. It is integration, not smoke.
 - **Three different commands for one goal** are three capabilities, so the test is a journey.
+- **A shipped library that the CLI does not reach** gets a small host program below `tests/` that calls the library and exits with 0 when its checks hold. The checks of the test are in the black-box project: a run of the host is smoke (`Smoke/LibraryHosts.feature`), and its Native AOT publish is smoke with `@lane @native-aot` (`Smoke/NativeAot.feature`). When the CLI reaches the library for the behavior, test it through the CLI and add no host.
 - **An end-to-end test on the development build.** A property that the delivered form must have can be a check of the build output (for example the runtime configuration file of an executable). It is end-to-end with no lane, and a pull request runs it on each operating system.
 
 ## After the class: the lane, the host and the capabilities
@@ -71,6 +72,6 @@ Hard cases:
 | To publish a program with Native AOT in the test (a library host or a probe) | `@lane @native-aot` |
 | An executable that a release publishes or packs, also its Native AOT executable, when the test cannot run on the development build | `@lane @published` |
 | One entry point (`morphir` of `src/Morphir`, `morphir` of `src/Morphir.Managed`, `dotnet-morphir` of `src/Morphir.Tool`) | `@host-native`, `@host-managed` or `@host-tool` |
-| A driver capability | The tag of the capability: `@needs-model-verification`, `@needs-generation`, `@needs-validation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-native-and-tool-hosts`, `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form`, `@needs-wasm-guests` |
+| A driver capability | The tag of the capability: `@needs-model-verification`, `@needs-generation`, `@needs-validation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-native-and-tool-hosts`, `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form`, `@needs-wasm-guests`, `@needs-built-programs` |
 
 A test with a lane does not run in the run of its group. The lane decides where it runs. Do not give a test a lane that it does not need: a test with no lane runs in a pull request on each operating system, and also on each published target in the release and manual workflows.

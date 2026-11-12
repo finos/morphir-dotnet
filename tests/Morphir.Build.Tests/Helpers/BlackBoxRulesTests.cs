@@ -458,21 +458,20 @@ public class BlackBoxRulesTests
     /// <summary>
     /// The pull request runs, from the capabilities of the drivers. The development build runs on each operating
     /// system with the same hosts and capabilities, except <c>WasmGuests</c>, which Windows x64 does not have (#609).
-    /// So it is one row, with the capabilities of linux-x64, an operating system of that run, and not of the machine
-    /// of the build tests. Add the packages run and the Native AOT run in the change that adds the run to the build.
+    /// So each row has the capabilities of linux-x64, an operating system of each run, and not of the machine of the
+    /// build tests. Add the packages run in the change that adds the run to the build.
     /// </summary>
     private static ImmutableArray<PullRequestRun> PullRequestRuns()
     {
         var target = new TestTarget.DevelopmentBuild();
+        var capabilities = target.Hosts.ToImmutableDictionary(
+            host => host.Name(),
+            host => DriverCapabilities.Of(target, host, "linux-x64").Select(DriverCapabilities.TagOf).ToImmutableHashSet());
         return
         [
-            new PullRequestRun(
-                TestLane.None.Name(),
-                "the development build (each operating system)",
-                target.DefaultHost.Name(),
-                target.Hosts.ToImmutableDictionary(
-                    host => host.Name(),
-                    host => DriverCapabilities.Of(target, host, "linux-x64").Select(DriverCapabilities.TagOf).ToImmutableHashSet())),
+            new PullRequestRun(TestLane.None.Name(), "the development build (each operating system)", target.DefaultHost.Name(), capabilities),
+            // The step of the Linux job that runs TestAot, on the development build.
+            new PullRequestRun(TestLane.NativeAot.Name(), "the Native AOT step (Linux)", target.DefaultHost.Name(), capabilities),
         ];
     }
 
@@ -502,10 +501,14 @@ public class BlackBoxRulesTests
     {
         var project = File.ReadAllText(Path.Combine(ProjectDirectory, "Morphir.BlackBox.Tests.csproj"));
         var targets = File.ReadAllText(Path.Combine(Root, "tests", "Morphir.TestSupport", "build", "Morphir.CliArtifacts.targets"));
+        var programs = File.ReadAllText(Path.Combine(Root, "tests", "Morphir.TestSupport", "build", "Morphir.TestPrograms.targets"));
 
         project.Should().Contain("Morphir.CliArtifacts.targets", "the build of the project builds the CLI entry points first");
         BlackBoxRules.ReferenceViolations($"{Project}/Morphir.BlackBox.Tests.csproj", project).Should().BeEmpty();
         BlackBoxRules.ReferenceViolations("tests/Morphir.TestSupport/build/Morphir.CliArtifacts.targets", targets).Should().BeEmpty();
+        // The programs of a test (hosts, probes, morphirup) are build-order references too.
+        BlackBoxRules.ProjectReferences("tests/Morphir.TestSupport/build/Morphir.TestPrograms.targets", programs)
+            .Should().ContainSingle().Which.ExposesAssembly.Should().BeFalse();
         BlackBoxRules.ProjectReferences($"{Project}/Morphir.BlackBox.Tests.csproj", project).Select(reference => reference.Path)
             .Should().Equal("tests/Morphir.TestSupport/Morphir.TestSupport.csproj");
     }

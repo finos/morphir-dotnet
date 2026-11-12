@@ -143,6 +143,33 @@ partial class Build
     }
 
     /// <summary>
+    /// Run the Native AOT lane of the black-box tests: each test with <c>@lane @native-aot</c>, on the development
+    /// build. The tests publish each probe, each library host and morphirup with Native AOT into their workspaces,
+    /// check the trim and AOT warnings of the publish, and compare the native output with the managed output.
+    /// </summary>
+    Target TestAot => _ => _
+        .DependsOn(Compile)
+        .Description("Run the Native AOT lane of the black-box tests (publish, compare with the managed run)")
+        .Executes(() =>
+        {
+            var run = TestPlan.LaneRun("native-aot");
+            var limit = TestPlan.MachineProcessLimit(Environment.GetEnvironmentVariable(MaxProcessesVariable), Environment.ProcessorCount);
+            var temporary = PhysicalPath(Path.GetTempPath());
+            var environment = new Dictionary<string, string>
+            {
+                ["TMPDIR"] = temporary,
+                ["TEMP"] = temporary,
+                ["TMP"] = temporary,
+                [MaxProcessesVariable] = limit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                [TestLaneVariable] = "native-aot",
+            };
+            (TestResultsDirectory / run.Suite.ResultsDirectoryName).CreateOrCleanDirectory();
+            var result = RunSuite(run, Configuration, environment, buffered: false);
+            if (result.ExitCode != 0)
+                throw new Exception($"The Native AOT lane failed with exit code {result.ExitCode}");
+        });
+
+    /// <summary>
     /// Build the black-box test project (Morphir.BlackBox.Tests) for TestE2E. Its build also builds the three hosts of
     /// the development build (tests/Morphir.TestSupport/build/Morphir.CliArtifacts.targets).
     /// </summary>

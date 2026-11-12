@@ -84,7 +84,7 @@ discovered tests of the complete project, so such a file is in it.
 | 4 | `Morphir.Myriad.Integration.Tests` | `CarRentalSteps.cs` | yes | yes | no | no | Move: journey (pack the plugin, build a consumer, run it). |
 | 4 | `Morphir.Myriad.SystemTextJson.Tests` | `BuildTests.fs` | yes | yes | yes | no | Move: integration (a fixture build with the plugin), with `IPackageDriver`. |
 | 4 | `Morphir.SDK.Tests` | `PackageMigrationTests.fs` | yes | no | no | no | Move: journey (the SDK package graphs), with `IPackageDriver` and `--artifacts-path`. |
-| 5 | `Morphir.Toolchain.Tests` | `GlobalizationTests.fs` | yes | no | no | no | Move every discovered case; none needs a product type. The case that runs the `morphirup` executable is smoke. The cases that read built assemblies with `PEReader` and `morphirup.runtimeconfig.json` are end-to-end tests of the build output, with no lane, on an artifact inspection driver. Task 9.1 states how the driver gets the `morphirup` executable. |
+| 5 (done) | `Morphir.Toolchain.Tests` | `GlobalizationTests.fs` | yes | no | no | no | Move every discovered case; none needs a product type. The case that runs the `morphirup` executable is smoke. The cases that read built assemblies with `PEReader` and `morphirup.runtimeconfig.json` are end-to-end tests of the build output, with no lane, on an artifact inspection driver. Task 9.1 states how the driver gets the `morphirup` executable. |
 | stays | `Morphir.Build.Tests` | `BuildProfileTargetsTests.cs` | yes | yes | no | yes | Stays as a build test: its subject is the build of the repository (project files, targets, workflows), not a built artifact of the product. |
 | stays | `Morphir.Build.Tests` | `CliDeliveryWorkflowTests.cs` | no | yes | no | no | Stays as a build test: its subject is the build of the repository (project files, targets, workflows), not a built artifact of the product. |
 | stays | `Morphir.Build.Tests` | `DevelopmentWorkflowTests.cs` | no | yes | no | yes | Stays as a build test: its subject is the build of the repository (project files, targets, workflows), not a built artifact of the product. |
@@ -193,13 +193,16 @@ same change is in `tests/Morphir.BlackBox.Tests/Integration/ManagementCommands.f
 
 The script gives `# 141 files in 25 projects` on the base commit of pull request 2 (`c041f454`), and
 `# 131 files in 25 projects` on its branch: the 16 files of `Morphir.E2E.Tests` are not there, and the scan finds
-six new files. Each gets a row here, as task 0.2 says. The scan does not find the other new files of the black-box
+six new files. Each gets a row here, as task 0.2 says. After the merge of `main` with pull request 5 (`8d752e7d`), the
+count is still 131: `Morphir.Toolchain.Tests/GlobalizationTests.fs` is not there (pull request 5 moved its cases), and
+`Morphir.TestSupport.Tests/Drivers/LibraryHostDriverTests.cs` of pull request 5 is new and has a row below. The scan does not find the other new files of the black-box
 project and of the testing library, because they name no process runner.
 
 | Pull request | Project | File | Process | Build verb | Artifact | Product types | Destination |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | stays | `Morphir.BlackBox.Tests` | `Steps/PackagedArtifactSteps.cs` | yes | no | no | no | New in pull request 2. Stays: a step class of the black-box project. The scan matches the name of a driver type (`ProcessSessionOptions`); the step starts no process (`BlackBoxRulesTests`). |
 | stays | `Morphir.TestSupport.Tests` | `Drivers/PublishedTargetsTests.cs`, `Drivers/ReportDriverTests.cs`, `Packaging/PackagedArtifactTests.cs`, `Packaging/PackagedInstallationTests.cs`, `Packaging/PackagedRunTests.cs` | yes | no | yes | no | New in pull request 2 (the three of `Packaging/` moved from `Morphir.E2E.Tests` with their helpers). Stay: they test the testing library. |
+| stays | `Morphir.TestSupport.Tests` | `Drivers/LibraryHostDriverTests.cs` | no | yes | yes | no | New in pull request 5, found by the scan after the merge of `main` (`8d752e7d`) into pull request 2. Stays: it tests the library host driver of the testing library. |
 
 ## Counts
 

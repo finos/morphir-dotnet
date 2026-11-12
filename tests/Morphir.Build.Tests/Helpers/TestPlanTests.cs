@@ -98,6 +98,7 @@ public class TestPlanTests
     public void TheSuitesThatRunMSBuildOnSourceProjectsAreKnown() =>
         TestPlan.Suites.Where(suite => suite.UsesSourceProjects).Select(suite => suite.Project).Should().BeEquivalentTo(
             "Morphir.SDK.Tests",
+            "Morphir.TestSupport.Tests",
             "Morphir.Mep.Tests",
             "Morphir.Frontend.FSharp.Extension.Tests",
             "Morphir.CodeGeneration.FSharp.Extension.Tests",
@@ -289,6 +290,7 @@ public class TestPlanTests
 
     [Test]
     [Arguments("integration")]
+    [Arguments("e2e")]
     [Arguments("smoke")]
     [Arguments("journey")]
     public void AGroupOfTheBlackBoxProjectThatHasATestIsASuiteOfThePlan(string group)
@@ -379,6 +381,17 @@ public class TestPlanTests
     [Arguments("[04:49:13 INF] EXPECTO! 143 tests run in 00:00:35.9465402 for PlatformSpecific – 143 passed", false)]
     public void AnExpectoRunThatSelectsNoTestIsFound(string line, bool expected) =>
         TestPlan.ReportsNoTests(line).Should().Be(expected);
+
+    [Test]
+    public void ALaneRunSelectsEachGroupOfTheBlackBoxProjectWithTheFilterOfTheLane()
+    {
+        var run = TestPlan.LaneRun("native-aot");
+
+        run.Suite.Project.Should().Be("Morphir.BlackBox.Tests");
+        run.Suite.Group.Should().BeNull();
+        run.Arguments.Should().Equal("--treenode-filter", "/*/*/*/*[Category=native-aot]");
+        ((Action)(() => TestPlan.LaneRun("none"))).Should().Throw<ArgumentException>().WithMessage("*packages, native-aot, published*");
+    }
 
     [Test]
     [Arguments("Skipped tests by reason: lane 2, host 0, capability 1", "lane 2, host 0, capability 1")]
