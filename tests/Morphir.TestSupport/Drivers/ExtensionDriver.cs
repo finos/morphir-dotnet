@@ -317,4 +317,3 @@ public static class ExtensionPlatform
     /// <summary>The platform on which the WASM runtime of the product is refused before it loads (issue #609).</summary>
     public const string WithoutWasm = "win-x64";
 }
-
