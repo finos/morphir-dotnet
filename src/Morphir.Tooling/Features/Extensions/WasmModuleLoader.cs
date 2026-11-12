@@ -218,6 +218,12 @@ public sealed class WasmModuleLoader(WasmRuntime runtime, HostIdentity host) : I
         if (runtime.Availability.Match<WasmRuntimeUnavailableReason?>(available: () => null, unavailable: reason => reason) is { } unavailable)
             return Fail(new WasmModuleFailure.RuntimeUnavailable(extension, path, host, runtime.Platform, unavailable));
 
+        // A supplied availability cannot enable an engine that this process cannot safely run.
+        // Refuse before file access, including when the supplied runtime misidentifies the process.
+        if (WasmRuntimeProbe.CurrentPlatform == "win-x64" || runtime.Platform == "win-x64")
+            return Fail(new WasmModuleFailure.RuntimeUnavailable(extension, path, host, "win-x64",
+                WasmRuntimeUnavailableReason.WinX64TrapUnsupported));
+
         byte[] bytes;
         try
         {

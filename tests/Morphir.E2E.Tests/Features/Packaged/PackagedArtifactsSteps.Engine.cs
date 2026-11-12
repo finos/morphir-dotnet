@@ -37,7 +37,7 @@ public sealed partial class PackagedArtifactsSteps
             .Should().BeEmpty($"{installation.Artifact.BuildContentsPath} records the engines {described}");
     }
 
-    [Then("the installed artifact reports the WASM runtime available with the pinned engine on this platform")]
+    [Then("the installed artifact reports its WASM runtime availability with the pinned engine on this platform")]
     public void ThenTheArtifactReportsTheWasmRuntime()
     {
         Result.ExitCode.Should().Be(0, Result.Describe());
@@ -47,7 +47,10 @@ public sealed partial class PackagedArtifactsSteps
         root.GetProperty("platform").GetString().Should().Be(new ExecutableLocator().CurrentRid, "the report comes from the running executable");
         var wasm = root.GetProperty("runtimes").EnumerateArray().Should().ContainSingle().Subject;
         wasm.GetProperty("kind").GetString().Should().Be("wasm");
-        wasm.GetProperty("available").GetBoolean().Should().BeTrue(Result.StandardOutput);
+        var windowsX64 = root.GetProperty("platform").GetString() == "win-x64";
+        wasm.GetProperty("available").GetBoolean().Should().Be(!windowsX64, Result.StandardOutput);
+        if (windowsX64)
+            wasm.GetProperty("reason").GetString().Should().Be("win_x64_trap_unsupported");
         var version = ExecutableExtensionRuntimesTests.PackageVersion();
         wasm.GetProperty("engine").GetProperty("name").GetString().Should().Be("wasmtime");
         wasm.GetProperty("engine").GetProperty("version").GetString().Should().Be(version, "the engine is the pinned Wasmtime package's");
@@ -59,6 +62,11 @@ public sealed partial class PackagedArtifactsSteps
     [When("the installed artifact serves the pinned module \"(.*)\" with the frames \"(.*)\" in a worker session")]
     public async Task WhenTheArtifactServesAWorkerSession(string module, string frames)
     {
+        var runtimeReport = await PackagedRun.RunAsync(Installation, ["extension", "runtimes", "--json"], RuntimeAccess.Visible);
+        runtimeReport.ExitCode.Should().Be(0, runtimeReport.Describe());
+        if (ExecutableExtensionRuntimesTests.IsWindowsX64(runtimeReport.StandardOutput))
+            Skip.Test("win_x64_trap_unsupported: the installed executable cannot run guests; #609.");
+
         var sandbox = _workerSandbox = TestSandbox.Create("morphir-packaged-worker-");
         var work = Directory.CreateDirectory(Path.Combine(sandbox.Root, PackagedRun.WorkDirectoryName)).FullName;
         var temp = _workerTemp = Directory.CreateDirectory(Path.Combine(sandbox.Root, "temp dir")).FullName;

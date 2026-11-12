@@ -65,3 +65,56 @@ separate experimental product PR. Further conformance/report work, the 21-case
 kit, notification-delivery evidence, task 5.4 packaging, tasks 6.1/6.2 qualification
 and Rust parity are deferred beyond alpha.5. No host, platform or guest is
 qualified by these source tests.
+
+## Actual Windows x64 follow-up
+
+The Windows x64 CI failure at `6775fd7d` exposed two remaining availability
+assumptions. The registry test now checks the process's availability and common
+reason. The worker success test skips with `win_x64_trap_unsupported` and #609.
+The startup-order matrix remains active and checks that this safety refusal
+precedes module I/O. The loader independently refuses Windows x64 before reading
+a module, including when a caller supplies an incorrectly available runtime.
+Its two new actual-x64 cases first failed with `NotFound`, then passed with
+`extension.runtime_unavailable` and the named reason.
+
+An isolated Microsoft SDK 11.0.100 AMD64 host and both product apphosts were
+verified as x64. The downloaded SDK's SHA-512 matched Microsoft's release
+metadata. No machine installation, PATH, SDK pin, CET, Spectre or trap setting
+changed. The fresh solution build completed with zero errors and 91 warnings;
+a subsequent current-source incremental build also returned zero.
+
+The existing Test target invoked all 35 unit assemblies under x64 emulation.
+Tooling passed **1,192**, with **77 skipped**; WASM passed **29**, with **203
+skipped**, including guest execution. This was **not a green full Test target**:
+SDK.Conformance crashed in `System.Diagnostics.Tracing.EventAttribute.set_Message`,
+Toolchain reported six fixture/native-launch setup errors, and Myriad.Integration
+reported 12 missing-.NET-10-runtime failures. The two package scripts were not
+reached. Real x64 CI remains the judge of those groups. The initial attempted
+runtime download selected an apphost pack; a corrected private runtime acquisition
+completed afterward, but none of those groups was rerun before publication.
+
+Final focused x64 checks passed: runtime probe **33 passed / 1 skipped**, listing
+**17 / 0**, worker-runtime controls **15 / 1**. The full run changed one SDK output
+DLL through test-driven builds; its final artifact-closure check therefore failed.
+The owned WASM/Tooling source and focused artifacts retained their original
+successful-build hashes. Two smoke locks were normalized only from the empty
+`osx-arm64` RID key to `win-x64` for locked restore, then restored byte-for-byte;
+no package pins or locks are part of this fix.
+
+New Windows x64 skips in this follow-up are the worker success test and the E2E
+steps that require a runnable guest or the module-loading stage. The executable
+worker scenarios are printing, logging, echo, refused-module classification,
+non-WASM file, missing module, output flooding and Ctrl+C. The packaged scenarios
+are the worker session and read-only first run. Their guards read the executable's
+actual runtime report, not the test process architecture. Help, stale identity,
+unknown-argument, runtime-report and unavailable-runtime controls remain active.
+These E2E edits compiled in the fresh build; their scenarios were not executed
+in this batch. Packaged artifacts are not qualified by this change.
+
+Raw streams, setup failures, source/artifact hashes and process identities are
+retained under `.dev/out/wasm-win-x64-repair/`. The private compiler server was
+terminated only after matching its PID, creation identity and private SDK path.
+Final global .NET/compiler/test inventory was empty. `git diff --check` passed.
+Automated scoped formatting was not run after the parent's immediate-push
+instruction; full formatting and coverage are not claimed. Publication retains
+the authorized bounded-campaign sequencing exception and bypasses no hook.
