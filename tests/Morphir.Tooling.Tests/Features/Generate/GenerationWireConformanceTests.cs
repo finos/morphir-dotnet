@@ -11,6 +11,7 @@ using Sources = Microsoft.FSharp.Collections.FSharpList<System.Tuple<string, str
 using Generated = Microsoft.FSharp.Core.FSharpResult<Microsoft.FSharp.Collections.FSharpList<System.Tuple<string, string>>, Microsoft.FSharp.Collections.FSharpList<string>>;
 
 using Morphir.TestSupport;
+using Morphir.TestSupport.Drivers;
 using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
@@ -24,10 +25,11 @@ public sealed class GenerationWireConformanceTests : IDisposable
 
     private async Task<Generated> Generate(string path)
     {
-        if (Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI") is { } executable)
+        // An executable target of the testing library (MORPHIR_TEST_TARGET=executable) runs the matrix through that CLI.
+        if (TestRunSettings.Parse(Environment.GetEnvironmentVariable, File.Exists).Target is TestTarget.Executable)
         {
             var output = Path.Combine(_root, "published-" + Guid.NewGuid().ToString("N"));
-            var response = await new CliTestHelper(executable).ExecuteCommandAsync($"generate --input \"{path}\" --target fsharp --output \"{output}\" --json", timeout: TimeSpan.FromSeconds(60));
+            var response = await CliTestHelper.ForTarget().ExecuteCommandAsync($"generate --input \"{path}\" --target fsharp --output \"{output}\" --json", timeout: TimeSpan.FromSeconds(60));
             using var report = JsonDocument.Parse(response.StandardOutput);
             report.RootElement.GetProperty("exitCode").GetInt32().Should().Be(response.ExitCode);
             if (response.ExitCode != 0) return Generated.NewError(ListModule.OfSeq(report.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString()!)));

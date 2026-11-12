@@ -196,4 +196,25 @@ public class ScenarioWorkspaceTests
 
         workspace.FilesWrittenSince(mark).Should().BeEmpty();
     }
+
+    [Test]
+    public async Task AWorkspaceMakesADirectoryRemovesAFileAndReadsAFixtureWithNoCopy()
+    {
+        await using var workspace = Create();
+        var empty = workspace.Directory("an empty", "directory");
+        var file = workspace.File("a file.txt");
+        var fixture = Directory.EnumerateFiles(Fixtures, "*", SearchOption.AllDirectories).First();
+        var name = Path.GetRelativePath(Fixtures, fixture).Replace('\\', '/');
+
+        workspace.CreateDirectory(empty);
+        workspace.WriteText(file, "text");
+        workspace.Delete(file);
+        workspace.Delete(file);
+
+        workspace.Exists(empty).Should().BeTrue();
+        workspace.Exists(file).Should().BeFalse("a second delete of a file that is not there does nothing");
+        workspace.ReadFixtureText(name).Should().Be(File.ReadAllText(fixture));
+        workspace.FilesIn(workspace.Work).Should().BeEmpty("a fixture that the test only reads is not copied");
+        ((Action)(() => workspace.ReadFixtureText("no such fixture.txt"))).Should().Throw<TestSessionException>().WithMessage("*no such fixture.txt*");
+    }
 }
