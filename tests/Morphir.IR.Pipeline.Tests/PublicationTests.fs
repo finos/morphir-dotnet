@@ -154,6 +154,7 @@ let containmentTests =
                 Expect.isEmpty (Directory.GetFiles elsewhere) "should not write through the link")
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let collisionTests =
@@ -245,6 +246,7 @@ let collisionTests =
                 Expect.equal (File.ReadAllText(Path.Combine(root, "a.fs"))) "old" "existing output should be unchanged")
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let stagingTests =
@@ -317,6 +319,7 @@ let stagingTests =
                     Expect.isEmpty (stagingDirectories root) "no staging directory should remain")
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let repeatTests =
@@ -373,6 +376,7 @@ let repeatTests =
                 Expect.equal second.Unchanged [ "a.bin" ] "identical stream content should be unchanged")
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let manifestTests =
@@ -589,6 +593,7 @@ let manifestTests =
             Expect.stringContains mismatch "absent.fs" "missing"
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let csharpSurfaceTests =
@@ -663,3 +668,4 @@ let csharpSurfaceTests =
                 Expect.isFalse (Directory.Exists root) "nothing is written")
         }
     ]
+    |> testLabel "PlatformSpecific"

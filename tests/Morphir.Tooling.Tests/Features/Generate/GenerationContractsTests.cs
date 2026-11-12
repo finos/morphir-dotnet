@@ -50,6 +50,7 @@ public class GenerationContractsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void FSharpConsumerCompilesAgainstTheSameContracts()
     {
         var references = ListModule.OfSeq(new[] { typeof(BackendOptions).Assembly.Location, typeof(VersionedModel).Assembly.Location, typeof(VFileTree).Assembly.Location, typeof(TargetId).Assembly.Location });

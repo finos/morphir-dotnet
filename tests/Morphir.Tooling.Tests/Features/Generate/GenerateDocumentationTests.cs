@@ -13,6 +13,7 @@ namespace Morphir.Tooling.Tests.Features.Generate;
 /// the real <c>dotnet-morphir</c> on the sources of the MCK corpus case <c>frontend-fsharp-0116</c>. Each CLI
 /// run has its own sandbox directory, so the test gives each command <c>--project</c> and an absolute output.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed partial class GenerateDocumentationTests
 {
     private static string Section()

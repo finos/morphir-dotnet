@@ -597,3 +597,4 @@ let tests =
                 | other -> failtestf "unexpected diagnostics %A" other)
         ]
     ]
+    |> testLabel "PlatformSpecific"

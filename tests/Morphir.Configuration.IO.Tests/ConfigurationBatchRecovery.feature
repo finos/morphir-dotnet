@@ -1,3 +1,4 @@
+@PlatformSpecific
 Feature: Recoverable configuration batches
   As a workspace owner
   I want interrupted batches to retain inspectable evidence

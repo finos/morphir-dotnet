@@ -97,6 +97,7 @@ static class BadFailure { static void Check(string? text) {
                 (Regex.IsMatch(result.CombinedOutput, file + @"\.cs\([^\r\n]*" + diagnostic))
                 $"The compiler reports {diagnostic} for {file}: {result.CombinedOutput}"
     }
+    |> testLabel "PlatformSpecific"
 
 
 [<Tests>]

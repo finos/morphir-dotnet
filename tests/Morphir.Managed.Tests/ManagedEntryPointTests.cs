@@ -33,6 +33,7 @@ public sealed class ManagedEntryPointTests
 
     /// <summary>The managed morphir lists the in-process F# frontend as available, like dotnet-morphir.</summary>
     [Test]
+    [Category("PlatformSpecific")]
     public void TheManagedEntryPointListsTheFSharpFrontendAsAvailable()
     {
         using var app = ManagedProgram.CreateApp([]);
@@ -41,6 +42,7 @@ public sealed class ManagedEntryPointTests
         entry.IsAvailableIn(catalog.Host).Should().BeTrue();
     }
     [Test]
+    [Category("PlatformSpecific")]
     public void TheManagedEntryPointRegistersTheInProcessFSharpFrontend()
     {
         using var app = ManagedProgram.CreateApp([]);
@@ -50,6 +52,7 @@ public sealed class ManagedEntryPointTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheManagedEntryPointHasTheFrontendsOfTheDotnetTool()
     {
         using var managed = ManagedProgram.CreateApp([]);
@@ -61,6 +64,7 @@ public sealed class ManagedEntryPointTests
     // the managed morphir runs as the command morphir, dotnet-morphir as dotnet-morphir.
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheManagedEntryPointHasTheServicesOfTheDotnetTool()
     {
         var managed = Managed();
@@ -73,10 +77,12 @@ public sealed class ManagedEntryPointTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheManagedEntryPointHasTheCommandTreeOfTheDotnetTool() =>
         Managed().Commands.Should().Equal(Tool().Commands);
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheAssemblyClosureOfTheManagedEntryPointHasTheFSharpFrontend()
     {
         var closure = Closure(typeof(ManagedProgram).Assembly);
@@ -93,6 +99,7 @@ public sealed class ManagedEntryPointTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task VersionOutputParsesAsAReleaseVersion()
     {
         var start = ChildProcess.StartInfo(DotnetHost(), Path.Combine(AppContext.BaseDirectory, "morphir.dll"), "--version");
@@ -111,6 +118,7 @@ public sealed class ManagedEntryPointTests
     // its own deps.json and runtimeconfig, through the composition and the F# compiler service.
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheManagedExecutableCompilesFSharpWithTheInProcessFrontend()
     {
         await using var sandbox = TestSandbox.Create("morphir-managed-compile-");
@@ -127,6 +135,7 @@ public sealed class ManagedEntryPointTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheManagedExecutableListsTheSharedBuiltIns()
     {
         await using var sandbox = TestSandbox.Create("morphir-managed-extensions-");

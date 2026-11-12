@@ -8,6 +8,7 @@ using Morphir.Tooling.Infrastructure;
 namespace Morphir.Tooling.Tests.Features.Validate;
 
 /// <summary><c>extensions."&lt;id&gt;".enabled</c> from the layered configuration of the invocation directory.</summary>
+[Category("PlatformSpecific")]
 public sealed class LayeredAnalyzerConfigurationTests
 {
     private static readonly ExtensionId TypeValidator = ExtensionId.Create("morphir.type-validator");

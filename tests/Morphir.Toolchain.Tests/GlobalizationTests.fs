@@ -114,3 +114,4 @@ let tests =
             let result = ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0).GetAwaiter().GetResult()
             Expect.equal result.ExitCode 0 $"the recorded digest without ICU: {result.CombinedOutput}")
     ]
+    |> testLabel "PlatformSpecific"

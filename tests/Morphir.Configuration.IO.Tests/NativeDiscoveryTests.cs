@@ -2,6 +2,7 @@ using FluentAssertions;
 
 namespace Morphir.Configuration.IO.Tests;
 
+[Category("PlatformSpecific")]
 public sealed class NativeDiscoveryTests
 {
     [Test]

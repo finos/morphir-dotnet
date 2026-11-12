@@ -302,6 +302,7 @@ let tests =
             |> refused "extension.claims_mismatch" "capabilities.frontend.compile"
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 let private claimsSchema =
     "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/claims.schema.json"
@@ -556,3 +557,4 @@ let claimTests =
             |> refused "extension.invalid_document" "critical"
         }
     ]
+    |> testLabel "PlatformSpecific"

@@ -44,6 +44,7 @@ public class MorphirupReleaseTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void ThePlatformsAreTheOnesTheReleaseWorkflowBuilds()
     {
         MorphirupRelease.Platforms.Should().Equal("linux-x64", "linux-arm64", "win-x64", "osx-arm64");
@@ -64,6 +65,7 @@ public class MorphirupReleaseTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheLinuxExecutablesAreBuiltAtThePinnedGlibcFloor()
     {
         // A Native AOT executable needs the glibc of the machine that linked it, or newer. The morphir executables link on
@@ -131,6 +133,7 @@ public class MorphirupReleaseTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheReleaseJobAttachesAndChecksTheMorphirupAssets()
     {
         var workflow = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", "deployment.yml"));
@@ -146,6 +149,7 @@ public class MorphirupReleaseTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("linux-x64")]
     [Arguments("win-x64")]
     public async Task TheArchiveHoldsTheExecutableAndItsNoticesUnderTheRidFolder(string rid)
@@ -187,6 +191,7 @@ public class MorphirupReleaseTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheChecksumFileListsEveryMorphirupAssetAndOnlyThose()
     {
         await using var sandbox = TestSandbox.Create("morphirup-release-");
@@ -209,6 +214,7 @@ public class MorphirupReleaseTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task VerificationFindsAChangedAMissingAndAnUnlistedAsset()
     {
         await using var sandbox = TestSandbox.Create("morphirup-release-");

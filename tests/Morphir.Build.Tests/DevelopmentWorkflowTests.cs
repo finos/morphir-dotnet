@@ -11,6 +11,7 @@ namespace Morphir.Build.Tests;
 /// development.yml takes its OS matrix and its check selection from the Fallout target CIPlan, and its aggregate ci
 /// check from CIGate. ci-request.yml starts a run when a ci:* label changes.
 /// </summary>
+[Category("PlatformSpecific")]
 public class DevelopmentWorkflowTests
 {
     [Test]

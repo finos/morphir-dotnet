@@ -338,15 +338,19 @@ let tests =
         testCaseTask
             "normal root completion settles a descendant with no inherited output handles"
             (fun () -> exercise Ending.RootExit)
+        |> testLabel "PlatformSpecific"
         testCaseTask
             "killing only the launcher owner also terminates its process tree"
             (fun () -> exercise Ending.OwnerDeath)
+        |> testLabel "PlatformSpecific"
         testCaseTask
             "caller cancellation settles descendants and preserves its original token"
             (fun () -> exercise Ending.Cancelled)
+        |> testLabel "PlatformSpecific"
         testCaseTask
             "an output failure settles descendants and preserves the actual cause"
             (fun () -> exercise Ending.OutputFailure)
+        |> testLabel "PlatformSpecific"
         testCaseTask
             "the native launch preserves empty quoted Unicode and trailing-backslash arguments"
             (fun () -> task {
@@ -412,6 +416,7 @@ let tests =
                     expected
                     "the actual native command line round-trips each argument"
             })
+        |> testLabel "PlatformSpecific"
         testCaseTask
             "inherited standard input reaches the contained child unchanged"
             (fun () -> task {
@@ -460,6 +465,7 @@ let tests =
                     (System.Text.Encoding.UTF8.GetBytes payload)
                     "actual inherited bytes"
             })
+        |> testLabel "PlatformSpecific"
         testCaseTask
             "a failed native start rolls back without starting a payload"
             (fun () -> task {
@@ -487,4 +493,5 @@ let tests =
                 with :? System.ComponentModel.Win32Exception as error ->
                     Expect.equal error.NativeErrorCode 2 "actual file-not-found cause"
             })
+        |> testLabel "PlatformSpecific"
     ]

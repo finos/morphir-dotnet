@@ -282,6 +282,7 @@ let private canonicalTests =
 
             Expect.isGreaterThan count 70 "The canonical steps are found"
     ]
+    |> testLabel "PlatformSpecific"
 
 let private fixturesRoot = Path.Combine(fixtureRoot, "..")
 
@@ -355,6 +356,7 @@ let private fixtureTests =
                  |> List.exists (fun name -> name.Contains "v3"))
                 "No classic fixture is checked"
     ]
+    |> testLabel "PlatformSpecific"
 
 let private name word = Name [ word ]
 

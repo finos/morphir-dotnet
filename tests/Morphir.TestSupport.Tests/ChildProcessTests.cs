@@ -23,6 +23,7 @@ public class ChildProcessTests
             : ChildProcess.StartInfo("/bin/sh", "-c", $"echo {text}");
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Timeout_KillsTreeAndWaits_SoWorkingDirectoryCanBeDeleted()
     {
         var workingDirectory = Directory.CreateTempSubdirectory("morphir-child-").FullName;
@@ -41,6 +42,7 @@ public class ChildProcessTests
     // The direct child exits at once; a background grandchild keeps its pipes and would write a marker later.
     // Killing the exited parent's tree cannot reach it, so the runner must own a group/job that outlives the parent.
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Timeout_KillsAGrandchildThatOutlivedItsParent()
     {
         if (OperatingSystem.IsMacOS()) return; // No owned process group on macOS: see ChildProcess.
@@ -61,6 +63,7 @@ public class ChildProcessTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task LargeOutputOnBothStreams_DoesNotDeadlock()
     {
         const int size = 2_000_000;
@@ -78,6 +81,7 @@ public class ChildProcessTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task GateOfOne_RunsChildrenOneAfterAnother()
     {
         var gate = new ProcessGate(1);
@@ -91,6 +95,7 @@ public class ChildProcessTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TimeoutStartsAfterTheGateIsHeld()
     {
         var gate = new ProcessGate(1);
@@ -108,6 +113,7 @@ public class ChildProcessTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Cancellation_KillsTreeAndThrows()
     {
         var workingDirectory = Directory.CreateTempSubdirectory("morphir-child-").FullName;
@@ -128,6 +134,7 @@ public class ChildProcessTests
             : ChildProcess.StartInfo("/bin/sh", "-c", "read line; echo \"got $line\"; rest=$(cat); echo \"rest $rest\"");
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Converse_WritesAfterReadingAReply_ThenReturnsTheRestOfStdout()
     {
         var result = await ChildProcess.ConverseAsync(Answer(), TimeSpan.FromMinutes(1), async (input, output, ct) =>
@@ -145,6 +152,7 @@ public class ChildProcessTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Converse_Timeout_KillsTheTreeWhileTheConversationWaits()
     {
         var run = () => ChildProcess.ConverseAsync(Sleep(30), TimeSpan.FromSeconds(1), async (_, output, ct) =>

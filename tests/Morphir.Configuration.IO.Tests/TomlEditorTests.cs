@@ -230,6 +230,7 @@ public sealed class TomlEditorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void PinnedTomlCorpusDocumentsRetainEveryUnrelatedByte()
     {
         using var corpus = System.Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Configuration", "toml-corpus.json")));

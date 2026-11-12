@@ -71,6 +71,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheOutputOptionInstallsTheIrAndTheReportListsTheInstalledFile()
     {
         var project = Project();
@@ -87,6 +88,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AnInstallConflictFailsWithExitCodeTwoAndNamesTheForeignFile()
     {
         var project = Project();
@@ -102,6 +104,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task JsonModeWritesExactlyOneReportOnStdout()
     {
         var project = Project();
@@ -119,6 +122,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheReportGivesTheCommandLineAsTheOriginOfAnOverride()
     {
         var project = Project();
@@ -134,6 +138,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task WarningsFromEveryStageAreInASuccessfulReportInStageAndPositionOrder()
     {
         var project = Project(IncompletePricing);
@@ -149,6 +154,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AnUnsupportedConstructGivesOneFailedReportWithItsRange()
     {
         var project = Project(CompileRunnerTests.MutablePricing);
@@ -168,6 +174,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task HumanModeStreamsAProjectFileWarningBeforeASlowFrontendCompletes()
     {
         var project = Project();
@@ -189,6 +196,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task JsonLinesWritesAndFlushesEachRecordAsItsEventOccurs()
     {
         var project = Project();
@@ -229,6 +237,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task JsonLinesEndsAFailureWithACompletedRecord()
     {
         var project = Project(CompileRunnerTests.MutablePricing);
@@ -243,6 +252,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task JsonAndJsonLinesTogetherGiveOneInvocationFailureRecord()
     {
         var project = Project();
@@ -257,6 +267,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AParseErrorInJsonLinesModeEndsWithACompletedRecord()
     {
         var project = Project();
@@ -268,6 +279,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task CancellationInJsonLinesModeEndsWithACompletedRecordAndExitCode130()
     {
         var project = Project();
@@ -288,6 +300,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("", 0)]
     [Arguments("--ir-version 4.1.0-draft.1", 2)]
     [Arguments("--types-only", 2)]
@@ -304,6 +317,7 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task OutsideAnyProjectInputFilesCompileWithTheDefaults()
     {
         using var workspace = new CompileWorkspace();

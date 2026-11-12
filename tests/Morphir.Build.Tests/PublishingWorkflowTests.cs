@@ -4,6 +4,7 @@ using YamlDotNet.RepresentationModel;
 
 namespace Morphir.Build.Tests;
 
+[Category("PlatformSpecific")]
 public class PublishingWorkflowTests
 {
     [Test]

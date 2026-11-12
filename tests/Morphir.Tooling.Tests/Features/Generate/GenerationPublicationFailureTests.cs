@@ -8,6 +8,7 @@ using Morphir.TestSupport;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
+[Category("PlatformSpecific")]
 public sealed class GenerationPublicationFailureTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "morphir-publish-failure-" + Guid.NewGuid().ToString("N"));

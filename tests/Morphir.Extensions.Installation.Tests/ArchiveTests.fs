@@ -143,6 +143,7 @@ let tests =
                 Expect.equal report.Entries[0].Name "lib/guest.exe" "safe relative path"
                 Expect.equal report.Entries[0].Length (int64 content.Length) "observed bytes"
         }
+        |> testLabel "PlatformSpecific"
         for name in
             [
                 "../../evil.exe"
@@ -163,6 +164,7 @@ let tests =
 
                     inspect sandbox bytes
                     |> refused "extension.unsafe_archive"
+            |> testLabel "PlatformSpecific"
         test "rejects case aliases and duplicate paths in both formats" {
             for names in
                 [
@@ -180,6 +182,7 @@ let tests =
                     inspect sandbox bytes
                     |> refused "extension.unsafe_archive"
         }
+        |> testLabel "PlatformSpecific"
         test "only regular files and directories are accepted" {
             for kind in
                 [
@@ -206,6 +209,7 @@ let tests =
             inspect sandbox (zip [ "link", content, int (0xA1FF0000u) ])
             |> refused "extension.unsafe_archive"
         }
+        |> testLabel "PlatformSpecific"
         test "directories are accepted without copying archive modes" {
             use sandbox = TestSandbox.Create()
             let directory = new PaxTarEntry(TarEntryType.Directory, "lib/")
@@ -217,6 +221,7 @@ let tests =
             Expect.equal report.Entries.Count 2 "directory and regular file"
             Expect.isTrue report.Entries[0].IsDirectory "directory kind"
         }
+        |> testLabel "PlatformSpecific"
         test "checks GNU long names after their metadata is applied" {
             use sandbox = TestSandbox.Create()
 
@@ -232,6 +237,7 @@ let tests =
             inspect sandbox (tar [ entry ])
             |> refused "extension.unsafe_archive"
         }
+        |> testLabel "PlatformSpecific"
         test "bounds PAX and GNU headers before their payload is allocated" {
             for kind in [ 'x'; 'g'; 'L'; 'K' ] do
                 use sandbox = TestSandbox.Create()
@@ -248,6 +254,7 @@ let tests =
                     ))
                 |> refused "extension.archive_limit"
         }
+        |> testLabel "PlatformSpecific"
         test "checks ZIP local and central names for exact byte equality" {
             use sandbox = TestSandbox.Create()
             let bytes = zip [ "good.exe", content, 0 ]
@@ -256,6 +263,7 @@ let tests =
             inspect sandbox bytes
             |> refused "extension.unsafe_archive"
         }
+        |> testLabel "PlatformSpecific"
         test "refuses 1025 entries before any extraction" {
             let names = [ for index in 0..1024 -> $"f{index}" ]
 
@@ -269,6 +277,7 @@ let tests =
                 inspect sandbox bytes
                 |> refused "extension.archive_limit"
         }
+        |> testLabel "PlatformSpecific"
         test "refuses ZIP entry and gzip stream expansion above 200 times after 1 MiB" {
             let bomb =
                 Array.zeroCreate<byte> (
@@ -283,6 +292,7 @@ let tests =
                 inspect sandbox bytes
                 |> refused "extension.archive_limit"
         }
+        |> testLabel "PlatformSpecific"
         test "applies the same limits inside nested archives" {
             let innerZip =
                 zip [
@@ -313,6 +323,7 @@ let tests =
                     inspect sandbox outer
                     |> refused "extension.archive_limit"
         }
+        |> testLabel "PlatformSpecific"
         test "nested detection survives partial stream reads" {
             let inner =
                 zip [
@@ -366,6 +377,7 @@ let tests =
                 )
             )
         }
+        |> testLabel "PlatformSpecific"
         test "rejects oversized declared entries before reading data" {
             use sandbox = TestSandbox.Create()
 
@@ -382,6 +394,7 @@ let tests =
                 ))
             |> refused "extension.archive_limit"
         }
+        |> testLabel "PlatformSpecific"
         test "rejects an archive file above 1 GiB before parsing it" {
             use sandbox = TestSandbox.Create()
             let path = Path.Combine(sandbox.Root, "large.zip")
@@ -399,6 +412,7 @@ let tests =
             ArchiveReader.InspectAsync(path, ct).GetAwaiter().GetResult()
             |> refused "extension.archive_limit"
         }
+        |> testLabel "PlatformSpecific"
         test "gzip must hold a tar; plain tar and bare data are unsupported" {
             for bytes in
                 [ gzip content; content; header "raw" '0' 0L; [| 0uy; 0x61uy; 0x73uy; 0x6duy |] ] do
@@ -407,6 +421,7 @@ let tests =
                 inspect sandbox bytes
                 |> refused "extension.unsupported_package"
         }
+        |> testLabel "PlatformSpecific"
         test "limits are the approved archive and single-file limits" {
             Expect.equal
                 InstallationLimits.MaxArchiveBytes
@@ -519,6 +534,7 @@ let tests =
             inspect sandbox (gzipStored raw)
             |> refused "extension.archive_limit"
         }
+        |> testLabel "PlatformSpecific"
         test "raw tar bytes and regular content are charged once per nesting level" {
             let raw =
                 Array.concat [
@@ -562,4 +578,5 @@ let tests =
             inspect sandbox (gzipStored raw)
             |> refused "extension.archive_limit"
         }
+        |> testLabel "PlatformSpecific"
     ]

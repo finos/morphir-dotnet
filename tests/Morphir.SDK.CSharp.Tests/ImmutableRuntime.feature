@@ -6,11 +6,13 @@ Feature: Immutable C# SDK runtime
     Then only present and successful values invoke their callbacks
     And string errors and integer successes retain their types
 
+  @PlatformSpecific
   Scenario: Persistent collections retain old values and ordered traversal
     When a C# consumer updates persistent SDK collections
     Then retained operands remain unchanged
     And independently constructed nested values have equal hashes
 
+  @PlatformSpecific
   Scenario: Frozen admitted operations execute through the public runtime
     When the C# adapter executes the frozen required SDK cases
     Then all 207 required case IDs pass without skips

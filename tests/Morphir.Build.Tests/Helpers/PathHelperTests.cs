@@ -7,6 +7,7 @@ namespace Morphir.Build.Tests.Helpers;
 /// <summary>
 /// Tests for PathHelper helper class
 /// </summary>
+[Category("PlatformSpecific")]
 public class PathHelperTests
 {
     [Test]

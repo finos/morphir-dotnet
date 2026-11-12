@@ -5,6 +5,7 @@ using FluentAssertions;
 
 namespace Morphir.TestSupport.Tests;
 
+[Category("PlatformSpecific")]
 public class TestSandboxTests
 {
     private static ProcessStartInfo PrintEnvironment() =>

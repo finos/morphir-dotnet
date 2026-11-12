@@ -27,6 +27,7 @@ public sealed class FakeProjectFileProvider(params string[] documents) : IProjec
 }
 
 /// <summary>Task 4.3: neutral source selection (SRC-1) with an in-memory provider.</summary>
+[Category("PlatformSpecific")]
 public sealed class SourceSelectionTests
 {
     private static readonly IReadOnlySet<string> FSharp = new HashSet<string>(StringComparer.Ordinal) { ".fs", ".fsi" };

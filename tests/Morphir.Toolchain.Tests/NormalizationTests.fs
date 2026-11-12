@@ -68,10 +68,12 @@ let tests =
                 [ "NormalizationTest.txt", "5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db"
                   "LICENSE.txt", "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96" ] do
                 Expect.equal (Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(file name)))) sha name)
+        |> testLabel "PlatformSpecific"
 
         testCase "the tables are Unicode 17.0.0, and so is the conformance file" (fun () ->
             Expect.equal Nfc.unicodeVersion "17.0.0" "the tables"
             Expect.stringStarts (File.ReadLines(file "NormalizationTest.txt") |> Seq.head) "# NormalizationTest-17.0.0.txt" "the file")
+        |> testLabel "PlatformSpecific"
 
         testList "NormalizationTest.txt" [
             for part in [ "@Part0"; "@Part1"; "@Part2"; "@Part3" ] ->
@@ -80,6 +82,7 @@ let tests =
                     Expect.isNonEmpty (lines.Value |> List.filter (fun line -> line.Part = part)) $"{part} has lines"
                     Expect.isEmpty (List.truncate 10 failed) $"{failed.Length} lines of {part} fail")
         ]
+        |> testLabel "PlatformSpecific"
 
         testCase "every scalar value that Part 1 does not list is its own NFC" (fun () ->
             let listed =
@@ -97,6 +100,7 @@ let tests =
                               yield $"U+%04X{cp}" ]
 
             Expect.isEmpty (List.truncate 10 failed) $"{failed.Length} unlisted scalars change")
+        |> testLabel "PlatformSpecific"
 
         testCase "text below U+0300 is returned as it is, without a copy" (fun () ->
             let text = "toolchains/recipes/fsharp/1.0.0.json \u00E9\u00FF"

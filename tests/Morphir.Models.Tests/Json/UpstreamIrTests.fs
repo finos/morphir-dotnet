@@ -246,3 +246,4 @@ let tests =
                         | V4 _ -> Expect.isTrue (same expected actual) "structurally equal under N1"
                 }
     ]
+    |> testLabel "PlatformSpecific"

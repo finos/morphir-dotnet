@@ -9,6 +9,7 @@ using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
+[Category("PlatformSpecific")]
 public sealed class CSharpGenerationPublicationTests : IDisposable
 {
     public void Dispose() => TolerantDirectory.TryDelete(_root);

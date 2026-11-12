@@ -20,6 +20,7 @@ public class ReleaseArchiveTests
     private const string Launcher = "morphir-fsharp-frontend";
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ATarArchiveKeepsTheLaunchPathExecutable()
     {
         await using var sandbox = TestSandbox.Create("morphir-release-archive-");
@@ -38,6 +39,7 @@ public class ReleaseArchiveTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AZipArchiveHoldsThePublishFolderAtItsRoot()
     {
         await using var sandbox = TestSandbox.Create("morphir-release-archive-");
@@ -53,6 +55,7 @@ public class ReleaseArchiveTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ATarArchiveKeepsCreatedumpExecutable()
     {
         await using var sandbox = TestSandbox.Create("morphir-release-archive-");
@@ -71,6 +74,7 @@ public class ReleaseArchiveTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(ArchiveFormat.Zip)]
     [Arguments(ArchiveFormat.TarGz)]
     public async Task ArchivingTheSameFolderTwiceGivesTheSameBytes(ArchiveFormat format)
@@ -90,6 +94,7 @@ public class ReleaseArchiveTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(ArchiveFormat.Zip)]
     [Arguments(ArchiveFormat.TarGz)]
     public void TheFilesAreAtTheRootInOrdinalOrderWithTheFixedTimeStamp(ArchiveFormat format)
@@ -108,6 +113,7 @@ public class ReleaseArchiveTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(ArchiveFormat.Zip)]
     [Arguments(ArchiveFormat.TarGz)]
     public void TheLaunchFileAndCreatedumpAre0755AndEveryOtherFileIs0644(ArchiveFormat format)
@@ -129,6 +135,7 @@ public class ReleaseArchiveTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void APathLongerThan100CharactersIsKeptInATar()
     {
         using var scratch = new Scratch();
@@ -144,6 +151,7 @@ public class ReleaseArchiveTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void APathThatATarCannotHoldFailsNamesThePathAndLeavesNoArchive()
     {
         using var scratch = new Scratch();

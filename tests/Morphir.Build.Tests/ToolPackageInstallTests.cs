@@ -17,6 +17,7 @@ namespace Morphir.Build.Tests;
 /// packages with the same id and version and different content: A, the built one, and B, a conflict that is on every
 /// other path NuGet reads. The entry point of both is the stub morphir-mck, which reports the folder it runs from.
 /// </summary>
+[Category("PlatformSpecific")]
 public class ToolPackageInstallTests
 {
     private const string Id = "Probe.Tool";

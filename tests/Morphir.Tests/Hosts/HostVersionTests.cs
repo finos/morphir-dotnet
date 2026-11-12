@@ -16,6 +16,7 @@ public sealed class HostVersionTests
         ?? Path.GetFullPath(Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "../../..", OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet"));
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("morphir.dll")]
     [Arguments("dotnet-morphir.dll")]
     public async Task VersionOutputParsesAsAReleaseVersion(string assembly)

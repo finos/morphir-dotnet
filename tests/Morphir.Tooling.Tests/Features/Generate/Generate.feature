@@ -1,4 +1,4 @@
-@Generation @CLI
+@Generation @CLI @PlatformSpecific
 Feature: Generate executable libraries from Morphir models
   Generation uses explicit settings and the same behavior expectations for every representation.
 

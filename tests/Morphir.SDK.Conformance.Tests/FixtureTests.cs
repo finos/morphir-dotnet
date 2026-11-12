@@ -3,6 +3,7 @@ using Shouldly;
 
 namespace Morphir.SDK.Conformance.Tests;
 
+[Category("PlatformSpecific")]
 public sealed class FixtureTests
 {
     internal static string FixtureRoot => Path.Combine(AppContext.BaseDirectory, "Fixtures");

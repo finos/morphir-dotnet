@@ -11,6 +11,7 @@ namespace Morphir.Tooling.Tests.Infrastructure;
 /// directory, as process start would do on Windows (CreateProcess) and in .NET on Unix. The resolved absolute path
 /// is what starts. A decoy that a checkout plants in the working directory is never chosen.
 /// </summary>
+[Category("PlatformSpecific")]
 public class ExtensionCommandResolutionTests
 {
     private static readonly string Suffix = OperatingSystem.IsWindows() ? ".exe" : "";

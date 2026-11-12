@@ -100,4 +100,5 @@ let tests =
                 (Directory.GetFileSystemEntries directory |> Array.map Path.GetFileName |> Array.sort)
                 [| ".morphir"; "morphir.toml" |]
                 "nothing else is written to the project")
+        |> testLabel "PlatformSpecific"
     ]

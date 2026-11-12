@@ -20,6 +20,7 @@ public sealed class HostCompositionTests
         Morphir.Tool.Program.Host.Version.Should().Be(Morphir.Program.Host.Version);
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(true)]
     [Arguments(false)]
     public void TheCompositionRegistersTheHostItIsGiven(bool tool)
