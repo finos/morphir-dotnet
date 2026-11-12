@@ -43,6 +43,9 @@ public enum DriverCapability
 
     /// <summary>A host with the dynamic-code switch of the runtime off, as in Native AOT (<see cref="CliRunOptions.WithoutDynamicCode"/>).</summary>
     HostWithoutDynamicCode,
+
+    /// <summary>Each host of the target in one test (<see cref="DriverSet.CliOf"/>): the development build has three.</summary>
+    AllHosts,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -87,7 +90,8 @@ public static class DriverCapabilities
         ];
         // The guests are build output of the development build: a published target has none.
         // The development build runs each host as an assembly, which can also run with the dynamic-code switch off.
-        if (target is TestTarget.DevelopmentBuild) commands = commands.Union([DriverCapability.BuiltExtensions, DriverCapability.HostWithoutDynamicCode]);
+        if (target is TestTarget.DevelopmentBuild)
+            commands = commands.Union([DriverCapability.BuiltExtensions, DriverCapability.HostWithoutDynamicCode, DriverCapability.AllHosts]);
         return host is MorphirHost.Managed or MorphirHost.DotnetTool
             ? commands.Add(DriverCapability.InProcessFSharpFrontend)
             : commands;

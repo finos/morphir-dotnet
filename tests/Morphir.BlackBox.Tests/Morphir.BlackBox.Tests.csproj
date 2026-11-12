@@ -50,6 +50,16 @@
     <!-- The pinned finos/morphir toolchain case fsharp-compile-generate: its IR and its frozen generated file. -->
     <None Include="../Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/ir-4.0.0.json" Link="Fixtures/Toolchain/fsharp-compile-generate/ir-4.0.0.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/generated/Pricing.fs" Link="Fixtures/Toolchain/fsharp-compile-generate/Pricing.fs" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The pages of the documentation whose commands a scenario runs, and the example of the F# pricing tutorial. -->
+    <None Include="../../docs/content/docs/cli/compile.md" Link="Fixtures/Docs/cli/compile.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/cli/generate.md" Link="Fixtures/Docs/cli/generate.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/cli/validate.md" Link="Fixtures/Docs/cli/validate.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/guides/fsharp-pricing-tutorial.md" Link="Fixtures/Docs/guides/fsharp-pricing-tutorial.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/getting-started/compile-fsharp.md" Link="Fixtures/Docs/getting-started/compile-fsharp.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/car-rental-pricing/**/*" Exclude="../../examples/car-rental-pricing/bin/**;../../examples/car-rental-pricing/obj/**"
+          Link="Fixtures/Examples/car-rental-pricing/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-mismatch-v3.json" Link="Fixtures/Models/daily-rate-mismatch-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-v4.json" Link="Fixtures/Models/daily-rate-v4.json" CopyToOutputDirectory="PreserveNewest" />
     <!-- The published JSON schemas of the configuration and migration reports. -->
     <None Include="../../docs/spec/schemas/config-inspection-result.schema.json" Link="Fixtures/Schemas/config-inspection-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/spec/schemas/config-edit-result.schema.json" Link="Fixtures/Schemas/config-edit-result.schema.json" CopyToOutputDirectory="PreserveNewest" />

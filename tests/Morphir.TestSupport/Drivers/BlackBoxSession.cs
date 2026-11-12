@@ -13,8 +13,13 @@ public sealed class DriverSet : IAsyncDisposable
     private readonly bool _keepFailed;
     private bool _ended;
 
-    internal DriverSet(TestTarget target, MorphirHost host, string artifact, IScenarioWorkspace workspace, bool keepFailed, ExtensionArtifacts? guests = null)
+    private readonly Func<MorphirHost, string>? _artifactOf;
+
+    internal DriverSet(
+        TestTarget target, MorphirHost host, string artifact, IScenarioWorkspace workspace, bool keepFailed, ExtensionArtifacts? guests = null,
+        Func<MorphirHost, string>? artifactOf = null)
     {
+        _artifactOf = artifactOf;
         _keepFailed = keepFailed;
         Target = target;
         Host = host;
@@ -51,6 +56,13 @@ public sealed class DriverSet : IAsyncDisposable
     public IExtensionDriver Extensions { get; }
 
     public IModelValidationDriver Validation { get; }
+
+    /// <summary>
+    /// The CLI driver of another host of the target, in the same workspace, for a test that compares the hosts
+    /// (<see cref="DriverCapability.AllHosts"/>). A host that the target does not have is an error.
+    /// </summary>
+    public ICliDriver CliOf(MorphirHost host) =>
+        host == Host ? Cli : new CliDriver(Target, host, (_artifactOf ?? throw new TestSessionException(Target.MissingHostReason(host)))(host), Workspace);
 
     /// <summary>The capabilities that these drivers support.</summary>
     public IReadOnlySet<DriverCapability> Capabilities { get; }
@@ -152,7 +164,7 @@ public sealed class BlackBoxSession
     public DriverSet BeginTest(MorphirHost host)
     {
         var artifact = Artifacts.PathOf(host);
-        return new DriverSet(Settings.Target, host, artifact, ScenarioWorkspace.Create(_fixtures), Settings.KeepFailed, _guests);
+        return new DriverSet(Settings.Target, host, artifact, ScenarioWorkspace.Create(_fixtures), Settings.KeepFailed, _guests, Artifacts.PathOf);
     }
 
     // Each target resolves to the artifact of its own form. No target uses the artifact of another form.

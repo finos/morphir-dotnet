@@ -42,7 +42,7 @@ its library. A test that needs both an artifact and a product assembly is two te
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build: the packed packages, a Native AOT publish, or a published executable. A group run does not select it. |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that entry point. With no host tag, a test runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | A capability that the test needs from the drivers. |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, or a host with the dynamic-code switch of the runtime off. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, or each host of the target in one test. |
 
 Before the first step, one decision says if the test runs: the lane, then the host, then the capabilities. A test
 that the run does not execute ends as skipped with one reason, for example `lane: test packages, run none`.
@@ -294,6 +294,39 @@ two steps have the same pattern.
 | Generation | `When I generate {string} from the model on a host without dynamic code with the option {string}` |
 | Generation | `Then the generation report has the formatting {string}` |
 | Model | `Given the model has the problem {string}` |
+| CLI | `Then standard output contains {string}` |
+| Documentation | `Given the documentation page {string}` |
+| Documentation | `Given the section {string} of the documentation page {string}` |
+| Documentation | `Then the page documents these commands` |
+| Documentation | `Given the source file {string}:` |
+| Documentation | `When I run each documented command of the host on the model` |
+| Documentation | `When I run each documented command of the host in the work area` |
+| Documentation | `Then each documented command exits with {int}` |
+| Documentation | `Then each documented command gives its documented output` |
+| Documentation | `Given the morphir.toml of the section in the project directory {string}` |
+| Documentation | `When I run the documented commands of the section in the project directory {string}` |
+| Documentation | `Then the documented compile writes the path of the published IR of the project {string}` |
+| Documentation | `Then the documented generate writes its documented files to {string} of the project {string}` |
+| Model | `Given the model fixture {string} as {string}` |
+| TutorialSteps | `Then each marked code block of the tutorial is the file of the example that it names` |
+| TutorialSteps | `Then the first F# code block of the page {string} is the file {string} of the example` |
+| TutorialSteps | `Given a copy of the example of the tutorial` |
+| TutorialSteps | `Given the guarded discount of the tutorial in the example` |
+| TutorialSteps | `When I compile the example as JSON` |
+| TutorialSteps | `When I compile the example` |
+| TutorialSteps | `Then the compile of the example succeeds with the modules {string} and no diagnostic` |
+| TutorialSteps | `When I generate {string} from the last compile of the example to {string}` |
+| TutorialSteps | `Then the example has the generated C# files {string} in {string}` |
+| TutorialSteps | `When I compile the example at the IR version {string} and install the IR to {string}` |
+| TutorialSteps | `When I validate the IR that the example installed in {string}` |
+| TutorialSteps | `When I compile the example with the target {string} and the generated output {string}` |
+| Model validation | `When I validate the model` |
+| Model validation | `When I validate the model as JSON` |
+| Model validation | `When I validate the model as JSON with the arguments {string}` |
+| Model validation | `Then validation exits with {int} and one JSON report` |
+| Model validation | `Then the validation text is a plain table with the error {string}` |
+| Model validation | `When I validate the model as JSON on the native host and on the tool host` |
+| Model validation | `Then both hosts write the same validation report apart from the host` |
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.

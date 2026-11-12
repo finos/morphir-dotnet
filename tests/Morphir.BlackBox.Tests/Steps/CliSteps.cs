@@ -36,6 +36,13 @@ public sealed class CliSteps(ICliDriver cli, ScenarioRun run)
             throw new CommandAssertionException($"Standard output is not the text '{text}'.", run.Result);
     }
 
+    [Then("standard output contains {string}")]
+    public void StandardOutputContains(string text)
+    {
+        if (!run.Result.StandardOutput.Contains(text, StringComparison.Ordinal))
+            throw new CommandAssertionException($"Standard output does not contain '{text}'.", run.Result);
+    }
+
     [Then("standard error does not contain {string}")]
     public void StandardErrorDoesNotContain(string text)
     {

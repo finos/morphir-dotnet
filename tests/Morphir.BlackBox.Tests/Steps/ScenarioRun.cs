@@ -26,6 +26,9 @@ public sealed class ScenarioRun
         }
     }
 
+    /// <summary>True when the scenario has a model file.</summary>
+    public bool HasModel => _model is not null;
+
     /// <summary>The model of the scenario that is a tree of files, or null when the model is one file.</summary>
     public WorkspaceDirectory? ModelTree { get; set; }
 }

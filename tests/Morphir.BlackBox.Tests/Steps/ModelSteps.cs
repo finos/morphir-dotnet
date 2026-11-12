@@ -11,6 +11,9 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
     [Given("the model fixture {string}")]
     public void TheModelFixture(string fixture) => run.Model = workspace.CopyFixture(fixture);
 
+    [Given("the model fixture {string} as {string}")]
+    public void TheModelFixtureAs(string fixture, string name) => run.Model = workspace.CopyFixture(fixture, name);
+
     [Given("the model tree fixture {string}")]
     public void TheModelTreeFixture(string fixture) => run.ModelTree = workspace.CopyFixtureDirectory(fixture);
 

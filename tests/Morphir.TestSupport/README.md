@@ -22,7 +22,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `IModelVerificationDriver` (`ModelVerificationDriver`) | The `ir verify` command as an intent, with `VerificationOptions`. Its report is `VerificationReport`. |
 | `IGenerationDriver` (`GenerationDriver`) | The `generate` command as an intent, with `GenerationOptions`. Its report is `GenerationReport`. |
 | `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. It records the Morphir locations of the machine at the start (`MachineTripwire`), and at the end of the run it prints the skip counts and fails if a test changed those locations. |
-| `DriverSet` | The workspace and the drivers of one test on one host. |
+| `DriverSet` | The workspace and the drivers of one test on one host. `DriverSet.CliOf` gives the CLI driver of another host of the target, for a test that compares the hosts (`@needs-all-hosts`). |
 | `ICompilationDriver` (`CompilationDriver`) | The `compile` command as an intent, with `CompilationOptions`. Its report is `CompilationReport`. |
 | `IConfigurationDriver` (`ConfigurationDriver`) | The `config` command, in the `ScenarioMachine` of a scenario. Its report is `ConfigurationReport`. |
 | `IMigrationDriver` (`MigrationDriver`) | The `project migrate` and `workspace migrate` commands, in the `ScenarioMachine` of a scenario. Its report is `MigrationReport`. |
@@ -117,7 +117,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build (`TestLane`). |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | The test needs that `DriverCapability`. |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, or a host with the dynamic-code switch of the runtime off. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, a host with the dynamic-code switch of the runtime off, or each host of the target in one test. |
 
 ## How to add a capability
 
