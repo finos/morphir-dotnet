@@ -96,3 +96,39 @@ exact portable-lock/offline restore remain unfinished. New package/state Native
 AOT and Unix behavior are not qualified here. Hosted/native offerings and
 acquired release artifacts still need their own exact evidence. No OpenSpec
 completion checkbox or full-delivery claim follows from this checkpoint.
+
+## Current-main reconciliation
+
+The reviewed increment was checkpointed normally as
+`b0955f7a5b65c41ffd72515413aefff7c38afe28`, then main
+`3da850d7b518d6cb9590d5cdb71f1a9c2f2b1a92` was merged normally as
+`af71e6e06174eec0659301cb7537e9c68f1d6cd5`. All 22 owned source/test/doc Git
+blobs were preserved by that merge.
+
+The first locked restore refused stale central-transitive Primitives requests.
+Machine regeneration changed exactly the installer, installer-tests and probe
+lockfiles, and only `Microsoft.Extensions.Primitives` requested/resolved version
+10.0.14 to 10.0.15 and its content hash, matching main's unchanged CPM. No new
+version was selected. ILLink and FSharp.Core stayed unchanged. Both targeted
+locked restores then passed.
+
+Fresh isolated Release no-restore builds of the test assembly and C# probe each
+reported zero errors and four existing support warnings. The merged-source
+installer suite again passed 292 with seven Unix-only ignores and no failures
+or errors. The C# run passed the same exact 34 output lines with empty stderr.
+Both separate output directories contain implementation SHA-256
+`d519b5a54699f8debf58c6ab889a7f1238dd16975b0d92135a44c3d482586135`.
+Test DLL SHA-256 is
+`a8b92b6d4f5339a2022a17f42a4c7e1bf329a0e8b8427e16197bd6cae43302bf`;
+C# probe DLL SHA-256 is
+`e493ce6aad987e2436b895822c7f62e05e9676347d42f3eb61b543fd5916ab6c`.
+Their raw typed timestamp bindings and full closures are retained separately.
+
+These artifacts were built at `af71e6e0` with the three declared lock
+normalizations, before the subsequent evidence/lock commit. A receipt-only
+timestamp comparison initially rounded fractional seconds after automatic JSON
+date conversion. Rechecking exact ISO strings against typed UTC timestamps
+confirmed freshness without rebuilding or changing raw build metadata.
+Release at 2026-11-12 05:13:48.386Z records no remaining owned roots and an empty
+informational managed/compiler process inventory. No broader offering,
+platform, release-artifact or installed-provider qualification follows.
