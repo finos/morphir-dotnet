@@ -1,4 +1,4 @@
-@ProjectMigration @CLI @Containment @PlatformSpecific
+@integration @needs-migration
 Feature: Contain project migration
   Project migration takes its discovery boundary from a flag or the environment, and always
   excludes machine and personal sources. Spec: openspec discovery-containment.

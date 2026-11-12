@@ -173,6 +173,71 @@ two steps have the same pattern.
 | Configuration | `Then the mixed format warning is suppressed` |
 | Configuration | `Then neither stream exposes secret values or executes the secret command` |
 | Configuration | `Then inspection help succeeds without configuration diagnostics` |
+| Project migration | `Given a classic migration project` |
+| Project migration | `Given malformed migration host appsettings` |
+| Project migration | `Given migration fixture {string}` |
+| Project migration | `Given the migration target contains equivalent values and comments` |
+| Project migration | `Given a conflicting migration target and ambient overrides` |
+| Project migration | `Given the migration project is one workspace member` |
+| Project migration | `Given an unlisted migration project invoked from {string}` |
+| Project migration | `Then the unlisted migration leaves every project unchanged` |
+| Project migration | `When I migrate the project with {string}` |
+| Project migration | `Given migration environment variable {word} is {string}` |
+| Project migration | `Given a personal override masks the migration source directory` |
+| Project migration | `When I migrate the project without a boundary flag with {string}` |
+| Project migration | `Then the migration plan reads no workspace` |
+| Project migration | `Then migration verification keeps the classic source directory` |
+| Project migration | `When I migrate the project with human output` |
+| Project migration | `Then migration exits {int} with outcome {string}` |
+| Project migration | `Then the migration source remains byte identical` |
+| Project migration | `Then the migration report verifies independent equivalence` |
+| Project migration | `Then no migration target exists` |
+| Project migration | `Then migration writes {string} with the legacy defaults` |
+| Project migration | `Then migration preserves the existing equivalent text` |
+| Project migration | `Then the repeated migration preserves the target timestamp` |
+| Project migration | `Then migration reports blocking diagnostics on stderr` |
+| Project migration | `Then migration reports both conflicting values and origins` |
+| Project migration | `Then migration preserves the conflicting target` |
+| Project migration | `Then migration changes only the selected member target` |
+| Project migration | `Then migration streams redact secret inputs` |
+| Project migration | `Then migration human output reports a verified preview` |
+| Workspace migration | `Given an empty workspace migration repository` |
+| Workspace migration | `Given a workspace migration repository` |
+| Workspace migration | `Given workspace migration project {string}` |
+| Workspace migration | `Given workspace migration skipped and nested projects` |
+| Workspace migration | `Given an existing workspace migration member and default` |
+| Workspace migration | `Given workspace migration adoption fixture {string}` |
+| Workspace migration | `Then workspace migration excludes root conversion` |
+| Workspace migration | `Then workspace migration reports the new member original context` |
+| Workspace migration | `Given a hidden workspace migration member primary` |
+| Workspace migration | `Given a declared empty migration workspace` |
+| Workspace migration | `Given a workspace migration root project` |
+| Workspace migration | `Given workspace migration invoked from a bounded child` |
+| Workspace migration | `Given workspace migration fixture {string}` |
+| Workspace migration | `Given malformed workspace migration appsettings` |
+| Workspace migration | `Given workspace migration environment variable {word} is {string}` |
+| Workspace migration | `When I migrate the workspace with boundary {string} and {string}` |
+| Workspace migration | `Then workspace migration diagnostics include {string}` |
+| Workspace migration | `Then workspace migration diagnostics name {string}` |
+| Workspace migration | `When I migrate the workspace with {string}` |
+| Workspace migration | `When I migrate the workspace with human output` |
+| Workspace migration | `When I request the configuration migration alias` |
+| Workspace migration | `Then workspace migration exits {int} with outcome {string}` |
+| Workspace migration | `Then workspace migration retains every classic source` |
+| Workspace migration | `Then workspace migration verifies the aggregate and every conversion` |
+| Workspace migration | `Then workspace migration reports members {string}` |
+| Workspace migration | `Then workspace migration reports excluded {string}` |
+| Workspace migration | `Then workspace migration reports boundary {string}` |
+| Workspace migration | `Then workspace migration writes no destinations` |
+| Workspace migration | `Then workspace migration retains the existing member and default` |
+| Workspace migration | `Then workspace migration retains root project identity` |
+| Workspace migration | `Then workspace migration keeps the hidden member anchor` |
+| Workspace migration | `Then workspace migration preserves every target byte and timestamp` |
+| Workspace migration | `Then workspace migration reports diagnostics on stderr` |
+| Workspace migration | `Then workspace migration accounts for unsupported raw fields` |
+| Workspace migration | `Then workspace migration streams redact secret values` |
+| Workspace migration | `Then workspace migration human output reports verified preview` |
+| Workspace migration | `Then configuration migration remains unavailable` |
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.
