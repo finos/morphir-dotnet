@@ -191,13 +191,13 @@ same change is in `tests/Morphir.BlackBox.Tests/Integration/ManagementCommands.f
 
 ## New files of pull request 3
 
-The scan finds two new files of pull request 3. Each stays: it tests the drivers of the testing library.
+The scan finds three new files of pull request 3. Each stays: it tests the drivers of the testing library.
 
 | Pull request | Project | File | Process | Build verb | Artifact | Product types | Destination |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| stays | `Morphir.TestSupport.Tests` | `Drivers/CommandFamilyDriverTests.cs`, `Drivers/CliDriverTimeLimitTests.cs` | yes | no | no | no | Stay: tests of the drivers of `Morphir.TestSupport` (task 7.2). |
+| stays | `Morphir.TestSupport.Tests` | `Drivers/CommandFamilyDriverTests.cs`, `Drivers/CliDriverTimeLimitTests.cs`, `Drivers/DotnetHostTests.cs` | yes | no | no | no | Stay: tests of the drivers of `Morphir.TestSupport` (task 7.2). |
 
-After pull request 3, the scan gives `# 131 files in 25 projects`. The rows above say which files of pull request 3
+After pull request 3 and the merge of `main` at `fbf7cff9`, the scan gives `# 132 files in 25 projects`. The rows above say which files of pull request 3
 are removed, and which stay and why (`evidence/slice-3-moves.md`).
 
 ## Counts

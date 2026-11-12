@@ -157,5 +157,5 @@ the same.
 
 | Test | Why |
 | --- | --- |
-| `CommandFamilyDriverTests` (23), `CliDriverTimeLimitTests` (1), new cases of `BlackBoxSessionTests`, `ScenarioWorkspaceTests`, `TestEligibilityTests` | The drivers and capabilities of task 7.2. |
+| `CommandFamilyDriverTests` (26), `CliDriverTimeLimitTests` (1), `DotnetHostTests` (6), new cases of `BlackBoxSessionTests`, `ScenarioWorkspaceTests`, `TestEligibilityTests` | The drivers and capabilities of task 7.2. |
 | `ToolRouting.feature`, "The experimental wasm-host commands go to the separate runner" | One row for each command: the old test ran two commands in one case. |
