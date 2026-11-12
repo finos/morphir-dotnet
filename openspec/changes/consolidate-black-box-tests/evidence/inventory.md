@@ -192,14 +192,14 @@ same change is in `tests/Morphir.BlackBox.Tests/Integration/ManagementCommands.f
 ## The scan on pull request 2
 
 The script gives `# 141 files in 25 projects` on the base commit of pull request 2 (`c041f454`), and
-`# 130 files in 25 projects` on its branch: the 16 files of `Morphir.E2E.Tests` are not there, and the scan finds
-five new files. Each gets a row here, as task 0.2 says. The scan does not find the other new files of the black-box
+`# 131 files in 25 projects` on its branch: the 16 files of `Morphir.E2E.Tests` are not there, and the scan finds
+six new files. Each gets a row here, as task 0.2 says. The scan does not find the other new files of the black-box
 project and of the testing library, because they name no process runner.
 
 | Pull request | Project | File | Process | Build verb | Artifact | Product types | Destination |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | stays | `Morphir.BlackBox.Tests` | `Steps/PackagedArtifactSteps.cs` | yes | no | no | no | New in pull request 2. Stays: a step class of the black-box project. The scan matches the name of a driver type (`ProcessSessionOptions`); the step starts no process (`BlackBoxRulesTests`). |
-| stays | `Morphir.TestSupport.Tests` | `Drivers/PublishedTargetsTests.cs`, `Packaging/PackagedArtifactTests.cs`, `Packaging/PackagedInstallationTests.cs`, `Packaging/PackagedRunTests.cs` | yes | no | yes | no | New in pull request 2 (the last three moved from `Morphir.E2E.Tests` with their helpers). Stay: they test the testing library. |
+| stays | `Morphir.TestSupport.Tests` | `Drivers/PublishedTargetsTests.cs`, `Drivers/ReportDriverTests.cs`, `Packaging/PackagedArtifactTests.cs`, `Packaging/PackagedInstallationTests.cs`, `Packaging/PackagedRunTests.cs` | yes | no | yes | no | New in pull request 2 (the three of `Packaging/` moved from `Morphir.E2E.Tests` with their helpers). Stay: they test the testing library. |
 
 ## Counts
 
