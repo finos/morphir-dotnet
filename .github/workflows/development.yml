@@ -4,7 +4,6 @@ on:
     pull_request:
         types:
             - opened
-            - edited
             - synchronize
             - reopened
     workflow_call:
@@ -18,6 +17,12 @@ on:
                 description: "The release version"
                 required: true
                 type: string
+
+# A new push to a pull request supersedes its earlier run, so cancel the earlier run.
+# Calls from other workflows, such as a release, run to completion.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
     CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
