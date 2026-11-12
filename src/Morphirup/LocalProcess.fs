@@ -16,7 +16,7 @@ type Input =
     | Redirect of Stream
 
 /// The one product launcher for probes and installed runs. Never searches PATH or evaluates a shell command.
-let runAsync
+let private runCoreAsync
     (program: string)
     (args: string list)
     directory
@@ -24,6 +24,7 @@ let runAsync
     input
     (output: Stream)
     (errors: TextWriter)
+    (overlay: string option)
     (ct: CancellationToken)
     =
     task {
@@ -50,6 +51,9 @@ let runAsync
         start.Environment["MORPHIR_ISOLATED"] <- "1"
         start.Environment["MORPHIR_DISCOVERY_BOUNDARY"] <- directory
         start.Environment["DOTNET_MULTILEVEL_LOOKUP"] <- "0"
+        match overlay with
+        | Some directory -> start.Environment["MORPHIR_EXTENSION_OVERLAY"] <- directory
+        | None -> ()
 
         for name in
             [
@@ -156,7 +160,13 @@ let runAsync
                 })
     }
 
-type private LimitedCapture(maximum: int64) =
+let runAsync program args directory home input output errors ct =
+    runCoreAsync program args directory home input output errors None ct
+
+let runWithOverlayAsync program args directory home input output errors overlay ct =
+    runCoreAsync program args directory home input output errors (Some overlay) ct
+
+type LimitedCapture(maximum: int64) =
     inherit MemoryStream()
 
     override this.Write(buffer, offset, count) =

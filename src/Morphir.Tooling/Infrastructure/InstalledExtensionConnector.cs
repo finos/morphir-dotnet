@@ -33,11 +33,11 @@ internal static class InstalledExtensionConnector
         var home = selectedHome ?? environment.GetValueOrDefault("MORPHIR_HOME");
         if (home is null || !Path.IsPathFullyQualified(home))
             throw new Refused("extension.home_required", "Installed selection requires an absolute Morphir Home.");
-        if (environment.ContainsKey("MORPHIR_EXTENSION_OVERLAY"))
-            throw new Refused("extension.generation_not_supported", "Generation overlays require the complete supported binding; current inventory is not a fallback.");
         var host = Morphir.Toolchain.SemVerModule.tryParse(MepExtensionCommand.HostVersion)
             .Match(value => value, _ => throw new Refused("extension.host_incompatible","Host version is not valid SemVer."));
-        var result = await InstalledExtensions.CaptureAsync(home,id,host,ct);
+        var result = environment.TryGetValue("MORPHIR_EXTENSION_OVERLAY",out var overlay)
+            ? await InstalledExtensions.CaptureOverlayAsync(home,overlay,id,host,ct)
+            : await InstalledExtensions.CaptureAsync(home,id,host,ct);
         return result.Match(value => value, failure => throw new Refused(failure.Code,failure.Message));
     }
 

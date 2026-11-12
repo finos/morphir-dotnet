@@ -1607,19 +1607,19 @@ let releaseChecksumReaderTests =
 [<Tests>]
 let releaseBundleTests =
     let hash = String('a',64)
-    let roles = ["host-candidate";"host-archive";"selection";"frontend-release";"frontend-manifest";"frontend-archive";"backend-release";"backend-manifest";"backend-archive";"sample"]
+    let roles = ["host-candidate";"host-archive";"selection";"frontend-release";"frontend-manifest";"frontend-archive";"backend-release";"backend-manifest";"backend-archive"]
     let bundle source =
         Value.Object [
             "$schema",Value.String "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/bundle.schema.json"
             "version",Value.String "0.4.0-alpha.5"; "sourceCommit",Value.String(String('b',40)); "platform",Value.String "win-x64"
             "assets",Value.Array [for role in roles -> Value.Object ["name",Value.String(role+".zip");"url",Value.String(source+role+".zip");"bytes",Value.Number "3";"sha256",Value.String hash;"role",Value.String role]]]
         |> JsonText.toBytes
-    let official = "https://github.com/finos/morphir/releases/download/v0.4.0-alpha.5/"
+    let official = "https://github.com/finos/morphir-dotnet/releases/download/v0.4.0-alpha.5/"
     testList "ReleaseBundle" [
         test "one release covers every required independently installed component" {
             let raw = bundle official
             let value = ReleaseBundleDocument.read raw |> parsed
-            Expect.equal value.Assets.Length 10 "complete role coverage"
+            Expect.equal value.Assets.Length 9 "complete role coverage"
             let sums = (Sha256.ofBytes raw).Text + "  morphir-toolchain-win-x64.json\n" + (roles |> List.map(fun role -> hash+"  "+role+".zip\n") |> String.concat "")
             ReleaseBundleDocument.verifyChecksums "morphir-toolchain-win-x64.json" raw (System.Text.Encoding.UTF8.GetBytes sums) value |> parsed
         }
@@ -1627,7 +1627,7 @@ let releaseBundleTests =
             Expect.isError (bundle (official.Replace("https:","http:")) |> ReleaseBundleDocument.read) "HTTPS required"
         }
         test "a different repository cannot be hidden in an asset URL" {
-            Expect.isError (bundle (official.Replace("finos/morphir/","other/project/")) |> ReleaseBundleDocument.read) "one approved release"
+            Expect.isError (bundle (official.Replace("finos/morphir-dotnet/","other/project/")) |> ReleaseBundleDocument.read) "one approved release"
         }
         test "checksum coverage must include the raw bundle" {
             let raw = bundle official

@@ -2,22 +2,54 @@
 title: "morphirup"
 linkTitle: "morphirup"
 weight: 90
-description: "The standalone toolchain manager: plan-only setup and project checks over local files"
+description: "The standalone toolchain manager: experimental Windows release setup, installed execution and local planning"
 ---
 
 # morphirup
 
 `morphirup` is the standalone Morphir toolchain manager of the approved change `add-deployment-and-acquisition` (finos/morphir, decisions UP-1, UP-2 and LOCK-1). It is a Native AOT executable, so it runs on a machine with neither .NET nor Morphir installed.
 
-**This build does not acquire, install or activate anything.** It reads the toolchain documents, resolves a request against a recipe file you give it, prints the plan, and checks a project's request and lock. Bootstrap, authenticated downloads, generations, activation, `restore`, `show`, `run`, the `morphir` proxy and shell setup are later work.
+The Windows release setup below is experimental and requires a release containing this implementation. Historical
+recipe setup remains plan-only. Explicit local host installation, selection and execution remain available through
+the [local candidate instructions](../getting-started/local-morphirup-candidate.md). Publisher authentication,
+portable lock restore, proxy installation and shell setup remain unfinished. Matching a release checksum does not
+authenticate a publisher.
 
-Bounded acquisition I/O is implemented separately from the commands, with 58 isolated tests passing for streamed
-downloads, byte limits, cancellation and private publication. This work does not enable `setup` to apply a plan.
-Publisher authentication still requires security review; matching a checksum does not
-authenticate a publisher. Contributor status and the remaining integration boundaries are tracked in
-[`docs/contributing/morphirup-acquisition.md`](../../../contributing/morphirup-acquisition.md).
+## Install with morphirup (Windows x64, experimental)
 
-## Download and verify
+The release setup path is being introduced by this change. Older published managers do not provide it. Once a
+release containing this change is published, download `morphirup-win-x64.exe` and `SHA256SUMS` from the same
+[morphir-dotnet release](https://github.com/finos/morphir-dotnet/releases). Compare the executable's SHA-256 with its
+line in that file, then rename it to `morphirup.exe`. No .NET installation is required.
+
+In an existing F# project, or the supplied `examples/morphirup-fsharp` sample, run:
+
+```powershell
+C:\Tools\morphirup.exe setup --dry-run
+C:\Tools\morphirup.exe setup --yes
+C:\Tools\morphirup.exe run -- compile
+C:\Tools\morphirup.exe run -- generate --target fsharp --output generated --option format=false
+```
+
+Setup uses its own release version unless `.morphir/toolchain.toml` requests an exact version. It downloads the
+runtime-bundled Morphir host and independent F# frontend and backend from that same release, checks their byte
+counts and SHA-256 values, installs their complete folders, executes the fixed readiness workflow, and selects the
+completed generation last. `--home` is optional and defaults to `MORPHIR_HOME`, then `~/.morphir`. A dry run creates
+no Home, locks, staging, receipts or selection and runs no guest.
+
+This is **release-checksum delivery, not publisher-authenticated**. HTTPS and a matching release checksum do not
+authenticate the publisher. The release transport starts only at the exact `finos/morphir-dotnet` repository and
+version tag. It permits at most three HTTPS redirects to `github.com`, `release-assets.githubusercontent.com` or
+`objects.githubusercontent.com`, without credentials or a downgrade. The generic acquisition transport keeps its
+existing no-redirect policy.
+
+After setup succeeds, the same `run` commands use installed folders and retained selected records without network
+access or the download cache. The existing explicit local candidate commands remain diagnostic entry points.
+This scope does not implement publisher authentication, trust commands, moving release channels or portable lock
+restore. The manual `Windows released morphirup journey` workflow validates the actual published executable after
+assets are available; it is not a claim that an unpublished candidate has already been downloaded successfully.
+
+## Existing manager release downloads
 
 Releases of morphir-dotnet attach `morphirup` for four platforms, beside the `morphir` assets on the
 [releases page](https://github.com/finos/morphir-dotnet/releases):

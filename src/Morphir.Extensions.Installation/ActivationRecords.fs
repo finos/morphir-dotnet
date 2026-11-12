@@ -80,6 +80,119 @@ type internal CapturedExtensionSet internal (captures: CapturedExtension array, 
     interface IDisposable with
         member _.Dispose() = for capture in Array.rev captures do (capture :> IDisposable).Dispose()
 
+type internal GenerationSnapshot = {
+    Family: string
+    Directory: string
+    Candidate: LocalComposedCandidate
+    Manifest: ComposedManifest option
+    Catalog: StateCatalog
+    Locks: StateLock list
+    Selection: byte array
+    Receipt: byte array option
+}
+
+/// One shared retained/preparation binding reader for the manager and separate managed host.
+module internal GenerationBinding =
+    let unwrap = function
+        | Ok value -> value
+        | Error(failure: ReaderRefusal) -> Operations.fail "extension.generation_invalid" $"Generation document refused at {DocumentPath.render failure.Path}."
+    let read (root: SafeDirectory) path =
+        use input = FileSafety.openRelative root (Path.Combine(root.Path,path.Replace('/',Path.DirectorySeparatorChar)))
+        if input.Length > (8L <<< 20) then Operations.fail "extension.generation_invalid" "Generation document exceeds its bound."
+        use memory = new MemoryStream()
+        let buffer = Array.zeroCreate<byte> 65536
+        let mutable count = input.Read(buffer,0,buffer.Length)
+        while count <> 0 do
+            if memory.Length + int64 count > (8L <<< 20) then Operations.fail "extension.generation_invalid" "Generation document grew past its bound."
+            memory.Write(buffer,0,count)
+            count <- input.Read(buffer,0,buffer.Length)
+        memory.ToArray()
+    let private same expected actual =
+        if expected <> actual then Operations.fail "extension.generation_mismatch" "Exact generation byte binding differs."
+    let private get name value = SharedJson.members "generation" value |> SharedJson.required "generation" name
+    let private hash path root = read root path |> Sha256.ofBytes
+    let load (root: SafeDirectory) (directory: string) =
+        let relative = Path.GetRelativePath(root.Path,Path.GetFullPath directory).Replace('\\','/')
+        let parts = relative.Split('/')
+        let published = parts.Length=3 && parts[0]="toolchains" && parts[1]="generations"
+        let preparation = parts.Length=3 && parts[0]="tmp" && parts[1].StartsWith("local-toolchain-",StringComparison.Ordinal) && parts[2]="generation"
+        if not(published || preparation) then Operations.fail "extension.generation_path" "An overlay must be an owned complete generation or a current-inventory preparation."
+        let bytes name = read root (relative+"/"+name)
+        let rawCandidate = bytes "candidate.json"
+        let family = ComposedDocuments.familyOf rawCandidate |> unwrap
+        let candidate = ComposedDocuments.candidateForFamily family rawCandidate |> unwrap
+        let selection = bytes "extensions/selection.json"
+        same candidate.SelectionSha256 (Sha256.ofBytes selection)
+        let pins = ComposedDocuments.readPins selection |> unwrap
+        let catalogBytes = bytes "extensions/catalog.json"
+        let catalog = StateDocuments.readCatalog catalogBytes |> StateOwnership.unwrap
+        let locks = pins |> List.map(fun pin ->
+            let locked = bytes $"extensions/locks/{pin.Id.Text}.json" |> StateDocuments.readLock |> StateOwnership.unwrap
+            let entry = catalog.Entries |> List.tryFind(fun entry -> entry.Id = pin.Id.Text)
+                        |> Option.defaultWith(fun () -> Operations.fail "extension.generation_mismatch" "A selected catalog identity is missing.")
+            StateDocuments.bind entry locked |> StateOwnership.unwrap
+            if entry.Version <> pin.Version || entry.Digest.Value <> pin.ArchiveSha256.Text then
+                Operations.fail "extension.generation_mismatch" "Portable pin differs from the retained installed record."
+            locked)
+        let ids = pins |> List.map(fun pin -> pin.Id.Text) |> Set.ofList
+        if ids <> (catalog.Entries |> List.map _.Id |> Set.ofList) || not(ids.Contains candidate.FrontendId.Text && ids.Contains candidate.BackendId.Text) then
+            Operations.fail "extension.generation_mismatch" "The selected catalog projection is not the complete portable selection."
+        use folder = SafeDirectory.Open(directory,false)
+        let names = folder.Entries()
+        let hasManifest = names |> Array.contains "generation.json"
+        let hasReceipt = names |> Array.contains "receipt.json"
+        let manifest,receipt =
+            if published || hasManifest || hasReceipt then
+                if not published || not(hasManifest && hasReceipt) then
+                    Operations.fail "extension.generation_incomplete" "Incomplete publication cannot use current-inventory fallback."
+                let raw = bytes "generation.json"
+                let manifest = ComposedDocuments.readManifest family candidate raw |> unwrap
+                if manifest.Identity.Text <> parts[2] then Operations.fail "extension.generation_mismatch" "Generation directory differs from exact manifest bytes."
+                same manifest.CatalogSha256 (Sha256.ofBytes catalogBytes)
+                let actualLocks = locks |> List.map(fun locked -> locked.Entry.Id,Sha256.ofBytes locked.Bytes) |> List.sortBy fst
+                same (manifest.Locks |> List.map(fun (id,hash) -> id.Text,hash)) actualLocks
+                let receipt = bytes "receipt.json"
+                ComposedDocuments.receiptMatches family candidate manifest.Identity receipt |> unwrap
+                for id,path,digest in manifest.Metadata do
+                    let raw = bytes path.Text
+                    same digest (Sha256.ofBytes raw)
+                    let plan = PackagePlan.Read(raw,InstallationPlatform.Create "win-x64")
+                               .Match(Func<PackagePlan,_>(fun value -> value),Func<InstallationFailure,_>(fun failure -> raise (InstallationException failure)))
+                    let locked = locks |> List.find(fun locked -> locked.Entry.Id = id.Text)
+                    let retained = PackagePlan.FromState(locked.Entry,locked)
+                    if plan.ArchiveDigest <> retained.ArchiveDigest || plan.TreeDigest <> retained.TreeDigest || plan.EntryPoint <> retained.EntryPoint
+                       || plan.Descriptor.ExtensionId.Value <> id.Text || plan.Descriptor.Version <> locked.Entry.Version
+                       || (SharedJson.difference "claims" plan.Artifact.Claims.Json locked.Entry.Claims.Json |> Option.isSome) then
+                        Operations.fail "extension.generation_mismatch" "Retained release envelope differs from the installed launch record."
+                if family="0.1.0-preview.3" then
+                    let proof = manifest.Acquisition |> Option.defaultWith(fun () -> Operations.fail "extension.generation_incomplete" "Missing release acquisition proof.")
+                    let bundleRaw = bytes "acquisition/bundle.json"
+                    let sums = bytes "acquisition/SHA256SUMS"
+                    let proofHash memberName = get memberName proof |> get "sha256" |> SharedJson.text "sha256"
+                    same (proofHash "bundle") (Sha256.ofBytes bundleRaw).Text
+                    same (proofHash "checksums") (Sha256.ofBytes sums).Text
+                    let bundle = ReleaseBundleDocument.read bundleRaw |> unwrap
+                    ReleaseBundleDocument.verifyChecksums "morphir-toolchain-win-x64.json" bundleRaw sums bundle |> unwrap
+                    same ("v"+bundle.Version.Text) (get "tag" proof |> SharedJson.text "tag")
+                    same bundle.SourceCommit candidate.Host.SourceCommit.Text
+                    same bundle.Version.Text (candidate.Host.Host.Version.Text.Split('+')[0])
+                    let asset role = bundle.Assets |> List.find(fun asset -> asset.Role=role)
+                    same (asset "host-candidate").Sha256 candidate.Host.ManifestSha256
+                    same (asset "host-archive").Sha256 candidate.Host.ArchiveSha256
+                    same (asset "host-archive").Bytes candidate.Host.ArchiveBytes
+                    same (asset "selection").Sha256 candidate.SelectionSha256
+                    for role,id in ["frontend",candidate.FrontendId;"backend",candidate.BackendId] do
+                        let locked = locks |> List.find(fun locked -> locked.Entry.Id=id.Text)
+                        same (asset (role+"-archive")).Sha256.Text locked.Entry.Digest.Value
+                        let _,path,digest = manifest.Metadata |> List.tryFind(fun (candidate,_,_) -> candidate=id)
+                            |> Option.defaultWith(fun () -> Operations.fail "extension.generation_incomplete" "Release checksum generation requires its original provider release envelopes.")
+                        same (asset (role+"-release")).Sha256 digest
+                        let plan = PackagePlan.FromState(locked.Entry,locked)
+                        same (asset (role+"-manifest")).Sha256.Text plan.TreeDigest.Value
+                Some manifest,Some receipt
+            else None,None
+        {Family=family;Directory=directory;Candidate=candidate;Manifest=manifest;Catalog=catalog;Locks=locks;Selection=selection;Receipt=receipt}
+
 module private ActivationState =
     let value name (value: Value) =
         SharedJson.required "value" name (SharedJson.members "value" value)
@@ -660,6 +773,52 @@ module private ActivationState =
 /// Installation and activation through the existing extension catalog/lock contracts.
 [<AbstractClass; Sealed>]
 type InstalledExtensions private () =
+    static member internal ReadGenerationAsync(home: string, directory: string, ct: CancellationToken) : Task<InstallationResult<GenerationSnapshot>> =
+        Operations.runAsync ct (fun () -> StateOwnership.withLockAsync home ct (fun root -> GenerationBinding.load root directory))
+
+    /// Internal composition only: the complete generation binding is checked before any retained record is acquired.
+    static member internal CaptureOverlayAsync(home: string, directory: string, selectedId: Morphir.Extensions.ExtensionId, host: SemVer, ct: CancellationToken) : Task<InstallationResult<CapturedExtension>> =
+        Operations.runAsync ct (fun () -> StateOwnership.withLockAsync home ct (fun root ->
+            let snapshot = GenerationBinding.load root directory
+            let locks = snapshot.Locks |> List.map(fun locked -> locked.Entry.Id,locked.Bytes) |> readOnlyDict
+            let captures =
+                if snapshot.Manifest.IsNone then
+                    ActivationState.captureMany root (snapshot.Locks |> List.map(fun locked -> locked.Entry.Id)) (Some(snapshot.Catalog.Bytes,locks)) host ct
+                else
+                    // Current security/state validation still runs. It does not replace a retained record by global id.
+                    StateOwnership.readCurrent root |> ignore
+                    let captured = ResizeArray<CapturedExtension>()
+                    try
+                        for locked in snapshot.Locks do
+                            let entry = snapshot.Catalog.Entries |> List.find(fun entry -> entry.Id=locked.Entry.Id)
+                            captured.Add(ActivationState.capture root snapshot.Catalog entry locked host ct)
+                        new CapturedExtensionSet(captured.ToArray(),snapshot.Catalog.Bytes)
+                    with _ ->
+                        for capture in Seq.rev captured do (capture :> IDisposable).Dispose()
+                        reraise()
+            let selected = captures.Captures |> Seq.tryFind(fun capture -> capture.Record.ExtensionId.Equals selectedId)
+            match selected with
+            | None ->
+                (captures :> IDisposable).Dispose()
+                Operations.fail "extension.not_selected" "The requested process is not in the selected generation."
+            | Some selected ->
+                for capture in captures.Captures do
+                    if not(obj.ReferenceEquals(capture,selected)) then (capture :> IDisposable).Dispose()
+                selected))
+
+    /// The callback publishes only verified manager metadata. No network or guest runs under this state lock.
+    static member internal PublishExpectedAsync(home: string, catalog: byte array, locks: IReadOnlyDictionary<string,byte array>, host: SemVer, publish: Func<Task>, ct: CancellationToken) : Task<InstallationResult<unit>> =
+        Operations.runAsync ct (fun () -> task {
+            use root = SafeDirectory.Open(home,false)
+            do! StateOwnership.checkRepositoriesAsync root ct
+            use lockRoot = root.Child("locks",true)
+            use! stateLease = lockRoot.NamedLeaseAsync("extensions.state.lock",true,true,ct)
+            StateOwnership.checkUnderLock root ct
+            use captures = ActivationState.captureMany root (StateDocuments.readCatalog catalog |> StateOwnership.unwrap |> fun catalog -> catalog.Entries |> List.map _.Id) (Some(catalog,locks)) host ct
+            ct.ThrowIfCancellationRequested()
+            do! publish.Invoke()
+        })
+
     static member internal CaptureManyAsync(home: string, ids: IReadOnlyList<Morphir.Extensions.ExtensionId>, host: SemVer, ct: CancellationToken) : Task<InstallationResult<CapturedExtensionSet>> =
         let ids = ids |> Seq.map _.Value |> List.ofSeq
         Operations.runAsync ct (fun () -> StateOwnership.withLockAsync home ct (fun root -> ActivationState.captureMany root ids None host ct))

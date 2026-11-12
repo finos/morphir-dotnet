@@ -228,7 +228,7 @@ let private pinnedRead (root: SafeDirectory) path maximum =
 
     output.ToArray()
 
-let private checkFolder (root: SafeDirectory) candidate hashFiles (ct: CancellationToken) =
+let checkFolder (root: SafeDirectory) candidate hashFiles (ct: CancellationToken) =
     let expected = Dictionary<string, LocalHostFile>(StringComparer.Ordinal)
 
     for file in candidate.Files do
@@ -381,7 +381,7 @@ let private optionalChild (parent: SafeDirectory) name action =
         action child
 
 /// Later commands validate only local manager authority. Shared Home siblings are opaque and are never traversed.
-let private validateOwnedState (root: SafeDirectory) =
+let validateOwnedState (root: SafeDirectory) =
 
     if
         root.Entries()
@@ -442,10 +442,11 @@ let private validateOwnedState (root: SafeDirectory) =
                                 | Error _ -> foreignHome ()
 
                         use folder = generations.Child(name, false)
-                        only folder [ "candidate.json"; "receipt.json" ]
-
-                        loadGeneration root identity false CancellationToken.None
-                        |> ignore
+                        if folder.Entries() |> Array.contains "generation.json" then
+                            GenerationBinding.load root folder.Path |> ignore
+                        else
+                            only folder [ "candidate.json"; "receipt.json" ]
+                            loadGeneration root identity false CancellationToken.None |> ignore
                 )
         )
 
@@ -456,7 +457,7 @@ let private validateOwnedState (root: SafeDirectory) =
             for name in temporary.Entries() do
                 if name.StartsWith("local-toolchain-", StringComparison.Ordinal) then
                     use folder = temporary.Child(name, false)
-                    only folder [ ".owner"; "host"; "generation" ]
+                    only folder [ ".owner"; "host"; "generation"; "downloads"; "repositories"; "work" ]
         )
 
 /// Setup never adopts foreign or legacy Home state. This admission happens before staging, probing or publication.
@@ -485,7 +486,7 @@ let private existingHome home ct =
             |> ignore
 
 /// Same archive and state validation for dry-run and apply. No Home creation or process launch occurs here.
-let private validateArchive (source: Stream) candidate home ct =
+let private validateArchive (source: Stream) candidate validateHome ct =
     if
         uint64 source.Length
         <> candidate.ArchiveBytes
@@ -564,7 +565,7 @@ let private validateArchive (source: Stream) candidate home ct =
 
     existingHome home ct
 
-let private writeFile (root: SafeDirectory) path bytes =
+let writeFile (root: SafeDirectory) path bytes =
     let names = parts path
 
     FileSafety.withDirectories
@@ -581,13 +582,16 @@ let private writeFile (root: SafeDirectory) path bytes =
             output.Flush true
         )
 
-let setupAsync home raw candidate archive dryRun (ct: CancellationToken) = task {
+type private HostPreparation = | HostOnly | Composed
+
+let private setupCoreAsync mode home raw candidate archive dryRun (ct: CancellationToken) = task {
+    let admission root = if mode = HostOnly then validateSetupAdmission root else validateOwnedState root
     use source = FileSafety.openInput archive
-    validateArchive source candidate home ct
+    validateArchive source candidate (fun () -> if mode = HostOnly then existingHome home ct elif Directory.Exists home then use root = SafeDirectory.Open(home,false) in validateOwnedState root) ct
 
     if not dryRun then
         use root = SafeDirectory.Open(home, true)
-        validateSetupAdmission root
+        admission root
         // Admission is brief. Decompression and verification happen in a privately owned folder outside the writer lease.
         let stageName =
             "local-toolchain-"
@@ -636,7 +640,7 @@ let setupAsync home raw candidate archive dryRun (ct: CancellationToken) = task 
 
         do! task {
             use! lease = FileSafety.mutationLeaseAsync root ct
-            validateSetupAdmission root
+            admission root
 
             FileSafety.withDirectories
                 root
@@ -685,54 +689,59 @@ let setupAsync home raw candidate archive dryRun (ct: CancellationToken) = task 
             )
 
         do! LocalProcess.verifyVersionAsync program candidate.Host.Version.Text directory home ct
-        let receipt = LocalCandidateDocument.writeReceipt candidate
+        if mode = HostOnly then
+            let receipt = LocalCandidateDocument.writeReceipt candidate
 
-        FileSafety.withDirectories
-            stage
-            [ "generation" ]
-            true
-            (fun generation ->
-                writeFile generation "candidate.json" raw
-                writeFile generation "receipt.json" receipt
-            )
+            FileSafety.withDirectories
+                stage
+                [ "generation" ]
+                true
+                (fun generation ->
+                    writeFile generation "candidate.json" raw
+                    writeFile generation "receipt.json" receipt
+                )
 
-        use! lease = FileSafety.mutationLeaseAsync root ct
+            use! lease = FileSafety.mutationLeaseAsync root ct
 
-        FileSafety.withDirectories
-            root
-            [ "toolchains"; "generations" ]
-            true
-            (fun parent ->
-                let destination = Path.Combine(parent.Path, candidate.ManifestSha256.Text)
+            FileSafety.withDirectories
+                root
+                [ "toolchains"; "generations" ]
+                true
+                (fun parent ->
+                    let destination = Path.Combine(parent.Path, candidate.ManifestSha256.Text)
 
-                if Directory.Exists destination then
-                    let existing = loadGeneration root candidate.ManifestSha256 true ct
+                    if Directory.Exists destination then
+                        let existing = loadGeneration root candidate.ManifestSha256 true ct
 
-                    if
-                        existing.Receipt
-                        <> receipt
-                    then
-                        refuse "local.generation_conflict" "Existing immutable generation differs."
-                else
-                    ct.ThrowIfCancellationRequested()
-                    stage.ValidateLocation()
-                    parent.ValidateLocation()
+                        if
+                            existing.Receipt
+                            <> receipt
+                        then
+                            refuse "local.generation_conflict" "Existing immutable generation differs."
+                    else
+                        ct.ThrowIfCancellationRequested()
+                        stage.ValidateLocation()
+                        parent.ValidateLocation()
 
-                    let identity =
-                        use sourceFolder = stage.Child("generation", false)
-                        sourceFolder.Identity
+                        let identity =
+                            use sourceFolder = stage.Child("generation", false)
+                            sourceFolder.Identity
 
-                    Directory.Move(Path.Combine(stage.Path, "generation"), destination)
-                    use published = parent.Child(candidate.ManifestSha256.Text, false)
+                        Directory.Move(Path.Combine(stage.Path, "generation"), destination)
+                        use published = parent.Child(candidate.ManifestSha256.Text, false)
 
-                    if
-                        published.Identity
-                        <> identity
-                    then
-                        refuse "local.path_escape" "Published generation identity changed."
-            )
+                        if
+                            published.Identity
+                            <> identity
+                        then
+                            refuse "local.path_escape" "Published generation identity changed."
+                )
 // Interrupted private stages have no authority. They remain private, never mistaken for a completed generation.
 }
+
+let setupAsync home raw candidate archive dryRun ct = setupCoreAsync HostOnly home raw candidate archive dryRun ct
+
+let prepareComposedHostAsync home raw candidate archive dryRun ct = setupCoreAsync Composed home raw candidate archive dryRun ct
 
 let generation home identity ct =
     use root = SafeDirectory.Open(home, false)

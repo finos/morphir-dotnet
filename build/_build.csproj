@@ -13,6 +13,7 @@
     <PackageReference Include="Ionide.KeepAChangelog" />
     <PackageReference Include="Fallout.Common" />
     <ProjectReference Include="../src/Morphir.Extensions.Installation/Morphir.Extensions.Installation.fsproj" />
+    <ProjectReference Include="../src/Morphir.Compilation.Mep/Morphir.Compilation.Mep.fsproj" />
   </ItemGroup>
 
 </Project>
