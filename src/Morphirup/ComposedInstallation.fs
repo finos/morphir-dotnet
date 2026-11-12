@@ -375,16 +375,43 @@ let selectAsync platform home identity dryRun ct = task {
     return snapshot
 }
 
+let private optionToken names (token: string) =
+    names |> List.tryPick (fun name ->
+        if token.StartsWith(name+"=",StringComparison.Ordinal) || token.StartsWith(name+":",StringComparison.Ordinal) then
+            Some(token.Substring(name.Length+1))
+        elif name="-l" && token.StartsWith(name,StringComparison.Ordinal) && token.Length>name.Length then
+            Some(token.Substring(name.Length))
+        else None)
+
+let private optionValue names args =
+    let rec find = function
+        | [] | "--"::_ -> None
+        | token::rest ->
+            if List.contains token names then rest |> List.tryHead
+            else match optionToken names token with Some value -> Some value | None -> find rest
+    find args
+
+let providerArguments (frontend: Morphir.Toolchain.ExtensionId) (backend: Morphir.Toolchain.ExtensionId) args =
+    let explicitSelection =
+        args |> List.takeWhile ((<>) "--") |> List.exists (fun token ->
+            List.contains token ["--extension";"--extension-id"] || Option.isSome(optionToken ["--extension";"--extension-id"] token))
+    let selected =
+        if explicitSelection then None
+        else match args with
+             | "compile"::_ when optionValue ["--language";"-l"] args = Some "fsharp" -> Some frontend
+             | "generate"::_ when optionValue ["--target"] args = Some "fsharp" -> Some backend
+             | _ -> None
+    match selected with
+    | None -> args
+    | Some id ->
+        let before,after = List.splitAt (args |> List.tryFindIndex ((=) "--") |> Option.defaultValue args.Length) args
+        before @ ["--extension-id";id.Text] @ after
+
 let runAsync platform home args directory input output (errors: TextWriter) ct = task {
     let! snapshot = selected home ct
     executionPlatform platform snapshot
     let candidate = snapshot.Candidate
-    let args =
-        if args |> List.exists(fun arg -> arg="--extension" || arg="--extension-id") then args
-        else match args with
-             | "compile"::_ -> args @ ["--extension-id";candidate.FrontendId.Text]
-             | "generate"::_ when args |> List.contains "fsharp" -> args @ ["--extension-id";candidate.BackendId.Text]
-             | _ -> args
+    let args = providerArguments candidate.FrontendId candidate.BackendId args
     use root = SafeDirectory.Open(home,false)
     use! lease = FileSafety.mutationLeaseAsync root ct
     checkHost root candidate.Host false ct

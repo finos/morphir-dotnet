@@ -131,6 +131,37 @@ let stageCleanup = testLabel "PlatformSpecific" <| testList "SetupStageCleanup" 
 ]
 
 [<Tests>]
+let providerRouting =
+    let id text = ExtensionId.tryParsePreview text |> function Ok value -> value | Error _ -> failtest "Invalid test identity."
+    let frontend,backend = id "org.finos.frontend",id "org.finos.backend"
+    let route = ComposedInstallation.providerArguments frontend backend
+    testList "InstalledProviderRouting" [
+        testCase "CSharp target with an output folder named fsharp keeps the built-in route" (fun () ->
+            let args = ["generate";"--target";"csharp";"--output";"fsharp"]
+            Expect.equal (route args) args "a folder name is not the target option value")
+        for options in [["--target";"fsharp"];["--target=fsharp"];["--target:fsharp"]] do
+            testCase ("FSharp target " + String.concat " " options) (fun () ->
+                let args = "generate"::options
+                Expect.equal (route args) (args@["--extension-id";backend.Text]) "selected FSharp backend")
+        testCase "the host has no short target option" (fun () ->
+            let args = ["generate";"-t";"fsharp"]
+            Expect.equal (route args) args "leave the host's usage refusal unchanged")
+        for options in [["--language";"fsharp"];["--language=fsharp"];["--language:fsharp"];["-l";"fsharp"];["-l=fsharp"];["-l:fsharp"];["-lfsharp"]] do
+            testCase ("explicit FSharp language " + String.concat " " options) (fun () ->
+                let args = "compile"::options
+                Expect.equal (route args) (args@["--extension-id";frontend.Text]) "selected FSharp frontend")
+        testCase "another explicit language keeps its host-selected frontend" (fun () ->
+            let args = ["compile";"--language";"python"]
+            Expect.equal (route args) args "never force the FSharp frontend")
+        testCase "absent language leaves project configuration with the host" (fun () ->
+            Expect.equal (route ["compile"]) ["compile"] "the manager does not duplicate configuration resolution")
+        for selection in ["--extension=python";"--extension-id:invalid"] do
+            testCase ("explicit selection remains terminal " + selection) (fun () ->
+                let args = ["compile";"--language";"fsharp";selection]
+                Expect.equal (route args) args "no additional installed override")
+    ]
+
+[<Tests>]
 let publicationLocks = testLabel "PlatformSpecific" <| testList "ComposedPublicationLocks" [
     testCaseTask "running host captures state while publication waits for its mutation lease" (fun () -> task {
         use sandbox = TestSandbox.Create()

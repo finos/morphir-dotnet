@@ -43,6 +43,11 @@ version tag. It permits at most three HTTPS redirects to `github.com`, `release-
 `objects.githubusercontent.com`, without credentials or a downgrade. The generic acquisition transport keeps its
 existing no-redirect policy.
 
+For composed generations, `run` selects the installed F# frontend when `compile --language fsharp` is explicit,
+and the installed backend for `generate --target fsharp`. Without `--language`, the host resolves project
+configuration; the manager does not force F# over another language. Explicit `--extension` or `--extension-id`
+selections are passed through unchanged.
+
 After setup succeeds, the same `run` commands use installed folders and retained selected records without network
 access or the download cache. The existing explicit local candidate commands remain diagnostic entry points.
 This scope does not implement publisher authentication, trust commands, moving release channels or portable lock
