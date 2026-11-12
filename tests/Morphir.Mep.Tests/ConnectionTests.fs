@@ -761,3 +761,87 @@ let conformanceCaptureIntegrityTests =
             Expect.isFalse ((ConformanceFixture.control edge.Session).Snapshot().IsComplete) "Cannot retain the prepared body"
             Expect.isEmpty (ConformanceFixture.prepared edge.Session) "No truncated body masquerades as complete evidence"
     ]
+
+[<Tests>]
+let operationProjectionStreamTests =
+    testSequenced <| testList "MEP conformance operation projections" [
+        testCase "describe observation keeps its actual winning reply after same-ID duplicates" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            use barrier = new ConformanceFixture.Barrier()
+            edge.AfterFlushAsync <- fun token -> barrier.Pause token :> Task
+            let control = ConformanceFixture.control edge.Session
+            let pending = control.DescribeAsync CancellationToken.None
+            edge.Track(pending :> Task)
+            let sent = edge.Read()
+            ConformanceFixture.wait barrier.Entered |> ignore
+            let winner = ConformanceFixture.utf8 (" \n{ \"jsonrpc\":\"2.0\", \"id\":1, \"result\":" + ConformanceFixture.claims + " }\r\n")
+            let duplicate = ConformanceFixture.response "1" (ConformanceFixture.claims.Replace("4.0.0", "3.0.0"))
+            let nextRead = edge.ReadAfterBytes(ConformanceFixture.framedBytes winner + ConformanceFixture.framedBytes duplicate)
+            edge.Send winner
+            edge.Send duplicate
+            ConformanceFixture.wait nextRead |> ignore
+            Expect.isFalse pending.IsCompleted "Actual write continuation remains held"
+            barrier.Release()
+            let result = ConformanceFixture.wait pending
+            result.Result |> ConformanceFixture.expectOk |> ignore
+            let observed = result.Observation
+            Expect.equal observed.RequestId (Some(RequestId.Number 1UL)) "Actual correlated ID"
+            Expect.isSome observed.Operation "Actual admission, not a frame ID"
+            Expect.equal observed.RequestBody (Some sent) "Actual sent bytes"
+            Expect.equal observed.ResponseBody (Some winner) "Winning bytes, not duplicate or reserialization"
+            match observed.Origin with
+            | ConformanceOperationOrigin.Submitted -> ()
+            | _ -> failtest "Expected actual submission and correlated answer"
+            let original = control.OriginalDescribeObservation |> Option.get
+            Expect.equal original.RequestId observed.RequestId "Receipt-owned original ID"
+            Expect.equal original.ResponseBody (Some winner) "Original receipt's actual raw body"
+            (observed.RequestBody |> Option.get)[0] <- 0uy
+            (observed.ResponseBody |> Option.get)[0] <- 0uy
+            (original.ResponseBody |> Option.get)[0] <- 0uy
+            Expect.equal observed.RequestBody (Some sent) "Request getter returns a copy"
+            Expect.equal observed.ResponseBody (Some winner) "Response getter returns a copy"
+            Expect.equal (control.OriginalDescribeObservation |> Option.get).ResponseBody (Some winner) "Original view cannot rewrite receipt storage"
+
+        testCase "later describe observation cannot replace the original describe view" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            let control = ConformanceFixture.control edge.Session
+            let first = control.DescribeAsync CancellationToken.None
+            let firstSent = edge.Read()
+            let firstReply = ConformanceFixture.response "1" ConformanceFixture.claims
+            edge.Send firstReply
+            let firstResult = ConformanceFixture.wait first
+            firstResult.Result |> ConformanceFixture.expectOk |> ignore
+            let receipt = control.DescribeReceipt |> Option.get
+            let later = control.DescribeAsync CancellationToken.None
+            let laterSent = edge.Read()
+            let laterReply = ConformanceFixture.response "2" (ConformanceFixture.claims.Replace("4.0.0", "3.0.0"))
+            edge.Send laterReply
+            let laterResult = ConformanceFixture.wait later
+            laterResult.Result |> ConformanceFixture.expectOk |> ignore
+            Expect.equal laterResult.Observation.RequestId (Some(RequestId.Number 2UL)) "Second actual operation ID"
+            Expect.equal laterResult.Observation.RequestBody (Some laterSent) "Second actual request"
+            Expect.equal laterResult.Observation.ResponseBody (Some laterReply) "Second actual response"
+            let original = control.OriginalDescribeObservation |> Option.get
+            Expect.equal original.RequestId (Some(RequestId.Number 1UL)) "Original wins once"
+            Expect.equal original.RequestBody (Some firstSent) "Original request retained"
+            Expect.equal original.ResponseBody (Some firstReply) "Original claims retained"
+            Expect.equal (control.DescribeReceipt |> Option.get) receipt "Receipt issuance unchanged"
+            control.BindSelectedOffer(receipt, ConformanceFixture.offer ()) |> ConformanceFixture.expectOk
+
+        testCase "blocked stream write exposes incomplete preparation without a completed submission" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge(blocked = true)
+            let pending = (ConformanceFixture.control edge.Session).DescribeAsync CancellationToken.None
+            edge.Track(pending :> Task)
+            ConformanceFixture.wait edge.WriteBarrier.Entered |> ignore
+            edge.Lifetime.Cancel()
+            let result = ConformanceFixture.wait pending
+            Expect.isError result.Result "Original failure is retained"
+            Expect.isSome result.Observation.Operation "Admission really happened"
+            Expect.equal result.Observation.RequestId (Some(RequestId.Number 1UL)) "Actual allocator reservation"
+            Expect.isSome result.Observation.RequestBody "Owned prepared body survives incomplete framing"
+            Expect.isFalse result.Observation.SubmissionCompleted "Preparation is not completed framing"
+            Expect.isNone result.Observation.ResponseBody "No invented peer answer"
+            match result.Observation.Origin with
+            | ConformanceOperationOrigin.Incomplete _ -> ()
+            | _ -> failtest "Preparation cannot become completed submission"
+    ]

@@ -26,6 +26,12 @@ type internal ConformanceBody private (body: byte array) =
     member internal _.Memory = ReadOnlyMemory<byte> owned
     static member internal Copy(body: byte array) = ConformanceBody body
 
+/// Consumer-facing copy-only view; unlike the transport body, it exposes no memory accessor.
+[<Sealed>]
+type internal ConformanceBodyView private (body: ConformanceBody) =
+    member _.ToArray() = body.ToArray()
+    static member internal Observe(body) = ConformanceBodyView body
+
 /// An admission identity, not a JSON-RPC ID or an individual frame identity.
 [<Sealed>]
 type internal ConformanceOperationId private (owner: obj, value: int64) =
@@ -51,6 +57,7 @@ type internal ConformanceDescribeReceipt private
     member private _.RequestId = id
     member private _.RequestBody = request.ToArray()
     member private _.ResponseBody = response.ToArray()
+    member internal _.ObservedData = operation, id, ConformanceBodyView.Observe request, ConformanceBodyView.Observe response
     static member internal Record(owner, operation, id, request, response) =
         ConformanceDescribeReceipt(owner, operation, id, request, response)
 
@@ -188,6 +195,23 @@ type internal ConformanceSubmission =
     | Framed
     | Adapter
 
+/// Facts of one exact preparation. Only the winning correlation path can associate a reply.
+[<Sealed>]
+type internal ConformanceTransportFact private
+    (frame: ConformanceFrameId, id: RequestId option, request: ConformanceBody, response: ConformanceBody option,
+     kind: ConformanceSubmission, completed: bool, validated: bool) =
+    member _.Frame = frame
+    member _.RequestId = id
+    member _.Request = request
+    member _.Response = response
+    member _.Kind = kind
+    member _.Completed = completed
+    member _.Validated = validated
+    member internal _.Complete() = ConformanceTransportFact(frame, id, request, response, kind, true, validated)
+    member internal _.Validate() = ConformanceTransportFact(frame, id, request, response, kind, completed, true)
+    member internal _.Answer(body) = ConformanceTransportFact(frame, id, request, Some body, kind, completed, true)
+    static member internal Prepare(frame, id, request, kind) = ConformanceTransportFact(frame, id, request, None, kind, false, false)
+
 /// Constructed and retained privately by one opted-in transport. No attached recorder escapes to consumers.
 [<Sealed>]
 type internal ConformanceCapture private (limits: ConformanceEvidenceLimits, lifetime: CancellationToken) =
@@ -197,7 +221,9 @@ type internal ConformanceCapture private (limits: ConformanceEvidenceLimits, lif
     let owner = obj ()
     let admitted = HashSet<ConformanceOperationId>()
     let cancelled = HashSet<ConformanceOperationId>()
-    let requests = Dictionary<RequestId, ConformanceOperationId * ConformanceBody>()
+    let requests = Dictionary<RequestId, ConformanceOperationId * ConformanceBody * ConformanceFrameId>()
+    let facts = Dictionary<ConformanceFrameId, ConformanceTransportFact>()
+    let requestIds = Dictionary<ConformanceOperationId, RequestId>()
     let stop = CancellationTokenSource.CreateLinkedTokenSource lifetime
     let mutable status = ConformanceCaptureStatus.Complete
     let mutable sequence = 0L
@@ -275,6 +301,20 @@ type internal ConformanceCapture private (limits: ConformanceEvidenceLimits, lif
     member _.EndReason = lock gate (fun () -> endReason)
     member _.CanSubmit = owned active
 
+    /// Allocator fact only. It does not establish preparation or submission.
+    member _.RequestAllocated(key: ConformanceOperationId, id: RequestId) =
+        lock gate (fun () ->
+            if key.BelongsTo owner && admitted.Contains key then requestIds[key] <- id)
+
+    /// The private admitted operation is the join key; no snapshot or matching-response-ID search is used.
+    member _.OperationFacts(key: ConformanceOperationId) =
+        lock gate (fun () ->
+            if not (key.BelongsTo owner && admitted.Contains key) then None
+            else
+                let id = match requestIds.TryGetValue key with true, id -> Some id | _ -> None
+                let frames = facts.Values |> Seq.filter (fun fact -> fact.Frame.Operation |> Option.exists (fun candidate -> obj.ReferenceEquals(candidate, key))) |> Seq.sortBy (fun fact -> fact.Frame.Value) |> List.ofSeq
+                Some(id, frames))
+
     member _.Snapshot() =
         owned (fun () -> ConformanceSnapshot.Record(entries.ToArray(), status))
 
@@ -329,15 +369,20 @@ type internal ConformanceCapture private (limits: ConformanceEvidenceLimits, lif
                 | Some body ->
                     frame <- frame + 1L
                     let key = ConformanceFrameId.Record(frame, admission)
+                    facts.Add(key, ConformanceTransportFact.Prepare(key, id, body, kind))
                     reservations.Add(key, phases)
                     match admission, id with
-                    | Some operation, Some requestId -> requests[requestId] <- operation, body
+                    | Some operation, Some requestId -> requests[requestId] <- operation, body, key
                     | _ -> ()
                     recordReserved key (OutboundBodyPreparedCore(key, id, body)) |> ignore
                     Some key)
 
     member _.WriteCompleted(key: ConformanceFrameId) =
-        owned (fun () -> active () && recordReserved key (FramedWriteCompletedCore key))
+        owned (fun () ->
+            match facts.TryGetValue key with
+            | true, fact -> facts[key] <- if fact.RequestId.IsNone then fact.Complete().Validate() else fact.Complete()
+            | _ -> ()
+            active () && recordReserved key (FramedWriteCompletedCore key))
 
     member _.WriteFailed(key: ConformanceFrameId, cause: exn) =
         owned (fun () ->
@@ -359,6 +404,12 @@ type internal ConformanceCapture private (limits: ConformanceEvidenceLimits, lif
 
     member _.AdapterStarted(key: ConformanceFrameId) =
         owned (fun () -> active () && recordReserved key (AdapterCallStartedCore key))
+
+    member _.AdapterCompleted(key: ConformanceFrameId) =
+        lock gate (fun () -> match facts.TryGetValue key with true, fact -> facts[key] <- fact.Complete() | _ -> ())
+
+    member _.AdapterValidated(key: ConformanceFrameId) =
+        lock gate (fun () -> match facts.TryGetValue key with true, fact -> facts[key] <- fact.Validate() | _ -> ())
 
     /// One owned reply body is shared across return and inbound phases. Null has no inbound-body event.
     member _.AdapterReturned(key: ConformanceFrameId, bytes: byte array | null) : ConformanceBody option option =
@@ -386,8 +437,9 @@ type internal ConformanceCapture private (limits: ConformanceEvidenceLimits, lif
     member _.CompleteExchange(operation: ConformanceOperationId, id: RequestId, response: ConformanceBody) =
         owned (fun () ->
             match requests.TryGetValue id with
-            | true, (registered, request) when active () && obj.ReferenceEquals(operation, registered) ->
+            | true, (registered, request, frame) when active () && obj.ReferenceEquals(operation, registered) ->
                 requests.Remove id |> ignore
+                match facts.TryGetValue frame with true, fact -> facts[frame] <- fact.Answer response | _ -> ()
                 Some(ConformanceExchange.Record(operation, id, request, response))
             | _ -> None)
 

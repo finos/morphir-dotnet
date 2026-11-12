@@ -699,3 +699,84 @@ let conformanceAdapterCaptureIntegrityTests =
             Expect.isEmpty (CF.inbound session) "A locally constructed -32014 is not peer bytes"
             Expect.equal (CF.localCount session) 1 "Explicit local origin"
     ]
+
+[<Tests>]
+let operationProjectionAdapterTests =
+    testSequenced <| testList "MEP conformance operation projections" [
+        testCase "adapter observation retains exact returned storage and copied request bytes" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let mutable returned: byte array option = None
+            edge.Replace <- fun _ reply -> returned <- Option.ofObj reply; reply
+            let session = CF.create edge lifetime
+            let result = CF.wait ((CF.control session).DescribeAsync CancellationToken.None)
+            result.Result |> CF.expectOk |> ignore
+            let original = returned |> Option.get |> Array.copy
+            Expect.equal result.Observation.RequestBody (Some edge.Bodies[0]) "Same actual adapter call"
+            Expect.equal result.Observation.ResponseBody (Some original) "Original returned bytes"
+            (returned |> Option.get)[0] <- 0uy
+            (result.Observation.RequestBody |> Option.get)[0] <- 0uy
+            Expect.equal result.Observation.ResponseBody (Some original) "No retained mutable adapter storage"
+            Expect.equal result.Observation.RequestBody (Some edge.Bodies[0]) "No mutable request getter"
+
+        testCase "no-reply adapter call keeps preparation and original channel failure" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            edge.Replace <- fun _ _ -> null
+            let session = CF.create edge lifetime
+            let result = CF.wait ((CF.control session).DescribeAsync CancellationToken.None)
+            Expect.isError result.Result "Missing answer remains a failure"
+            Expect.equal result.Observation.RequestId (Some(RequestId.Number 1UL)) "Actual call ID"
+            Expect.equal result.Observation.RequestBody (Some edge.Bodies[0]) "Actual prepared/submitted call body"
+            Expect.isNone result.Observation.ResponseBody "No invented reply"
+            Expect.isTrue result.Observation.SubmissionCompleted "The adapter actually returned, although its reply was missing"
+            match result.Observation.Origin with
+            | ConformanceOperationOrigin.Incomplete(ConformanceOperationFailure.ChannelFailed(SessionFailure.NoReply _)) -> ()
+            | _ -> failtest "Original NoReply cause must survive projection"
+
+        testCase "initialize projects request and initialized notification under one admission" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            CF.describeAndBind session |> ignore
+            let initialized = CF.wait ((CF.control session).InitializeAsync CancellationToken.None)
+            initialized.Result |> CF.expectOk |> ignore
+            Expect.equal initialized.Observation.RequestId (Some(RequestId.Number 2UL)) "Initialize allocated ID2"
+            Expect.equal initialized.Observation.RequestBody (Some edge.Bodies[1]) "Actual initialize body"
+            Expect.equal initialized.Notifications.Count 1 "Only automatic initialized"
+            let notification = initialized.Notifications[0]
+            Expect.equal notification.Operation initialized.Observation.Operation "One atomic operation owns both frames"
+            Expect.isNone notification.RequestId "Notification consumes no ID"
+            Expect.equal notification.RequestBody (Some edge.Bodies[2]) "Actual initialized bytes"
+            Expect.isNone notification.ResponseBody "Null return is not a response"
+            Expect.isTrue notification.SubmissionCompleted "Actual adapter completion"
+            match notification.Origin with
+            | ConformanceOperationOrigin.Submitted -> ()
+            | _ -> failtest "Actual adapter completion should be retained"
+            Expect.equal (CF.methods [edge.Bodies[2]]) ["morphir.initialized"] "Separate frame identity"
+
+        testCase "unknown and exit project actual notification bodies without inner guest claims" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            CF.initialize session
+            let control = CF.control session
+            let unknown = CF.wait (control.SendUnknownNotificationObservedAsync CancellationToken.None)
+            unknown.Result |> CF.expectOk
+            Expect.equal unknown.Observation.RequestBody (Some(List.last edge.Bodies)) "Actual unknown notification"
+            Expect.isNone unknown.Observation.RequestId "No allocated notification ID"
+            Expect.isNone unknown.Observation.ResponseBody "Adapter-null has no correlated reply"
+            Expect.isTrue unknown.Observation.SubmissionCompleted "Actual unknown-notification callback returned"
+            match unknown.Observation.Origin with
+            | ConformanceOperationOrigin.Submitted -> ()
+            | _ -> failtest "Only adapter submission is established"
+            let exit = CF.wait (control.ExitAsync())
+            exit.Result |> CF.expectOk
+            Expect.equal (CF.methods [exit.Observation.RequestBody |> Option.get]) ["morphir.exit"] "Actual exit frame"
+            Expect.isNone exit.Observation.RequestId "Exit consumes no ID"
+            Expect.isNone exit.Observation.ResponseBody "Exit has no peer response"
+            Expect.isTrue exit.Observation.SubmissionCompleted "Actual exit callback returned"
+            match exit.Observation.Origin with
+            | ConformanceOperationOrigin.Submitted -> ()
+            | _ -> failtest "Exit completion is an adapter fact"
+    ]

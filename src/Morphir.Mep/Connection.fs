@@ -259,6 +259,7 @@ type Connection
                         if closed || not owned.CanSubmit then None
                         else
                             let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
+                            admission |> Option.iter (fun key -> owned.RequestAllocated(key, id))
                             let waiter = TaskCompletionSource<ConformanceCallResult<JsonElement>>(TaskCreationOptions.RunContinuationsAsynchronously)
                             admission |> Option.iter (fun key -> pendingOperations[id] <- key)
                             pending[id] <- waiter
@@ -308,6 +309,7 @@ type Connection
     member internal _.ConformanceSnapshot = capture |> Option.map (fun owned -> owned.Snapshot())
     member internal _.ConformanceToken = capture |> Option.map _.Token |> Option.defaultValue CancellationToken.None
     member internal _.ConformanceEnd = capture |> Option.bind _.EndReason
+    member internal _.OperationFacts(operation) = capture |> Option.bind (fun owned -> owned.OperationFacts operation)
     member internal _.AdmitOperation() = capture |> Option.bind (fun owned -> owned.AdmitOperation())
     member internal _.LocalRefused(cause) = capture |> Option.iter (fun owned -> owned.LocalRefused cause)
     member internal _.OperationCancelled(operation) = capture |> Option.iter (fun owned -> owned.OperationCancelled operation)
