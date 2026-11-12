@@ -181,8 +181,8 @@ public class ManagementScenario : IMorphirCliScenario
         // extension list and extension runtimes need the registry and the WASM runtime, so ConfigureHostedCommands
         // inserts them first, after the host is built.
 
-        var repositoryCommand = new Command("repository","Manage registered local extension repositories");
-        var addRepository = new Command("add","Register an explicit local-developer repository name");
+        var repositoryCommand = new Command("repository", "Manage registered local extension repositories");
+        var addRepository = new Command("add", "Register an explicit local-developer repository name");
         var repositoryName = new Argument<string>("name");
         var directory = new Option<string?>("--directory");
         var repositoryHome = new Option<string?>("--home");
@@ -191,13 +191,13 @@ public class ManagementScenario : IMorphirCliScenario
         addRepository.Arguments.Add(repositoryName);
         addRepository.Options.Add(directory); addRepository.Options.Add(repositoryHome);
         addRepository.Options.Add(repositoryConsent); addRepository.Options.Add(repositoryDryRun);
-        addRepository.SetAction(async (result,ct) => RenderLocal(await ExtensionHandlers.RegisterLocalAsync(new(
-            result.GetValue(repositoryName)!,result.GetValue(directory) ?? "",result.GetValue(repositoryHome) ?? Environment.GetEnvironmentVariable("MORPHIR_HOME") ?? "",
-            result.GetValue(repositoryConsent),result.GetValue(repositoryDryRun)),ct)));
+        addRepository.SetAction(async (result, ct) => RenderLocal(await ExtensionHandlers.RegisterLocalAsync(new(
+            result.GetValue(repositoryName)!, result.GetValue(directory) ?? "", result.GetValue(repositoryHome) ?? Environment.GetEnvironmentVariable("MORPHIR_HOME") ?? "",
+            result.GetValue(repositoryConsent), result.GetValue(repositoryDryRun)), ct)));
         repositoryCommand.Subcommands.Add(addRepository);
         extensionCommand.Subcommands.Add(repositoryCommand);
 
-        var installCommand = new Command("install","Install an explicit unchecked local declaration from a registered repository");
+        var installCommand = new Command("install", "Install an explicit unchecked local declaration from a registered repository");
         var installName = new Argument<string>("name");
         var repository = new Option<string?>("--repository");
         var release = new Option<string?>("--local-release");
@@ -209,13 +209,13 @@ public class ManagementScenario : IMorphirCliScenario
         installCommand.Arguments.Add(installName);
         installCommand.Options.Add(repository); installCommand.Options.Add(release); installCommand.Options.Add(archive);
         installCommand.Options.Add(installHome); installCommand.Options.Add(consent); installCommand.Options.Add(noProbe); installCommand.Options.Add(dryRun);
-        installCommand.SetAction(async (result,ct) =>
+        installCommand.SetAction(async (result, ct) =>
         {
-            if (result.GetValue(release) is not {Length:>0} declaration || result.GetValue(archive) is not {Length:>0} localArchive)
-                return RenderLocal(new(false,"extension.local_declaration_required","This local-developer mode requires paired --local-release and --local-archive inside the registered directory; repository index resolution remains unimplemented."));
-            return RenderLocal(await ExtensionHandlers.InstallLocalAsync(new(result.GetValue(installName)!,result.GetValue(repository) ?? "",
-                declaration,localArchive,result.GetValue(installHome) ?? Environment.GetEnvironmentVariable("MORPHIR_HOME") ?? "",
-                result.GetValue(consent),result.GetValue(noProbe),result.GetValue(dryRun)),ct));
+            if (result.GetValue(release) is not { Length: > 0 } declaration || result.GetValue(archive) is not { Length: > 0 } localArchive)
+                return RenderLocal(new(false, "extension.local_declaration_required", "This local-developer mode requires paired --local-release and --local-archive inside the registered directory; repository index resolution remains unimplemented."));
+            return RenderLocal(await ExtensionHandlers.InstallLocalAsync(new(result.GetValue(installName)!, result.GetValue(repository) ?? "",
+                declaration, localArchive, result.GetValue(installHome) ?? Environment.GetEnvironmentVariable("MORPHIR_HOME") ?? "",
+                result.GetValue(consent), result.GetValue(noProbe), result.GetValue(dryRun)), ct));
         });
         extensionCommand.Subcommands.Add(installCommand);
         // extension use

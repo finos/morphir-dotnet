@@ -57,7 +57,7 @@ public static class GenerateHandler
             var model = ((Outcome<LoadedModel>.Success)loaded).Value;
             if ((settings.Extension is not null || settings.InstalledExtensionId is not null) && settings.Target is RequestedTarget.Valid target)
             {
-                var extension = settings.Extension ?? new Morphir.Tooling.Features.Compile.Setting<string>(settings.InstalledExtensionId!.Value,new Morphir.Tooling.Features.Compile.SettingOrigin.CommandLine("--extension-id"));
+                var extension = settings.Extension ?? new Morphir.Tooling.Features.Compile.Setting<string>(settings.InstalledExtensionId!.Value, new Morphir.Tooling.Features.Compile.SettingOrigin.CommandLine("--extension-id"));
                 return await RunWithExtension(extension, target.Id, command.Context, model, settings, publisher, ct, logger,
                     backendExtensions ?? new MepBackendExtensionConnector(), registered);
             }
@@ -77,7 +77,7 @@ public static class GenerateHandler
         IEnumerable<IGenerationBackend> registered)
     {
         var connected = await connector.ConnectAsync(new BackendExtensionRequest(extension, target, context.WorkingDirectory)
-        { InstalledId=settings.InstalledExtensionId, Environment=context.Environment }, ct);
+        { InstalledId = settings.InstalledExtensionId, Environment = context.Environment }, ct);
         if (connected is Outcome<IExternalGenerationBackend>.Failure connectFailure) return GenerationStages.Failed(connectFailure.Error, null);
         await using var backend = ((Outcome<IExternalGenerationBackend>.Success)connected).Value;
         var id = backend.Descriptor.Id;

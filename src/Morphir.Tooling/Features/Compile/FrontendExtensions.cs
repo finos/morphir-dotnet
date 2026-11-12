@@ -13,7 +13,7 @@ public sealed record FrontendExtensionRequest(Setting<string> Extension, Languag
     /// <summary>Explicit installed identity; null preserves the path/command connector.</summary>
     public Morphir.Extensions.ExtensionId? InstalledId { get; init; }
     /// <summary>The exact invocation environment, including a manager-owned overlay.</summary>
-    public IReadOnlyDictionary<string,string>? Environment { get; init; }
+    public IReadOnlyDictionary<string, string>? Environment { get; init; }
     /// <summary>The resolved Morphir Home of this invocation.</summary>
     public string? Home { get; init; }
 }

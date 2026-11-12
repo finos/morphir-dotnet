@@ -33,4 +33,5 @@ public sealed class InstalledProviderCommandTests
             .AddScenario<Morphir.Tooling.Scenarios.ManagementScenario>().Build();
         (await app.RunAsync()).Should().Be(0);
         Directory.Exists(sandbox.MorphirHome).Should().BeFalse("a planning command cannot acquire a persistent lock");
-    }}
+    }
+}

@@ -28,7 +28,7 @@ public sealed record BackendExtensionRequest(Setting<string> Extension, TargetId
     /// <summary>Explicit installed identity; null preserves the path/command connector.</summary>
     public ExtensionId? InstalledId { get; init; }
     /// <summary>The exact invocation environment.</summary>
-    public IReadOnlyDictionary<string,string>? Environment { get; init; }
+    public IReadOnlyDictionary<string, string>? Environment { get; init; }
 }
 
 /// <summary>
@@ -53,7 +53,7 @@ public sealed class MepBackendExtensionConnector : IBackendExtensionConnector
     /// <inheritdoc />
     public async Task<Outcome<IExternalGenerationBackend>> ConnectAsync(BackendExtensionRequest request, CancellationToken ct)
     {
-        if (request.InstalledId is not null) return await InstalledExtensionConnector.BackendAsync(request,ct);
+        if (request.InstalledId is not null) return await InstalledExtensionConnector.BackendAsync(request, ct);
         if (!MepExtensionCommand.TryResolve(request.Extension.Value, request.WorkingDirectory, out var executable, out var arguments, out var error))
             return new Outcome<IExternalGenerationBackend>.Failure(GenerationFailure.One(GenerationFailureKind.Operational, "extension.unavailable", error));
         var options = new MepBackendOptions(executable, arguments, request.Target)

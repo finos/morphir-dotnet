@@ -30,7 +30,7 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
         {
             var invocation = Bind(result);
             if (invocation.Extension is not null && invocation.ExtensionId is not null)
-                return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,"invalid-arguments","Choose --extension or --extension-id, not both.")),invocation), result.GetValue(_json));
+                return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation, "invalid-arguments", "Choose --extension or --extension-id, not both.")), invocation), result.GetValue(_json));
             var mediator = services.GetRequiredService<IMediator>();
             var generated = await mediator.InvokeAsync<Outcome<GenerationSuccess>>(new GenerateRequest(invocation, new(Environment.CurrentDirectory)), ct);
             return Render(GenerationReport.From(generated, invocation), result.GetValue(_json));

@@ -279,7 +279,7 @@ jobs:
                   dotnet $runner --filter-test-list WindowsReleaseSetup --sequenced --colours 0 2>&1 | Tee-Object -FilePath artifacts/windows-setup-tests.log
                   if ($LASTEXITCODE) { exit $LASTEXITCODE }
                   $plain = [regex]::Replace((Get-Content artifacts/windows-setup-tests.log -Raw), '\x1B\[[0-?]*[ -/]*[@-~]', '')
-                  $summary = [regex]::Match($plain, '(\d+) tests run[^\r\n]* - (\d+) passed, (\d+) ignored, (\d+) failed, (\d+) errored')
+                  $summary = [regex]::Match($plain, '(\d+) tests run[^\r\n]* [-\u2013] (\d+) passed, (\d+) ignored, (\d+) failed, (\d+) errored')
                   if (!$summary.Success -or [int]$summary.Groups[1].Value -ne $expected -or [int]$summary.Groups[2].Value -ne $expected -or [int]$summary.Groups[3].Value -ne 0 -or [int]$summary.Groups[4].Value -ne 0 -or [int]$summary.Groups[5].Value -ne 0) { throw 'The complete discovered setup group did not pass with zero skips.' }
 
             - name: Upload the complete Windows toolchain proof inputs

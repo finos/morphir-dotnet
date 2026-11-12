@@ -15,11 +15,11 @@ public static class ExtensionHandlers
     /// <summary>Registers the stable name using the existing repositories document and cooperative locks.</summary>
     public static async Task<ExtensionLocalOutcome> RegisterLocalAsync(ExtensionRepositoryAddLocal command, CancellationToken ct)
     {
-        if (!command.LocalDeveloper) return new(false,"extension.consent_required","Explicit --local-developer consent is required.");
-        var outcome = await InstalledState.RegisterLocalRepositoryAsync(command.Home,command.Name,command.Directory,command.DryRun,ct);
-        return outcome.Match(path => new ExtensionLocalOutcome(true,"extension.repository_registered",
+        if (!command.LocalDeveloper) return new(false, "extension.consent_required", "Explicit --local-developer consent is required.");
+        var outcome = await InstalledState.RegisterLocalRepositoryAsync(command.Home, command.Name, command.Directory, command.DryRun, ct);
+        return outcome.Match(path => new ExtensionLocalOutcome(true, "extension.repository_registered",
             $"{(command.DryRun ? "Planned" : "Registered")} local-developer repository {command.Name}: {path}"),
-            failure => new ExtensionLocalOutcome(false,failure.Code,failure.Message));
+            failure => new ExtensionLocalOutcome(false, failure.Code, failure.Message));
     }
 
     private static byte[] LocalDocument(Stream stream, int maximum)
@@ -28,10 +28,10 @@ public static class ExtensionHandlers
         using var output = new MemoryStream();
         var buffer = new byte[65536];
         int count;
-        while ((count=stream.Read(buffer))!=0)
+        while ((count = stream.Read(buffer)) != 0)
         {
-            if (output.Length+count > maximum) throw new IOException("Local declaration grew past its bound.");
-            output.Write(buffer,0,count);
+            if (output.Length + count > maximum) throw new IOException("Local declaration grew past its bound.");
+            output.Write(buffer, 0, count);
         }
         return output.ToArray();
     }
@@ -39,55 +39,55 @@ public static class ExtensionHandlers
     /// <summary>Validates and installs a local declaration through the one package installer. Dry run performs no effects.</summary>
     public static async Task<ExtensionLocalOutcome> InstallLocalAsync(ExtensionLocalDeclarationInstall command, CancellationToken ct)
     {
-        if (!command.LocalDeveloper) return new(false,"extension.consent_required","Explicit --local-developer consent is required.");
-        if (!command.NoProbe) return new(false,"extension.probe_required","This local declaration mode requires explicit --no-probe; first-session agreement remains mandatory.");
+        if (!command.LocalDeveloper) return new(false, "extension.consent_required", "Explicit --local-developer consent is required.");
+        if (!command.NoProbe) return new(false, "extension.probe_required", "This local declaration mode requires explicit --no-probe; first-session agreement remains mandatory.");
         try
         {
-            if (!Morphir.Extensions.ExtensionId.TryParse(command.Name,out var id,out _))
-                return new(false,"extension.invalid_id","The name must be a full extension identity.");
-            if (!Path.IsPathFullyQualified(command.Home)) return new(false,"extension.invalid_home","--home must be absolute.");
-            var resolved = await InstalledState.ResolveLocalRepositoryAsync(command.Home,command.Repository,ct);
-            var sourceRoot = resolved.Match(path => path,failure => throw new InstallationException(failure));
-            using var repository = SafeDirectory.Open(sourceRoot,false);
-            using var release = FileSafety.openRelative(repository,Path.GetFullPath(command.Release));
-            var descriptor = LocalDocument(release,8*1024*1024);
-            var platform = ActivationPlatforms.current().Match(value => value,failure => throw new InstallationException(failure));
-            var plan = PackagePlan.Read(descriptor,platform).Match(value => value,failure => throw new InstallationException(failure));
-            if (!plan.Descriptor.ExtensionId.Equals(id)) return new(false,"extension.identity_mismatch","Local release does not name the requested installed identity.");
-            if (!StringComparer.Ordinal.Equals(Path.GetFileName(command.Archive),plan.Artifact.Filename.Text))
-                return new(false,"extension.invalid_descriptor","Archive filename differs from the selected descriptor artifact.");
-            using var archive = FileSafety.openRelative(repository,Path.GetFullPath(command.Archive));
-            if (archive.Length > InstallationLimits.MaxArchiveBytes) return new(false,"extension.archive_limit","Local archive exceeds its recorded bound.");
+            if (!Morphir.Extensions.ExtensionId.TryParse(command.Name, out var id, out _))
+                return new(false, "extension.invalid_id", "The name must be a full extension identity.");
+            if (!Path.IsPathFullyQualified(command.Home)) return new(false, "extension.invalid_home", "--home must be absolute.");
+            var resolved = await InstalledState.ResolveLocalRepositoryAsync(command.Home, command.Repository, ct);
+            var sourceRoot = resolved.Match(path => path, failure => throw new InstallationException(failure));
+            using var repository = SafeDirectory.Open(sourceRoot, false);
+            using var release = FileSafety.openRelative(repository, Path.GetFullPath(command.Release));
+            var descriptor = LocalDocument(release, 8 * 1024 * 1024);
+            var platform = ActivationPlatforms.current().Match(value => value, failure => throw new InstallationException(failure));
+            var plan = PackagePlan.Read(descriptor, platform).Match(value => value, failure => throw new InstallationException(failure));
+            if (!plan.Descriptor.ExtensionId.Equals(id)) return new(false, "extension.identity_mismatch", "Local release does not name the requested installed identity.");
+            if (!StringComparer.Ordinal.Equals(Path.GetFileName(command.Archive), plan.Artifact.Filename.Text))
+                return new(false, "extension.invalid_descriptor", "Archive filename differs from the selected descriptor artifact.");
+            using var archive = FileSafety.openRelative(repository, Path.GetFullPath(command.Archive));
+            if (archive.Length > InstallationLimits.MaxArchiveBytes) return new(false, "extension.archive_limit", "Local archive exceeds its recorded bound.");
             var digest = new Digest.Incremental();
             var buffer = new byte[65536];
-            long total=0;
+            long total = 0;
             int count;
-            while ((count=await archive.ReadAsync(buffer,ct))!=0)
+            while ((count = await archive.ReadAsync(buffer, ct)) != 0)
             {
-                total+=count;
-                if (total > InstallationLimits.MaxArchiveBytes) return new(false,"extension.archive_limit","Local archive grew past its bound.");
-                digest.Append(buffer,0,count);
+                total += count;
+                if (total > InstallationLimits.MaxArchiveBytes) return new(false, "extension.archive_limit", "Local archive grew past its bound.");
+                digest.Append(buffer, 0, count);
             }
-            if (!StringComparer.Ordinal.Equals(digest.Finish(),plan.ArchiveDigest.Value))
-                return new(false,"extension.digest_mismatch","Local archive differs from the release digest.");
-            archive.Position=0;
-            ArchiveChecks.inspect(archive,ct);
+            if (!StringComparer.Ordinal.Equals(digest.Finish(), plan.ArchiveDigest.Value))
+                return new(false, "extension.digest_mismatch", "Local archive differs from the release digest.");
+            archive.Position = 0;
+            ArchiveChecks.inspect(archive, ct);
             repository.ValidateLocation();
-            if (command.DryRun) return new(true,"extension.planned",$"Planned local-developer installation of {id.Value}; claims remain unchecked. Full package verification is required during apply.");
+            if (command.DryRun) return new(true, "extension.planned", $"Planned local-developer installation of {id.Value}; claims remain unchecked. Full package verification is required during apply.");
             var host = SemVerModule.tryParse(Infrastructure.MepExtensionCommand.HostVersion).Match(value => value,
                 _ => throw new IOException("Host version is not valid SemVer."));
-            var installed = await InstalledExtensions.InstallLocalUncheckedAsync(command.Home,plan,Path.GetFullPath(command.Archive),sourceRoot,
-                Array.AsReadOnly(Array.Empty<string>()),host,ct);
+            var installed = await InstalledExtensions.InstallLocalUncheckedAsync(command.Home, plan, Path.GetFullPath(command.Archive), sourceRoot,
+                Array.AsReadOnly(Array.Empty<string>()), host, ct);
             return installed.Match(captured =>
             {
                 using var lifetime = (IDisposable)captured;
-                return new ExtensionLocalOutcome(true,"extension.installed",$"Installed local-developer {captured.Record.ExtensionId.Value} {captured.Record.Version.Text}; claims unchecked; no publisher authentication or readiness claimed.");
-            },failure => new ExtensionLocalOutcome(false,failure.Code,failure.Message));
+                return new ExtensionLocalOutcome(true, "extension.installed", $"Installed local-developer {captured.Record.ExtensionId.Value} {captured.Record.Version.Text}; claims unchecked; no publisher authentication or readiness claimed.");
+            }, failure => new ExtensionLocalOutcome(false, failure.Code, failure.Message));
         }
-        catch (InstallationException error) { return new(false,error.Data0.Code,error.Data0.Message); }
+        catch (InstallationException error) { return new(false, error.Data0.Code, error.Data0.Message); }
         catch (OperationCanceledException) { throw; }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
-        { return new(false,"extension.local_refused",error.Message); }
+        { return new(false, "extension.local_refused", error.Message); }
     }
 
     public static async Task<ExtensionInstallResult> HandleInstall(
