@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A scripted stand-in for `<host> extension worker`, for the tests of the wasm-host runner
+    (OpenSpec change add-wasm-extension-host, task 1.5). It is not a test assembly: the tests run it
+    with `dotnet exec`, so it works on every platform without a shell script.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Morphir.Conformance.FakeWorker</RootNamespace>
+  </PropertyGroup>
+
+</Project>

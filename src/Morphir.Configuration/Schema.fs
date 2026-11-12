@@ -4,7 +4,7 @@ namespace Morphir.Configuration
 // Schema SHA-256 b5b2f636b8fbbdcc4dc3636ffe7bcee81776d0dbd73810d9c9391f1ee2813901.
 // Amendments: ir.format_version takes a SemVer string; every [frontend.<language>] table (an object-valued member of
 // [frontend]) has project_file and extension; every [codegen.<target>] table (an object-valued member of [codegen])
-// has extension.
+// has extension; every [extensions.<name>] table has abi and sha256.
 module internal ConfigurationSchema =
     type Rule =
         | Reference of string
@@ -271,6 +271,17 @@ module internal ConfigurationSchema =
                 Property("args", [ Kind "array"; Elements [ Kind "string" ] ])
                 Property("enabled", [ Kind "boolean" ])
                 Property("config", [ Kind "object" ])
+                Property(
+                    "abi",
+                    [
+                        Kind "string"
+                        Choice [
+                            ConfigValue.String "morphir-bytes-v1"
+                            ConfigValue.String "extism-kernel-v1"
+                        ]
+                    ]
+                )
+                Property("sha256", [ Kind "string"; Pattern "^[0-9a-f]{64}$" ])
             ]
             "sourcesCache",
             [

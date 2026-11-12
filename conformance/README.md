@@ -6,8 +6,15 @@ under test. Do not record or regenerate expectations from compiler output.
 
 - [Vocabulary 1.1](steps/steps-1.md) defines every supported step and the
   value codecs of call observations.
+- [Vocabulary 1.2](steps/steps-1.2.md) adds the steps of the `wasm-host` suite
+  and changes nothing in version 1.1. [Vocabulary 1.3](steps/steps-1.3.md),
+  the one the suite uses, adds the instruction-budget step and lets two
+  alternatives of a case share a condition.
 - [F# frontend suite](suites/frontend-fsharp/) covers four IR versions and three
   source input kinds.
+- [WASM host suite](suites/wasm-host/) holds the crafted cases that qualify a
+  WASM extension host, generated from a pinned upstream corpus (see
+  [WASM host suite](#wasm-host-suite)).
 - [Deviations](deviations.md) records the upstream compatibility decisions.
 - [Runner source](../src/Morphir.Conformance/) implements the official Gherkin
   reader, linter, matrix checks, comparison and deterministic JSON reports.
@@ -89,6 +96,109 @@ The compiler and Core pins remain unchanged. The smoke's expanded FSharp.Core
 warnings are compared with the existing AOT CLI baseline in the feature PRD;
 no new warning is suppressed. Other RIDs can run the same smoke using their own
 runtime identifier.
+
+## WASM host suite
+
+`suites/wasm-host/` holds the crafted cases of the WASM host qualification kit
+(`morphir/mep-wasm-host-kit` `0.1.0-draft.1`, OpenSpec change
+`add-wasm-extension-host`, task 1.5). Each case names one module that does one
+thing, the frames to send to a worker that runs it, and what the worker must
+show: its exit status, its stdout frames and its stderr events. The suite uses
+[vocabulary 1.3](steps/steps-1.3.md). At the pin, finos/morphir `938f798`, it
+has 59 cases and 51 modules: 49 cases for `extism-kernel-v1`, which apply to
+every host, and 10 for `morphir-bytes-v1`.
+
+The features are generated; never edit one by hand. While finos/morphir
+publishes the corpus as JSON, the copy pinned in
+`tests/Fixtures/MepWasm/wasm-host.cases.json` (commit and digests in its
+`PROVENANCE.md`) is the hand-reviewed source, and the features are generated
+from it. An expectation changes only when the corpus changes upstream and the
+pin moves. After the pin moves, generate the suite again:
+
+```console
+dotnet fsi scripts/generate-wasm-host-cases.fsx
+```
+
+The script writes one feature for each group of upstream case ids and the id
+map `suites/wasm-host/case-ids.json`, which gives each upstream case id its
+stable number. A scenario is named `wasm-host-NNNN <upstream case id>`. A number
+never changes and is never reused: a new case takes the next unused number, and
+a removed case keeps its number, retired, in the map. Output is byte-stable, with
+LF line endings.
+
+The `lint` job of `.github/workflows/development.yml` runs
+`dotnet fsi scripts/generate-wasm-host-cases.fsx --check`, which fails, naming
+each file and case, when the committed features or id map differ from what the
+pin generates: stale features or a hand edit. The reader of the suite
+(`Morphir.Conformance.WasmHost.FeatureReader`) refuses the same differences,
+and a step outside the vocabulary with its file and line. The tests compare
+the pinned JSON and the features case by case:
+
+```console
+dotnet build tests/Morphir.Conformance.Tests -c Release
+dotnet exec tests/Morphir.Conformance.Tests/bin/Release/net10.0/Morphir.Conformance.Tests.dll
+```
+
+The reader of the F# frontend suite (`Corpus.read`) reads only the features
+under `suites/<suite>/` of the suite it is given, so the two suites sit side by
+side.
+
+The runner drives a host's worker mode with these cases: the experimental, internal
+`morphir mck wasm-host run` and `report-check` (see
+[the command reference](../docs/content/docs/cli/mck-wasm-host.md)). Its worker adapter,
+comparer, judge and report are in `src/Morphir.Conformance/WasmHost/`. The tests drive it
+with a scripted fake worker, `tests/Morphir.Conformance.FakeWorker`.
+
+## Generic guest kit, model tier only
+
+`src/Morphir.Conformance/GuestKit/` runs the model tier of the MEP generic
+guest kit (profile `generic-json-library-v1`, OpenSpec change
+`add-wasm-extension-host`, task 3.5). The kit file, its README and the
+requirements of `mep/generic-guest-profile` are pinned unchanged under
+`tests/Fixtures/MepGuestKit/`, from finos/morphir `8b3c4c35`; `PROVENANCE.md`
+there has the digests. The kit is still JSON upstream and is read in that
+form; it is not part of this seed's Gherkin suites.
+
+- `GuestKit.Parse` (F#) and `GuestKit.TryParse` (C#) read the kit file
+  strictly: an unknown member, an IR version other than `3.0.0` and `4.0.0`, or
+  another profile is an issue that names its JSON pointer.
+- `ModelTierRunner.RunAsync(kit, openSession, cancellation)` asks its caller
+  for one `HostSession` for `morphir.extension.describe`, plans the model tier
+  from the describe claim as `crates/morphir-mck/src/mep/generic.rs` does, and
+  then asks for a second session that offers the kit's model-transport tuples.
+  It runs `model-initialize`, then for each planned IR version
+  `compile-model`, `generate-model`, `roundtrip-model`,
+  `generate-model-independent` and `roundtrip-model-independent`, then
+  `bad-digest`, `model-shutdown` and `model-exit`. The caller decides what a
+  session runs on: today a `WasmChannel` in-process, later a stream to a worker
+  process.
+- A compiled IR is compared with the kit's expected IR by the kit's three
+  rules and no other: object member order is ignored; in IR 3 the order of the
+  `modules`, `types` and `values` lists is ignored; in IR 4, at an
+  `outputType` or a member of `inputTypes`, a `Reference` with an `fqname` and
+  no or empty `args` equals the FQName string. Rule 2 applies only to IR 3 and
+  rule 3 only to IR 4. Numbers compare by their literal text.
+- The result, `ModelTierRun`, lists each step with its outcome (`passed`,
+  `failed` with the difference quoted, `not-run` with the reason), what each
+  step sent and received, and the legacy tier's cases, each not run. It has no
+  verdict for the kit: `ModelTierOnly` is always true, and its text says that
+  the run is not a complete run of the generic guest kit.
+
+What it does not cover:
+
+- **The legacy tier.** It negotiates MEP `0.1`, which this host does not speak
+  (design MEP-1). Its cases are listed as not run, and so is the describe
+  case's check that the guest claims `0.1`.
+- **Guests that speak MEP `0.1` only.** This host offers `0.2.0-draft.1` alone,
+  even to `describe`. The SDK fixture guest of finos/morphir-moonbit refuses
+  that with `-32011`, so the kit plans nothing for it here.
+- **Exact requests.** `HostSession` assigns the request ids, writes its own
+  `morphir.initialize` params and reads the initialize result through its
+  types; the runner checks what `HostSession` accepted.
+- **A command.** No `morphir` command runs the kit; the tests in
+  `tests/Morphir.Extensions.Wasm.Tests` (`GenericGuestKitModelTierTests`) run
+  it in-process, and `tests/Morphir.Conformance.Tests` tests the runner on a
+  scripted guest.
 
 Kit manifests, profiles, claims planning, additional adapters, provenance review
 records, report checking and literate documentation belong to the full

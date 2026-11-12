@@ -78,7 +78,7 @@ All test assemblies share the `obj` and `bin` folders of the repository. A test 
 - Use a new temporary directory and a unique package version for each test, not a fixed name or a fixed port.
 
 A test assembly that has tests with a time budget runs alone: set `Alone()` on it in `build/Helpers/TestPlan.cs`.
-`Morphir.Toolchain.Tests` is such an assembly.
+`Morphir.Toolchain.Tests` and `Morphir.Extensions.Wasm.Tests` are such assemblies.
 
 ## How a test job uses its build
 

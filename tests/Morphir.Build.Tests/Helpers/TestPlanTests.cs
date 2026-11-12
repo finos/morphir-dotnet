@@ -107,7 +107,7 @@ public class TestPlanTests
 
     [Test]
     public void TheSuitesWithTimeBudgetsRunAlone() =>
-        TestPlan.Suites.Where(suite => suite.RunsAlone).Select(suite => suite.Project).Should().Equal("Morphir.Toolchain.Tests");
+        TestPlan.Suites.Where(suite => suite.RunsAlone).Select(suite => suite.Project).Should().Equal("Morphir.Extensions.Wasm.Tests", "Morphir.Toolchain.Tests");
 
     [Test]
     public void TheNextRunIsTheFirstThatWaits()
@@ -166,7 +166,7 @@ public class TestPlanTests
     [Test]
     public void TheSuitesOfTheTestTargetAreUnique()
     {
-        TestPlan.Suites.Should().HaveCount(33);
+        TestPlan.Suites.Should().HaveCount(35);
         TestPlan.Suites.Select(suite => suite.Project).Should().OnlyHaveUniqueItems();
     }
 

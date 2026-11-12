@@ -479,6 +479,15 @@
           "YamlDotNet": "[16.3.0, )"
         }
       },
+      "morphir.conformance": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Gherkin": "[35.1.0, )",
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.Mep": "[1.0.0, )"
+        }
+      },
       "morphir.core": {
         "type": "Project",
         "dependencies": {
@@ -495,6 +504,13 @@
           "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Mep": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.extensions.wasm": {
+        "type": "Project",
+        "dependencies": {
+          "Morphir.Mep": "[1.0.0, )",
+          "Wasmtime": "[50.0.1, )"
         }
       },
       "morphir.frontend.fsharp": {
@@ -595,8 +611,10 @@
           "Morphir.Compilation.Mep": "[1.0.0, )",
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Configuration.IO": "[1.0.0, )",
+          "Morphir.Conformance": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
           "Morphir.Extensions": "[1.0.0, )",
+          "Morphir.Extensions.Wasm": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )",
@@ -845,6 +863,12 @@
         "requested": "[8.0.7, )",
         "resolved": "8.0.7",
         "contentHash": "0DrJ2ZPEGoJlzwqhum2LaZJ2FzJzgy5HP0km+XYL2MC/hS4Sn5/C35oRyob146Yjlf5xit2tmPx5xhI2BXkhLw=="
+      },
+      "Wasmtime": {
+        "type": "CentralTransitive",
+        "requested": "[50.0.1, )",
+        "resolved": "50.0.1",
+        "contentHash": "YLMAwzmjCkpsA2dPzO91tcG12PTO2tt6eQw1pcMwMTujHpcn2RlPmvF8id++5V+3gI/qTkI/aWPnrwaeaXCyhA=="
       },
       "YamlDotNet": {
         "type": "CentralTransitive",

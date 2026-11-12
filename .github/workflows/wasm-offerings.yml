@@ -1,0 +1,158 @@
+name: "WASM engine in the offerings"
+
+# Task 5.2 of the OpenSpec change add-wasm-extension-host: on a runner of each platform, pack each offering with the
+# repository's PackRelease target, run the packaged E2E suite against the installed artifact (its engine scenarios
+# included), run the crafted wasm-host corpus through the packaged executable, and record the results. These are runner
+# checks: the runners have the .NET SDK installed, so they are not clean-machine checks. A failing offering is recorded
+# and does not hide the others; the job fails at its end, after the results are uploaded.
+#
+# macOS runners are scarce in this repository, so the push trigger is limited to this workflow's own branch and files.
+
+on:
+    workflow_dispatch:
+        inputs:
+            platforms:
+                description: "Platforms, comma-separated: linux-x64,linux-arm64,osx-x64,osx-arm64,win-x64,win-arm64"
+                required: true
+                default: "linux-x64,linux-arm64,osx-x64,osx-arm64,win-x64,win-arm64"
+                type: string
+            offerings:
+                description: "Offerings, comma-separated: native-aot,self-contained,framework-dependent,dotnet-tool"
+                required: true
+                default: "native-aot,self-contained,framework-dependent,dotnet-tool"
+                type: string
+            diagnose-cet:
+                description: "On win-x64, also run the corpus with the launch executable's CET-compatible mark cleared (a diagnosis, never a pass or failure)"
+                required: false
+                default: false
+                type: boolean
+    push:
+        branches:
+            - ci/wasm-offerings
+        paths:
+            - .github/workflows/wasm-offerings.yml
+            - scripts/wasm-offerings.ps1
+
+permissions:
+    contents: read
+
+concurrency:
+    group: wasm-offerings-${{ github.ref }}
+    cancel-in-progress: true
+
+env:
+    # The platforms and offerings of a push run. A dispatch run takes its inputs instead.
+    PUSH_PLATFORMS: "linux-x64"
+    PUSH_OFFERINGS: "native-aot,self-contained,framework-dependent,dotnet-tool"
+    PUSH_DIAGNOSE_CET: "false"
+
+jobs:
+    setup:
+        runs-on: ubuntu-24.04
+        outputs:
+            matrix: ${{ steps.matrix.outputs.matrix }}
+            offerings: ${{ steps.matrix.outputs.offerings }}
+            diagnose-cet: ${{ steps.matrix.outputs.diagnose-cet }}
+        steps:
+            - name: Choose the platforms
+              id: matrix
+              shell: pwsh
+              env:
+                  PLATFORMS: ${{ inputs.platforms || env.PUSH_PLATFORMS }}
+                  OFFERINGS: ${{ inputs.offerings || env.PUSH_OFFERINGS }}
+                  DIAGNOSE_CET: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnose-cet || github.event_name == 'push' && env.PUSH_DIAGNOSE_CET == 'true' }}
+              run: |
+                  # The runner labels that this change's earlier workflows used and verified.
+                  $runners = [ordered]@{
+                      'linux-x64' = 'ubuntu-24.04'; 'linux-arm64' = 'ubuntu-24.04-arm'
+                      'osx-x64' = 'macos-15-intel'; 'osx-arm64' = 'macos-15'
+                      'win-x64' = 'windows-2025'; 'win-arm64' = 'windows-11-arm'
+                  }
+                  $include = @($env:PLATFORMS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | ForEach-Object {
+                      if (-not $runners.Contains($_)) { throw "Unknown platform: $_" }
+                      @{ rid = $_; runner = $runners[$_] }
+                  })
+                  $offerings = ($env:OFFERINGS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join ','
+                  $matrix = @{ include = $include } | ConvertTo-Json -Compress -Depth 4
+                  "matrix=$matrix" >> $env:GITHUB_OUTPUT
+                  "offerings=$offerings" >> $env:GITHUB_OUTPUT
+                  "diagnose-cet=$($env:DIAGNOSE_CET -eq 'true')" >> $env:GITHUB_OUTPUT
+                  Write-Host "matrix $matrix; offerings $offerings"
+
+    offerings:
+        name: offerings (${{ matrix.rid }})
+        needs: [setup]
+        runs-on: ${{ matrix.runner }}
+        # Four packs, among them a Native AOT publish, and four runs of the E2E suite.
+        timeout-minutes: 120
+        strategy:
+            fail-fast: false
+            matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+        env:
+            DOTNET_NOLOGO: "1"
+            DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+        steps:
+            - name: Fetch Source Code
+              uses: actions/checkout@v6.1.0
+              with:
+                  fetch-depth: 0
+
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            - name: Cache Nuget Packages
+              uses: actions/cache@v5
+              with:
+                  path: ~/.nuget/packages
+                  key: ${{ runner.os }}-${{ runner.arch }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+                  restore-keys: |
+                      ${{ runner.os }}-${{ runner.arch }}-nuget
+
+            # Native AOT links with the platform's toolchain. On Linux it links on the runner, so the executable needs
+            # the runner's glibc; the container lane that links at the repository's floor comes with another change.
+            - name: Install the Native AOT prerequisites (Linux)
+              if: runner.os == 'Linux'
+              run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+            # The Native AOT link on Windows needs vswhere.exe, which the ILCompiler targets call by name.
+            - name: Put vswhere on PATH
+              if: runner.os == 'Windows'
+              shell: pwsh
+              run: '"${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer" >> $env:GITHUB_PATH'
+
+            - name: Pack, test and run the corpus for each offering
+              shell: pwsh
+              run: >-
+                  ./scripts/wasm-offerings.ps1 -Rid ${{ matrix.rid }} -RunnerLabel ${{ matrix.runner }}
+                  -WorkDirectory (Join-Path $env:RUNNER_TEMP 'wasm-offerings')
+                  -Offerings ('${{ needs.setup.outputs.offerings }}' -split ',')
+                  -DiagnoseCetCompat:([bool]::Parse('${{ needs.setup.outputs.diagnose-cet }}'))
+
+            - name: Upload the results
+              if: always()
+              uses: actions/upload-artifact@v6
+              with:
+                  name: wasm-offerings-${{ matrix.rid }}
+                  path: |
+                      ${{ runner.temp }}/wasm-offerings/results.json
+                      ${{ runner.temp }}/wasm-offerings/summary.md
+                      ${{ runner.temp }}/wasm-offerings/failed.txt
+                      ${{ runner.temp }}/wasm-offerings/results/
+                      ${{ runner.temp }}/wasm-offerings/logs/
+                      ${{ runner.temp }}/wasm-offerings/release/*.build-contents.json
+                      ${{ runner.temp }}/wasm-offerings/release/*.build-launch.json
+                      ${{ runner.temp }}/wasm-offerings/release/size-report.md
+                  if-no-files-found: warn
+                  retention-days: 30
+
+            - name: Fail when an offering failed
+              if: always()
+              shell: pwsh
+              run: |
+                  $failed = Join-Path $env:RUNNER_TEMP 'wasm-offerings/failed.txt'
+                  if (-not (Test-Path $failed)) { throw 'The script wrote no results.' }
+                  $lines = @(Get-Content $failed | Where-Object { $_ })
+                  if ($lines.Count -gt 0) { $lines | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+                  Write-Host 'Every offering passed.'

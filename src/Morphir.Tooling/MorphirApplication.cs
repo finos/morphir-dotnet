@@ -8,8 +8,8 @@ using Morphir.Tooling.Scenarios;
 namespace Morphir.Tooling;
 
 /// <summary>
-/// The shared command layer of every Morphir .NET entry point (DEP-1): the scenarios, the <c>info</c> command and
-/// the <c>--version</c> path. An entry point passes its host identity and its own composition, which runs after the
+/// The shared command layer of every Morphir .NET entry point (DEP-1): the <c>extension worker</c> mode, the
+/// scenarios, the <c>info</c> command and the <c>--version</c> path. An entry point passes its host identity and its own composition, which runs after the
 /// shared one. The AOT entry point <c>morphir</c> passes a composition without the F# compiler service; the managed
 /// entry points pass the managed composition in <c>Morphir.Tooling.Managed</c>. This assembly never references the
 /// F# compiler service.
@@ -22,6 +22,15 @@ public static class MorphirApplication
     /// <param name="extend">The host's own composition, applied after the shared composition.</param>
     public static int Run(string[] args, HostIdentity host, Action<MorphirCliBuilder>? extend = null)
     {
+        // morphir extension worker (add-wasm-extension-host, task 4.1, design WRK-2) runs before the CLI host is
+        // built: stdout carries only MEP frames, the worker starts fast, and its Ctrl+C handler is the only one.
+        // Every entry point starts here, so each one runs the worker with its own host identity and none of its
+        // composition.
+        if (Features.Extensions.ExtensionWorkerProcess.IsInvocation(args))
+        {
+            return Features.Extensions.ExtensionWorkerProcess.Run(args, host);
+        }
+
         // MCK-1: "mck" routes the rest of the command line, unparsed, to the separately installed morphir-mck. This
         // runs before the command tree is built, so no help, response-file expansion or console redirection applies.
         if (args.Length > 0 && args[0] == MckTool.Command)

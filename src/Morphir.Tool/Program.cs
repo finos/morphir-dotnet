@@ -30,5 +30,10 @@ internal static class Program
             observe?.Invoke(builder);
         });
 
+    /// <summary>
+    /// Runs the CLI as <c>dotnet-morphir</c>. <see cref="MorphirApplication.Run"/> dispatches <c>extension worker</c>
+    /// (task 4.1 of add-wasm-extension-host) before it builds the CLI host or applies <see cref="Compose"/>, so the
+    /// worker of this executable runs with this host's identity and none of its composition.
+    /// </summary>
     private static int Main(string[] args) => MorphirApplication.Run(args, Host, Compose);
 }

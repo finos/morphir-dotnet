@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Morphir.Extensions.Wasm/Morphir.Extensions.Wasm.csproj" />
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <!-- The generic guest kit's model-tier runner (task 3.5). -->
+    <ProjectReference Include="../../src/Morphir.Conformance/Morphir.Conformance.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      The pinned profile contract, crafted corpus and modules; see ../Fixtures/MepWasm/PROVENANCE.md.
+      IfDifferent, not PreserveNewest: a file restored with an older timestamp must still replace its copy,
+      or the provenance tests would check stale bytes.
+    -->
+    <None Include="../Fixtures/MepWasm/**/*" Link="Fixtures/MepWasm/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
+    <!-- The pinned generic guest kit; see ../Fixtures/MepGuestKit/PROVENANCE.md. -->
+    <None Include="../Fixtures/MepGuestKit/**/*" Link="Fixtures/MepGuestKit/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
+  </ItemGroup>
+</Project>

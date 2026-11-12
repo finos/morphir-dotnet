@@ -20,8 +20,12 @@ public sealed record ExtensionListReport(
     IReadOnlyList<ExtensionListEntry> Extensions,
     IReadOnlyList<ExtensionListDiagnostic>? Diagnostics)
 {
-    public static ExtensionListReport From(ExtensionCatalog catalog) =>
-        Identity(catalog.Host, catalog.Entries.Select(entry => Entry(entry, catalog.Host)).ToArray(), null);
+    /// <summary>
+    /// The report of the catalog, in a host whose WASM runtime has the availability <paramref name="wasmRuntime"/> gives.
+    /// It is called only for a <c>wasm</c> entry of this host, so a catalog of built-in entries never probes the engine.
+    /// </summary>
+    public static ExtensionListReport From(ExtensionCatalog catalog, Func<WasmRuntimeAvailability> wasmRuntime) =>
+        Identity(catalog.Host, catalog.Entries.Select(entry => Entry(entry, catalog.Host, wasmRuntime)).ToArray(), null);
 
     public static ExtensionListReport Failure(HostIdentity host, RegistryError error) =>
         Identity(host, [], error.Diagnostics.Select(diagnostic => new ExtensionListDiagnostic(diagnostic.Code.WireValue, diagnostic.Message)).ToArray());
@@ -40,11 +44,12 @@ public sealed record ExtensionListReport(
             // No native-library prerequisite is declared: operating-system prerequisites are not established yet.
             []);
 
-    private static ExtensionListEntry Entry(ExtensionEntry entry, HostIdentity host)
+    private static ExtensionListEntry Entry(ExtensionEntry entry, HostIdentity host, Func<WasmRuntimeAvailability> wasmRuntime)
     {
         var frontend = entry.FrontendClaimOrNull;
         var backend = entry.BackendClaimOrNull;
         var validator = entry.ValidatorClaimOrNull;
+        var availability = entry.AvailabilityIn(host, wasmRuntime);
         return new ExtensionListEntry(
             entry.Identity.Id.Value,
             entry.Identity.Name.Value,
@@ -54,8 +59,8 @@ public sealed record ExtensionListReport(
             entry.Delivery.WireValue,
             entry.Hosts.WireValues,
             entry.Deployments.Deployments.Select(deployment => deployment.WireValue).ToArray(),
-            entry.IsAvailableIn(host),
-            entry.ReasonOrNullIn(host)?.Value,
+            availability.CanRun,
+            availability.ReasonOrNull?.Value,
             // A built-in has no prerequisite beyond those of its offering.
             Prerequisite(Morphir.Extensions.Prerequisites.None),
             new ExtensionListCapabilities(

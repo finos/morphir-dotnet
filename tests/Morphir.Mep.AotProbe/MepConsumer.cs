@@ -69,6 +69,7 @@ public static class MepConsumer
 
         await RunSessionAsync(output, deadline.Token);
         await RunCSharpSurfaceAsync(output, deadline.Token);
+        await SingleMessageConsumer.RunAsync(output, deadline.Token);
         return output.ToString();
     }
 

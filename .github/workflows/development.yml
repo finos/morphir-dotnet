@@ -103,6 +103,12 @@ jobs:
             - name: Check agent skill copies
               if: ${{ !cancelled() && steps.setup-dotnet.outcome == 'success' }}
               run: dotnet fsi scripts/sync-agent-skills.fsx --check
+            # The wasm-host features are generated from the pinned corpus in tests/Fixtures/MepWasm.
+            # The check generates them again and fails, naming each file and case, when they are
+            # stale or edited by hand. Like the skill check, it needs only the SDK.
+            - name: Check generated wasm-host features
+              if: ${{ !cancelled() && steps.setup-dotnet.outcome == 'success' }}
+              run: dotnet fsi scripts/generate-wasm-host-cases.fsx --check
 
     test:
         needs: plan

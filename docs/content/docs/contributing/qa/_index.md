@@ -21,6 +21,12 @@ This section contains quality assurance documentation, test plans, and testing p
 | [Copilot Skill Emulation Execution Report](copilot-skill-emulation-execution-report) | Results from skill emulation testing |
 | [Copilot Scenarios Runner](copilot-scenarios-runner) | Automated scenario execution documentation |
 
+## Internal tools
+
+| Document | Description |
+|----------|-------------|
+| [WASM host qualification](wasm-host-qualification) | The internal, experimental `mck wasm-host` commands |
+
 ## Testing Practices
 
 ### Test-Driven Development (TDD)

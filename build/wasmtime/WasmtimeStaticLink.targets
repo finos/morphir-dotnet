@@ -1,0 +1,88 @@
+<Project>
+  <!--
+    Links the Wasmtime engine statically into a Native AOT executable (add-wasm-extension-host task 5.1, design
+    PKG-1), in place of the dynamic library the Wasmtime package puts beside it. A project imports this file only
+    when its static-link switch is on; nothing else in the repository imports it.
+
+    How Native AOT does it (https://learn.microsoft.com/dotnet/core/deploying/native-aot/interop, "Direct P/Invoke
+    calls" and "Linking"): a DirectPInvoke item for the module name the managed binding imports makes ILC emit
+    direct calls, and a NativeLibrary item names the static library (.lib on Windows, .a elsewhere) the native
+    linker resolves them from. Wasmtime.Dotnet 50.0.1 declares all 240 of its P/Invokes against the module
+    "wasmtime". The system libraries are the ones the Wasmtime C API documentation lists for a static link
+    (https://docs.wasmtime.dev/c-api/): Windows ws2_32, advapi32, userenv, ntdll, shell32, ole32 and bcrypt;
+    Linux pthread, dl and m; macOS none.
+
+    The archive is the pinned one in WasmtimeCApi.props. It is downloaded into artifacts/wasmtime-c-api/ (git
+    ignored), its SHA-256 is checked on every build and a mismatch deletes it and fails the build. The build also
+    fails when the pin's version or the archive's WASMTIME_VERSION differs from the Wasmtime PackageVersion.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)WasmtimeCApi.props" />
+
+  <PropertyGroup>
+    <MorphirWasmtimeCApiCache Condition="'$(MorphirWasmtimeCApiCache)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'artifacts', 'wasmtime-c-api'))</MorphirWasmtimeCApiCache>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <DirectPInvoke Include="wasmtime" />
+  </ItemGroup>
+
+  <Target Name="MorphirWasmtimeStaticLinkRequiresAot" BeforeTargets="Build;Publish">
+    <Error Condition="'$(PublishAot)' != 'true'" Text="The Wasmtime static link needs a Native AOT publish (PublishAot=true)." />
+    <Error Condition="'$(RuntimeIdentifier)' == ''" Text="The Wasmtime static link needs a runtime identifier (-r &lt;rid&gt;)." />
+  </Target>
+
+  <Target Name="MorphirWasmtimeFetchStaticLibrary" BeforeTargets="SetupOSSpecificProps" Condition="'$(PublishAot)' == 'true'">
+    <ItemGroup>
+      <_MorphirWasmtimeArchive Include="@(MorphirWasmtimeCApiArchive)" Condition="'%(Identity)' == '$(RuntimeIdentifier)'" />
+      <_MorphirWasmtimePackage Include="@(PackageVersion)" Condition="'%(Identity)' == 'Wasmtime'" />
+    </ItemGroup>
+    <PropertyGroup>
+      <_MorphirWasmtimePackageVersion>@(_MorphirWasmtimePackage->'%(Version)')</_MorphirWasmtimePackageVersion>
+      <_MorphirWasmtimeUrl>@(_MorphirWasmtimeArchive->'%(Url)')</_MorphirWasmtimeUrl>
+      <_MorphirWasmtimeSha256>@(_MorphirWasmtimeArchive->'%(Sha256)')</_MorphirWasmtimeSha256>
+      <_MorphirWasmtimeRoot>@(_MorphirWasmtimeArchive->'%(Root)')</_MorphirWasmtimeRoot>
+      <_MorphirWasmtimeLibrary>@(_MorphirWasmtimeArchive->'%(StaticLibrary)')</_MorphirWasmtimeLibrary>
+      <_MorphirWasmtimeArchiveFile>$(MorphirWasmtimeCApiCache)$([System.IO.Path]::GetFileName('$(_MorphirWasmtimeUrl)'))</_MorphirWasmtimeArchiveFile>
+      <_MorphirWasmtimeExtracted>$(MorphirWasmtimeCApiCache)$(_MorphirWasmtimeRoot)</_MorphirWasmtimeExtracted>
+      <_MorphirWasmtimeMarker>$(_MorphirWasmtimeExtracted).$(_MorphirWasmtimeSha256).extracted</_MorphirWasmtimeMarker>
+    </PropertyGroup>
+
+    <Error Condition="'@(_MorphirWasmtimeArchive)' == ''" Text="No pinned Wasmtime C API archive for '$(RuntimeIdentifier)' in WasmtimeCApi.props." />
+    <Error Condition="'$(_MorphirWasmtimePackageVersion)' != '$(MorphirWasmtimeCApiVersion)'" Text="The pinned Wasmtime C API version $(MorphirWasmtimeCApiVersion) differs from the Wasmtime package version '$(_MorphirWasmtimePackageVersion)' in Directory.Packages.props." />
+
+    <MakeDir Directories="$(MorphirWasmtimeCApiCache)" />
+    <DownloadFile Condition="!Exists('$(_MorphirWasmtimeArchiveFile)')" SourceUrl="$(_MorphirWasmtimeUrl)" DestinationFolder="$(MorphirWasmtimeCApiCache)" Retries="3" />
+    <GetFileHash Files="$(_MorphirWasmtimeArchiveFile)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Hash" PropertyName="_MorphirWasmtimeActualSha256" />
+    </GetFileHash>
+    <Delete Condition="'$(_MorphirWasmtimeActualSha256.ToLowerInvariant())' != '$(_MorphirWasmtimeSha256)'" Files="$(_MorphirWasmtimeArchiveFile)" />
+    <Error Condition="'$(_MorphirWasmtimeActualSha256.ToLowerInvariant())' != '$(_MorphirWasmtimeSha256)'" Text="SHA-256 mismatch for $(_MorphirWasmtimeUrl): pinned $(_MorphirWasmtimeSha256), downloaded $(_MorphirWasmtimeActualSha256.ToLowerInvariant()). The download was deleted." />
+    <Message Importance="high" Text="Wasmtime C API archive $([System.IO.Path]::GetFileName('$(_MorphirWasmtimeArchiveFile)')): SHA-256 $(_MorphirWasmtimeSha256) verified" />
+
+    <RemoveDir Condition="!Exists('$(_MorphirWasmtimeMarker)')" Directories="$(_MorphirWasmtimeExtracted)" />
+    <Unzip Condition="!Exists('$(_MorphirWasmtimeMarker)') and $(_MorphirWasmtimeArchiveFile.EndsWith('.zip'))" SourceFiles="$(_MorphirWasmtimeArchiveFile)" DestinationFolder="$(MorphirWasmtimeCApiCache)" />
+    <Exec Condition="!Exists('$(_MorphirWasmtimeMarker)') and $(_MorphirWasmtimeArchiveFile.EndsWith('.tar.xz'))" Command="tar -xf &quot;$(_MorphirWasmtimeArchiveFile)&quot; -C &quot;$(MorphirWasmtimeCApiCache.TrimEnd('/\'))&quot;" />
+    <Touch Condition="!Exists('$(_MorphirWasmtimeMarker)')" Files="$(_MorphirWasmtimeMarker)" AlwaysCreate="true" />
+
+    <PropertyGroup>
+      <_MorphirWasmtimeHeaderVersion>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(_MorphirWasmtimeExtracted)/include/wasmtime.h')), '(?&lt;=#define WASMTIME_VERSION ")[^"]+'))</_MorphirWasmtimeHeaderVersion>
+      <_MorphirWasmtimeStaticLibraryPath>$([System.IO.Path]::GetFullPath('$(_MorphirWasmtimeExtracted)/$(_MorphirWasmtimeLibrary)'))</_MorphirWasmtimeStaticLibraryPath>
+    </PropertyGroup>
+    <Error Condition="'$(_MorphirWasmtimeHeaderVersion)' != '$(_MorphirWasmtimePackageVersion)'" Text="The Wasmtime C API archive's include/wasmtime.h defines WASMTIME_VERSION '$(_MorphirWasmtimeHeaderVersion)', but the Wasmtime package version is '$(_MorphirWasmtimePackageVersion)'." />
+    <Error Condition="!Exists('$(_MorphirWasmtimeStaticLibraryPath)')" Text="The Wasmtime C API archive has no $(_MorphirWasmtimeLibrary)." />
+    <Message Importance="high" Text="Wasmtime static link: $(_MorphirWasmtimeStaticLibraryPath), WASMTIME_VERSION $(_MorphirWasmtimeHeaderVersion), package $(_MorphirWasmtimePackageVersion)" />
+
+    <ItemGroup>
+      <NativeLibrary Include="$(_MorphirWasmtimeStaticLibraryPath)" />
+      <NativeLibrary Condition="$(RuntimeIdentifier.StartsWith('win'))" Include="ws2_32.lib;advapi32.lib;userenv.lib;ntdll.lib;shell32.lib;ole32.lib;bcrypt.lib" />
+      <LinkerArg Condition="$(RuntimeIdentifier.StartsWith('linux'))" Include="-lpthread;-ldl;-lm" />
+    </ItemGroup>
+  </Target>
+
+  <!-- The engine is inside the executable, so the package's dynamic library is not published beside it. -->
+  <Target Name="MorphirWasmtimeDropSharedLibrary" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'wasmtime.dll' or '%(Filename)%(Extension)' == 'libwasmtime.so' or '%(Filename)%(Extension)' == 'libwasmtime.dylib'" />
+    </ItemGroup>
+  </Target>
+</Project>

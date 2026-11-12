@@ -129,10 +129,13 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.SDK.Tests").WithSourceProjects(),
         TestSuite.TUnit("Morphir.TestSupport.Tests"),
         TestSuite.Expecto("Morphir.Frontend.FSharp.Tests"),
+        TestSuite.Expecto("Morphir.Conformance.Tests"),
         TestSuite.TUnit("Morphir.SDK.Conformance.Tests"),
         TestSuite.TUnit("Morphir.SDK.CSharp.Tests"),
         TestSuite.Expecto("Morphir.IR.Pipeline.Plugins.Tests"),
         TestSuite.Expecto("Morphir.Extensions.Tests"),
+        // BoundsTests, ChannelTests and EngineTests assert deadlines with a margin of 1 or 2 seconds.
+        TestSuite.TUnit("Morphir.Extensions.Wasm.Tests").Alone(),
         TestSuite.Expecto("Morphir.Extensions.Installation.Tests"),
         TestSuite.Expecto("Morphir.Analyzers.Tests"),
         TestSuite.Expecto("Morphir.Mep.Tests").WithSourceProjects(),

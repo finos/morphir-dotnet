@@ -21,6 +21,13 @@
          "args": [ "fsi", "scripts/sync-agent-skills.fsx", "--check" ],
          "filteringRule": "staged",
          "include": [ ".agents/skills/**", ".claude/skills/**", ".grok/skills/**", "scripts/sync-agent-skills.fsx" ]
+      },
+      {
+         "name": "wasm-host-features",
+         "command": "dotnet",
+         "args": [ "fsi", "scripts/generate-wasm-host-cases.fsx", "--check" ],
+         "filteringRule": "staged",
+         "include": [ "conformance/suites/wasm-host/**", "tests/Fixtures/MepWasm/**", "src/Morphir.Conformance/WasmHost/**", "scripts/wasm-host/**", "scripts/generate-wasm-host-cases.fsx" ]
       }
    ]
 }

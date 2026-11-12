@@ -1,0 +1,13 @@
+Extism kernel module (extism-kernel.wasm)
+
+This directory holds the Extism kernel module of moonrockz/extism version 0.3.0
+(https://github.com/moonrockz/extism, the package moonrockz/extism on mooncakes.io),
+by the moonrockz/extism contributors. It is licensed under the Apache License,
+Version 2.0; the licence text is in LICENSE in this directory.
+
+The kernel is a WASM module compiled from the Zig source in kernel/ of that
+repository. It is embedded here unchanged.
+
+moonrockz/extism 0.3.0 ships no NOTICE file of its own. This file records the
+attribution of the embedded module. See PROVENANCE.md for how the bytes were
+obtained and checked.
