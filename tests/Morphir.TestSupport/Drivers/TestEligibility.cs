@@ -46,6 +46,9 @@ public enum DriverCapability
 
     /// <summary>Each host of the target in one test (<see cref="DriverSet.CliOf"/>): the development build has three.</summary>
     AllHosts,
+
+    /// <summary>A host that no release profile built, so it states no deployment: the development build.</summary>
+    UnprofiledBuild,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -91,7 +94,7 @@ public static class DriverCapabilities
         // The guests are build output of the development build: a published target has none.
         // The development build runs each host as an assembly, which can also run with the dynamic-code switch off.
         if (target is TestTarget.DevelopmentBuild)
-            commands = commands.Union([DriverCapability.BuiltExtensions, DriverCapability.HostWithoutDynamicCode, DriverCapability.AllHosts]);
+            commands = commands.Union([DriverCapability.BuiltExtensions, DriverCapability.HostWithoutDynamicCode, DriverCapability.AllHosts, DriverCapability.UnprofiledBuild]);
         return host is MorphirHost.Managed or MorphirHost.DotnetTool
             ? commands.Add(DriverCapability.InProcessFSharpFrontend)
             : commands;

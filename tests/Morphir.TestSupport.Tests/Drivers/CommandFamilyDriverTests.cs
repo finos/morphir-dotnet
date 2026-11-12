@@ -358,6 +358,19 @@ public class CommandFamilyDriverTests
     }
 
     [Test]
+    public async Task ThePlatformOfThisMachineIsThePlatformOfTheRuntimesReport()
+    {
+        await using var workspace = Workspace();
+
+        var report = ExtensionRuntimesReport.Of(await new ExtensionDriver(Cli(workspace)).RuntimesAsync());
+
+        report.Platform.Should().Be(ExtensionPlatform.OfThisMachine);
+        ExtensionPlatform.Of("linux", System.Runtime.InteropServices.Architecture.X64, "linux-musl-x64").Should().Be("linux-musl-x64");
+        ExtensionPlatform.Of("linux", System.Runtime.InteropServices.Architecture.Arm64, "ubuntu.24.04-arm64").Should().Be("linux-arm64");
+        ExtensionPlatform.Of("win", System.Runtime.InteropServices.Architecture.X64, "win-x64").Should().Be(ExtensionPlatform.WithoutWasm);
+    }
+
+    [Test]
     public void ReportPathsHaveOneFormOnEachPlatform()
     {
         ReportPath.Normalize(@"C:\work\app\..\morphir.toml").Should().Be("C:/work/morphir.toml");

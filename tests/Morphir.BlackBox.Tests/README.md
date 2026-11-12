@@ -42,7 +42,7 @@ its library. A test that needs both an artifact and a product assembly is two te
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build: the packed packages, a Native AOT publish, or a published executable. A group run does not select it. |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that entry point. With no host tag, a test runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | A capability that the test needs from the drivers. |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, or each host of the target in one test. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, or a host that no release profile built. |
 
 Before the first step, one decision says if the test runs: the lane, then the host, then the capabilities. A test
 that the run does not execute ends as skipped with one reason, for example `lane: test packages, run none`.
@@ -327,6 +327,18 @@ two steps have the same pattern.
 | Model validation | `Then the validation text is a plain table with the error {string}` |
 | Model validation | `When I validate the model as JSON on the native host and on the tool host` |
 | Model validation | `Then both hosts write the same validation report apart from the host` |
+| Extensions | `When I list the extensions as JSON with the options {string}` |
+| Extensions | `When I list the extensions as text` |
+| Extensions | `When I report the extension runtimes as JSON` |
+| Extensions | `When I report the extension runtimes as text` |
+| Extensions | `Then the extension list report has the host {string} and the extensions {string}` |
+| Extensions | `Then the extension list report states no deployment and the execution {string}` |
+| Extensions | `Then the extension list report states no deployment` |
+| Extensions | `Then the extension {string} is not available, and its reason names {string}` |
+| Extensions | `Then the extension list text has a row for each extension` |
+| Extensions | `Then the extension runtimes report has the host {string} and the platform of this machine` |
+| Extensions | `Then the WASM runtime of the report has the engine version {string} and is available on this machine unless it is win-x64` |
+| Extensions | `Then the runtimes text names the WASM runtime of this machine and the engine {string}` |
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.

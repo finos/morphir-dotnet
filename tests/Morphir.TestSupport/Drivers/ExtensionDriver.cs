@@ -1,6 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace Morphir.TestSupport.Drivers;
@@ -178,3 +179,26 @@ public sealed class ExtensionRuntimesReport : JsonCommandReport
             Field(engine, "version"));
     }
 }
+
+/// <summary>
+/// The platform of this machine, as the extension reports of the product name it: <c>win</c>, <c>osx</c>,
+/// <c>linux</c> or <c>linux-musl</c>, then the architecture of the process, for example <c>osx-arm64</c>.
+/// </summary>
+public static class ExtensionPlatform
+{
+    public static string OfThisMachine { get; } = Of(
+        OperatingSystem.IsWindows() ? "win" : OperatingSystem.IsMacOS() ? "osx" : OperatingSystem.IsLinux() ? "linux" : RuntimeInformation.OSDescription.ToLowerInvariant(),
+        RuntimeInformation.ProcessArchitecture,
+        RuntimeInformation.RuntimeIdentifier);
+
+    /// <summary>The platform name of a system, a process architecture and the runtime identifier of the runtime.</summary>
+    public static string Of(string system, Architecture architecture, string runtimeIdentifier)
+    {
+        if (system == "linux" && runtimeIdentifier.Contains("musl", StringComparison.OrdinalIgnoreCase)) system = "linux-musl";
+        return $"{system}-{architecture.ToString().ToLowerInvariant()}";
+    }
+
+    /// <summary>The platform on which the WASM runtime of the product is refused before it loads (issue #609).</summary>
+    public const string WithoutWasm = "win-x64";
+}
+
