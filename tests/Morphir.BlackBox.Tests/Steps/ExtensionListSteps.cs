@@ -15,6 +15,9 @@ public sealed class ExtensionListSteps(DriverSet drivers, ScenarioRun run, Other
     [When("I list the extensions as JSON")]
     public async Task ListTheExtensionsAsJson() => run.Result = await drivers.Cli.RunAsync(ExtensionListReport.Arguments);
 
+    [When("I list the extensions as text")]
+    public async Task ListTheExtensionsAsText() => run.Result = await drivers.Cli.RunAsync(["extension", "list"]);
+
     [When("I list the extensions as JSON on the other host")]
     public async Task ListTheExtensionsAsJsonOnTheOtherHost() =>
         other.Result = await drivers.CliOf(drivers.OtherHost).RunAsync(ExtensionListReport.Arguments);
@@ -44,7 +47,7 @@ public sealed class ExtensionListSteps(DriverSet drivers, ScenarioRun run, Other
         var entry = Report.Extension("morphir-dotnet.fsharp");
         var expected = drivers.Capabilities.Contains(DriverCapability.InProcessFSharpFrontend);
         Expect(entry.Available == expected, $"morphir-dotnet.fsharp is {(entry.Available ? "" : "not ")}available on the {drivers.Host.Name()} host.");
-        if (expected) Expect(entry.Reason is null, $"morphir-dotnet.fsharp is available and has the reason '{entry.Reason}'.");
+        if (expected) Expect(!entry.HasReason, $"morphir-dotnet.fsharp is available and has the reason '{entry.Reason}'.");
         else Expect(entry.Reason?.Contains("morphir-fsharp-frontend", StringComparison.Ordinal) == true,
             $"The reason of morphir-dotnet.fsharp does not name morphir-fsharp-frontend: '{entry.Reason}'.");
     }
@@ -53,7 +56,7 @@ public sealed class ExtensionListSteps(DriverSet drivers, ScenarioRun run, Other
     public void TheListNamesTheDeploymentOfTheTarget()
     {
         var (deployment, execution) = ExtensionListReport.ExpectedDeploymentOf(drivers.Target);
-        Expect(Report.Deployment == deployment && Report.Execution == execution,
+        Expect((deployment is null ? !Report.HasDeployment : Report.Deployment == deployment) && Report.Execution == execution,
             $"The extension list has the deployment {Report.Deployment ?? "(none)"} and the execution {Report.Execution}, not {deployment ?? "(none)"} and {execution}.");
     }
 

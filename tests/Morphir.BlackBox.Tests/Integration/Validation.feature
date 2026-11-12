@@ -28,7 +28,7 @@ Feature: Validate a Morphir model
 
   Scenario: A missing input gives exit code 2 and a diagnostic that names the path
     Given no model file "missing-model.json"
-    When I validate the model
+    When I validate the model as text
     Then the exit code is 2
     And the output contains "missing-model.json"
 

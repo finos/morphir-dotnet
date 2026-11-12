@@ -28,7 +28,7 @@ Feature: List the extensions of the host
     And the extension "morphir.type-validator" claims the validator IR versions "1, 2, 3"
 
   Scenario: The text table shows the validator claim
-    When I run the command "extension list"
+    When I list the extensions as text
     Then the exit code is 0
     And standard output contains "validator (1, 2, 3)"
 

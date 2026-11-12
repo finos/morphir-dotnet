@@ -20,6 +20,7 @@ Feature: The WASM runtime of the host
     Given a copy of the host without its engine library
     When I ask for the runtimes of the copy as JSON
     Then the exit code is 0
+    And the runtime report names the host of the run
     And the WASM runtime is not available, with the reason of a missing engine on this platform
     And the WASM runtime has the engine version of the pinned Wasmtime package
     And standard error does not contain "DllNotFoundException"
@@ -27,9 +28,10 @@ Feature: The WASM runtime of the host
   Scenario: Without its engine library a worker is refused by name with no bytes on standard output
     Given a copy of the host without its engine library
     When the copy serves "extism-echo" with the frames "initialize"
-    Then the worker of the copy exits with status 3 and no bytes on standard output
-    And the worker of the copy has the events "refused, exited"
-    And the worker of the copy is refused with "extension.runtime_unavailable" and the reason of a missing engine on this platform
+    Then the worker exits with status 3
+    And standard output of the worker is empty
+    And standard error of the worker has the events "refused, exited"
+    And the worker is refused with "extension.runtime_unavailable" and the reason of a missing engine on this platform
 
   Scenario Outline: Without its engine library the commands that need no WASM still work
     Given a copy of the host without its engine library

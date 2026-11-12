@@ -10,6 +10,7 @@ namespace Morphir.TestSupport.Tests.Packaging;
 /// A tool installed with <c>dotnet tool install --tool-path</c> keeps the package it installed in the tool store,
 /// byte for byte (observed with the .NET 10 SDK). The installation checks that it is the packed file.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class PackagedInstallationTests
 {
     [Test]

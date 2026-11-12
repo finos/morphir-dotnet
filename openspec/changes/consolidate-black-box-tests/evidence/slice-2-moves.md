@@ -32,23 +32,27 @@ product is the target of a run, not the group.
 ## Counts before and after
 
 The "before" runs use the build of the old project from the base commit, on this machine (macOS arm64), with the
-filter of the old script for each type. The "after" runs use `Morphir.BlackBox.Tests` with `MORPHIR_TEST_LANE=published`
-and the target of the type, on the same artifacts. The 47 tests of the helpers that passed in each old run (39 of
-the 41 `InfrastructureTests`, without the Windows test and the opt-in journey, and the 8 log filter tests of
-`ExecutableRunnerTests`) are not tests of the target: they run once in `Morphir.TestSupport.Tests` now, or they are
-removed with their helper. So the column "product tests" (the passed tests less these 47) is the count to compare.
+filter of the old script for each type. The "after" runs use `Morphir.BlackBox.Tests` at the head of this pull request
+with `MORPHIR_TEST_LANE=published` and the target of the type, on the same artifacts. 48 tests of each old run do not
+test the target: 39 of the 41 `InfrastructureTests` (the Windows test and the opt-in journey are skipped), the 8 log
+filter tests of `ExecutableRunnerTests`, and the sample check of the corpus. They run once in
+`Morphir.TestSupport.Tests` now, or they are removed with their helper. So the column "product tests" (the passed
+tests less these 48) is the count to compare with the passed tests after.
 
 | Type | Before: passed / failed / skipped | Before: product tests passed | After: passed / failed / skipped | Skips after, by reason |
 | --- | --- | ---: | --- | --- |
-| `tool` (`dev`, tool host) | 118 / 4 / 4 | 71 | 121 / 0 / 16 | capability 14, Windows only 1, opt-in 1 |
-| `aot` | 112 / 4 / 10 | 65 | 112 / 0 / 25 | host 2, capability 15 |
-| `trimmed` | 118 / 4 / 4 | 71 | 116 / 0 / 21 | host 2, capability 17 |
-| `untrimmed` | 118 / 4 / 4 | 71 | 116 / 0 / 21 | host 2, capability 17 |
-| `native-aot` | 121 / 7 / 10 | 74 | 121 / 3 / 13 | host 2, capability 3 |
-| `self-contained` | 130 / 4 / 4 | 83 | 128 / 0 / 9 | host 2, capability 5 |
-| `framework-dependent` | 130 / 4 / 4 | 83 | 128 / 0 / 9 | host 2, capability 5 |
-| `dotnet-tool` | 130 / 4 / 4 | 83 | 128 / 0 / 9 | host 2, capability 5 |
-| `executable` (the trimmed executable, native host) | 117 / 5 / 4 (the native development build at a path) | 70 | 115 / 0 / 22 | host 2, capability 18 |
+| `tool` (`dev`, tool host) | 118 / 4 / 4 | 70 | 120 / 0 / 16 | capability 14, Windows only 1, opt-in 1 |
+| `aot` | 112 / 4 / 10 | 64 | 111 / 0 / 25 | host 2, capability 15, no engine library file 6, Windows only 1, opt-in 1 |
+| `trimmed` | 118 / 4 / 4 | 70 | 115 / 0 / 21 | host 2, capability 17, Windows only 1, opt-in 1 |
+| `untrimmed` | 118 / 4 / 4 | 70 | 115 / 0 / 21 | host 2, capability 17, Windows only 1, opt-in 1 |
+| `native-aot` | 121 / 7 / 10 | 73 | 120 / 3 / 13 | host 2, capability 3, no engine library file 6, Windows only 1, opt-in 1 |
+| `self-contained` | 130 / 4 / 4 | 82 | 127 / 0 / 9 | host 2, capability 5, Windows only 1, opt-in 1 |
+| `framework-dependent` | 130 / 4 / 4 | 82 | 127 / 0 / 9 | host 2, capability 5, Windows only 1, opt-in 1 |
+| `dotnet-tool` | 130 / 4 / 4 | 82 | 127 / 0 / 9 | host 2, capability 5, Windows only 1, opt-in 1 |
+| `executable` (before: the native development build at a path; after: the trimmed executable, native host) | 117 / 5 / 4 | 69 | 114 / 0 / 22 | host 2, capability 18, Windows only 1, opt-in 1 |
+
+The development build in the pull request run (no lane): 120 passed, 0 failed, 16 skipped (the 14 tests of the
+published lane by lane, the Windows test and the opt-in journey).
 
 - The 4 failures of each type before are the four `mck wasm-host` scenarios (see below).
 - The 3 failures of `native-aot` before and after are the same: `ExecutableStructure.Of` finds the bundle signature
@@ -60,9 +64,6 @@ removed with their helper. So the column "product tests" (the passed tests less 
   hosts on a target with one host (before, these ran the other host from a build folder; a target never uses
   the artifact of another form now), or the three scenarios of a copy with no engine library on a host that carries
   no engine library file (these were skipped before too, from the test).
-- The counts "after" are from the commit of this pull request before the fix of the scenario "A file that is not
-  there is an error" on `aot` and `native-aot` (see "Findings"); with the fix, the scenario passes on both: `aot`
-  112 passed, `native-aot` 121 passed.
 
 ## `Features/ExecutableBasicCommands.feature` (3 scenarios)
 
@@ -114,7 +115,7 @@ New file: `Integration/Validation.feature`, `@integration @needs-validation`, on
 | A classic model with a type mismatch gives one type-mismatch error | The same name and the same checks. |
 | A clean classic model gives exit code 0 | The same name and the same checks. |
 | A V4 model gives one info diagnostic that names the family | The same name and the same checks. |
-| A missing input gives exit code 2 and a diagnostic that names the path | The same name and the same checks. The path is absolute in the work area. |
+| A missing input gives exit code 2 and a diagnostic that names the path | The same name and the same checks, with the text output as before (no `--json`). The path is absolute in the work area. |
 | The text output is a table and a summary line | The same name and the same checks. |
 | The validator entries of extension list are the analyzers of validate | The same name and the same checks. Integration: `extension list` is the source of the expected value, not a second goal of the user. |
 | Both hosts write the same report apart from the host (2 rows) | The same outline, `@needs-native-and-tool-hosts`. Before, it ran the other host from a build folder on each type; now it runs on the development build, which has both hosts, in each pull request. |
@@ -130,7 +131,7 @@ of the report type to `ICliDriver`.
 | The built-in generators and analyzers are listed as one JSON document on stdout | The same checks. The expected host is the host of the run (`morphir` or `dotnet-morphir`), and the in-process F# frontend is expected exactly when the drivers of the target and the host have the capability `InProcessFSharpFrontend`. |
 | The list names the deployment that built the executable | `@needs-known-form`. The expected deployment and execution come from the target (`ExtensionListReport.ExpectedDeploymentOf`), as before from the executable type. An executable at a path has no known form, so the scenario is skipped there; before, the type of such a run was `aot` by default. |
 | The type validator is a built-in validator for the classic IR versions | The same checks. |
-| The text table shows the validator claim | The same check, on standard output. |
+| The text table shows the validator claim | The same check, on standard output, with the step "I list the extensions as text". |
 | Both hosts list the same shared built-ins | `@needs-native-and-tool-hosts`, as for validate. |
 
 ## `Features/ExecutableExtensionWorker.feature` (11 scenarios)
@@ -165,8 +166,8 @@ Wasmtime comes from `Directory.Packages.props`, linked as a fixture.
 | Old case | New scenario |
 | --- | --- |
 | `The_executable_reports_its_platforms_wasm_availability_with_the_engine_of_its_package` | The host reports the WASM availability of its platform with the engine of its package. The same checks. |
-| `Without_its_engine_library_the_executable_reports_the_applicable_unavailable_reason` | Without its engine library the host reports the applicable unavailable reason. The same checks. |
-| `Without_its_engine_library_a_worker_is_refused_by_name_with_no_stdout_bytes` | Without its engine library a worker is refused by name with no bytes on standard output. The same checks. |
+| `Without_its_engine_library_the_executable_reports_the_applicable_unavailable_reason` | Without its engine library the host reports the applicable unavailable reason. The same checks, the host name included. |
+| `Without_its_engine_library_a_worker_is_refused_by_name_with_no_stdout_bytes` | Without its engine library a worker is refused by name with no bytes on standard output. The same checks, with the worker steps of `ExtensionWorker.feature`. |
 | `Without_its_engine_library_the_commands_that_need_no_wasm_still_work` (4 arguments) | The outline with the same 4 commands and the same checks. The model of `ir verify` is a fixture copy in the workspace. |
 
 A host that carries no engine library file skips the three scenarios of the copy with the same reason as before.
@@ -174,11 +175,12 @@ A host that carries no engine library file skips the three scenarios of the copy
 ## `Features/ExecutableExtensionWorkerTests` (3 methods, 23 cases)
 
 New class: `Integration/ExtensionWorkerCorpusTests.cs`, a framework test (a corpus loop, and a test with a time
-budget), `[Category("integration")]`, on `IProcessSessionDriver` and `WorkerCorpus` of the testing library.
+budget), `[Category("integration")]`, on `IProcessSessionDriver` and `WorkerCorpus` of the testing library. The
+integration group has tests with a time budget now, so its suite runs alone (`Alone()` in `build/Helpers/TestPlan.cs`).
 
 | Old case | New test |
 | --- | --- |
-| `The_sample_has_every_worker_case_and_every_group` | The same name and the same checks. |
+| `The_sample_has_every_worker_case_and_every_group` | The same name and the same checks, in `Morphir.TestSupport.Tests/Drivers/WorkerCorpusTests.cs`: it reaches no product, so it is a unit test of the sample, which is `WorkerCorpus.Sample` of the testing library now. |
 | `A_corpus_case_gives_its_expected_observation_through_the_worker` (21 cases of the sample) | The same name, the same 21 cases and the same checks. `MORPHIR_WORKER_CORPUS=all` still runs each case of the corpus. |
 | `Ctrl_Break_stops_a_spinning_guest_within_one_second_with_130_and_no_fault` (`RunOn(Windows)`) | The same name, the same checks, and `RunOn(Windows)`. The interrupt is Ctrl+Break through `IProcessSession.InterruptAsync`. |
 
@@ -199,7 +201,8 @@ needs a packaged offering, so it is in the published lane. The run installs the 
 (`PackagedTarget`), as before once for each type. A run from a new empty directory is a new directory below the work
 area of the scenario, with a space in its name, and the process is contained in the workspace. The checks of the old
 steps are in the driver now (`LayoutProblems`, `EngineProblems`, `RunsWithoutARuntimeAsync`,
-`UsesTheDeclaredRuntimeAsync`), so the steps start no process and read no file.
+`UsesTheDeclaredRuntimeAsync`), so the steps start no process and read no file. The checks of the worker session use
+the worker steps of `ExtensionWorker.feature` (the shared `WorkerRun`).
 
 | Old scenario | New scenario |
 | --- | --- |
@@ -225,7 +228,7 @@ removed with its reason.
 
 | Old scenario | New test, or the reason that it is removed |
 | --- | --- |
-| Successful AOT compilation | The checks of the executable: `EndToEnd/NativeAotExecutable.feature` (`@e2e @lane @published @needs-native-aot-executable`): no `morphir.deps.json` and no `morphir.runtimeconfig.json` beside the executable. The check that the publish exits with 0 is the publish step of the workflow. Removed: the check that the publish output has no `IL2026`, `IL2060` or `IL2070`. The release publish fails on `IL3050` (`src/Morphir/Morphir.csproj`); a check of the trim warnings of a publish is the Native AOT lane of slice 5. |
+| Successful AOT compilation | The checks of the executable: `EndToEnd/NativeAotExecutable.feature` (`@e2e @lane @published @needs-native-aot-executable`): no `morphir.deps.json` and no `morphir.runtimeconfig.json` beside the executable. The check that the publish exits with 0 is the publish step of the workflow. Removed, and an open point: the check that the publish output has no `IL2026`, `IL2060` or `IL2070`. The release publish fails on `IL3050` only (`src/Morphir/Morphir.csproj`), so no check now refuses those three warnings for the CLI. Slice 5 checks the trim warnings of the library hosts and the probes, not of the CLI; a check of the CLI publish needs an owner. |
 | AOT with size optimizations | Removed. Its limits (12 MB on linux-x64, 15 MB on win-x64) are for a publish with `IlcOptimizationPreference=Size` that no release makes. The Native AOT `morphir` of the release is 37 MB on osx-arm64 (it links the WASM engine). `artifacts/release/size-report.md` records the size of each artifact. |
 | AOT executable runs correctly | `Smoke/Version.feature` on the target `aot`. |
 | All CLI commands work in AOT | `Smoke/BasicCommands.feature` (`--help`) and `Integration/ModelVerification.feature` on the target `aot`. The old scenario looked for its model in `tests/TestData/IR`, which does not exist, so it failed with `DirectoryNotFoundException`. |
@@ -301,7 +304,8 @@ The test stays a conformance test (it runs the kit against an executable). It ge
 of the testing library (`TargetCli`), not from `MORPHIR_DOTNET_TOOL_CLI` and `MORPHIR_AOT_CLI`, and the project
 imports `Morphir.CliArtifacts.targets`. The default is the development build with the tool host. A target and a host
 with no in-process F# frontend skip the two `dotnet-morphir` cases with the capability as the reason. The AOT case
-runs the native host of the target of the run when `MORPHIR_FSHARP_GUEST` is set.
+runs the native host of a published target of the run (before: `MORPHIR_AOT_CLI`) when `MORPHIR_FSHARP_GUEST` is set;
+the development build skips it.
 
 | Run | Before | After |
 | --- | --- | --- |
@@ -315,6 +319,8 @@ The old project had no mark; the black-box project has the assembly-level catego
 is in `Morphir.Extensions.Wasm.Tests`, whose assembly-level category marks each test.
 
 ## Findings about the product (not in the scope of this change)
+
+No issue tracks these findings yet; this pull request does not open one.
 
 - On the Native AOT `morphir` (the targets `aot` and `native-aot`), `ir verify` of a file in a directory that does
   not exist ends with an unhandled `System.IO.DirectoryNotFoundException` and exit code 1, with the stack trace on

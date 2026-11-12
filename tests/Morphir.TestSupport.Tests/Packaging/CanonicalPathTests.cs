@@ -12,6 +12,7 @@ namespace Morphir.TestSupport.Tests.Packaging;
 /// Paths in a host trace are what the host resolved; the test's own paths may go through a link (macOS
 /// <c>/var</c> → <c>/private/var</c>) or a Windows short name (<c>RUNNER~1</c>). Both sides are compared canonically.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class CanonicalPathTests
 {
     [Test]

@@ -34,8 +34,8 @@ public sealed record LocalCandidateInputs(string Manager, string Archive, string
 /// The opt-in local candidate journey with real executables and the frozen workflow, never a fake manager: install
 /// the candidate with morphirup, select it, compile and generate with it, then again offline with no system .NET. It
 /// runs in the workspace of the test. A check that fails throws an <see cref="InvalidOperationException"/> with the
-/// reason. The fixed workflow fixture is the folder <c>Fixtures/Toolchain/workflows/fsharp-compile-generate</c> of the
-/// test project.
+/// reason. The fixed workflow fixture is a copy of <c>Fixtures/Toolchain/workflows/fsharp-compile-generate</c> of the
+/// test project in the workspace.
 /// </summary>
 public static class LocalCandidateJourney
 {
@@ -44,8 +44,8 @@ public static class LocalCandidateJourney
     private const string IrDigest = "b1035d065ecfddc557476d7203afe29c83a9340abc27300aaeeb911490c30cb7";
     private const string GeneratedDigest = "64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0";
 
-    /// <summary>Runs the journey with <paramref name="inputs"/> in <paramref name="workspace"/>.</summary>
-    public static async Task RunAsync(LocalCandidateInputs inputs, IScenarioWorkspace workspace, string fixtures)
+    /// <summary>Runs the journey with <paramref name="inputs"/> in <paramref name="workspace"/>, with the workflow fixture <paramref name="workflow"/>.</summary>
+    public static async Task RunAsync(LocalCandidateInputs inputs, IScenarioWorkspace workspace, WorkspaceDirectory workflow)
     {
         var manager = inputs.Manager;
         var archive = inputs.Archive;
@@ -83,7 +83,7 @@ public static class LocalCandidateJourney
 
         var hiding = PackagedRun.HidingPlanForThisMachine();
         hiding.Mode.Should().Be(RuntimeHidingMode.Environment, hiding.Reason);
-        var fixture = Path.Combine(fixtures, "Toolchain", "workflows", "fsharp-compile-generate");
+        var fixture = workflow.Path;
         var fixedSource = Path.Combine(fixture, "source", "Pricing.fs");
         var fixedIr = Path.Combine(fixture, "expected", "ir-4.0.0.json");
         var fixedGenerated = Path.Combine(fixture, "expected", "generated", "Pricing.fs");
@@ -381,8 +381,12 @@ internal static class JourneyExpectations
         public Expectation<T> BeEmpty(string because = "") =>
             Items().Count == 0 ? this : throw Failed($"has {Items().Count} items", because);
 
-        public Expectation<T> Equal(System.Collections.IEnumerable expected, string because = "") =>
-            Items().SequenceEqual(expected.Cast<object?>()) ? this : throw Failed($"is [{string.Join(", ", Items())}], not [{string.Join(", ", expected.Cast<object?>())}]", because);
+        /// <summary>The items equal <paramref name="expected"/>. A string is one item, not a sequence of characters.</summary>
+        public Expectation<T> Equal(System.Collections.IEnumerable expected, string because = "")
+        {
+            object?[] items = expected is string text ? [text] : [.. expected.Cast<object?>()];
+            return Items().SequenceEqual(items) ? this : throw Failed($"is [{string.Join(", ", Items())}], not [{string.Join(", ", items)}]", because);
+        }
 
         public Expectation<T> Equal(params object[] expected) => Equal((System.Collections.IEnumerable)expected);
 

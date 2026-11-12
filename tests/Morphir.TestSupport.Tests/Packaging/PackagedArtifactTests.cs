@@ -8,6 +8,7 @@ using Morphir.TestSupport;
 namespace Morphir.TestSupport.Tests.Packaging;
 
 /// <summary>Finding the packaged artifact under test from the launch metadata that PackRelease writes.</summary>
+[Category("PlatformSpecific")]
 public sealed class PackagedArtifactTests
 {
     [Test]

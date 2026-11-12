@@ -29,6 +29,6 @@ public sealed class LocalCandidateJourneyTests : BlackBoxTest
             return;
         }
 
-        await LocalCandidateJourney.RunAsync(inputs, Workspace, System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures"));
+        await LocalCandidateJourney.RunAsync(inputs, Workspace, Workspace.CopyFixtureDirectory("Toolchain/workflows/fsharp-compile-generate"));
     }
 }

@@ -9,18 +9,15 @@ namespace Morphir.BlackBox.Tests.Steps;
 /// add-wasm-extension-host). The steps give the arguments of the report type to <see cref="ICliDriver"/>.
 /// </summary>
 [Binding]
-public sealed class ExtensionRuntimesSteps(DriverSet drivers, IScenarioWorkspace workspace, ScenarioRun run, IUnitTestRuntimeProvider runtime)
+public sealed class ExtensionRuntimesSteps(DriverSet drivers, IScenarioWorkspace workspace, ScenarioRun run, IUnitTestRuntimeProvider runtime, WorkerRun worker)
 {
     private (HostCopy Copy, ICliDriver Cli, IProcessSessionDriver Sessions)? _copy;
-    private SessionExit? _worker;
     private ExtensionRuntimesReport? _platform;
 
     private ExtensionRuntimesReport Report => ExtensionRuntimesReport.Of(run.Result);
 
     private (HostCopy Copy, ICliDriver Cli, IProcessSessionDriver Sessions) Copy =>
         _copy ?? throw new InvalidOperationException("The scenario has no copy of the host before this step.");
-
-    private SessionExit Worker => _worker ?? throw new InvalidOperationException("The copy served no worker before this step.");
 
     private string PinnedWasmtime => PinnedPackages.VersionOf(workspace.ReadText(workspace.CopyFixture("Directory.Packages.props")), "Wasmtime");
 
@@ -55,9 +52,9 @@ public sealed class ExtensionRuntimesSteps(DriverSet drivers, IScenarioWorkspace
     public async Task TheCopyServes(string module, string frames)
     {
         var identity = await ExtensionWorker.BuildIdentityAsync(Copy.Sessions);
-        await using var worker = await Copy.Sessions.StartAsync(ExtensionWorker.ServeArguments(WorkerCorpus.ModulePath(module), identity));
-        await worker.WriteAsync(ExtensionWorker.Frames(frames));
-        _worker = await worker.WaitForExitAsync(TimeSpan.FromSeconds(60));
+        await using var session = await Copy.Sessions.StartAsync(ExtensionWorker.ServeArguments(workspace.CopyFixture(WorkerCorpus.ModuleFixture(module)).Path, identity));
+        await session.WriteAsync(ExtensionWorker.Frames(frames));
+        worker.Exit = await session.WaitForExitAsync(TimeSpan.FromSeconds(60));
     }
 
     [Then("the runtime report names the host of the run")]
@@ -87,18 +84,10 @@ public sealed class ExtensionRuntimesSteps(DriverSet drivers, IScenarioWorkspace
     public void TheRuntimeHasThePinnedEngineVersion() =>
         Expect(Report.Wasm.EngineVersion == PinnedWasmtime, $"The engine version is {Report.Wasm.EngineVersion}, not {PinnedWasmtime}.");
 
-    [Then("the worker of the copy exits with status {int} and no bytes on standard output")]
-    public void TheWorkerOfTheCopyExits(int status) =>
-        Expect(Worker.ExitCode == status && Worker.StandardOutput.Length == 0, $"The worker of the copy: {Worker.Describe()}");
-
-    [Then("the worker of the copy has the events {string}")]
-    public void TheWorkerOfTheCopyHasTheEvents(string names) =>
-        Expect(Worker.EventNames.SequenceEqual(names.Split(", ")), $"The worker of the copy has the events {string.Join(", ", Worker.EventNames)}: {Worker.Describe()}");
-
-    [Then("the worker of the copy is refused with {string} and the reason of a missing engine on this platform")]
-    public void TheWorkerOfTheCopyIsRefused(string code)
+    [Then("the worker is refused with {string} and the reason of a missing engine on this platform")]
+    public void TheWorkerIsRefused(string code)
     {
-        var refused = Worker.Events.Single(e => e.Name == "refused").Json.GetProperty("error");
+        var refused = worker.Exit.Events.Single(e => e.Name == "refused").Json.GetProperty("error");
         var message = refused.GetProperty("message").GetString() ?? "";
         Expect(refused.GetProperty("code").GetString() == code && message.Contains(MissingEngineReason, StringComparison.Ordinal)
             && !message.Contains("DllNotFoundException", StringComparison.Ordinal), $"The refusal is {refused.GetRawText()}.");

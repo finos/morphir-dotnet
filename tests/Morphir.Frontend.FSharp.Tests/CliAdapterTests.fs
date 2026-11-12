@@ -407,10 +407,10 @@ let tests =
                 expectQualified report
         }
         |> testLabel "PlatformSpecific"
-        // Task 9.4: the native morphir of the target of the run (the published Native AOT executable:
-        // MORPHIR_TEST_TARGET=aot) with the installed MEP guest. Opt-in, because it needs a publish and an installed
-        // tool: set MORPHIR_FSHARP_GUEST to the installed morphir-fsharp-frontend command. A run whose host is not the
-        // native host skips it.
+        // Task 9.4: the native morphir of a published target of the run (the Native AOT executable:
+        // MORPHIR_TEST_TARGET=aot, or MORPHIR_TEST_TARGET=executable with MORPHIR_TEST_EXECUTABLE) with the installed
+        // MEP guest. Opt-in, because it needs a publish and an installed tool: set MORPHIR_FSHARP_GUEST to the
+        // installed morphir-fsharp-frontend command. The development build and a host that is not native skip it.
         testTask "The complete suite through the cli adapter against the AOT morphir with the installed guest equals the library" {
             match Environment.GetEnvironmentVariable "MORPHIR_FSHARP_GUEST" with
             | null
@@ -420,6 +420,10 @@ let tests =
 
                 if cli.Host <> MorphirHost.Native then
                     skiptest $"host: the AOT suite runs the native host, and the run has the {MorphirHosts.Name cli.Host} host"
+
+                // The development build is not a published executable: the suite needs the target of a publish.
+                if (cli.Target :? TestTarget.DevelopmentBuild) then
+                    skiptest "target: the AOT suite runs a published native morphir; set MORPHIR_TEST_TARGET (aot, or executable with MORPHIR_TEST_EXECUTABLE)"
 
                 let executable = cli.Artifact
                 use sandbox = TestSandbox.Create "morphir-mck-aot-"

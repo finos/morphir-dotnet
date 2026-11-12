@@ -11,6 +11,7 @@ namespace Morphir.TestSupport.Tests.Packaging;
 /// check the executable itself. An apphost or bundle carries the bundle signature; a Native AOT executable does not,
 /// and it exports <c>DotNetRuntimeDebugHeader</c>.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ExecutableStructureTests
 {
     [Test]

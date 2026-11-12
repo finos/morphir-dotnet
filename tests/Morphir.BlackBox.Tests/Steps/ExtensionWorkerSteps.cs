@@ -8,27 +8,26 @@ namespace Morphir.BlackBox.Tests.Steps;
 
 /// <summary>The steps of <c>extension worker</c> on the session driver of the host (task 4.1 of add-wasm-extension-host).</summary>
 [Binding]
-public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverSet drivers, IScenarioWorkspace workspace, IUnitTestRuntimeProvider runtime)
+public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverSet drivers, IScenarioWorkspace workspace, IUnitTestRuntimeProvider runtime, WorkerRun worker)
 {
     private static readonly TimeSpan RunLimit = TimeSpan.FromSeconds(120);
 
-    private SessionExit? _exit;
     private IProcessSession? _running;
 
-    private SessionExit Exit => _exit ?? throw new InvalidOperationException("No worker has run in this scenario.");
+    private SessionExit Exit => worker.Exit;
 
     private string ModulePath(string reference) => reference.Split(':', 2) switch
     {
-        ["corpus", var name] => WorkerCorpus.ModulePath(name),
+        ["corpus", var name] => workspace.CopyFixture(WorkerCorpus.ModuleFixture(name)).Path,
         ["guest", var name] => workspace.CopyFixture($"WorkerGuests/{name}.wasm").Path,
         _ => throw new ArgumentException($"A module is corpus:<name> or guest:<name>, not '{reference}'.", nameof(reference)),
     };
 
     private async Task<SessionExit> ServeAsync(IReadOnlyList<string> arguments, byte[][] frames)
     {
-        await using var worker = await sessions.StartAsync(arguments);
-        await worker.WriteAsync(frames);
-        return await worker.WaitForExitAsync(RunLimit);
+        await using var session = await sessions.StartAsync(arguments);
+        await session.WriteAsync(frames);
+        return await session.WaitForExitAsync(RunLimit);
     }
 
     private async Task<IReadOnlyList<string>> ServeArgumentsAsync(string module, params string[] more) =>
@@ -49,7 +48,7 @@ public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverS
     }
 
     [When("I ask the worker for its help as JSON")]
-    public async Task AskTheWorkerForItsHelpAsJson() => _exit = await ExtensionWorker.HelpAsync(sessions);
+    public async Task AskTheWorkerForItsHelpAsJson() => worker.Exit = await ExtensionWorker.HelpAsync(sessions);
 
     [When("the worker serves {string} with the frames {string} and the arguments {string}")]
     public async Task TheWorkerServesWithTheArguments(string module, string frames, string arguments)
@@ -63,14 +62,14 @@ public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverS
     public async Task TheWorkerServes(string module, string frames)
     {
         await RequireTheGuestRuntimeAsync();
-        _exit = await ServeAsync(await ServeArgumentsAsync(ModulePath(module)), ExtensionWorker.Frames(frames));
+        worker.Exit = await ServeAsync(await ServeArgumentsAsync(ModulePath(module)), ExtensionWorker.Frames(frames));
     }
 
     [When("the worker is started with another build identity for a module file that is not there")]
     public async Task TheWorkerIsStartedWithAnotherBuildIdentity()
     {
         var other = ExtensionWorker.OtherIdentity(await ExtensionWorker.BuildIdentityAsync(sessions));
-        _exit = await ServeAsync(ExtensionWorker.ServeArguments(workspace.File("no-such-module.wasm").Path, other), ExtensionWorker.Frames("initialize"));
+        worker.Exit = await ServeAsync(ExtensionWorker.ServeArguments(workspace.File("no-such-module.wasm").Path, other), ExtensionWorker.Frames("initialize"));
     }
 
     [When("the worker serves a text file named {string}")]
@@ -79,39 +78,39 @@ public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverS
         await RequireTheGuestRuntimeAsync();
         var file = workspace.File(name);
         workspace.WriteText(file, "This is a text file, not a module.\n");
-        _exit = await ServeAsync(await ServeArgumentsAsync(file.Path), ExtensionWorker.Frames("initialize"));
+        worker.Exit = await ServeAsync(await ServeArgumentsAsync(file.Path), ExtensionWorker.Frames("initialize"));
     }
 
     [When("the worker serves a module file that is not there")]
     public async Task TheWorkerServesAMissingModule()
     {
         await RequireTheGuestRuntimeAsync();
-        _exit = await ServeAsync(await ServeArgumentsAsync(workspace.File("missing.wasm").Path), ExtensionWorker.Frames("initialize"));
+        worker.Exit = await ServeAsync(await ServeArgumentsAsync(workspace.File("missing.wasm").Path), ExtensionWorker.Frames("initialize"));
     }
 
     [When("the worker is started with the extra argument {string}")]
     public async Task TheWorkerIsStartedWithTheExtraArgument(string argument) =>
-        _exit = await ServeAsync(await ServeArgumentsAsync(WorkerCorpus.ModulePath("extism-echo"), argument), ExtensionWorker.Frames("initialize"));
+        worker.Exit = await ServeAsync(await ServeArgumentsAsync(ModulePath("corpus:extism-echo"), argument), ExtensionWorker.Frames("initialize"));
 
     [When("the guest has made its private workspace")]
     public async Task TheGuestHasMadeItsPrivateWorkspace()
     {
-        var worker = _running ?? throw new InvalidOperationException("No worker is running.");
-        var made = await worker.WaitUntilAsync(
+        var session = _running ?? throw new InvalidOperationException("No session is running.");
+        var made = await session.WaitUntilAsync(
             () => workspace.EntriesIn(workspace.Temp).Any(entry => entry.Split('/').Any(part => part.StartsWith("morphir-wasm-session-", StringComparison.Ordinal))),
             TimeSpan.FromSeconds(60));
         if (!made)
-            throw new InvalidOperationException("The guest asks for its workspace before it spins:\n" + string.Join("\n", worker.StandardError.Select(line => line.Text)));
+            throw new InvalidOperationException("The guest asks for its workspace before it spins:\n" + string.Join("\n", session.StandardError.Select(line => line.Text)));
         // The call is inside handle now; give the spin a moment of its own.
-        await worker.WaitUntilAsync(() => false, TimeSpan.FromMilliseconds(300));
+        await session.WaitUntilAsync(() => false, TimeSpan.FromMilliseconds(300));
     }
 
     [When("I interrupt the worker")]
     public async Task InterruptTheWorker()
     {
-        var worker = _running ?? throw new InvalidOperationException("No worker is running.");
-        await worker.InterruptAsync();
-        _exit = await worker.WaitForExitAsync(TimeSpan.FromSeconds(30));
+        var session = _running ?? throw new InvalidOperationException("No session is running.");
+        await session.InterruptAsync();
+        worker.Exit = await session.WaitForExitAsync(TimeSpan.FromSeconds(30));
     }
 
     [Then("the worker exits with status {int}")]
@@ -218,7 +217,7 @@ public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverS
     public async Task ThePeakWorkingSetIsBounded(int mebibytes)
     {
         var flood = await PeakAsync(ModulePath("guest:flood-output"));
-        var echo = await PeakAsync(WorkerCorpus.ModulePath("extism-echo"));
+        var echo = await PeakAsync(ModulePath("corpus:extism-echo"));
         if (flood == 0 || echo == 0) return; // The platform does not report a working set.
         Expect(flood - echo < mebibytes * 1024L * 1024L,
             $"The flood guest wrote 100 MiB of output through the worker; peak {flood} bytes against {echo} for an echo session.");
@@ -227,23 +226,27 @@ public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverS
     /// <summary>The peak working set of the worker after five answered requests, read before <c>exit</c> is sent.</summary>
     private async Task<long> PeakAsync(string module)
     {
-        await using var worker = await sessions.StartAsync(await ServeArgumentsAsync(module));
-        await worker.WriteAsync(ExtensionWorker.Frames("initialize, initialize, initialize, initialize, initialize"));
-        var answered = await worker.WaitUntilAsync(() => ContentLengthFrames.Read(worker.StandardOutput).Frames.Count == 5, RunLimit);
-        if (!answered) throw new InvalidOperationException(string.Join("\n", worker.StandardError.Select(line => line.Text).Take(20)));
-        var peak = worker.PeakWorkingSet;
-        await worker.WriteAsync(ExtensionWorker.Frames("exit"));
-        var exit = await worker.WaitForExitAsync(RunLimit);
+        await using var session = await sessions.StartAsync(await ServeArgumentsAsync(module));
+        await session.WriteAsync(ExtensionWorker.Frames("initialize, initialize, initialize, initialize, initialize"));
+        var answered = await session.WaitUntilAsync(() => ContentLengthFrames.Read(session.StandardOutput).Frames.Count == 5, RunLimit);
+        if (!answered) throw new InvalidOperationException(string.Join("\n", session.StandardError.Select(line => line.Text).Take(20)));
+        var peak = session.PeakWorkingSet;
+        await session.WriteAsync(ExtensionWorker.Frames("exit"));
+        var exit = await session.WaitForExitAsync(RunLimit);
         if (exit.ExitCode != 0) throw new InvalidOperationException(exit.Describe());
         return peak;
     }
 
     [Then("the temporary directory of the worker is empty")]
-    public void TheTemporaryDirectoryIsEmpty() =>
-        Expect(workspace.EntriesIn(workspace.Temp).Count == 0, $"The worker did not remove its private directory: {string.Join(", ", workspace.EntriesIn(workspace.Temp))}.");
+    public void TheTemporaryDirectoryIsEmpty()
+    {
+        var temp = worker.Temp ?? workspace.Temp;
+        Expect(workspace.EntriesIn(temp).Count == 0,
+            $"The worker did not remove its private directory, or something was extracted there: {string.Join(", ", workspace.EntriesIn(temp))}.");
+    }
 
     private void Expect(bool condition, string reason)
     {
-        if (!condition) throw new InvalidOperationException(reason + "\n" + (_exit?.Describe() ?? ""));
+        if (!condition) throw new InvalidOperationException(reason + "\n" + (worker.ExitOrNull?.Describe() ?? ""));
     }
 }

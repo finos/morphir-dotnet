@@ -117,6 +117,7 @@ two steps have the same pattern.
 | Validation | `Then the analyzers of the validation report are the validator entries of extension list` |
 | Validation | `Then the validation reports of both hosts are equal apart from the host` |
 | Extension list | `When I list the extensions as JSON` |
+| Extension list | `When I list the extensions as text` |
 | Extension list | `When I list the extensions as JSON on the other host` |
 | Extension list | `Then the extension list names the host of the run` |
 | Extension list | `Then the extension list has the ids {string}` |
@@ -163,9 +164,7 @@ two steps have the same pattern.
 | Extension runtimes | `Then the WASM runtime has the engine of the pinned Wasmtime package, the profile {string} and {long} bytes of memory` |
 | Extension runtimes | `Then the WASM runtime is not available, with the reason of a missing engine on this platform` |
 | Extension runtimes | `Then the WASM runtime has the engine version of the pinned Wasmtime package` |
-| Extension runtimes | `Then the worker of the copy exits with status {int} and no bytes on standard output` |
-| Extension runtimes | `Then the worker of the copy has the events {string}` |
-| Extension runtimes | `Then the worker of the copy is refused with {string} and the reason of a missing engine on this platform` |
+| Extension runtimes | `Then the worker is refused with {string} and the reason of a missing engine on this platform` |
 | Extension runtimes | `Then the command of the copy wrote its result with no word of the engine` |
 | Packaged artifact | `Given the packaged artifact of the run is installed into a new directory whose path contains a space` |
 | Packaged artifact | `Then the archive matches the SHA-256 in its launch metadata` |
@@ -185,10 +184,6 @@ two steps have the same pattern.
 | Packaged artifact | `Then the engine libraries in the installed artifact are exactly the separate libraries that its build contents record` |
 | Packaged artifact | `Then the installed artifact reports its WASM runtime availability with the pinned engine on this platform` |
 | Packaged artifact | `When the installed artifact serves the pinned module {string} with the frames {string} in a worker session` |
-| Packaged artifact | `Then the packaged worker session exits with status {int}` |
-| Packaged artifact | `Then standard output of the packaged worker session holds only these frames:` |
-| Packaged artifact | `Then standard error of the packaged worker session has the events {string}` |
-| Packaged artifact | `Then the temporary directory of the packaged worker session is empty` |
 | Packaged artifact | `Given a second installation of the artifact of the run, made read-only before its first run` |
 | Packaged artifact | `Then the read-only installation holds the same files as before its first run` |
 | Host file | `Then the folder of the host has no file {string}` |

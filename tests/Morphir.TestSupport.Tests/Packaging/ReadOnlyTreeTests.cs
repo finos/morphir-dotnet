@@ -7,6 +7,7 @@ using Morphir.TestSupport;
 namespace Morphir.TestSupport.Tests.Packaging;
 
 /// <summary>Making an installation read-only for the packaged feature, and giving it back writable.</summary>
+[Category("PlatformSpecific")]
 public sealed class ReadOnlyTreeTests
 {
     [Test]

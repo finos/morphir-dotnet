@@ -13,6 +13,7 @@ namespace Morphir.TestSupport.Tests.Packaging;
 /// installed artifact against the <c>engines</c> its build contents record. Each wrong layout here is one a pack could
 /// produce: an extra library, another platform's library in its place, a library beside a linked engine.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class PackagedEngineLayoutTests
 {
     private const string WindowsEngine = "windows engine bytes";

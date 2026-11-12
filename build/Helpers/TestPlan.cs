@@ -204,7 +204,9 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Myriad.SystemTextJson.Tests").WithSourceProjects(),
         // The groups of the black-box project. A group is registered here in the change that adds its first test,
         // because a group that selects no test fails its run.
-        TestSuite.TUnit(BlackBoxProject).InGroup("integration"),
+        // The integration group has tests with a time budget (the interrupt of a worker within one second, the bounds
+        // of the worker corpus), so it runs alone.
+        TestSuite.TUnit(BlackBoxProject).InGroup("integration").Alone(),
         TestSuite.TUnit(BlackBoxProject).InGroup("smoke"),
         TestSuite.TUnit(BlackBoxProject).InGroup("journey"),
     ];

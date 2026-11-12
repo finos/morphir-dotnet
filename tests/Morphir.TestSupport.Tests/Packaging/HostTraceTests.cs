@@ -10,6 +10,7 @@ namespace Morphir.TestSupport.Tests.Packaging;
 /// The host trace reader that decides whether a packaged run loaded a machine runtime. The fixtures are real .NET 10
 /// host traces from a win-arm64 machine, cut to the lines the reader uses, with the paths replaced by placeholders.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class HostTraceTests
 {
     [Test]

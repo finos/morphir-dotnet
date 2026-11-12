@@ -8,6 +8,7 @@ using Morphir.TestSupport;
 namespace Morphir.TestSupport.Tests.Packaging;
 
 /// <summary>How a packaged run hides the machine's .NET runtime, and when it cannot.</summary>
+[Category("PlatformSpecific")]
 public sealed class PackagedRunTests
 {
     [Test]

@@ -12,47 +12,7 @@ namespace Morphir.BlackBox.Tests.Integration;
 [Category("integration")]
 public sealed class ExtensionWorkerCorpusTests : BlackBoxTest
 {
-    /// <summary>
-    /// The <c>worker/</c> cases and a sample of each other group. The complete corpus is run by
-    /// <c>morphir mck wasm-host run</c>; set <c>MORPHIR_WORKER_CORPUS=all</c> to drive every case through this test.
-    /// </summary>
-    static readonly string[] Sample =
-    [
-        "worker/missing-abi",
-        "worker/other-build-identity",
-        "classification/unknown-namespace",
-        "classification/missing-handle",
-        "classification/declared-abi-mismatch",
-        "classification/bytes-profile-unsupported",
-        "classification/shared-memory",
-        "bytes/echo",
-        "extism/echo",
-        "extism/response-not-object",
-        "extism/notifications-not-delivered",
-        "extism/notifications-accepted",
-        "extism/notification-answered",
-        "limits/request-over-limit",
-        "limits/response-over-limit",
-        "bounds/small-budget",
-        "bounds/trap",
-        "bounds/initial-memory-over-ceiling",
-        "sandbox/http-request",
-        "sandbox/workspace-info",
-        "sandbox/logging",
-    ];
-
-    public static IEnumerable<string> Cases() => WorkerCorpus.Selected(Sample);
-
-    [Test]
-    public async Task The_sample_has_every_worker_case_and_every_group()
-    {
-        var all = WorkerCorpus.CaseIds;
-        await Assert.That(Sample.All(all.Contains)).IsTrue();
-        await Assert.That(all.Where(id => id.StartsWith("worker/", StringComparison.Ordinal)).All(Sample.Contains)).IsTrue();
-        await Assert.That(Sample.Select(Group).Distinct().Order().SequenceEqual(all.Select(Group).Distinct().Order())).IsTrue();
-    }
-
-    static string Group(string caseId) => caseId[..caseId.IndexOf('/', StringComparison.Ordinal)];
+    public static IEnumerable<string> Cases() => WorkerCorpus.Selected(WorkerCorpus.Sample);
 
     [Test]
     [MethodDataSource(nameof(Cases))]

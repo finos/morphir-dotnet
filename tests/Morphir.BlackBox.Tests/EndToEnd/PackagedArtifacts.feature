@@ -73,13 +73,13 @@ Feature: Packaged release artifacts
   # Requirement "Worker mode", scenario "Conformance runner drives a guest", and "The Extism profile in every offering".
   Scenario: A WASM worker session from the installed artifact
     When the installed artifact serves the pinned module "extism-echo" with the frames "initialize, initialized, shutdown, exit" in a worker session
-    Then the packaged worker session exits with status 0
-    And standard output of the packaged worker session holds only these frames:
+    Then the worker exits with status 0
+    And standard output of the worker holds only these frames:
       | frame                                                                                             |
       | {"jsonrpc":"2.0","id":1,"method":"morphir.initialize","params":{"protocolVersion":"0.2.0-draft.1"}} |
       | {"jsonrpc":"2.0","id":2,"method":"morphir.shutdown"}                                                |
-    And standard error of the packaged worker session has the events "started, exited"
-    And the temporary directory of the packaged worker session is empty
+    And standard error of the worker has the events "started, exited"
+    And the temporary directory of the worker is empty
 
   # Task 5.2: "first-run extraction with a read-only install directory". No offering extracts anything at first run
   # (evidence/5.2-packaged-offerings-assessment.md of add-wasm-extension-host), so this scenario asserts that the first
@@ -91,11 +91,11 @@ Feature: Packaged release artifacts
     When I run the installed artifact with "extension runtimes --json" from a new empty directory
     Then the installed artifact reports its WASM runtime availability with the pinned engine on this platform
     When the installed artifact serves the pinned module "extism-echo" with the frames "initialize, initialized, shutdown, exit" in a worker session
-    Then the packaged worker session exits with status 0
-    And standard output of the packaged worker session holds only these frames:
+    Then the worker exits with status 0
+    And standard output of the worker holds only these frames:
       | frame                                                                                             |
       | {"jsonrpc":"2.0","id":1,"method":"morphir.initialize","params":{"protocolVersion":"0.2.0-draft.1"}} |
       | {"jsonrpc":"2.0","id":2,"method":"morphir.shutdown"}                                                |
-    And standard error of the packaged worker session has the events "started, exited"
-    And the temporary directory of the packaged worker session is empty
+    And standard error of the worker has the events "started, exited"
+    And the temporary directory of the worker is empty
     And the read-only installation holds the same files as before its first run

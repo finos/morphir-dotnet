@@ -5,6 +5,8 @@ using System.Collections.Immutable;
 namespace Morphir.TestSupport.Drivers;
 
 /// <summary>One entry of the report of <c>extension list --json</c>.</summary>
+/// <param name="Reason">The reason of an entry, or null when the entry has no member <c>reason</c>.</param>
+/// <param name="HasReason">True when the entry has the member <c>reason</c>, also with a null value.</param>
 public sealed record ExtensionEntry(
     string Id,
     ImmutableArray<string> Types,
@@ -12,11 +14,15 @@ public sealed record ExtensionEntry(
     ImmutableArray<string> Hosts,
     bool Available,
     string? Reason,
+    bool HasReason,
     ImmutableArray<string>? ValidatorIrVersions,
     string RawJson);
 
 /// <summary>The report of <c>extension list --json</c>: the host, the deployment and the execution of the build, and the entries.</summary>
-public sealed record ExtensionListReport(CommandResult Result, string Host, string? Deployment, string Execution, ImmutableArray<ExtensionEntry> Extensions)
+/// <param name="Deployment">The deployment, or null when the report has no member <c>deployment</c>.</param>
+/// <param name="HasDeployment">True when the report has the member <c>deployment</c>, also with a null value.</param>
+public sealed record ExtensionListReport(
+    CommandResult Result, string Host, string? Deployment, bool HasDeployment, string Execution, ImmutableArray<ExtensionEntry> Extensions)
 {
     /// <summary>The arguments of the command.</summary>
     public static IReadOnlyList<string> Arguments { get; } = ["extension", "list", "--json"];
@@ -30,6 +36,7 @@ public sealed record ExtensionListReport(CommandResult Result, string Host, stri
                 result,
                 root.GetProperty("host").GetString()!,
                 root.TryGetProperty("deployment", out var deployment) ? deployment.GetString() : null,
+                root.TryGetProperty("deployment", out _),
                 root.GetProperty("execution").GetString()!,
                 [.. root.GetProperty("extensions").EnumerateArray().Select(entry => new ExtensionEntry(
                     entry.GetProperty("id").GetString()!,
@@ -38,6 +45,7 @@ public sealed record ExtensionListReport(CommandResult Result, string Host, stri
                     [.. entry.GetProperty("hosts").EnumerateArray().Select(host => host.GetString()!)],
                     entry.GetProperty("available").GetBoolean(),
                     entry.TryGetProperty("reason", out var reason) ? reason.GetString() : null,
+                    entry.TryGetProperty("reason", out _),
                     entry.TryGetProperty("capabilities", out var capabilities) && capabilities.TryGetProperty("validator", out var validator)
                         ? [.. validator.GetProperty("irVersions").EnumerateArray().Select(version => version.GetString()!)]
                         : null,

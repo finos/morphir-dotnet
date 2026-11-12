@@ -13,6 +13,7 @@ namespace Morphir.TestSupport.Tests.Drivers;
 /// command that makes it (design DRV-2 of the change consolidate-black-box-tests, task 6.2). No target uses the
 /// artifact of another form.
 /// </summary>
+[Category("PlatformSpecific")]
 public class PublishedTargetsTests
 {
     private const string Rid = "linux-x64";
@@ -170,6 +171,36 @@ public class PublishedTargetsTests
     }
 
     [Test]
+    public async Task ThePackagedArtifactDriverChecksTheLayoutAndMakesAReadOnlyCopyThatTheEndOfTheTestGivesBack()
+    {
+        using var sandbox = TestSandbox.Create("morphir release ");
+        var release = ReleaseFolder.Write(sandbox.PathOf("release"), "self-contained", RuntimeIdentifiers.Current);
+        var session = BlackBoxSession.Start(
+            Metadata(sandbox.PathOf("artifacts")), "A.Tests",
+            Variables(("MORPHIR_TEST_TARGET", "self-contained"), ("MORPHIR_RELEASE_DIR", release)), File.Exists, AppContext.BaseDirectory);
+        string copy;
+        await using (var drivers = session.BeginTest(MorphirHost.Managed))
+        {
+            // The fake archive holds only the launch file, so the layout of a self-contained folder is not there.
+            drivers.Packaged.LayoutProblems().Should().Contain("The installation has no morphir.dll.").And.Contain("The installation has no FSharp.Compiler.Service.dll.");
+            var work = drivers.Packaged.NewWorkDirectory();
+            work.Folder.Path.Should().Contain(" ").And.StartWith(drivers.Workspace.Work.Path);
+            drivers.Workspace.EntriesIn(work.Folder).Should().BeEmpty();
+
+            drivers.Packaged.InstallAReadOnlyCopy();
+            copy = drivers.Packaged.Installation.Directory;
+
+            copy.Should().StartWith(drivers.Workspace.Root).And.Contain(" ");
+            drivers.Packaged.Installation.Should().NotBeSameAs(session.Packaged!.Installation);
+            drivers.Packaged.WriteProblems().Should().BeEmpty("the copy is read-only before its first run");
+            drivers.Packaged.Snapshot().Should().Equal("morphir 6");
+        }
+
+        Directory.Exists(copy).Should().BeFalse("the end of the test gives back the permissions, so the workspace is removed");
+        session.EndRun(new StringWriter());
+    }
+
+    [Test]
     public void APackagedOfferingWithNoArtifactStopsTheRunWithThePackCommand()
     {
         using var sandbox = TestSandbox.Create("morphir release ");
@@ -216,7 +247,7 @@ public class PublishedTargetsTests
         capabilities.Contains(DriverCapability.PackagedInstallation).Should().Be(name is "native-aot" or "self-contained" or "dotnet-tool");
         capabilities.Contains(DriverCapability.NativeAotExecutable).Should().Be(name is "aot" or "native-aot");
         capabilities.Contains(DriverCapability.InProcessFSharpFrontend).Should().Be(host is "managed" or "tool");
-        capabilities.Should().Contain([DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.KnownForm]);
+        capabilities.Should().Contain([DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Validation, DriverCapability.KnownForm]);
     }
 
     [Test]

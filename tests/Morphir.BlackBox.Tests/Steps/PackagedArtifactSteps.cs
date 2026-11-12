@@ -13,14 +13,12 @@ namespace Morphir.BlackBox.Tests.Steps;
 /// each offering (add-deployment-and-acquisition task 2.4, add-wasm-extension-host task 5.2).
 /// </summary>
 [Binding]
-public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace workspace, IUnitTestRuntimeProvider runtime)
+public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace workspace, IUnitTestRuntimeProvider runtime, WorkerRun worker)
 {
     private static readonly TimeSpan WorkerLimit = TimeSpan.FromSeconds(120);
 
     private PackagedRunResult? _result;
     private RuntimeAccess _access = RuntimeAccess.Visible;
-    private SessionExit? _worker;
-    private WorkspaceDirectory? _workerTemp;
     private IReadOnlyList<string>? _filesBeforeFirstRun;
 
     private IPackagedArtifactDriver Packaged => drivers.Packaged;
@@ -31,8 +29,6 @@ public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace 
     private string InstallFolder => Installation.Directory;
 
     private PackagedRunResult Result => _result ?? throw new InvalidOperationException("No packaged run in this scenario.");
-
-    private SessionExit Worker => _worker ?? throw new InvalidOperationException("No packaged worker session in this scenario.");
 
     [Given("the packaged artifact of the run is installed into a new directory whose path contains a space")]
     public void TheArtifactIsInstalled()
@@ -167,7 +163,7 @@ public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace 
         // The same containment as each packaged run: a working directory whose path has a space, a contained home, and
         // here also a temporary directory of the session of its own, so its workspace can be seen and its removal checked.
         var work = Packaged.NewWorkDirectory();
-        var temp = _workerTemp = workspace.MakeDirectory("temp dir");
+        var temp = worker.Temp = workspace.MakeDirectory("temp dir");
         var guest = workspace.CopyFixture(WorkerCorpus.ModuleFixture(module), $"{work.RelativePath}/guest modules/{module}.wasm");
         Expect(Convert.ToHexStringLower(SHA256.HashData(workspace.ReadBytes(guest))) == WorkerCorpus.ModuleSha256(module), "The module is not the pinned crafted one.");
         var options = new ProcessSessionOptions
@@ -182,28 +178,10 @@ public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace 
         var identity = document.RootElement.GetProperty("result").GetProperty("buildIdentity").GetString()!;
         Expect(System.Text.RegularExpressions.Regex.IsMatch(identity, "^[0-9a-f]{64}$"), "extension worker --help --json does not give the build identity.");
 
-        await using var worker = await Packaged.Sessions.StartAsync(ExtensionWorker.ServeArguments(guest.Path, identity), options);
-        await worker.WriteAsync(ExtensionWorker.Frames(frames));
-        _worker = await worker.WaitForExitAsync(WorkerLimit);
+        await using var session = await Packaged.Sessions.StartAsync(ExtensionWorker.ServeArguments(guest.Path, identity), options);
+        await session.WriteAsync(ExtensionWorker.Frames(frames));
+        worker.Exit = await session.WaitForExitAsync(WorkerLimit);
     }
-
-    [Then("the packaged worker session exits with status {int}")]
-    public void ThePackagedWorkerSessionExitsWith(int status) => Expect(Worker.ExitCode == status, Worker.Describe());
-
-    [Then("standard output of the packaged worker session holds only these frames:")]
-    public void ThePackagedWorkerSessionHoldsOnlyTheseFrames(DataTable table)
-    {
-        var (frames, problem) = Worker.Frames;
-        Expect(problem is null && frames.Select(frame => Encoding.UTF8.GetString(frame)).SequenceEqual(table.Rows.Select(row => row["frame"])),
-            problem ?? Worker.Describe());
-    }
-
-    [Then("standard error of the packaged worker session has the events {string}")]
-    public void ThePackagedWorkerSessionHasTheEvents(string names) => Expect(Worker.EventNames.SequenceEqual(names.Split(", ")), Worker.Describe());
-
-    [Then("the temporary directory of the packaged worker session is empty")]
-    public void TheTemporaryDirectoryIsEmpty() =>
-        Expect(workspace.EntriesIn(_workerTemp!).Count == 0, "The worker did not remove its session workspace, or something was extracted there.");
 
     [Given("a second installation of the artifact of the run, made read-only before its first run")]
     public void ASecondReadOnlyInstallation()
