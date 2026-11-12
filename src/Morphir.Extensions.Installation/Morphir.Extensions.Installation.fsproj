@@ -31,6 +31,7 @@
     <Compile Include="RunCopies.fs" />
     <Compile Include="StateDocuments.fs" />
     <Compile Include="InstalledState.fs" />
+    <Compile Include="TrustPolicy.fs" />
     <Compile Include="Packages.fs" />
     <Compile Include="ActivationRecords.fs" />
   </ItemGroup>

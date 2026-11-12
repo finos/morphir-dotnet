@@ -14,6 +14,51 @@ open Morphir.Toolchain
 open Morphir.TestSupport
 open IoTestSupport
 
+[<Tests>]
+let checksumTrustTests =
+    let official = "https://github.com/finos/morphir"
+    testList "ChecksumTrust" [
+        test "fresh official checksum policy reads without creating Home" {
+            use sandbox = TestSandbox.Create()
+            let path = Path.Combine(sandbox.Work,"absent-home")
+            TrustPolicy.Check(path,official)
+            Expect.stringContains (Encoding.UTF8.GetString(TrustPolicy.ListBytes path)) "release-checksum" "honest minimum"
+            Expect.isFalse (Directory.Exists path) "read only default"
+        }
+        testCaseTask "dry run creates no policy, lock or Home" (fun () -> task {
+            use sandbox = TestSandbox.Create()
+            let path = Path.Combine(sandbox.Work,"absent-home")
+            do! TrustPolicy.ChangeAsync(path,"official",official,"publisher-authenticated",false,true,ct)
+            Expect.isFalse (Directory.Exists path) "dry-run effects"
+            TrustPolicy.Check(path,official)
+        })
+        testCaseTask "disabled official tombstone persists and cannot revive default" (fun () -> task {
+            use sandbox = TestSandbox.Create()
+            let path = Path.Combine(sandbox.Work,"policy-home")
+            do! TrustPolicy.ChangeAsync(path,"official",official,"release-checksum",true,false,ct)
+            Expect.throwsT<InstallationException> (fun () -> TrustPolicy.Check(path,official)) "disabled source"
+            Expect.stringContains (Encoding.UTF8.GetString(TrustPolicy.ListBytes path)) "disabled" "tombstone"
+        })
+        testCaseTask "tightening policy does not invent publisher authentication" (fun () -> task {
+            use sandbox = TestSandbox.Create()
+            let path = Path.Combine(sandbox.Work,"policy-home")
+            do! TrustPolicy.ChangeAsync(path,"official",official,"publisher-authenticated",false,false,ct)
+            Expect.throwsT<InstallationException> (fun () -> TrustPolicy.Check(path,official)) "checksum cannot meet stronger minimum"
+        })
+        testCaseTask "stable name cannot silently change repository" (fun () -> task {
+            use sandbox = TestSandbox.Create()
+            let path = Path.Combine(sandbox.Work,"policy-home")
+            let! refused = task {
+                try
+                    do! TrustPolicy.ChangeAsync(path,"official","https://github.com/other/project","release-checksum",false,false,ct)
+                    return false
+                with :? InstallationException -> return true
+            }
+            Expect.isTrue refused "binding conflict"
+            Expect.isFalse (File.Exists(Path.Combine(path,"config/toolchains/trust.json"))) "no changed authority"
+        })
+    ]
+
 let private host =
     SemVer.tryParse "0.4.0-alpha.4"
     |> function

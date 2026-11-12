@@ -884,7 +884,7 @@ let run (io: Io) (args: string list) : int =
 
 let private isLocalInvocation =
     function
-    | ("select" | "use" | "show" | "run") :: _ -> true
+    | ("select" | "use" | "show" | "run" | "trust") :: _ -> true
     | "setup" :: rest ->
         rest
         |> List.exists (fun arg ->
@@ -950,8 +950,7 @@ let private runCoreAsync
                 ct.ThrowIfCancellationRequested()
 
                 if
-                    command
-                    <> "show"
+                    command <> "show" && command <> "trust"
                     && io.Platform
                        <> Some Platform.WinX64
                 then
@@ -960,6 +959,23 @@ let private runCoreAsync
                         "Local execution requires an actual win-x64 manager process."
 
                 match command with
+                | "trust" ->
+                    let action, name, rest =
+                        match args.Tail with
+                        | "list" :: rest -> "list", "", rest
+                        | ("add" | "remove" as action) :: name :: rest -> action, name, rest
+                        | _ -> raise (ArgumentException "Use trust list, trust add <name>, or trust remove <name>.")
+                    let parsed = options ["--home";"--repository";"--minimum-assurance"] ["--dry-run"] rest
+                    let policyHome = parsed.TryGet "--home" |> Option.defaultValue Morphir.Extensions.Installation.TrustPolicy.DefaultHome |> LocalCandidate.homePath
+                    if action <> "list" then
+                        do! Morphir.Extensions.Installation.TrustPolicy.ChangeAsync(policyHome,name,
+                            (if action = "add" then required "--repository" parsed else ""),
+                            (if action = "add" then required "--minimum-assurance" parsed else "release-checksum"),
+                            action = "remove",parsed.Has "--dry-run",ct)
+                    let bytes = Morphir.Extensions.Installation.TrustPolicy.ListBytes policyHome
+                    io.Out.Write(bytes,0,bytes.Length)
+                    io.Error.WriteLine "Trust minima are local policy. HTTPS release checksums are NOT publisher authentication."
+                    return 0
                 | "setup" ->
                     let options =
                         options

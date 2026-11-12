@@ -34,10 +34,48 @@ public class ManagementScenario : IMorphirCliScenario
             rootCommand.Subcommands.Add(distCommand);
             rootCommand.Subcommands.Add(toolCommand);
             rootCommand.Subcommands.Add(extensionCommand);
+            rootCommand.Subcommands.Add(CreateTrustCommand());
         });
 
         builder.ConfigureHostedCommands((rootCommand, services) =>
             rootCommand.Subcommands.Single(command => command.Name == "extension").Subcommands.Insert(0, new ExtensionListCommand(services)));
+    }
+
+    private static Command CreateTrustCommand()
+    {
+        var trust = new Command("trust", "Manage local source policy; checksum delivery is not publisher-authenticated");
+        foreach (var action in new[] { "list", "add", "remove" })
+        {
+            var command = new Command(action);
+            var name = new Argument<string>("name");
+            var repository = new Option<string?>("--repository");
+            var minimum = new Option<string?>("--minimum-assurance");
+            var home = new Option<string?>("--home");
+            var dryRun = new Option<bool>("--dry-run");
+            if (action != "list") command.Arguments.Add(name);
+            if (action == "add") { command.Options.Add(repository); command.Options.Add(minimum); }
+            command.Options.Add(home);
+            if (action != "list") command.Options.Add(dryRun);
+            command.SetAction(async (result, ct) =>
+            {
+                try
+                {
+                    var selectedHome = result.GetValue(home) ?? Morphir.Extensions.Installation.TrustPolicy.DefaultHome;
+                    if (action != "list")
+                        await Morphir.Extensions.Installation.TrustPolicy.ChangeAsync(selectedHome,result.GetValue(name)!,
+                            action == "add" ? result.GetValue(repository) ?? "" : "",
+                            action == "add" ? result.GetValue(minimum) ?? "" : "release-checksum",
+                            action == "remove",result.GetValue(dryRun),ct);
+                    Console.WriteLine(System.Text.Encoding.UTF8.GetString(Morphir.Extensions.Installation.TrustPolicy.ListBytes(selectedHome)));
+                    Console.Error.WriteLine("Trust minima are local policy. HTTPS release checksums are NOT publisher authentication.");
+                    return 0;
+                }
+                catch (Morphir.Extensions.Installation.InstallationException error)
+                { Console.Error.WriteLine($"{error.Data0.Code}: {error.Data0.Message}"); return 1; }
+            });
+            trust.Subcommands.Add(command);
+        }
+        return trust;
     }
 
     private static Command CreateDistCommand()
