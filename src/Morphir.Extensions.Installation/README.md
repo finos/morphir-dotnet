@@ -7,12 +7,104 @@ single files, inspects bounded archives and owns temporary run directories.
 It does not complete an extension installation yet. The CLI installation commands
 remain stubs. See the [user status page](../../docs/content/docs/cli/extension-installation.md).
 
+## Package tree increment on ad24ce68
+
+The current working-tree increment adds `PackagePlan.Read`, canonical
+`PackageManifest.Read`, and tree-only `PackageInstaller` operations. `InstallAsync`
+hashes a descriptor-bound ZIP, extracts into an owned private stage outside the
+state lock, checks the canonical tree digest, publishes without replacement and
+fully verifies the actual destination. Reuse rehashes every file and refuses a
+corrupt winner; repair is not implemented. `VerifyAsync` explicitly rehashes an
+installed tree. `AcquireAsync` performs VERIFY-B structure/manifest/size/mode
+checks and returns an owned shared `PackageActivation` lease. Its consumer must
+retain that lifetime until its whole child tree and output pumps settle. This
+library does not launch the guest.
+
+The tree and archive digests stay distinct. Trees use
+`store/extensions/packages/sha256/<treeSha>/manifest` and `tree/`, with the stable
+sibling `<treeSha>.lease`. Shared readers coexist; an exclusive collector cannot
+acquire their lease. Publication uses the platform's no-replace directory rename.
+The new native branches have Windows test evidence only.
+
+The next working-tree increment adds semantic catalog/lock/index/repositories and
+journal readers through `StateDocuments`. They enforce recursive closed-lock
+members, open-catalog critical paths, identity/claim/argument/package/provenance
+bindings, sorted unique ids and I-JSON integer constraints. Registration writes
+one supported journal, then its exact saved lock and catalog bytes, and removes
+the journal last. `InstalledState.RecoverAsync` replays a fully validated current
+journal only with explicit consent. Old state and unsupported saved documents
+refuse before replay; this does not implement old-home backup/doctor repair.
+Interrupted supported transactions roll forward through their journal rather
+than inventing an incompatible rollback format.
+
+`InstalledExtensions.InstallLocalUncheckedAsync` explicitly skips the guest
+probe. It authors the published one-release directory-repository format at the
+caller's explicit root, under `.publish.lock`, and records canonical local
+provenance plus the exact history digest. It records `claimCheck: unchecked` and
+no publisher authentication or readiness. A fully verified package shared lease
+is held before the journal commit through capture and consumer ownership.
+`CaptureAsync` returns a `CapturedExtension`: immutable `InstalledActivationRecord`
+data together with its already-acquired shared package lifetime. The snapshots
+preserve unknown optional selected catalog values, exact lock bytes and args,
+claims/provenance, archive/tree identities and canonical manifest modes.
+
+An unpublished capture is expected-current inventory, not retained-generation
+authority. `CaptureExpectedAsync` and `AcquireCurrentAsync` compare exact current
+exports under the state lock, acquire the package lifetime atomically and refuse
+changed exports. An already-held A lease stays owned if global B replaces A;
+unpublished A cannot acquire a new lifetime afterward. A supported published
+generation's full binding is required for retained acquisition independent of
+global selection. Parent composition contracts are now merged at
+`d9f309a1062b0aeb744dc7f20d51ceec448ec4e6`; their runtime binding is not implemented
+here. No generation schema, provisional receipt, token or manager field was added.
+
+The review correction adds process-platform admission before activation ownership
+and local registration. It uses process architecture, admitting Windows x64
+emulation on ARM64 without changing `Toolchain.Platform.current`. Activation
+positives use actual host-platform fixtures; a foreign-platform package may be
+stored and explicitly verified but cannot supply an activation lifetime. Malformed
+Deflate raises the same typed `extension.unsafe_archive` refusal as archive
+inspection after the delivered archive digest has been verified.
+
+Public state/package operations now cross an asynchronous task boundary before
+work starts. Waiting state, repositories and local-publication locks use cancellable
+async acquisition; production callers do not synchronously wait on nested tasks.
+Windows uses an OVERLAPPED `LockFileEx` request, targeted `CancelIoEx`, and awaited
+kernel completion before disposing cancellation registration, handle or request
+memory. Wait setup precedes the native request. Unix retries nonblocking `flock`
+with cancellable awaited delays, leaving no pending kernel waiter. Neither path
+promises a hard deadline for an arbitrary filesystem syscall. See Microsoft's
+[pending-I/O cancellation rules](https://learn.microsoft.com/en-us/windows/win32/fileio/canceling-pending-i-o-operations)
+and [LockFileEx contract](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex).
+
+Fresh full installer assembly runs before and after pinned Fantomas 5.2.4 pass
+285 executed Windows tests, with seven Unix controls ignored and no failures or
+errors. They retain the journal-identity and empty-ZIP-directory repairs, five
+actually consumed frozen parent catalog cases, real cross-process leases, and
+six named-lock controls. The native cancellation control observes pending 997
+then cancelled 995 before task settlement. The unchanged public C# consumer also
+builds and passes its existing 27-line JIT run against the same installer DLL.
+It covers the earlier single-file/staging API, not the new package surface.
+The final builds report four existing dependency-support warnings and zero errors.
+
+This is not full corpus or lifecycle qualification. Tar.gz package extraction,
+repair, full fixed archive/rejection-order coverage, remaining platform/path/ADS
+controls, complete inventory/commands and published-generation retained authority
+remain unfinished. New package C# consumer coverage, independent security/interop
+re-review, Unix runtime and Native AOT checks remain gates. No full task checkbox
+is completed. The earlier 134- and 194-test reports keep their own source identities.
+
+## Earlier implementation evidence
+
+The notes below preserve earlier slices and their then-open work. Current
+implementation limits and evidence are recorded above; earlier results do not
+qualify later inputs.
 Shared-family readers are being added against parent `0439c4c0`. The current
-internal descriptor reader is an unfinished increment, with no installation or
-activation consumer. Its first tests use six named parent release/schema cases,
+internal descriptor reader is an unfinished increment, now consumed by the
+partial package tree APIs above. Its first tests use six named parent release/schema cases,
 two I-JSON cases and additional semantic regressions. The copied corpus and seven
 schemas are hash-checked offline from test output; their presence does not mean
-all 137 identity or 66 package cases have run. Package semantics, state readers,
+all 137 identity or 66 package cases have run. Complete package semantics, full state-corpus execution,
 public claim-reader boundaries and probe integration remain open. It does not
 call the older MEP/Toolchain claim codecs that convert `claimsVersion` documents.
 The first focused Windows `SharedReaders` run passes 19/19 tests, repeated after
@@ -483,3 +575,27 @@ unfinished. The user status page records that boundary; an installation guide
 with working commands still requires the complete pipeline. No WASM runtime is
 part of this library work. The full installer and its user and technical
 documentation remain the goal.
+
+## Package declaration review follow-up
+
+Acquisition and explicit verification now apply the same complete executable
+declaration checks as extraction. Every additional executable must exist in the
+canonical manifest, and a Windows entry point must end in `.exe`, including when
+an otherwise identical manifest permits several executable files. Archive suffix
+matching is ASCII case insensitive for ZIP, TAR.GZ and TGZ. Reading a tar.gz plan
+does not imply that tar.gz extraction is implemented.
+
+Seven new regressions first reproduced the declaration and suffix gaps. The
+corrected full Windows suite passes 292 tests with seven Unix-only tests ignored,
+before and after pinned formatting. Package observations also have member XML
+documentation and explicit diagnostic `ToString` implementations for C# callers.
+An independent security/correctness and interop recheck cleared this repair.
+A subsequent fresh C# JIT consumer passes its original 27 output controls and
+seven new package/state controls. It uses public package publication, full
+verification, owned activation, defensive record exports, expected-current
+capture, structured cancellation refusal and replacement admission. Its fixture
+is never launched and local registration remains explicitly unchecked.
+This source checkpoint establishes no Unix/AOT, installed command,
+published-generation, readiness or portable-lock qualification. The maintained
+[checkpoint evidence](../../openspec/changes/add-extension-installation/evidence/2026-11-12-package-state-current-activation.md)
+records exact source scope and limitations.

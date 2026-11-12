@@ -1,5 +1,30 @@
 # Tasks
 
+Package/state working-tree increment on `ad24ce68` (11 November local date):
+ZIP tree operations now have semantic shared catalog/lock/index/repositories and
+journal readers, transactional registration/current-journal recovery with explicit
+consent, generated one-release local provenance, and immutable expected-current
+record capture with atomic shared lifetime ownership. Current exports are checked
+exactly under the state lock before acquisition; unpublished captures do not confer
+retained-generation authority. Parent composition contracts merged at `d9f309a1`;
+their runtime binding is not implemented here.
+
+Review corrections retain root's journal-identity and empty-ZIP-directory fixes,
+add process-platform validation before activation/registration, normalize malformed
+Deflate to typed archive refusal, and make waiting state/repository/publication
+locks cancellation-aware and asynchronous. Windows cancellation awaits the actual
+OVERLAPPED completion; Unix uses nonblocking flock attempts with awaited delays.
+The historical global platform policy is unchanged. Fresh Windows full installer
+runs pass 285 executed tests before and after formatting, with seven Unix controls
+ignored and no failures/errors. The unchanged 27-line public C# JIT consumer also
+passes, covering earlier I/O APIs rather than the new package surface.
+
+Tar.gz extraction, repair, full parent corpus, old-home backup/doctor repair,
+complete inventory/commands and supported published-generation retained binding
+remain open. New native/state/public APIs need independent security/interop review;
+new package C# consumer, Unix/AOT and actual guest-journey evidence remain pending. This is
+partial work toward 3.3/3.4/3.5/3.6/5.3/6.x, not completion. No checkbox is changed.
+The historical 134- and 194-test snapshots remain immutable evidence of their earlier scope.
 This is the implementation breakdown of the .NET extension installer (extension-model PRD step 3). The current implementation stays on one cohesive branch; checkboxes describe reviewable increments, not a requirement to open a scaffold-only pull request. The indented notes name the first failing test, its project and the narrowest command.
 
 Implementation boundary, 11 November 2026: #567, finos/morphir#1147, #1150, #1151 and #1152, and this repository's #590 are merged. Parent #1156 now publishes group 1 at immutable main `0439c4c06d8ca6d4a46e41afb226ba0872f9bff8`, including seven schemas, normative tables, identity/package cases and PKGVER-A. Source authority is published. Root checked all seven production schema URLs for HTTP 200, exact $id and matching text; no production raw-byte hash comparison is claimed. The maintainer approved Q-LEVELS (b), Q-OVERLAY (a) above project pins, Q-CONFIGREF (a), Q-DEVPOLICY (a), Q-PROVENANCE (a), CMD-1/stable diagnostics and user-owned Home with stable writer locks/tamper detection. No arbitrary malicious same-UID isolation is promised. Decision approval does not implement lifecycle tasks. Every mutating command needs `--dry-run`.
