@@ -173,7 +173,8 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Models.Tests"),
         TestSuite.Expecto("Morphir.IR.Pipeline.Tests"),
         TestSuite.Expecto("Morphir.SDK.Tests").WithSourceProjects(),
-        TestSuite.TUnit("Morphir.TestSupport.Tests"),
+        // LibraryHostDriverTests publishes a host of the repository (its lock files go below obj/ of src/ projects).
+        TestSuite.TUnit("Morphir.TestSupport.Tests").WithSourceProjects(),
         TestSuite.Expecto("Morphir.Frontend.FSharp.Tests"),
         TestSuite.Expecto("Morphir.Conformance.Tests"),
         TestSuite.TUnit("Morphir.SDK.Conformance.Tests"),

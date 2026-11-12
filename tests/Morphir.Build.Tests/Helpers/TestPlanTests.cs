@@ -98,6 +98,7 @@ public class TestPlanTests
     public void TheSuitesThatRunMSBuildOnSourceProjectsAreKnown() =>
         TestPlan.Suites.Where(suite => suite.UsesSourceProjects).Select(suite => suite.Project).Should().BeEquivalentTo(
             "Morphir.SDK.Tests",
+            "Morphir.TestSupport.Tests",
             "Morphir.Mep.Tests",
             "Morphir.Frontend.FSharp.Extension.Tests",
             "Morphir.CodeGeneration.FSharp.Extension.Tests",
