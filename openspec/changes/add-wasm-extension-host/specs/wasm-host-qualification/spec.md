@@ -162,11 +162,40 @@ A case whose module never returns SHALL pass when the host ends the call no late
 - **THEN** the call ends with fault `call-deadline` between 30 and 32 seconds and the case passes
 
 ### Requirement: Report identity
-A host qualification report SHALL identify the runner, the corpus digest, the profile contract version, the host executable's path and digest, its declared offering, platform and engine, and each module's digest. The offering, platform and engine are inputs to the runner, because a worker reports none of them. Checking a report SHALL refuse a report without them and SHALL recompute the verdict from the recorded observations; a stored verdict SHALL NOT be trusted.
+A report SHALL identify the runner, corpus, contract, host executable and modules by their recorded identities and digests. The runner SHALL require the host's offering, platform and engine as inputs because a worker reports none of them.
+
+#### Scenario: Host identity is missing
+- **WHEN** offering, platform or engine is absent or empty
+- **THEN** the checker refuses the report as `identity_missing`
+
+### Requirement: Reports adopt the pinned normative envelope
+Reports SHALL adopt the report contract and controls from finos/morphir `d5890d00f4d7839a5edfbcca100ffaaf45281508`, with a computed verdict, ordered reasons and per-profile citation list. Cases and case reasons SHALL follow corpus order while stable generated ids remain unchanged.
 
 #### Scenario: Edited verdict
 - **WHEN** a report's verdict is changed to qualified while a recorded observation fails
-- **THEN** the report check rejects the report
+- **THEN** the checker refuses it as `verdict_mismatch`
+
+#### Scenario: Report envelope is written
+- **WHEN** the runner writes a report
+- **THEN** its first member is `$schema` naming `https://morphir.finos.org/schemas/mep-wasm-host-kit/0.1.0-draft.1/report.schema.json`
+- **AND** it writes `verdict.qualified`, ordered `verdict.reasons`, and `guestKitCitations` with a profile per entry
+- **AND** it omits obsolete `report`, `reportVersion` and `qualificationNotice` members
+
+### Requirement: Report refusals have a fixed order
+The checker SHALL return every applicable refusal in the pinned contract's order and SHALL NOT return a verdict for a refused report.
+
+#### Scenario: Multiple report inconsistencies
+- **WHEN** several refusal conditions apply
+- **THEN** their codes follow this order: `identity_missing`, `host_profiles`, `corpus_mismatch`, `case_inventory`, `outcome_inconsistent`, `totals_mismatch`, `citation_invalid`, `verdict_mismatch`
+
+### Requirement: Fixed controls and recorded observations are checked independently
+The shared contract check SHALL satisfy all 22 independently fixed controls and an independent inventory guard. The runner SHALL additionally recompute outcomes from recorded runs and require its own exact reconstructed report bytes.
+
+#### Scenario: Independent report controls
+- **WHEN** the shared report checker receives the 22 fixed policy inputs from the pinned parent controls
+- **THEN** each result matches the fixed verdict or ordered refusal list
+- **AND** removing a control fails the independent inventory test
+- **AND** these synthetic inputs establish no actual host or inner-guest qualification
 
 ### Requirement: One executable per report
 A report SHALL qualify exactly one host executable on one platform. A release SHALL NOT cite a report for an offering or platform other than the one recorded in it.
@@ -176,7 +205,11 @@ A report SHALL qualify exactly one host executable on one platform. A release SH
 - **THEN** the release check rejects the citation
 
 ### Requirement: A host does not qualify on crafted cases alone
-A report SHALL record a host as qualified only when it also cites a passing run of the generic guest kit through the same host executable for at least one published `extism-kernel-v1` guest. The citation SHALL hold the digest of that run's report, the host executable's digest and the guest module's digest. For this host the cited run covers the kit's model tier only; the citation SHALL record the legacy tier as not run and SHALL NOT present the run as a complete run of the kit.
+A qualified report SHALL cite a passing, independently checked generic-kit run through the same executable for every declared profile, including a published Extism guest. Each citation SHALL identify its profile, report digest, executable digest and guest-module digest.
+
+#### Scenario: Historical model-tier evidence
+- **WHEN** evidence covers only the historical model tier
+- **THEN** it is not presented as the full 21-case run owned by the distinct `adopt-generic-guest-kit` change
 
 #### Scenario: Refusals pass but compile fails
 - **WHEN** a host passes every crafted case and the Python guest's compile returns a different IR
@@ -184,7 +217,14 @@ A report SHALL record a host as qualified only when it also cites a passing run 
 
 #### Scenario: Guest evidence from another executable
 - **WHEN** the cited generic guest kit report records a host executable digest that differs from the one the crafted cases ran against
-- **THEN** the report check rejects the report
+- **THEN** the report has an unqualified verdict with reason `guest_kit_host_mismatch` for that profile
+- **AND** the executable mismatch alone is not a check refusal
+
+#### Scenario: Generic report checker is unavailable
+- **WHEN** a citation-bearing run is requested before the actual generic-kit report checker is integrated
+- **THEN** admission fails with an explicit operational unavailable result before any worker or output report
+- **AND** neither file hashes nor caller-supplied digests are treated as positive guest evidence
+- **AND** no fabricated invalid-guest verdict or new normative reason is emitted
 
 ### Requirement: Known deviations are recorded, not hidden
 When a host is known to differ from the contract, the runner SHALL still run the case that shows it and the report SHALL show the failure. A deviation list MAY explain a failure and link its tracking issue. It SHALL NOT turn a failure into a pass.

@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "sha256": "ba3d417bb7c465fb857c5f7f89fc33f45fd29d6ba2f07c6ef919bb1d2d32621f",
+      "file": "wasm-host-report.md"
+    },
+    {
+      "sha256": "8dc3188b6ec1284c86a32304a2c1b6262fa7971f51f8ec216c84dc6b2cda5169",
+      "file": "wasm-host-report.controls.json"
+    },
+    {
+      "sha256": "b97f18174214aac8a0a4d972db38564fcbea0b780ebcf6e1120d13bb145e9e19",
+      "file": "wasm-host.cases.json"
+    },
+    {
+      "sha256": "fa74189809390dfcc03fd25b380a14ea1de2bf3c654ecceecf5bbcfc5a13cb99",
+      "file": "wasm-execution-profiles.json"
+    }
+  ],
+  "repository": "https://github.com/finos/morphir",
+  "commit": "d5890d00f4d7839a5edfbcca100ffaaf45281508"
+}

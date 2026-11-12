@@ -122,17 +122,18 @@ let tests =
                     "module digest"
         }
 
-        test "The report holds no qualification verdict and says so" {
+        test "The report starts with the pinned schema and records the normative verdict" {
             let node = JsonNode.Parse(Encoding.UTF8.GetString(bytes.Force()))
-            let all = names node
-
-            for forbidden in [ "verdict"; "qualified"; "qualification" ] do
-                Expect.isFalse (List.contains forbidden all) $"no {forbidden} member"
-
-            Expect.stringContains
-                (node["qualificationNotice"].GetValue<string>())
-                "no qualification verdict"
-                "the notice"
+            Expect.equal
+                (node.AsObject() |> Seq.head |> fun pair -> pair.Key)
+                "$schema"
+                "schema is the first member"
+            Expect.equal
+                (node["$schema"].GetValue<string>())
+                "https://morphir.finos.org/schemas/mep-wasm-host-kit/0.1.0-draft.1/report.schema.json"
+                "pinned schema"
+            Expect.isFalse (node["verdict"].["qualified"].GetValue<bool>()) "failed case and missing guest evidence"
+            Expect.isNull node["qualificationNotice"] "obsolete notice removed"
         }
 
         test "The same observations give the same bytes" {
@@ -219,7 +220,7 @@ let tests =
                 "named"
         }
 
-        test "report-check refuses a report with a verdict added" {
+        test "report-check retains its stricter refusal of an unrecorded extra member" {
             let edited = edit (fun node -> node["qualified"] <- true)
 
             Expect.exists
@@ -366,27 +367,26 @@ let tests =
         }
 
         // Spec "A host does not qualify on crafted cases alone": Guest evidence from another executable.
-        test "report-check refuses a guest kit citation of another executable" {
-            let edited =
-                edit (fun node ->
-                    let citation = JsonObject()
-                    citation["report"] <- "guest-run.json"
-                    citation["reportSha256"] <- String.replicate 64 "2"
-                    citation["hostSha256"] <- String.replicate 64 "3"
-                    citation["guestModuleSha256"] <- String.replicate 64 "4"
-                    node["guestKitCitation"] <- citation
-                )
-
-            Expect.exists
-                (problems (check edited))
-                (fun problem -> problem.Contains "records the host executable digest")
-                "named"
+        test "another executable citation is a verdict reason rather than a checker problem" {
+            let citation: GuestKitCitation = {
+                Profile = Profile.ExtismKernelV1
+                Report = "guest-run.json"
+                ReportSha256 = String.replicate 64 "2"
+                HostSha256 = String.replicate 64 "3"
+                GuestModuleSha256 = String.replicate 64 "4"
+            }
+            let withCitation = { report.Force() with GuestKitCitations = [ citation ] }
+            match check (HostReport.toUtf8 withCitation) with
+            | Error errors -> failtest (String.concat "\n" errors)
+            | Ok verified ->
+                Expect.stringContains (Json.compact (HostReport.verdict verified)) "guest_kit_host_mismatch" "normative verdict reason"
         }
 
         // Spec "A host does not qualify on crafted cases alone": Refusals pass but compile fails.
-        test "A report never records a host as qualified, with or without a guest kit citation" {
+        test "A report records the verdict and a per-profile citation list" {
             let all = names (JsonNode.Parse(Encoding.UTF8.GetString(bytes.Force())))
-            Expect.isFalse (List.contains "qualified" all) "no qualified member"
-            Expect.contains all "guestKitCitation" "the citation member is always written"
+            Expect.contains all "qualified" "computed verdict"
+            Expect.contains all "guestKitCitations" "the citation list is always written"
+            Expect.isFalse (List.contains "guestKitCitation" all) "singular citation removed"
         }
     ]

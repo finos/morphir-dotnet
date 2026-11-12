@@ -1523,7 +1523,9 @@ module FeatureReader =
                 | Ok expected -> Generation.check expected artifacts
 
         match parse artifacts, stale with
-        | Ok suite, [] -> Ok suite
+        | Ok suite, [] ->
+            let byCaseId = suite.Cases |> List.map (fun item -> item.Case.CaseId, item) |> Map.ofList
+            Ok { suite with Cases = corpus.Cases |> List.map (fun item -> byCaseId[item.CaseId]) }
         | Ok _, issues -> Error issues
         | Error issues, staleIssues ->
             Error(

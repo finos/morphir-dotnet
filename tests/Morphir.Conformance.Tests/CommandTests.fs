@@ -75,6 +75,30 @@ let private document (result: WasmHostCommandResult) =
 [<Tests>]
 let tests =
     testList "WASM host commands: exit codes and output (task 1.5)" [
+        for otherExecutable in [ false; true ] do
+            testCase (if otherExecutable then "citation admission is unavailable even for another executable" else "well-shaped citation metadata cannot publish without the generic checker") (fun () ->
+                let sandbox, kit = kitOf [ "extism/echo" ]
+                use _ = sandbox
+                let fake = host [ "extism-echo", [ started []; echo 1; read 1; exitWith 0 ] ]
+                use _ = fake.Sandbox
+                let citationPath = sandbox.PathOf "guest-report.json"
+                // A pass-shaped JSON document and valid digest strings are not checked guest proof.
+                File.WriteAllText(citationPath, "{\"verdict\":{\"qualified\":true,\"reasons\":[]}}")
+                let outputPath = sandbox.PathOf("out", "must-not-exist.json")
+                let hostSha = if otherExecutable then String.replicate 64 "2" else HostRunner.fileSha256 dotnet
+                let pending = WasmHostCommands.RunAsync(
+                    kit, dotnet, List.toArray fake.Command.Arguments, [| "extism-kernel-v1" |],
+                    "test", "test-platform", "fake", outputPath, null,
+                    citationPath, hostSha, String.replicate 64 "4", Action<string>(ignore), CancellationToken.None)
+                let result = pending.GetAwaiter().GetResult()
+                Expect.equal result.ExitCode 1 "operational failure, not a verdict or invalid guest report"
+                let output = document result
+                Expect.equal (output["error"].["code"].GetValue<string>()) "mck.guest_kit_check_unavailable" "primary cause retained"
+                Expect.stringContains (output["error"].["message"].GetValue<string>()) "checker is unavailable" "dependency explained"
+                Expect.isNull output["verdict"] "no fabricated normative reason"
+                Expect.isFalse (File.Exists outputPath) "no report published"
+                Expect.isEmpty (invocations fake) "no worker admitted")
+
         test "run exits 0 when every applicable case passed, and writes the report" {
             let sandbox, kit = kitOf [ "classification/unknown-namespace" ]
             use _ = sandbox
@@ -93,6 +117,11 @@ let tests =
             Expect.isTrue (output["experimental"].GetValue<bool>()) "experimental"
             Expect.equal (output["totals"].["passed"].GetValue<int>()) 1 "one passed"
             Expect.isTrue (File.Exists report) "the report"
+            let recorded = JsonNode.Parse(File.ReadAllText report)
+            Expect.equal
+                (recorded["host"].["profiles"].AsArray() |> Seq.map (fun item -> item.GetValue<string>()) |> Seq.toList)
+                [ "extism-kernel-v1" ]
+                "the command's default profile is explicit in the report"
 
             let checkResult = WasmHostCommands.CheckReport(kit, report, null, null)
             Expect.equal checkResult.ExitCode 0 (String.Join("\n", checkResult.Diagnostics))
@@ -167,6 +196,8 @@ let tests =
                 "a kit that is not a directory"
 
             Expect.equal ((run kit fake report [ "wasm-gc-v9" ]).ExitCode) 2 "an unknown profile"
+            Expect.equal ((run kit fake report [ "morphir-bytes-v1" ]).ExitCode) 2 "required profile omitted"
+            Expect.equal ((run kit fake report [ "extism-kernel-v1"; "extism-kernel-v1" ]).ExitCode) 2 "duplicate declaration"
             Expect.equal ((run kit fake null []).ExitCode) 2 "no report"
 
             let missingHost =

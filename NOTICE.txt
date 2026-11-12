@@ -189,3 +189,11 @@ or recorded provenance hash is modified.
 
 The conformance matrix follow-up checks every declared scenario, including
 header-only Examples blocks, and adds a regression for omitted scenario variants.
+
+WASM host report contract adoption
+---------------------------------
+The report contract, 22 independent controls, matching corpus and profile data
+under tests/Fixtures/MepWasm/ReportContract/parent-d5890d00 are copied unchanged
+from finos/morphir commit d5890d00f4d7839a5edfbcca100ffaaf45281508 (Apache-2.0).
+Their source identities and SHA-256 values are recorded beside the copies.
+No TypeScript checker implementation is copied or executed by the .NET checker.
