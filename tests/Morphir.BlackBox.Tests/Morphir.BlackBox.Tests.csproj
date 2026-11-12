@@ -32,6 +32,11 @@
     <Content Include="**/*.feature" />
     <!-- The fixture files that a workspace copies (IScenarioWorkspace.CopyFixture). -->
     <None Include="Fixtures/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Fixtures that have one source in the repository: the car rental example and the shared IR fixtures. -->
+    <None Include="../../examples/car-rental/models/car-rental-v1.json" Link="Fixtures/WireForms/daily-rate-1.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/car-rental/models/car-rental-v2.json" Link="Fixtures/WireForms/daily-rate-2.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/car-rental/models/car-rental-v3.json" Link="Fixtures/Models/car-rental-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-v3.json" Link="Fixtures/Models/daily-rate-v3.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

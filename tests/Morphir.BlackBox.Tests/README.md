@@ -64,6 +64,43 @@ two steps have the same pattern.
 | CLI | `Then standard output is one JSON document` |
 | CLI | `Then standard output is a version` |
 | CLI | `Then the command ran on the {string} host` |
+| Model | `Given the model fixture {string}` |
+| Model | `Given the model tree fixture {string}` |
+| Model | `Given no model file {string}` |
+| Model | `When I replace {string} with {string} in the model` |
+| Model | `When I remove the module {string} from the model` |
+| Model verification | `When I verify the model` |
+| Model verification | `When I verify the model with the schema version {int}` |
+| Model verification | `When I verify the model as JSON` |
+| Model verification | `When I verify the model in quiet mode` |
+| Model verification | `Then the verification report says that the model is valid` |
+| Model verification | `Then the verification report says that the model is not valid` |
+| Model verification | `Then the verification report has the schema version {string}` |
+| Model verification | `Then the verification report has errors` |
+| Generation | `When I generate {string} from the model` |
+| Generation | `When I generate {string} from the model as text` |
+| Generation | `When I generate {string} from the model with the option {string}` |
+| Generation | `When I generate {string} from the model with the options` |
+| Generation | `Then the generation report says that the generation succeeded` |
+| Generation | `Then the generation report says that the generation failed with the kind {string}` |
+| Generation | `Then the generation report has the backend {string}` |
+| Generation | `Then the generation report has the source version {string}` |
+| Generation | `Then the generation report has diagnostics` |
+| Generation | `Then the first diagnostic of the generation report has the code {string} and a location` |
+| Generation | `Then the generation report has no artifact` |
+| Generation | `Then the generation report has no written file and has unchanged files` |
+| Generation | `Then the generation report says that it removed only {string}` |
+| Generation | `Then each artifact of the generation report is a file of the output` |
+| Generation | `Then the first artifact of the generation report contains {string} and not {string}` |
+| Generation | `Then the output has one C# file for the module {string} of the package {string}` |
+| Generation | `Given I remember the files of the output` |
+| Generation | `Then the files of the output are the same as I remembered` |
+| Generation | `Then the output directory is not there` |
+| Generation | `Given the output has the file {string} with the text {string}` |
+| Generation | `Then the output file {string} has the text {string}` |
+| Generation | `Then the output has no file {string}` |
+| Generation | `Given each file of the output has the time of the year 2000` |
+| Generation | `Then each file of the output still has the time of the year 2000` |
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.

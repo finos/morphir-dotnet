@@ -112,9 +112,9 @@ public class CommandResultAssertionsTests
     [Test]
     public void TextOnOneOfTheStreamsPassesTheOutputCheck()
     {
-        Result(output: "✓ VALID").OutputShouldContain("valid");
+        Result(output: "✓ VALID").OutputShouldContain("VALID");
         Result(error: "not implemented yet").OutputShouldContain("not implemented yet");
-        Result(output: "Schema Version: v3").OutputShouldContainOneOf("INVALID", "schema version");
+        Result(output: "Schema Version: v3").OutputShouldContainOneOf("INVALID", "Schema Version");
     }
 
     [Test]
@@ -123,6 +123,7 @@ public class CommandResultAssertionsTests
         var result = Result(output: "VALID", error: "note");
 
         ShouldFailWithTheCommandTheExitCodeAndBothStreams(() => result.OutputShouldContain("Schema Version"), result, "The output does not contain 'Schema Version'.");
+        ShouldFailWithTheCommandTheExitCodeAndBothStreams(() => result.OutputShouldContain("valid"), result, "The output does not contain 'valid'.");
         ShouldFailWithTheCommandTheExitCodeAndBothStreams(() => result.OutputShouldContainOneOf("error", "not found"), result, "The output contains none of: 'error', 'not found'.");
     }
 

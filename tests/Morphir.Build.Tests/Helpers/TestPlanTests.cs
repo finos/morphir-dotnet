@@ -168,7 +168,7 @@ public class TestPlanTests
     [Test]
     public void TheSuitesOfTheTestTargetAreUnique()
     {
-        TestPlan.Suites.Should().HaveCount(36);
+        TestPlan.Suites.Should().HaveCount(38);
         TestPlan.Suites.Select(suite => suite.Name).Should().OnlyHaveUniqueItems();
         TestPlan.Suites.Where(suite => suite.Group is null).Select(suite => suite.Project).Should().OnlyHaveUniqueItems();
     }
@@ -287,12 +287,15 @@ public class TestPlanTests
     }
 
     [Test]
-    public void TheSmokeGroupOfTheBlackBoxProjectIsASuiteOfThePlan()
+    [Arguments("integration")]
+    [Arguments("smoke")]
+    [Arguments("journey")]
+    public void AGroupOfTheBlackBoxProjectThatHasATestIsASuiteOfThePlan(string group)
     {
-        var smoke = TestPlan.SuitesOf("smoke", TestPlan.Suites).Should().ContainSingle().Subject;
+        var suite = TestPlan.SuitesOf(group, TestPlan.Suites).Should().ContainSingle().Subject;
 
-        smoke.Project.Should().Be("Morphir.BlackBox.Tests");
-        smoke.Framework.Should().Be(TestFramework.TUnit);
+        suite.Project.Should().Be("Morphir.BlackBox.Tests");
+        suite.Framework.Should().Be(TestFramework.TUnit);
     }
 
     // The fixed share of the process limit (design DRV-4).

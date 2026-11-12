@@ -76,15 +76,15 @@ public static class CommandResultAssertions
             : throw new CommandAssertionException($"The command wrote: {string.Join(", ", result.WrittenFiles)}.", result);
 
     public static CommandResult StandardErrorShouldContain(this CommandResult result, string text) =>
-        result.StandardError.Contains(text, StringComparison.OrdinalIgnoreCase)
+        result.StandardError.Contains(text, StringComparison.Ordinal)
             ? result
             : throw new CommandAssertionException($"Standard error does not contain '{text}'.", result);
 
-    /// <summary>The text is on standard output or on standard error. The case is ignored.</summary>
+    /// <summary>The text is on standard output or on standard error, with the same case.</summary>
     public static CommandResult OutputShouldContain(this CommandResult result, string text) =>
         Contains(result, text) ? result : throw new CommandAssertionException($"The output does not contain '{text}'.", result);
 
-    /// <summary>One of the texts is on standard output or on standard error. The case is ignored.</summary>
+    /// <summary>One of the texts is on standard output or on standard error, with the same case.</summary>
     public static CommandResult OutputShouldContainOneOf(this CommandResult result, params string[] texts) =>
         texts.Any(text => Contains(result, text))
             ? result
@@ -102,6 +102,6 @@ public static class CommandResultAssertions
             : throw new CommandAssertionException("Standard output is not empty.", result);
 
     private static bool Contains(CommandResult result, string text) =>
-        result.StandardOutput.Contains(text, StringComparison.OrdinalIgnoreCase)
-        || result.StandardError.Contains(text, StringComparison.OrdinalIgnoreCase);
+        result.StandardOutput.Contains(text, StringComparison.Ordinal)
+        || result.StandardError.Contains(text, StringComparison.Ordinal);
 }

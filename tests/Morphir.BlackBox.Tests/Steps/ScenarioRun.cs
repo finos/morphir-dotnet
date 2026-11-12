@@ -15,10 +15,17 @@ public sealed class ScenarioRun
         set => _result = value;
     }
 
-    /// <summary>The model file of the scenario.</summary>
+    /// <summary>The model of the scenario that is one file. Setting it makes the model a file.</summary>
     public WorkspaceFile Model
     {
-        get => _model ?? throw new InvalidOperationException("The scenario has no model before this step.");
-        set => _model = value;
+        get => _model ?? throw new InvalidOperationException("The scenario has no model file before this step.");
+        set
+        {
+            _model = value;
+            ModelTree = null;
+        }
     }
+
+    /// <summary>The model of the scenario that is a tree of files, or null when the model is one file.</summary>
+    public WorkspaceDirectory? ModelTree { get; set; }
 }

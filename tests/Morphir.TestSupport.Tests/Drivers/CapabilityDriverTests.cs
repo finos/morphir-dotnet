@@ -74,6 +74,9 @@ public class CapabilityDriverTests
             Options = ["namespace=Pricing.Generated", "language-version=14"],
         });
 
+        await new GenerationDriver(cli).GenerateAsync(workspace.Directory("my models", "a tree"), "csharp", output);
+
+        cli.Commands[2].Should().Equal("generate", "--input", workspace.Directory("my models", "a tree").Path, "--target", "csharp", "--output", output.Path, "--json");
         cli.Commands[0].Should().Equal("generate", "--input", model.Path, "--target", "csharp", "--output", output.Path, "--json");
         cli.Commands[1].Should().Equal(
             "generate", "--input", model.Path, "--target", "csharp", "--output", output.Path,

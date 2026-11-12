@@ -20,18 +20,31 @@ public sealed record GenerationOptions
 /// <summary>The <c>generate</c> command as an intent: generate the artifacts of a target from a Morphir model.</summary>
 public interface IGenerationDriver
 {
+    /// <summary>Generates from a model that is one file.</summary>
     Task<CommandResult> GenerateAsync(
         WorkspaceFile model, string target, WorkspaceDirectory output, GenerationOptions? options = null, CancellationToken cancellation = default);
+
+    /// <summary>Generates from a model that is a tree of files in a directory.</summary>
+    Task<CommandResult> GenerateAsync(
+        WorkspaceDirectory modelTree, string target, WorkspaceDirectory output, GenerationOptions? options = null, CancellationToken cancellation = default);
 }
 
 /// <summary>Builds the command line of <c>generate</c> and gives it to the CLI driver.</summary>
 public sealed class GenerationDriver(ICliDriver cli) : IGenerationDriver
 {
     public Task<CommandResult> GenerateAsync(
-        WorkspaceFile model, string target, WorkspaceDirectory output, GenerationOptions? options = null, CancellationToken cancellation = default)
+        WorkspaceFile model, string target, WorkspaceDirectory output, GenerationOptions? options = null, CancellationToken cancellation = default) =>
+        GenerateAsync(model.Path, target, output, options, cancellation);
+
+    public Task<CommandResult> GenerateAsync(
+        WorkspaceDirectory modelTree, string target, WorkspaceDirectory output, GenerationOptions? options = null, CancellationToken cancellation = default) =>
+        GenerateAsync(modelTree.Path, target, output, options, cancellation);
+
+    private Task<CommandResult> GenerateAsync(
+        string input, string target, WorkspaceDirectory output, GenerationOptions? options, CancellationToken cancellation)
     {
         options ??= new GenerationOptions();
-        var arguments = new List<string> { "generate", "--input", model.Path, "--target", target, "--output", output.Path };
+        var arguments = new List<string> { "generate", "--input", input, "--target", target, "--output", output.Path };
         if (options.Json) arguments.Add("--json");
         if (options.InputFormat is { } format)
         {
