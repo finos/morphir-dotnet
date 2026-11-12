@@ -28,13 +28,13 @@
        bUnit requests AngleSharp 1.2.0;
        Fun.Blazor requests WebUtilities 9.0.19 (CVE-2026-114149). -->
   <ItemGroup>
-    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.14" />
-    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.15" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
     <PackageVersion Include="NuGet.Packaging" Version="7.9.0" />
     <PackageVersion Include="Azure.Security.KeyVault.Certificates" Version="4.10.0" />
     <PackageVersion Include="Azure.Security.KeyVault.Keys" Version="4.10.2" />
     <PackageVersion Include="Azure.Security.KeyVault.Secrets" Version="4.12.0" />
-    <PackageVersion Include="AngleSharp" Version="1.10.0" />
+    <PackageVersion Include="AngleSharp" Version="1.10.2" />
     <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.23" />
   </ItemGroup>
   <ItemGroup>
@@ -62,7 +62,7 @@
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
     <PackageVersion Include="altcover" Version="8.9.3" />
-    <PackageVersion Include="System.CommandLine" Version="2.0.14" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.15" />
     <PackageVersion Include="Funcky.DiscriminatedUnion" Version="1.2.2" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.269" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
