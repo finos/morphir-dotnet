@@ -1,6 +1,5 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-using System.Diagnostics;
 using FluentAssertions;
 using Morphir.TestSupport.Drivers;
 
@@ -158,14 +157,12 @@ public class CliDriverTests
     {
         await using var workspace = Workspace();
         var shell = Shell(workspace, OperatingSystem.IsWindows() ? "ping -n 31 127.0.0.1 >nul" : "sleep 30; echo done");
-        var watch = Stopwatch.StartNew();
 
         var run = () => shell.Driver.RunAsync(shell.Arguments, new CliRunOptions { Timeout = TimeSpan.FromSeconds(1) });
 
         var failure = await run.Should().ThrowAsync<ChildProcessTimeoutException>();
         failure.Which.Message.Should().Contain("did not finish within 1s");
         failure.Which.ProcessExited.Should().BeTrue("the process tree is stopped before the error surfaces");
-        watch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(25));
     }
 
     [Test]

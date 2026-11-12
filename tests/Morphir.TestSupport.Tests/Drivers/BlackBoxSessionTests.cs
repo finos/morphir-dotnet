@@ -155,6 +155,47 @@ public class BlackBoxSessionTests
     }
 
     [Test]
+    public void TheEndOfTheRunWritesTheSkipCountsAndPassesWhenNoTestChangedTheMachine()
+    {
+        var watched = Directory.CreateTempSubdirectory("morphir-watched-").FullName;
+        try
+        {
+            var session = BlackBoxSession.Start(ThisAssembly, Variables(), File.Exists, Fixtures, MachineTripwire.Capture([watched]));
+            session.Decide(TestNeeds.FromTags(["lane", "packages"]));
+            var output = new StringWriter();
+
+            session.EndRun(output);
+
+            output.ToString().Trim().Should().Be("Skipped tests by reason: lane 1, host 0, capability 0");
+        }
+        finally
+        {
+            TolerantDirectory.TryDelete(watched);
+        }
+    }
+
+    [Test]
+    public void TheEndOfTheRunFailsWhenATestChangedALocationOfTheMachine()
+    {
+        var watched = Directory.CreateTempSubdirectory("morphir-watched-").FullName;
+        try
+        {
+            var session = BlackBoxSession.Start(ThisAssembly, Variables(), File.Exists, Fixtures, MachineTripwire.Capture([watched]));
+            File.WriteAllText(Path.Combine(watched, "escaped.txt"), "escaped");
+            var output = new StringWriter();
+
+            var end = () => session.EndRun(output);
+
+            end.Should().Throw<InvalidOperationException>().WithMessage("*escaped its sandbox*").WithMessage("*escaped.txt*");
+            output.ToString().Should().Contain("Skipped tests by reason:", "the counts are written before the check of the machine");
+        }
+        finally
+        {
+            TolerantDirectory.TryDelete(watched);
+        }
+    }
+
+    [Test]
     public async Task TheWorkspaceOfATestIsRemovedWhenTheTestEnds()
     {
         var session = Session(("MORPHIR_TEST_KEEP", "failed"));

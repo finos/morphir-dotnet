@@ -169,14 +169,48 @@ public class CapabilityDriverTests
     }
 
     [Test]
-    [Arguments(1, "{ \"success\": true, \"exitCode\": 0 }", "success is true, but the exit code is 1")]
-    [Arguments(0, "{ \"success\": false, \"exitCode\": 0 }", "success is false, but the exit code is 0")]
-    [Arguments(2, "{ \"success\": false, \"exitCode\": 1 }", "exitCode is 1, but the exit code is 2")]
-    public void AGenerationReportThatDisagreesWithTheExitCodeFails(int exitCode, string output, string reason)
+    [Arguments(1, "\"success\": true, \"exitCode\": 0", "success is true, but the exit code is 1")]
+    [Arguments(0, "\"success\": false, \"exitCode\": 0", "success is false, but the exit code is 0")]
+    [Arguments(2, "\"success\": false, \"exitCode\": 1", "exitCode is 1, but the exit code is 2")]
+    public void AGenerationReportThatDisagreesWithTheExitCodeFails(int exitCode, string status, string reason)
     {
-        var read = () => GenerationReport.Of(Result(exitCode, output));
+        var read = () => GenerationReport.Of(Result(exitCode, CompleteReport.Replace("\"success\": true, \"exitCode\": 0", status)));
 
         read.Should().Throw<CommandAssertionException>().WithMessage($"*{reason}*");
+    }
+
+    private const string CompleteReport =
+        "{ \"success\": true, \"exitCode\": 0, \"artifacts\": [\"A.cs\"], \"written\": [\"A.cs\"], \"unchanged\": [], \"removed\": [], \"diagnostics\": [] }";
+
+    [Test]
+    public void AGenerationReportWithEachListIsRead() =>
+        GenerationReport.Of(Result(0, CompleteReport)).Artifacts.Should().Equal("A.cs");
+
+    [Test]
+    [Arguments("artifacts")]
+    [Arguments("written")]
+    [Arguments("unchanged")]
+    [Arguments("removed")]
+    [Arguments("diagnostics")]
+    public void AGenerationReportWithNoListOfThatNameFails(string field)
+    {
+        var report = CompleteReport.Replace($"\"{field}\"", $"\"no-{field}\"");
+
+        var read = () => GenerationReport.Of(Result(0, report));
+
+        read.Should().Throw<CommandAssertionException>().WithMessage($"*The generation report has no list {field}.*");
+    }
+
+    [Test]
+    [Arguments("\"artifacts\": [\"A.cs\"]", "\"artifacts\": \"A.cs\"", "artifacts")]
+    [Arguments("\"removed\": []", "\"removed\": [7]", "removed")]
+    [Arguments("\"written\": [\"A.cs\"]", "\"written\": [null]", "written")]
+    [Arguments("\"diagnostics\": []", "\"diagnostics\": [\"text\"]", "diagnostics")]
+    public void AGenerationReportWithAListOfTheWrongFormFails(string list, string wrong, string field)
+    {
+        var read = () => GenerationReport.Of(Result(0, CompleteReport.Replace(list, wrong)));
+
+        read.Should().Throw<CommandAssertionException>().WithMessage($"*{field}*");
     }
 
     [Test]
@@ -190,7 +224,7 @@ public class CapabilityDriverTests
     [Test]
     public void AReportIsReadOnlyFromOneJsonDocument()
     {
-        var read = () => GenerationReport.Of(Result(0, "[12:00 INF] log\n{ \"success\": true, \"exitCode\": 0 }"));
+        var read = () => GenerationReport.Of(Result(0, "[12:00 INF] log\n" + CompleteReport));
 
         read.Should().Throw<CommandAssertionException>().WithMessage("*not exactly one JSON document*");
     }

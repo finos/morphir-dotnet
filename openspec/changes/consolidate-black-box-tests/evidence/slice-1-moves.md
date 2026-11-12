@@ -23,6 +23,11 @@ The old feature files and their step class are removed in the same commit as the
 - A check of a field of the JSON output is now a check of the report type of the command (`VerificationReport`,
   `GenerationReport`). `GenerationReport` also fails when `success` or `exitCode` disagrees with the exit code of the
   process, in each scenario that reads the report.
+- A generation report must have each of its lists (`artifacts`, `written`, `unchanged`, `removed`, `diagnostics`), as
+  the old tests required with `GetProperty`. A check that a list is empty does not pass for a report with no such
+  list.
+- `I remember the files of the output` fails when the output has no file, as the old snapshot failed for a
+  directory that was not there.
 - A scenario runs in one workspace. The old helper made a new sandbox for each command; a test that ran two commands
   shared a temporary folder of the test process for its files.
 
@@ -96,7 +101,7 @@ Moved cases: 17. Cases that stay: 16. New scenarios in `Generation.feature`: 33.
 | File | Handling |
 | --- | --- |
 | `TestData/invalid-wrong-type-formatversion.json` | Moved to `tests/Morphir.BlackBox.Tests/Fixtures/Models/`. No other test used it. |
-| `TestData/valid-ir-v1.json`, `valid-ir-v2.json`, `valid-ir-v3.json`, `invalid-missing-formatversion.json`, `malformed.json` | Copied to `Fixtures/Models/` (130 to 152 bytes each). Unit tests of `Morphir.Tooling.Tests` and of other projects still read the files in `TestData/`. |
+| `TestData/valid-ir-v1.json`, `valid-ir-v2.json`, `valid-ir-v3.json`, `invalid-missing-formatversion.json`, `malformed.json` | Linked in the project file of the black-box project as `Fixtures/Models/<name>`. Unit tests of `Morphir.Tooling.Tests` and of other projects still read the files in `TestData/`, so the files stay there and have one source. |
 | `Fixtures/WireForms/` | New. See its `README.md` for the source of each file. |
 
 ## Findings about the product (not in the scope of this change)

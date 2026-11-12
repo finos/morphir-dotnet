@@ -82,6 +82,10 @@ default host of the run, and the scenario of the native host has `@host-native`.
 `MORPHIR_TEST_HOST=tool` (verified with `./build.sh --target Test --skip Restore Compile --test-group smoke`: 4 tests
 pass with the default host and with the tool host).
 
+After the review of the branch, the tripwire moved from the hook class into `BlackBoxSession`: `Start` records the
+locations and `EndRun` checks them, so the black-box project has no code that reads the machine. Two unit tests in
+`BlackBoxSessionTests` check it with a temporary folder as the watched location.
+
 ## An error of this verification
 
 The first run of the filter checks selected the two tripwire fixtures without a temporary `HOME`. They wrote

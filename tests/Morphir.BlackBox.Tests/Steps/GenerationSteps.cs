@@ -100,7 +100,12 @@ public sealed class GenerationSteps(IGenerationDriver generation, IScenarioWorks
     }
 
     [Given("I remember the files of the output")]
-    public void RememberTheFilesOfTheOutput() => _remembered = Snapshot();
+    public void RememberTheFilesOfTheOutput()
+    {
+        _remembered = Snapshot();
+        // With no file, the check that the files are the same would pass for a command that wrote nothing.
+        Check(_remembered.Count > 0, $"The output directory {Output.Path} has no file to remember.");
+    }
 
     [Then("the files of the output are the same as I remembered")]
     public void TheFilesOfTheOutputAreTheSame()

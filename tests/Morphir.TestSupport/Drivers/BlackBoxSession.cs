@@ -64,13 +64,15 @@ public sealed class DriverSet : IAsyncDisposable
 public sealed class BlackBoxSession
 {
     private readonly string _fixtures;
+    private readonly MachineTripwire? _tripwire;
 
-    private BlackBoxSession(TestRunSettings settings, CliArtifacts artifacts, string fixtures)
+    private BlackBoxSession(TestRunSettings settings, CliArtifacts artifacts, string fixtures, MachineTripwire? tripwire = null)
     {
         Settings = settings;
         Artifacts = artifacts;
         Profile = RunProfile.Of(settings);
         _fixtures = fixtures;
+        _tripwire = tripwire;
     }
 
     public TestRunSettings Settings { get; }
@@ -84,18 +86,21 @@ public sealed class BlackBoxSession
     public SkipCounts Skips { get; } = new();
 
     /// <summary>
-    /// Starts the session of <paramref name="testAssembly"/> from the environment of the test process. The fixture
-    /// folder is <c>Fixtures</c> beside the test assembly. A wrong setting or a missing artifact throws a
+    /// Starts the session of <paramref name="testAssembly"/> from the environment of the test process, for the
+    /// hook that runs before the first test. The fixture folder is <c>Fixtures</c> beside the test assembly. It
+    /// first records the Morphir locations of the machine (<see cref="MachineTripwire"/>), which
+    /// <see cref="EndRun"/> checks. A wrong setting or a missing artifact throws a
     /// <see cref="TestSessionException"/>, so the run stops before the first test.
     /// </summary>
     public static BlackBoxSession Start(Assembly testAssembly) =>
-        Start(testAssembly, Environment.GetEnvironmentVariable, File.Exists, Path.Combine(AppContext.BaseDirectory, "Fixtures"));
+        Start(testAssembly, Environment.GetEnvironmentVariable, File.Exists, Path.Combine(AppContext.BaseDirectory, "Fixtures"), MachineTripwire.Capture());
 
+    /// <param name="tripwire">The locations that no test must change, or null for a session with no such check.</param>
     public static BlackBoxSession Start(
-        Assembly testAssembly, Func<string, string?> variable, Func<string, bool> fileExists, string fixtures)
+        Assembly testAssembly, Func<string, string?> variable, Func<string, bool> fileExists, string fixtures, MachineTripwire? tripwire = null)
     {
         var settings = TestRunSettings.Parse(variable, fileExists);
-        return new BlackBoxSession(settings, Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(testAssembly)), fixtures);
+        return new BlackBoxSession(settings, Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(testAssembly)), fixtures, tripwire);
     }
 
     /// <summary>Starts a session from the assembly metadata that Morphir.CliArtifacts.targets writes.</summary>
@@ -112,6 +117,17 @@ public sealed class BlackBoxSession
         var eligibility = TestEligibility.Decide(needs, Profile);
         if (eligibility is Eligibility.Skipped skipped) Skips.Add(skipped);
         return eligibility;
+    }
+
+    /// <summary>
+    /// Ends the run, for the hook that runs after the last test. It writes the count of the skipped tests by
+    /// reason to <paramref name="output"/> (the build reads that line for its report), and then fails if a test
+    /// changed a Morphir location of the machine: such a test escaped its workspace.
+    /// </summary>
+    public void EndRun(TextWriter output)
+    {
+        output.WriteLine(Skips.ReportLine());
+        _tripwire?.AssertUnchanged();
     }
 
     /// <summary>Makes the workspace and the drivers of one test on <paramref name="host"/>, which the target must have.</summary>

@@ -81,14 +81,16 @@ public sealed class GenerationReport
         FailureKind = Text(document, "failureKind");
         Backend = Text(document, "backend");
         SourceVersion = Text(document, "sourceVersion");
-        Artifacts = Texts(document, "artifacts");
-        Written = Texts(document, "written");
-        Unchanged = Texts(document, "unchanged");
-        Removed = Texts(document, "removed");
-        Diagnostics = document.TryGetProperty("diagnostics", out var list) && list.ValueKind == JsonValueKind.Array
-            ? [.. list.EnumerateArray().Select(item => new GenerationDiagnostic(
-                Text(item, "code") ?? "", Text(item, "message") ?? "", Text(item, "path"), Text(item, "location"), Text(item, "severity")))]
-            : [];
+        Artifacts = Texts(result, document, "artifacts");
+        Written = Texts(result, document, "written");
+        Unchanged = Texts(result, document, "unchanged");
+        Removed = Texts(result, document, "removed");
+        Diagnostics =
+        [
+            .. List(result, document, "diagnostics").Select(item => item.ValueKind == JsonValueKind.Object
+                ? new GenerationDiagnostic(Text(item, "code") ?? "", Text(item, "message") ?? "", Text(item, "path"), Text(item, "location"), Text(item, "severity"))
+                : throw new CommandAssertionException("An item of the list diagnostics of the generation report is not an object.", result)),
+        ];
     }
 
     public bool Success { get; }
@@ -113,7 +115,9 @@ public sealed class GenerationReport
 
     /// <summary>
     /// Reads the report from standard output, which must be exactly one JSON document. A report that disagrees
-    /// with the exit code of the command is an error.
+    /// with the exit code of the command is an error, and so is a report in which one of the lists
+    /// (<c>artifacts</c>, <c>written</c>, <c>unchanged</c>, <c>removed</c>, <c>diagnostics</c>) is not there or has
+    /// an item of another form: a check that a list is empty must not pass because the list is absent.
     /// </summary>
     public static GenerationReport Of(CommandResult result)
     {
@@ -160,8 +164,15 @@ public sealed class GenerationReport
             ? value.GetString()
             : null;
 
-    private static IReadOnlyList<string> Texts(JsonElement element, string name) =>
-        element.TryGetProperty(name, out var list) && list.ValueKind == JsonValueKind.Array
-            ? [.. list.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String).Select(item => item.GetString()!)]
-            : [];
+    private static IEnumerable<JsonElement> List(CommandResult result, JsonElement document, string name) =>
+        document.TryGetProperty(name, out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray()
+            : throw new CommandAssertionException($"The generation report has no list {name}.", result);
+
+    private static IReadOnlyList<string> Texts(CommandResult result, JsonElement document, string name) =>
+    [
+        .. List(result, document, name).Select(item => item.ValueKind == JsonValueKind.String
+            ? item.GetString()!
+            : throw new CommandAssertionException($"An item of the list {name} of the generation report is not a text.", result)),
+    ];
 }

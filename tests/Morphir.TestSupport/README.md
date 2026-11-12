@@ -21,7 +21,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `ICliDriver` (`CliDriver`) | Runs one command line on one host of the target and returns a `CommandResult`. It contains the process in the workspace, gives it a time limit (`CliRunOptions`), and holds a place of the `ProcessGate`. It starts a built assembly with `dotnet`, not with `dotnet run`. |
 | `IModelVerificationDriver` (`ModelVerificationDriver`) | The `ir verify` command as an intent, with `VerificationOptions`. Its report is `VerificationReport`. |
 | `IGenerationDriver` (`GenerationDriver`) | The `generate` command as an intent, with `GenerationOptions`. Its report is `GenerationReport`. |
-| `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. |
+| `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. It records the Morphir locations of the machine at the start (`MachineTripwire`), and at the end of the run it prints the skip counts and fails if a test changed those locations. |
 | `DriverSet` | The workspace and the drivers of one test on one host. |
 
 A capability driver builds its command line and calls `ICliDriver`. Only `ICliDriver` and `IScenarioWorkspace` know

@@ -792,6 +792,15 @@ product, not about this change.</td>
 the next compile builds 48 projects again. Pull request 4 moves their fixture builds to <code>IPackageDriver</code>
 (task 8.2).</td>
 <td><code>slice-1-times.md</code></td></tr>
+<tr><td>Review of the branch</td>
+<td>The <code>test-manager-reviewer</code> agent compared the 44 old tests that moved with their new tests and gave
+six findings. Each one is corrected: <code>GenerationReport</code> requires each of its lists, so a check that a list
+is empty does not pass for a report with no such list; the step that remembers the files of the output fails when
+the output has no file; the machine tripwire is in <code>BlackBoxSession</code> and not in a hook of the project; a
+time check of a driver test that also counted the wait for the process gate is removed; a test that reads a file
+has the <code>PlatformSpecific</code> marker; and a fixture with one source in the repository is a link of the
+project file, not a copy.</td>
+<td><code>slice-1-moves.md</code>, <code>hooks.md</code></td></tr>
 <tr><td><a href="#skill-1">SKILL-1</a>, the skill</td>
 <td>A guard test, <code>TestManagerSkillTests</code>, keeps each path, tag, command, guard test name and type of the
 skill equal to the repository. The reviewer instruction also reads the files that are not tracked. Two checks with

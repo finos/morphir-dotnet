@@ -1,5 +1,0 @@
-{"formatVersion":4,"distribution":{"Library":{"packageName":"car/rental","dependencies":{},"def":{"modules":{
-  "inventory":{"access":"Public","types":{},"values":{
-    "daily-rate":{"access":"Public","ExpressionBody":{"inputTypes":{},"outputType":"morphir/SDK:basics#int","body":{"Literal":{"WholeNumberLiteral": 5000}}}}
-  }}
-}}}}}

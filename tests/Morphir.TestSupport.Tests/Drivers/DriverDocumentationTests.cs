@@ -7,6 +7,7 @@ using Morphir.TestSupport.Drivers;
 namespace Morphir.TestSupport.Tests.Drivers;
 
 /// <summary>Keeps the names in tests/Morphir.TestSupport/README.md equal to the code.</summary>
+[Category("PlatformSpecific")]
 public class DriverDocumentationTests
 {
     private static readonly string Readme = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "TestSupport.README.md"));
