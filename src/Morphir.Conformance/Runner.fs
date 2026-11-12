@@ -140,8 +140,11 @@ module Runner =
             let runner = typeof<CaseSet>.Assembly.GetName()
 
             return {
-                RunnerName = runner.Name
-                RunnerVersion = runner.Version.ToString()
+                RunnerName = nonNull runner.Name
+                RunnerVersion =
+                    match runner.Version with
+                    | null -> "0.0.0"
+                    | version -> version.ToString()
                 CaseSetSha256 = suite.Sha256
                 Implementation = adapter.Identity
                 Adapter = adapter.Name

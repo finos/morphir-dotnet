@@ -19,7 +19,7 @@ public sealed class ExtensionListCommandTests
     }
 
     private static ExtensionRegistry Registry(HostIdentity host, params IExtensionSource[] extra) =>
-        new([new BackendExtensionSource([new FSharpGenerationBackend(), new CSharpGenerationBackend()], host), .. extra], host);
+        new([new BackendExtensionSource([new FSharpGenerationBackend(), new CSharpGenerationBackend()], host), .. extra], host, WasmRuntime.Process);
 
     /// <summary>The composition of both hosts: the generation backends, the built-in frontends and the built-in analyzers.</summary>
     private static ExtensionRegistry HostRegistry(HostIdentity host) =>
@@ -175,7 +175,7 @@ public sealed class ExtensionListCommandTests
     public void ADuplicateIdExitsWithTwoAndNamesTheId(bool json)
     {
         var registry = new ExtensionRegistry(
-            [new BackendExtensionSource([new CSharpGenerationBackend()], Native), new BackendExtensionSource([new CSharpGenerationBackend()], Native)], Native);
+            [new BackendExtensionSource([new CSharpGenerationBackend()], Native), new BackendExtensionSource([new CSharpGenerationBackend()], Native)], Native, WasmRuntime.Process);
         var (exit, lines, err) = Run(registry, json);
         exit.Should().Be(2);
         if (json)

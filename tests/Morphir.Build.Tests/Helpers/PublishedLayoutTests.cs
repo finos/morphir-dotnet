@@ -74,11 +74,39 @@ public class PublishedLayoutTests
     public async Task ANativeAotFolderShipsNoManagedAssembly()
     {
         using var folder = new Folder();
-        await folder.Write("morphir.exe", "native.dll");
+        await folder.Write("morphir.exe");
         Check(Deployment.NativeAot, "win-x64", folder).Should().BeEmpty("a native file is not a managed assembly");
 
         File.Copy(typeof(PublishedLayout).Assembly.Location, folder.Path("Morphir.Build.dll"));
-        Check(Deployment.NativeAot, "win-x64", folder).Should().ContainSingle().Which.Should().Contain("Morphir.Build.dll").And.Contain("managed");
+        Check(Deployment.NativeAot, "win-x64", folder).Should()
+            .Contain(problem => problem.Contains("Morphir.Build.dll") && problem.Contains("managed"));
+    }
+
+    [Test]
+    public async Task ASingleFileArtifactHoldsOnlyItsLaunchPath()
+    {
+        // native-aot is declared single-file (task 5.3): one file, the launch path, and nothing beside it.
+        using var folder = new Folder();
+        await folder.Write("morphir.exe");
+        Check(Deployment.NativeAot, "win-arm64", folder).Should().BeEmpty();
+
+        // The native-aot publish before the engine was linked in: the executable and wasmtime.dll beside it.
+        await folder.Write("wasmtime.dll");
+        Check(Deployment.NativeAot, "win-arm64", folder).Should().ContainSingle()
+            .Which.Should().Contain("single-file").And.Contain("wasmtime.dll").And.Contain("morphir.exe");
+
+        Directory.CreateDirectory(folder.Path("sub"));
+        await folder.Write("sub/notes.txt");
+        Check(Deployment.NativeAot, "win-arm64", folder).Should().HaveCount(2)
+            .And.Contain(problem => problem.Contains("sub/notes.txt"));
+    }
+
+    [Test]
+    public async Task AFolderArtifactMayHoldFilesBesideItsLaunchPath()
+    {
+        using var folder = new Folder();
+        await folder.Write("morphir.exe", "coreclr.dll", "FSharp.Compiler.Service.dll", "wasmtime.dll");
+        Check(Deployment.SelfContained, "win-arm64", folder).Should().BeEmpty();
     }
 
     [Test]
@@ -86,7 +114,8 @@ public class PublishedLayoutTests
     {
         using var folder = new Folder();
         await folder.Write("other.exe");
-        Check(Deployment.NativeAot, "win-x64", folder).Should().ContainSingle().Which.Should().Contain("morphir.exe");
+        Check(Deployment.NativeAot, "win-x64", folder).Should()
+            .Contain(problem => problem.Contains("the launch path morphir.exe is not in the publish folder"));
     }
 
     [Test]

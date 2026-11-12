@@ -27,6 +27,8 @@
   <ItemGroup>
     <!-- Gherkin feature files -->
     <Content Include="**/*.feature"/>
+    <!-- The worker's crafted guests (add-wasm-extension-host, task 4.1): WebAssembly text and its conversion. -->
+    <None Update="TestData/Wasm/*" CopyToOutputDirectory="IfDifferent" />
     <!-- Host trace fixtures of the infrastructure tests -->
     <None Include="InfrastructureTests/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
@@ -42,6 +44,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <!-- The generic guest kit's model-tier runner and its worker session factory (add-wasm-extension-host, task 4.3). -->
+    <ProjectReference Include="../../src/Morphir.Conformance/Morphir.Conformance.fsproj" />
   </ItemGroup>
 
 </Project>

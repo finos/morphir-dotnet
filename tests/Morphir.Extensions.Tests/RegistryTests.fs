@@ -75,6 +75,8 @@ let tests =
             let entry = backend "morphir.csharp"
             Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.Native)) "native"
             Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool)) "dotnet tool"
+            Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.Native, WasmRuntimeAvailability.Available)) "native, with a runtime"
+            Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool, WasmRuntimeAvailability.Available)) "dotnet tool, with a runtime"
 
             Expect.equal
                 (List.ofSeq entry.Hosts.WireValues)
@@ -91,6 +93,8 @@ let tests =
             Expect.isFalse (entry.IsAvailableIn(hostAs MorphirHost.Native)) "not native"
             Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool)) "dotnet tool"
             Expect.isNotNull (entry.ReasonOrNullIn(hostAs MorphirHost.Native)) "a reason names the host that has it"
+            Expect.isFalse (entry.IsAvailableIn(hostAs MorphirHost.Native, WasmRuntimeAvailability.Available)) "not native, with a runtime"
+            Expect.isTrue (entry.IsAvailableIn(hostAs MorphirHost.DotnetTool, WasmRuntimeAvailability.Available)) "dotnet tool, with a runtime"
             Expect.equal (List.ofSeq entry.Hosts.WireValues) [ "dotnet-morphir" ] "one host"
         }
 

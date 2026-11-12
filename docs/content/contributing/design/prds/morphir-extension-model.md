@@ -3,7 +3,7 @@ title: "PRD: Morphir extension model"
 description: "An incremental roadmap for built-in, WASM and process extensions in morphir-dotnet, on the upstream Morphir Extension Protocol."
 status: Approved
 created: 2026-11-06
-last_updated: 2026-11-07
+last_updated: 2026-11-09
 ---
 
 # Morphir extension model
@@ -115,12 +115,12 @@ The `add-fsharp-compile` change already uses this rule for frontends. The rule a
 | Runtime | Transport | Framing |
 | --- | --- | --- |
 | `process` | JSON-RPC 2.0 over stdio | `Content-Length` headers, as in LSP. Stdout carries frames only; stderr carries logs. |
-| `wasm` | One JSON-RPC message in and one out for each `handle` call | No stream. The host drops guest notifications. |
+| `wasm` | One JSON-RPC message in and one out for each `handle` call | No stream. The guest cannot send the host a message of its own. The host sends a notification only to a guest that advertised in its `morphir.initialize` result that it accepts them. Each notification is one `handle` call that returns no output. |
 
 Upstream limits that the host must apply:
 
 - `process`: a payload of at most 64 MiB and headers of at most 8192 bytes (the Rust host, `crates/morphir-host-native/src/process/frame.rs` in `finos/morphir-rust`).
-- `wasm`: 256 MiB of memory, 30 s for each call, and a fuel limit. Upstream sources do not agree on fuel (100M in the proposal, 1B in the Rust policy). See [open points](#open-points).
+- `wasm`: the three bounds of the shared WASM execution profile contract, each with its own failure code: an instruction budget, a deadline for each call (30 s) and a ceiling of 256 MiB for each memory. The instruction budget is 5,000,000,000. morphir-dotnet speaks MEP `0.2.0-draft.1` only, so it does not carry the contract's smaller budget for MEP `0.1` sessions. The OpenSpec change `add-wasm-extension-host` pins the contract by commit. See [open points](#open-points).
 - Request ids are an unsigned 64-bit number or a string. Keep the full u64 range.
 
 Upstream WASM ABIs (`finos/morphir-moonbit`, `pkgs/morphir-host/worker/wasm/README.mbt.md`):
@@ -128,7 +128,11 @@ Upstream WASM ABIs (`finos/morphir-moonbit`, `pkgs/morphir-host/worker/wasm/READ
 - `morphir-bytes-v1`: a plain core WASM module. It imports only `morphir_bytes_v1.input_len`, `input_byte` and `output_byte`. The `handle` export returns a positive response length, 0 for exit, -1 for failure and -2 for a notification.
 - `extism-kernel-v1`: Extism imports. The `handle` export takes no arguments.
 
-morphir-dotnet hosts `morphir-bytes-v1` first, because any WASM runtime can host it. It adds `extism-kernel-v1` later, so that the published upstream bundles run (step 5).
+morphir-dotnet hosts `extism-kernel-v1` only (decided 9 November 2026). It does not host `morphir-bytes-v1`. This reverses the earlier order of this roadmap, which put `morphir-bytes-v1` in step 2a and `extism-kernel-v1` in step 5. The host still recognizes a `morphir-bytes-v1` module, so that it can refuse it with `extension.abi_unsupported` and name the profile.
+
+The host embeds the Extism kernel WASM module that `moonrockz/extism` ships (Apache-2.0, at the version `finos/morphir-moonbit` pins) and links it under `extism:host/env` in a Wasmtime store. It uses no `libextism`, no Extism .NET SDK and no unmanaged per-byte callback binding.
+
+The design is the OpenSpec change `add-wasm-extension-host` ([#563](https://github.com/finos/morphir-dotnet/issues/563)), which adopts the parent design `add-dotnet-wasm-extension-host` in `finos/morphir` (draft PR [finos/morphir#1148](https://github.com/finos/morphir/pull/1148)).
 
 ### Discovery levels and installation
 
@@ -241,15 +245,17 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 
 ### Step 2a: WASM analyzers
 
-- The host runs `morphir-bytes-v1` guests in both hosts, with the memory, time and fuel limits from [Runtimes](#runtimes). The guest gets no file system, network or environment access.
+- The host runs `extism-kernel-v1` guests in both hosts, with the bounds from [Runtimes](#runtimes). It refuses a `morphir-bytes-v1` module with `extension.abi_unsupported` (decided 9 November 2026). The guest gets no file system, network or environment access.
+- **Runtime first.** The runtime part of this step is the OpenSpec change `add-wasm-extension-host` ([#563](https://github.com/finos/morphir-dotnet/issues/563)). It adds the runtime, the worker mode `morphir extension worker` and the report `morphir extension runtimes`. In that change no product command reaches a configured module: the worker mode is the only way to run one. Running a configured analyzer from `morphir validate` is a later change in this step. The runner for the compatibility kit's crafted WASM host cases lives in this repository: the cases and their expectations stay in `finos/morphir` as data, and this repository generates Gherkin features from them.
 - The guest receives IR V4 JSON through the MEP model transport (`morphir-json` codec, `morphir-ir` profile) and returns MEP diagnostics.
 - **Command (builder's call):** `morphir validate --input <file>`, which is the command name that the upstream Rust CLI reserves (`crates/morphir/src/commands/validate.rs`, a stub now). It reads an IR file in the same way that `morphir generate --input` does. A later change can run analyzers as a stage of `morphir compile` and read the most recent compile record.
 - **Classic IR (builder's call):** external analyzers receive V4 only. For a classic model (v1 to v3), the command skips external analyzers and reports one diagnostic that says so. It does not convert between IR families. Built-in analyzers that support classic IR still run.
 - Analyzer diagnostics merge with the built-in diagnostics. An `error` fails the run, as the pipeline rules say.
 - The user names the extension in configuration: `extensions.<name>.path`. There is no folder discovery in this step. Configuration layering already covers every level.
+- **Configured WASM extensions in `extension list` (decided 9 November 2026).** `morphir extension list` does not show configured WASM extensions yet. The listing is planned in [#565](https://github.com/finos/morphir-dotnet/issues/565). It lands with the first command that consumes configured extensions, which is `morphir validate` in this step, or with [installation](#step-3-installation), whichever comes first.
 - A sample analyzer in Rust or MoonBit, with an MCK suite.
-- **Reference guest from upstream (noted by the user 2026-11-07).** `finos/morphir-elm` (vnext) publishes `morphir-bytes-v1` WASM releases under `extension/elm/*`; `v0.5.0-preview.2` answers `morphir.extension.describe` with its `release.json` claims under `wasmtime` (see the [WASM runtime spike](../spikes/extension-model/wasm-runtime.md#reference-guest-morphir-elm)). The host tests run it for the session lifecycle (`describe`, `initialize`, `shutdown`, `exit`) and the limits, and later for `compileModel` and `generateModel`. A guest that morphir-dotnet did not write is the best check that the host follows MEP.
-- Depends on: the upstream validate payload, and the WASM runtime spike.
+- **Reference guest from upstream.** The published Python extension `0.6.0`, one 4.8 MB Extism module that `finos/morphir` pins, is the guest that morphir-dotnet did not write. Release `0.4.2`, which the parent design names, speaks MEP `0.1` only, and morphir-dotnet does not support `0.1` (decided 9 November 2026). The host tests run `morphir.initialize` on it under Native AOT first, then a compile session and the generic guest kit. A guest that morphir-dotnet did not write is the best check that the host follows MEP. The `morphir-elm` `morphir-bytes-v1` release that the user noted on 2026-11-07 (see the [WASM runtime spike](../spikes/extension-model/wasm-runtime.md#reference-guest-morphir-elm)) no longer runs in this host, which refuses it.
+- Depends on: the upstream validate payload, the WASM runtime spike and the change `add-wasm-extension-host`.
 
 ### Step 2b: Process analyzers
 
@@ -268,6 +274,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 - Accept a bare `.wasm` module and the [extension package archive](#extension-package-archive) (zip or tar gzip) in `staged/`. `morphir extension install <file>` accepts the same formats, so a user can install an archive without the staged folder.
 - Replace the not-implemented `morphir extension install/use/remove/which` commands (#492) in `src/Morphir.Tooling/Scenarios/ManagementScenario.cs` with real implementations. Update `docs/content/docs/cli/management.md`, which describes a layout with `<platform>` folders that WASM does not need.
 - Refuse to write a dotted extension id into the shared upstream store, catalog or locks until upstream accepts dotted ids. Built-ins never go there.
+- If this step lands before the first command that consumes configured extensions (step 2a), it adds the listing of configured WASM extensions to `morphir extension list` ([#565](https://github.com/finos/morphir-dotnet/issues/565)). The catalog stores each extension's `describe` result, so the list runs no guest.
 - **Ship the levels as a documented superset (decided 2026-11-06).** Step 3 does not wait for upstream. Extensions go into the shared store, catalog and global locks in the upstream format, so upstream CLIs see global installs. The level selection and lock files and the `staged/` folders are additions that upstream CLIs ignore. A project-level or workspace-level selection is visible only to morphir-dotnet until upstream adopts the proposal. Document this difference in the CLI documentation.
 - Send the levels, the staged folders, the extension package archive (both formats) and the install mode to upstream as a proposal against `docs/design/draft/extensions/distribution-and-acquisition.md`. Upstream currently supports only user-global installs from a registered repository, "does not accept a raw `.wasm` file", and does not download during compile or generate "without an explicit install policy". The install mode setting is that policy.
 
@@ -278,7 +285,7 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 
 ### Step 5: Upstream bundles and host grants
 
-- Host the `extism-kernel-v1` ABI, so that the published upstream bundles (avro, openapi, python, rust in `.config/published-extension-bundles.toml` of `finos/morphir`) run in morphir-dotnet.
+- The published upstream bundles (avro, openapi, python, rust in `.config/published-extension-bundles.toml` of `finos/morphir`) are Extism modules. Since the host runs `extism-kernel-v1` from step 2a (decided 9 November 2026), this step no longer adds the ABI. The change `add-wasm-extension-host` runs one pinned bundle in the AOT `morphir` and in `dotnet-morphir` as its evidence. This step keeps the host grants.
 - Add host functions as grants that the user gives one at a time, for example logging and reading configuration. Follow the upstream handshake for permission grants when it exists.
 
 ### Later
@@ -302,13 +309,16 @@ This step is mostly the `Morphir.Mep` project that the [`add-fsharp-compile`](ht
 | WASM runtime spike | Done: Wasmtime ([report](../spikes/extension-model/wasm-runtime.md)) | Spike | Decision recorded with measurements |
 | .NET guest toolchain spike | Done: `process` only; Linux run confirms ([report](../spikes/extension-model/dotnet-guest-toolchains.md)) | Spike | Decision recorded |
 | Roslyn AOT spike | Done: feasible; ships as an optional extension for now ([report](../spikes/extension-model/roslyn-aot.md)) | Spike | Decision recorded |
+| WASM runtime (`extism-kernel-v1` only) | In progress: OpenSpec change `add-wasm-extension-host` ([#563](https://github.com/finos/morphir-dotnet/issues/563)) approved on 9 November 2026, adopting the parent design in [finos/morphir#1148](https://github.com/finos/morphir/pull/1148). This PRD update is its first task; no implementation task has started | 2a | The crafted WASM host cases, as generated Gherkin features, pass through `morphir extension worker` in both hosts; `morphir extension runtimes` reports the engine, the profile and the enforced bounds; zero IL2026 and IL3050 warnings with no suppressions |
 | WASM analyzers | Planned | 2a | MCK suite passes in both hosts |
+| Configured WASM extensions in `extension list` | Planned in [#565](https://github.com/finos/morphir-dotnet/issues/565) (decided 9 November 2026); not part of `add-wasm-extension-host`. Lands with installation or with the first command that consumes configured extensions, whichever comes first | 2a or 3 | `morphir extension list` shows each configured WASM extension, with delivery `wasm`, in both hosts |
 | Process analyzers and .NET guest SDK | Planned | 2b | C# and F# samples pass the MCK suite in both hosts |
 | Installation, levels and staged folders | In progress: domain foundations and corrected I/O; complete installation/levels/staging unfinished | 3 | #558; security corrections pass 131 executed Windows tests with three Unix-only cases ignored. Static re-review of b6936ba5 found no concrete remaining finding under the approved Home boundary; Unix/MCK/AOT evidence remain. Selection/developer/command choices are approved; portable pin/overlay publication and implementation remain |
 | Extension package archive (zip and tar gzip) | In progress: generic inspection, no extraction or package-format adoption | 3 | Corrected raw gzip budgets/cancellation and metadata counts pass Windows tests. Parent tables/cases are published at `0439c4c0`; typed corpus adoption, MCK installs, extraction, full pipeline and AOT remain |
 | Generator capability | Planned | 4 | MCK suite |
 | Transformer capability | Planned | 4 | MCK suite |
-| Upstream bundles and grants | Planned | 5 | A published upstream bundle runs in both hosts |
+| Upstream bundles | Planned in `add-wasm-extension-host` ([#563](https://github.com/finos/morphir-dotnet/issues/563)); moved forward from step 5 on 9 November 2026 | 2a | A bundle pinned in `.config/published-extension-bundles.toml` runs in both hosts; its digest matches the pin and its result matches the Rust CLI's for the same input |
+| Host grants | Planned | 5 | MCK suite |
 
 ## Installation implementation notes
 
@@ -376,11 +386,11 @@ probes and lifecycle integration. Those tasks remain open.
 
 | Point | Who decides | Note |
 | --- | --- | --- |
-| Fuel limit: 100M or 1B | Upstream issue | The proposal and the Rust policy do not agree. Use the Rust policy value until upstream decides, and record it. |
+| Fuel limit: 100M or 1B | Closed on 9 November 2026 by the parent spec, adopted in `add-wasm-extension-host` | The instruction budget is 5,000,000,000. The contract's 1,000,000,000 for MEP `0.1` sessions is not used, because morphir-dotnet does not support `0.1`. The change measures the published guests' fuel use and records it with its evidence. |
 | A project lock that refers to a staged file | Step 3 design | A second machine has no repository to get the bytes from. Options include a vendored folder in the repository or a required publish step. |
 | Auto-install of files from a cloned repository | Step 3 design | With `auto`, cloning a repository that has `staged/` files and running a command installs them. The WASM limits reduce the risk. A process guest has no sandbox. The step 3 design must decide whether `auto` applies to process guests. |
 | The validate payload shape | morphir-dotnet proposes, upstream accepts | Step 2 can build against the draft PR. |
-| Memory limit report | Step 2a design | Wasmtime refuses growth past the ceiling by returning -1 from `memory.grow`, so the guest may not trap. The host needs a rule for when it reports `extension.memory_limit`. |
+| Memory limit report | Closed on 9 November 2026 by the parent's bounds decision, adopted in `add-wasm-extension-host` | The host has three bounds, each with its own failure code: the instruction budget, the call deadline and a ceiling of 256 MiB for each memory. The engine cannot tell the host that a growth was refused, so the host reports `extension.memory_limit` when a call fails with the guest's memory at the ceiling, and states the guest's memory size and the ceiling in every call failure diagnostic. |
 | A file name suffix for the extension package archive | Upstream proposal | A plain `.zip` or `.tgz` is ambiguous, because the target archives use the same suffixes. Install tells them apart by the descriptor at the root. Suffixes such as `.morphir-extension.zip` and `.morphir-extension.tar.gz` would make the format clear to users. |
 | Signing of the extension package archive | Upstream | The `.sha256` files prove integrity, not origin. This follows the "Extension signing" item in [Later](#later). |
 
@@ -431,3 +441,4 @@ This repository:
 - `src/Morphir.Configuration/Schema.fs`: the `extensions` configuration table.
 - `src/Morphir.Configuration.IO/MachineLocations.cs` and `ProjectSystem`: level discovery.
 - PR [#495](https://github.com/finos/morphir-dotnet/pull/495), `openspec/changes/archive/2026-11-09-add-fsharp-compile`: `Morphir.Mep`, the F# frontend deliveries and the selection rule.
+- Issue [#563](https://github.com/finos/morphir-dotnet/issues/563), `openspec/changes/add-wasm-extension-host`: the WASM runtime for steps 2a and 5, and the decisions of 9 November 2026 (Extism only, the kernel on Wasmtime, negotiated notifications, the compatibility kit runner in this repository).

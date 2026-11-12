@@ -40,11 +40,22 @@
     <!-- The external F# backend guest, morphir-fsharp-backend, for the generate extension tests. -->
     <ProjectReference Include="..\..\src\Morphir.CodeGeneration.FSharp.Extension\Morphir.CodeGeneration.FSharp.Extension.fsproj" />
     <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
+    <!-- The scripted fake worker for the mck wasm-host command tests; run from this output with dotnet exec. -->
+    <ProjectReference Include="..\Morphir.Conformance.FakeWorker\Morphir.Conformance.FakeWorker.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Test data files -->
+    <!-- Keep direct adapter tests compiling while the dedicated morphir-mck entry point adopts this donor. -->
+    <Compile Include="../../src/Morphir.Tooling/Features/Mck/MckCommands.cs" Link="Features/Mck/Donor/MckCommands.cs" />
     <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!--
+      The pinned WASM profile contract, crafted corpus and modules, for the configured-module loader; see
+      ../Fixtures/MepWasm/PROVENANCE.md. IfDifferent, as in Morphir.Extensions.Wasm.Tests, so restored bytes replace a stale copy.
+    -->
+    <None Include="../Fixtures/MepWasm/**/*" Link="Fixtures/MepWasm/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
+    <!-- The worker's own crafted guests (add-wasm-extension-host, task 4.1), shared with the end-to-end tests. -->
+    <None Include="../Morphir.E2E.Tests/TestData/Wasm/*" Link="WorkerGuests/%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
     <Content Include="**/*.feature"/>
   </ItemGroup>
 

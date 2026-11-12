@@ -128,7 +128,7 @@ The command does not change the model file or the working directory.
 
 The command reads the layered configuration of the invocation directory, with the same discovery as
 [`morphir config`](config.md). It reads only `extensions."<id>".enabled`. The value `false` turns off the analyzer with
-that id:
+that id. [Extension settings](../configuration/extensions.md) lists every key of the table:
 
 ```toml
 [extensions."morphir.type-validator"]

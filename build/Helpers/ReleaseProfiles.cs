@@ -68,7 +68,9 @@ public sealed class Deployment
     public static readonly Deployment NativeAot = new(
         "native-aot", "src/Morphir/Morphir.csproj", ExecutionMode.Native, ArtifactLayout.SingleFile, bundledRuntime: true,
         inProcessFSharpFrontend: false, requiredRuntime: null, requiredSdk: null,
-        Lean.SetItems(Properties(("SelfContained", "true"), ("PublishAot", "true"), ("PublishTrimmed", "true"), ("PublishSingleFile", "true"))));
+        Lean.SetItems(Properties(("SelfContained", "true"), ("PublishAot", "true"), ("PublishTrimmed", "true"), ("PublishSingleFile", "true"),
+            // The WASM engine is linked into the one file (build/wasmtime/WasmtimeStaticLink.targets), not shipped beside it.
+            ("MorphirWasmtimeStaticLink", "true"))));
 
     /// <summary>
     /// The managed <c>morphir</c> with its runtime. It holds FSharp.Compiler.Service, so it is untrimmed and a folder:
