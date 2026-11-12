@@ -20,6 +20,10 @@ type Entry =
 
     member this.Node = JsonNode.Parse this.Text |> nonNull
 
+/// Held by a test while it builds a C# consumer project with `dotnet build`. Two such builds at once race in
+/// the NuGet restore ("Cannot create a file when that file already exists"), so the tests take turns.
+let consumerBuild = new System.Threading.SemaphoreSlim(1, 1)
+
 /// The path of a pinned fixture.
 let fixture name =
     Path.Combine(AppContext.BaseDirectory, "Fixtures", "Mep", name)

@@ -134,6 +134,8 @@ partial class Build : FalloutBuild
         ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
         ("Morphir.Extensions", SourceDirectory / "Morphir.Extensions" / "Morphir.Extensions.fsproj", true),
         ("Morphir.Analyzers", SourceDirectory / "Morphir.Analyzers" / "Morphir.Analyzers.fsproj", true),
+        // Product tooling depends on the WASM runtime. Kit runners belong to the separate development entry point.
+        ("Morphir.Extensions.Wasm", SourceDirectory / "Morphir.Extensions.Wasm" / "Morphir.Extensions.Wasm.csproj", true),
         // Tooling shares the Windows launch owner in IO, which depends on the pure contracts.
         ("Morphir.Toolchain", SourceDirectory / "Morphir.Toolchain" / "Morphir.Toolchain.fsproj", true),
         ("Morphir.Toolchain.IO", SourceDirectory / "Morphir.Toolchain.IO" / "Morphir.Toolchain.IO.fsproj", true),

@@ -30,6 +30,7 @@
     <Project Path="src/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj" />
     <Project Path="src/Morphir.Myriad.SystemTextJson.Build/Morphir.Myriad.SystemTextJson.Build.csproj" />
     <Project Path="src/Morphir.Extensions/Morphir.Extensions.fsproj" />
+    <Project Path="src/Morphir.Extensions.Wasm/Morphir.Extensions.Wasm.csproj" />
     <Project Path="src/Morphir.Extensions.Installation/Morphir.Extensions.Installation.fsproj" />
     <Project Path="src/Morphir.Analyzers/Morphir.Analyzers.fsproj" />
     <Project Path="src/Morphir.Mep/Morphir.Mep.fsproj" />
@@ -61,7 +62,9 @@
     <Project Path="src\Morphir.SDK.FSharp\Morphir.SDK.FSharp.fsproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Morphir.Conformance.FakeWorker/Morphir.Conformance.FakeWorker.csproj" />
     <Project Path="tests/Morphir.Conformance.Smoke/Morphir.Conformance.Smoke.fsproj" />
+    <Project Path="tests/Morphir.Conformance.Tests/Morphir.Conformance.Tests.fsproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Tests/Morphir.Frontend.FSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Extension.Tests/Morphir.Frontend.FSharp.Extension.Tests.fsproj" />
     <Project Path="tests/Morphir.Compilation.Mep.Tests/Morphir.Compilation.Mep.Tests.fsproj" />
@@ -94,6 +97,8 @@
     <Project Path="tests/Morphir.Toolchain.Tests/Morphir.Toolchain.Tests.fsproj" />
     <Project Path="tests/Morphir.Toolchain.IO.Tests/Morphir.Toolchain.IO.Tests.fsproj" />
     <Project Path="tests/Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" />
+    <Project Path="tests/Morphir.Extensions.Wasm.AotProbe/Morphir.Extensions.Wasm.AotProbe.csproj" />
+    <Project Path="tests/Morphir.Extensions.Wasm.Tests/Morphir.Extensions.Wasm.Tests.csproj" />
     <Project Path="tests/Morphir.Mck.Stub/Morphir.Mck.Stub.csproj" />
     <Project Path="tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj" />
     <Project Path="tests/Morphir.TestSupport/Morphir.TestSupport.csproj" />

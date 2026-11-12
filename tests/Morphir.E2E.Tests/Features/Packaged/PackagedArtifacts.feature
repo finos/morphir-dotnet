@@ -53,3 +53,49 @@ Feature: Packaged release artifacts
   Scenario: The declared runtime
     When I run the installed artifact with "--version" with the machine's .NET runtime reachable
     Then the installed artifact uses the runtime that its launch metadata declares
+
+  # The WASM engine in each offering: task 5.2 of add-wasm-extension-host. The worker session uses the pinned crafted
+  # module extism-echo of tests/Fixtures/MepWasm, copied into a folder whose path has a space.
+  #
+  # Requirement "Packaged engine is qualified", scenario "Platform where static linking failed": an artifact that
+  # carries the engine as a separate file lists that file, and one that links the engine in carries no engine file.
+  # The expectation is the artifact's own <artifact>.build-contents.json (its engines), which PackRelease wrote and
+  # checked against the pinned engine: native-aot one linked engine and no library, self-contained and
+  # framework-dependent this platform's library, the tool package one library per platform it records.
+  Scenario: The engine files are those the build contents record
+    Then the engine libraries in the installed artifact are exactly the separate libraries its build contents record
+
+  # Requirement "Runtime availability is reported", scenario "Supported platform", from the installed artifact.
+  Scenario: The runtime report of the installed artifact
+    When I run the installed artifact with "extension runtimes --json" from a new empty directory
+    Then the installed artifact reports its WASM runtime availability with the pinned engine on this platform
+
+  # Requirement "Worker mode", scenario "Conformance runner drives a guest", and "The Extism profile in every offering".
+  Scenario: A WASM worker session from the installed artifact
+    When the installed artifact serves the pinned module "extism-echo" with the frames "initialize, initialized, shutdown, exit" in a worker session
+    Then the packaged worker session exits with status 0
+    And the packaged worker session's stdout holds only these frames:
+      | frame                                                                                             |
+      | {"jsonrpc":"2.0","id":1,"method":"morphir.initialize","params":{"protocolVersion":"0.2.0-draft.1"}} |
+      | {"jsonrpc":"2.0","id":2,"method":"morphir.shutdown"}                                                |
+    And the packaged worker session's stderr has the events "started, exited"
+    And the packaged worker session's temporary directory is empty
+
+  # Task 5.2: "first-run extraction with a read-only install directory". No offering extracts anything at first run
+  # (evidence/5.2-packaged-offerings-assessment.md), so this scenario asserts that the first run of a fresh
+  # installation, read-only for this user, works and leaves the installation's files as they were. On Windows every
+  # file is read-only and the folder denies this user creating, writing and deleting below it; on Linux and macOS
+  # every write bit is cleared. The permissions are given back after the scenario, pass or fail.
+  Scenario: A WASM guest runs from a read-only install directory, and its first run extracts nothing
+    Given a second installation of the artifact under test, made read-only before its first run
+    When I run the installed artifact with "extension runtimes --json" from a new empty directory
+    Then the installed artifact reports its WASM runtime availability with the pinned engine on this platform
+    When the installed artifact serves the pinned module "extism-echo" with the frames "initialize, initialized, shutdown, exit" in a worker session
+    Then the packaged worker session exits with status 0
+    And the packaged worker session's stdout holds only these frames:
+      | frame                                                                                             |
+      | {"jsonrpc":"2.0","id":1,"method":"morphir.initialize","params":{"protocolVersion":"0.2.0-draft.1"}} |
+      | {"jsonrpc":"2.0","id":2,"method":"morphir.shutdown"}                                                |
+    And the packaged worker session's stderr has the events "started, exited"
+    And the packaged worker session's temporary directory is empty
+    And the read-only installation holds the same files as before its first run

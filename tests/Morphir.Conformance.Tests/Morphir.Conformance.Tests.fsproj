@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+        <RootNamespace>Morphir.Conformance.Tests</RootNamespace>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsPackable>false</IsPackable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
+        <!-- The scripted fake worker; the tests run its assembly from this output with dotnet exec. -->
+        <ProjectReference Include="..\Morphir.Conformance.FakeWorker\Morphir.Conformance.FakeWorker.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Repository.fs" />
+        <Compile Include="CorpusJsonTests.fs" />
+        <Compile Include="GenerationTests.fs" />
+        <Compile Include="FeatureReaderTests.fs" />
+        <Compile Include="FakeWorker.fs" />
+        <Compile Include="ComparerTests.fs" />
+        <Compile Include="JudgeTests.fs" />
+        <Compile Include="WorkerTests.fs" />
+        <Compile Include="ReportTests.fs" />
+        <Compile Include="ReportContractTests.fs" />
+        <Compile Include="CommandTests.fs" />
+        <Compile Include="GuestKitFakeGuest.fs" />
+        <Compile Include="GuestKitProvenanceTests.fs" />
+        <Compile Include="GuestKitTests.fs" />
+        <Compile Include="GuestKitWorkerTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>

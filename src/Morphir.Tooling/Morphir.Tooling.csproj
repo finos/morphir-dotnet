@@ -42,6 +42,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Retained as donors for the dedicated development morphir-mck entry point. Product mck only dispatches. -->
+    <Compile Remove="Features\Mck\MckCommands.cs" />
+    <Compile Remove="Scenarios\MckScenario.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Embed JSON schema files as resources -->
     <EmbeddedResource Include="Infrastructure\Schemas\*.json" />
 
@@ -62,6 +68,8 @@
     <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
     <ProjectReference Include="..\Morphir.Compilation.Mep\Morphir.Compilation.Mep.fsproj" />
     <ProjectReference Include="..\Morphir.Extensions\Morphir.Extensions.fsproj" />
+    <!-- The WASM extension runtime, for the configured-module loader (add-wasm-extension-host, task 2.6) -->
+    <ProjectReference Include="..\Morphir.Extensions.Wasm\Morphir.Extensions.Wasm.csproj" />
     <ProjectReference Include="..\Morphir.Analyzers\Morphir.Analyzers.fsproj" />
     <ProjectReference Include="..\Morphir.IR.Pipeline\Morphir.IR.Pipeline.fsproj" />
     <ProjectReference Include="..\Morphir.CodeGeneration.FSharp\Morphir.CodeGeneration.FSharp.fsproj" />

@@ -560,6 +560,67 @@ let tests =
             Expect.isNonEmpty (errorsFor (obj [ "fsharp", obj [ "extension", ConfigValue.Integer 1L ] ])) "extension is a string"
             Expect.isNonEmpty (errorsFor (obj [ "fsharp", obj [ "extension", text " padded " ] ])) "extension has no surrounding space"
         }
+        test "every extension table may declare abi and sha256 (CFG-1)" {
+            let resolve table =
+                let identity = source "extensions.toml" SourceRole.RootPrimary DocumentFormat.Toml
+
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [
+                            supplied identity (obj [ "extensions", obj [ "python", table ] ])
+                        ]
+                    }
+
+            let errorsFor table =
+                (resolve table).Diagnostics
+                |> List.filter (fun d -> d.Severity = DiagnosticSeverity.Error)
+
+            let digest = "10acafa0c79d7f0d3a1c43f2f3b3c4b2f8c25c20c1a2a5f8e3c2b1a0f9e8d7c6"
+            let path = text "extensions/morphir-python-binding.wasm"
+
+            for abi in [ "extism-kernel-v1"; "morphir-bytes-v1" ] do
+                Expect.isEmpty
+                    (errorsFor (obj [ "path", path; "abi", text abi; "sha256", text digest ]))
+                    $"abi {abi} with a digest is accepted"
+
+            let unchanged = obj [ "path", path; "enabled", ConfigValue.Boolean true ]
+            Expect.isEmpty (errorsFor unchanged) "an entry without abi and sha256 is accepted"
+
+            Expect.equal
+                (ConfigTree.tryFind [ "extensions"; "python" ] (resolve unchanged).Effective)
+                (Some unchanged)
+                "an entry without abi and sha256 is unchanged"
+
+            Expect.equal digest.Length 64 "the sample digest has 64 digits"
+
+            let rejected table key message =
+                let errors = errorsFor table
+                Expect.isNonEmpty errors $"{table} is refused"
+
+                for error in errors do
+                    Expect.equal error.KeyPath [ "extensions"; "python"; key ] $"{table} names {key}"
+                    Expect.equal error.Code "config.validation" $"{table} code"
+                    Expect.equal error.Source.Path "extensions.toml" $"{table} source"
+
+                Expect.contains (errors |> List.map (fun d -> d.Message)) message $"{table} message"
+
+            for abi in [ "extism"; "Extism-Kernel-V1"; "extism-kernel-v2"; " extism-kernel-v1"; "" ] do
+                rejected (obj [ "path", path; "abi", text abi ]) "abi" "Value is not one of the permitted choices."
+
+            rejected (obj [ "path", path; "abi", ConfigValue.Integer 1L ]) "abi" "Expected string."
+
+            for sha256 in [
+                digest.ToUpperInvariant()
+                digest.Substring 1
+                digest + "0"
+                "sha256:" + digest
+                digest.Replace('a', 'g')
+                ""
+            ] do
+                rejected (obj [ "path", path; "sha256", text sha256 ]) "sha256" "String does not match the required pattern."
+
+            rejected (obj [ "path", path; "sha256", ConfigValue.Integer 1L ]) "sha256" "Expected string."
+        }
         test "known values are validated at their winning source and position" {
             let identity = source "wrong.toml" SourceRole.RootPrimary DocumentFormat.Toml
 

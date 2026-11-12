@@ -98,4 +98,3 @@ public sealed class InstalledProviderJourneyTests
         File.ReadAllBytes(Path.Combine(sandbox.MorphirHome,"catalog","extensions.json")).Should().Equal(catalogBefore);
     }
 }
-
