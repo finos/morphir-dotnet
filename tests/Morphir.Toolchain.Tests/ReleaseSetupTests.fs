@@ -56,6 +56,37 @@ let private tinyBundle () =
         "version",Value.String "0.4.0-alpha.5";"sourceCommit",Value.String(String('b',40));"platform",Value.String "win-x64"
         "assets",Value.Array(List.map asset ReleaseBundleDocument.roles)] |> JsonText.toBytes
 
+let private readinessRefusal report =
+    try
+        report () |> ignore
+        failtest "Readiness unexpectedly succeeded."
+    with LocalCandidate.Refused(code,message) ->
+        Expect.equal code "setup.readiness_failed" "manager refusal remains stable"
+        message
+
+[<Tests>]
+let readinessReports = testList "ReadinessReports" [
+    testCase "failed host stdout carries its own diagnostic instead of a stderr log" (fun () ->
+        let output = Encoding.UTF8.GetBytes """{"success":false,"diagnostics":[{"code":"extension.unavailable","message":"The F# frontend did not start: CreateProcessW"}]}"""
+        let message = readinessRefusal (fun () -> ComposedInstallation.readLaunchReport 1 output "Foundatio.Mediator registered 3 handlers")
+        Expect.stringContains message "extension.unavailable: The F# frontend did not start: CreateProcessW" "actual host cause survives"
+    )
+    testCase "unsuccessful JSON also preserves diagnostics when the host exits zero" (fun () ->
+        let output = Encoding.UTF8.GetBytes """{"success":false,"diagnostics":[{"code":"extension.timeout","message":"The frontend deadline expired."}]}"""
+        let message = readinessRefusal (fun () -> ComposedInstallation.readLaunchReport 0 output "")
+        Expect.stringContains message "extension.timeout: The frontend deadline expired." "success flag is checked independently"
+    )
+    testCase "failed host without a JSON report retains stderr" (fun () ->
+        let message = readinessRefusal (fun () -> ComposedInstallation.readLaunchReport 1 (Encoding.UTF8.GetBytes "not JSON") "host launch failed")
+        Expect.stringContains message "host launch failed" "fallback retains available failure evidence"
+    )
+    testCase "successful host report retains its provider observation" (fun () ->
+        let output = Encoding.UTF8.GetBytes """{"success":true,"provider":{"extensionId":"org.finos.frontend"},"diagnostics":[]}"""
+        let provider,_ = ComposedInstallation.readLaunchReport 0 output "a harmless host log"
+        Expect.equal provider (Value.Object ["extensionId",Value.String "org.finos.frontend"]) "existing observation validation follows unchanged"
+    )
+]
+
 [<Tests>]
 let publicationLocks = testLabel "PlatformSpecific" <| testList "ComposedPublicationLocks" [
     testCaseTask "running host captures state while publication waits for its mutation lease" (fun () -> task {

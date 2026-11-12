@@ -44,6 +44,34 @@ let private currentSnapshot home directory ct = task {
     return successful result
 }
 
+let readLaunchReport code (output: byte array) (errors: string) =
+    let parsed = Syntax.parseJson output
+    let failed fallback =
+        let diagnostics =
+            match parsed with
+            | Ok(Value.Object fields) ->
+                match List.tryFind (fun (name,_) -> name="diagnostics") fields |> Option.map snd with
+                | Some(Value.Array diagnostics) ->
+                    diagnostics |> List.choose (function
+                        | Value.Object fields ->
+                            match List.tryFind (fun (name,_) -> name="code") fields |> Option.map snd,
+                                  List.tryFind (fun (name,_) -> name="message") fields |> Option.map snd with
+                            | Some(Value.String code),Some(Value.String message) when code<>"" && message<>"" -> Some(code+": "+message)
+                            | _ -> None
+                        | _ -> None)
+                | _ -> []
+            | _ -> []
+        let reason = if diagnostics.IsEmpty then fallback else String.concat "; " diagnostics
+        refuse "setup.readiness_failed" ("The installed host refused readiness: "+reason)
+    if code <> 0 then failed errors
+    let report = parsed |> reader
+    let fields = match report with Value.Object fields -> fields | _ -> refuse "setup.readiness_failed" "The host did not return a report."
+    if (List.tryFind(fun (name,_) -> name="success") fields |> Option.map snd) <> Some(Value.Boolean true) then
+        failed "The host report did not record success."
+    let provider = fields |> List.tryFind(fun (name,_) -> name="provider") |> Option.map snd
+                   |> Option.defaultWith(fun () -> refuse "setup.readiness_failed" "An installed process observation is missing.")
+    provider,fields
+
 let private launchReport program args directory home overlay (ct: CancellationToken) = task {
     use timeout = CancellationTokenSource.CreateLinkedTokenSource ct
     timeout.CancelAfter(TimeSpan.FromSeconds 90.0)
@@ -52,14 +80,7 @@ let private launchReport program args directory home overlay (ct: CancellationTo
     use errorBytes = new LocalProcess.LimitedCapture(2L <<< 20)
     use errors = new StreamWriter(errorBytes,UTF8Encoding(false),AutoFlush=true)
     let! code = LocalProcess.runWithOverlayAsync program args directory home (LocalProcess.Input.Redirect input) output errors overlay timeout.Token
-    if code <> 0 then refuse "setup.readiness_failed" ("The installed host refused readiness: "+Encoding.UTF8.GetString(errorBytes.ToArray()))
-    let report = Syntax.parseJson(output.ToArray()) |> reader
-    let fields = match report with Value.Object fields -> fields | _ -> refuse "setup.readiness_failed" "The host did not return a report."
-    if (List.tryFind(fun (name,_) -> name="success") fields |> Option.map snd) <> Some(Value.Boolean true) then
-        refuse "setup.readiness_failed" "The host report did not record success."
-    let provider = fields |> List.tryFind(fun (name,_) -> name="provider") |> Option.map snd
-                   |> Option.defaultWith(fun () -> refuse "setup.readiness_failed" "An installed process observation is missing.")
-    return provider,fields
+    return readLaunchReport code (output.ToArray()) (Encoding.UTF8.GetString(errorBytes.ToArray()))
 }
 
 let checkGeneratedSet (entries: string array) artifacts =
