@@ -310,6 +310,54 @@ public class CommandFamilyDriverTests
     }
 
     [Test]
+    public void TheBuiltFSharpBackendGuestIsTheFileOfTheDevelopmentBuild()
+    {
+        var path = ExtensionArtifacts.OfTestAssembly(typeof(CommandFamilyDriverTests).Assembly).PathOf(BuiltExtension.FSharpBackend);
+
+        path.Should().EndWith("morphir-fsharp-backend.dll");
+        File.Exists(path).Should().BeTrue();
+        path.Should().Contain(Path.Combine("src", "Morphir.CodeGeneration.FSharp.Extension", "bin"));
+    }
+
+    [Test]
+    public void AMissingBuiltGuestStopsWithTheTargetsFileOrTheBuildCommand()
+    {
+        var noMetadata = () => ExtensionArtifacts.Of(new Dictionary<string, string>(), _ => true).PathOf(BuiltExtension.FSharpBackend);
+        var noFile = () => ExtensionArtifacts.Of(
+            new Dictionary<string, string> { ["Morphir.TestSupport.Extension.FSharpBackend"] = "/no/such/morphir-fsharp-backend.dll" }, _ => false)
+            .PathOf(BuiltExtension.FSharpBackend);
+
+        noMetadata.Should().Throw<TestSessionException>().WithMessage("*Morphir.ExtensionArtifacts.targets*");
+        noFile.Should().Throw<TestSessionException>().WithMessage("*dotnet build src/Morphir.CodeGeneration.FSharp.Extension/*");
+        ((Action)(() => new ExtensionDriver(new RecordingCli()).BuiltExtension(BuiltExtension.FSharpBackend))).Should().Throw<TestSessionException>();
+    }
+
+    [Test]
+    public void OnlyTheDevelopmentBuildHasTheBuiltGuests()
+    {
+        foreach (var host in MorphirHosts.All)
+            DriverCapabilities.Of(new TestTarget.DevelopmentBuild(), host).Should().Contain(DriverCapability.BuiltExtensions);
+        DriverCapabilities.Of(new TestTarget.Executable("/a/morphir", MorphirHost.Native), MorphirHost.Native).Should().NotContain(DriverCapability.BuiltExtensions);
+    }
+
+    [Test]
+    public async Task AHostWithoutDynamicCodeRunsWithTheSwitchOffAndCannotFormat()
+    {
+        await using var workspace = Workspace();
+        var model = workspace.CopyFixture("Cli/car-rental-v3.json", "my models/car rental.json");
+        var driver = new GenerationDriver(Cli(workspace));
+
+        var withoutDynamicCode = await driver.GenerateAsync(model, "fsharp", workspace.Directory("no dynamic code"), new GenerationOptions { WithoutDynamicCode = true });
+        var jit = await driver.GenerateAsync(model, "fsharp", workspace.Directory("jit"));
+
+        withoutDynamicCode.CommandLine.Should().Contain("exec --runtimeconfig");
+        GenerationReport.Of(withoutDynamicCode).ShouldSucceed().Document.GetProperty("formatting").GetString().Should().Be("unavailable");
+        GenerationReport.Of(jit).ShouldSucceed().Document.GetProperty("formatting").GetString().Should().Be("applied");
+        workspace.FilesIn(workspace.Temp).Should().Contain("morphir.no-dynamic-code.runtimeconfig.json", "the copy is in the workspace, not in the build output");
+        DriverCapabilities.Of(new TestTarget.Executable("/a/morphir", MorphirHost.Native), MorphirHost.Native).Should().NotContain(DriverCapability.HostWithoutDynamicCode);
+    }
+
+    [Test]
     public void ReportPathsHaveOneFormOnEachPlatform()
     {
         ReportPath.Normalize(@"C:\work\app\..\morphir.toml").Should().Be("C:/work/morphir.toml");

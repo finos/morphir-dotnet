@@ -22,6 +22,13 @@ public sealed record CliRunOptions
     /// For a test that has not moved to a workspace yet and has its own folder; a black-box test uses the default.
     /// </summary>
     public string? WorkingDirectory { get; init; }
+
+    /// <summary>
+    /// Runs the host with the dynamic-code feature switch of the runtime off, the switch that is off in a Native AOT
+    /// executable, so that a test of the development build sees what a host without dynamic code does. Only a host
+    /// that is an assembly can run so: <see cref="DriverCapability.HostWithoutDynamicCode"/>.
+    /// </summary>
+    public bool WithoutDynamicCode { get; init; }
 }
 
 /// <summary>
@@ -147,6 +154,13 @@ public sealed class CliDriver : ICliDriver
     {
         // The built assembly starts in 0.02 s with dotnet. dotnet run takes 0.35 s for an MSBuild evaluation.
         var info = new ProcessStartInfo(IsAssembly ? "dotnet" : _artifact);
+        if (options?.WithoutDynamicCode == true)
+        {
+            if (!IsAssembly) throw new NotSupportedException($"The host {_artifact} is not an assembly, so it cannot run with the dynamic-code switch off.");
+            foreach (var argument in new[] { "exec", "--runtimeconfig", DynamicCode.RuntimeConfigurationWithoutDynamicCode(_artifact, _workspace) })
+                info.ArgumentList.Add(argument);
+        }
+
         if (IsAssembly) info.ArgumentList.Add(_artifact);
         foreach (var argument in arguments) info.ArgumentList.Add(argument);
         var commandLine = string.Join(' ', new[] { info.FileName }.Concat(info.ArgumentList).Select(Quoted));

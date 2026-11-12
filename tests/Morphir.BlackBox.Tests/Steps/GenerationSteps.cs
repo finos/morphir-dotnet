@@ -4,7 +4,7 @@ namespace Morphir.BlackBox.Tests.Steps;
 
 /// <summary>The steps of the <c>generate</c> command, of its report and of its output directory.</summary>
 [Binding]
-public sealed class GenerationSteps(IGenerationDriver generation, IScenarioWorkspace workspace, ScenarioRun run)
+public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriver extensions, IScenarioWorkspace workspace, ScenarioRun run)
 {
     // The first moment of the year 2000: a time that no run of the command gives to a file.
     private static readonly DateTime Year2000 = new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -155,6 +155,146 @@ public sealed class GenerationSteps(IGenerationDriver generation, IScenarioWorks
     // Each file of the output with its content, so that a file that the command removed or changed is found.
     private Dictionary<string, string> Snapshot() =>
         workspace.FilesIn(Output).ToDictionary(file => file, file => Convert.ToBase64String(workspace.ReadBytes(Output.File(file))));
+
+    [When("I generate {string} from the model without the setting {string}")]
+    public async Task GenerateWithoutTheSetting(string target, string setting) =>
+        run.Result = await generation.GenerateAsync(new GenerationRequest
+        {
+            Input = setting == "input" ? null : run.ModelTree?.Path ?? run.Model.Path,
+            Target = setting == "target" ? null : target,
+            Output = setting == "output" ? null : Output,
+        });
+
+    /// <summary>The words of <paramref name="arguments"/> are more arguments of the command, after the others.</summary>
+    [When("I generate {string} from the model with the arguments {string}")]
+    public Task GenerateWithTheArguments(string target, string arguments) =>
+        Generate(target, new GenerationOptions { Arguments = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
+
+    [When("I generate {string} from the model with the input format {string} and the options")]
+    public Task GenerateWithTheInputFormatAndTheOptions(string target, string format, Table options) =>
+        Generate(target, new GenerationOptions { InputFormat = format, Options = [.. options.Rows.Select(row => row["option"])] });
+
+    [When("I generate {string} from the model with the built F# backend extension")]
+    public Task GenerateWithTheBuiltExtension(string target) =>
+        Generate(target, new GenerationOptions { Extension = extensions.BuiltExtension(BuiltExtension.FSharpBackend) });
+
+    [When("I generate {string} from the model with the built F# backend extension and the option {string}")]
+    public Task GenerateWithTheBuiltExtensionAndTheOption(string target, string option) =>
+        Generate(target, new GenerationOptions { Extension = extensions.BuiltExtension(BuiltExtension.FSharpBackend), Options = [option] });
+
+    [Given("a project whose configuration selects the built F# backend extension for {string}")]
+    public void AProjectThatSelectsTheBuiltExtension(string target) =>
+        workspace.WriteText(workspace.File("morphir.toml"),
+            $"[project]\nname = \"car/rental\"\n\n[codegen.{target}]\nextension = '{extensions.BuiltExtension(BuiltExtension.FSharpBackend)}'\n");
+
+    [When("I generate {string} from the model for the project")]
+    public Task GenerateForTheProject(string target) => Generate(target, new GenerationOptions { Project = workspace.Work });
+
+    [When("I generate {string} from the model for the project with the extension {string}")]
+    public Task GenerateForTheProjectWithTheExtension(string target, string extension) =>
+        Generate(target, new GenerationOptions { Project = workspace.Work, Extension = extension });
+
+    [Then("the generation report names the external F# backend over MEP")]
+    public void TheReportNamesTheExternalBackend()
+    {
+        // The id that the guest states of itself (FSharpGuest.extension.Id of the guest), not morphir.fsharp.
+        Check(Report.Backend == "org.finos.morphir.fsharp-backend", $"The backend of the generation report is {Report.Backend ?? "null"}, not the external F# backend.");
+        Check(Report.BackendTransport == "mep", $"The backend transport is {Report.BackendTransport ?? "null"}, not mep.");
+        Check(!string.IsNullOrEmpty(Text("backendVersion")), "The generation report has no backend version.");
+    }
+
+    [Then("the generation report has no member {string}")]
+    public void TheReportHasNoMember(string member) => Check(!Report.Document.TryGetProperty(member, out _), $"The generation report has the member {member}.");
+
+    [Then("the generation report has these members in this order")]
+    public void TheReportHasTheseMembers(Table members)
+    {
+        var actual = Report.Document.EnumerateObject().Select(member => member.Name).ToArray();
+        var expected = members.Rows.Select(row => row["member"]).ToArray();
+        Check(actual.SequenceEqual(expected), $"The generation report has the members {string.Join(", ", actual)}, not {string.Join(", ", expected)}.");
+    }
+
+    [Then("the generation report has the diagnostic {string} that names {string}")]
+    public void TheReportHasTheDiagnosticThatNames(string code, string text) =>
+        Check(Report.Diagnostics.Any(diagnostic => diagnostic.Code == code && diagnostic.Message.Contains(text, StringComparison.Ordinal)),
+            $"The generation report has no diagnostic {code} that names {text}.");
+
+    [Then("the first diagnostic of the generation report has the code {string}")]
+    public void TheFirstDiagnosticHasTheCode(string code)
+    {
+        var diagnostics = Report.Diagnostics;
+        Check(diagnostics.Count > 0 && diagnostics[0].Code == code, $"The first diagnostic of the generation report is {(diagnostics.Count > 0 ? diagnostics[0].Code : "none")}, not {code}.");
+    }
+
+    [Then("the generation report has the target {string}")]
+    public void TheReportHasTheTarget(string target) => Check(Text("target") == target, $"The target of the generation report is {Text("target") ?? "null"}, not {target}.");
+
+    [Then("the generation report has artifacts")]
+    public void TheReportHasArtifacts() => Check(Report.Artifacts.Count > 0, "The generation report has no artifact.");
+
+    [Then("the generation report has one C# artifact that contains {string} and {string}")]
+    public void TheReportHasOneCSharpArtifactThatContains(string first, string second)
+    {
+        var artifacts = Report.Artifacts;
+        Check(artifacts.Count == 1 && artifacts[0].EndsWith(".g.cs", StringComparison.Ordinal), $"The generation report has the artifacts {string.Join(", ", artifacts)}, not one C# file.");
+        var source = workspace.ReadText(Output.File(artifacts[0]));
+        Check(source.Contains(first, StringComparison.Ordinal) && source.Contains(second, StringComparison.Ordinal), $"The artifact {artifacts[0]} does not contain '{first}' and '{second}'.");
+    }
+
+    [Then("the generation report lists only the artifact {string}")]
+    public void TheReportListsOnlyTheArtifact(string artifact) =>
+        Check(Report.Artifacts.SequenceEqual([artifact]), $"The generation report has the artifacts {string.Join(", ", Report.Artifacts)}, not only {artifact}.");
+
+    [Then("the output file {string} has the bytes of the fixture {string}")]
+    public void TheOutputFileHasTheBytesOfTheFixture(string file, string fixture)
+    {
+        var expected = workspace.ReadBytes(workspace.CopyFixture(fixture, "expected/" + fixture));
+        Check(workspace.ReadBytes(Output.File(file)).SequenceEqual(expected), $"The output file {file} does not have the bytes of the fixture {fixture}.");
+    }
+
+    [Given("I remember the artifacts of the generation report")]
+    public void RememberTheArtifacts()
+    {
+        _artifacts = Artifacts();
+        Check(_artifacts.Length > 0, "The generation report has no artifact to remember.");
+    }
+
+    [Then("the generation report has the remembered artifacts with the same text in the same order")]
+    public void TheReportHasTheRememberedArtifacts()
+    {
+        var before = _artifacts ?? throw new InvalidOperationException("The scenario did not remember the artifacts of the generation report.");
+        Check(Artifacts().SequenceEqual(before), "The generation report does not have the remembered artifacts with the same text in the same order.");
+    }
+
+    [Then("standard output lists only the artifacts of the output")]
+    public void StandardOutputListsOnlyTheArtifacts()
+    {
+        var lines = run.Result.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var files = workspace.FilesIn(Output).ToHashSet(StringComparer.Ordinal);
+        Check(lines.Length > 0 && lines.All(files.Contains), $"Standard output does not list only the files of the output: {string.Join(", ", lines)}.");
+    }
+
+    [When("I generate {string} from the model on a host without dynamic code")]
+    public Task GenerateWithoutDynamicCode(string target) => Generate(target, new GenerationOptions { WithoutDynamicCode = true });
+
+    [When("I generate {string} from the model as text on a host without dynamic code")]
+    public Task GenerateAsTextWithoutDynamicCode(string target) => Generate(target, new GenerationOptions { Json = false, WithoutDynamicCode = true });
+
+    [When("I generate {string} from the model on a host without dynamic code with the option {string}")]
+    public Task GenerateWithoutDynamicCodeWithTheOption(string target, string option) =>
+        Generate(target, new GenerationOptions { WithoutDynamicCode = true, Options = [option] });
+
+    [Then("the generation report has the formatting {string}")]
+    public void TheReportHasTheFormatting(string formatting) =>
+        Check(Text("formatting") == formatting, $"The formatting of the generation report is {Text("formatting") ?? "null"}, not {formatting}.");
+
+    private string[]? _artifacts;
+
+    // Each artifact of the report in its order, with its text.
+    private string[] Artifacts() => [.. Report.Artifacts.Select(artifact => artifact + "\n" + workspace.ReadText(Output.File(artifact)))];
+
+    private string? Text(string member) =>
+        Report.Document.TryGetProperty(member, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString() : null;
 
     private void Check(bool condition, string reason)
     {

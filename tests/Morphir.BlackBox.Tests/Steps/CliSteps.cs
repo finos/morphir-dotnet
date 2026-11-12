@@ -29,6 +29,27 @@ public sealed class CliSteps(ICliDriver cli, ScenarioRun run)
     [Then("standard error contains {string}")]
     public void StandardErrorContains(string text) => run.Result.StandardErrorShouldContain(text);
 
+    [Then("standard output is the text {string}")]
+    public void StandardOutputIsTheText(string text)
+    {
+        if (run.Result.StandardOutput.Trim() != text)
+            throw new CommandAssertionException($"Standard output is not the text '{text}'.", run.Result);
+    }
+
+    [Then("standard error does not contain {string}")]
+    public void StandardErrorDoesNotContain(string text)
+    {
+        if (run.Result.StandardError.Contains(text, StringComparison.Ordinal))
+            throw new CommandAssertionException($"Standard error contains '{text}'.", run.Result);
+    }
+
+    [Then("standard output does not contain {string}")]
+    public void StandardOutputDoesNotContain(string text)
+    {
+        if (run.Result.StandardOutput.Contains(text, StringComparison.Ordinal))
+            throw new CommandAssertionException($"Standard output contains '{text}'.", run.Result);
+    }
+
     [Then("standard output is one JSON document")]
     public void StandardOutputIsOneJsonDocument() => run.Result.ShouldWriteOneJsonDocument();
 

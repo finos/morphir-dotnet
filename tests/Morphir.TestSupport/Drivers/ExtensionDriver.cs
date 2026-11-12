@@ -1,5 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.Reflection;
 using System.Text.Json;
 
 namespace Morphir.TestSupport.Drivers;
@@ -17,9 +18,63 @@ public sealed record ExtensionListOptions
     public string? Platform { get; init; }
 }
 
+/// <summary>An extension guest that the development build builds (<c>build/Morphir.ExtensionArtifacts.targets</c>).</summary>
+public enum BuiltExtension
+{
+    /// <summary>The F# backend guest, <c>morphir-fsharp-backend</c> of <c>src/Morphir.CodeGeneration.FSharp.Extension</c>.</summary>
+    FSharpBackend,
+}
+
+/// <summary>
+/// The files of the built extension guests, from the assembly metadata that Morphir.ExtensionArtifacts.targets
+/// writes. A guest with no file is an error with the command that builds it: no other file is used.
+/// </summary>
+public sealed class ExtensionArtifacts
+{
+    private const string MetadataPrefix = "Morphir.TestSupport.Extension.";
+
+    private static readonly IReadOnlyDictionary<BuiltExtension, string> Projects = new Dictionary<BuiltExtension, string>
+    {
+        [BuiltExtension.FSharpBackend] = "src/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj",
+    };
+
+    private readonly IReadOnlyDictionary<string, string> _metadata;
+    private readonly Func<string, bool> _fileExists;
+
+    private ExtensionArtifacts(IReadOnlyDictionary<string, string> metadata, Func<string, bool> fileExists)
+    {
+        _metadata = metadata;
+        _fileExists = fileExists;
+    }
+
+    /// <summary>No built guest: the artifacts of a target other than the development build.</summary>
+    public static ExtensionArtifacts None { get; } = new(new Dictionary<string, string>(), _ => false);
+
+    /// <summary>The built guests of <paramref name="testAssembly"/>, which imports Morphir.ExtensionArtifacts.targets.</summary>
+    public static ExtensionArtifacts OfTestAssembly(Assembly testAssembly) =>
+        Of(testAssembly.GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Where(attribute => attribute.Key.StartsWith(MetadataPrefix, StringComparison.Ordinal) && attribute.Value is not null)
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value!), File.Exists);
+
+    public static ExtensionArtifacts Of(IReadOnlyDictionary<string, string> metadata, Func<string, bool> fileExists) => new(metadata, fileExists);
+
+    /// <summary>The file of <paramref name="guest"/>, or an error with the command that builds it.</summary>
+    public string PathOf(BuiltExtension guest)
+    {
+        if (!_metadata.TryGetValue(MetadataPrefix + guest, out var path))
+            throw new TestSessionException($"The test assembly has no path of the built extension {guest}. Import tests/Morphir.TestSupport/build/Morphir.ExtensionArtifacts.targets in its project.");
+        return _fileExists(path)
+            ? path
+            : throw new TestSessionException($"The built extension {guest} has no file at {path}. Build it: dotnet build {Projects[guest]}");
+    }
+}
+
 /// <summary>The <c>extension</c> commands as intents: list the extensions of the host, and report its runtimes.</summary>
 public interface IExtensionDriver
 {
+    /// <summary>The file of a built extension guest, to give to a command (for example <c>generate --extension</c>).</summary>
+    string BuiltExtension(BuiltExtension guest);
+
     Task<CommandResult> ListAsync(ExtensionListOptions? options = null, CancellationToken cancellation = default);
 
     /// <summary>Runs <c>extension runtimes</c>, with <c>--json</c> when <paramref name="json"/> is true.</summary>
@@ -27,8 +82,10 @@ public interface IExtensionDriver
 }
 
 /// <summary>Builds the command lines of <c>extension</c> and gives them to the CLI driver.</summary>
-public sealed class ExtensionDriver(ICliDriver cli) : IExtensionDriver
+public sealed class ExtensionDriver(ICliDriver cli, ExtensionArtifacts? guests = null) : IExtensionDriver
 {
+    public string BuiltExtension(BuiltExtension guest) => (guests ?? ExtensionArtifacts.None).PathOf(guest);
+
     public Task<CommandResult> ListAsync(ExtensionListOptions? options = null, CancellationToken cancellation = default)
     {
         options ??= new ExtensionListOptions();

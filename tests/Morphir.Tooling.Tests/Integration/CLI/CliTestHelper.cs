@@ -57,6 +57,28 @@ public class CliTestHelper
         }
     }
 
+    /// <summary>
+    /// The CLI of the target of the testing library (<c>MORPHIR_TEST_TARGET</c>, <c>MORPHIR_TEST_HOST</c>,
+    /// <c>MORPHIR_TEST_EXECUTABLE</c>; see tests/Morphir.TestSupport/README.md) on <paramref name="host"/>: the
+    /// development build of that host, or the executable at a path when the target is <c>executable</c> with that
+    /// host. A target that does not have the host skips the test with that reason: no other form is used.
+    /// </summary>
+    public static CliTestHelper ForTarget(CliHost host = CliHost.Morphir)
+    {
+        var settings = TestRunSettings.Parse(Environment.GetEnvironmentVariable, File.Exists);
+        var wanted = host == CliHost.DotnetTool ? MorphirHost.DotnetTool : MorphirHost.Native;
+        switch (settings.Target)
+        {
+            case TestTarget.DevelopmentBuild:
+                return new CliTestHelper(null, host);
+            case TestTarget.Executable executable when executable.Host == wanted:
+                return new CliTestHelper(executable.Path, host);
+            default:
+                Skip.Test(settings.Target.MissingHostReason(wanted));
+                throw new InvalidOperationException("Skip.Test returns no value.");
+        }
+    }
+
     /// <summary>Applied when a caller gives no timeout. It starts once a process slot is held.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(120);
 

@@ -38,4 +38,24 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
         modules.Remove(matches[0]);
         workspace.WriteText(run.Model, model.ToJsonString());
     }
+
+    /// <summary>
+    /// <c>malformed</c>: the model file is not JSON. <c>document-literal</c>: the whole number 5000 of the daily rate
+    /// model is a document literal, which a backend cannot generate.
+    /// </summary>
+    [Given("the model has the problem {string}")]
+    public void TheModelHasTheProblem(string problem)
+    {
+        switch (problem)
+        {
+            case "malformed":
+                workspace.WriteText(run.Model, "{ broken");
+                break;
+            case "document-literal":
+                ReplaceInTheModel("\"WholeNumberLiteral\": 5000", "\"DocumentLiteral\": {\"extra\":true}");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(problem), problem, "Use malformed or document-literal.");
+        }
+    }
 }

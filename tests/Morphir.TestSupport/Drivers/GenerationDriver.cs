@@ -24,6 +24,9 @@ public sealed record GenerationOptions
 
     /// <summary>More arguments, after the others. For a scenario whose subject is an option that the command refuses.</summary>
     public IReadOnlyList<string> Arguments { get; init; } = [];
+
+    /// <summary>Run the host with the dynamic-code switch off (<see cref="CliRunOptions.WithoutDynamicCode"/>).</summary>
+    public bool WithoutDynamicCode { get; init; }
 }
 
 /// <summary>
@@ -97,7 +100,7 @@ public sealed class GenerationDriver(ICliDriver cli) : IGenerationDriver
         Add(arguments, "--project", options.Project?.Path);
         Add(arguments, "--extension", options.Extension);
         arguments.AddRange(options.Arguments);
-        return cli.RunAsync(arguments, cancellation: cancellation);
+        return cli.RunAsync(arguments, options.WithoutDynamicCode ? new CliRunOptions { WithoutDynamicCode = true } : null, cancellation);
     }
 
     private static void Add(List<string> arguments, string option, string? value)

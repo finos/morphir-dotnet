@@ -13,7 +13,7 @@ public sealed class DriverSet : IAsyncDisposable
     private readonly bool _keepFailed;
     private bool _ended;
 
-    internal DriverSet(TestTarget target, MorphirHost host, string artifact, IScenarioWorkspace workspace, bool keepFailed)
+    internal DriverSet(TestTarget target, MorphirHost host, string artifact, IScenarioWorkspace workspace, bool keepFailed, ExtensionArtifacts? guests = null)
     {
         _keepFailed = keepFailed;
         Target = target;
@@ -25,7 +25,7 @@ public sealed class DriverSet : IAsyncDisposable
         Compilation = new CompilationDriver(Cli);
         Configuration = new ConfigurationDriver(Cli);
         Migration = new MigrationDriver(Cli);
-        Extensions = new ExtensionDriver(Cli);
+        Extensions = new ExtensionDriver(Cli, guests);
         Validation = new ModelValidationDriver(Cli);
         Capabilities = DriverCapabilities.Of(target, host);
     }
@@ -80,9 +80,11 @@ public sealed class BlackBoxSession
 {
     private readonly string _fixtures;
     private readonly MachineTripwire? _tripwire;
+    private readonly ExtensionArtifacts _guests;
 
-    private BlackBoxSession(TestRunSettings settings, CliArtifacts artifacts, string fixtures, MachineTripwire? tripwire = null)
+    private BlackBoxSession(TestRunSettings settings, CliArtifacts artifacts, string fixtures, MachineTripwire? tripwire = null, ExtensionArtifacts? guests = null)
     {
+        _guests = settings.Target is TestTarget.DevelopmentBuild ? guests ?? ExtensionArtifacts.None : ExtensionArtifacts.None;
         Settings = settings;
         Artifacts = artifacts;
         Profile = RunProfile.Of(settings);
@@ -115,7 +117,8 @@ public sealed class BlackBoxSession
         Assembly testAssembly, Func<string, string?> variable, Func<string, bool> fileExists, string fixtures, MachineTripwire? tripwire = null)
     {
         var settings = TestRunSettings.Parse(variable, fileExists);
-        return new BlackBoxSession(settings, Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(testAssembly)), fixtures, tripwire);
+        return new BlackBoxSession(
+            settings, Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(testAssembly)), fixtures, tripwire, ExtensionArtifacts.OfTestAssembly(testAssembly));
     }
 
     /// <summary>Starts a session from the assembly metadata that Morphir.CliArtifacts.targets writes.</summary>
@@ -149,7 +152,7 @@ public sealed class BlackBoxSession
     public DriverSet BeginTest(MorphirHost host)
     {
         var artifact = Artifacts.PathOf(host);
-        return new DriverSet(Settings.Target, host, artifact, ScenarioWorkspace.Create(_fixtures), Settings.KeepFailed);
+        return new DriverSet(Settings.Target, host, artifact, ScenarioWorkspace.Create(_fixtures), Settings.KeepFailed, _guests);
     }
 
     // Each target resolves to the artifact of its own form. No target uses the artifact of another form.

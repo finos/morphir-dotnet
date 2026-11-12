@@ -47,6 +47,9 @@
     <None Include="../Morphir.Tooling.Tests/TestData/valid-ir-v3.json" Link="Fixtures/Models/valid-ir-v3.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Morphir.Tooling.Tests/TestData/invalid-missing-formatversion.json" Link="Fixtures/Models/invalid-missing-formatversion.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Morphir.Tooling.Tests/TestData/malformed.json" Link="Fixtures/Models/malformed.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The pinned finos/morphir toolchain case fsharp-compile-generate: its IR and its frozen generated file. -->
+    <None Include="../Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/ir-4.0.0.json" Link="Fixtures/Toolchain/fsharp-compile-generate/ir-4.0.0.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/generated/Pricing.fs" Link="Fixtures/Toolchain/fsharp-compile-generate/Pricing.fs" CopyToOutputDirectory="PreserveNewest" />
     <!-- The published JSON schemas of the configuration and migration reports. -->
     <None Include="../../docs/spec/schemas/config-inspection-result.schema.json" Link="Fixtures/Schemas/config-inspection-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/spec/schemas/config-edit-result.schema.json" Link="Fixtures/Schemas/config-edit-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
@@ -61,5 +64,7 @@
 
   <!-- The CLI entry points of the development build: built first, and their paths in the assembly metadata. -->
   <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
+  <!-- The extension guests of the development build: built first, and their paths in the assembly metadata. -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.ExtensionArtifacts.targets" />
 
 </Project>

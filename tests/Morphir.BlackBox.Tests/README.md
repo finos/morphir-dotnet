@@ -42,7 +42,7 @@ its library. A test that needs both an artifact and a product assembly is two te
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build: the packed packages, a Native AOT publish, or a published executable. A group run does not select it. |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that entry point. With no host tag, a test runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | A capability that the test needs from the drivers. |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation` | A command family that the test needs from the drivers: `compile`, `config`, the migrations, `extension`, `validate`. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, or a host with the dynamic-code switch of the runtime off. |
 
 Before the first step, one decision says if the test runs: the lane, then the host, then the capabilities. A test
 that the run does not execute ends as skipped with one reason, for example `lane: test packages, run none`.
@@ -265,6 +265,35 @@ two steps have the same pattern.
 | Compilation | `Then both generated outputs have the same paths and bytes` |
 | Compilation | `Then the compile record is a tombstone that keeps the earlier install ledger` |
 | Generation | `Then generation exits with {int} and one JSON report` |
+| CLI | `Then standard output is the text {string}` |
+| CLI | `Then standard error does not contain {string}` |
+| CLI | `Then standard output does not contain {string}` |
+| Generation | `When I generate {string} from the model without the setting {string}` |
+| Generation | `When I generate {string} from the model with the arguments {string}` |
+| Generation | `When I generate {string} from the model with the input format {string} and the options` |
+| Generation | `When I generate {string} from the model with the built F# backend extension` |
+| Generation | `When I generate {string} from the model with the built F# backend extension and the option {string}` |
+| Generation | `Given a project whose configuration selects the built F# backend extension for {string}` |
+| Generation | `When I generate {string} from the model for the project` |
+| Generation | `When I generate {string} from the model for the project with the extension {string}` |
+| Generation | `Then the generation report names the external F# backend over MEP` |
+| Generation | `Then the generation report has no member {string}` |
+| Generation | `Then the generation report has these members in this order` |
+| Generation | `Then the generation report has the diagnostic {string} that names {string}` |
+| Generation | `Then the first diagnostic of the generation report has the code {string}` |
+| Generation | `Then the generation report has the target {string}` |
+| Generation | `Then the generation report has artifacts` |
+| Generation | `Then the generation report has one C# artifact that contains {string} and {string}` |
+| Generation | `Then the generation report lists only the artifact {string}` |
+| Generation | `Then the output file {string} has the bytes of the fixture {string}` |
+| Generation | `Given I remember the artifacts of the generation report` |
+| Generation | `Then the generation report has the remembered artifacts with the same text in the same order` |
+| Generation | `Then standard output lists only the artifacts of the output` |
+| Generation | `When I generate {string} from the model on a host without dynamic code` |
+| Generation | `When I generate {string} from the model as text on a host without dynamic code` |
+| Generation | `When I generate {string} from the model on a host without dynamic code with the option {string}` |
+| Generation | `Then the generation report has the formatting {string}` |
+| Model | `Given the model has the problem {string}` |
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.

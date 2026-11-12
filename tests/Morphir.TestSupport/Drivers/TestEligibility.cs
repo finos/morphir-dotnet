@@ -37,6 +37,12 @@ public enum DriverCapability
 
     /// <summary>The <c>validate</c> command.</summary>
     ModelValidation,
+
+    /// <summary>The extension guests of the development build (<see cref="Drivers.BuiltExtension"/>).</summary>
+    BuiltExtensions,
+
+    /// <summary>A host with the dynamic-code switch of the runtime off, as in Native AOT (<see cref="CliRunOptions.WithoutDynamicCode"/>).</summary>
+    HostWithoutDynamicCode,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -79,6 +85,9 @@ public static class DriverCapabilities
             DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Compilation, DriverCapability.Configuration,
             DriverCapability.Migration, DriverCapability.Extensions, DriverCapability.ModelValidation,
         ];
+        // The guests are build output of the development build: a published target has none.
+        // The development build runs each host as an assembly, which can also run with the dynamic-code switch off.
+        if (target is TestTarget.DevelopmentBuild) commands = commands.Union([DriverCapability.BuiltExtensions, DriverCapability.HostWithoutDynamicCode]);
         return host is MorphirHost.Managed or MorphirHost.DotnetTool
             ? commands.Add(DriverCapability.InProcessFSharpFrontend)
             : commands;

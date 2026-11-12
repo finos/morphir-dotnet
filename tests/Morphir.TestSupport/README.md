@@ -28,6 +28,8 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `IMigrationDriver` (`MigrationDriver`) | The `project migrate` and `workspace migrate` commands, in the `ScenarioMachine` of a scenario. Its report is `MigrationReport`. |
 | `IExtensionDriver` (`ExtensionDriver`) | The `extension list` and `extension runtimes` commands, with `ExtensionListOptions`. Their reports are `ExtensionListReport` and `ExtensionRuntimesReport`. |
 | `IModelValidationDriver` (`ModelValidationDriver`) | The `validate` command, with `ValidationOptions`. Its report is `ValidationReport`. |
+| `ExtensionArtifacts` | The files of the extension guests of the development build (`BuiltExtension`), from the assembly metadata that `build/Morphir.ExtensionArtifacts.targets` writes. Only the development build has them (`@needs-built-extensions`). |
+| `CliRunOptions.WithoutDynamicCode` | Runs an assembly host with the dynamic-code switch of the runtime off, as in a Native AOT executable, from a copy of its runtime configuration in the workspace (`@needs-host-without-dynamic-code`). |
 | `ScenarioMachine` | The machine that a scenario of discovery and containment gives to the product: the working directory, the home and the machine locations, and exactly the Morphir variables of the scenario. |
 
 A capability driver builds its command line and calls `ICliDriver`. Only `ICliDriver` and `IScenarioWorkspace` know
@@ -115,7 +117,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build (`TestLane`). |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | The test needs that `DriverCapability`. |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation` | The test needs that `DriverCapability`: a command family of pull request 3 of the change. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, or a host with the dynamic-code switch of the runtime off. |
 
 ## How to add a capability
 
