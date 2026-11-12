@@ -84,18 +84,38 @@ let publicationLocks = testList "ComposedPublicationLocks" [
             published <- true
         })
         let mutable captured = false
+        let mutable observationError: System.Runtime.ExceptionServices.ExceptionDispatchInfo option = None
         try
-            do! requested.Task.WaitAsync(TimeSpan.FromSeconds 3.)
-            Expect.isFalse publication.IsCompleted "publication must wait for the running host"
-            use captureDeadline = new CancellationTokenSource(TimeSpan.FromSeconds 1.)
             try
-                use! state = locks.NamedLeaseAsync("extensions.state.lock",true,true,captureDeadline.Token)
-                captured <- true
-            with :? OperationCanceledException -> ()
+                do! requested.Task.WaitAsync(TimeSpan.FromSeconds 3.)
+                Expect.isFalse publication.IsCompleted "publication must wait for the running host"
+                use captureDeadline = new CancellationTokenSource(TimeSpan.FromSeconds 1.)
+                try
+                    use! state = locks.NamedLeaseAsync("extensions.state.lock",true,true,captureDeadline.Token)
+                    captured <- true
+                with :? OperationCanceledException -> ()
+            with error ->
+                observationError <- Some(System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture error)
+                deadline.Cancel()
         finally
             runningHost.Dispose()
         // Settle the publication before reporting failure, including on the RED path.
-        do! publication.WaitAsync(TimeSpan.FromSeconds 3.)
+        let mutable publicationError: System.Runtime.ExceptionServices.ExceptionDispatchInfo option = None
+        try
+            try
+                do! publication.WaitAsync(TimeSpan.FromSeconds 3.)
+            with :? TimeoutException as error ->
+                let timeout = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture error
+                deadline.Cancel()
+                // WaitAsync only times out its wrapper. Await the original task
+                // after cancellation before disposing its roots or token source.
+                try do! publication with _ -> ()
+                timeout.Throw()
+        with error ->
+            publicationError <- Some(System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture error)
+        match observationError,publicationError with
+        | Some error,_ | None,Some error -> error.Throw()
+        | None,None -> ()
         Expect.isTrue captured "host state capture must not wait for a publisher blocked on that host"
         Expect.isTrue published "publication resumes after the host releases its lease"
         use! selectionLease = Morphir.Extensions.Installation.FileSafety.mutationLeaseAsync root ct
