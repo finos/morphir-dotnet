@@ -154,10 +154,12 @@ public class TestPlanTests
         TestPlan.NextRunnable([], running: []).Should().BeNull();
 
     [Test]
-    public void TheDefaultParallelismIsHalfTheProcessorsFromOneToFour()
+    public void TheDefaultParallelismIsHalfTheProcessorsRoundedUpFromOneToFour()
     {
         TestPlan.DefaultParallelism(1).Should().Be(1);
-        TestPlan.DefaultParallelism(3).Should().Be(1);
+        TestPlan.DefaultParallelism(2).Should().Be(1);
+        // The macOS runner of GitHub Actions has 3 processors.
+        TestPlan.DefaultParallelism(3).Should().Be(2);
         TestPlan.DefaultParallelism(4).Should().Be(2);
         TestPlan.DefaultParallelism(8).Should().Be(4);
         TestPlan.DefaultParallelism(18).Should().Be(4);

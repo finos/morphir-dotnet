@@ -159,9 +159,10 @@ public static class TestPlan
 
     /// <summary>
     /// The number of test assemblies that run at the same time when the caller gives no number: half the processors,
-    /// from 1 to 4. Each assembly also runs its own tests in parallel, so more assemblies only compete for the processors.
+    /// rounded up, from 1 to 4. Each assembly also runs its own tests in parallel, so more assemblies only compete for
+    /// the processors.
     /// </summary>
-    public static int DefaultParallelism(int processors) => Math.Clamp(processors / 2, 1, 4);
+    public static int DefaultParallelism(int processors) => Math.Clamp((processors + 1) / 2, 1, 4);
 
     /// <summary>
     /// The run that a free worker starts: the first of <paramref name="pending"/> in order that can run with the

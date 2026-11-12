@@ -65,7 +65,7 @@ run with `os=full`.
 `Restore` and `Compile` use one MSBuild node for each processor. `--build-nodes 1` keeps a build small when more than
 one build runs on the machine at the same time.
 
-`Test` runs more than one test assembly at the same time: half the processors, from 1 to 4
+`Test` runs more than one test assembly at the same time: half the processors, rounded up, from 1 to 4
 (`--test-parallelism`). Each assembly writes its output as one block when it completes. The job summary and the log
 show the time of each assembly.
 

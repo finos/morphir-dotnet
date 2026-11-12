@@ -266,7 +266,7 @@
             "null"
           ],
           "format": "int32",
-          "description": "Test: the number of test assemblies that run at the same time - Default is half the processors, from 1 to 4"
+          "description": "Test: the number of test assemblies that run at the same time - Default is half the processors, rounded up, from 1 to 4"
         },
         "TestScope": {
           "type": "string",

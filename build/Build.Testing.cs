@@ -22,7 +22,7 @@ partial class Build
     [Parameter("Test: 'all' runs every test; 'platform' runs only the tests with the PlatformSpecific marker - Default is 'all'")]
     readonly string TestScope = "all";
 
-    [Parameter("Test: the number of test assemblies that run at the same time - Default is half the processors, from 1 to 4")]
+    [Parameter("Test: the number of test assemblies that run at the same time - Default is half the processors, rounded up, from 1 to 4")]
     readonly int? TestParallelism;
 
     /// <summary>The variable that names the published self-contained F# frontend folder for its process test.</summary>
