@@ -20,6 +20,9 @@ public sealed partial class CliSteps(ICliDriver cli, ScenarioRun run)
     [Then("the output contains {string} or {string}")]
     public void TheOutputContainsOneOf(string first, string second) => run.Result.OutputShouldContainOneOf(first, second);
 
+    [Then("the output does not contain {string}")]
+    public void TheOutputDoesNotContain(string text) => run.Result.OutputShouldNotContain(text);
+
     [Then("the output is empty")]
     public void TheOutputIsEmpty() => run.Result.OutputShouldBeEmpty();
 

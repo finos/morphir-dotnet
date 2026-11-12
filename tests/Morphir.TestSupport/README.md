@@ -23,6 +23,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `IGenerationDriver` (`GenerationDriver`) | The `generate` command as an intent, with `GenerationOptions`. Its report is `GenerationReport`. |
 | `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. It records the Morphir locations of the machine at the start (`MachineTripwire`), and at the end of the run it prints the skip counts and fails if a test changed those locations. |
 | `DriverSet` | The workspace and the drivers of one test on one host. `DriverSet.CliOf` gives the CLI driver of another host of the target, for a test that compares the hosts (`@needs-all-hosts`). |
+| `IPackageDriver` (`PackageDriver`) | Packs, installs and consumes packages in the workspace. It packs a project of the development build with no build and no restore (`IPackageDriver.PackAsync`), or builds and packs it with `--artifacts-path` in the workspace (`IPackageDriver.BuildAndPackAsync`), into the feed of the workspace. So no file of the solution build changes. A consumer restores into the packages folder of the workspace. In the packages lane it reads the packed packages (`PackedPackages`) only from the folder that the build gives. A package is a `PackedPackage`: its `PackageManifest`, its entries and the `AssemblyIdentity` of each assembly. |
 | `ILibraryHostDriver` (`LibraryHostDriver`) | A program of the repository that is not the CLI (`TestProgram`, from `TestPrograms`): a library host, a probe or `morphirup`. It runs the built assembly, or publishes the program into the workspace in a `ProgramForm` (managed, trimmed, Native AOT) and runs the `PublishedProgram`. A `PublishWarning` is a trim or AOT warning of the publish; `AllowedWarning` permits one. |
 | `IArtifactInspectionDriver` (`ArtifactInspectionDriver`) | A `BuiltFile` of the build output of such a program, and its metadata: `AssemblyFacts` (the assemblies, namespaces and members that an assembly references) or the file as JSON. |
 | `ICompilationDriver` (`CompilationDriver`) | The `compile` command as an intent, with `CompilationOptions`. Its report is `CompilationReport`. |
@@ -103,6 +104,22 @@ The build of the test project then builds the program first, and writes its targ
 the test assembly. A publish of `ILibraryHostDriver` uses `--artifacts-path` in the workspace, so it replaces no
 assembly of the solution build, and a publish for a runtime identifier writes its lock files below `obj/`.
 
+### The packages
+
+A test project that uses the package driver imports `build/Morphir.PackageSources.targets`. That file adds
+build-order references to the projects that the driver packs with no build (`Morphir.Myriad`,
+`Morphir.Myriad.SystemTextJson` and `Morphir.Myriad.SystemTextJson.Annotations`), and writes
+the path of each project file, of each built assembly and the configuration into the test assembly as assembly
+metadata. The SDK projects (`Morphir.SDK.FSharp`, `Morphir.SDK`) are not built first: the driver builds and packs
+them in the workspace.
+
+A command of the package driver for a consumer gets `NUGET_PACKAGES` set to the packages folder of the workspace, so
+no package of a test goes into the NuGet folder of the machine, and `NUGET_HTTP_CACHE_PATH` set to the HTTP cache of
+NuGet of the machine, so a restore does not download a package from nuget.org again. A restore from nuget.org writes
+that cache. A build and pack in the workspace restores the projects of the repository with the NuGet folder of the
+machine, as the solution build does. The driver packs no dotnet tool: a pack of a tool publishes into the `obj` and
+`bin` folders of its project, so a test reads a tool package of the packages lane.
+
 ### Environment variables
 
 | Variable | Values |
@@ -113,6 +130,7 @@ assembly of the solution build, and a publish for a runtime identifier writes it
 | `MORPHIR_TEST_LANE` | The lane of the run: `none` (default), `packages`, `native-aot` or `published`. The build sets it. |
 | `MORPHIR_TEST_KEEP` | `failed` keeps the workspace of a failed test and prints its path. |
 | `MORPHIR_TEST_MAX_PROCESSES` | The limit of product processes at the same time in one test process (`ProcessGate`). The build gives each test process its share. |
+| `MORPHIR_TEST_PACKAGES` | The folder of the packed packages, for the packages lane. `./build.sh --target TestBuild` gives the output folder of `./build.sh --target PackAll`. A packages run with no package there stops before the first test with the pack command. |
 
 ### Old names
 
@@ -138,6 +156,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build (`TestLane`). |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs` | The test needs that `DriverCapability`. `@needs-built-programs`: the build output and the project files of the programs of the repository; only the development build has them. |
+| `@needs-development-packages` | The test packs a project of the development build (`IPackageDriver`). Only the target `dev` has it. |
 | `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
 
 ## How to add a capability

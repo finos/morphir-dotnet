@@ -91,6 +91,12 @@ public interface IScenarioWorkspace : IAsyncDisposable
     /// <summary>The files below <paramref name="directory"/>, as relative paths with <c>/</c>, in ordinal order.</summary>
     IReadOnlyList<string> FilesIn(WorkspaceDirectory directory);
 
+    /// <summary>Writes the file, and makes its directory when it is not there.</summary>
+    void WriteBytes(WorkspaceFile file, byte[] bytes);
+
+    /// <summary>Makes <paramref name="link"/> a symbolic link to the directory <paramref name="target"/>.</summary>
+    void CreateDirectoryLink(WorkspaceDirectory link, WorkspaceDirectory target);
+
     DateTime LastWriteTimeUtc(WorkspaceFile file);
 
     void SetLastWriteTimeUtc(WorkspaceFile file, DateTime time);
@@ -218,6 +224,18 @@ public sealed class ScenarioWorkspace : IScenarioWorkspace
 
     public IReadOnlyList<string> FilesIn(WorkspaceDirectory directory) =>
         [.. Snapshot(directory.Path).Keys.Order(StringComparer.Ordinal)];
+
+    public void WriteBytes(WorkspaceFile file, byte[] bytes)
+    {
+        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(file.Path)!);
+        System.IO.File.WriteAllBytes(file.Path, bytes);
+    }
+
+    public void CreateDirectoryLink(WorkspaceDirectory link, WorkspaceDirectory target)
+    {
+        System.IO.Directory.CreateDirectory(Path.GetDirectoryName(link.Path)!);
+        System.IO.Directory.CreateSymbolicLink(link.Path, target.Path);
+    }
 
     public DateTime LastWriteTimeUtc(WorkspaceFile file) => System.IO.File.GetLastWriteTimeUtc(file.Path);
 
