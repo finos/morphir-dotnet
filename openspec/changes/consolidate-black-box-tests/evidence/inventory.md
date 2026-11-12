@@ -136,6 +136,7 @@ discovered tests of the complete project, so such a file is in it.
 | stays | `Morphir.Build.Tests` | `Helpers/BlackBoxRulesTests.cs`, `Helpers/TestManagerSkillTests.cs` | no | no | no | no | New in pull request 1. Stay: build tests (the guard tests of the black-box project and of the `test-manager` skill). The scan finds the names in their fixture texts and patterns. |
 | stays | `Morphir.Build.Tests` | `Helpers/TestPlanTests.cs` | no | no | yes | yes | Found in pull request 4. Stays: a build test of the plan of the `Test` target. The scan matched the path of the packages folder in a test of the packages lane run. |
 | stays | `Morphir.Build.Tests` | `MyriadSystemTextJsonRepositoryTargetsTests.cs` | yes | yes | yes | no | New in pull request 4. Stays: a build test of the repository targets of the System.Text.Json plugin. |
+| stays | `Morphir.Build.Tests` | `SdkCompatibilityProjectTests.cs` | no | no | yes | no | New in pull request 4. Stays: a build test of the build output of `Morphir.SDK` after the solution build and the pack step. |
 | stays | `Morphir.TestSupport.Tests` | `Drivers/PackageDriverTests.cs` | no | yes | yes | no | New in pull request 4. Stays. It tests the package driver of the testing library. |
 | stays | `Morphir.BlackBox.Tests` | `Steps/ConsumerSteps.cs`, `Steps/SdkPackageSteps.cs` | no | yes | yes | no | New in pull request 4. Stay: step classes of the black-box project, the destination of this change. The scan matched the arguments that they give to the package driver. |
 | stays | `Morphir.Toolchain.IO.Tests` | `AcquisitionTests.fs` | no | no | yes | yes | Stays. The scan matched a path or a name in test data; the test starts no process and reads no built artifact of the product. |
@@ -207,7 +208,7 @@ same change is in `tests/Morphir.BlackBox.Tests/Integration/ManagementCommands.f
 
 The counts are those of the first inventory. After it: pull request 1 added 8 files that stay, and `main` added 1
 file for pull request 3 and 6 files that stay. Pull request 4 removed 10 files of its 11 (`SelfContainedTests.fs` stays)
-and its 3 scripts, and added 5 rows of files that stay.
+and its 3 scripts, and added 6 rows of files that stay.
 
 ## Scripts and programs that are not test files
 

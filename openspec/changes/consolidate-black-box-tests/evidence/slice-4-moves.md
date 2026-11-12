@@ -3,7 +3,9 @@
 Date: 2026-11-12. The rows are the tests that the runner discovers, from the reports of the source projects before
 the move: the TRX report of `Morphir.Myriad.Integration.Tests` and of the complete `Morphir.Build.Tests`, the test
 lists of the Expecto projects (`--filter-test-list`), and the `PASS` lines of the two `package-tests.fsx` scripts
-(a script is not a test project, so its checks are the lines that it prints). All ran on macOS arm64 in Release. AFTER_THE_MOVE
+(a script is not a test project, so its checks are the lines that it prints). All ran on macOS arm64 in Release. After the move and the review: the complete `./build.sh --target Test` passed
+(38 suites, 280 s; the groups `integration` 98 s and `e2e` 15 s), and `./build.sh --target TestBuild` after `PackAll`
+passed (461 build tests, then 19 tests of the packages lane in 2 s).
 
 ## Counts
 
