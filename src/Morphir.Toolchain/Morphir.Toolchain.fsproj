@@ -24,6 +24,8 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Toolchain.Tests" />
         <InternalsVisibleTo Include="Morphir.Toolchain.IO" />
+        <InternalsVisibleTo Include="Morphir.Extensions.Installation" />
+        <InternalsVisibleTo Include="morphirup" />
     </ItemGroup>
 
     <ItemGroup>

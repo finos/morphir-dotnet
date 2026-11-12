@@ -334,8 +334,8 @@ module LocalCandidateDocument =
         return ()
     }
 
-    let private identity o = result {
-        do! constant "origin" "local-developer" o
+    let private identityFor origin o = result {
+        do! constant "origin" origin o
         do! constant "implementation" "dotnet" o
         do! constant "deployment" "self-contained" o
         do! constant "platform" "win-x64" o
@@ -366,6 +366,8 @@ module LocalCandidateDocument =
         let! buildIdentity = required "buildIdentity" (validated NonBlankText.tryParse) o
         return version, sourceCommit, buildIdentity
     }
+
+    let private identity o = identityFor "local-developer" o
 
     let private portablePath n = result {
         let! path = targetPath n
@@ -414,7 +416,7 @@ module LocalCandidateDocument =
                 ] @ extraNames)
                 bytes
 
-        let! version, sourceCommit, buildIdentity = identity o
+        let! version, sourceCommit, buildIdentity = identityFor (if family = "0.1.0-preview.3" then "release-checksum" else "local-developer") o
         do! constant "sourceRepository" "https://github.com/finos/morphir-dotnet" o
 
         let! archive =
