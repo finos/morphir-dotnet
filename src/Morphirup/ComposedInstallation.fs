@@ -209,18 +209,26 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
         let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.3" candidate captures.CatalogBytes locks metadata workflow proof
         let manifest = ComposedDocuments.readManifest "0.1.0-preview.3" candidate manifestBytes |> reader
         let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate manifest.Identity
-        use generation = stage.Child("generation",false)
-        LocalInstallation.writeFile generation "generation.json" manifestBytes
-        LocalInstallation.writeFile generation "receipt.json" receipt
+        let preparedIdentity =
+            use generation = stage.Child("generation",false)
+            LocalInstallation.writeFile generation "generation.json" manifestBytes
+            LocalInstallation.writeFile generation "receipt.json" receipt
+            generation.Identity
         let expectedLocks = locks |> List.map(fun (id,bytes) -> id.Text,bytes) |> readOnlyDict
         let! result = InstalledExtensions.PublishExpectedAsync(home,captures.CatalogBytes,expectedLocks,candidate.Host.Host.Version,Func<Task>(fun () -> task {
             use! lease = FileSafety.mutationLeaseAsync root ct
             stage.ValidateLocation()
-            generation.ValidateLocation()
+            use prepared = stage.Child("generation",false)
+            if prepared.Identity <> preparedIdentity then refuse "setup.generation_changed" "The prepared generation directory changed before publication."
+            // Windows directory publication requires closing this child handle,
+            // as in the installer's existing package publication path.
+            (prepared :> IDisposable).Dispose()
             FileSafety.withDirectories root ["toolchains";"generations"] true (fun parent ->
-                if not(parent.PublishDirectory(stage,"generation",manifest.Identity.Text)) then
-                    let existing = GenerationBinding.load root (Path.Combine(parent.Path,manifest.Identity.Text))
-                    if existing.Receipt <> Some receipt then refuse "setup.generation_conflict" "Existing generation is not the verified publication.")
+                let published = parent.PublishDirectory(stage,"generation",manifest.Identity.Text)
+                use final = parent.Child(manifest.Identity.Text,false)
+                if published && final.Identity <> preparedIdentity then refuse "setup.generation_changed" "Published generation identity differs from the prepared directory."
+                let current = GenerationBinding.load root final.Path
+                if current.Receipt <> Some receipt then refuse "setup.generation_conflict" "Existing generation is not the verified publication.")
         }),ct)
         successful result
         let snapshot = GenerationBinding.load root (path home (LocalCandidateDocument.generationPath manifest.Identity))

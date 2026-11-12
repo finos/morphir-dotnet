@@ -73,6 +73,35 @@ jobs:
               shell: bash
               run: echo "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer" >> "$GITHUB_PATH"
 
+            - name: Record Windows native toolchain and source
+              if: runner.os == 'Windows'
+              shell: pwsh
+              env:
+                  PROOF_RID: ${{ inputs.rid }}
+                  PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  $os = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+                  $process = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+                  "OS architecture: $os; producing PowerShell process architecture: $process"
+                  if ($env:PROOF_RID -eq 'win-arm64' -and ($os -ne 'Arm64' -or $process -ne 'Arm64')) { throw 'ARM64 proof requires a native ARM64 producing runner.' }
+                  dotnet --info
+                  if ($LASTEXITCODE) { throw 'SDK architecture inventory failed.' }
+                  $source = (git rev-parse HEAD).Trim()
+                  if ($source -ne $env:GITHUB_SHA) { throw 'Checkout source differs from the recorded workflow source.' }
+                  "source=$source PR-head=$env:PROOF_HEAD_SHA run=$env:GITHUB_RUN_ID attempt=$env:GITHUB_RUN_ATTEMPT"
+                  $vswhere = (Get-Command vswhere.exe -ErrorAction Stop).Source
+                  & $vswhere -latest -products '*' -format json
+                  $installation = (& $vswhere -latest -products '*' -property installationPath).Trim()
+                  $version = (Get-Content (Join-Path $installation 'VC/Auxiliary/Build/Microsoft.VCToolsVersion.default.txt') -Raw).Trim()
+                  $hostArch = if ($process -eq 'Arm64') { 'Hostarm64' } else { 'Hostx64' }
+                  $targetArch = if ($env:PROOF_RID -eq 'win-arm64') { 'arm64' } else { 'x64' }
+                  $link = Join-Path $installation "VC/Tools/MSVC/$version/bin/$hostArch/$targetArch/link.exe"
+                  "Default VC toolset: $version; linker: $link; FileVersion: $((Get-Item -LiteralPath $link).VersionInfo.FileVersion)"
+                  $banner = @(& $link /? 2>&1)
+                  if ($LASTEXITCODE) { throw 'Linker banner inventory failed.' }
+                  $banner | Select-Object -First 3
+
             # Diagnose Linux resolver failures without changing the publish network or treating DNS as qualification.
             - name: Diagnose Linux container DNS
               if: runner.os == 'Linux'
@@ -214,23 +243,40 @@ jobs:
                   fi
                   targets=(PackMorphirup CheckMorphirup)
                   profile=()
-                  if [ "${{ inputs.rid }}" = win-x64 ]; then
+                  if [ "${{ inputs.rid }}" = win-x64 ] || [ "${{ inputs.rid }}" = win-arm64 ]; then
                       targets=(PackWindowsToolchain CheckMorphirup)
                       profile=(--deployment self-contained)
                   fi
                   ./build.sh --target "${targets[@]}" --rid "${{ inputs.rid }}" --configuration "${{ inputs.configuration }}" ${profile[@]+"${profile[@]}"} ${linux[@]+"${linux[@]}"}
 
             - name: Exercise the Windows setup composition with actual produced archives
-              if: inputs.rid == 'win-x64'
+              if: inputs.rid == 'win-x64' || inputs.rid == 'win-arm64'
               shell: pwsh
               env:
                   MORPHIR_WINDOWS_TOOLCHAIN_ASSETS: ${{ github.workspace }}/artifacts/release-assets
+                  MORPHIR_WINDOWS_TOOLCHAIN_RID: ${{ inputs.rid }}
               run: |
                   dotnet build tests/Morphir.Toolchain.Tests/Morphir.Toolchain.Tests.fsproj -c Release -m:1 -p:UseSharedCompilation=false -nodeReuse:false
                   if ($LASTEXITCODE) { exit $LASTEXITCODE }
-                  dotnet tests/Morphir.Toolchain.Tests/bin/Release/net11.0/Morphir.Toolchain.Tests.dll --filter-test-list WindowsReleaseSetup 2>&1 | Tee-Object -FilePath artifacts/windows-setup-tests.log
+                  $runner = 'tests/Morphir.Toolchain.Tests/bin/Release/net11.0/Morphir.Toolchain.Tests.dll'
+                  $listed = @(dotnet $runner --filter-test-list WindowsReleaseSetup --list-tests --join-with / --colours 0)
                   if ($LASTEXITCODE) { exit $LASTEXITCODE }
-                  if (!(Select-String artifacts/windows-setup-tests.log -Pattern '4 passed, 0 ignored, 0 failed, 0 errored' -Quiet)) { throw 'The complete nonempty setup journey test group did not run.' }
+                  $expected = @($listed | Where-Object { $_ -match '^WindowsReleaseSetup/' }).Count
+                  if ($expected -le 0) { throw 'No setup tests were discovered.' }
+                  dotnet $runner --filter-test-list WindowsReleaseSetup --sequenced --colours 0 2>&1 | Tee-Object -FilePath artifacts/windows-setup-tests.log
+                  if ($LASTEXITCODE) { exit $LASTEXITCODE }
+                  $plain = [regex]::Replace((Get-Content artifacts/windows-setup-tests.log -Raw), '\x1B\[[0-?]*[ -/]*[@-~]', '')
+                  $summary = [regex]::Match($plain, '(\d+) tests run[^\r\n]* - (\d+) passed, (\d+) ignored, (\d+) failed, (\d+) errored')
+                  if (!$summary.Success -or [int]$summary.Groups[1].Value -ne $expected -or [int]$summary.Groups[2].Value -ne $expected -or [int]$summary.Groups[3].Value -ne 0 -or [int]$summary.Groups[4].Value -ne 0 -or [int]$summary.Groups[5].Value -ne 0) { throw 'The complete discovered setup group did not pass with zero skips.' }
+
+            - name: Upload the complete Windows toolchain proof inputs
+              if: inputs.rid == 'win-x64' || inputs.rid == 'win-arm64'
+              uses: actions/upload-artifact@v6
+              with:
+                  name: windows-release-toolchain-${{ inputs.rid }}
+                  path: ./artifacts/release-assets/*
+                  if-no-files-found: error
+                  retention-days: ${{ inputs.retention-days < 7 && 7 || inputs.retention-days }}
 
             - name: Upload the morphirup release assets
               uses: actions/upload-artifact@v6

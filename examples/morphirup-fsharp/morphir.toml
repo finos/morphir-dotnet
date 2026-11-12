@@ -1,9 +1,9 @@
 [project]
 name = "acme/demo"
-source_directory = "."
+source_directory = "src"
 
 [frontend]
 language = "fsharp"
 
 [ir]
-format_version = "4"
+format_version = 4

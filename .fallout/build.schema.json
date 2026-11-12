@@ -278,6 +278,10 @@
           "type": "string",
           "description": "Time with no test progress after which a Microsoft.Testing.Platform test run takes a hang dump and stops - Default is '10m'"
         },
+        "ToolchainLocalDeveloper": {
+          "type": "boolean",
+          "description": "Produce an explicit local-developer candidate instead of release-checksum release input"
+        },
         "ToolDllDir": {
           "type": "string",
           "description": "Output directory for tool DLLs"

@@ -166,8 +166,9 @@ let acquiredJourney = testList "WindowsReleaseSetup" [testCaseTask "actual insta
     let pointer = File.ReadAllBytes(Path.Combine(home,"toolchains/default.json"))
     let project = Path.Combine(sandbox.Work,"project")
     Directory.CreateDirectory project |> ignore
-    File.Copy(Path.Combine(Fixtures.workflow,"source/Pricing.fs"),Path.Combine(project,"Pricing.fs"))
-    File.WriteAllText(Path.Combine(project,"morphir.toml"),"[project]\nname='acme/demo'\nsource_directory='.'\n[frontend]\nlanguage='fsharp'\n[ir]\nformat_version='4'\n")
+    Directory.CreateDirectory(Path.Combine(project,"src")) |> ignore
+    File.Copy(Path.Combine(Fixtures.workflow,"source/Pricing.fs"),Path.Combine(project,"src/Pricing.fs"))
+    File.WriteAllText(Path.Combine(project,"morphir.toml"),"[project]\nname='acme/demo'\nsource_directory='src'\n[frontend]\nlanguage='fsharp'\n[ir]\nformat_version=4\n")
     let run args = task {
         use input = new MemoryStream()
         use output = new MemoryStream()
