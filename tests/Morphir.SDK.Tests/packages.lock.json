@@ -4,9 +4,9 @@
     "net10.0": {
       "altcover": {
         "type": "Direct",
-        "requested": "[8.9.3, )",
-        "resolved": "8.9.3",
-        "contentHash": "auKC+pDCkLjfhFkSRaAUBu25BOmlLSqucR7YBs/Lkbdc0XRuJoklWafs1KKp+M+VoJ1f0TeMS6B/FO5IeIcu7w=="
+        "requested": "[9.0.145, )",
+        "resolved": "9.0.145",
+        "contentHash": "jVDhMWOTK4CE36yx7iUBx09nBD7Yv8KJzGptCwPPkoy+ibQCE6J+ns1wTMOn8TXz8YJTi8KK9XTKgrCfV6aMgA=="
       },
       "coverlet.collector": {
         "type": "Direct",

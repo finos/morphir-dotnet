@@ -59,7 +59,7 @@
     <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.11.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
-    <PackageVersion Include="altcover" Version="8.9.3" />
+    <PackageVersion Include="altcover" Version="9.0.145" />
     <PackageVersion Include="System.CommandLine" Version="2.0.15" />
     <PackageVersion Include="Funcky.DiscriminatedUnion" Version="1.2.2" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.269" />
