@@ -197,75 +197,77 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
         FileSafety.withDirectories root ["tmp";stageName] true ignore
         use stage = SafeDirectory.Open(path home ("tmp/"+stageName),false)
         use owner = stage.File(".owner",true,true)
-        FileSafety.withDirectories stage ["downloads"] true ignore
-        let downloads = Path.Combine(stage.Path,"downloads")
-        for asset in bundle.Assets do
-            let! _ = AcquisitionDelivery.downloadAsync home downloads transport asset ct
-            ()
-        let local role = Path.Combine(downloads,(asset bundle role).Name.Text)
-        do! LocalInstallation.prepareComposedHostAsync home rawCandidate candidate.Host (local "host-archive") false ct
-        for role,raw,plan in descriptors do
-            let repository = Path.Combine(stage.Path,"repositories",role)
-            FileSafety.withDirectories stage ["repositories";role] true ignore
-            let! result = InstalledExtensions.InstallLocalUncheckedAsync(home,plan,local(role+"-archive"),repository,Array.AsReadOnly [||],candidate.Host.Host.Version,ct)
-            use installed = successful result
-            ()
-        let ids = Array.AsReadOnly(pins |> List.map(fun pin -> Morphir.Extensions.ExtensionId.Create pin.Id.Text) |> Array.ofList)
-        let! result = InstalledExtensions.CaptureManyAsync(home,ids,candidate.Host.Host.Version,ct)
-        use captures = successful result
-        let locks = captures.Captures |> Seq.map(fun capture ->
-            let id = ExtensionId.tryParsePreview capture.Record.ExtensionId.Value |> function Ok id -> id | Error _ -> invalidOp "Validated installed id."
-            id,capture.Record.LockBytes) |> List.ofSeq
-        let metadata = descriptors |> Seq.map(fun (role,raw,plan) ->
-            let id = ExtensionId.tryParsePreview plan.Descriptor.ExtensionId.Value |> function Ok id -> id | Error _ -> invalidOp "Validated installed id."
-            let path = TargetPath.tryParse $"extensions/metadata/{id.Text}/release.json" |> function Ok path -> path | Error _ -> invalidOp "Validated metadata path."
-            id,path,raw) |> List.ofSeq
-        FileSafety.withDirectories stage ["generation"] true (fun generation ->
-            LocalInstallation.writeFile generation "candidate.json" rawCandidate
-            LocalInstallation.writeFile generation "extensions/selection.json" selection
-            LocalInstallation.writeFile generation "extensions/catalog.json" captures.CatalogBytes
-            for id,bytes in locks do LocalInstallation.writeFile generation $"extensions/locks/{id.Text}.json" bytes
-            for _,path,bytes in metadata do LocalInstallation.writeFile generation path.Text bytes
-            match acquisition with
-            | Some(rawBundle,checksums) ->
-                LocalInstallation.writeFile generation "acquisition/bundle.json" rawBundle
-                LocalInstallation.writeFile generation "acquisition/SHA256SUMS" checksums
-            | None -> ())
-        let! workflow = readiness root stage candidate captures.CatalogBytes captures.Captures home ct
-        let proof = acquisition |> Option.map(fun (rawBundle,checksums) -> Value.Object [
-            "repository",value AcquisitionDelivery.repository;"tag",value("v"+bundle.Version.Text)
-            "bundle",Value.Object ["path",value "acquisition/bundle.json";"sha256",value (Sha256.ofBytes rawBundle).Text]
-            "checksums",Value.Object ["path",value "acquisition/SHA256SUMS";"sha256",value (Sha256.ofBytes checksums).Text]])
-        let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.3" candidate captures.CatalogBytes locks metadata workflow proof
-        let manifest = ComposedDocuments.readManifest "0.1.0-preview.3" candidate manifestBytes |> reader
-        let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate manifest.Identity
-        let preparedIdentity =
-            use generation = stage.Child("generation",false)
-            LocalInstallation.writeFile generation "generation.json" manifestBytes
-            LocalInstallation.writeFile generation "receipt.json" receipt
-            generation.Identity
-        let expectedLocks = locks |> List.map(fun (id,bytes) -> id.Text,bytes) |> readOnlyDict
-        let publishExpected callback = task {
-            let! result = InstalledExtensions.PublishExpectedAsync(home,captures.CatalogBytes,expectedLocks,candidate.Host.Host.Version,callback,ct)
-            successful result
-        }
-        do! publishGenerationAsync (fun () -> FileSafety.mutationLeaseAsync root ct) publishExpected (fun () -> task {
-            stage.ValidateLocation()
-            use prepared = stage.Child("generation",false)
-            if prepared.Identity <> preparedIdentity then refuse "setup.generation_changed" "The prepared generation directory changed before publication."
-            // Windows directory publication requires closing this child handle,
-            // as in the installer's existing package publication path.
-            (prepared :> IDisposable).Dispose()
-            FileSafety.withDirectories root ["toolchains";"generations"] true (fun parent ->
-                let published = parent.PublishDirectory(stage,"generation",manifest.Identity.Text)
-                use final = parent.Child(manifest.Identity.Text,false)
-                if published && final.Identity <> preparedIdentity then refuse "setup.generation_changed" "Published generation identity differs from the prepared directory."
-                let current = GenerationBinding.load root final.Path
-                if current.Receipt <> Some receipt then refuse "setup.generation_conflict" "Existing generation is not the verified publication.")
+        return! LocalInstallation.withPrivateStageAsync root stage owner (fun () -> task {
+            FileSafety.withDirectories stage ["downloads"] true ignore
+            let downloads = Path.Combine(stage.Path,"downloads")
+            for asset in bundle.Assets do
+                let! _ = AcquisitionDelivery.downloadAsync home downloads transport asset ct
+                ()
+            let local role = Path.Combine(downloads,(asset bundle role).Name.Text)
+            do! LocalInstallation.prepareComposedHostAsync home rawCandidate candidate.Host (local "host-archive") false ct
+            for role,raw,plan in descriptors do
+                let repository = Path.Combine(stage.Path,"repositories",role)
+                FileSafety.withDirectories stage ["repositories";role] true ignore
+                let! result = InstalledExtensions.InstallLocalUncheckedAsync(home,plan,local(role+"-archive"),repository,Array.AsReadOnly [||],candidate.Host.Host.Version,ct)
+                use installed = successful result
+                ()
+            let ids = Array.AsReadOnly(pins |> List.map(fun pin -> Morphir.Extensions.ExtensionId.Create pin.Id.Text) |> Array.ofList)
+            let! result = InstalledExtensions.CaptureManyAsync(home,ids,candidate.Host.Host.Version,ct)
+            use captures = successful result
+            let locks = captures.Captures |> Seq.map(fun capture ->
+                let id = ExtensionId.tryParsePreview capture.Record.ExtensionId.Value |> function Ok id -> id | Error _ -> invalidOp "Validated installed id."
+                id,capture.Record.LockBytes) |> List.ofSeq
+            let metadata = descriptors |> Seq.map(fun (role,raw,plan) ->
+                let id = ExtensionId.tryParsePreview plan.Descriptor.ExtensionId.Value |> function Ok id -> id | Error _ -> invalidOp "Validated installed id."
+                let path = TargetPath.tryParse $"extensions/metadata/{id.Text}/release.json" |> function Ok path -> path | Error _ -> invalidOp "Validated metadata path."
+                id,path,raw) |> List.ofSeq
+            FileSafety.withDirectories stage ["generation"] true (fun generation ->
+                LocalInstallation.writeFile generation "candidate.json" rawCandidate
+                LocalInstallation.writeFile generation "extensions/selection.json" selection
+                LocalInstallation.writeFile generation "extensions/catalog.json" captures.CatalogBytes
+                for id,bytes in locks do LocalInstallation.writeFile generation $"extensions/locks/{id.Text}.json" bytes
+                for _,path,bytes in metadata do LocalInstallation.writeFile generation path.Text bytes
+                match acquisition with
+                | Some(rawBundle,checksums) ->
+                    LocalInstallation.writeFile generation "acquisition/bundle.json" rawBundle
+                    LocalInstallation.writeFile generation "acquisition/SHA256SUMS" checksums
+                | None -> ())
+            let! workflow = readiness root stage candidate captures.CatalogBytes captures.Captures home ct
+            let proof = acquisition |> Option.map(fun (rawBundle,checksums) -> Value.Object [
+                "repository",value AcquisitionDelivery.repository;"tag",value("v"+bundle.Version.Text)
+                "bundle",Value.Object ["path",value "acquisition/bundle.json";"sha256",value (Sha256.ofBytes rawBundle).Text]
+                "checksums",Value.Object ["path",value "acquisition/SHA256SUMS";"sha256",value (Sha256.ofBytes checksums).Text]])
+            let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.3" candidate captures.CatalogBytes locks metadata workflow proof
+            let manifest = ComposedDocuments.readManifest "0.1.0-preview.3" candidate manifestBytes |> reader
+            let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate manifest.Identity
+            let preparedIdentity =
+                use generation = stage.Child("generation",false)
+                LocalInstallation.writeFile generation "generation.json" manifestBytes
+                LocalInstallation.writeFile generation "receipt.json" receipt
+                generation.Identity
+            let expectedLocks = locks |> List.map(fun (id,bytes) -> id.Text,bytes) |> readOnlyDict
+            let publishExpected callback = task {
+                let! result = InstalledExtensions.PublishExpectedAsync(home,captures.CatalogBytes,expectedLocks,candidate.Host.Host.Version,callback,ct)
+                successful result
+            }
+            do! publishGenerationAsync (fun () -> FileSafety.mutationLeaseAsync root ct) publishExpected (fun () -> task {
+                stage.ValidateLocation()
+                use prepared = stage.Child("generation",false)
+                if prepared.Identity <> preparedIdentity then refuse "setup.generation_changed" "The prepared generation directory changed before publication."
+                // Windows directory publication requires closing this child handle,
+                // as in the installer's existing package publication path.
+                (prepared :> IDisposable).Dispose()
+                FileSafety.withDirectories root ["toolchains";"generations"] true (fun parent ->
+                    let published = parent.PublishDirectory(stage,"generation",manifest.Identity.Text)
+                    use final = parent.Child(manifest.Identity.Text,false)
+                    if published && final.Identity <> preparedIdentity then refuse "setup.generation_changed" "Published generation identity differs from the prepared directory."
+                    let current = GenerationBinding.load root final.Path
+                    if current.Receipt <> Some receipt then refuse "setup.generation_conflict" "Existing generation is not the verified publication.")
+            })
+            let snapshot = GenerationBinding.load root (path home (LocalCandidateDocument.generationPath manifest.Identity))
+            if Option.isSome acquisition then do! publishSelection root snapshot ct
+            return candidate.Host.ManifestSha256,Some manifest.Identity
         })
-        let snapshot = GenerationBinding.load root (path home (LocalCandidateDocument.generationPath manifest.Identity))
-        if Option.isSome acquisition then do! publishSelection root snapshot ct
-        return candidate.Host.ManifestSha256,Some manifest.Identity
 }
 
 /// The one release setup path. Dry-run reads metadata and plans without creating Home or running code.

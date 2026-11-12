@@ -88,6 +88,49 @@ let readinessReports = testList "ReadinessReports" [
 ]
 
 [<Tests>]
+let stageCleanup = testLabel "PlatformSpecific" <| testList "SetupStageCleanup" [
+    testCaseTask "successful setup removes its readonly private stage and preserves shared tmp siblings" (fun () -> task {
+        use sandbox = TestSandbox.Create()
+        use root = Morphir.Extensions.Installation.SafeDirectory.Open(Path.Combine(sandbox.Work,"home"),true)
+        use parent = root.Child("tmp",true)
+        use stage = parent.Child("local-toolchain-test",true)
+        use owner = stage.File(".owner",true,true)
+        File.WriteAllText(Path.Combine(parent.Path,"unrelated.txt"),"shared tmp state")
+        let stagePath = stage.Path
+        let! result = LocalInstallation.withPrivateStageAsync root stage owner (fun () -> task {
+            use child = stage.Child("work",true)
+            LocalInstallation.writeFile child "readonly.txt" [|1uy|]
+            File.SetAttributes(Path.Combine(child.Path,"readonly.txt"),FileAttributes.ReadOnly)
+            return 42
+        })
+        Expect.equal result 42 "operation result survives cleanup"
+        Expect.isFalse (Directory.Exists stagePath) "completed private stage is removed"
+        Expect.equal (File.ReadAllText(Path.Combine(parent.Path,"unrelated.txt"))) "shared tmp state" "unknown siblings are not traversed"
+    })
+    testCaseTask "refused setup removes its stage before returning its original refusal" (fun () -> task {
+        use sandbox = TestSandbox.Create()
+        use root = Morphir.Extensions.Installation.SafeDirectory.Open(Path.Combine(sandbox.Work,"home"),true)
+        use parent = root.Child("tmp",true)
+        use stage = parent.Child("local-toolchain-test",true)
+        use owner = stage.File(".owner",true,true)
+        let stagePath = stage.Path
+        let! refused = task {
+            try
+                do! LocalInstallation.withPrivateStageAsync root stage owner (fun () -> task {
+                    LocalInstallation.writeFile stage "partial.zip" [|1uy;2uy|]
+                    return LocalCandidate.refuse "setup.readiness_failed" "original host refusal"
+                })
+                return false
+            with LocalCandidate.Refused(code,message) ->
+                Expect.equal (code,message) ("setup.readiness_failed","original host refusal") "original cause is preserved"
+                return true
+        }
+        Expect.isTrue refused "refusal remains a refusal"
+        Expect.isFalse (Directory.Exists stagePath) "refused private stage is removed"
+    })
+]
+
+[<Tests>]
 let publicationLocks = testLabel "PlatformSpecific" <| testList "ComposedPublicationLocks" [
     testCaseTask "running host captures state while publication waits for its mutation lease" (fun () -> task {
         use sandbox = TestSandbox.Create()
@@ -261,6 +304,7 @@ let acquiredJourney = testLabel "PlatformSpecific" <| testList "WindowsReleaseSe
     Expect.isFalse (Directory.Exists home) "no locks or staging during planning"
     let! _,installed = ComposedInstallation.setupWithTransportAsync platform home bundle.Version.Text transport false CancellationToken.None
     Expect.isSome installed "completed acquisition, readiness and selection"
+    Expect.isEmpty (Directory.GetDirectories(Path.Combine(home,"tmp"),"local-toolchain-*")) "setup removes both completed private stages"
     let pointer = File.ReadAllBytes(Path.Combine(home,"toolchains/default.json"))
     let project = Path.Combine(sandbox.Work,"project")
     Directory.CreateDirectory project |> ignore
