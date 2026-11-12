@@ -192,6 +192,11 @@ public sealed class CliDriver : ICliDriver
 
         if (options?.WorkingDirectory is { } directory) info.WorkingDirectory = directory;
 
+        // The product writes UTF-8 on each operating system. Without this, Windows reads a redirected stream in the
+        // code page of the console, and a character such as ✓ or a box line arrives as another character.
+        info.StandardOutputEncoding = Utf8;
+        info.StandardErrorEncoding = Utf8;
+
         var mark = _workspace.Mark();
         // The runner holds a place of the gate, reads both streams, and stops the process tree at the time limit.
         var result = await ChildProcess.RunAsync(
@@ -204,6 +209,8 @@ public sealed class CliDriver : ICliDriver
             result.ExitedAt - result.StartedAt,
             _workspace.FilesWrittenSince(mark));
     }
+
+    private static readonly System.Text.UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
     private static string Quoted(string argument) =>
         argument.Length > 0 && !argument.Any(char.IsWhiteSpace) && !argument.Contains('"') ? argument : "\"" + argument.Replace("\"", "\\\"") + "\"";
