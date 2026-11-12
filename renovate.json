@@ -5,10 +5,19 @@
   ],
   "timezone": "UTC",
   "schedule": [
-    "* 0-5 * * 1,4"
+    "* 0-5 * * 1"
   ],
   "updateNotScheduled": false,
   "automerge": false,
+  "rebaseWhen": "conflicted",
+  "prConcurrentLimit": 3,
+  "branchConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "major": {
+    "dependencyDashboardApproval": true
+  },
   "separateMajorMinor": true,
   "groupSingleUpdates": true,
   "labels": [
