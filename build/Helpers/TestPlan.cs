@@ -169,13 +169,12 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Configuration.Tests", "--sequenced"),
         TestSuite.TUnit("Morphir.Configuration.IO.Tests", "--maximum-parallel-tests", "1"),
         TestSuite.TUnit("Morphir.Configuration.Microsoft.Tests", "--maximum-parallel-tests", "1"),
-        // Exercises the generated CLI DTO source without loading the CLI host.
-        TestSuite.Program("Morphir.Configuration.Inspection.Smoke"),
         TestSuite.Expecto("Morphir.Internal.CodeGeneration.Tests"),
         TestSuite.Expecto("Morphir.Models.Tests"),
         TestSuite.Expecto("Morphir.IR.Pipeline.Tests"),
         TestSuite.Expecto("Morphir.SDK.Tests").WithSourceProjects(),
-        TestSuite.TUnit("Morphir.TestSupport.Tests"),
+        // LibraryHostDriverTests publishes a host of the repository (its lock files go below obj/ of src/ projects).
+        TestSuite.TUnit("Morphir.TestSupport.Tests").WithSourceProjects(),
         TestSuite.Expecto("Morphir.Frontend.FSharp.Tests"),
         TestSuite.Expecto("Morphir.Conformance.Tests"),
         TestSuite.TUnit("Morphir.SDK.Conformance.Tests"),
@@ -205,6 +204,7 @@ public static class TestPlan
         // The groups of the black-box project. A group is registered here in the change that adds its first test,
         // because a group that selects no test fails its run.
         TestSuite.TUnit(BlackBoxProject).InGroup("integration"),
+        TestSuite.TUnit(BlackBoxProject).InGroup("e2e"),
         TestSuite.TUnit(BlackBoxProject).InGroup("smoke"),
         TestSuite.TUnit(BlackBoxProject).InGroup("journey"),
     ];
@@ -284,6 +284,17 @@ public static class TestPlan
                 .Select(suite => new TestRun(
                     suite, [.. suite.Arguments, .. suite.Group is null ? PlatformFilter(suite.Framework) : GroupFilter(suite)])),
         ];
+    }
+
+    /// <summary>
+    /// The run of the tests of one lane of the black-box project: all its groups, with the filter of the lane. The
+    /// build gives the test process the lane in <c>MORPHIR_TEST_LANE</c>.
+    /// </summary>
+    public static TestRun LaneRun(string lane)
+    {
+        if (lane is not ("packages" or "native-aot" or "published"))
+            throw new ArgumentException($"'{lane}' is not a lane. The lanes are: packages, native-aot, published.", nameof(lane));
+        return new TestRun(TestSuite.TUnit(BlackBoxProject), ["--treenode-filter", $"/*/*/*/*[Category={lane}]"]);
     }
 
     /// <summary>

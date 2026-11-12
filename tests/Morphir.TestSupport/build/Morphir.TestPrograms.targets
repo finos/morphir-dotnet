@@ -1,0 +1,44 @@
+<Project>
+
+  <!--
+    The programs that a black-box test publishes, runs or inspects: library hosts, probe programs and product
+    programs other than the CLI (design DRV-1 ILibraryHostDriver and IArtifactInspectionDriver of the change
+    consolidate-black-box-tests). A test project that imports this file names each program with an item:
+
+      <MorphirTestProgram Include="path/to/Program.csproj" Name="program-name" />
+
+    The file does two things for each item. It makes the build of the test project build the program first, in the
+    configuration of the test project; no assembly of the program is visible to the test code, and none is copied
+    to its output. And it writes the target path and the project path of the program into the test assembly as
+    assembly metadata, so the driver computes no path from the repository root.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="@(MorphirTestProgram)" ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all" />
+  </ItemGroup>
+
+  <!-- Once for each program: target batching keeps the name of the program and its target path together. -->
+  <Target Name="AddMorphirTestProgramMetadata"
+          DependsOnTargets="ResolveProjectReferences"
+          BeforeTargets="GetAssemblyAttributes;CoreGenerateAssemblyInfo"
+          Inputs="@(MorphirTestProgram)"
+          Outputs="%(MorphirTestProgram.Name)"
+          Condition="'@(MorphirTestProgram)' != ''">
+    <Error Condition="'%(MorphirTestProgram.Name)' == ''" Text="The item MorphirTestProgram '%(MorphirTestProgram.Identity)' has no Name." />
+    <MSBuild Projects="%(MorphirTestProgram.FullPath)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_MorphirTestProgramPath" />
+    </MSBuild>
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Program.%(MorphirTestProgram.Name)</_Parameter1>
+        <_Parameter2>@(_MorphirTestProgramPath->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Program.%(MorphirTestProgram.Name).Project</_Parameter1>
+        <_Parameter2>%(MorphirTestProgram.FullPath)</_Parameter2>
+      </AssemblyAttribute>
+      <_MorphirTestProgramPath Remove="@(_MorphirTestProgramPath)" />
+    </ItemGroup>
+  </Target>
+
+</Project>
