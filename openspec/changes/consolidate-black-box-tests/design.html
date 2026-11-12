@@ -816,6 +816,39 @@ new agents gave the five expected classes; the unclear places that they found ar
 </tbody>
 </table>
 
+<h3 id="record-pr5">Pull request 5 (task group 9), 2026-11-12</h3>
+<table>
+<thead><tr><th>Decision</th><th>What happened</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>Open question 1, the smoke hosts</td>
+<td>Measured from the metadata of the built assemblies: each of the five hosts uses members of its library that no
+assembly of the CLI references, so all five stay as subjects.</td>
+<td><code>library-hosts.md</code>, <code>library-reach.cs</code></td></tr>
+<tr><td><a href="#drv-1">DRV-1</a>, the programs of a test</td>
+<td>A new targets file, <code>Morphir.TestPrograms.targets</code>, does for the hosts, the probes and
+<code>morphirup</code> what <code>Morphir.CliArtifacts.targets</code> does for the CLI: a build-order reference and the
+target path and the project path as assembly metadata. A new capability, <code>BuiltPrograms</code>
+(<code>@needs-built-programs</code>), is supported only by the development build, so a run on a published target skips
+these tests with that reason.</td>
+<td><code>tests/Morphir.TestSupport/README.md</code></td></tr>
+<tr><td><a href="#drv-1">DRV-1</a>, a publish in the workspace</td>
+<td><code>ILibraryHostDriver</code> publishes with <code>--artifacts-path</code> in the workspace, so the build of each
+referenced project goes there too and no assembly of the solution build changes. A publish for a runtime identifier
+gets a relative <code>NuGetLockFilePath</code> below <code>obj/</code> of each project: <code>tests/</code> has no setting
+for it, and a publish of a host changed its committed lock file. A test checks both.</td>
+<td><code>LibraryHostDriverTests</code></td></tr>
+<tr><td>Task 9.3, the warnings</td>
+<td>With the default summary mode of the trimmer, each of the eight publishes has only the summary warnings IL2104 and
+IL3053 of <code>FSharp.Core</code>, also the two configuration hosts. The Native AOT lane takes 41 s on this machine.</td>
+<td><code>library-hosts.md</code></td></tr>
+<tr><td>The kit suites as fixtures</td>
+<td>The conformance host reads the kit suites, which are <code>.feature</code> files. The build copies them to
+<code>bin/</code>, and Reqnroll then compiles them as tests of the project; the project file removes <code>bin/</code>
+and <code>obj/</code> from its feature files.</td>
+<td><code>tests/Morphir.BlackBox.Tests/Morphir.BlackBox.Tests.csproj</code></td></tr>
+</tbody>
+</table>
+
 </main>
 </body>
 </html>

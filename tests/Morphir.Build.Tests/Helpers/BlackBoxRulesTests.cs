@@ -463,15 +463,14 @@ public class BlackBoxRulesTests
     private static ImmutableArray<PullRequestRun> PullRequestRuns()
     {
         var target = new TestTarget.DevelopmentBuild();
+        var capabilities = target.Hosts.ToImmutableDictionary(
+            host => host.Name(),
+            host => DriverCapabilities.Of(target, host).Select(DriverCapabilities.TagOf).ToImmutableHashSet());
         return
         [
-            new PullRequestRun(
-                TestLane.None.Name(),
-                "the development build (each operating system)",
-                target.DefaultHost.Name(),
-                target.Hosts.ToImmutableDictionary(
-                    host => host.Name(),
-                    host => DriverCapabilities.Of(target, host).Select(DriverCapabilities.TagOf).ToImmutableHashSet())),
+            new PullRequestRun(TestLane.None.Name(), "the development build (each operating system)", target.DefaultHost.Name(), capabilities),
+            // The step of the Linux job that runs TestAot, on the development build.
+            new PullRequestRun(TestLane.NativeAot.Name(), "the Native AOT step (Linux)", target.DefaultHost.Name(), capabilities),
         ];
     }
 

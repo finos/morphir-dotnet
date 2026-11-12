@@ -73,6 +73,7 @@
         "Restore",
         "Test",
         "TestAll",
+        "TestAot",
         "TestBuild",
         "TestE2E",
         "TestExtensionInstallationAot",

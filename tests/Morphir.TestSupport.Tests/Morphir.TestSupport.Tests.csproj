@@ -34,4 +34,10 @@
   <!-- The CLI entry points of the development build, for the real-process tests of the CLI driver. -->
   <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
 
+  <!-- A small host program, for the real-process tests of the library host driver and the inspection driver. -->
+  <ItemGroup>
+    <MorphirTestProgram Include="../Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" Name="compilation-smoke" />
+  </ItemGroup>
+  <Import Project="../Morphir.TestSupport/build/Morphir.TestPrograms.targets" />
+
 </Project>
