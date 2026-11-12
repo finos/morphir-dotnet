@@ -24,7 +24,10 @@ public sealed partial class ToolRoutingSteps(IToolRoutingDriver routing, IScenar
 
     private ToolRoutingOptions Options => new()
     {
-        Path = _path, CurrentDirectoryOnPath = _currentDirectoryOnPath, Variables = _variables, StandardInput = _standardInput,
+        Path = _path,
+        CurrentDirectoryOnPath = _currentDirectoryOnPath,
+        Variables = _variables,
+        StandardInput = _standardInput,
     };
 
     [GeneratedRegex(@"(?m)^\s+mck\b")]

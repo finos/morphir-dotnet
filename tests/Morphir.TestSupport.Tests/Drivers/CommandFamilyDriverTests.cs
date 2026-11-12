@@ -151,7 +151,9 @@ public class CommandFamilyDriverTests
 
         await new GenerationDriver(cli).GenerateAsync(new GenerationRequest
         {
-            Target = "fsharp", Output = output, Options = new GenerationOptions { Project = project, Extension = "a guest.dll", Options = ["format=false"] },
+            Target = "fsharp",
+            Output = output,
+            Options = new GenerationOptions { Project = project, Extension = "a guest.dll", Options = ["format=false"] },
         });
         await new GenerationDriver(cli).GenerateAsync(GenerationRequest.Of(workspace.File("model.json")) with { Options = new GenerationOptions { Arguments = ["--unavailable"] } });
 
@@ -171,7 +173,10 @@ public class CommandFamilyDriverTests
 
         var result = await new CompilationDriver(Cli(workspace, MorphirHost.DotnetTool)).CompileAsync(new CompilationOptions
         {
-            Inputs = [rates], Language = "fsharp", PackageName = "acme/demo", IrVersion = "4",
+            Inputs = [rates],
+            Language = "fsharp",
+            PackageName = "acme/demo",
+            IrVersion = "4",
         });
         var report = CompilationReport.Of(result);
 
@@ -195,7 +200,10 @@ public class CommandFamilyDriverTests
 
         var result = await new CompilationDriver(Cli(workspace, MorphirHost.DotnetTool)).CompileAsync(new CompilationOptions
         {
-            Inputs = [rates], Language = "fsharp", PackageName = "acme/demo", IrVersion = "4.1.0-draft.1",
+            Inputs = [rates],
+            Language = "fsharp",
+            PackageName = "acme/demo",
+            IrVersion = "4.1.0-draft.1",
         });
         var report = CompilationReport.Of(result);
 

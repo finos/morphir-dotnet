@@ -21,7 +21,8 @@ public sealed class ValidationSteps(IModelValidationDriver validation, DriverSet
     public async Task ValidateTheModelWithTheArguments(string arguments) =>
         run.Result = await validation.ValidateAsync(run.Model, new ValidationOptions
         {
-            Json = true, Arguments = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries),
+            Json = true,
+            Arguments = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries),
         });
 
     [Then("validation exits with {int} and one JSON report")]

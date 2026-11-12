@@ -96,7 +96,9 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
     public async Task GenerateFromRecord() =>
         run.Result = await generation.GenerateAsync(new GenerationRequest
         {
-            Target = "fsharp", Output = workspace.Directory("output"), Options = new GenerationOptions { Project = Project },
+            Target = "fsharp",
+            Output = workspace.Directory("output"),
+            Options = new GenerationOptions { Project = Project },
         });
 
     [When("I compile the project from its {word} {word} with the target {string}")]

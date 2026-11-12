@@ -105,7 +105,10 @@ public sealed partial class TutorialSteps(
     public async Task CompileAndInstall(string version, string directory) =>
         run.Result = await compilation.CompileAsync(new CompilationOptions
         {
-            Output = CompilationOutput.Text, Project = Project, IrVersion = version, Install = Project.Directory(directory),
+            Output = CompilationOutput.Text,
+            Project = Project,
+            IrVersion = version,
+            Install = Project.Directory(directory),
         });
 
     [When("I validate the IR that the example installed in {string}")]
@@ -116,7 +119,10 @@ public sealed partial class TutorialSteps(
     public async Task CompileWithTheTarget(string target, string output) =>
         run.Result = await compilation.CompileAsync(new CompilationOptions
         {
-            Output = CompilationOutput.Text, Project = Project, Target = target, GenerateOutput = Project.Directory(output),
+            Output = CompilationOutput.Text,
+            Project = Project,
+            Target = target,
+            GenerateOutput = Project.Directory(output),
         });
 
     private void Expect(bool condition, string reason)
