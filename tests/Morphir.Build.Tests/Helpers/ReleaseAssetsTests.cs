@@ -13,6 +13,8 @@ namespace Morphir.Build.Tests.Helpers;
 /// never copied, so it cannot overwrite another platform's or the final one. One SHA256SUMS is then written over the
 /// Windows toolchain outputs of both Windows platforms.
 /// </summary>
+// These tests copy, compare and hash files in real folders.
+[Category("PlatformSpecific")]
 public class ReleaseAssetsTests
 {
     [Test]
