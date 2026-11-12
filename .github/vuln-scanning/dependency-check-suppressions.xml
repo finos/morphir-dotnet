@@ -117,25 +117,30 @@
     <notes><![CDATA[
       False positive: version misidentification. CVE-2026-88092 (ASP.NET Core
       HTTP request smuggling, CVSS 9.4) is fixed in ASP.NET Core 11.0.0-rc.2 and
-      10.0.13, both released on 2026-10-13. The flagged assembly is from the
-      Microsoft.JSInterop 11.0.0 GA package (2026-11-10), ProductVersion
+      10.0.13 (2026-10-13). CVE-2026-69304 (ASP.NET Core data amplification,
+      CVSS 5.9) is fixed in 11.0.0-rc.1 and 10.0.12 (2026-09-08). The flagged
+      assemblies come from the Microsoft.JSInterop and Microsoft.JSInterop.WebAssembly
+      11.0.0 GA packages (2026-11-10); Microsoft.JSInterop has ProductVersion
       11.0.0+297acf930fb0f5c07fd4e51d78e521b4ad2e5d1f. Dependency-Check maps the
       assembly version 11.0 to the NVD entry cpe:2.3:a:microsoft:asp.net_core:11.0:rc1,
-      which is the vulnerable pre-release. The assembly comes from
+      which is a vulnerable pre-release. The assemblies come from
       Microsoft.AspNetCore.Components.WebAssembly 11.0.0 in src/Morphir.Live, a
       Blazor WebAssembly client that runs no ASP.NET Core server.
-      Scoped to this package version and this CVE only.
+      Scoped to these two package versions and these two CVEs only. NuGet audit
+      (cve-scanning.yml) still checks the packages.
       Verified: src/Morphir.Live/packages.lock.json, the assembly ProductVersion and
       the .NET release metadata below.
       Review owner: @DamianReeves; pending PR review.
       Verification date: 2026-11-11; next quarterly review: 2027-01-31.
       References:
       https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-88092
+      https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-69304
       https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/11.0/releases.json
       https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/10.0/releases.json
     ]]></notes>
-    <packageUrl regex="true">^pkg:generic/Microsoft\.JSInterop@11\.0\.0$</packageUrl>
+    <packageUrl regex="true">^pkg:generic/Microsoft\.JSInterop(\.WebAssembly)?@11\.0\.0$</packageUrl>
     <cve>CVE-2026-88092</cve>
+    <cve>CVE-2026-69304</cve>
   </suppress>
 
   <!--
