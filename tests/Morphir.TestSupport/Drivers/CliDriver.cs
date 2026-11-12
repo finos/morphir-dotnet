@@ -22,6 +22,13 @@ public sealed record CliRunOptions
     /// For a test that has not moved to a workspace yet and has its own folder; a black-box test uses the default.
     /// </summary>
     public string? WorkingDirectory { get; init; }
+
+    /// <summary>
+    /// Runs the host with the dynamic-code feature switch of the runtime off, the switch that is off in a Native AOT
+    /// executable, so that a test of the development build sees what a host without dynamic code does. Only a host
+    /// that is an assembly can run so: <see cref="DriverCapability.HostWithoutDynamicCode"/>.
+    /// </summary>
+    public bool WithoutDynamicCode { get; init; }
 }
 
 /// <summary>
@@ -146,7 +153,14 @@ public sealed class CliDriver : ICliDriver
     public Task<CommandResult> RunAsync(IReadOnlyList<string> arguments, CliRunOptions? options = null, CancellationToken cancellation = default)
     {
         // The built assembly starts in 0.02 s with dotnet. dotnet run takes 0.35 s for an MSBuild evaluation.
-        var info = new ProcessStartInfo(IsAssembly ? "dotnet" : _artifact);
+        var info = new ProcessStartInfo(IsAssembly ? DotnetHost.Path : _artifact);
+        if (options?.WithoutDynamicCode == true)
+        {
+            if (!IsAssembly) throw new NotSupportedException($"The host {_artifact} is not an assembly, so it cannot run with the dynamic-code switch off.");
+            foreach (var argument in new[] { "exec", "--runtimeconfig", DynamicCode.RuntimeConfigurationWithoutDynamicCode(_artifact, _workspace) })
+                info.ArgumentList.Add(argument);
+        }
+
         if (IsAssembly) info.ArgumentList.Add(_artifact);
         foreach (var argument in arguments) info.ArgumentList.Add(argument);
         return RunAsync(info, CommandLineOf(info), options, cancellation);
@@ -154,7 +168,9 @@ public sealed class CliDriver : ICliDriver
 
     public Task<CommandResult> RunCommandLineAsync(string commandLine, CliRunOptions? options = null, CancellationToken cancellation = default)
     {
-        var info = new ProcessStartInfo(IsAssembly ? "dotnet" : _artifact)
+        if (options?.WithoutDynamicCode == true)
+            throw new NotSupportedException("A command line that is one string cannot run with the dynamic-code switch off. Give each argument apart (RunAsync).");
+        var info = new ProcessStartInfo(IsAssembly ? DotnetHost.Path : _artifact)
         {
             Arguments = IsAssembly ? $"\"{_artifact}\" {commandLine}" : commandLine,
         };
@@ -180,6 +196,9 @@ internal static class ProductProcess
         ProcessStartInfo info, string commandLine, IScenarioWorkspace workspace, ProcessGate? gate, CliRunOptions? options,
         TimeSpan defaultTimeout, CancellationToken cancellation)
     {
+        // On Linux the runner starts the child through setsid, which looks up its program in the PATH of the child,
+        // and a scenario can give the product a PATH with no dotnet: start the dotnet host by its full path.
+        if (info.FileName == "dotnet") info.FileName = DotnetHost.Path;
         workspace.Contain(info);
         if (options?.Environment is { } environment)
         {

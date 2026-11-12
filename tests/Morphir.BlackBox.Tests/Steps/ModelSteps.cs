@@ -11,6 +11,9 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
     [Given("the model fixture {string}")]
     public void TheModelFixture(string fixture) => run.Model = workspace.CopyFixture(fixture);
 
+    [Given("the model fixture {string} as {string}")]
+    public void TheModelFixtureAs(string fixture, string name) => run.Model = workspace.CopyFixture(fixture, name);
+
     [Given("the model tree fixture {string}")]
     public void TheModelTreeFixture(string fixture) => run.ModelTree = workspace.CopyFixtureDirectory(fixture);
 
@@ -37,5 +40,25 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
             throw new InvalidOperationException($"The model {run.Model.Name} has {matches.Length} modules with '{module}' in the name, not one.");
         modules.Remove(matches[0]);
         workspace.WriteText(run.Model, model.ToJsonString());
+    }
+
+    /// <summary>
+    /// <c>malformed</c>: the model file is not JSON. <c>document-literal</c>: the whole number 5000 of the daily rate
+    /// model is a document literal, which a backend cannot generate.
+    /// </summary>
+    [Given("the model has the problem {string}")]
+    public void TheModelHasTheProblem(string problem)
+    {
+        switch (problem)
+        {
+            case "malformed":
+                workspace.WriteText(run.Model, "{ broken");
+                break;
+            case "document-literal":
+                ReplaceInTheModel("\"WholeNumberLiteral\": 5000", "\"DocumentLiteral\": {\"extra\":true}");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(problem), problem, "Use malformed or document-literal.");
+        }
     }
 }

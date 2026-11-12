@@ -1,4 +1,4 @@
-@ConfigurationInspection @CLI @PlatformSpecific
+@integration @needs-configuration
 Feature: Inspect configuration without mutating the project
   Inspection shares canonical resolution with embedded hosts and keeps stdout scriptable.
 

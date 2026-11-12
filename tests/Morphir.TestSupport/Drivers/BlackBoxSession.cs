@@ -13,8 +13,13 @@ public sealed class DriverSet : IAsyncDisposable
     private readonly bool _keepFailed;
     private bool _ended;
 
-    internal DriverSet(TestTarget target, MorphirHost host, string artifact, IScenarioWorkspace workspace, bool keepFailed, TestPrograms programs)
+    private readonly Func<MorphirHost, string>? _artifactOf;
+
+    internal DriverSet(
+        TestTarget target, MorphirHost host, string artifact, IScenarioWorkspace workspace, bool keepFailed, TestPrograms programs,
+        ExtensionArtifacts? guests = null, Func<MorphirHost, string>? artifactOf = null)
     {
+        _artifactOf = artifactOf;
         _keepFailed = keepFailed;
         Target = target;
         Host = host;
@@ -22,6 +27,12 @@ public sealed class DriverSet : IAsyncDisposable
         Cli = new CliDriver(target, host, artifact, workspace);
         Verification = new ModelVerificationDriver(Cli);
         Generation = new GenerationDriver(Cli);
+        Compilation = new CompilationDriver(Cli);
+        Configuration = new ConfigurationDriver(Cli);
+        Migration = new MigrationDriver(Cli);
+        Extensions = new ExtensionDriver(Cli, guests);
+        ToolRouting = new ToolRoutingDriver(Cli, workspace, guests);
+        Validation = new ModelValidationDriver(Cli);
         LibraryHosts = new LibraryHostDriver(programs, workspace);
         BuiltFiles = new ArtifactInspectionDriver(programs);
         Capabilities = DriverCapabilities.Of(target, host);
@@ -39,6 +50,27 @@ public sealed class DriverSet : IAsyncDisposable
 
     public IGenerationDriver Generation { get; }
 
+    public ICompilationDriver Compilation { get; }
+
+    public IConfigurationDriver Configuration { get; }
+
+    public IMigrationDriver Migration { get; }
+
+    public IExtensionDriver Extensions { get; }
+
+    public IModelValidationDriver Validation { get; }
+
+    public IToolRoutingDriver ToolRouting { get; }
+
+    /// <summary>
+    /// The CLI driver of another host of the target, in the same workspace, for a test that compares the hosts
+    /// (<see cref="DriverCapability.AllHosts"/>). A host that the target does not have is an error.
+    /// </summary>
+    public ICliDriver CliOf(MorphirHost host) =>
+        host == Host ? Cli : new CliDriver(Target, host, (_artifactOf ?? throw new TestSessionException(Target.MissingHostReason(host)))(host), Workspace);
+
+    /// <summary>The validation driver of another host of the target, on <see cref="CliOf"/>.</summary>
+    public IModelValidationDriver ValidationOf(MorphirHost host) => host == Host ? Validation : new ModelValidationDriver(CliOf(host));
     /// <summary>The programs of the repository that are not the CLI: run, publish, compare.</summary>
     public ILibraryHostDriver LibraryHosts { get; }
 
@@ -73,9 +105,12 @@ public sealed class BlackBoxSession
 {
     private readonly string _fixtures;
     private readonly MachineTripwire? _tripwire;
+    private readonly ExtensionArtifacts _guests;
 
-    private BlackBoxSession(TestRunSettings settings, CliArtifacts artifacts, TestPrograms programs, string fixtures, MachineTripwire? tripwire = null)
+    private BlackBoxSession(
+        TestRunSettings settings, CliArtifacts artifacts, TestPrograms programs, string fixtures, MachineTripwire? tripwire = null, ExtensionArtifacts? guests = null)
     {
+        _guests = settings.Target is TestTarget.DevelopmentBuild ? guests ?? ExtensionArtifacts.None : ExtensionArtifacts.None;
         Settings = settings;
         Artifacts = artifacts;
         Programs = programs;
@@ -117,7 +152,8 @@ public sealed class BlackBoxSession
             Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(testAssembly)),
             settings.Target is TestTarget.DevelopmentBuild ? TestPrograms.OfTestAssembly(testAssembly) : TestPrograms.None,
             fixtures,
-            tripwire);
+            tripwire,
+            ExtensionArtifacts.OfTestAssembly(testAssembly));
     }
 
     /// <summary>Starts a session from the assembly metadata that Morphir.CliArtifacts.targets writes.</summary>
@@ -129,7 +165,8 @@ public sealed class BlackBoxSession
             settings,
             Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(metadata, testAssembly, fileExists)),
             settings.Target is TestTarget.DevelopmentBuild ? TestPrograms.Of(metadata, testAssembly, fileExists) : TestPrograms.None,
-            fixtures);
+            fixtures,
+            guests: ExtensionArtifacts.Of(metadata, fileExists));
     }
 
     /// <summary>The one decision of a test (<see cref="TestEligibility.Decide"/>). A skip is counted.</summary>
@@ -155,7 +192,7 @@ public sealed class BlackBoxSession
     public DriverSet BeginTest(MorphirHost host)
     {
         var artifact = Artifacts.PathOf(host);
-        return new DriverSet(Settings.Target, host, artifact, ScenarioWorkspace.Create(_fixtures), Settings.KeepFailed, Programs);
+        return new DriverSet(Settings.Target, host, artifact, ScenarioWorkspace.Create(_fixtures), Settings.KeepFailed, Programs, _guests, Artifacts.PathOf);
     }
 
     // Each target resolves to the artifact of its own form. No target uses the artifact of another form.

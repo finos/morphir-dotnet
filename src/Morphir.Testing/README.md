@@ -22,10 +22,12 @@ text, binary and trees. Do not copy a consumer or introduce a version-specific
 expected value. Cases unique to a model family belong in this inventory with
 explicit applicability, using the same compiler and diagnostic assertions.
 
-To exercise a published CLI, set `MORPHIR_GENERATION_CLI` to its absolute
-executable path and run `Morphir.Tooling.Tests`. The existing generation BDD,
-command and wire tests use that executable. The wire adapter reads its JSON
-report and ordered source files, then passes them to the same
-`GenerationConformance.run` and FSI runner. This is also the trimmed/Native AOT
-gate; it does not have separate version or runtime expectations. Unset the
-variable to use the ordinary development adapters.
+To exercise a published CLI, set `MORPHIR_TEST_TARGET=executable`,
+`MORPHIR_TEST_EXECUTABLE` to its absolute executable path and
+`MORPHIR_TEST_HOST=native`, and run `Morphir.Tooling.Tests` (see
+`tests/Morphir.TestSupport/README.md`). The generation tests that compare with
+this inventory use that executable. The wire adapter reads its JSON report and
+ordered source files, then passes them to the same `GenerationConformance.run`
+and FSI runner. This is also the trimmed/Native AOT gate; it does not have
+separate version or runtime expectations. Without the variables, the tests use
+the ordinary development adapters.

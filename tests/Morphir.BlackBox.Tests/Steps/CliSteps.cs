@@ -6,7 +6,7 @@ namespace Morphir.BlackBox.Tests.Steps;
 
 /// <summary>The steps for one command line of the product and for the general checks of its result.</summary>
 [Binding]
-public sealed class CliSteps(ICliDriver cli, ScenarioRun run)
+public sealed partial class CliSteps(ICliDriver cli, ScenarioRun run)
 {
     [When("I run the command {string}")]
     public async Task RunTheCommand(string commandLine) => run.Result = await cli.RunCommandLineAsync(commandLine);
@@ -29,6 +29,34 @@ public sealed class CliSteps(ICliDriver cli, ScenarioRun run)
     [Then("standard error contains {string}")]
     public void StandardErrorContains(string text) => run.Result.StandardErrorShouldContain(text);
 
+    [Then("standard output is the text {string}")]
+    public void StandardOutputIsTheText(string text)
+    {
+        if (run.Result.StandardOutput.Trim() != text)
+            throw new CommandAssertionException($"Standard output is not the text '{text}'.", run.Result);
+    }
+
+    [Then("standard output contains {string}")]
+    public void StandardOutputContains(string text)
+    {
+        if (!run.Result.StandardOutput.Contains(text, StringComparison.Ordinal))
+            throw new CommandAssertionException($"Standard output does not contain '{text}'.", run.Result);
+    }
+
+    [Then("standard error does not contain {string}")]
+    public void StandardErrorDoesNotContain(string text)
+    {
+        if (run.Result.StandardError.Contains(text, StringComparison.Ordinal))
+            throw new CommandAssertionException($"Standard error contains '{text}'.", run.Result);
+    }
+
+    [Then("standard output does not contain {string}")]
+    public void StandardOutputDoesNotContain(string text)
+    {
+        if (run.Result.StandardOutput.Contains(text, StringComparison.Ordinal))
+            throw new CommandAssertionException($"Standard output contains '{text}'.", run.Result);
+    }
+
     [Then("standard output is one JSON document")]
     public void StandardOutputIsOneJsonDocument() => run.Result.ShouldWriteOneJsonDocument();
 
@@ -40,12 +68,20 @@ public sealed class CliSteps(ICliDriver cli, ScenarioRun run)
             throw new CommandAssertionException($"The JSON document on standard output does not have the field {field} with the value true.", run.Result);
     }
 
+    /// <summary>
+    /// Standard output is one version in the canonical form of SemVer 2.0.0, which each host parses at its start with
+    /// <c>ReleaseVersion.Create</c>.
+    /// </summary>
     [Then("standard output is a version")]
     public void StandardOutputIsAVersion()
     {
-        if (!Regex.IsMatch(run.Result.StandardOutput.Trim(), @"^\d+\.\d+\.\d+\S*$"))
-            throw new CommandAssertionException("Standard output is not one version.", run.Result);
+        if (!SemanticVersion().IsMatch(run.Result.StandardOutput.Trim()))
+            throw new CommandAssertionException("Standard output is not one version in the form of SemVer 2.0.0.", run.Result);
     }
+
+    // The grammar of https://semver.org/spec/v2.0.0.html: no leading zero in a number, and identifiers of [0-9A-Za-z-].
+    [GeneratedRegex(@"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-((0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$")]
+    private static partial Regex SemanticVersion();
 
     [Then("the command ran on the {string} host")]
     public void TheCommandRanOnTheHost(string host)
