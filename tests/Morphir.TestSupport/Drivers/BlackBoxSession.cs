@@ -67,6 +67,9 @@ public sealed class DriverSet : IAsyncDisposable
     public ICliDriver CliOf(MorphirHost host) =>
         host == Host ? Cli : new CliDriver(Target, host, (_artifactOf ?? throw new TestSessionException(Target.MissingHostReason(host)))(host), Workspace);
 
+    /// <summary>The validation driver of another host of the target, on <see cref="CliOf"/>.</summary>
+    public IModelValidationDriver ValidationOf(MorphirHost host) => host == Host ? Validation : new ModelValidationDriver(CliOf(host));
+
     /// <summary>The capabilities that these drivers support.</summary>
     public IReadOnlySet<DriverCapability> Capabilities { get; }
 
@@ -141,7 +144,8 @@ public sealed class BlackBoxSession
         IReadOnlyDictionary<string, string> metadata, string testAssembly, Func<string, string?> variable, Func<string, bool> fileExists, string fixtures)
     {
         var settings = TestRunSettings.Parse(variable, fileExists);
-        return new BlackBoxSession(settings, Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(metadata, testAssembly, fileExists)), fixtures);
+        return new BlackBoxSession(
+            settings, Resolve(settings, () => CliArtifacts.OfDevelopmentBuild(metadata, testAssembly, fileExists)), fixtures, guests: ExtensionArtifacts.Of(metadata, fileExists));
     }
 
     /// <summary>The one decision of a test (<see cref="TestEligibility.Decide"/>). A skip is counted.</summary>

@@ -121,11 +121,12 @@ public sealed class ConfigurationEditingSteps(IConfigurationDriver configuration
     public void PlanStaysInside(string boundary)
     {
         var root = ReportPath.Normalize(Placeholder(boundary));
-        var outside = PlanSources()
+        var projectSources = PlanSources()
             .Where(source => source.Format != "memory" && !MachineAndPersonalRoles.Contains(source.Role))
             .Select(source => source.Path!)
-            .Where(path => !ReportPath.Contains(root, path))
             .ToArray();
+        Check(projectSources.Length > 0, "The report has no project source.");
+        var outside = projectSources.Where(path => !ReportPath.Contains(root, path)).ToArray();
         Check(outside.Length == 0, $"Discovery must stay inside {root}, but the plan consulted: {string.Join(", ", outside)}.");
         Check(Report.Text("target", "path")?.StartsWith(root, StringComparison.Ordinal) == true, $"The target of the edit is not inside {root}.");
     }
@@ -212,7 +213,7 @@ public sealed class ConfigurationEditingSteps(IConfigurationDriver configuration
     [Then("system preview respects the native no-follow policy")]
     public void SystemPreview()
     {
-        var linked = ScenarioMachine.SystemConfigurationRootIsALink;
+        var linked = configuration.SystemConfigurationRootIsALink;
         Result(linked ? 2 : 0, linked ? "failed" : "preview");
         if (linked) Report.ShouldHaveDiagnostic("config.edit_target");
         else Check(Report.Text("target", "role") == "System", "The target of the system preview is not the system file.");

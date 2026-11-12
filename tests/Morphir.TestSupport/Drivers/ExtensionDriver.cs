@@ -80,6 +80,12 @@ public interface IExtensionDriver
     /// <summary>The file of a built extension guest, to give to a command (for example <c>generate --extension</c>).</summary>
     string BuiltExtension(BuiltExtension guest);
 
+    /// <summary>The platform of this machine as the extension reports name it (<see cref="ExtensionPlatform.OfThisMachine"/>).</summary>
+    string Platform { get; }
+
+    /// <summary>True when the product refuses the WASM runtime on this machine before it loads (<see cref="ExtensionPlatform.WithoutWasm"/>).</summary>
+    bool PlatformHasNoWasm { get; }
+
     Task<CommandResult> ListAsync(ExtensionListOptions? options = null, CancellationToken cancellation = default);
 
     /// <summary>Runs <c>extension runtimes</c>, with <c>--json</c> when <paramref name="json"/> is true.</summary>
@@ -90,6 +96,10 @@ public interface IExtensionDriver
 public sealed class ExtensionDriver(ICliDriver cli, ExtensionArtifacts? guests = null) : IExtensionDriver
 {
     public string BuiltExtension(BuiltExtension guest) => (guests ?? ExtensionArtifacts.None).PathOf(guest);
+
+    public string Platform => ExtensionPlatform.OfThisMachine;
+
+    public bool PlatformHasNoWasm => ExtensionPlatform.OfThisMachine == ExtensionPlatform.WithoutWasm;
 
     public Task<CommandResult> ListAsync(ExtensionListOptions? options = null, CancellationToken cancellation = default)
     {
@@ -198,7 +208,9 @@ public static class ExtensionPlatform
     /// <summary>The platform name of a system, a process architecture and the runtime identifier of the runtime.</summary>
     public static string Of(string system, Architecture architecture, string runtimeIdentifier)
     {
-        if (system == "linux" && runtimeIdentifier.Contains("musl", StringComparison.OrdinalIgnoreCase)) system = "linux-musl";
+        // The rule of the product (WasmRuntimeProbe.UsesMusl): a musl or an Alpine runtime identifier.
+        if (system == "linux" && (runtimeIdentifier.Contains("musl", StringComparison.OrdinalIgnoreCase)
+            || runtimeIdentifier.StartsWith("alpine", StringComparison.OrdinalIgnoreCase))) system = "linux-musl";
         return $"{system}-{architecture.ToString().ToLowerInvariant()}";
     }
 

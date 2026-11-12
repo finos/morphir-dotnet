@@ -83,7 +83,7 @@ public sealed class ExtensionSteps(IExtensionDriver extensions, ScenarioRun run)
     {
         var report = Runtimes;
         report.Check(report.Host == host, $"The host of the runtimes report is {report.Host ?? "null"}, not {host}.");
-        report.Check(report.Platform == ExtensionPlatform.OfThisMachine, $"The platform of the runtimes report is {report.Platform ?? "null"}, not {ExtensionPlatform.OfThisMachine}.");
+        report.Check(report.Platform == extensions.Platform, $"The platform of the runtimes report is {report.Platform ?? "null"}, not {extensions.Platform}.");
     }
 
     /// <summary>The WASM runtime is available, except on the platform where the product refuses it before it loads.</summary>
@@ -93,8 +93,8 @@ public sealed class ExtensionSteps(IExtensionDriver extensions, ScenarioRun run)
         var report = Runtimes;
         report.Check(report.Runtimes.Count > 0, "The runtimes report has no runtime.");
         var wasm = report.Runtimes[0];
-        var withoutWasm = ExtensionPlatform.OfThisMachine == ExtensionPlatform.WithoutWasm;
-        report.Check(wasm.Available == !withoutWasm, $"The WASM runtime is {(wasm.Available ? "available" : "unavailable")} on {ExtensionPlatform.OfThisMachine}.");
+        var withoutWasm = extensions.PlatformHasNoWasm;
+        report.Check(wasm.Available == !withoutWasm, $"The WASM runtime is {(wasm.Available ? "available" : "unavailable")} on {extensions.Platform}.");
         if (withoutWasm) report.Check(wasm.Reason == "win_x64_trap_unsupported", $"The reason is {wasm.Reason ?? "null"}, not win_x64_trap_unsupported.");
         report.Check(wasm.EngineVersion == version, $"The engine version is {wasm.EngineVersion ?? "null"}, not {version}.");
     }
@@ -103,7 +103,7 @@ public sealed class ExtensionSteps(IExtensionDriver extensions, ScenarioRun run)
     public void TheRuntimesTextNamesTheRuntime(string engine)
     {
         var output = run.Result.StandardOutput;
-        var state = ExtensionPlatform.OfThisMachine == ExtensionPlatform.WithoutWasm ? "wasm: unavailable (win_x64_trap_unsupported)" : "wasm: available";
+        var state = extensions.PlatformHasNoWasm ? "wasm: unavailable (win_x64_trap_unsupported)" : "wasm: available";
         Check(output.Contains(state, StringComparison.Ordinal), $"Standard output does not contain '{state}'.");
         Check(output.Contains($"Engine: {engine}", StringComparison.Ordinal), $"Standard output does not name the engine {engine}.");
     }

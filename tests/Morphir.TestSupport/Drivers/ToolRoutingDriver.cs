@@ -53,7 +53,10 @@ public sealed record StubReport(IReadOnlyList<string> Arguments, string WorkingD
 /// </summary>
 public interface IToolRoutingDriver
 {
-    /// <summary>Copies the stub <c>morphir-mck</c> into <paramref name="folder"/> as <paramref name="name"/>, and returns its executable.</summary>
+    /// <summary>
+    /// Copies the stub <c>morphir-mck</c> into <paramref name="folder"/> with its executable named <paramref name="name"/>,
+    /// and returns its executable.
+    /// </summary>
     WorkspaceFile InstallStub(WorkspaceDirectory folder, string name = "morphir-mck");
 
     /// <summary>The file name of the executable of a tool on this machine: <c>morphir-mck.exe</c> on Windows, else <c>morphir-mck</c>.</summary>
@@ -85,7 +88,9 @@ public sealed class ToolRoutingDriver(ICliDriver cli, IScenarioWorkspace workspa
         foreach (var file in new[] { "morphir-mck" + Suffix, "morphir-mck.dll", "morphir-mck.runtimeconfig.json", "morphir-mck.deps.json" })
         {
             var source = System.IO.Path.Combine(output, file);
-            if (File.Exists(source)) File.Copy(source, folder.File(file.Replace("morphir-mck", name, StringComparison.Ordinal)).Path, overwrite: true);
+            // Only the executable gets the name: the apphost starts the assembly whose name the build wrote into it.
+            var target = file == "morphir-mck" + Suffix ? name + Suffix : file;
+            if (File.Exists(source)) File.Copy(source, folder.File(target).Path, overwrite: true);
         }
 
         var executable = folder.File(name + Suffix);

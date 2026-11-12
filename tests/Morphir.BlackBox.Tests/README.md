@@ -359,6 +359,13 @@ two steps have the same pattern.
 | Tool routing | `Then standard output is not a report of the tool` |
 | Tool routing | `Then the exit code is neither 0 nor {int}` |
 | Tool routing | `Then the help lists the command mck` |
+| Tool routing | `Then the tool alone with the arguments {string} exits with {int}` |
+
+The scenarios that pull request 3 of the change `consolidate-black-box-tests` moved keep the step texts of their old
+features, so that each moved scenario has its old steps and its old checks. Some of those steps say one thing in the
+words of their feature: for example `environment variable {word} is {string}` and `migration environment variable
+{word} is {string}`, or `inspection diagnostics include {string}` and `workspace migration diagnostics include
+{string}`. A later change can join them. A new scenario uses the general step where one exists.
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.

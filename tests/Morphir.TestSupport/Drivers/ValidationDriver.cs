@@ -48,8 +48,9 @@ public sealed class ValidationReport : JsonCommandReport
             if (Success != (result.ExitCode == 0))
                 throw new CommandAssertionException($"The validation report disagrees with the command: success is {(Success ? "true" : "false")}, but the exit code is {result.ExitCode}.", result);
         }
-        else if (result.ExitCode == 0)
+        else if (result.ExitCode != 2)
         {
+            // Only the report of a usage error (exit code 2) has no field success.
             throw new CommandAssertionException("The validation report has no boolean field success.", result);
         }
 

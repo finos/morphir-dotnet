@@ -399,6 +399,19 @@ public class CommandFamilyDriverTests
     }
 
     [Test]
+    public async Task TheReportsRefuseTheFormsThatTheOldChecksRefused()
+    {
+        await using var workspace = Workspace();
+
+        ((Action)(() => _ = ConfigurationReport.Of(Result(0, "{ \"exitCode\": 0 }")).Sources)).Should().Throw<CommandAssertionException>().WithMessage("*no list sources*");
+        ((Action)(() => ValidationReport.Of(Result(1, "{ \"exitCode\": 1 }")))).Should().Throw<CommandAssertionException>().WithMessage("*no boolean field success*");
+        ValidationReport.Of(Result(2, "{ \"exitCode\": 2 }")).Success.Should().BeFalse("a usage error has no field success");
+        ExtensionPlatform.Of("linux", System.Runtime.InteropServices.Architecture.X64, "alpine.3.20-x64").Should().Be("linux-musl-x64");
+        var oneString = () => Cli(workspace).RunCommandLineAsync("--version", new CliRunOptions { WithoutDynamicCode = true });
+        await oneString.Should().ThrowAsync<NotSupportedException>();
+    }
+
+    [Test]
     public void ReportPathsHaveOneFormOnEachPlatform()
     {
         ReportPath.Normalize(@"C:\work\app\..\morphir.toml").Should().Be("C:/work/morphir.toml");

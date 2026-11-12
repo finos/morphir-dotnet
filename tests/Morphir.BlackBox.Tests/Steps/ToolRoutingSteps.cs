@@ -61,7 +61,7 @@ public sealed partial class ToolRoutingSteps(IToolRoutingDriver routing, IScenar
     [Given("the stub of a tool {string} is on the search path")]
     public void TheStubOfAToolIsOnThePath(string name)
     {
-        routing.InstallStub(Tools, name);
+        _stub = routing.InstallStub(Tools, name);
         _path.Add(Tools);
     }
 
@@ -133,6 +133,15 @@ public sealed partial class ToolRoutingSteps(IToolRoutingDriver routing, IScenar
         Check(routed.StandardInput == Regex.Unescape(input), $"The tool read '{routed.StandardInput}', not the input of the caller.");
         Check(routed.WorkingDirectory == alone.WorkingDirectory, $"The tool ran in {routed.WorkingDirectory}, not in {alone.WorkingDirectory}.");
         Check(routed.WorkingDirectory.TrimEnd('/', '\\').EndsWith("work", StringComparison.Ordinal), $"The tool ran in {routed.WorkingDirectory}, not in the work area.");
+    }
+
+    /// <summary>The stub of the scenario runs alone with <paramref name="arguments"/>, so a check that it did not run can fail.</summary>
+    [Then("the tool alone with the arguments {string} exits with {int}")]
+    public async Task TheToolAloneExitsWith(string arguments, int code)
+    {
+        var alone = await routing.RunStubAsync(_stub ?? throw new InvalidOperationException("The scenario has no stub before this step."),
+            arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries), Options);
+        if (alone.ExitCode != code) throw new CommandAssertionException($"The tool alone exits with {alone.ExitCode}, not {code}.", alone);
     }
 
     [Then("standard output is not a report of the tool")]

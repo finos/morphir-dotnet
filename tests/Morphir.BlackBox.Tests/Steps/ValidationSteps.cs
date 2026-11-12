@@ -47,7 +47,7 @@ public sealed class ValidationSteps(IModelValidationDriver validation, DriverSet
     public async Task ValidateOnBothHosts()
     {
         foreach (var host in new[] { MorphirHost.Native, MorphirHost.DotnetTool })
-            _byHost[host] = await new ModelValidationDriver(drivers.CliOf(host)).ValidateAsync(run.Model, new ValidationOptions { Json = true });
+            _byHost[host] = await drivers.ValidationOf(host).ValidateAsync(run.Model, new ValidationOptions { Json = true });
         run.Result = _byHost[MorphirHost.DotnetTool];
     }
 

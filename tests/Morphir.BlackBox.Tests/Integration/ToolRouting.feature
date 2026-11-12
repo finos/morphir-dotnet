@@ -1,9 +1,11 @@
-@integration @needs-tool-routing @needs-built-extensions
+@integration @needs-tool-routing
 Feature: Route morphir mck to the separately installed morphir-mck
   morphir mck <args> runs the separately installed morphir-mck <args> (cli-tool-dispatch). These scenarios run each
-  host with a stub morphir-mck, and compare what the stub received and wrote with a standalone run of the stub.
+  host with a stub morphir-mck, and compare what the stub received and wrote with a standalone run of the stub. The
+  stub is a program of the development build (@needs-built-extensions).
   MckRoutingTests of Morphir.Tests keeps the scenarios that send a signal to the CLI or kill it.
 
+  @needs-built-extensions
   Scenario Outline: The arguments pass through unchanged
     Given the stub morphir-mck is on the search path
     When I run mck with the arguments
@@ -43,6 +45,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | host |
       | tool |
 
+  @needs-built-extensions
   Scenario Outline: A routed run and a standalone run write the same and exit the same
     Given the stub morphir-mck is on the search path
     And the tool exits with 3
@@ -62,6 +65,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | host |
       | tool |
 
+  @needs-built-extensions
   Scenario Outline: The tool reads the standard input of the caller in the directory of the caller
     Given the stub morphir-mck is on the search path
     And the tool reads its standard input, and the input is "piped text\nsecond line\n"
@@ -79,6 +83,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | host |
       | tool |
 
+  @needs-built-extensions
   Scenario Outline: With no tool the CLI says so on standard error and exits with 127
     Given no tool is on the search path
     When I run the command "mck run" on the search path
@@ -104,6 +109,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | host    |
       | managed |
 
+  @needs-built-extensions
   Scenario Outline: A tool in the current directory is not run
     Given no tool is on the search path
     And the stub morphir-mck is in the current directory, and the current directory is on the search path
@@ -122,6 +128,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | host |
       | tool |
 
+  @needs-built-extensions
   Scenario Outline: A relative MORPHIR_MCK is refused
     Given no tool is on the search path
     And the stub morphir-mck is in the current directory
@@ -143,6 +150,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | host |
       | tool |
 
+  @needs-built-extensions
   Scenario Outline: An absolute MORPHIR_MCK runs with no search path
     Given no tool is on the search path
     And MORPHIR_MCK is the absolute path of the stub
@@ -163,6 +171,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | host |
       | tool |
 
+  @needs-built-extensions
   Scenario Outline: Another unknown command starts nothing
     Given the stub of a tool "morphir-lint" is on the search path
     And the tool exits with 42
@@ -171,6 +180,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
     And the command ran on the "<host>" host
     And standard output is not a report of the tool
     And the output contains "lint"
+    And the tool alone with the arguments "src" exits with 42
 
     @host-native
     Examples: The native host
@@ -182,6 +192,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | host |
       | tool |
 
+  @needs-built-extensions
   Scenario Outline: The help lists mck
     Given no tool is on the search path
     When I run the command "--help" on the search path
@@ -199,7 +210,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | host |
       | tool |
 
-  @host-managed
+  @needs-built-extensions @host-managed
   Scenario: The managed host passes the arguments and the exit code through
     Given the stub morphir-mck is on the search path
     And the tool exits with 3
@@ -212,6 +223,7 @@ Feature: Route morphir mck to the separately installed morphir-mck
       | --help         |
       |                |
     Then the exit code is 3
+    And the command ran on the "managed" host
     And the tool received the arguments
       | argument       |
       | run            |

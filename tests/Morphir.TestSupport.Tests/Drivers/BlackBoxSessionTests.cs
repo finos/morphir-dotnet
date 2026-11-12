@@ -137,6 +137,8 @@ public class BlackBoxSessionTests
         first.CliOf(MorphirHost.Native).Should().BeSameAs(first.Cli);
         first.CliOf(MorphirHost.DotnetTool).Host.Should().Be(MorphirHost.DotnetTool);
         (await first.CliOf(MorphirHost.DotnetTool).RunAsync(["--version"])).CommandLine.Should().Contain("dotnet-morphir");
+        first.ValidationOf(MorphirHost.Native).Should().BeSameAs(first.Validation);
+        (await first.ValidationOf(MorphirHost.DotnetTool).ValidateAsync(first.Workspace.File("Cli", "valid-ir-v3.json"))).CommandLine.Should().Contain("dotnet-morphir");
     }
 
     [Test]

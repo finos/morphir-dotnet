@@ -81,6 +81,7 @@ dynamic-code switch of the runtime off, as in Native AOT), `AllHosts` (two hosts
 | `GenerateCommandTests` | 9 | 8 moved to `Integration/FSharpGeneration.feature`: the 6 invalid invocations (three outlines and one scenario), the text output of an unknown target, and the repeated options. **Split:** `HumanOutputReservesStdoutForArtifacts(True)` runs `GenerationCases` and stays as `HumanOutputReservesStdoutForArtifacts`; the scenario "Text output keeps standard output for the artifacts" checks that standard output is `Inventory.fs`. |
 | `GenerationReportingTests` | 9 | 2 moved. `OperationalCliFailureReturnsTwoAndOneJsonDocument` is "An input that is not there is an operational failure of the F# backend". `OperationalCliFailureBudgetStartsAfterTheProcessSlotIsGranted` tested `CliTestHelper` with a gate: it is `CliDriverTimeLimitTests.TheTimeLimitStartsWhenTheCommandHasAPlaceOfTheGate` in `Morphir.TestSupport.Tests`, on the driver that replaces the helper. 7 stay: they call `GenerationReport.From` or run `MorphirCli` in the test process. |
 | `GenerateFormattingTests` | 11 | 3 moved to `Integration/GenerationFormatting.feature` (`@needs-host-without-dynamic-code`). The new feature also has the CLI part of the two tests that stay. 8 stay: 6 in the test process; `WithFormatFalseThePublisherWritesTheFrozenBytes...` (the built-in in the test process, and the guest) and `WithFormatFalseAHostThatCannotFormatWritesTheSameBytesAsJit...` (compares with the generator in the test process) are splits. The guest part is "With format false the guest writes the frozen bytes of the toolchain case" in `GenerationExtension.feature`: it compares with the pinned `expected/generated/Pricing.fs`; the old test also compared the length and the SHA-256 with two constants of the same file. The tests that stay take the native host from the assembly metadata, not from a path below the repository root. |
+| `GenerateDocumentationTests` | 2 | Moved to the journey `Journeys/TwoStepGeneration.feature` (compile, then generate: two capabilities). The two tests are one scenario: `TheSectionDocumentsCompileThenGenerate` is its check of the documented commands, which now compares each complete command line. **Changed source of the inputs:** as for `CompileDocumentationTests`, the sources of the corpus case `frontend-fsharp-0116` are doc strings of the feature, not a read of the kit library. |
 | `GenerationWireConformanceTests` | 4 | Stay: they run the corpus in the test process. With `MORPHIR_TEST_TARGET=executable` they run the matrix through that CLI (task 7.5). |
 
 ## Validate, extensions and mck (`Features/Validate`, `Features/Extensions`, `Features/Mck`)
@@ -97,7 +98,8 @@ dynamic-code switch of the runtime off, as in Native AOT), `AllHosts` (two hosts
 
 ## Configuration and migrations (`Features/Configuration`, `Features/ProjectMigration`, `Features/WorkspaceMigration`)
 
-Each moved scenario has the same name, the same steps and the same checks, in `Integration/` with
+Each moved scenario has the same name, the same steps and the same checks (a check that no source is outside the
+boundary now also requires one project source, as `OnlyContain` of the old steps did), in `Integration/` with
 `@integration @needs-configuration` or `@needs-migration`. The paths of the reports are compared in the form of
 `ReportPath`, which is the form of `ProjectPath` of the product. The reports must match the published schemas, which
 are links of the project file (`Fixtures/Schemas`).
@@ -132,6 +134,10 @@ changes the developer's Morphir locations fails the run (task 7.4).
 | `MckRoutingTests` | 22 | 18 moved to `Integration/ToolRouting.feature`, with an Examples block for each host (`@host-native`, `@host-tool`) and a check that the command ran on that host. 4 stay: `KillingTheCliOnWindowsStopsTheToolAndItsChild` and `SigtermToTheCliOnUnixStopsTheToolsTree` send a signal to the CLI or kill it, and no driver does that yet (`IProcessSessionDriver` of pull request 2). Open in task 7.3. |
 | `ManagedMckRoutingTests` | 3 | 2 moved to `Integration/ToolRouting.feature` (`@host-managed`). The Windows kill test stays. |
 | `MckRoutingHarnessTests` | 3 | **Stay**, changed destination: they test the harness `MckRouting` of the tests that stay. |
+
+"Another unknown command starts nothing" now also runs the stub `morphir-lint` alone and expects its exit code 42, so
+the check that the CLI did not run it can fail. The old harness renamed each file of the stub, also its assembly, so
+the renamed apphost could not start and the check passed in each case; the driver renames only the executable.
 
 The routing tests started the apphost in the test output folder, and that folder also had a stub, so they also
 checked that the CLI does not search the folder of its executable. The CLI driver starts the built assembly with

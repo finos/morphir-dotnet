@@ -114,11 +114,12 @@ public sealed class ConfigurationInspectionSteps(IConfigurationDriver configurat
     public void NoProjectSourceOutside(string boundary)
     {
         var root = ReportPath.Normalize(Placeholder(boundary));
-        var outside = Report.Sources
+        var projectSources = Report.Sources
             .Where(source => source.Format != "memory" && !MachineAndPersonalRoles.Contains(source.Role))
             .Select(source => source.Path!)
-            .Where(path => !ReportPath.Contains(root, path))
             .ToArray();
+        Check(projectSources.Length > 0, "The report has no project source.");
+        var outside = projectSources.Where(path => !ReportPath.Contains(root, path)).ToArray();
         Check(outside.Length == 0, $"Discovery must stay inside {root}, but it consulted: {string.Join(", ", outside)}.");
     }
 

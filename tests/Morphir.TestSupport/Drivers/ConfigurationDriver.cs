@@ -51,6 +51,9 @@ public sealed record ScenarioMachine(WorkspaceDirectory WorkingDirectory)
 /// <summary>The <c>config</c> command as an intent: inspect or edit the configuration of a project.</summary>
 public interface IConfigurationDriver
 {
+    /// <summary>True when the system configuration root of this machine is a symbolic link (<see cref="ScenarioMachine.SystemConfigurationRootIsALink"/>).</summary>
+    bool SystemConfigurationRootIsALink { get; }
+
     /// <summary>Runs <c>config</c> with <paramref name="arguments"/> (the operation and its options) in the machine of the scenario.</summary>
     Task<CommandResult> ConfigureAsync(IReadOnlyList<string> arguments, ScenarioMachine machine, CancellationToken cancellation = default);
 }
@@ -58,6 +61,8 @@ public interface IConfigurationDriver
 /// <summary>Builds the command line of <c>config</c> and gives it to the CLI driver.</summary>
 public sealed class ConfigurationDriver(ICliDriver cli) : IConfigurationDriver
 {
+    public bool SystemConfigurationRootIsALink => ScenarioMachine.SystemConfigurationRootIsALink;
+
     public Task<CommandResult> ConfigureAsync(IReadOnlyList<string> arguments, ScenarioMachine machine, CancellationToken cancellation = default) =>
         cli.RunAsync(["config", .. arguments], machine.RunOptions(), cancellation);
 }
@@ -125,12 +130,15 @@ public sealed class ConfigurationReport : JsonCommandReport
     /// <summary>The outcome of an edit: <c>written</c>, <c>preview</c>, <c>unchanged</c> or <c>failed</c>.</summary>
     public string? Outcome => Text("outcome");
 
-    /// <summary>The sources that the inspection consulted, or the sources of the effective result of an edit.</summary>
+    /// <summary>
+    /// The sources that the inspection consulted, or the sources of the effective result of an edit. A report with no such list is an error: a check that no source is of a kind must not
+    /// pass because the list is absent.
+    /// </summary>
     public IReadOnlyList<ConfigurationSource> Sources =>
     [
         .. (Member("sources") ?? Member("effective", "sources")) is { ValueKind: JsonValueKind.Array } sources
             ? sources.EnumerateArray().Select(ConfigurationSource.Of)
-            : [],
+            : throw new CommandAssertionException("The configuration report has no list sources.", Result),
     ];
 
     /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>

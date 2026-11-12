@@ -169,6 +169,8 @@ public sealed class CliDriver : ICliDriver
 
     public Task<CommandResult> RunCommandLineAsync(string commandLine, CliRunOptions? options = null, CancellationToken cancellation = default)
     {
+        if (options?.WithoutDynamicCode == true)
+            throw new NotSupportedException("A command line that is one string cannot run with the dynamic-code switch off. Give each argument apart (RunAsync).");
         var info = new ProcessStartInfo(IsAssembly ? "dotnet" : _artifact)
         {
             Arguments = IsAssembly ? $"\"{_artifact}\" {commandLine}" : commandLine,
