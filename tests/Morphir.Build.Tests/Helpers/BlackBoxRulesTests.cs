@@ -463,15 +463,14 @@ public class BlackBoxRulesTests
     private static ImmutableArray<PullRequestRun> PullRequestRuns()
     {
         var target = new TestTarget.DevelopmentBuild();
+        var capabilities = target.Hosts.ToImmutableDictionary(
+            host => host.Name(),
+            host => DriverCapabilities.Of(target, host).Select(DriverCapabilities.TagOf).ToImmutableHashSet());
         return
         [
-            new PullRequestRun(
-                TestLane.None.Name(),
-                "the development build (each operating system)",
-                target.DefaultHost.Name(),
-                target.Hosts.ToImmutableDictionary(
-                    host => host.Name(),
-                    host => DriverCapabilities.Of(target, host).Select(DriverCapabilities.TagOf).ToImmutableHashSet())),
+            new PullRequestRun(TestLane.None.Name(), "the development build (each operating system)", target.DefaultHost.Name(), capabilities),
+            // TestBuild runs the packages lane on the development build after the pack step (TestPlan.PackagesLaneRun).
+            new PullRequestRun(TestLane.Packages.Name(), "the packages lane after the pack step (each operating system)", target.DefaultHost.Name(), capabilities),
         ];
     }
 
@@ -501,10 +500,13 @@ public class BlackBoxRulesTests
     {
         var project = File.ReadAllText(Path.Combine(ProjectDirectory, "Morphir.BlackBox.Tests.csproj"));
         var targets = File.ReadAllText(Path.Combine(Root, "tests", "Morphir.TestSupport", "build", "Morphir.CliArtifacts.targets"));
+        var packages = File.ReadAllText(Path.Combine(Root, "tests", "Morphir.TestSupport", "build", "Morphir.PackageSources.targets"));
 
         project.Should().Contain("Morphir.CliArtifacts.targets", "the build of the project builds the CLI entry points first");
+        project.Should().Contain("Morphir.PackageSources.targets", "the build of the project builds the projects that the package driver packs first");
         BlackBoxRules.ReferenceViolations($"{Project}/Morphir.BlackBox.Tests.csproj", project).Should().BeEmpty();
         BlackBoxRules.ReferenceViolations("tests/Morphir.TestSupport/build/Morphir.CliArtifacts.targets", targets).Should().BeEmpty();
+        BlackBoxRules.ReferenceViolations("tests/Morphir.TestSupport/build/Morphir.PackageSources.targets", packages).Should().BeEmpty();
         BlackBoxRules.ProjectReferences($"{Project}/Morphir.BlackBox.Tests.csproj", project).Select(reference => reference.Path)
             .Should().Equal("tests/Morphir.TestSupport/Morphir.TestSupport.csproj");
     }

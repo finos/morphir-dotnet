@@ -28,7 +28,6 @@
     <Compile Include="GuestTests.fs" />
     <Compile Include="ConcurrencyTests.fs" />
     <Compile Include="ProcessTests.fs" />
-    <Compile Include="PackageTests.fs" />
     <Compile Include="FakeBackendGuests.fs" />
     <Compile Include="HostAdapterTests.fs" />
     <Compile Include="Program.fs" />

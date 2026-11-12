@@ -22,19 +22,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.Myriad/Morphir.Myriad.fsproj"
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.Myriad/Morphir.Myriad.fsproj"
                       ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
                       OutputItemType="MorphirPackageSourceArtifact" />
-    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj"
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj"
                       ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
                       OutputItemType="MorphirPackageSourceArtifact" />
-    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj"
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj"
                       ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
                       OutputItemType="MorphirPackageSourceArtifact" />
-    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj"
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj"
                       ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
                       OutputItemType="MorphirPackageSourceArtifact" />
-    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj"
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj"
                       ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
                       OutputItemType="MorphirPackageSourceArtifact" />
   </ItemGroup>

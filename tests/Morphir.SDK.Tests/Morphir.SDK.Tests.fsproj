@@ -44,7 +44,6 @@
         <Compile Include="DecimalTests.fs" />
         <Compile Include="DecimalCultureTests.fs" />
         <Compile Include="PropertyTests.fs" />
-        <Compile Include="PackageMigrationTests.fs" />
         <Compile Include="ConformanceAssertions.fs" />
         <Compile Include="ConformanceCases.fs" />
         <Compile Include="GenericCompatibilityTests.fs" />

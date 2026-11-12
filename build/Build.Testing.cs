@@ -41,29 +41,25 @@ partial class Build
     AbsolutePath TestResultsDirectory => RootDirectory / "artifacts" / "test-results";
 
     /// <summary>
-    /// Run the test assemblies of <see cref="Morphir.Build.Helpers.TestPlan.Suites"/> (TUnit and Expecto), then the
-    /// Myriad package-consumer checks. <c>--test-scope platform</c> runs only the tests with the PlatformSpecific
+    /// Run the test assemblies of <see cref="Morphir.Build.Helpers.TestPlan.Suites"/> (TUnit and Expecto) and the
+    /// groups of the black-box tests. <c>--test-scope platform</c> runs only the tests with the PlatformSpecific
     /// marker: CI uses it on the operating systems other than Linux, where the managed tests already ran.
     /// <c>--test-parallelism</c> runs more than one assembly at the same time. <c>--test-group</c> runs only the
-    /// suites of one purpose group of the black-box tests, and no other check.
+    /// suites of one purpose group of the black-box tests.
     /// </summary>
     Target Test => _ => _
         .DependsOn(Compile)
-        .Description("Run unit suites, black-box groups, Myriad BDD consumers and cold package lifecycle checks")
-        .Executes(() =>
-        {
-            RunTests(Configuration);
-            if (TestPlan.RunsPackageConsumerScripts(TestGroup)) RunMyriadPackageTests();
-        });
+        .Description("Run unit suites and black-box groups, with the Myriad and SDK package consumers")
+        .Executes(() => RunTests(Configuration));
 
     /// <summary>
-    /// Run build tests (Morphir.Build.Tests)
-    /// Validates package structure, metadata, and local installation
-    /// NOTE: Requires packages to be built first (run PackAll target)
+    /// Run the build tests (Morphir.Build.Tests), then the packages lane of the black-box tests
+    /// (<see cref="TestPlan.PackagesLaneRun"/>): the tests of the packed packages, which read the output folder of
+    /// PackAll. NOTE: Requires packages to be built first (run PackAll target)
     /// </summary>
     Target TestBuild => _ => _
         .DependsOn(Compile)
-        .Description("Run build/package validation tests (requires packages to be built)")
+        .Description("Run build tests and the packages lane of the black-box tests (requires packages to be built)")
         .Executes(() =>
         {
             Serilog.Log.Information("Running build/package validation tests...");
@@ -100,6 +96,24 @@ partial class Build
             {
                 Serilog.Log.Information("✓ Build tests PASSED");
             }
+
+            // The packages lane reads only the packed packages of PackAll. A run with no package there stops before its
+            // first test with the pack command; the check above already ended this target in that case.
+            var temporary = PhysicalPath(Path.GetTempPath());
+            var environment = new Dictionary<string, string>(TestPlan.PackagesLaneEnvironment(packagesDir.ToString()))
+            {
+                ["TMPDIR"] = temporary,
+                ["TEMP"] = temporary,
+                ["TMP"] = temporary,
+                [MaxProcessesVariable] = TestPlan.MachineProcessLimit(Environment.GetEnvironmentVariable(MaxProcessesVariable), Environment.ProcessorCount)
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture),
+            };
+            Serilog.Log.Information("Running the packages lane of {Project} with the packages of {Folder}...", TestPlan.BlackBoxProject, packagesDir);
+            var lane = RunSuite(TestPlan.PackagesLaneRun, Configuration, environment, buffered: false);
+            ReportHangs();
+            if (lane.ExitCode != 0)
+                throw new Exception($"The packages lane failed with exit code {lane.ExitCode}");
+            Serilog.Log.Information("✓ Packages lane PASSED ({Seconds:0}s; skipped: {Skips})", lane.Duration.TotalSeconds, lane.Skips ?? "none");
         });
 
     /// <summary>
@@ -109,38 +123,11 @@ partial class Build
     /// </summary>
     Target TestAll => _ => _
         .DependsOn(Test, TestBuild)
-        .Description("Run unit, BDD and package-consumer suites plus build/package validation")
+        .Description("Run unit suites and black-box groups, plus the build tests and the packages lane")
         .Executes(() =>
         {
             Serilog.Log.Information("All tests completed successfully");
         });
-
-    /// <summary>
-    /// Exercise cold package consumers, module publication and rebuild behavior.
-    /// </summary>
-    Target TestMyriadPackages => _ => _
-        .DependsOn(Compile)
-        .Description("Run Myriad package-consumer lifecycle checks")
-        .Executes(RunMyriadPackageTests);
-
-    void RunMyriadPackageTests()
-    {
-        // --no-build: Compile made the assemblies. A pack that builds with the PackageVersion of the scripts changes
-        // the assembly information of the packed projects, and then the next Compile builds the solution again.
-        // The scripts pack the Release configuration, so with another configuration they must build.
-        string[] noBuild = Configuration == "Release" ? ["--no-build"] : [];
-        var script = TestsDirectory / "Morphir.Myriad.Tests" / "package-tests.fsx";
-        if (RunCommand("dotnet", ["fsi", script, .. noBuild]) != 0)
-        {
-            throw new Exception("Myriad package-consumer checks failed");
-        }
-
-        var jsonScript = TestsDirectory / "Morphir.Myriad.SystemTextJson.Tests" / "package-tests.fsx";
-        if (RunCommand("dotnet", ["fsi", jsonScript, .. noBuild]) != 0)
-        {
-            throw new Exception("Morphir.Myriad.SystemTextJson package-consumer checks failed");
-        }
-    }
 
     /// <summary>
     /// Build the E2E test project (Morphir.E2E.Tests)

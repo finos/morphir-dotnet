@@ -24,7 +24,6 @@
     <Compile Include="GuestSupport.fs" />
     <Compile Include="GuestTests.fs" />
     <Compile Include="ProcessReplayTests.fs" />
-    <Compile Include="PackageTests.fs" />
     <Compile Include="SelfContainedTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
