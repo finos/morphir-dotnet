@@ -16,6 +16,24 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 public sealed class ConfiguredWasmCommandTests
 {
     [Test]
+    public async Task AChannelOpenRefusalKeepsItsOwnFailureCodeInTheCommandResult()
+    {
+        if (WasmRuntime.Process.Platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: guest instantiation is unavailable; #609.");
+        using var workspace = Workspace("python.wasm");
+        File.Copy(MepWasmFixtures.FullPath("fixtures/wasm/initial-memory-4097.wasm"), workspace.PathOf("python.wasm"));
+        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n[extensions.python]\npath = \"python.wasm\"\nabi = \"extism-kernel-v1\"\n");
+        var input = GenerationInputFixtures.DailyRate(workspace.Root, "4", "json");
+        var output = workspace.PathOf("generated");
+        var result = await new CliTestHelper(null, CliHost.Morphir).ExecuteCommandAsync(
+            $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json");
+        result.ExitCode.Should().Be(2, result.CombinedOutput);
+        using var report = JsonDocument.Parse(result.StandardOutput);
+        report.RootElement.GetProperty("diagnostics")[0].GetProperty("code").GetString().Should().Be("extension.memory_limit");
+        Directory.Exists(output).Should().BeFalse();
+    }
+
+    [Test]
     public void ExistingProcessConnectorConstructorsRemainBinaryCompatible()
     {
         typeof(MepFrontendExtensionConnector).GetConstructor(Type.EmptyTypes).Should().NotBeNull();

@@ -64,6 +64,7 @@ internal static class ConfiguredWasmModule
         var opening = WasmChannel.Open(module.Module, SessionLimits.Default);
         if (opening is WasmChannelOpening.Failed refused)
         {
+            code = refused.Failure.Code ?? code;
             message = refused.Failure.Message;
             return false;
         }

@@ -162,11 +162,19 @@ type MepChannelGuest
 
             try
                 let! reply = session.RequestAsync(method, Nullable parameters, timeout.Token)
+                cancellation.ThrowIfCancellationRequested()
 
-                return
-                    match reply with
-                    | Ok value -> MepGuestReply.Result value
-                    | Error error -> MepGuestReply.Error error
+                if timeout.IsCancellationRequested then
+                    return
+                        MepGuestReply.Failed(
+                            MepGuestFailure.Timeout
+                                $"The guest did not answer {method} within {deadline}."
+                        )
+                else
+                    return
+                        match reply with
+                        | Ok value -> MepGuestReply.Result value
+                        | Error error -> MepGuestReply.Error error
             with
             | :? OperationCanceledException when not cancellation.IsCancellationRequested ->
                 return
@@ -184,11 +192,21 @@ type MepChannelGuest
 
             try
                 let! reply = session.DescribeAsync timeout.Token
+                cancellation.ThrowIfCancellationRequested()
 
-                return
-                    Result.mapError
-                        (fun (error: RpcError) -> MepGuestFailure.ProtocolError(error.ToString()))
-                        reply
+                if timeout.IsCancellationRequested then
+                    return
+                        Error(
+                            MepGuestFailure.Timeout
+                                $"The guest did not answer describe within {deadline}."
+                        )
+                else
+                    return
+                        Result.mapError
+                            (fun (error: RpcError) ->
+                                MepGuestFailure.ProtocolError(error.ToString())
+                            )
+                            reply
             with :? OperationCanceledException when not cancellation.IsCancellationRequested ->
                 return
                     Error(

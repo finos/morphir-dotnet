@@ -52,3 +52,28 @@ Raw compiler/runtime REDs, successful build and test results, source/artifact
 hashes, architecture proofs and cleanup receipts are retained outside Git under
 `.dev/out/python-wasm-product/` and its `resume/` directory. No production version,
 tag, release, CET/Spectre policy or guest-notification policy changes here.
+
+## Review corrections: cancellation and channel-open failures
+
+The channel guest now checks the caller token and then its deadline after the
+host session returns. Request and describe preserve caller cancellation and map
+an expired deadline to `extension.timeout`, matching the process transport's
+outcome contract. Four controlled channel cases failed before the fix and pass
+after it; they cover both operations and assert the caller's cancellation token.
+
+The configured-module adapter now preserves the channel-open refusal code
+(issue #613). A product `generate` command using the pinned initial-memory-over-
+ceiling fixture failed its exact diagnostic-code assertion before the fix
+(`extension.unavailable`) and passes with `extension.memory_limit`. No output
+folder is published. The first broad message assertion passed because the
+message already contained the code; the retained RED uses the structured code.
+
+Native Windows ARM64 SDK 11 Release builds of Tooling.Tests and both product
+hosts pass. The final focused run has 16 passes and 2 Windows-x64-only skips
+(4 cancellation controls plus 12 configured-command passes). This includes the
+real pinned Python compile/generate journeys. An initial test-fixture raw-string
+compiler error was corrected before behavioral RED; it is not runtime evidence.
+Raw results and the current artifact/source closure are retained under
+`.dev/out/python-wasm-product/review-fixes/`. No restore, dependency change,
+full-suite, coverage, AOT or new platform qualification is claimed. Parent-owned
+exact-head CI and review remain the landing gates.
