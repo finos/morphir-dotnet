@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using Morphir.Build.Helpers;
 using Fallout.Common;
 using Fallout.Common.Tools.DotNet;
@@ -63,16 +64,13 @@ partial class Build
             Serilog.Log.Information("  .github/workflows/development.yml");
         });
 
-    [Parameter("CIPlan: the os input of a manual or label-dispatched run (auto, linux, full, or a comma-separated list of windows and macos)")]
+    [Parameter("CIPlan: the os input of a manual run (auto, linux, full, or a comma-separated list of windows and macos)")]
     readonly string CiOs = "";
-
-    [Parameter("CIPlan: the pull request number of a manual or label-dispatched run")]
-    readonly string CiPullRequest = "";
 
     /// <summary>
     /// The plan job of development.yml. Selects the platforms of this run from the event (pull request draft state,
-    /// the ci:windows, ci:macos, ci:full and ci:linux-only labels, the os input of a dispatched run), and skips the
-    /// checks that passed in an earlier development.yml run for the same head commit. Writes the plan to
+    /// the ci:windows, ci:macos, ci:full and ci:linux-only labels, the os input of a manual run), and skips the
+    /// checks that passed in an earlier pull_request run (or attempt) of development.yml for the same head commit. Writes the plan to
     /// GITHUB_OUTPUT, the selection to the job summary and a notice annotation to the run page.
     /// </summary>
     Target CIPlan => _ => _
@@ -118,6 +116,55 @@ partial class Build
                 throw new Exception($"The ci check failed: {string.Join(" ", verdict.Messages)}");
         });
 
+    /// <summary>
+    /// The job of ci-request.yml. After a ci:* label change, re-runs the pull_request run of development.yml for the
+    /// head commit, so its plan job reads the labels again. GitHub counts the checks of a re-run for the pull request;
+    /// it does not count the checks of a workflow_dispatch run. A run that has not completed is cancelled first.
+    /// </summary>
+    Target CIRequest => _ => _
+        .Description("Re-run the Development run of a pull request after a ci:* label change")
+        .Executes(() =>
+        {
+            var path = Environment.GetEnvironmentVariable("GITHUB_EVENT_PATH")
+                ?? throw new Exception("GITHUB_EVENT_PATH is not set. CIRequest runs in ci-request.yml.");
+            var pr = GitHubCi.PullRequestFromEvent(File.ReadAllText(path));
+            var action = CiRerun.Decide(GitHubGet(
+                $"actions/workflows/development.yml/runs?event=pull_request&head_sha={pr.HeadSha}&per_page=1"));
+
+            string message;
+            switch (action)
+            {
+                case CiRerunAction.Rerun rerun:
+                    GitHubPost($"actions/runs/{rerun.RunId}/rerun");
+                    message = $"Re-ran Development run {rerun.RunId} for #{pr.Number} at {pr.HeadSha}.";
+                    break;
+                case CiRerunAction.CancelThenRerun cancel:
+                    // 409: the run completed after the lookup. It can be re-run now.
+                    GitHubPost($"actions/runs/{cancel.RunId}/cancel", allowConflict: true);
+                    WaitForCompletion(cancel.RunId, TimeSpan.FromMinutes(10));
+                    GitHubPost($"actions/runs/{cancel.RunId}/rerun");
+                    message = $"Cancelled and re-ran Development run {cancel.RunId} for #{pr.Number} at {pr.HeadSha}.";
+                    break;
+                default:
+                    message = $"No Development run exists for #{pr.Number} at {pr.HeadSha} yet. Its run reads the labels when it starts.";
+                    break;
+            }
+
+            Serilog.Log.Information("{Message}", message);
+            AppendGitHubFile("GITHUB_STEP_SUMMARY", $"### CI request\n\n{message}\n");
+        });
+
+    static void WaitForCompletion(long runId, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (!CiRerun.IsCompleted(GitHubGet($"actions/runs/{runId}")))
+        {
+            if (DateTime.UtcNow > deadline)
+                throw new Exception($"Development run {runId} did not stop within {timeout.TotalMinutes} minutes after the cancel request.");
+            Thread.Sleep(TimeSpan.FromSeconds(10));
+        }
+    }
+
     (CiTrigger Trigger, string? HeadSha) ReadCiTrigger()
     {
         var eventName = Environment.GetEnvironmentVariable("GITHUB_EVENT_NAME");
@@ -128,34 +175,31 @@ partial class Build
                     var path = Environment.GetEnvironmentVariable("GITHUB_EVENT_PATH")
                         ?? throw new Exception("GITHUB_EVENT_PATH is not set for a pull_request event.");
                     var pr = GitHubCi.PullRequestFromEvent(File.ReadAllText(path));
-                    return (pr.Trigger, pr.HeadSha);
+                    if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_TOKEN")))
+                    {
+                        Serilog.Log.Warning("GITHUB_TOKEN is not set, so the plan uses the labels of the event payload.");
+                        return (pr.Trigger, pr.HeadSha);
+                    }
+
+                    // A re-run keeps the payload of the first attempt. Read the labels and draft state as they are now.
+                    var current = GitHubCi.PullRequestFromApi(GitHubGet($"pulls/{pr.Number}"));
+                    return (current.Trigger, pr.HeadSha);
                 }
             case "workflow_dispatch":
                 {
                     if (!CiPolicy.TryParseOsChoice(CiOs, out var choice))
                         throw new Exception($"The os input '{CiOs}' is not auto, linux, full, or a comma-separated list of windows and macos.");
-                    var sha = Environment.GetEnvironmentVariable("GITHUB_SHA");
-                    if (CiPullRequest.Length == 0) return (new CiTrigger.Dispatch(choice, null), sha);
-                    if (!int.TryParse(CiPullRequest, out var number) || number <= 0)
-                        throw new Exception($"The pr input '{CiPullRequest}' is not a pull request number.");
-
-                    var pr = GitHubCi.PullRequestFromApi(GitHubGet($"pulls/{number}"));
-                    if (pr.HeadSha != sha)
-                    {
-                        // The branch moved after the dispatch. Its push event starts its own run, so reuse nothing here.
-                        Serilog.Log.Warning("Pull request #{Number} head is {Head}, but this run is for {Sha}. No earlier jobs are reused.",
-                            number, pr.HeadSha, sha);
-                        return (new CiTrigger.Dispatch(choice, pr.Trigger), null);
-                    }
-
-                    return (new CiTrigger.Dispatch(choice, pr.Trigger), pr.HeadSha);
+                    return (new CiTrigger.Dispatch(choice), null);
                 }
             default:
                 return (new CiTrigger.Release(), null);
         }
     }
 
-    /// <summary>The checks that succeeded in other development.yml runs for the head commit.</summary>
+    /// <summary>
+    /// The checks that succeeded in pull_request runs of development.yml for the head commit, in every attempt and in
+    /// this run's earlier attempts. Manual runs are not evidence: GitHub does not count their checks for a pull request.
+    /// </summary>
     IEnumerable<CiEvidence> PassedChecksFor(string headSha)
     {
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_TOKEN")))
@@ -164,24 +208,42 @@ partial class Build
             return [];
         }
 
-        var currentRun = Environment.GetEnvironmentVariable("GITHUB_RUN_ID") ?? "";
-        var runs = GitHubCi.RunIds([GitHubGet($"actions/workflows/development.yml/runs?head_sha={headSha}&per_page=100")])
-            .Where(id => id.ToString() != currentRun);
-        return GitHubCi.PassedChecks(runs.Select(id => GitHubGet($"actions/runs/{id}/jobs?filter=latest&per_page=100")));
+        var runs = GitHubCi.RunIds([GitHubGet($"actions/workflows/development.yml/runs?event=pull_request&head_sha={headSha}&per_page=100")]);
+        return GitHubCi.PassedChecks(runs.Select(id => GitHubGet($"actions/runs/{id}/jobs?filter=all&per_page=100")));
     }
 
-    static string GitHubGet(string relativePath)
+    static HttpClient GitHubClient()
     {
-        var api = Environment.GetEnvironmentVariable("GITHUB_API_URL") ?? "https://api.github.com";
-        var repository = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")
-            ?? throw new Exception("GITHUB_REPOSITORY is not set.");
-        using var client = new HttpClient();
+        var client = new HttpClient();
         client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("morphir-dotnet-ci", "1.0"));
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
         if (Environment.GetEnvironmentVariable("GITHUB_TOKEN") is { Length: > 0 } token)
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return client.GetStringAsync($"{api}/repos/{repository}/{relativePath}").GetAwaiter().GetResult();
+        return client;
+    }
+
+    static string GitHubUrl(string relativePath)
+    {
+        var api = Environment.GetEnvironmentVariable("GITHUB_API_URL") ?? "https://api.github.com";
+        var repository = Environment.GetEnvironmentVariable("GITHUB_REPOSITORY")
+            ?? throw new Exception("GITHUB_REPOSITORY is not set.");
+        return $"{api}/repos/{repository}/{relativePath}";
+    }
+
+    static void GitHubPost(string relativePath, bool allowConflict = false)
+    {
+        using var client = GitHubClient();
+        using var response = client.PostAsync(GitHubUrl(relativePath), content: null).GetAwaiter().GetResult();
+        if (response.IsSuccessStatusCode || (allowConflict && response.StatusCode == System.Net.HttpStatusCode.Conflict)) return;
+        var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        throw new Exception($"POST {relativePath} returned {(int)response.StatusCode}: {body}");
+    }
+
+    static string GitHubGet(string relativePath)
+    {
+        using var client = GitHubClient();
+        return client.GetStringAsync(GitHubUrl(relativePath)).GetAwaiter().GetResult();
     }
 
     static void AppendGitHubFile(string variable, string text)

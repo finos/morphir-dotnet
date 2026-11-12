@@ -7,17 +7,14 @@ on:
             - synchronize
             - reopened
             - ready_for_review
-    # Manual runs, and the runs that ci-request.yml starts when a ci:* label changes.
+    # Manual runs of a branch. GitHub does not count their checks for a pull request: change a ci:* label instead,
+    # and ci-request.yml re-runs the pull_request run.
     workflow_dispatch:
         inputs:
             os:
-                description: "Platforms besides Linux: auto (pull request state and labels), linux, full, or a list such as windows or windows,macos"
+                description: "Platforms besides Linux: auto (all), linux, full, or a list such as windows or windows,macos"
                 type: string
                 default: auto
-            pr:
-                description: "Pull request number. The run tests its merge commit and uses its draft state and labels."
-                type: string
-                default: ""
     workflow_call:
         inputs:
             configuration:
@@ -30,12 +27,12 @@ on:
                 required: true
                 type: string
 
-# A new push or label change on a pull request supersedes its earlier run, so cancel the earlier run. The plan job of
-# the new run reuses the jobs that already passed for the same head commit. Calls from other workflows, such as a
-# release, and manual runs without a pull request run to completion.
+# A new push to a pull request supersedes its earlier run, so cancel the earlier run. The plan job of the new run
+# reuses the jobs that already passed for the same head commit. Calls from other workflows, such as a release, and
+# manual runs run to completion.
 concurrency:
-    group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr || github.run_id }}
-    cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.pr != '') }}
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
     CONFIGURATION: ${{ inputs.configuration || 'Release' }}
@@ -45,7 +42,7 @@ jobs:
     # The Fallout target CIPlan (build/Build.CI.cs, build/Helpers/CiPlan.cs) selects the checks of this run. Linux
     # always runs. A draft adds no platform; a pull request that is ready for review adds Windows and macOS. The
     # ci:windows, ci:macos, ci:full and ci:linux-only labels and the os input change the selection. Jobs that passed
-    # in an earlier run for the same head commit do not run again. The job summaries of plan and ci show the selection.
+    # in an earlier pull_request run (or attempt) for the same head commit do not run again. The job summaries of plan and ci show the selection.
     plan:
         runs-on: ubuntu-latest
         timeout-minutes: 10
@@ -71,8 +68,7 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   CI_OS: ${{ inputs.os }}
-                  CI_PR: ${{ inputs.pr }}
-              run: ./build.sh --target CIPlan ${CI_OS:+--ci-os "$CI_OS"} ${CI_PR:+--ci-pull-request "$CI_PR"}
+              run: ./build.sh --target CIPlan ${CI_OS:+--ci-os "$CI_OS"}
 
     lint:
         needs: plan
@@ -83,7 +79,6 @@ jobs:
             - uses: actions/checkout@v6.1.0
               with:
                   fetch-depth: 0
-                  ref: ${{ inputs.pr && format('refs/pull/{0}/merge', inputs.pr) || '' }}
             - name: Setup .NET SDK
               id: setup-dotnet
               uses: actions/setup-dotnet@v5
@@ -117,8 +112,6 @@ jobs:
 
         steps:
             - uses: actions/checkout@v6.1.0
-              with:
-                  ref: ${{ inputs.pr && format('refs/pull/{0}/merge', inputs.pr) || '' }}
             - name: Configure physical test temporary directory
               shell: pwsh
               run: |
@@ -216,8 +209,6 @@ jobs:
             contents: read
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-              with:
-                  ref: ${{ inputs.pr && format('refs/pull/{0}/merge', inputs.pr) || '' }}
             - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
             - name: Check the shared OpenSpec bundle
               run: mise exec -- mission-control-tools openspec check --bundle

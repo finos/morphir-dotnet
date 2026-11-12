@@ -74,16 +74,26 @@ public class DevelopmentWorkflowTests
             .Should().Contain("ready_for_review").And.NotContain("edited").And.NotContain("labeled");
 
     [Test]
-    public void TheCiRequestWorkflowDispatchesOnlyForCiLabelsAndRunsNoPullRequestCode()
+    public void TheCiRequestWorkflowRerunsOnlyForCiLabelsAndRunsNoPullRequestCode()
     {
         var workflow = Read("ci-request.yml");
-        var dispatch = Job(workflow, "dispatch");
-        dispatch["if"].ToString().Should().Contain($"startsWith(github.event.label.name, '{CiLabels.Prefix}')");
-        dispatch["permissions"]["actions"].ToString().Should().Be("write");
-        ((YamlMappingNode)dispatch["permissions"]).Children.Should().HaveCount(1);
-        Steps(dispatch).Should().NotContain(step => Value(step, "uses").StartsWith("actions/checkout", StringComparison.Ordinal));
-        Steps(dispatch).Should().ContainSingle().Which["run"].ToString().Should().Contain("gh workflow run development.yml");
+        workflow["on"].Should().BeOfType<YamlMappingNode>().Which.Children.Keys.Select(key => key.ToString())
+            .Should().Equal("pull_request_target");
+        var rerun = Job(workflow, "rerun");
+        rerun["if"].ToString().Should().Contain($"startsWith(github.event.label.name, '{CiLabels.Prefix}')");
+        ((YamlMappingNode)rerun["permissions"]).Children.ToDictionary(pair => pair.Key.ToString(), pair => pair.Value.ToString())
+            .Should().BeEquivalentTo(new Dictionary<string, string> { ["actions"] = "write", ["contents"] = "read" });
+
+        var checkout = Steps(rerun).Single(step => Value(step, "uses").StartsWith("actions/checkout", StringComparison.Ordinal));
+        checkout["with"]["ref"].ToString().Should().Be("${{ github.event.pull_request.base.sha }}", "pull_request_target must not run pull request code");
+        checkout["with"]["persist-credentials"].ToString().Should().Be("false");
+        Steps(rerun).Should().Contain(step => Run(step) == "./build.sh --target CIRequest");
     }
+
+    [Test]
+    public void ManualRunsHaveNoPullRequestInput() =>
+        ((YamlMappingNode)Development()["on"]["workflow_dispatch"]["inputs"]).Children.Keys.Select(key => key.ToString())
+            .Should().Equal("os");
 
     private static YamlMappingNode Development() => Read("development.yml");
 

@@ -96,30 +96,19 @@ public class CiPlanTests
     }
 
     [Test]
-    public void AnOsInputOverridesThePullRequestLabels()
+    public void AManualRunSelectsTheOsInputAndIsNotAMergeCandidate()
     {
         CiPolicy.TryParseOsChoice("macos", out var choice).Should().BeTrue();
-        var request = CiPolicy.Resolve(new CiTrigger.Dispatch(choice!, Pr(draft: false, CiLabels.Windows)));
+        var request = CiPolicy.Resolve(new CiTrigger.Dispatch(choice!));
         request.Platforms.Should().Equal(CiPlatform.MacOS);
-        request.MergeCandidate.Should().BeTrue();
+        request.MergeCandidate.Should().BeFalse("GitHub does not count the checks of a workflow_dispatch run for a pull request");
+        request.ReuseEvidence.Should().BeFalse("only pull_request runs are evidence");
         request.Reason.Should().Be("os input macos");
     }
 
     [Test]
-    public void AnAutomaticDispatchForAPullRequestUsesItsStateAndLabels()
-    {
-        var request = CiPolicy.Resolve(new CiTrigger.Dispatch(OsChoice.Auto, Pr(draft: true, CiLabels.MacOS)));
-        request.Platforms.Should().Equal(CiPlatform.MacOS);
-        request.MergeCandidate.Should().BeFalse();
-    }
-
-    [Test]
-    public void AnAutomaticDispatchWithoutAPullRequestSelectsEveryPlatformAndIsNotAMergeCandidate()
-    {
-        var request = CiPolicy.Resolve(new CiTrigger.Dispatch(OsChoice.Auto, null));
-        request.Platforms.Should().Equal(CiPlatform.All);
-        request.MergeCandidate.Should().BeFalse();
-    }
+    public void AnAutomaticManualRunSelectsEveryPlatform() =>
+        CiPolicy.Resolve(new CiTrigger.Dispatch(OsChoice.Auto)).Platforms.Should().Equal(CiPlatform.All);
 
     [Test]
     [Arguments("", true, new string[0])]
@@ -252,6 +241,24 @@ public class CiPlanTests
         state.HeadSha.Should().Be("abc");
         state.Trigger.Should().BeEquivalentTo(Pr(draft: true, "ci:full", "dependencies"));
     }
+
+    [Test]
+    public void APullRequestRunThatIsCompleteIsRerun()
+    {
+        const string runs = """{"workflow_runs":[{"id":9,"status":"completed"},{"id":8,"status":"completed"}]}""";
+        CiRerun.Decide(runs).Should().Be(new CiRerunAction.Rerun(9));
+    }
+
+    [Test]
+    [Arguments("in_progress")]
+    [Arguments("queued")]
+    [Arguments("waiting")]
+    public void APullRequestRunThatIsNotCompleteIsCancelledThenRerun(string status) =>
+        CiRerun.Decide($$"""{"workflow_runs":[{"id":9,"status":"{{status}}"}]}""").Should().Be(new CiRerunAction.CancelThenRerun(9));
+
+    [Test]
+    public void NoPullRequestRunMeansNothingToRerun() =>
+        CiRerun.Decide("""{"workflow_runs":[]}""").Should().Be(CiRerunAction.None);
 
     [Test]
     public void TheGatePassesWhenEveryPlatformPassedOrWasReused()

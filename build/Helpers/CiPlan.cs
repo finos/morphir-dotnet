@@ -141,10 +141,10 @@ public abstract record OsChoice
 {
     private OsChoice() { }
 
-    /// <summary>Use the pull request state and labels, or every platform when there is no pull request.</summary>
+    /// <summary>Every platform.</summary>
     public static readonly OsChoice Auto = new AutoChoice();
 
-    /// <summary>Use the pull request state and labels.</summary>
+    /// <summary>Every platform.</summary>
     public sealed record AutoChoice : OsChoice;
 
     /// <summary>Linux and exactly these platforms.</summary>
@@ -161,8 +161,11 @@ public abstract record CiTrigger
     /// <summary>A pull request event, or the pull request state that the GitHub API reported.</summary>
     public sealed record PullRequest(bool Draft, ImmutableSortedSet<string> Labels) : CiTrigger;
 
-    /// <summary>A workflow_dispatch run, for a pull request or for a branch only.</summary>
-    public sealed record Dispatch(OsChoice Choice, PullRequest? PullRequestState) : CiTrigger;
+    /// <summary>
+    /// A manual workflow_dispatch run of a branch. GitHub does not count its checks for a pull request, so it is never a
+    /// merge candidate, and its jobs are not evidence for a pull request run.
+    /// </summary>
+    public sealed record Dispatch(OsChoice Choice) : CiTrigger;
 
     /// <summary>A workflow_call from a release. It tests every platform again and reuses nothing.</summary>
     public sealed record Release : CiTrigger;
@@ -180,14 +183,9 @@ public static class CiPolicy
     public static CiRequest Resolve(CiTrigger trigger) => trigger switch
     {
         CiTrigger.PullRequest pr => ForPullRequest(pr),
-        CiTrigger.Dispatch { Choice: OsChoice.AutoChoice, PullRequestState: { } pr } => ForPullRequest(pr),
-        CiTrigger.Dispatch { Choice: OsChoice.AutoChoice } =>
-            new(CiPlatform.All, MergeCandidate: false, ReuseEvidence: true, "manual run with os input auto and no pull request"),
-        CiTrigger.Dispatch { Choice: OsChoice.Platforms platforms } dispatch => new(
-            platforms.Selected,
-            MergeCandidate: dispatch.PullRequestState is { Draft: false },
-            ReuseEvidence: true,
-            $"os input {platforms.Input}"),
+        CiTrigger.Dispatch { Choice: OsChoice.Platforms platforms } =>
+            new(platforms.Selected, MergeCandidate: false, ReuseEvidence: false, $"os input {platforms.Input}"),
+        CiTrigger.Dispatch => new(CiPlatform.All, MergeCandidate: false, ReuseEvidence: false, "os input auto"),
         CiTrigger.Release => new(CiPlatform.All, MergeCandidate: true, ReuseEvidence: false, "release call"),
         _ => throw new UnreachableException(),
     };
@@ -516,6 +514,50 @@ public static partial class CiReport
     private static partial Regex LabelPattern();
 }
 
+/// <summary>What the CI request workflow does after a ci:* label change.</summary>
+public abstract record CiRerunAction
+{
+    private CiRerunAction() { }
+
+    /// <summary>There is no pull_request run for the head commit yet. Its run reads the labels when it starts.</summary>
+    public static readonly CiRerunAction None = new NoRun();
+
+    public sealed record NoRun : CiRerunAction;
+
+    /// <summary>Re-run every job of the run. Its plan job reads the labels again and reuses the jobs that passed.</summary>
+    public sealed record Rerun(long RunId) : CiRerunAction;
+
+    /// <summary>The run has not completed, and GitHub re-runs only a completed run: cancel it, then re-run it.</summary>
+    public sealed record CancelThenRerun(long RunId) : CiRerunAction;
+}
+
+/// <summary>
+/// A label change re-runs the pull_request run of the head commit. GitHub counts the checks of a re-run for the pull
+/// request; it does not count the checks of a workflow_dispatch run.
+/// </summary>
+public static class CiRerun
+{
+    /// <summary>Decides from a <c>GET .../actions/workflows/development.yml/runs?event=pull_request&amp;head_sha=...</c> response.</summary>
+    public static CiRerunAction Decide(string runsJson)
+    {
+        using var document = JsonDocument.Parse(runsJson);
+        var latest = document.RootElement.GetProperty("workflow_runs").EnumerateArray().FirstOrDefault();
+        if (latest.ValueKind != JsonValueKind.Object) return CiRerunAction.None;
+
+        var id = latest.GetProperty("id").GetInt64();
+        return latest.GetProperty("status").GetString() == "completed"
+            ? new CiRerunAction.Rerun(id)
+            : new CiRerunAction.CancelThenRerun(id);
+    }
+
+    /// <summary>True when a <c>GET .../actions/runs/{id}</c> response reports a completed run.</summary>
+    public static bool IsCompleted(string runJson)
+    {
+        using var document = JsonDocument.Parse(runJson);
+        return document.RootElement.GetProperty("status").GetString() == "completed";
+    }
+}
+
 /// <summary>A pull request as the plan needs it.</summary>
 public sealed record PullRequestInfo(int Number, string HeadSha, CiTrigger.PullRequest Trigger);
 
@@ -548,7 +590,7 @@ public static class GitHubCi
         }),
     ];
 
-    /// <summary>The jobs that succeeded in <c>GET .../actions/runs/{id}/jobs?filter=latest</c> responses.</summary>
+    /// <summary>The jobs that succeeded in <c>GET .../actions/runs/{id}/jobs?filter=all</c> responses.</summary>
     public static ImmutableArray<CiEvidence> PassedChecks(IEnumerable<string> responses) =>
     [
         .. responses.SelectMany(response =>

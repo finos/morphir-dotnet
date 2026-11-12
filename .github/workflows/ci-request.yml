@@ -1,14 +1,16 @@
 name: "CI request"
 
-# A ci:* label change on a pull request starts a Development run for it. The plan job of that run reads the labels
-# and runs only the checks that have not passed for the head commit, for example Windows and macOS after ci:full.
+# A ci:* label change on a pull request re-runs the pull_request run of Development for the head commit. The plan job
+# of the re-run reads the labels again and runs only the checks that have not passed for the commit, for example
+# macOS after ci:macos. A re-run keeps the pull_request event, so GitHub counts its checks for the pull request. It
+# does not count the checks of a workflow_dispatch run. The Fallout target CIRequest (build/Build.CI.cs) does the work.
 #
-# Other labels, such as Renovate's "dependencies", start nothing here. A labeled trigger in development.yml would
-# cancel the running build and replace its ci check with a skipped one.
+# Other labels, such as Renovate's "dependencies", start nothing. A labeled trigger in development.yml would cancel the
+# running build and replace its ci check with a skipped one.
 #
-# pull_request_target runs this file from the base branch with a token that can dispatch workflows. It does not check
-# out or run code from the pull request. Pull requests from forks have no branch in this repository to dispatch, so a
-# label change does not start a run for them; their next push does.
+# pull_request_target runs this file from the base branch with a token that can re-run workflows. The job checks out
+# the base branch and runs only its Fallout build, never code from the pull request. Pull requests from forks are left
+# out: their next push replans with the labels.
 on:
     pull_request_target:
         types:
@@ -17,21 +19,31 @@ on:
 
 permissions: {}
 
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
 jobs:
-    dispatch:
+    rerun:
         if: >-
             startsWith(github.event.label.name, 'ci:')
             && github.event.pull_request.state == 'open'
             && github.event.pull_request.head.repo.full_name == github.repository
         runs-on: ubuntu-latest
-        timeout-minutes: 5
+        timeout-minutes: 20
         permissions:
             actions: write
+            contents: read
         steps:
-            - name: Start Development for the pull request
+            - uses: actions/checkout@v6.1.0
+              with:
+                  ref: ${{ github.event.pull_request.base.sha }}
+                  persist-credentials: false
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+            - name: Re-run Development for the pull request
               env:
-                  GH_TOKEN: ${{ github.token }}
-                  GH_REPO: ${{ github.repository }}
-                  HEAD_REF: ${{ github.event.pull_request.head.ref }}
-                  PR: ${{ github.event.pull_request.number }}
-              run: gh workflow run development.yml --ref "$HEAD_REF" -f os=auto -f pr="$PR"
+                  GITHUB_TOKEN: ${{ github.token }}
+              run: ./build.sh --target CIRequest
