@@ -10,7 +10,7 @@ machine. These checks run local builds on the build machine.
 
 ## Run them
 
-Pack the profile for this machine's platform, then run the E2E suite with the offering as the executable type:
+Pack the profile for this machine's platform, then run the black-box tests with the offering as the target:
 
 ```bash
 ./build.sh --target PackRelease --deployment native-aot --rid linux-x64
@@ -32,22 +32,23 @@ the release, the commit it was packed from, its SHA-256 and its pack time. It re
 commit than `HEAD`, or one whose pack commit is not recorded, unless `MORPHIR_REUSE_PACKAGED_ARTIFACTS=true` says to
 test it anyway. It only warns about an artifact packed with uncommitted changes, which it cannot compare.
 
-`MORPHIR_EXECUTABLE_TYPE` selects the offering for a direct run of the test assembly, and `MORPHIR_RELEASE_DIR`
-points it at a release folder other than `artifacts/release`; a direct run neither packs nor checks the pack commit.
-The run
-checks the archive's SHA-256 against its launch metadata, installs it into a new temporary folder whose path contains
-a space (`dotnet tool install --tool-path` for `dotnet-tool`, in a sandbox with its own NuGet packages folder), runs
-every non-manual scenario against it from a working folder whose path contains a space, and removes the folder
-afterwards. A packaged type never runs the `@manual-only` scenarios, even with `INCLUDE_MANUAL_TESTS=true`: they build
-their own executables from the source tree.
+`MORPHIR_TEST_TARGET` selects the offering for a direct run of `tests/Morphir.BlackBox.Tests` (with
+`MORPHIR_TEST_LANE=published`), and `MORPHIR_RELEASE_DIR` points it at a release folder other than `artifacts/release`;
+a direct run neither packs nor checks the pack commit. Before the first test, the run checks the archive's SHA-256
+against its launch metadata and installs it into a new temporary folder whose path contains a space
+(`dotnet tool install --tool-path` for `dotnet-tool`, in a sandbox with its own NuGet packages folder). A missing
+artifact stops the run with the pack command. Each group then runs against the installation, each scenario in its
+own workspace, and the run removes the folder afterwards.
 
 On demand per platform, without a pull request job:
 
-- **Manual E2E Testing** (`.github/workflows/manual-e2e-test.yml`): choose the platforms and an executable type
-  (`offerings` or one offering). It uploads the size report and the launch and contents files. On Linux the
+- **Manual E2E Testing** (`.github/workflows/manual-e2e-test.yml`): choose the platforms and a target
+  (`offerings`, one offering, a published executable, `tool`, or `executable`). It uploads the size report and the launch and contents files. On Linux the
   "No installed .NET runtime" scenario runs in a clean container (see below).
 - **Manual AOT Testing** (`.github/workflows/manual-aot-test.yml`): the `packaged` suite packs and checks
-  `native-aot` for one platform. Its `trimming` and `aot-compilation` suites exclude `@packaged`.
+  `native-aot` for one platform. Its `trimming` and `aot-compilation` suites run each group of the black-box tests on
+  the trimmed and untrimmed executables and on the Native AOT executable; a test that needs a packaged installation is
+  skipped there with its reason.
 - **morphir native probe** (`.github/workflows/morphir-native-probe.yml`): a manual six-platform Native AOT
   dependency probe, separate from PR CI. Run it from the source ref being examined. It publishes using the release
   profile, on Linux inside the pinned Ubuntu 22.04 image, and uploads `probe.md`, the publish log and command output.
@@ -59,19 +60,18 @@ Ubuntu APT metadata, then requires an authenticated HTTPS refresh before install
 [bootstrap decision and pinned-image evidence](evidence/2026-11-11-morphirup-linux-bootstrap.md), including its
 hermetic regression checks and the hosted validation still required.
 
-The two manual AOT suites ran no test before this change: their filters `*/AOT*` and `*/Trimming*` were not full
-TUnit tree paths, so they selected nothing, and the run ended with "zero tests ran" (exit code 8). They now name
-the feature classes (`/*/*/NativeAOTCompilationFeature/*`, `/*/*/AssemblyTrimmingFeature/*`), 10 scenarios each,
-which have not been run in that lane yet.
+The change `consolidate-black-box-tests` (pull request 2) removed the two manual AOT features of the old E2E project,
+which published their own executables with other settings in the test. Their checks of the published executables are
+end-to-end tests of the published lane now (`EndToEnd/NativeAotExecutable.feature`, `EndToEnd/NativeAotStartupTests.cs`);
+its evidence `slice-2-moves.md` gives the destination of each scenario.
 
 ## What the scenarios check
 
-`tests/Morphir.E2E.Tests/Features/Packaged/PackagedArtifacts.feature` takes each expectation from the artifact's own
-launch metadata (`<artifact>.build-launch.json`), so it also checks that the metadata is true. The other E2E features
-(basic commands, error handling, extension list, IR verification, validate, management) run against the installed
-artifact too, with one exception: the extension list scenario "Both hosts list the same shared built-ins" runs the
-other host from a build folder (`src/Morphir/bin` or `src/Morphir.Tool/bin`), so that build must be of the same
-commit as the artifact.
+`tests/Morphir.BlackBox.Tests/EndToEnd/PackagedArtifacts.feature` takes each expectation from the artifact's own
+launch metadata (`<artifact>.build-launch.json`), so it also checks that the metadata is true. The other groups of
+the black-box tests (smoke, integration and journey) run against the installed artifact too. A scenario that compares
+two hosts (`@needs-native-and-tool-hosts`) runs only on the development build, which has both hosts: a target never
+uses the artifact of another form.
 
 | Scenario | Checks |
 |---|---|
