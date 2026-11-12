@@ -474,3 +474,56 @@ let tests =
                   dispose frontend
                   failtest "A missing executable cannot connect" ]
     |> testLabel "PlatformSpecific"
+
+[<Tests>]
+let processTreeOwnership =
+    testLabel "PlatformSpecific" <| testList "MepProcessTreeOwnership" [
+        testCase "disposal settles an inherited-pipe descendant after its direct guest root exits" (fun () ->
+            if not (OperatingSystem.IsWindows()) then skiptest "Windows creation-time job control."
+            let marker = Path.Combine(guestWork.Value.Work,"descendant.pid")
+            if File.Exists marker then File.Delete marker
+            let startup = Stopwatch.StartNew()
+            let frontend =
+                // This controls tree settlement, not a one-second cold initialization SLA.
+                try connect {fakeOptions "root-exits-with-child" with Deadline=TimeSpan.FromSeconds 5.}
+                finally eprintfn "Ownership fixture initialization took %O; child stderr: %s" startup.Elapsed (stderr.ToString())
+            let mutable child: Process option = None
+            try
+                let _ = (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend,CancellationToken.None).GetAwaiter().GetResult()
+                let identity = File.ReadAllText(marker).Split '|'
+                let descendant = Process.GetProcessById(int identity[0])
+                if descendant.StartTime.ToUniversalTime().Ticks <> int64 identity[1] then failtest "descendant identity changed"
+                child <- Some descendant
+                let disposed = (frontend :> IAsyncDisposable).DisposeAsync().AsTask()
+                let settled = disposed.Wait(TimeSpan.FromSeconds 5.)
+                if not settled then
+                    descendant.Kill(true)
+                    descendant.WaitForExit()
+                    disposed.GetAwaiter().GetResult()
+                Expect.isTrue settled "package lifetime must be releasable only after the actual tree and pumps settle"
+                Expect.isTrue descendant.HasExited "descendant is gone at successful disposal"
+            finally
+                match child with
+                | Some descendant ->
+                    if not descendant.HasExited then descendant.Kill(true);descendant.WaitForExit()
+                    descendant.Dispose()
+                | None -> ()
+                dispose frontend)
+    ]
+
+
+
+[<Tests>]
+let negotiatedObservation =
+    testLabel "PlatformSpecific" <| testList "MepOperationObservation" [
+        testCase "tuple observation is absent before an actual successful operation" (fun () ->
+            let frontend = connect (guestOptions())
+            try
+                Expect.isNull (frontend.LastModelTupleOrNull()) "negotiation alone is not invocation"
+                let outcome = (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend,CancellationToken.None).GetAwaiter().GetResult()
+                outcome.Match((fun result -> Expect.isTrue result.IsPassed "compiled"),(fun _ -> failtest "operation failed"))
+                Expect.isNotNull (frontend.LastModelTupleOrNull()) "successful operation must expose its actual tuple"
+                let observed = frontend.LastModelTupleOrNull() |> nonNull
+                Expect.equal observed.IrVersion.Value "4.0.0" "actual request tuple"
+            finally dispose frontend)
+    ]

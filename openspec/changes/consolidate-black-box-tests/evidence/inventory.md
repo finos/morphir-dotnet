@@ -159,7 +159,7 @@ discovered tests of the complete project, so such a file is in it.
 Task 0.2: the script gives `# 128 files in 25 projects` on the base commit `4d9e10a0`, which is the count of this
 inventory.
 
-On the branch of pull request 1 the script gives `# 134 files in 25 projects`: the 128 files of the base, less one,
+On the branch of pull request 1, before the merge of `main`, the script gives `# 134 files in 25 projects`: the 128 files of the base, less one,
 plus seven. The differences from the base:
 
 - `Integration/CLI/CliVerifyIRIntegrationSteps.cs` is not there: its scenarios moved.
@@ -173,6 +173,22 @@ plus seven. The differences from the base:
 The black-box project itself is not in the scan: its steps and tests name no process runner, because they use the
 driver interfaces.
 
+## New files from `main` in pull request 1
+
+Pull request 1 merged `main` at `682b4253` (#608). The scan finds six new test files from that commit. Each gets a
+row here, as task 0.2 says.
+
+| Pull request | Project | File | Process | Build verb | Artifact | Product types | Destination |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3 | `Morphir.Tooling.Tests` | `Features/Compile/InstalledProviderJourneyTests.cs` | yes | no | no | no | Move: journey. It starts the built CLI and uses no product type. Pull request 3 confirms it with the compile tests. |
+| stays | `Morphir.Toolchain.Tests` | `ReleaseSetupTests.fs` | no | yes | no | yes | Stays. It tests a library in the test process. |
+| stays | `Morphir.Extensions.Installation.Tests` | `ActivationRecordTests.fs`, `NamedLockTests.fs`, `PackageTests.fs` | yes | yes | yes | yes | Stay. They test a library in the test process; two of them start a helper process for a lock. |
+| stays | `Morphir.Build.Tests` | `ExtensionPackageProducerTests.cs`, `ExtensionProcessProducerTests.cs` | yes | yes | yes | no | Stay: build tests of helpers of the build (`build/Helpers`). |
+
+`#608` also changed `Integration/CLI/CliManagementCommands.feature`, which this pull request moved: the row of
+`extension install` is gone, and one scenario checks that the old URL arguments of that command fail as usage. The
+same change is in `tests/Morphir.BlackBox.Tests/Integration/ManagementCommands.feature` (13 rows and one scenario).
+
 ## Counts
 
 | Destination | Files |
@@ -184,6 +200,9 @@ driver interfaces.
 | Pull request 5 | 1 |
 | Stays | 67 |
 | Total | 128 |
+
+The counts are those of the first inventory. After it: pull request 1 added 8 files that stay, and `main` added 1
+file for pull request 3 and 6 files that stay.
 
 ## Scripts and programs that are not test files
 

@@ -179,12 +179,50 @@ jobs:
             os: ${{ matrix.os }}
             configuration: ${{ github.event.inputs.configuration || 'Release' }}
 
+    build-windows-toolchain:
+        needs: [validate-version]
+        if: ${{ !failure() && vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
+        runs-on: windows-latest
+        timeout-minutes: 60
+        env:
+            DOTNET_PROCESSOR_COUNT: '2'
+            MORPHIR_TEST_MAX_PROCESSES: '2'
+            DOTNET_CLI_USE_MSBUILD_SERVER: '0'
+            MSBUILDDISABLENODEREUSE: '1'
+        steps:
+            - uses: actions/checkout@v6.1.0
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+                  dotnet-version: 10.0.x
+            - name: Pack the Windows manager, runtime-bundled host, and independent providers
+              shell: pwsh
+              run: |
+                  dotnet run --project build/_build.csproj -c Release -- --target PackWindowsToolchain --rid win-x64 --deployment self-contained --release-assets-dir artifacts/windows-toolchain --configuration Release
+                  if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            - name: Exercise setup through an in-memory release transport
+              shell: pwsh
+              env:
+                  MORPHIR_WINDOWS_TOOLCHAIN_ASSETS: ${{ github.workspace }}/artifacts/windows-toolchain
+              run: |
+                  dotnet build tests/Morphir.Toolchain.Tests/Morphir.Toolchain.Tests.fsproj -c Release -m:1 -p:UseSharedCompilation=false -nodeReuse:false
+                  if ($LASTEXITCODE) { exit $LASTEXITCODE }
+                  dotnet tests/Morphir.Toolchain.Tests/bin/Release/net11.0/Morphir.Toolchain.Tests.dll --filter-test-list WindowsReleaseSetup
+                  if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            - uses: actions/upload-artifact@v6
+              with:
+                  name: windows-release-toolchain
+                  path: artifacts/windows-toolchain/*
+                  if-no-files-found: error
+
     release:
         runs-on: ubuntu-latest
         environment: production
         # With CLI publication enabled, nothing is published unless the executables and morphirup built and passed
         # their checks on every platform. Without it, those jobs are skipped and the libraries publish alone.
-        needs: [validate-version, build-executables, build-morphirup]
+        needs: [validate-version, build-executables, build-morphirup, build-windows-toolchain]
         permissions:
             contents: read
             id-token: write
@@ -270,7 +308,7 @@ jobs:
 
     create-github-release:
         runs-on: ubuntu-latest
-        needs: [validate-version, build-executables, build-morphirup, release]
+        needs: [validate-version, build-executables, build-morphirup, build-windows-toolchain, release]
         if: ${{ !failure() && needs.validate-version.outputs.skip-git-release != 'true' }}
         # This job needs write permissions to create releases
         permissions:
@@ -305,6 +343,13 @@ jobs:
               run: |
                   echo "Downloaded artifacts:"
                   find ./artifacts/executables ./artifacts/downloads/morphirup -type f -ls
+
+            - name: Download the Windows release setup closure
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
+              uses: actions/download-artifact@v7
+              with:
+                  name: windows-release-toolchain
+                  path: ./artifacts/release-assets
 
             - name: Prepare executables for release
               if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
@@ -355,9 +400,16 @@ jobs:
               shell: bash
               run: |
                   set -euo pipefail
-                  ./build.sh --target FlattenReleaseAssets MorphirupChecksums --release-asset-sources ./artifacts/downloads/morphirup/* --release-assets-dir ./artifacts/release-assets
+                  # The x64 closure already supplies its manager, archive, notices and SHA256SUMS. Do not
+                  # flatten a second build of that manager over the bytes named by the retained checksum file.
+                  sources=()
+                  for rid in linux-x64 linux-arm64 win-arm64 osx-arm64; do
+                      sources+=("./artifacts/downloads/morphirup/morphirup-$rid")
+                  done
+                  ./build.sh --target FlattenReleaseAssets MorphirupChecksums --release-asset-sources "${sources[@]}" --release-assets-dir ./artifacts/release-assets
                   cd ./artifacts/release-assets
                   sha256sum -c "morphirup-v${{ needs.validate-version.outputs.version }}.sha256"
+                  sha256sum -c SHA256SUMS
 
             - name: Extract release notes from CHANGELOG.md
               id: extract-notes
@@ -389,6 +441,7 @@ jobs:
                   files: |
                       ./artifacts/release-assets/morphir-*
                       ./artifacts/release-assets/morphirup-*
+                      ./artifacts/release-assets/SHA256SUMS
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

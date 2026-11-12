@@ -52,6 +52,13 @@ module internal Descriptors =
             optional "platform" items
             |> Option.map (nonempty $"{path}.platform")
 
+        if
+            runtime
+            <> ArtifactRuntime.Process
+            && Option.isSome (optional "package" items)
+        then
+            fail "package.runtime" path "A package requires process runtime."
+
         match runtime, platform with
         | ArtifactRuntime.Process, None ->
             invalid $"{path}.platform" "Process requires a target triple."

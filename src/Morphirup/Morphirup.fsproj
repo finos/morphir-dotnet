@@ -52,8 +52,17 @@
         <Compile Include="LocalCandidate.fs" />
         <Compile Include="LocalProcess.fs" />
         <Compile Include="LocalInstallation.fs" />
+        <Compile Include="Acquisition.fs" />
+        <Compile Include="ComposedInstallation.fs" />
         <Compile Include="Cli.fs" />
         <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="../../tests/Fixtures/Toolchain/workflows/fsharp-compile-generate/case.json" LogicalName="Morphirup.Fixed.case.json" />
+        <EmbeddedResource Include="../../tests/Fixtures/Toolchain/workflows/fsharp-compile-generate/source/Pricing.fs" LogicalName="Morphirup.Fixed.Pricing.fs" />
+        <EmbeddedResource Include="../../tests/Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/ir-4.0.0.json" LogicalName="Morphirup.Fixed.ir.json" />
+        <EmbeddedResource Include="../../tests/Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/generated/Pricing.fs" LogicalName="Morphirup.Fixed.generated.fs" />
     </ItemGroup>
 
     <!--

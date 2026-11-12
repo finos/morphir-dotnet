@@ -10,6 +10,50 @@ open System.Text.Json
 open System.Threading
 open System.Threading.Tasks
 open Morphir.Mep
+open Morphir.Toolchain.IO
+
+// Absolute installed Windows executables use the same creation-time ownership as morphirup.
+// Legacy command lookup and the existing POSIX path retain their existing process semantics.
+type private GuestChild =
+    | OwnedWindows of WindowsChild * StreamWriter * StreamReader * StreamReader
+    | Legacy of Process
+    member this.StandardInput = match this with OwnedWindows(_,input,_,_) -> input | Legacy child -> child.StandardInput
+    member this.StandardOutput = match this with OwnedWindows(_,_,output,_) -> output | Legacy child -> child.StandardOutput
+    member this.StandardError = match this with OwnedWindows(_,_,_,errors) -> errors | Legacy child -> child.StandardError
+    member this.HasExited = match this with OwnedWindows(child,_,_,_) -> child.WaitForExitAsync().IsCompleted | Legacy child -> child.HasExited
+    member this.WaitForExitAsync(ct: CancellationToken) : Task =
+        match this with
+        | OwnedWindows(child,_,_,_) -> child.WaitForExitAsync().WaitAsync(ct) :> Task
+        | Legacy child -> child.WaitForExitAsync(ct)
+    member this.WaitForExitAsync() = this.WaitForExitAsync(CancellationToken.None)
+    member this.Kill(_tree: bool) = match this with OwnedWindows(child,_,_,_) -> child.RequestTermination() | Legacy child -> if not child.HasExited then child.Kill(true)
+    member this.SettleAsync() = match this with OwnedWindows(child,_,_,_) -> child.SettleAsync() | Legacy _ -> Task.CompletedTask
+    member this.DisposeAsync() = task {
+        match this with
+        | OwnedWindows(child,input,output,errors) ->
+            do! AsyncOwnership.runAsync (child :> IAsyncDisposable) (fun () -> task {
+                input.Dispose(); output.Dispose(); errors.Dispose()
+            })
+        | Legacy child -> child.Dispose()
+    }
+    interface IAsyncDisposable with
+        member this.DisposeAsync() = ValueTask(this.DisposeAsync())
+    static member StartAsync(start: ProcessStartInfo, ct: CancellationToken) = task {
+        if OperatingSystem.IsWindows() && Path.IsPathFullyQualified start.FileName then
+            let! child = WindowsChild.StartAsync(start,ct)
+            try
+                let input = new StreamWriter(child.StandardInput |> Option.defaultWith(fun () -> invalidOp "Missing owned guest stdin"), Text.UTF8Encoding(false),4096,true)
+                let output = new StreamReader(child.StandardOutput,Text.UTF8Encoding(false),true,4096,true)
+                let errors = new StreamReader(child.StandardError,Text.UTF8Encoding(false),true,4096,true)
+                return OwnedWindows(child,input,output,errors)
+            with error ->
+                do! (child :> IAsyncDisposable).DisposeAsync().AsTask()
+                return raise error
+        else
+            match Process.Start(start) with
+            | null -> return raise (IOException "Guest did not start")
+            | child -> return Legacy child
+    }
 
 /// <summary>How a host starts a MEP guest process: a frontend, a backend or another extension.</summary>
 type MepGuestOptions =
@@ -164,7 +208,7 @@ type MepGuestProcess
     private
     (
         options: MepGuestOptions,
-        child: Process,
+        child: GuestChild,
         session: HostSession,
         connection: Task<ConnectionEnd>,
         negotiated: NegotiatedSession,
@@ -229,13 +273,14 @@ type MepGuestProcess
             start.RedirectStandardOutput <- true
             start.RedirectStandardError <- true
 
-            let started =
+            let! started = task {
                 try
-                    match Process.Start start with
-                    | null -> Error $"Extension {options.Executable} did not start."
-                    | child -> Ok child
-                with error ->
-                    Error $"Extension {options.Executable} did not start: {error.Message}"
+                    let! child = GuestChild.StartAsync(start,cancellation)
+                    return Ok child
+                with
+                | :? OperationCanceledException as error -> return raise error
+                | error -> return Error $"Extension {options.Executable} did not start: {error.Message}"
+            }
 
             match started with
             | Error message -> return Error(MepGuestFailure.Unavailable message)
@@ -259,23 +304,12 @@ type MepGuestProcess
                 // A start that fails stops the process tree, waits for the stderr pump, and disposes the child, so
                 // no process, pipe or pump outlives the failure.
                 let stop () =
-                    task {
-                        try
-                            if not child.HasExited then
-                                child.Kill true
-
-                            do! child.WaitForExitAsync()
-                        with _ ->
-                            ()
-
-                        try
-                            do! pump
-                        with _ ->
-                            ()
-
-                        child.Dispose()
-                    }
-
+                    AsyncOwnership.runAsync (child :> IAsyncDisposable) (fun () -> task {
+                        child.Kill true
+                        do! child.SettleAsync()
+                        do! child.WaitForExitAsync()
+                        try do! pump with _ -> ()
+                    })
                 use deadline = CancellationTokenSource.CreateLinkedTokenSource cancellation
                 deadline.CancelAfter options.Deadline
 
@@ -393,57 +427,29 @@ type MepGuestProcess
 
     interface IAsyncDisposable with
         member _.DisposeAsync() =
-            ValueTask(
-                task {
-                    if not ended then
-                        ended <- true
-
+            ValueTask(task {
+                if not ended then
+                    ended <- true
+                    do! AsyncOwnership.runAsync (child :> IAsyncDisposable) (fun () -> task {
+                        use deadline = new CancellationTokenSource(options.Deadline)
                         try
-                            use deadline = new CancellationTokenSource(options.Deadline)
-
-                            // Neither shutdown nor exit completes when the guest does not read them, for example
-                            // when a handler blocks its read loop: a cancelled token only sends $/cancelRequest. So
-                            // both wait for the deadline too, and after it the process tree is stopped.
-                            if not connection.IsCompleted then
+                            if not child.HasExited && not connection.IsCompleted then
                                 let shutdown = session.ShutdownAsync deadline.Token
                                 let! answered = wait (shutdown :> Task) connection deadline.Token
-
                                 if answered = Waited.Reply then
                                     let! _ = wait (session.ExitAsync()) connection deadline.Token
                                     ()
-
-                            // The end of its input also ends a guest whose connection already failed.
-                            try
-                                child.StandardInput.Close()
-                            with _ ->
-                                ()
-
-                            let! stopped =
-                                task {
-                                    try
-                                        do! child.WaitForExitAsync deadline.Token
-                                        return true
-                                    with :? OperationCanceledException ->
-                                        return false
-                                }
-
-                            if not stopped then
-                                child.Kill true
-                                do! child.WaitForExitAsync()
-                        with _ ->
-                            try
-                                if not child.HasExited then
-                                    child.Kill true
-                                    child.WaitForExit()
-                            with _ ->
-                                ()
-
+                            child.StandardInput.Close()
+                            do! child.WaitForExitAsync(deadline.Token)
+                        with _ -> child.Kill true
+                        // Settlement errors escape, after the IO owner has joined the actual job.
+                        // Disposal still joins/owns every handle through AsyncOwnership.
+                        do! child.SettleAsync()
+                        do! child.WaitForExitAsync()
                         do! pump
                         exited <- true
-                        child.Dispose()
-                }
-            )
-
+                    })
+            })
 /// <summary>The outcome of starting a guest, for C# callers.</summary>
 and [<RequireQualifiedAccess>] MepGuestStart =
     /// <summary>The guest runs and its session is initialized.</summary>

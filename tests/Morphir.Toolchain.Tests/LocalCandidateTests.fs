@@ -647,6 +647,16 @@ let executionPlatformTests =
                     (Some Platform.WinArm64)
                     "no blanket Windows override"
             )
+        test "release setup uses the actual ARM64 manager process platform" {
+            Expect.equal
+                (Morphirup.Cli.executionPlatform
+                    Runtime.InteropServices.OSPlatform.Windows
+                    Runtime.InteropServices.Architecture.Arm64
+                    (Some Platform.WinX64)
+                    ["setup";"--yes"])
+                (Some Platform.WinArm64)
+                "no x64 default for a native ARM64 process"
+        }
         testCase
             "historical recipe setup and doctor retain their supplied platform"
             (fun () ->
@@ -1547,3 +1557,180 @@ let suppliedCandidateTests =
                 })
         ]
         |> testLabel "PlatformSpecific"
+
+let private composedInput frontend backend =
+    let raw = candidateJson ["morphir.exe"]
+    let fields = match Syntax.parseJson raw |> parsed with Value.Object values -> values | _ -> failtest "fixture"
+    Value.Object (
+        fields |> List.map(fun (name,value) -> if name="$schema" then name,Value.String(LocalComposedDocument.schema "candidate") else name,value)
+        |> fun values -> values @ ["extensions",Value.Object ["selectionSha256",Value.String digest.Text;"frontendId",Value.String frontend;"backendId",Value.String backend]])
+    |> JsonText.toBytes
+
+[<Tests>]
+let composedReaderTests =
+    testList "ComposedCandidate" [
+        test "preview2 retains exact raw candidate identity and distinct role identities" {
+            let raw = composedInput "org.finos.frontend" "org.finos.backend"
+            let value = LocalComposedDocument.readCandidate raw |> parsed
+            Expect.equal value.Host.ManifestSha256 (Sha256.ofBytes raw) "raw input identity, not re-encoded preview1"
+            Expect.equal value.FrontendId.Text "org.finos.frontend" "frontend"
+            Expect.equal value.BackendId.Text "org.finos.backend" "backend"
+            Expect.equal value.SelectionSha256 digest "selection has its own exact digest"
+            Expect.isError (LocalCandidateDocument.readCandidate raw) "preview1 remains isolated"
+        }
+        test "one identity cannot fill both process roles" {
+            Expect.isError (composedInput "org.finos.frontend" "org.finos.frontend" |> LocalComposedDocument.readCandidate) "distinct providers"
+        }
+        test "preview1 is not converted implicitly to composed" {
+            Expect.isError (candidateJson ["morphir.exe"] |> LocalComposedDocument.readCandidate) "exact family"
+        }
+        test "a changed exact candidate byte sequence has a different identity" {
+            let raw = composedInput "org.finos.frontend" "org.finos.backend"
+            let padded = Array.append raw [|32uy|]
+            let a = LocalComposedDocument.readCandidate raw |> parsed
+            let b = LocalComposedDocument.readCandidate padded |> parsed
+            Expect.notEqual a.Host.ManifestSha256 b.Host.ManifestSha256 "accepted whitespace remains part of raw identity"
+        }
+    ]
+
+[<Tests>]
+let releaseChecksumReaderTests =
+    let releaseBytes () =
+        let raw = composedInput "org.finos.frontend" "org.finos.backend"
+        let text = System.Text.Encoding.UTF8.GetString raw
+        System.Text.Encoding.UTF8.GetBytes(text.Replace("0.1.0-preview.2", "0.1.0-preview.3").Replace("local-developer", "release-checksum"))
+    let workflow (candidate: LocalComposedCandidate) =
+        let provider role id operation = Value.Object [
+            "role",Value.String role;"extensionId",Value.String id;"version",Value.String "1.2.3"
+            "mepVersion",Value.String "0.2.0-draft.1"
+            "modelTuple",Value.Object ["operation",Value.String(ModelOperation.text operation);"profile",Value.String "morphir-ir";"codec",Value.String "morphir-json";"envelopeVersion",Value.String "0.1.0-draft.1";"irVersion",Value.String "4.0.0"]
+            "checks",Value.Array [for name in ["integrity";"capability"] -> Value.Object ["check",Value.String name;"status",Value.String "passed"]]]
+        Value.Object [
+            "case",Value.String "fsharp-compile-generate";"caseSha256",Value.String ComposedDocuments.fixedCaseSha256;"sourceSha256",Value.String ComposedDocuments.fixedSourceSha256
+            "ir",Value.Object ["sha256",Value.String digest.Text;"semanticMatch",Value.Boolean true]
+            "generatedFiles",Value.Array [Value.Object ["path",Value.String "Pricing.fs";"bytes",Value.Number "112";"sha256",Value.String ComposedDocuments.fixedGeneratedSha256]]
+            "providers",Value.Array [provider "frontend" candidate.FrontendId.Text ModelOperation.CompileModel;provider "backend" candidate.BackendId.Text ModelOperation.GenerateModel]
+            "checks",Value.Array [Value.Object ["check",Value.String "workflow";"status",Value.String "passed";"workflow",Value.String "fsharp-compile-generate"]]]
+    let proof = Value.Object [
+        "repository",Value.String ReleaseBundleDocument.repository;"tag",Value.String "v1.2.3"
+        "bundle",Value.Object ["path",Value.String "acquisition/bundle.json";"sha256",Value.String digest.Text]
+        "checksums",Value.Object ["path",Value.String "acquisition/SHA256SUMS";"sha256",Value.String digest.Text]]
+    testList "ReleaseChecksumCandidate" [
+        test "release checksum authority retains exact raw input and whole folder" {
+            let raw = releaseBytes ()
+            let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
+            Expect.equal candidate.Host.ManifestSha256 (Sha256.ofBytes raw) "raw checksum identity"
+            Expect.equal candidate.Host.Files.Length 1 "whole declared closure"
+        }
+        test "preview3 local developer origin remains explicit and distinct" {
+            let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString
+            let candidate = System.Text.Encoding.UTF8.GetBytes(raw.Replace("release-checksum","local-developer")) |> LocalComposedDocument.readReleaseCandidate |> parsed
+            Expect.equal candidate.Origin.WireValue "local-developer" "no checksum authority from local input"
+        }
+        test "preview3 ARM64 retains its exact platform and receipt binding" {
+            let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","win-arm64"))
+            let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
+            Expect.equal candidate.Host.Platform Platform.WinArm64 "declared platform"
+            Expect.equal candidate.Host.ManifestSha256 (Sha256.ofBytes raw) "exact ARM64 input"
+            let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate digest
+            use document = System.Text.Json.JsonDocument.Parse receipt
+            Expect.equal (document.RootElement.GetProperty("platform").GetString() |> Option.ofObj) (Some "win-arm64") "receipt platform"
+            ComposedDocuments.receiptMatches "0.1.0-preview.3" candidate digest receipt |> parsed
+        }
+        test "preview3 planning accepts matching ARM64 and refuses cross-RID execution" {
+            let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","win-arm64"))
+            let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
+            Expect.isOk (LocalCandidatePlanning.planRelease Platform.WinArm64 4096UL candidate.Host) "matching Windows ARM64"
+            Expect.equal (LocalCandidatePlanning.planRelease Platform.WinX64 4096UL candidate.Host) (Error LocalCandidateRefusal.PlatformMismatch) "no cross-target fallback"
+            Expect.isError (LocalCandidatePlanning.plan Platform.WinArm64 (Some LocalConsent.LocalDeveloper) 4096UL candidate.Host) "historical local planning remains x64 only"
+        }
+        test "preview1 and preview2 still refuse ARM64 and unrelated platforms" {
+            let arm (bytes: byte array) = bytes |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","win-arm64"))
+            Expect.isError (candidateJson ["morphir.exe"] |> arm |> LocalCandidateDocument.readCandidate) "preview1 unchanged"
+            Expect.isError (composedInput "org.finos.frontend" "org.finos.backend" |> arm |> LocalComposedDocument.readCandidate) "preview2 unchanged"
+            let linux = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","linux-arm64"))
+            Expect.isError (LocalComposedDocument.readReleaseCandidate linux) "only the two Windows RIDs"
+        }
+        test "preview3 local receipts and pointers preserve origin rather than family defaults" {
+            let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("release-checksum","local-developer"))
+            let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
+            let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate digest
+            let pointer = ComposedDocuments.pointer "0.1.0-preview.3" candidate digest receipt
+            let _,_,origin = ComposedDocuments.readPointer "0.1.0-preview.3" pointer |> parsed
+            Expect.equal origin candidate.Origin "pointer binds the validated origin"
+            use document = System.Text.Json.JsonDocument.Parse receipt
+            Expect.equal (document.RootElement.GetProperty("origin").GetString() |> Option.ofObj) (Some "local-developer") "receipt is not relabelled"
+        }
+        test "preview3 acquisition is required only for the bound release-checksum candidate" {
+            let release = releaseBytes () |> LocalComposedDocument.readReleaseCandidate |> parsed
+            let local = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("release-checksum","local-developer")) |> LocalComposedDocument.readReleaseCandidate |> parsed
+            let manifest (candidate: LocalComposedCandidate) acquisition =
+                ComposedDocuments.writeManifest "0.1.0-preview.3" candidate [||] [candidate.FrontendId,[||];candidate.BackendId,[||]] [] (workflow candidate) acquisition
+                |> ComposedDocuments.readManifest "0.1.0-preview.3" candidate
+            Expect.isOk (manifest release (Some proof)) "release proof is required"
+            Expect.isError (manifest release None) "a family string cannot bypass acquisition"
+            Expect.isOk (manifest local None) "explicit local development does not claim acquisition"
+            Expect.isError (manifest local (Some proof)) "local input cannot carry acquired-release authority"
+        }
+        test "published preview2 remains a separate local family" {
+            let raw = releaseBytes ()
+            Expect.isError (LocalComposedDocument.readCandidate raw) "no conversion"
+            Expect.isError (LocalComposedDocument.readReleaseCandidate (composedInput "org.finos.frontend" "org.finos.backend")) "no upgrade"
+        }
+    ]
+
+[<Tests>]
+let releaseBundleTests =
+    let hash = String('a',64)
+    let roles = ["host-candidate";"host-archive";"selection";"frontend-release";"frontend-manifest";"frontend-archive";"backend-release";"backend-manifest";"backend-archive"]
+    let name role =
+        match role with
+        | "host-candidate" -> "morphir-host-candidate-win-x64.json"
+        | "selection" -> "morphir-extensions-win-x64.json"
+        | _ -> role+"-win-x64.zip"
+    let bundle source =
+        Value.Object [
+            "$schema",Value.String "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/bundle.schema.json"
+            "version",Value.String "0.4.0-alpha.5"; "sourceCommit",Value.String(String('b',40)); "platform",Value.String "win-x64"
+            "assets",Value.Array [for role in roles -> Value.Object ["name",Value.String(name role);"url",Value.String(source+name role);"bytes",Value.Number "3";"sha256",Value.String hash;"role",Value.String role]]]
+        |> JsonText.toBytes
+    let official = "https://github.com/finos/morphir-dotnet/releases/download/v0.4.0-alpha.5/"
+    testList "ReleaseBundle" [
+        test "one release covers every required independently installed component" {
+            let raw = bundle official
+            let value = ReleaseBundleDocument.read raw |> parsed
+            Expect.equal value.Assets.Length 9 "complete role coverage"
+            let sums = (Sha256.ofBytes raw).Text + "  morphir-toolchain-win-x64.json\n" + (roles |> List.map(fun role -> hash+"  "+name role+"\n") |> String.concat "")
+            ReleaseBundleDocument.verifyChecksums "morphir-toolchain-win-x64.json" raw (System.Text.Encoding.UTF8.GetBytes sums) value |> parsed
+        }
+        test "HTTP cannot authorize release acquisition" {
+            Expect.isError (bundle (official.Replace("https:","http:")) |> ReleaseBundleDocument.read) "HTTPS required"
+        }
+        test "a different repository cannot be hidden in an asset URL" {
+            Expect.isError (bundle (official.Replace("finos/morphir-dotnet/","other/project/")) |> ReleaseBundleDocument.read) "one approved release"
+        }
+        test "checksum coverage must include the raw bundle" {
+            let raw = bundle official
+            let value = ReleaseBundleDocument.read raw |> parsed
+            Expect.isError (ReleaseBundleDocument.verifyChecksums "morphir-toolchain-win-x64.json" raw [||] value) "no implicit acceptance"
+        }
+        test "portable process pins retain independent archive identities" {
+            let raw = System.Text.Encoding.UTF8.GetBytes("{\"$schema\":\"https://morphir.finos.org/schemas/toolchains/0.1.0-preview.1/selection.schema.json\",\"extensions\":[{\"extensionId\":\"org.finos.frontend\",\"version\":\"0.4.0-alpha.4\",\"runtime\":\"process\",\"platforms\":{\"win-x64\":\""+hash+"\"}}]}")
+            let pins = ComposedDocuments.readPins raw |> parsed
+            Expect.equal pins.Head.ArchiveSha256.Text hash "archive identity"
+        }
+        test "ARM64 bundle and portable pins retain only their selected RID" {
+            let raw = bundle official |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","win-arm64"))
+            let value = ReleaseBundleDocument.read raw |> parsed
+            Expect.equal value.Platform Platform.WinArm64 "bundle platform is typed"
+            Expect.equal (ReleaseBundleDocument.fileName value.Platform) "morphir-toolchain-win-arm64.json" "RID-specific checksum entry"
+            let selection = System.Text.Encoding.UTF8.GetBytes("{\"$schema\":\"https://morphir.finos.org/schemas/toolchains/0.1.0-preview.1/selection.schema.json\",\"extensions\":[{\"extensionId\":\"org.finos.frontend\",\"version\":\"0.4.0-alpha.4\",\"runtime\":\"process\",\"platforms\":{\"win-arm64\":\""+hash+"\"}}]}")
+            let pins = ComposedDocuments.readPinsFor Platform.WinArm64 selection |> parsed
+            Expect.equal pins.Head.ArchiveSha256.Text hash "ARM64 archive identity"
+            Expect.isError (ComposedDocuments.readPins selection) "legacy x64 selection does not fall back"
+        }
+        test "a bundle cannot name another platform in an asset" {
+            let raw = bundle official |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("frontend-archive-win-x64.zip","frontend-archive-win-arm64.zip"))
+            Expect.isError (ReleaseBundleDocument.read raw) "RID-specific asset bindings"
+        }
+    ]

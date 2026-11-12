@@ -1,7 +1,7 @@
 @integration
-Feature: The artifact management commands are not implemented yet
+Feature: The status of the artifact management commands
   As a user of the Morphir CLI
-  I want the dist, tool and extension commands to say that they are not implemented yet
+  I want the dist, tool and extension commands to report their actual status
   So that I am not told that an install or a switch succeeded when nothing happened
 
   Scenario Outline: An unimplemented management command fails and links its issue
@@ -22,7 +22,11 @@ Feature: The artifact management commands are not implemented yet
       | tool      | use        | tool use t 1.0.0                                    | 491   |
       | tool      | remove     | tool remove t 1.0.0                                 | 491   |
       | tool      | which      | tool which t                                        | 491   |
-      | extension | install    | extension install e https://example.com/e.zip 1.0.0 | 492   |
       | extension | use        | extension use e 1.0.0                               | 492   |
       | extension | remove     | extension remove e 1.0.0                            | 492   |
       | extension | which      | extension which e                                   | 492   |
+
+  Scenario: The obsolete URL arguments of extension install fail as usage
+    When I run the command "extension install e https://example.com/e.zip 1.0.0"
+    Then the exit code is 1
+    And the output contains "Unrecognized command or argument 'https://example.com/e.zip'"

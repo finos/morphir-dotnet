@@ -55,6 +55,11 @@ text checks.
 
 ## `Integration/CLI/CliManagementCommands.feature` (14 scenarios)
 
+After the move, `main` (#608) changed the old feature: it removed the row of `extension install` and added the
+scenario `The obsolete extension install URL arguments fail as usage`. The merge of `main` put the same change in
+the new feature: 13 rows, and the scenario `The obsolete URL arguments of extension install fail as usage` with the
+same two checks. The table below is the state at the move.
+
 New file: `tests/Morphir.BlackBox.Tests/Integration/ManagementCommands.feature`, `@integration`, on `ICliDriver`.
 One scenario outline with the same 14 rows and the same three checks (exit code 1, the "not implemented yet" text,
 the issue link).

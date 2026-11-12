@@ -40,6 +40,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
 {
     private readonly Option<string?> _language = new("--language", "-l") { Description = "Source language, for example fsharp" };
     private readonly Option<string?> _extension = new("--extension") { Description = "Frontend extension; overrides [frontend.<language>].extension" };
+    private readonly Option<string?> _extensionId = new("--extension-id") { Description = "Installed frontend full extension identity; mutually exclusive with --extension" };
     private readonly Option<string[]> _input = new("--input", "-i")
     {
         Description = "Source files in compilation order, or one directory",
@@ -71,7 +72,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     public CompileCommand(IServiceProvider services) : base("compile", "Compile source code to Morphir IR")
     {
         _services = services;
-        foreach (var option in new Option[] { _language, _extension, _input, _projectFile, _packageName, _config, _project, _irVersion, _json, _jsonLines, _typesOnly, _output, _outDir })
+        foreach (var option in new Option[] { _language, _extension, _extensionId, _input, _projectFile, _packageName, _config, _project, _irVersion, _json, _jsonLines, _typesOnly, _output, _outDir })
             Options.Add(option);
         // CLI-2: compile can continue into generation.
         foreach (var option in new Option[] { _target, _generateOutput, _generateOptions })
@@ -84,6 +85,8 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
             if (json && jsonLines)
                 return await RenderInvocationAsync(output, [Invalid("The options --json and --json-lines cannot be combined. Use one.")], Mode.JsonLines);
             var mode = jsonLines ? Mode.JsonLines : json ? Mode.Json : Mode.Human;
+            if (result.GetValue(_extension) is not null && result.GetValue(_extensionId) is not null)
+                return await RenderInvocationAsync(output, [Invalid("Choose --extension or --extension-id, not both.")], mode);
             var context = Context;
             var target = CompileTarget.Parse(result.GetValue(_target), result.GetValue(_generateOutput), result.GetValue(_generateOptions),
                 context.WorkingDirectory);
@@ -122,6 +125,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     {
         Language = result.GetValue(_language),
         Extension = result.GetValue(_extension),
+        ExtensionId = result.GetValue(_extensionId),
         Inputs = result.GetValue(_input) ?? [],
         ProjectFile = result.GetValue(_projectFile),
         PackageName = result.GetValue(_packageName),

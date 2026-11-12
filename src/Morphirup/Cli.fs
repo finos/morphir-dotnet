@@ -63,8 +63,10 @@ provenance. Publisher-authenticated production acquisition remains unqualified. 
 
 Usage:
   morphirup --version
+  morphirup setup [--home <absolute>] [--dry-run | --yes]
   morphirup setup --candidate <json> --local-archive <zip> --home <absolute> --local-developer (--dry-run | --yes)
-  morphirup select --generation <raw-candidate-sha256> --home <absolute> [--dry-run]
+  morphirup setup --candidate <json> --local-archive <zip> --local-bundle <json> [--home <absolute>] --local-developer (--dry-run | --yes)
+  morphirup select --generation <generation-sha256> --home <absolute> [--dry-run]
   morphirup show --home <absolute> [--explain] [--json]
   morphirup run --home <absolute> -- <Morphir arguments>
   morphirup setup (--plan | --dry-run) --recipe <file> --repository-id <sha256> --artifact-sizes <file> [request]
@@ -888,18 +890,24 @@ let private isLocalInvocation =
     | "setup" :: rest ->
         rest
         |> List.exists (fun arg ->
-            List.contains arg [ "--candidate"; "--local-archive"; "--local-developer" ]
+            List.contains arg [ "--candidate"; "--local-archive"; "--local-bundle"; "--local-developer" ]
         )
     | _ -> false
 
-/// Only actual Windows x64 executable composition uses its process platform for local commands.
+let private isReleaseSetup = function
+    | "setup" :: rest -> not(rest |> List.exists(fun arg -> List.contains arg ["--recipe";"--candidate";"--local-archive";"--local-bundle";"--local-developer"]))
+    | _ -> false
+
+/// Local executable composition uses the actual Windows process platform, including x64 emulation.
 let executionPlatform os architecture platform args =
     if
         os = Runtime.InteropServices.OSPlatform.Windows
-        && architecture = Runtime.InteropServices.Architecture.X64
-        && isLocalInvocation args
+        && (isLocalInvocation args || isReleaseSetup args)
     then
-        Some Platform.WinX64
+        match architecture with
+        | Runtime.InteropServices.Architecture.X64 -> Some Platform.WinX64
+        | Runtime.InteropServices.Architecture.Arm64 -> Some Platform.WinArm64
+        | _ -> platform
     else
         platform
 
@@ -908,18 +916,83 @@ let private runCoreAsync
     (io: Io)
     input
     (args: string list)
+    (releaseTransport: Morphir.Toolchain.IO.IAcquisitionTransport option)
     (ct: System.Threading.CancellationToken)
     : Task<int> =
     task {
         let local = isLocalInvocation args
 
-        if not local then
+        if isReleaseSetup args then
+            let emit status candidate generation diagnostic =
+                let bytes = Value.Object [
+                    "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.3" "result")
+                    "command",Value.String "setup"; "status",Value.String status; "origin",Value.String "release-checksum"
+                    match candidate with Some(hash: Sha256) -> "candidateSha256",Value.String hash.Text | None -> ()
+                    match generation with
+                    | Some(hash: Sha256) ->
+                        "generationSha256",Value.String hash.Text
+                        "receiptPath",Value.String(LocalCandidateDocument.receiptPath hash)
+                        "selectionPath",Value.String LocalCandidateDocument.selectionPath
+                    | None -> ()
+                    match diagnostic with
+                    | Some(code,message) -> "diagnostic",Value.Object ["code",Value.String code;"message",Value.String message]
+                    | None -> () ] |> JsonText.toBytes
+                io.Out.Write(bytes,0,bytes.Length)
+            try
+                let parsed = parse ["--home"] ["--yes";"--dry-run";"--json"] args.Tail |> function Ok value -> value | Error(Usage message) -> raise (ArgumentException message)
+                if parsed.Has "--yes" && parsed.Has "--dry-run" then raise (ArgumentException "Choose --yes or --dry-run.")
+                let platform =
+                    match io.Platform with
+                    | Some platform when Platform.isWindows platform -> platform
+                    | _ -> LocalCandidate.refuse "setup.platform_mismatch" "Release setup requires an actual Windows x64 or ARM64 manager process."
+                let home = parsed.TryGet "--home" |> Option.defaultWith ComposedInstallation.defaultHome |> LocalCandidate.homePath
+                let version = ComposedInstallation.releaseVersion io.CurrentDirectory VersionInfo.Version
+                let execute transport = ComposedInstallation.setupWithTransportAsync platform home version transport (not(parsed.Has "--yes")) ct
+                let! candidate,generation =
+                    match releaseTransport with
+                    | Some transport -> execute transport
+                    | None -> task {
+                        use transport = new AcquisitionDelivery.ReleaseTransport()
+                        return! execute transport
+                      }
+                io.Error.WriteLine "morphirup: release-checksum delivery, NOT publisher-authenticated."
+                if not(parsed.Has "--yes") then io.Error.WriteLine "Run morphirup setup --yes to install and select this toolchain."
+                emit (if generation.IsSome then "installed" else "planned") (Some candidate) generation None
+                return 0
+            with
+            | :? ArgumentException as error -> io.Error.WriteLine $"morphirup: {error.Message}"; return 2
+            | :? OperationCanceledException -> io.Error.WriteLine "morphirup: setup cancelled."; return 130
+            | error ->
+                let code,message =
+                    match error with
+                    | LocalCandidate.Refused(code,message) -> code,message
+                    | Morphir.Extensions.Installation.InstallationException failure -> failure.Code,failure.Message
+                    | _ -> "setup.refused",error.Message
+                emit "refused" None None (Some(code,message))
+                io.Error.WriteLine "morphirup: release-checksum delivery, NOT publisher-authenticated."
+                return 1
+        elif not local then
             return run io args
         else
             let command = if args.Head = "use" then "select" else args.Head
+            let composedLocal = command="setup" && List.contains "--local-bundle" args
+            let mutable localGeneration: Sha256 option = None
 
             let emit status identity diagnostic =
-                let bytes = LocalCandidate.result command status identity diagnostic
+                let bytes =
+                    if not composedLocal then LocalCandidate.result command status identity diagnostic
+                    else Value.Object [
+                        "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.3" "result")
+                        "command",Value.String command;"status",Value.String status;"origin",Value.String "local-developer"
+                        match identity with Some(hash: Sha256) -> "candidateSha256",Value.String hash.Text | None -> ()
+                        match localGeneration with
+                        | Some hash ->
+                            "generationSha256",Value.String hash.Text
+                            "receiptPath",Value.String(LocalCandidateDocument.receiptPath hash)
+                        | None -> ()
+                        match diagnostic with
+                        | Some(code,message) -> "diagnostic",Value.Object ["code",Value.String code;"message",Value.String message]
+                        | None -> ()] |> JsonText.toBytes
                 io.Out.Write(bytes, 0, bytes.Length)
                 io.Out.Flush()
 
@@ -942,8 +1015,8 @@ let private runCoreAsync
             let absolute path =
                 Path.GetFullPath(path, io.CurrentDirectory)
 
-            let home options =
-                required "--home" options
+            let home (options: Options) =
+                options.TryGet "--home" |> Option.defaultWith ComposedInstallation.defaultHome
                 |> LocalCandidate.homePath
 
             try
@@ -952,18 +1025,17 @@ let private runCoreAsync
                 if
                     command
                     <> "show"
-                    && io.Platform
-                       <> Some Platform.WinX64
+                    && not(io.Platform |> Option.exists Platform.isWindows)
                 then
                     LocalCandidate.refuse
                         "local.platform_mismatch"
-                        "Local execution requires an actual win-x64 manager process."
+                        "Local execution requires an actual Windows x64 or ARM64 manager process."
 
                 match command with
                 | "setup" ->
                     let options =
                         options
-                            [ "--candidate"; "--local-archive"; "--home" ]
+                            [ "--candidate"; "--local-archive"; "--local-bundle"; "--home" ]
                             [ "--local-developer"; "--yes"; "--dry-run"; "--json" ]
                             args.Tail
 
@@ -977,53 +1049,68 @@ let private runCoreAsync
 
                     let home = home options
 
-                    let raw =
-                        LocalCandidate.readBytes
-                            LocalInstallation.documentBound
-                            (required "--candidate" options
-                             |> absolute)
+                    if composedLocal then
+                        let! candidate,generation =
+                            ComposedInstallation.setupLocalAsync
+                                (Option.get io.Platform)
+                                home
+                                (required "--candidate" options |> absolute)
+                                (required "--local-archive" options |> absolute)
+                                (required "--local-bundle" options |> absolute)
+                                (options.Has "--dry-run")
+                                ct
+                        localGeneration <- generation
+                        emit (if options.Has "--dry-run" then "planned" else "installed") (Some candidate) None
+                        io.Error.WriteLine "morphirup: local-developer input, NOT publisher-authenticated. Select the completed generation explicitly."
+                        return 0
+                    else
+                        let raw =
+                            LocalCandidate.readBytes
+                                LocalInstallation.documentBound
+                                (required "--candidate" options
+                                 |> absolute)
 
-                    let candidate =
-                        LocalCandidateDocument.readCandidate raw
-                        |> LocalCandidate.reader
+                        let candidate =
+                            LocalCandidateDocument.readCandidate raw
+                            |> LocalCandidate.reader
 
-                    let platform =
-                        io.Platform
-                        |> Option.defaultWith (fun () ->
-                            LocalCandidate.refuse
-                                "local.platform_mismatch"
-                                "The current platform is unsupported."
-                        )
+                        let platform =
+                            io.Platform
+                            |> Option.defaultWith (fun () ->
+                                LocalCandidate.refuse
+                                    "local.platform_mismatch"
+                                    "The current platform is unsupported."
+                            )
 
-                    match
-                        LocalCandidatePlanning.plan
-                            platform
-                            (Some LocalConsent.LocalDeveloper)
-                            LocalInstallation.maximumArchive
-                            candidate
-                    with
-                    | Error refusal ->
-                        LocalCandidate.refuse "local.candidate_refused" (string refusal)
-                    | Ok _ -> ()
+                        match
+                            LocalCandidatePlanning.plan
+                                platform
+                                (Some LocalConsent.LocalDeveloper)
+                                LocalInstallation.maximumArchive
+                                candidate
+                        with
+                        | Error refusal ->
+                            LocalCandidate.refuse "local.candidate_refused" (string refusal)
+                        | Ok _ -> ()
 
-                    let dryRun = options.Has "--dry-run"
+                        let dryRun = options.Has "--dry-run"
 
-                    do!
-                        LocalInstallation.setupAsync
-                            home
-                            raw
-                            candidate
-                            (required "--local-archive" options
-                             |> absolute)
-                            dryRun
-                            ct
+                        do!
+                            LocalInstallation.setupAsync
+                                home
+                                raw
+                                candidate
+                                (required "--local-archive" options
+                                 |> absolute)
+                                dryRun
+                                ct
 
-                    emit
-                        (if dryRun then "planned" else "installed")
-                        (Some candidate.ManifestSha256)
-                        None
+                        emit
+                            (if dryRun then "planned" else "installed")
+                            (Some candidate.ManifestSha256)
+                            None
 
-                    return 0
+                        return 0
                 | "select" ->
                     let options =
                         options [ "--generation"; "--home" ] [ "--dry-run"; "--json" ] args.Tail
@@ -1038,24 +1125,54 @@ let private runCoreAsync
                                     ArgumentException "--generation must be a lowercase SHA-256."
                                 )
 
-                    let! installed =
+                    let selectedHome = home options
+                    let generationPath = Path.Combine(selectedHome,LocalCandidateDocument.generationPath identity,"generation.json")
+                    if File.Exists generationPath then
+                        let! installed = ComposedInstallation.selectAsync (Option.get io.Platform) selectedHome identity (options.Has "--dry-run") ct
+                        let manifest = installed.Manifest |> Option.defaultWith(fun () -> LocalCandidate.refuse "setup.incomplete_generation" "A complete generation is required.")
+                        let result = Value.Object [
+                            "$schema",Value.String(ComposedDocuments.schemaFor installed.Family "result")
+                            "command",Value.String "select";"status",Value.String(if options.Has "--dry-run" then "planned" else "selected")
+                            "origin",Value.String installed.Candidate.Origin.WireValue
+                            "candidateSha256",Value.String installed.Candidate.Host.ManifestSha256.Text
+                            "generationSha256",Value.String manifest.Identity.Text
+                            "receiptPath",Value.String(LocalCandidateDocument.receiptPath manifest.Identity)
+                            "selectionPath",Value.String LocalCandidateDocument.selectionPath] |> JsonText.toBytes
+                        io.Out.Write(result,0,result.Length)
+                        io.Error.WriteLine($"morphirup: {installed.Candidate.Origin.WireValue} delivery, NOT publisher-authenticated.")
+                        return 0
+                    else
+                      if io.Platform <> Some Platform.WinX64 then LocalCandidate.refuse "local.platform_mismatch" "Historical local selection requires a win-x64 manager process."
+                      let! installed =
                         LocalInstallation.selectAsync
-                            (home options)
+                            selectedHome
                             identity
                             (options.Has "--dry-run")
                             ct
 
-                    emit
+                      emit
                         (if options.Has "--dry-run" then "planned" else "selected")
                         (Some installed.Candidate.ManifestSha256)
                         None
 
-                    return 0
+                      return 0
                 | "show" ->
                     let options = options [ "--home" ] [ "--explain"; "--json" ] args.Tail
-                    let installed = LocalInstallation.selected (home options) ct
+                    if ComposedInstallation.isSelected(home options) then
+                        let! snapshot = ComposedInstallation.selected (home options) ct
+                        let manifest = snapshot.Manifest |> Option.defaultWith(fun () -> LocalCandidate.refuse "setup.incomplete_generation" "No completed generation.")
+                        let bytes = Value.Object [
+                            "$schema",Value.String(ComposedDocuments.schemaFor snapshot.Family "result")
+                            "command",Value.String "show";"status",Value.String "shown";"origin",Value.String snapshot.Candidate.Origin.WireValue
+                            "candidateSha256",Value.String snapshot.Candidate.Host.ManifestSha256.Text;"generationSha256",Value.String manifest.Identity.Text
+                            "receiptPath",Value.String(LocalCandidateDocument.receiptPath manifest.Identity);"selectionPath",Value.String LocalCandidateDocument.selectionPath] |> JsonText.toBytes
+                        io.Out.Write(bytes,0,bytes.Length)
+                        io.Error.WriteLine($"morphirup: {snapshot.Candidate.Origin.WireValue} delivery, NOT publisher-authenticated.")
+                        return 0
+                    else
+                      let installed = LocalInstallation.selected (home options) ct
 
-                    if options.Has "--explain" then
+                      if options.Has "--explain" then
                         io.Error.WriteLine
                             $"morphirup: local-developer {installed.Candidate.Host.Version.Text}, candidate {installed.Candidate.ManifestSha256.Text}, archive {installed.Candidate.ArchiveSha256.Text}"
 
@@ -1070,8 +1187,8 @@ let private runCoreAsync
 
                         io.Error.WriteLine $"morphirup: absolute executable {executable}"
 
-                    emit "shown" (Some installed.Candidate.ManifestSha256) None
-                    return 0
+                      emit "shown" (Some installed.Candidate.ManifestSha256) None
+                      return 0
                 | "run" ->
                     let before, after =
                         args.Tail
@@ -1085,8 +1202,13 @@ let private runCoreAsync
 
                     let options = options [ "--home" ] [] before
 
+                    let runner =
+                        if ComposedInstallation.isSelected(home options) then ComposedInstallation.runAsync (Option.get io.Platform)
+                        else
+                            if io.Platform <> Some Platform.WinX64 then LocalCandidate.refuse "local.platform_mismatch" "Historical local execution requires a win-x64 manager process."
+                            LocalInstallation.runAsync
                     return!
-                        LocalInstallation.runAsync
+                        runner
                             (home options)
                             after.Tail
                             io.CurrentDirectory
@@ -1133,8 +1255,12 @@ let private runCoreAsync
 
 /// Embedding boundary for a caller-owned, cancellation-cooperative input stream.
 let runAsync io input args ct =
-    runCoreAsync io (LocalProcess.Input.Redirect input) args ct
+    runCoreAsync io (LocalProcess.Input.Redirect input) args None ct
+
+/// Test composition replaces transport only, with the same acquisition, installation and publication path.
+let internal runWithTransportAsync io input args transport ct =
+    runCoreAsync io (LocalProcess.Input.Redirect input) args (Some transport) ct
 
 /// The executable delegates its actual standard-input handle directly to the child, with no parent input pump.
 let internal runWithInheritedInputAsync io args ct =
-    runCoreAsync io LocalProcess.Input.Inherit args ct
+    runCoreAsync io LocalProcess.Input.Inherit args None ct

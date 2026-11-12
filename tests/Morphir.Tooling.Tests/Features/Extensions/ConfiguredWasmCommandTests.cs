@@ -13,6 +13,7 @@ using Morphir.Tooling.Tests.Integration.CLI;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
+[Category("PlatformSpecific")]
 public sealed class ConfiguredWasmCommandTests
 {
     [Test]

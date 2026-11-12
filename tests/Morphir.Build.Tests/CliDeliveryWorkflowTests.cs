@@ -144,7 +144,7 @@ public class CliDeliveryWorkflowTests
 
     [Test]
     [Arguments("deployment.yml", "build-executables", "--target PublishSingleFile")]
-    [Arguments("morphirup-build.yml", "build", "--target PackMorphirup")]
+    [Arguments("morphirup-build.yml", "build", "targets=(PackMorphirup CheckMorphirup)")]
     [Arguments("cli-offering.yml", "build", "--target PackRelease")]
     public void TheCliBuildsCheckTheMachineIsNativeBeforeTheyBuild(string workflow, string job, string build)
     {
@@ -154,6 +154,39 @@ public class CliDeliveryWorkflowTests
 
         check.Should().BeGreaterThanOrEqualTo(0, $"{workflow} checks that the runner and its .NET SDK are native for the RID");
         publish.Should().BeGreaterThan(check, "the check runs before anything is built");
+    }
+
+    [Test]
+    public void TheReleaseKeepsTheX64ToolchainManagerAndChecksItsOriginalChecksumFile()
+    {
+        var deployment = Deployment();
+        var producer = Job(deployment, "build-windows-toolchain");
+        producer["if"].ToString().Should().Contain(Enabled);
+        var producerSteps = Steps(producer);
+        producerSteps.Single(step => Run(step).Contains("--target PackWindowsToolchain", StringComparison.Ordinal))
+            ["run"].ToString().Should().Contain("--rid win-x64").And.NotContain("--rid win-arm64");
+        var upload = producerSteps.Single(step => Uses(step).StartsWith("actions/upload-artifact", StringComparison.Ordinal));
+        upload["with"]["name"].ToString().Should().Be("windows-release-toolchain");
+        upload["with"]["path"].ToString().Should().Be("artifacts/windows-toolchain/*");
+
+        var release = Job(deployment, "create-github-release");
+        release["needs"].ToString().Should().Contain("build-windows-toolchain");
+        var steps = Steps(release);
+        var download = steps.Single(step => Name(step) == "Download the Windows release setup closure");
+        download["with"]["name"].ToString().Should().Be("windows-release-toolchain");
+        download["with"]["path"].ToString().Should().Be("./artifacts/release-assets");
+        var checksums = steps.Single(step => Run(step).Contains("--target FlattenReleaseAssets MorphirupChecksums", StringComparison.Ordinal));
+        var script = Run(checksums);
+        script.Should().Contain("for rid in linux-x64 linux-arm64 win-arm64 osx-arm64; do",
+            "the x64 manager and its original checksum file already came from the toolchain producer");
+        script.Should().Contain("sources+=(\"./artifacts/downloads/morphirup/morphirup-$rid\")")
+            .And.Contain("--release-asset-sources \"${sources[@]}\"")
+            .And.NotContain("--release-asset-sources ./artifacts/downloads/morphirup/*")
+            .And.Contain("sha256sum -c SHA256SUMS")
+            .And.NotContain("WindowsToolchainChecksums", "the two-RID aggregator belongs to the later ARM64 toolchain change");
+        steps.FindIndex(step => ReferenceEquals(step, download)).Should().BeLessThan(steps.FindIndex(step => ReferenceEquals(step, checksums)));
+        steps.Single(step => Uses(step).StartsWith("softprops/action-gh-release", StringComparison.Ordinal))
+            ["with"]["files"].ToString().Should().Contain("./artifacts/release-assets/SHA256SUMS");
     }
 
     private static YamlMappingNode Deployment() => Read("deployment.yml");

@@ -193,13 +193,22 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         Setting<ImmutableArray<string>>? exposed = config.Strings("project", "exposed_modules");
 
         // A frontend extension: --extension, else [frontend.<language>].extension of the selected language.
-        var extension = overrides.Extension is { } cliExtension
+        if (overrides.ExtensionId is not null && overrides.Extension is not null)
+            Error(CompileCodes.InvalidArguments, "Choose --extension or --extension-id, not both.");
+        Setting<Morphir.Extensions.ExtensionId>? installedId = null;
+        if (overrides.ExtensionId is { } rawId)
+        {
+            if (Morphir.Extensions.ExtensionId.TryParse(rawId, out var parsedId, out _))
+                installedId = new(parsedId, new SettingOrigin.CommandLine("--extension-id"));
+            else Error(CompileCodes.InvalidArguments, "--extension-id must be a valid full extension identity.");
+        }
+        var extension = overrides.ExtensionId is not null ? null : overrides.Extension is { } cliExtension
             ? new Setting<string>(cliExtension, new SettingOrigin.CommandLine("--extension"))
             : language is null ? null : config.String("frontend", language.Value.Value, "extension");
-        if (extension is null && language is not null && config.String("extensions", language.Value.Value, "path") is { } modulePath)
+        if (overrides.ExtensionId is null && extension is null && language is not null && config.String("extensions", language.Value.Value, "path") is { } modulePath)
             extension = new(language.Value.Value, modulePath.Origin);
         Features.Extensions.WasmModuleSource? wasmModule = null;
-        if (extension is not null && !Features.Extensions.ConfiguredWasmModule.TryRead(config, extension.Value,
+        if (overrides.ExtensionId is null && extension is not null && !Features.Extensions.ConfiguredWasmModule.TryRead(config, extension.Value,
                 loaded.ProjectRoot ?? working, out wasmModule, out var moduleError))
             Error(CompileCodes.InvalidSetting, moduleError!);
         if (extension is not null && string.IsNullOrWhiteSpace(extension.Value))
@@ -262,6 +271,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             IrVersion = version,
             ExposedModules = exposed,
             Extension = extension,
+            InstalledExtensionId = installedId,
             WasmModule = wasmModule,
             Sources = sources,
             UnreadProjectFileKeys = unread,

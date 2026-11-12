@@ -19,15 +19,18 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
     private readonly Option<string?> _project = new("--project") { Description = "Project directory, workspace member path or project name, for input from a prior compile and its configuration" };
     private readonly Option<string?> _config = new("--config") { Description = "Explicit configuration file, for input from a prior compile and [codegen.<target>].extension" };
     private readonly Option<string?> _extension = new("--extension") { Description = "Backend extension; overrides [codegen.<target>].extension" };
+    private readonly Option<string?> _extensionId = new("--extension-id") { Description = "Installed backend full extension identity; mutually exclusive with --extension" };
     private readonly Option<string?> _outDir = new("--out-dir") { Description = "Out root that holds the compile record; overrides MORPHIR_OUT_DIR and workspace.out_dir" };
 
     public GenerateCommand(IServiceProvider services) : base("generate", "Generate artifacts from a Morphir model")
     {
         Options.Add(_input); Options.Add(_target); Options.Add(_output); Options.Add(_format); Options.Add(_options); Options.Add(_json);
-        Options.Add(_extension); Options.Add(_project); Options.Add(_config); Options.Add(_outDir);
+        Options.Add(_extension); Options.Add(_extensionId); Options.Add(_project); Options.Add(_config); Options.Add(_outDir);
         SetAction(async (result, ct) =>
         {
             var invocation = Bind(result);
+            if (invocation.Extension is not null && invocation.ExtensionId is not null)
+                return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation, "invalid-arguments", "Choose --extension or --extension-id, not both.")), invocation), result.GetValue(_json));
             var mediator = services.GetRequiredService<IMediator>();
             var generated = await mediator.InvokeAsync<Outcome<GenerationSuccess>>(new GenerateRequest(invocation, new(Environment.CurrentDirectory)), ct);
             return Render(GenerationReport.From(generated, invocation), result.GetValue(_json));
@@ -41,6 +44,7 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
         Config = result.GetValue(_config),
         OutDir = result.GetValue(_outDir),
         Extension = result.GetValue(_extension),
+        ExtensionId = result.GetValue(_extensionId),
     };
 
     public int HandleParseErrors(ParseResult result)

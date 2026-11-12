@@ -15,7 +15,7 @@ public sealed record TolerantDeleteOptions
     public Action<string> Log { get; init; } = message => Console.Error.WriteLine(message);
 
     /// <summary>The delete operation itself. Replaceable so tests can simulate a lock that never clears.</summary>
-    public Action<string> DeleteDirectory { get; init; } = path => Directory.Delete(path, recursive: true);
+    public Action<string> DeleteDirectory { get; init; } = TolerantDirectory.DeleteTree;
 }
 
 /// <summary>
@@ -25,6 +25,29 @@ public sealed record TolerantDeleteOptions
 /// </summary>
 public static class TolerantDirectory
 {
+    internal static void DeleteTree(string path)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        if (Path.GetDirectoryName(root) is null)
+            throw new IOException("Refusing to clean a filesystem root.");
+
+        MakeWritable(root);
+        Directory.Delete(root, recursive: true);
+
+        static void MakeWritable(string entry)
+        {
+            var attributes = File.GetAttributes(entry);
+            // Directory.Delete removes the link itself. Do not traverse it or
+            // change attributes on a target outside this owned cleanup tree.
+            if (attributes.HasFlag(FileAttributes.ReparsePoint)) return;
+            if (attributes.HasFlag(FileAttributes.ReadOnly))
+                File.SetAttributes(entry, attributes & ~FileAttributes.ReadOnly);
+            if (attributes.HasFlag(FileAttributes.Directory))
+                foreach (var child in Directory.EnumerateFileSystemEntries(entry))
+                    MakeWritable(child);
+        }
+    }
+
     /// <summary>Deletes <paramref name="path"/> recursively. Returns false, after logging, if it could not.</summary>
     public static async Task<bool> TryDeleteAsync(string path, TolerantDeleteOptions? options = null)
     {

@@ -24,6 +24,8 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Toolchain.Tests" />
         <InternalsVisibleTo Include="Morphir.Toolchain.IO" />
+        <InternalsVisibleTo Include="Morphir.Extensions.Installation" />
+        <InternalsVisibleTo Include="morphirup" />
     </ItemGroup>
 
     <ItemGroup>
@@ -49,6 +51,7 @@
         <Compile Include="TufClient.fs" />
         <Compile Include="Resolution.fs" />
         <Compile Include="Planning.fs" />
+        <Compile Include="ComposedGeneration.fs" />
         <Compile Include="Diagnostics.fs" />
         <Compile Include="Discovery.fs" />
     </ItemGroup>

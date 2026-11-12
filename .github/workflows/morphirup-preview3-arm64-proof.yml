@@ -1,0 +1,104 @@
+name: "Preview3 ARM64 manager proof"
+
+# Temporary PR proof lane. The platform matrix owner folds this into the
+# ordinary Windows lanes when that change is integrated.
+on:
+    pull_request:
+        types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+    contents: read
+
+concurrency:
+    group: preview3-arm64-proof-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    produce:
+        if: github.event.pull_request.number == 608
+        uses: ./.github/workflows/morphirup-build.yml
+        with:
+            rid: win-arm64
+            os: windows-11-arm
+            retention-days: 7
+
+    verify-same-run:
+        needs: produce
+        runs-on: windows-11-arm
+        timeout-minutes: 10
+        env:
+            PROOF_SOURCE_SHA: ${{ github.sha }}
+            PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+            PROOF_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        steps:
+            - name: Download this run's complete produced toolchain
+              uses: actions/download-artifact@v7
+              with:
+                  name: windows-release-toolchain-win-arm64
+                  path: toolchain
+
+            - name: Verify retained checksums before running the manager
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  $root = (Resolve-Path toolchain).Path
+                  $checksums = Join-Path $root 'SHA256SUMS'
+                  $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+                  foreach ($line in Get-Content -LiteralPath $checksums) {
+                      if ($line -notmatch '^([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._+-]*)$') { throw 'Invalid producer checksum line.' }
+                      $digest = $Matches[1]
+                      $name = $Matches[2]
+                      if (!$names.Add($name)) { throw "Duplicate checksum filename: $name" }
+                      $file = Join-Path $root $name
+                      if (!(Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing checksummed file: $name" }
+                      if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $digest) { throw "Checksum mismatch: $name" }
+                  }
+                  if ($names.Count -eq 0) { throw 'Empty producer checksum set.' }
+                  foreach ($file in Get-ChildItem -LiteralPath $root -Force) {
+                      if ($file.PSIsContainer -or ($file.Name -ne 'SHA256SUMS' -and !$names.Contains($file.Name))) { throw "Uncovered artifact entry: $($file.Name)" }
+                  }
+                  $os = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+                  $process = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+                  if ($os -ne 'Arm64' -or $process -ne 'Arm64') { throw 'Native execution proof requires ARM64 Windows and PowerShell.' }
+                  $candidate = Get-Content (Join-Path $root 'morphir-host-candidate-win-arm64.json') -Raw | ConvertFrom-Json
+                  if ($candidate.sourceCommit -ne $env:PROOF_SOURCE_SHA -or $candidate.platform -ne 'win-arm64') { throw 'Produced candidate source or platform differs from this run.' }
+                  $manager = Join-Path $root 'morphirup-win-arm64.exe'
+                  Add-Type -AssemblyName System.Reflection.Metadata
+                  $stream = [IO.File]::OpenRead($manager)
+                  try {
+                      $pe = [Reflection.PortableExecutable.PEReader]::new($stream)
+                      try {
+                          $machine = $pe.PEHeaders.CoffHeader.Machine.ToString()
+                          if ($machine -ne 'Arm64') { throw 'Manager executable is not ARM64 PE.' }
+                      } finally { $pe.Dispose() }
+                  } finally { $stream.Dispose() }
+                  $version = (& $manager --version | Out-String).Trim()
+                  if ($LASTEXITCODE) { throw 'Verified native manager version command failed.' }
+                  New-Item -ItemType Directory -Path proof -Force | Out-Null
+                  [ordered]@{
+                      repository = $env:GITHUB_REPOSITORY
+                      runId = $env:GITHUB_RUN_ID
+                      runAttempt = $env:GITHUB_RUN_ATTEMPT
+                      checkoutSourceSha = $env:PROOF_SOURCE_SHA
+                      pullRequestMergeSha = $env:PROOF_SOURCE_SHA
+                      pullRequestHeadSha = $env:PROOF_HEAD_SHA
+                      pullRequestBaseSha = $env:PROOF_BASE_SHA
+                      artifact = 'windows-release-toolchain-win-arm64'
+                      checksumFile = 'SHA256SUMS'
+                      checksumBodySha256 = (Get-FileHash -LiteralPath $checksums -Algorithm SHA256).Hash.ToLowerInvariant()
+                      verifiedFiles = @($names | Sort-Object)
+                      osArchitecture = $os
+                      proofProcessArchitecture = $process
+                      managerPeMachine = $machine
+                      managerVersion = $version
+                      managerSha256 = (Get-FileHash -LiteralPath $manager -Algorithm SHA256).Hash.ToLowerInvariant()
+                      setupSelectRunProof = 'Pending execution on the target machine; no local-developer relabelling of release-checksum inputs.'
+                  } | ConvertTo-Json -Depth 5 | Set-Content proof/source-and-checksums.json -Encoding utf8
+
+            - name: Retain source and checksum verification evidence
+              uses: actions/upload-artifact@v6
+              with:
+                  name: preview3-arm64-source-proof
+                  path: proof/*
+                  if-no-files-found: error
+                  retention-days: 7
