@@ -109,6 +109,15 @@ Moved cases: 17. Cases that stay: 16. New scenarios in `Generation.feature`: 33.
 | `TestData/valid-ir-v1.json`, `valid-ir-v2.json`, `valid-ir-v3.json`, `invalid-missing-formatversion.json`, `malformed.json` | Linked in the project file of the black-box project as `Fixtures/Models/<name>`. Unit tests of `Morphir.Tooling.Tests` and of other projects still read the files in `TestData/`, so the files stay there and have one source. |
 | `Fixtures/WireForms/` | New. See its `README.md` for the source of each file. |
 
+## A defect of the product that this change repairs
+
+On Windows, `morphir` wrote standard output in the code page of the console, not in UTF-8, when standard output was
+redirected: a pipe got `�` for `✓` and other characters for the lines of a table. `dotnet run` hid it, because the
+console of `dotnet run` uses UTF-8. The cause: `ConsoleOutputHelper.RedirectConsoleToStderr` kept the stdout writer
+before `MorphirCli` set `Console.OutputEncoding` to UTF-8. The helper now sets the encoding first. Found by the second
+Windows run of pull request 1 (`CliDriverTests.TheOutputOfTheProductIsReadAsUtf8`, two tests of
+`Morphir.Tooling.Tests` and the journey).
+
 ## Findings about the product (not in the scope of this change)
 
 - On Windows, `morphir ir verify <path>` with a path in a directory that is not there fails with an unhandled
