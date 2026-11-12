@@ -40,9 +40,9 @@
       },
       "System.Text.Json": {
         "type": "Direct",
-        "requested": "[9.0.22, )",
-        "resolved": "9.0.22",
-        "contentHash": "bP1LqWP1h1/J/XO69m5kdLF7M1HT6YWpM7UflcIKLLTvJep8HoS6I/F8FnV/uGhqmStLHY8PuiQAmjQg+qqqcg=="
+        "requested": "[9.0.23, )",
+        "resolved": "9.0.23",
+        "contentHash": "lOD+QuX0hytPW8r4ZyLYkCdARGS6ZuPAojCY252BubvAI8nZtf8ruAN4Jfhtcb3HNDtwJusx75Umki2fgZ1QOQ=="
       },
       "Verify.Expecto": {
         "type": "Direct",
