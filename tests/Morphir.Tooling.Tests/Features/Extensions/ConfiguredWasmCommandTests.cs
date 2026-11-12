@@ -26,7 +26,7 @@ public sealed class ConfiguredWasmCommandTests
         workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n[extensions.python]\npath = \"python.wasm\"\nabi = \"extism-kernel-v1\"\n");
         var input = GenerationInputFixtures.DailyRate(workspace.Root, "4", "json");
         var output = workspace.PathOf("generated");
-        var result = await new CliTestHelper(null, CliHost.Morphir).ExecuteCommandAsync(
+        var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(
             $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json");
         result.ExitCode.Should().Be(2, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);
@@ -96,7 +96,7 @@ public sealed class ConfiguredWasmCommandTests
         using var workspace = await PublishedWorkspace();
         var input = GenerationInputFixtures.DailyRate(workspace.Root, "4", "json");
         var output = workspace.PathOf("generated");
-        var result = await new CliTestHelper(null, host).ExecuteCommandAsync(
+        var result = await CliTestHelper.ForTarget(host).ExecuteCommandAsync(
             $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json");
         result.ExitCode.Should().Be(0, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);
@@ -112,13 +112,13 @@ public sealed class ConfiguredWasmCommandTests
     {
         using var workspace = await PublishedWorkspace();
         workspace.Write("identity.py", "def identity(value: int) -> int:\n    return value\n");
-        var result = await new CliTestHelper(null, host).ExecuteCommandAsync(
+        var result = await CliTestHelper.ForTarget(host).ExecuteCommandAsync(
             $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("identity.py")}\" --ir-version 4 --json");
         result.ExitCode.Should().Be(0, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);
         report.RootElement.GetProperty("frontend").GetString().Should().Contain("morphir-python").And.Contain("wasm");
         File.Exists(report.RootElement.GetProperty("output").GetString()).Should().BeTrue();
-        var generated = await new CliTestHelper(null, host).ExecuteCommandAsync(
+        var generated = await CliTestHelper.ForTarget(host).ExecuteCommandAsync(
             $"generate --project \"{workspace.Root}\" --target python --output \"{workspace.PathOf("generated")}\" --json");
         generated.ExitCode.Should().Be(0, generated.CombinedOutput);
         using var generatedReport = JsonDocument.Parse(generated.StandardOutput);
@@ -172,7 +172,7 @@ public sealed class ConfiguredWasmCommandTests
     {
         using var workspace = await PublishedWorkspace();
         workspace.Write("add.py", "def add(a: int, b: int) -> int:\n    return a + b\n");
-        var result = await new CliTestHelper().ExecuteCommandAsync(
+        var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(
             $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("add.py")}\" --ir-version 4 --json");
         result.ExitCode.Should().Be(1, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);
@@ -195,7 +195,7 @@ public sealed class ConfiguredWasmCommandTests
         var command = compile
             ? $"compile --project \"{workspace.Root}\" --language python --input \"{source}\" --ir-version 4 --json"
             : $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json";
-        var result = await new CliTestHelper().ExecuteCommandAsync(command);
+        var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(command);
         result.ExitCode.Should().Be(2, result.CombinedOutput);
         result.CombinedOutput.Should().Contain("extension.runtime_unavailable").And.Contain("win_x64_trap_unsupported");
         Directory.Exists(output).Should().BeFalse();

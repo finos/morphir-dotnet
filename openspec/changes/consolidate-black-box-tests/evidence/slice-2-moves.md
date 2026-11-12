@@ -110,24 +110,28 @@ these four scenarios, so no one saw that they failed.
 
 ## `Features/ExecutableValidate.feature` (8 scenarios)
 
-New file: `Integration/Validation.feature`, `@integration @needs-validation`, on `IValidationDriver` and
-`ValidationReport`. The models are the files of `tests/Fixtures/MorphirIR`, linked as fixtures.
+Destination: `Integration/Validation.feature`, `@integration @needs-model-validation`, on `IModelValidationDriver`
+and `ValidationReport`. Pull request 3 (#624) made this feature, its driver and its report type for the cases of
+`Morphir.Tooling.Tests`. The merge of `main` at `3637856a` joined the two features: the scenarios of pull request 3
+stay as they are, and this pull request adds the cases that pull request 3 did not have. The models are the files of
+`tests/Fixtures/MorphirIR`, linked as fixtures.
 
 | Old scenario | New scenario |
 | --- | --- |
 | A classic model with a type mismatch gives one type-mismatch error | The same name and the same checks. |
-| A clean classic model gives exit code 0 | The same name and the same checks. |
+| A clean classic model gives exit code 0 | "A clean classic model gives no diagnostic", with the same checks. |
 | A V4 model gives one info diagnostic that names the family | The same name and the same checks. |
-| A missing input gives exit code 2 and a diagnostic that names the path | The same name and the same checks, with the text output as before (no `--json`). The path is absolute in the work area. |
-| The text output is a table and a summary line | The same name and the same checks. |
+| A missing input gives exit code 2 and a diagnostic that names the path | "A missing input exits with 2 and names the path" of pull request 3. It has the same checks. |
+| The text output is a table and a summary line | "The text output is a plain table when standard output is redirected" of pull request 3, with the check of the summary line added. |
 | The validator entries of extension list are the analyzers of validate | The same name and the same checks. Integration: `extension list` is the source of the expected value, not a second goal of the user. |
-| Both hosts write the same report apart from the host (2 rows) | The same outline, `@needs-native-and-tool-hosts`. Before, it ran the other host from a build folder on each type; now it runs on the development build, which has both hosts, in each pull request. |
+| Both hosts write the same report apart from the host (2 rows) | The outline of pull request 3, `@needs-all-hosts`. Before, it ran the other host from a build folder on each type; now it runs on the development build, which has both hosts, in each pull request. |
 
 ## `Features/ExecutableExtensionList.feature` (5 scenarios)
 
 New file: `Integration/ExtensionList.feature`, `@integration`, on `ExtensionListReport`. The extension commands get
-their driver interface with the other command families in pull request 3 (task 7.2), so the steps give the arguments
-of the report type to `ICliDriver`.
+their driver interface with the other command families in pull request 3 (task 7.2). The step "I list the extensions
+as text" is the step of pull request 3, on `IExtensionDriver`; the other steps give the arguments of the report type
+to `ICliDriver`.
 
 | Old scenario | New scenario |
 | --- | --- |
@@ -135,7 +139,7 @@ of the report type to `ICliDriver`.
 | The list names the deployment that built the executable | `@needs-known-form`. The expected deployment and execution come from the target (`ExtensionListReport.ExpectedDeploymentOf`), as before from the executable type. An executable at a path has no known form, so the scenario is skipped there; before, the type of such a run was `aot` by default. |
 | The type validator is a built-in validator for the classic IR versions | The same checks. |
 | The text table shows the validator claim | The same check, on standard output, with the step "I list the extensions as text". |
-| Both hosts list the same shared built-ins | `@needs-native-and-tool-hosts`, as for validate. |
+| Both hosts list the same shared built-ins | `@needs-all-hosts`, as for validate. |
 
 ## `Features/ExecutableExtensionWorker.feature` (11 scenarios)
 

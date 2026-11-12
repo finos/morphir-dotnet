@@ -47,14 +47,18 @@ public static class CommandResultAssertions
     /// Standard output is exactly one JSON document and nothing else: a command with a machine-readable format
     /// writes its logs to standard error. Returns the document.
     /// </summary>
-    public static JsonElement ShouldWriteOneJsonDocument(this CommandResult result)
+    public static JsonElement ShouldWriteOneJsonDocument(this CommandResult result) => result.ShouldWriteOneJsonDocument(maxDepth: 0);
+
+    /// <summary>As <see cref="ShouldWriteOneJsonDocument(CommandResult)"/>, for a document that nests more than 64 levels.</summary>
+    /// <param name="maxDepth">The depth that the parse accepts; 0 is the default of the parser (64).</param>
+    public static JsonElement ShouldWriteOneJsonDocument(this CommandResult result, int maxDepth)
     {
         if (string.IsNullOrWhiteSpace(result.StandardOutput))
             throw new CommandAssertionException("Standard output is empty, not one JSON document.", result);
 
         try
         {
-            using var document = JsonDocument.Parse(result.StandardOutput);
+            using var document = JsonDocument.Parse(result.StandardOutput, new JsonDocumentOptions { MaxDepth = maxDepth });
             return document.RootElement.Clone();
         }
         catch (JsonException error)

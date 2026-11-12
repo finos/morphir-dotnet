@@ -75,7 +75,7 @@ public sealed class ExtensionRuntimesSteps(DriverSet drivers, IScenarioWorkspace
         if (Report.IsWindowsX64)
         {
             // A runtime that is not available (Windows x64, #609) reports no profiles and no bounds.
-            Expect(wasm.Profiles.IsEmpty && wasm.MemoryBytes is null, $"The unavailable runtime reports the profiles {string.Join(", ", wasm.Profiles)} and the memory bound {wasm.MemoryBytes}.");
+            Expect(wasm.Profiles.Count == 0 && wasm.MemoryBytes is null, $"The unavailable runtime reports the profiles {string.Join(", ", wasm.Profiles)} and the memory bound {wasm.MemoryBytes}.");
             return;
         }
 

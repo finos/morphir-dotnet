@@ -37,11 +37,6 @@
           "TUnit.Engine": "1.81.10"
         }
       },
-      "Cucumber.Messages": {
-        "type": "Transitive",
-        "resolved": "29.0.1",
-        "contentHash": "R2oo/wR3mXrbdK04Yraf+KhB01f/lyBkLQZcdxYt9XKE6tV+Af45MEk+jfbsew1SVvrAO0WvkIRwGYUozKCJvQ=="
-      },
       "Fantomas.FCS": {
         "type": "Transitive",
         "resolved": "7.0.5",
@@ -367,7 +362,8 @@
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "Morphir.Compilation": "[1.0.0, )",
-          "Morphir.Mep": "[1.0.0, )"
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Toolchain.IO": "[1.0.0, )"
         }
       },
       "morphir.configuration": {
@@ -382,15 +378,6 @@
           "CsToml": "[1.8.6, )",
           "Morphir.Configuration": "[1.0.0, )",
           "YamlDotNet": "[16.3.0, )"
-        }
-      },
-      "morphir.conformance": {
-        "type": "Project",
-        "dependencies": {
-          "FSharp.Core": "[10.1.403, )",
-          "Gherkin": "[35.1.0, )",
-          "Morphir.Compilation": "[1.0.0, )",
-          "Morphir.Mep": "[1.0.0, )"
         }
       },
       "morphir.core": {
@@ -409,6 +396,16 @@
           "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Mep": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.extensions.installation": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Extensions": "[1.0.0, )",
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Toolchain": "[1.0.0, )",
+          "Semver": "[3.0.0, )"
         }
       },
       "morphir.extensions.wasm": {
@@ -516,9 +513,9 @@
           "Morphir.Compilation.Mep": "[1.0.0, )",
           "Morphir.Configuration": "[1.0.0, )",
           "Morphir.Configuration.IO": "[1.0.0, )",
-          "Morphir.Conformance": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
           "Morphir.Extensions": "[1.0.0, )",
+          "Morphir.Extensions.Installation": "[1.0.0, )",
           "Morphir.Extensions.Wasm": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
@@ -621,15 +618,6 @@
         "contentHash": "e9FfoO5R6+EYhH5l4iPsYykE7/hie+ZOegQUEnuG/QqT84Gv0XZXoSnvDDC0dlI6XvA5HVmVYqZkKGRvqJgU9A==",
         "dependencies": {
           "Generator.Equals.Runtime": "3.3.0"
-        }
-      },
-      "Gherkin": {
-        "type": "CentralTransitive",
-        "requested": "[35.1.0, )",
-        "resolved": "35.1.0",
-        "contentHash": "2eHlz7CQ7uNUsFTveswt9W7p50tN0lpBHeaz4XJ9+/nMGErOkd7fgzjXtzgrkCWQCqF9US8O3tBd81aIP603nA==",
-        "dependencies": {
-          "Cucumber.Messages": "29.0.1"
         }
       },
       "Json.More.Net": {

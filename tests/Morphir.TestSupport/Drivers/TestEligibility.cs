@@ -23,11 +23,35 @@ public enum DriverCapability
     /// <summary>The self-contained F# frontend process, which the native host starts as an extension.</summary>
     SelfContainedFrontend,
 
-    /// <summary>The <c>validate</c> command.</summary>
-    Validation,
+    /// <summary>The <c>compile</c> command.</summary>
+    Compilation,
 
-    /// <summary>The native host and the tool host of one build, for a test that compares them: the development build.</summary>
-    NativeAndToolHosts,
+    /// <summary>The <c>config</c> command.</summary>
+    Configuration,
+
+    /// <summary>The <c>project migrate</c> and <c>workspace migrate</c> commands.</summary>
+    Migration,
+
+    /// <summary>The <c>extension list</c> and <c>extension runtimes</c> commands.</summary>
+    Extensions,
+
+    /// <summary>The <c>validate</c> command.</summary>
+    ModelValidation,
+
+    /// <summary>The extension guests of the development build (<see cref="Drivers.BuiltExtension"/>).</summary>
+    BuiltExtensions,
+
+    /// <summary>A host with the dynamic-code switch of the runtime off, as in Native AOT (<see cref="CliRunOptions.WithoutDynamicCode"/>).</summary>
+    HostWithoutDynamicCode,
+
+    /// <summary>Each host of the target in one test (<see cref="DriverSet.CliOf"/>): the development build has three.</summary>
+    AllHosts,
+
+    /// <summary>A host that no release profile built, so it states no deployment: the development build.</summary>
+    UnprofiledBuild,
+
+    /// <summary>The routing of a command to an external tool, as <c>morphir mck</c> runs <c>morphir-mck</c> (<see cref="IToolRoutingDriver"/>).</summary>
+    ToolRouting,
 
     /// <summary>An installed packaged offering with its launch metadata: the four packaged targets.</summary>
     PackagedInstallation,
@@ -40,7 +64,6 @@ public enum DriverCapability
 
     /// <summary>A WASM guest that the host runs: each platform except Windows x64, where the host refuses each guest (#609).</summary>
     WasmGuests,
-
     /// <summary>
     /// The build output and the project files of the programs of the repository that are not the CLI: the library
     /// hosts, the probes and <c>morphirup</c> (<see cref="ILibraryHostDriver"/>, <see cref="IArtifactInspectionDriver"/>).
@@ -85,19 +108,30 @@ public static class DriverCapabilities
 
         // Each host has the commands. The F# frontend is in the managed host and in the tool host. No target gives
         // the self-contained frontend process yet.
-        ImmutableHashSet<DriverCapability> commands = [DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Validation];
-        var supported = host is MorphirHost.Managed or MorphirHost.DotnetTool
-            ? commands.Add(DriverCapability.InProcessFSharpFrontend)
-            : commands;
-        if (target is TestTarget.DevelopmentBuild) supported = supported.Add(DriverCapability.BuiltPrograms);
-        if (target.Has(MorphirHost.Native) && target.Has(MorphirHost.DotnetTool)) supported = supported.Add(DriverCapability.NativeAndToolHosts);
-        if (target is TestTarget.Packaged) supported = supported.Add(DriverCapability.PackagedInstallation);
+        ImmutableHashSet<DriverCapability> commands =
+        [
+            DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Compilation, DriverCapability.Configuration,
+            DriverCapability.Migration, DriverCapability.Extensions, DriverCapability.ModelValidation, DriverCapability.ToolRouting,
+        ];
+        if (host is MorphirHost.Managed or MorphirHost.DotnetTool) commands = commands.Add(DriverCapability.InProcessFSharpFrontend);
+        // The programs and the extension guests are build output of the development build: a published target has none.
+        // The development build runs each host as an assembly, which can also run with the dynamic-code switch off.
+        if (target is TestTarget.DevelopmentBuild)
+        {
+            commands = commands.Union(
+            [
+                DriverCapability.BuiltPrograms, DriverCapability.BuiltExtensions, DriverCapability.HostWithoutDynamicCode, DriverCapability.AllHosts,
+                DriverCapability.UnprofiledBuild,
+            ]);
+        }
+
+        if (target is TestTarget.Packaged) commands = commands.Add(DriverCapability.PackagedInstallation);
         if (target is TestTarget.NativeAot or TestTarget.Packaged { Offering: PackagedOffering.NativeAot })
-            supported = supported.Add(DriverCapability.NativeAotExecutable);
-        if (target is not TestTarget.Executable) supported = supported.Add(DriverCapability.KnownForm);
+            commands = commands.Add(DriverCapability.NativeAotExecutable);
+        if (target is not TestTarget.Executable) commands = commands.Add(DriverCapability.KnownForm);
         // The host on Windows x64 reports win_x64_trap_unsupported and refuses each guest (#609).
-        if ((rid ?? RuntimeIdentifiers.Current) != "win-x64") supported = supported.Add(DriverCapability.WasmGuests);
-        return supported;
+        if ((rid ?? RuntimeIdentifiers.Current) != "win-x64") commands = commands.Add(DriverCapability.WasmGuests);
+        return commands;
     }
 }
 

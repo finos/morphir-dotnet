@@ -1,57 +1,68 @@
-@integration @needs-validation
-Feature: Validate a Morphir model
-  As a user of the Morphir CLI
-  I want to check a Morphir model with the built-in analyzers
-  So that I can find type mismatches before I generate code
+@integration @needs-model-validation
+Feature: Validate a Morphir model with the analyzers of the host
+  morphir validate through the real CLI process. Standard output holds only the report.
+
+  Scenario Outline: Standard output holds only the JSON report, and its exit code is the exit code of the process
+    Given the model fixture "Models/<fixture>"
+    When I validate the model as JSON
+    Then validation exits with <exit> and one JSON report
+
+    Examples:
+      | fixture                     | exit |
+      | daily-rate-mismatch-v3.json | 1    |
+      | daily-rate-v3.json          | 0    |
+      | daily-rate-v4.json          | 0    |
 
   Scenario: A classic model with a type mismatch gives one type-mismatch error
     Given the model fixture "Models/daily-rate-mismatch-v3.json"
-    When I validate the model
-    Then the exit code is 1
-    And standard output is one JSON document
-    And the validation report has the exit code 1
+    When I validate the model as JSON
+    Then validation exits with 1 and one JSON report
     And the validation report has 1 "error" diagnostic with the code "type-mismatch" from "morphir.type-validator"
 
-  Scenario: A clean classic model gives exit code 0
+  Scenario: A clean classic model gives no diagnostic
     Given the model fixture "Models/daily-rate-v3.json"
-    When I validate the model
-    Then the exit code is 0
-    And the validation report has the exit code 0
+    When I validate the model as JSON
+    Then validation exits with 0 and one JSON report
     And the validation report has no diagnostic
 
   Scenario: A V4 model gives one info diagnostic that names the family
     Given the model fixture "Models/daily-rate-v4.json"
-    When I validate the model
-    Then the exit code is 0
+    When I validate the model as JSON
+    Then validation exits with 0 and one JSON report
     And the validation report has 1 "info" diagnostic with the code "no-analyzer"
-    And the validation report lists "morphir.type-validator" as "not-run"
-
-  Scenario: A missing input gives exit code 2 and a diagnostic that names the path
-    Given no model file "missing-model.json"
-    When I validate the model as text
-    Then the exit code is 2
-    And the output contains "missing-model.json"
-
-  Scenario: The text output is a table and a summary line
-    Given the model fixture "Models/daily-rate-mismatch-v3.json"
-    When I validate the model as text
-    Then the exit code is 1
-    And standard output contains "type-mismatch"
-    And standard output contains "1 error, 0 warnings, 0 info, 0 hints."
+    And the validation report lists the analyzer "morphir.type-validator" as "not-run"
 
   Scenario: The validator entries of extension list are the analyzers of validate
     Given the model fixture "Models/daily-rate-v3.json"
-    When I validate the model
+    When I validate the model as JSON
     Then the analyzers of the validation report are the validator entries of extension list
 
-  @needs-native-and-tool-hosts
-  Scenario Outline: Both hosts write the same report apart from the host
-    Given the model fixture "Models/<model>"
+  Scenario: A missing input exits with 2 and names the path
+    Given no model file "missing.json"
     When I validate the model
-    And I validate the model on the other host
-    Then the validation reports of both hosts are equal apart from the host
+    Then the exit code is 2
+    And standard output is empty
+    And standard error contains "missing.json"
+
+  Scenario: An unknown option exits with 2
+    Given no model file "model.json"
+    When I validate the model as JSON with the arguments "--no-such-option"
+    Then validation exits with 2 and one JSON report
+
+  Scenario: The text output is a plain table when standard output is redirected
+    Given the model fixture "Models/daily-rate-mismatch-v3.json"
+    When I validate the model
+    Then the exit code is 1
+    And the validation text is a plain table with the error "type-mismatch"
+    And standard output contains "1 error, 0 warnings, 0 info, 0 hints."
+
+  @needs-all-hosts
+  Scenario Outline: Both hosts write the same report apart from the host
+    Given the model fixture "Models/<fixture>"
+    When I validate the model as JSON on the native host and on the tool host
+    Then both hosts write the same validation report apart from the host
 
     Examples:
-      | model                       |
+      | fixture                     |
       | daily-rate-mismatch-v3.json |
       | daily-rate-v4.json          |

@@ -4,15 +4,14 @@ using System.Text.Json;
 using FluentAssertions;
 using Morphir.Extensions;
 using Morphir.Tooling.Features.Extensions;
-using Morphir.Tooling.Tests.Integration.CLI;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
 /// <summary>
 /// <c>morphir extension runtimes</c> (task 4.2 of <c>add-wasm-extension-host</c>, design RPT-1): the report of the
-/// WASM runtime, as one JSON document and as text, for an available runtime and for each unavailable reason.
+/// WASM runtime, as one JSON document and as text, for an available runtime and for each unavailable reason. The
+/// report of the real CLI process is in tests/Morphir.BlackBox.Tests/Integration/Extensions.feature.
 /// </summary>
-[Category("PlatformSpecific")]
 public sealed class ExtensionRuntimesReportTests
 {
     private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
@@ -159,35 +158,5 @@ public sealed class ExtensionRuntimesReportTests
         Run(Native, runtime, json: false);
 
         probes.Should().Be(1);
-    }
-
-    /// <summary>Through the real CLI process: one JSON document on stdout, and the engine of this build available.</summary>
-    [Test]
-    public async Task TheCliReportsItsOwnRuntimeAsOneJsonDocumentOnStdout()
-    {
-        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI"))
-            .ExecuteCommandAsync("extension runtimes --json", timeout: TimeSpan.FromSeconds(60));
-
-        result.ExitCode.Should().Be(0, result.CombinedOutput);
-        using var document = JsonDocument.Parse(result.StandardOutput);
-        document.RootElement.GetProperty("host").GetString().Should().Be("morphir");
-        document.RootElement.GetProperty("platform").GetString().Should().Be(WasmRuntime.Process.Platform);
-        var wasm = document.RootElement.GetProperty("runtimes")[0];
-        wasm.GetProperty("available").GetBoolean().Should().Be(WasmRuntime.Process.Platform != "win-x64", result.StandardOutput);
-        if (WasmRuntime.Process.Platform == "win-x64")
-            wasm.GetProperty("reason").GetString().Should().Be("win_x64_trap_unsupported");
-        wasm.GetProperty("engine").GetProperty("version").GetString().Should().Be(WasmRuntimeIdentity.EngineVersion);
-    }
-
-    [Test]
-    public async Task TheCliTextNamesTheRuntimeAndItsEngine()
-    {
-        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI"))
-            .ExecuteCommandAsync("extension runtimes", timeout: TimeSpan.FromSeconds(60));
-
-        result.ExitCode.Should().Be(0, result.CombinedOutput);
-        result.StandardOutput.Should().Contain(WasmRuntime.Process.Platform == "win-x64"
-            ? "wasm: unavailable (win_x64_trap_unsupported)" : "wasm: available");
-        result.StandardOutput.Should().Contain($"Engine: {WasmRuntimeIdentity.Engine}");
     }
 }

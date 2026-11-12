@@ -1,66 +1,118 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.Text.Json.Nodes;
+
 namespace Morphir.BlackBox.Tests.Steps;
 
 /// <summary>The steps of the <c>validate</c> command and of its report.</summary>
 [Binding]
-public sealed class ValidationSteps(IValidationDriver validation, DriverSet drivers, ScenarioRun run, OtherHostRun other)
+public sealed class ValidationSteps(IModelValidationDriver validation, DriverSet drivers, ScenarioRun run)
 {
-    private ValidationReport Report => ValidationReport.Of(run.Result);
+    private readonly Dictionary<MorphirHost, CommandResult> _byHost = [];
 
     [When("I validate the model")]
     public async Task ValidateTheModel() => run.Result = await validation.ValidateAsync(run.Model);
 
-    [When("I validate the model as text")]
-    public async Task ValidateTheModelAsText() => run.Result = await validation.ValidateAsync(run.Model, new ValidationOptions { Json = false });
+    [When("I validate the model as JSON")]
+    public async Task ValidateTheModelAsJson() => run.Result = await validation.ValidateAsync(run.Model, new ValidationOptions { Json = true });
 
-    [When("I validate the model on the other host")]
-    public async Task ValidateTheModelOnTheOtherHost() =>
-        other.Result = await new ValidationDriver(drivers.CliOf(drivers.OtherHost)).ValidateAsync(run.Model);
+    /// <summary>The words of <paramref name="arguments"/> are more arguments of the command, after the input.</summary>
+    [When("I validate the model as JSON with the arguments {string}")]
+    public async Task ValidateTheModelWithTheArguments(string arguments) =>
+        run.Result = await validation.ValidateAsync(run.Model, new ValidationOptions
+        {
+            Json = true,
+            Arguments = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries),
+        });
 
-    [Then("the validation report has the exit code {int}")]
-    public void TheReportHasTheExitCode(int exitCode) => Report.ShouldHaveTheExitCode(exitCode);
+    [Then("validation exits with {int} and one JSON report")]
+    public void ValidationExitsWithOneReport(int exitCode)
+    {
+        var report = ValidationReport.Of(run.Result.ShouldExitWith(exitCode));
+        report.Check(report.Required("exitCode").GetInt32() == exitCode, $"The field exitCode of the validation report is not {exitCode}.");
+    }
+
+    [Then("the validation text is a plain table with the error {string}")]
+    public void TheTextIsAPlainTable(string code)
+    {
+        var output = run.Result.StandardOutput;
+        Check(!output.Contains("\u001b[", StringComparison.Ordinal), "Redirected output is not plain text: it has an ANSI code.");
+        var lines = output.Trim().Replace("\r\n", "\n").Split('\n');
+        Check(lines.Any(line => line.StartsWith("│ SEVERITY ", StringComparison.Ordinal)), "The table has no SEVERITY header.");
+        Check(lines.Any(line => line.StartsWith("│ error ", StringComparison.Ordinal) && line.Contains(code, StringComparison.Ordinal)), $"The table has no error row {code}.");
+        Check(lines[^1].StartsWith("1 error, 0 warnings", StringComparison.Ordinal), "The last line is not the summary of one error.");
+    }
+
+    [When("I validate the model as JSON on the native host and on the tool host")]
+    public async Task ValidateOnBothHosts()
+    {
+        foreach (var host in new[] { MorphirHost.Native, MorphirHost.DotnetTool })
+            _byHost[host] = await drivers.ValidationOf(host).ValidateAsync(run.Model, new ValidationOptions { Json = true });
+        run.Result = _byHost[MorphirHost.DotnetTool];
+    }
+
+    [Then("both hosts write the same validation report apart from the host")]
+    public void BothHostsWriteTheSameReport()
+    {
+        var native = _byHost[MorphirHost.Native];
+        var tool = _byHost[MorphirHost.DotnetTool];
+        Check(native.ExitCode == tool.ExitCode, $"The native host exits with {native.ExitCode}, and the tool host with {tool.ExitCode}.");
+        var first = JsonNode.Parse(ValidationReport.Of(native).Document.GetRawText())!.AsObject();
+        var second = JsonNode.Parse(ValidationReport.Of(tool).Document.GetRawText())!.AsObject();
+        Check(first["host"]?.GetValue<string>() == "morphir", "The native host does not write the host morphir.");
+        Check(second["host"]?.GetValue<string>() == "dotnet-morphir", "The tool host does not write the host dotnet-morphir.");
+        first.Remove("host");
+        second.Remove("host");
+        Check(first.ToJsonString() == second.ToJsonString(), "The two hosts write other reports apart from the host.");
+    }
+
+    // The checks of the old E2E validate scenarios (pull request 2 of consolidate-black-box-tests): the diagnostics
+    // and the analyzers of the report.
+
+    private IEnumerable<System.Text.Json.JsonElement> DiagnosticsOf(ValidationReport report) =>
+        report.Required("diagnostics").EnumerateArray();
+
+    [Then("the validation report has {int} {string} diagnostic with the code {string} from {string}")]
+    public void TheReportHasDiagnosticsFrom(int count, string severity, string code, string extension)
+    {
+        var report = ValidationReport.Of(run.Result);
+        var found = DiagnosticsOf(report).Count(diagnostic => Text(diagnostic, "severity") == severity && Text(diagnostic, "code") == code && Text(diagnostic, "extension") == extension);
+        Check(found == count, $"The validation report has {found} {severity} diagnostics with the code {code} from {extension}, not {count}.");
+    }
+
+    [Then("the validation report has {int} {string} diagnostic with the code {string}")]
+    public void TheReportHasDiagnostics(int count, string severity, string code)
+    {
+        var report = ValidationReport.Of(run.Result);
+        var found = DiagnosticsOf(report).Count(diagnostic => Text(diagnostic, "severity") == severity && Text(diagnostic, "code") == code);
+        Check(found == count, $"The validation report has {found} {severity} diagnostics with the code {code}, not {count}.");
+    }
 
     [Then("the validation report has no diagnostic")]
     public void TheReportHasNoDiagnostic() =>
-        Expect(Report.Diagnostics.IsEmpty, $"The validation report has {Report.Diagnostics.Length} diagnostics.");
+        Check(!DiagnosticsOf(ValidationReport.Of(run.Result)).Any(), "The validation report has diagnostics.");
 
-    [Then("the validation report has {int} {string} diagnostic with the code {string} from {string}")]
-    public void TheReportHasDiagnosticsFrom(int count, string severity, string code, string extension) =>
-        Expect(Report.Count(severity, code, extension) == count,
-            $"The validation report has {Report.Count(severity, code, extension)} {severity} diagnostics with the code {code} from {extension}, not {count}.");
-
-    [Then("the validation report has {int} {string} diagnostic with the code {string}")]
-    public void TheReportHasDiagnostics(int count, string severity, string code) =>
-        Expect(Report.Count(severity, code) == count,
-            $"The validation report has {Report.Count(severity, code)} {severity} diagnostics with the code {code}, not {count}.");
-
-    [Then("the validation report lists {string} as {string}")]
+    [Then("the validation report lists the analyzer {string} as {string}")]
     public void TheReportListsTheAnalyzerAs(string id, string status)
     {
-        var analyzers = Report.Analyzers.Where(analyzer => analyzer.Id == id).ToArray();
-        Expect(analyzers is [{ } one] && one.Status == status,
-            $"The validation report lists {id} as {string.Join(", ", analyzers.Select(analyzer => analyzer.Status))}, not {status}.");
+        var analyzers = ValidationReport.Of(run.Result).Required("analyzers").EnumerateArray().Where(analyzer => Text(analyzer, "id") == id).ToArray();
+        Check(analyzers.Length == 1 && Text(analyzers[0], "status") == status, $"The validation report does not list the analyzer {id} once as {status}.");
     }
 
     [Then("the analyzers of the validation report are the validator entries of extension list")]
     public async Task TheAnalyzersAreTheValidatorEntries()
     {
-        var analyzers = Report.Analyzers.Select(analyzer => analyzer.Id).ToArray();
+        var analyzers = ValidationReport.Of(run.Result).Required("analyzers").EnumerateArray().Select(analyzer => Text(analyzer, "id")).ToArray();
         var list = (await drivers.Cli.RunAsync(ExtensionListReport.Arguments)).ShouldExitWith(0);
-        var validators = ExtensionListReport.Of(list).Extensions.Where(entry => entry.Types.Contains("validator")).Select(entry => entry.Id).ToArray();
-        Expect(analyzers.Length > 0 && analyzers.SequenceEqual(validators),
+        var validators = ExtensionListReport.Of(list).Extensions.Where(entry => entry.Types.Contains("validator")).Select(entry => (string?)entry.Id).ToArray();
+        Check(analyzers.Length > 0 && analyzers.SequenceEqual(validators),
             $"The analyzers {string.Join(", ", analyzers)} are not the validators {string.Join(", ", validators)} of extension list.");
     }
 
-    [Then("the validation reports of both hosts are equal apart from the host")]
-    public void TheReportsOfBothHostsAreEqual()
-    {
-        if (ValidationReport.DifferenceApartFromTheHost(run.Result, other.Result) is { } difference)
-            throw new CommandAssertionException(difference, other.Result);
-    }
+    private static string? Text(System.Text.Json.JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString() : null;
 
-    private void Expect(bool condition, string reason)
+    private void Check(bool condition, string reason)
     {
         if (!condition) throw new CommandAssertionException(reason, run.Result);
     }

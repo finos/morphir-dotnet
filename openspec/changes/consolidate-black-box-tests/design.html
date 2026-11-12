@@ -840,16 +840,21 @@ the fixture process. A test that makes more than one session keeps each one with
 end of the test stops it.</td>
 <td><code>ProcessSessionDriverTests</code></td></tr>
 <tr><td><a href="#drv-5">DRV-5</a>, the capabilities</td>
-<td>Five cases are new: <code>Validation</code>, <code>NativeAndToolHosts</code>, <code>PackagedInstallation</code>,
-<code>NativeAotExecutable</code> and <code>KnownForm</code>. A scenario that compares two hosts ran the other host
+<td>Four cases are new: <code>PackagedInstallation</code>, <code>NativeAotExecutable</code>, <code>KnownForm</code> and
+<code>WasmGuests</code>. The cases <code>Validation</code> and <code>NativeAndToolHosts</code> of this pull request
+are the cases <code>ModelValidation</code> and <code>AllHosts</code> of pull request 3 after the merge of
+<code>main</code> at <code>3637856a</code>. A scenario that compares two hosts ran the other host
 from a build folder on each published type before; because a target uses only its own form, it runs on the
 development build now, which has both hosts, in each pull request.</td>
 <td><code>slice-2-moves.md</code></td></tr>
 <tr><td><a href="#drv-1">DRV-1</a>, the driver of a command family</td>
-<td><code>IValidationDriver</code> is new here (8 scenarios). <code>IExtensionDriver</code> belongs to pull request 3
-(task 7.2), so the steps of <code>extension list</code> and <code>extension runtimes</code> give the arguments of their
-report types (<code>ExtensionListReport</code>, <code>ExtensionRuntimesReport</code>) to <code>ICliDriver</code>; pull
-request 3 can move them onto its interface.</td>
+<td>The scenarios of <code>validate</code> use <code>IModelValidationDriver</code> of pull request 3; the merge of
+<code>main</code> at <code>3637856a</code> replaced the <code>IValidationDriver</code> of this pull request with it.
+<code>IExtensionDriver</code> belongs to pull request 3 (task 7.2), so the steps of <code>extension list</code> and
+<code>extension runtimes</code> give the arguments of their report types (<code>ExtensionListReport</code>,
+<code>ExtensionRuntimesReport</code>) to <code>ICliDriver</code>; a later change can move them onto its interface.
+Pull request 3 also added these two report types; the merge kept its types and added the members that the steps of
+this pull request read.</td>
 <td><code>tests/Morphir.BlackBox.Tests/README.md</code></td></tr>
 <tr><td><a href="#form-1">FORM-1</a>, the framework tests</td>
 <td>The eight tests of the log filter of <code>ExecutableRunner</code> are removed, not moved: the CLI driver removes
@@ -916,6 +921,71 @@ only.</td>
 <td>The two guests of the worker moved from the removed project to <code>tests/Fixtures/WorkerGuests</code>, with a
 README. <code>Morphir.Tooling.Tests</code> links them from there: a one-line change of its project file.</td>
 <td><code>tests/Fixtures/WorkerGuests/README.md</code></td></tr>
+</tbody>
+</table>
+
+<h3 id="record-pr3">Pull request 3 (task group 7), 2026-11-12</h3>
+<table>
+<thead><tr><th>Decision</th><th>What happened</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><a href="#drv-1">DRV-1</a>, the drivers of slice 3</td>
+<td>The four interfaces of the table are there, and two more, because each command family with two or more
+scenarios gets its interface: <code>IModelValidationDriver</code> (<code>validate</code>) and
+<code>IToolRoutingDriver</code> (<code>mck</code>, with the stub <code>morphir-mck</code>). The reports derive from
+<code>JsonCommandReport</code> (one JSON object, <code>exitCode</code> agrees with the exit code, the list
+<code>diagnostics</code>). The configuration and migration drivers take a <code>ScenarioMachine</code>: the working
+directory, the home and the Morphir variables of the scenario, as <code>DevelopmentCli</code> gave them.</td>
+<td><code>slice-3-moves.md</code></td></tr>
+<tr><td><a href="#drv-5">DRV-5</a>, capabilities of the development build</td>
+<td>Four capabilities that only the development build has: <code>BuiltExtensions</code> (the F# backend guest and the
+stub <code>morphir-mck</code>, whose paths <code>tests/Morphir.TestSupport/build/Morphir.ExtensionArtifacts.targets</code>
+writes as assembly metadata, as for the entry points), <code>HostWithoutDynamicCode</code> (the driver starts a host
+with a copy of its runtime configuration in which the dynamic-code switch is off, as the old formatting tests did),
+<code>AllHosts</code> (<code>DriverSet.CliOf</code> gives the CLI of another host, for a test that compares two hosts)
+and <code>UnprofiledBuild</code> (a host that states no deployment). A platform fact (the WASM runtime is refused on
+<code>win-x64</code>) is not a capability: the guard test computes the capabilities on the machine of the build, so a
+capability that depends on the operating system would fail it on Windows. The steps read
+<code>ExtensionPlatform.OfThisMachine</code> instead.</td>
+<td><code>slice-3-moves.md</code></td></tr>
+<tr><td><a href="#form-1">FORM-1</a>, the split</td>
+<td>A test that runs the CLI and compares with a product function in the test process stays whole, as the wire-form
+rows of pull request 1 did, and a new scenario checks the part that needs only the CLI: 4 rows of
+<code>Generate.feature</code>, 1 scenario of <code>GenerateExtension.feature</code>, 1 case of
+<code>GenerateCommandTests</code>, 2 tests of <code>GenerateFormattingTests</code>, 9 scenarios of the configuration
+editing, 3 of the project migration and 2 of the workspace migration. So <code>CliTestHelper</code> and
+<code>DevelopmentCli</code> keep users; they read the target of the testing library (<code>CliTestHelper.ForTarget</code>)
+and no old variable.</td>
+<td><code>slice-3-moves.md</code></td></tr>
+<tr><td>Task 7.1, the inventory</td>
+<td>Seven files of the inventory are tests of a library in the test process (the five worker, agreement and identity
+classes of <code>Features/Extensions</code>, most of <code>ExtensionRuntimesReportTests</code> and
+<code>WasmHostCommandTests</code>): the scan found them for a WASM fixture or a helper process. They stay.
+<code>ConfiguredWasmCommandTests</code> (8 CLI cases), <code>InstalledProviderJourneyTests</code> and the 5 signal and
+kill tests of the routing stay for now, because no driver gives a pinned published guest module, external provider
+inputs, or a signal to the CLI. Task 7.3 has them as open points.</td>
+<td><code>inventory.md</code>, <code>slice-3-moves.md</code></td></tr>
+<tr><td>Tasks 7.3 and 7.4, the documentation and the tutorial</td>
+<td>A documentation page, the tutorial example and the published JSON schemas are links of the project file below
+<code>Fixtures/</code>, read through the workspace (<code>IScenarioWorkspace.ReadFixtureText</code>). The compile page
+used the sources of two corpus cases through the kit library, which the black-box project does not see
+(<a href="#proj-2">PROJ-2</a>), so the feature has those sources as doc strings. A tutorial test with three commands
+is a journey; the documented refusal of one compile is integration.</td>
+<td><code>slice-3-moves.md</code></td></tr>
+<tr><td>Review of the branch</td>
+<td>The <code>test-manager-reviewer</code> agent compared the old tests with their new tests and gave 13 findings.
+Twelve are corrected: a missing row of the move table; a configuration report with no list of sources, and a
+validation report with no <code>success</code>, no longer pass; a check that no project source is outside the boundary
+needs one project source; the stub of an unknown tool keeps the name of its assembly, so the check that it did not run
+can fail (the old harness had the same defect); three driver defects; the facts of the machine come through the
+drivers; and the tags and host checks of the routing feature. The thirteenth asked for a change of
+<code>docs/contributing/ci-os-matrix.md</code>: it names no capability tag, so it does not change. The reviewer also
+found steps of the moved features that say one thing in the words of their feature; the README of the project says
+why they stay.</td>
+<td><code>slice-3-moves.md</code></td></tr>
+<tr><td>Gherkin, the host of a row</td>
+<td>A tag on an <code>Examples</code> block of a scenario outline is a category of its rows, so one outline runs on
+the native host and on the tool host. Each such outline checks that the command ran on the host of its row.</td>
+<td><code>Integration/ToolRouting.feature</code></td></tr>
 </tbody>
 </table>
 

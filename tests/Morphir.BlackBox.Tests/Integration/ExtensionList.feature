@@ -32,7 +32,7 @@ Feature: List the extensions of the host
     Then the exit code is 0
     And standard output contains "validator (1, 2, 3)"
 
-  @needs-native-and-tool-hosts
+  @needs-all-hosts
   Scenario: Both hosts list the same shared built-ins
     When I list the extensions as JSON
     And I list the extensions as JSON on the other host

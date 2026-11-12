@@ -70,7 +70,7 @@ its evidence `slice-2-moves.md` gives the destination of each scenario.
 `tests/Morphir.BlackBox.Tests/EndToEnd/PackagedArtifacts.feature` takes each expectation from the artifact's own
 launch metadata (`<artifact>.build-launch.json`), so it also checks that the metadata is true. The other groups of
 the black-box tests (smoke, integration and journey) run against the installed artifact too. A scenario that compares
-two hosts (`@needs-native-and-tool-hosts`) runs only on the development build, which has both hosts: a target never
+two hosts (`@needs-all-hosts`) runs only on the development build, which has both hosts: a target never
 uses the artifact of another form.
 
 | Scenario | Checks |

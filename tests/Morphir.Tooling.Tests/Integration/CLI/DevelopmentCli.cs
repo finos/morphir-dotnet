@@ -3,16 +3,13 @@ using Morphir.TestSupport.Drivers;
 namespace Morphir.Tooling.Tests.Integration.CLI;
 
 /// <summary>
-/// Runs the native host of the development build through the CLI driver, for a step class that gives the product
+/// Runs the native host of the target of the testing library through the CLI driver, for a step class that gives the product
 /// its own folder and its own environment (the configuration and migration features). Those features test discovery
 /// and containment, so the product gets exactly the Morphir variables of the scenario: the helper removes the
 /// isolation variables that a workspace adds.
 /// </summary>
 internal static class DevelopmentCli
 {
-    /// <summary>A published CLI to run instead of the development build.</summary>
-    private const string ExecutableVariable = "MORPHIR_CONFIGURATION_CLI";
-
     private static readonly Lazy<CliArtifacts> DevelopmentBuild =
         new(() => CliArtifacts.OfDevelopmentBuild(typeof(DevelopmentCli).Assembly));
 
@@ -29,9 +26,14 @@ internal static class DevelopmentCli
         };
         foreach (var (name, value) in environment) variables[name] = value;
 
-        var driver = Environment.GetEnvironmentVariable(ExecutableVariable) is { Length: > 0 } executable
-            ? new CliDriver(new TestTarget.Executable(executable, MorphirHost.Native), MorphirHost.Native, executable, workspace)
-            : new CliDriver(new TestTarget.DevelopmentBuild(), MorphirHost.Native, DevelopmentBuild.Value.PathOf(MorphirHost.Native), workspace);
+        // The target of the testing library: the development build, or an executable at a path with the native host.
+        var target = TestRunSettings.Parse(Environment.GetEnvironmentVariable, File.Exists).Target;
+        var driver = target switch
+        {
+            TestTarget.DevelopmentBuild => new CliDriver(target, MorphirHost.Native, DevelopmentBuild.Value.PathOf(MorphirHost.Native), workspace),
+            TestTarget.Executable { Host: MorphirHost.Native } executable => new CliDriver(target, MorphirHost.Native, executable.Path, workspace),
+            _ => throw new TestSessionException(target.MissingHostReason(MorphirHost.Native)),
+        };
         return await driver.RunAsync(arguments, new CliRunOptions
         {
             Timeout = TimeSpan.FromSeconds(60),

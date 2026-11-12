@@ -16,8 +16,8 @@ public sealed record TargetCli(TestTarget Target, MorphirHost Host, string Artif
 {
     private static readonly List<PackagedTarget> Installed = [];
 
-    /// <summary>The program to start: <c>dotnet</c> for an assembly, else the executable.</summary>
-    public string FileName => IsAssembly ? "dotnet" : Artifact;
+    /// <summary>The program to start: the dotnet host (<see cref="DotnetHost.Path"/>) for an assembly, else the executable.</summary>
+    public string FileName => IsAssembly ? DotnetHost.Path : Artifact;
 
     /// <summary>The arguments before the arguments of the command: <c>exec</c> and the assembly, or none.</summary>
     public IReadOnlyList<string> PrefixArguments => IsAssembly ? ["exec", Artifact] : [];

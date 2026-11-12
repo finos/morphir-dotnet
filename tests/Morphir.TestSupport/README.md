@@ -22,15 +22,26 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `IModelVerificationDriver` (`ModelVerificationDriver`) | The `ir verify` command as an intent, with `VerificationOptions`. Its report is `VerificationReport`. |
 | `IGenerationDriver` (`GenerationDriver`) | The `generate` command as an intent, with `GenerationOptions`. Its report is `GenerationReport`. |
 | `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. It records the Morphir locations of the machine at the start (`MachineTripwire`), and at the end of the run it prints the skip counts and fails if a test changed those locations. |
-| `DriverSet` | The workspace and the drivers of one test on one host. |
+| `DriverSet` | The workspace and the drivers of one test on one host. `DriverSet.CliOf` gives the CLI driver of another host of the target, for a test that compares the hosts (`@needs-all-hosts`). |
 | `IProcessSessionDriver` (`ProcessSessionDriver`) | A product process that stays alive: framed input (`ContentLengthFrames`), output as it comes, an interrupt (SIGINT, or `ConsoleControlEvent` on Windows), and the exit with the time from the interrupt to the exit (`SessionExit`). It runs on `ChildProcess.ConverseAsync`. `ExtensionWorker` and `WorkerCorpus` use it for `extension worker`. |
-| `IValidationDriver` (`ValidationDriver`) | The `validate` command as an intent, with `ValidationOptions`. Its report is `ValidationReport`. |
-| `ExtensionListReport`, `ExtensionRuntimesReport` | The reports of `extension list --json` and `extension runtimes --json`. Their steps give the arguments of the report to `ICliDriver`. |
+| `ExtensionListReport`, `ExtensionRuntimesReport` | The reports of `extension list --json` and `extension runtimes --json`, with their entries `ListedExtension` and `ExtensionRuntime`. Pull request 3 added them with `IExtensionDriver`; pull request 2 added the members that its steps read: the arguments of each command, `Extension(id)`, `ExtensionListReport.HostName`, `ExtensionListReport.ExpectedDeploymentOf`, `Wasm`, and the types, delivery, hosts, validator IR versions, profiles and memory bound of an entry. |
+| `PinnedPackages` | The version that `Directory.Packages.props` pins for a package, for a check of a reported version. |
 | `IPackagedArtifactDriver` (`PackagedArtifactDriver`) | The installed packaged offering of the run: its launch metadata, runs of the installed executable from new empty directories with the runtime of the machine reachable or hidden, the layout claim, the engine files, and a second installation that is read-only. The helpers are in the namespace `Morphir.TestSupport.Packaging`. |
 | `HostCopies` | A copy of the folder of a host with each WASM engine library deleted (`HostCopy`), made once for each run. |
 | `TargetCli` | The executable of the target of the run, for a test outside the black-box project that starts it with its own runner (a conformance test). |
 | `ILibraryHostDriver` (`LibraryHostDriver`) | A program of the repository that is not the CLI (`TestProgram`, from `TestPrograms`): a library host, a probe or `morphirup`. It runs the built assembly, or publishes the program into the workspace in a `ProgramForm` (managed, trimmed, Native AOT) and runs the `PublishedProgram`. A `PublishWarning` is a trim or AOT warning of the publish; `AllowedWarning` permits one. |
 | `IArtifactInspectionDriver` (`ArtifactInspectionDriver`) | A `BuiltFile` of the build output of such a program, and its metadata: `AssemblyFacts` (the assemblies, namespaces and members that an assembly references) or the file as JSON. |
+| `ICompilationDriver` (`CompilationDriver`) | The `compile` command as an intent, with `CompilationOptions`. Its report is `CompilationReport`. |
+| `IConfigurationDriver` (`ConfigurationDriver`) | The `config` command, in the `ScenarioMachine` of a scenario. Its report is `ConfigurationReport`. |
+| `IMigrationDriver` (`MigrationDriver`) | The `project migrate` and `workspace migrate` commands, in the `ScenarioMachine` of a scenario. Its report is `MigrationReport`. |
+| `IExtensionDriver` (`ExtensionDriver`) | The `extension list` and `extension runtimes` commands, with `ExtensionListOptions`. Their reports are `ExtensionListReport` and `ExtensionRuntimesReport`. |
+| `IModelValidationDriver` (`ModelValidationDriver`) | The `validate` command, with `ValidationOptions`. Its report is `ValidationReport`. |
+| `ExtensionArtifacts` | The files of the extension guests of the development build (`BuiltExtension`), from the assembly metadata that `build/Morphir.ExtensionArtifacts.targets` writes. Only the development build has them (`@needs-built-extensions`). |
+| `CliRunOptions.WithoutDynamicCode` | Runs an assembly host with the dynamic-code switch of the runtime off, as in a Native AOT executable, from a copy of its runtime configuration in the workspace (`@needs-host-without-dynamic-code`). |
+| `ExtensionPlatform` | The platform of this machine as the extension reports name it, for example `osx-arm64`, and the platform with no WASM runtime (`win-x64`). |
+| `IToolRoutingDriver` (`ToolRoutingDriver`) | The routing of a command to an external tool, as `morphir mck` runs `morphir-mck`: it installs the stub of the tool in the workspace, runs the product with the search path of the scenario (`ToolRoutingOptions`), and runs the stub alone. The stub reports in a `StubReport`. |
+| `DotnetHost` | The full path of the dotnet host that starts an assembly host: `DOTNET_HOST_PATH`, else the dotnet executable of the test process. A driver does not start it by its name: on Linux the process runner starts each child through `setsid`, which looks up the program in the `PATH` of the child, and a scenario can give the product a `PATH` with no dotnet. |
+| `ScenarioMachine` | The machine that a scenario of discovery and containment gives to the product: the working directory, the home and the machine locations, and exactly the Morphir variables of the scenario. |
 
 A capability driver builds its command line and calls `ICliDriver`. Only `ICliDriver` and `IScenarioWorkspace` know
 the target and the machine.
@@ -44,6 +55,10 @@ that the command wrote in the work area. Two layers check it:
   written file, text on standard error. These checks read no field of a report.
 - A report type has the checks of its own command. `VerificationReport` reads the field `IsValid`.
   `GenerationReport` reads the field `success`, and fails when the field disagrees with the exit code.
+- The reports of the other command families derive from `JsonCommandReport`: one JSON object, a field `exitCode`
+  that agrees with the exit code, and the list `diagnostics` as `ReportDiagnostic` items. `CompilationReport` and
+  `ValidationReport` also read `success`; `ConfigurationReport` and `MigrationReport` read `outcome`. A path in a
+  configuration or migration report has the form of `ReportPath`.
 
 Each failure is a `CommandAssertionException`. Its message has the command line, the exit code and both streams.
 
@@ -141,7 +156,8 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build (`TestLane`). |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs` | The test needs that `DriverCapability`. `@needs-built-programs`: the build output and the project files of the programs of the repository; only the development build has them. |
-| `@needs-validation`, `@needs-native-and-tool-hosts`, `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form` | The test needs the `validate` command; the native host and the tool host of one build (`dev`); an installed packaged offering; a Native AOT executable of a release (`aot`, `native-aot`); a target whose form is known (each target except `executable`). |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
+| `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form` | The test needs an installed packaged offering; a Native AOT executable of a release (`aot`, `native-aot`); a target whose form is known (each target except `executable`). |
 | `@needs-wasm-guests` | The test runs a WASM guest. Each platform except Windows x64 has it: there the host refuses each guest (#609). `DriverCapabilities.Of` takes the platform; the default is this machine. |
 
 ## How to add a capability

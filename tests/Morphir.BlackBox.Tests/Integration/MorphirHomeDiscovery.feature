@@ -1,4 +1,4 @@
-@ConfigurationInspection @CLI @Containment @PlatformSpecific
+@integration @needs-configuration
 Feature: The global Morphir home is never a project
   Files in the global Morphir home are global configuration only, wherever discovery starts.
   Spec: openspec morphir-project-system. Reproduces #494 problems 1 and 2.

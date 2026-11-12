@@ -210,7 +210,7 @@ public sealed class ProcessSessionDriver : IProcessSessionDriver
     public async Task<IProcessSession> StartAsync(IReadOnlyList<string> arguments, ProcessSessionOptions? options = null, CancellationToken cancellation = default)
     {
         var assembly = _artifact.EndsWith(".dll", StringComparison.OrdinalIgnoreCase);
-        var info = new ProcessStartInfo(assembly ? "dotnet" : _artifact) { StandardErrorEncoding = new UTF8Encoding(false) };
+        var info = new ProcessStartInfo(assembly ? DotnetHost.Path : _artifact) { StandardErrorEncoding = new UTF8Encoding(false) };
         if (assembly) info.ArgumentList.Add(_artifact);
         foreach (var argument in arguments) info.ArgumentList.Add(argument);
         var commandLine = string.Join(' ', new[] { info.FileName }.Concat(info.ArgumentList));

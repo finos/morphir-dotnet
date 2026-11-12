@@ -6,8 +6,8 @@ using Morphir.TestSupport.Drivers;
 namespace Morphir.TestSupport.Tests.Drivers;
 
 /// <summary>
-/// The drivers and report types that pull request 2 of the change consolidate-black-box-tests adds: the
-/// <c>validate</c> driver and its report, the reports of <c>extension list</c> and <c>extension runtimes</c>, the build
+/// The drivers and report types that pull request 2 of the change consolidate-black-box-tests adds: the reports of
+/// <c>extension list</c> and <c>extension runtimes</c>, the build
 /// identity of <c>extension worker</c>, the host copies with no engine library, and the target of a test outside the
 /// black-box project. The report tests run the real commands of the development build.
 /// </summary>
@@ -26,56 +26,6 @@ public class ReportDriverTests
     {
         var environment = variables.ToDictionary(variable => variable.Name, variable => variable.Value);
         return environment.GetValueOrDefault;
-    }
-
-    [Test]
-    public async Task ValidateBuildsTheCommandLineWithThePathAsOneArgument()
-    {
-        await using var workspace = Workspace();
-        var model = workspace.File("my models", "daily rate.json");
-
-        ValidationDriver.Arguments(model).Should().Equal("validate", "--input", model.Path, "--json");
-        ValidationDriver.Arguments(model, new ValidationOptions { Json = false }).Should().Equal("validate", "--input", model.Path);
-        model.Path.Should().Contain(" ");
-    }
-
-    [Test]
-    public async Task TheValidationReportReadsARealReport()
-    {
-        await using var workspace = Workspace();
-        var model = workspace.CopyFixture("Cli/daily-rate-mismatch-v3.json", "my models/mismatch.json");
-
-        var report = ValidationReport.Of(await new ValidationDriver(Cli(workspace, MorphirHost.Native)).ValidateAsync(model));
-
-        report.ShouldHaveTheExitCode(1);
-        report.Host.Should().Be("morphir");
-        report.Count("error", "type-mismatch", "morphir.type-validator").Should().Be(1);
-        report.Analyzers.Should().Contain(analyzer => analyzer.Id == "morphir.type-validator");
-        var wrong = () => report.ShouldHaveTheExitCode(0);
-        wrong.Should().Throw<CommandAssertionException>().WithMessage("*exitCode 1*").WithMessage("*command:*");
-    }
-
-    [Test]
-    public async Task TheValidationReportsOfTwoHostsDifferOnlyInTheHost()
-    {
-        await using var workspace = Workspace();
-        var model = workspace.CopyFixture("Cli/daily-rate-mismatch-v3.json");
-
-        var native = await new ValidationDriver(Cli(workspace, MorphirHost.Native)).ValidateAsync(model);
-        var tool = await new ValidationDriver(Cli(workspace, MorphirHost.DotnetTool)).ValidateAsync(model);
-
-        ValidationReport.DifferenceApartFromTheHost(native, tool).Should().BeNull();
-        ValidationReport.DifferenceApartFromTheHost(native, native).Should().Be("Both reports name the same host.");
-    }
-
-    [Test]
-    public void AReportThatIsNotAValidationReportFails()
-    {
-        var result = new CommandResult("morphir validate", 0, """{"exitCode":0}""", "", TimeSpan.Zero, []);
-
-        var read = () => ValidationReport.Of(result);
-
-        read.Should().Throw<CommandAssertionException>().WithMessage("*not a validation report*");
     }
 
     [Test]
@@ -176,7 +126,7 @@ public class ReportDriverTests
 
         tool.Host.Should().Be(MorphirHost.DotnetTool);
         tool.Artifact.Should().Be(development.PathOf(MorphirHost.DotnetTool));
-        tool.FileName.Should().Be("dotnet");
+        tool.FileName.Should().Be(DotnetHost.Path, "a test that changes PATH must still find the dotnet host");
         tool.PrefixArguments.Should().Equal("exec", tool.Artifact);
         native.Host.Should().Be(MorphirHost.Native, "MORPHIR_TEST_HOST names the host of the run");
         path.Host.Should().Be(MorphirHost.Native, "the target has one host, so the default host of the test is not used");

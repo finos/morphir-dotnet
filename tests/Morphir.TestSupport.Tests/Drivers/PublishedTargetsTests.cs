@@ -245,11 +245,11 @@ public class PublishedTargetsTests
 
         var capabilities = DriverCapabilities.Of(target, parsed);
 
-        capabilities.Contains(DriverCapability.NativeAndToolHosts).Should().Be(name == "dev");
+        capabilities.Contains(DriverCapability.AllHosts).Should().Be(name == "dev");
         capabilities.Contains(DriverCapability.PackagedInstallation).Should().Be(name is "native-aot" or "self-contained" or "dotnet-tool");
         capabilities.Contains(DriverCapability.NativeAotExecutable).Should().Be(name is "aot" or "native-aot");
         capabilities.Contains(DriverCapability.InProcessFSharpFrontend).Should().Be(host is "managed" or "tool");
-        capabilities.Should().Contain([DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Validation, DriverCapability.KnownForm]);
+        capabilities.Should().Contain([DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.ModelValidation, DriverCapability.KnownForm]);
         DriverCapabilities.Of(target, parsed, "linux-x64").Should().Contain(DriverCapability.WasmGuests);
         DriverCapabilities.Of(target, parsed, "win-arm64").Should().Contain(DriverCapability.WasmGuests);
     }

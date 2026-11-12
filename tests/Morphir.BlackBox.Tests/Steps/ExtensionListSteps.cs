@@ -15,9 +15,6 @@ public sealed class ExtensionListSteps(DriverSet drivers, ScenarioRun run, Other
     [When("I list the extensions as JSON")]
     public async Task ListTheExtensionsAsJson() => run.Result = await drivers.Cli.RunAsync(ExtensionListReport.Arguments);
 
-    [When("I list the extensions as text")]
-    public async Task ListTheExtensionsAsText() => run.Result = await drivers.Cli.RunAsync(["extension", "list"]);
-
     [When("I list the extensions as JSON on the other host")]
     public async Task ListTheExtensionsAsJsonOnTheOtherHost() =>
         other.Result = await drivers.CliOf(drivers.OtherHost).RunAsync(ExtensionListReport.Arguments);

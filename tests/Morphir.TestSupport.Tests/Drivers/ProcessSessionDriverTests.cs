@@ -93,7 +93,7 @@ public class ProcessSessionDriverTests
 
         exit.ExitCode.Should().Be(3);
         workspace.ReadText(workspace.File("log.jsonl")).Should().Contain("\"--json\"", "the process starts in the work area of the workspace");
-        session.CommandLine.Should().StartWith("dotnet ").And.Contain(FakeWorker);
+        session.CommandLine.Should().StartWith(DotnetHost.Path + " ", "the session starts the dotnet host by its path, so a changed PATH does not hide it").And.Contain(FakeWorker);
     }
 
     [Test]
