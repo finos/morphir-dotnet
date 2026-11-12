@@ -23,10 +23,14 @@
     <Compile Include="GenerateModel.fs" />
     <FSharpJsonContext Include="Wire.fs" Name="MepJson" Namespace="Morphir.Mep" Naming="CamelCase" SkippableOptionFields="Always" UnionEncoding="Default, UnwrapFieldlessTags" UnionTagNaming="CamelCase" />
     <Compile Include="Framing.fs" />
+    <Compile Include="ConformanceEvidence.fs" />
     <Compile Include="Connection.fs" />
     <Compile Include="Session.fs" />
     <Compile Include="Channel.fs" />
+    <Compile Include="ConformanceControl.fs" />
     <Compile Include="Peers.fs" />
+    <InternalsVisibleTo Include="Morphir.Mep.Tests" />
+    <InternalsVisibleTo Include="Morphir.Conformance" />
     <None Remove="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../README.md'))" />
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>

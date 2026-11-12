@@ -20,6 +20,8 @@ open Expecto
 open Morphir.Mep
 open Morphir.TestSupport
 
+module CF = Morphir.Mep.Tests.ConnectionTests.ConformanceFixture
+
 let private host: PeerInfo =
     { Kind = PeerKind.Cli
       Name = "morphir"
@@ -568,3 +570,132 @@ static class BadFailure { static void Check(HostSession session) { Console.Write
                     "single-no-reply no-reply morphir.ping -32603"
                     "single-ended stopped morphir.initialize morphir.initialized morphir.ping" ] do
                   Expect.stringContains output line "C# single-message line" ]
+
+[<Tests>]
+let conformanceSingleMessageTests =
+    testSequenced <| testList "MEP conformance single-message evidence" [
+        testCase "actual callback IDs start at one and notifications consume none" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            CF.initialize session
+            CF.wait (session.PingAsync CancellationToken.None) |> CF.expectOk |> ignore
+            CF.wait (session.ShutdownAsync CancellationToken.None) |> CF.expectOk |> ignore
+            CF.finish (session.ExitAsync())
+            Expect.equal (CF.ids edge.Bodies) [1UL; 2UL; 3UL; 4UL] "IDs come from the actual full messages"
+            Expect.equal (CF.prepared session) edge.Bodies "Recorder agrees with the same adapter edge"
+            Expect.isFalse edge.Overlapped "No overlapping adapter calls"
+
+        testCase "two opted-in adapters have independent counters" <| fun _ ->
+            for _ in 1..2 do
+                use lifetime = new CF.Lifetime()
+                let edge = CF.Edge()
+                let session = CF.create edge lifetime
+                CF.wait (session.DescribeAsync CancellationToken.None) |> CF.expectOk |> ignore
+                Expect.equal (CF.ids edge.Bodies) [1UL] "First request of this session"
+
+        testCase "null notification return records adapter completion without guest delivery or peer reply" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            CF.initialize session
+            let beforeInbound = CF.inbound session
+            let outcome = CF.wait ((CF.control session).SendUnknownNotificationAsync CancellationToken.None)
+            Expect.isNone (CF.expectSubmitted outcome) "Null adapter return is not a peer reply"
+            Expect.equal (CF.inbound session) beforeInbound "No fabricated received body"
+            Expect.isTrue (CF.events session |> List.exists (function ConformanceEvent.AdapterCallReturned(_, None) -> true | _ -> false)) "Adapter boundary only; inner delivery remains unknown"
+
+        let failureCases: (string * ((byte array | null) -> (byte array | null)) * (SessionFailure -> bool)) list = [
+            "missing response", (fun (_: byte array | null) -> null), (fun (failure: SessionFailure) -> match failure with SessionFailure.NoReply _ -> true | _ -> false)
+            "wrong response ID", (fun _ -> CF.response "99" "{}"), (fun failure -> match failure with SessionFailure.ReplyForAnotherRequest _ -> true | _ -> false)
+            "malformed response", (fun _ -> CF.utf8 "{ not json"), (fun failure -> match failure with SessionFailure.InvalidReply _ -> true | _ -> false)
+            "notification returned for request", (fun _ -> CF.utf8 """{"jsonrpc":"2.0","method":"morphir.progress","params":{}}"""), (fun failure -> match failure with SessionFailure.NotAResponse _ -> true | _ -> false)
+            "over-limit response", (fun _ -> Array.zeroCreate (ContentLengthFraming.MaxBodyBytes + 1)), (fun failure -> match failure with SessionFailure.ReplyTooLarge _ -> true | _ -> false)
+        ]
+        for label, replacement, expected in failureCases do
+            testCase $"conformance preserves {label} failure and closes the same adapter" <| fun _ ->
+                use lifetime = new CF.Lifetime()
+                let edge = CF.Edge()
+                edge.Replace <- fun _ reply -> replacement reply
+                let session = CF.create edge lifetime
+                Expect.isError (CF.wait (session.DescribeAsync CancellationToken.None)) "Existing channel rule still applies"
+                Expect.isTrue (session.Failure |> Option.exists expected) "Original typed channel failure"
+                let before = edge.Bodies
+                Expect.isError (CF.wait (session.DescribeAsync CancellationToken.None)) "Terminal refusal"
+                Expect.equal edge.Bodies before "No second adapter invocation"
+                Expect.isNone (CF.control session).DescribeReceipt "A failed response cannot issue an original receipt"
+
+        testCase "answered notification preserves existing failure instead of becoming silence" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            CF.initialize session
+            edge.Replace <- fun method reply -> if method = "morphir.mck.unknown" then CF.utf8 "{}" else reply
+            CF.wait ((CF.control session).SendUnknownNotificationAsync CancellationToken.None) |> ignore
+            Expect.equal session.Failure (Some(SessionFailure.AnsweredNotification "morphir.mck.unknown")) "Output is a channel violation"
+
+        testCase "independent queued calls use the same serialized adapter" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            use barrier = new CF.Barrier()
+            let mutable first = true
+            edge.Before <- fun _ token ->
+                if first then
+                    first <- false
+                    barrier.Pause token :> Task
+                else
+                    Task.CompletedTask
+            let session = CF.create edge lifetime
+            let one = session.DescribeAsync CancellationToken.None
+            CF.wait barrier.Entered |> ignore
+            let two = session.DescribeAsync CancellationToken.None
+            Expect.equal edge.Bodies.Length 1 "Second operation has not reached the adapter"
+            barrier.Release()
+            CF.wait one |> CF.expectOk |> ignore
+            CF.wait two |> CF.expectOk |> ignore
+            Expect.equal (CF.ids edge.Bodies) [1UL; 2UL] "Serialized IDs and messages"
+            Expect.isFalse edge.Overlapped "Only one active adapter call"
+    ]
+
+[<Tests>]
+let conformanceAdapterCaptureIntegrityTests =
+    testSequenced <| testList "MEP conformance capture integrity" [
+        testCase "exact payload and event bounds accept complete evidence without phase duplication" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let baselineEdge = CF.Edge()
+            let baseline = CF.create baselineEdge lifetime
+            CF.wait (baseline.DescribeAsync CancellationToken.None) |> CF.expectOk |> ignore
+            let bytes = baselineEdge.Bodies |> List.sumBy (fun body -> int64 body.Length)
+            let bytes = bytes + int64 (CF.response "1" CF.claims).Length
+            let eventCount = (CF.control baseline).Snapshot().Events |> Seq.length
+            let edge = CF.Edge()
+            let session = HostSession.CreateConformance(edge :> ISingleMessageChannel, CF.host, ConformanceEvidenceLimits.Create(eventCount, bytes), lifetime.Token)
+            CF.wait (session.DescribeAsync CancellationToken.None) |> CF.expectOk |> ignore
+            Expect.isTrue ((CF.control session).Snapshot().IsComplete) "Exact bounds are inclusive; copied phase events do not charge the same body twice"
+            Expect.equal (CF.prepared session) edge.Bodies "No truncated body"
+            Expect.isError (CF.wait (session.DescribeAsync CancellationToken.None)) "Next operation exceeds the exact budget"
+            Expect.isFalse ((CF.control session).Snapshot().IsComplete) "Exhaustion stays incomplete"
+
+        testCase "mutating returned adapter storage cannot rewrite retained reply bytes" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let original = CF.response "1" CF.claims
+            let returned = Array.copy original
+            edge.Replace <- fun _ _ -> returned
+            let session = CF.create edge lifetime
+            CF.wait (session.DescribeAsync CancellationToken.None) |> CF.expectOk |> ignore
+            Array.fill returned 0 returned.Length 0uy
+            let observed = CF.events session |> List.choose (function ConformanceEvent.AdapterCallReturned(_, Some body) -> Some body | _ -> None)
+            Expect.equal observed [original] "Own the original adapter return before exposing a snapshot"
+
+        testCase "local lifecycle refusal has no prepared body or invented peer error" <| fun _ ->
+            use lifetime = new CF.Lifetime()
+            let edge = CF.Edge()
+            let session = CF.create edge lifetime
+            let result = CF.wait (session.PingAsync CancellationToken.None)
+            Expect.isError result "Product guard is retained in conformance mode"
+            Expect.isEmpty edge.Bodies "Nothing submitted"
+            Expect.isEmpty (CF.prepared session) "Admission is not body preparation"
+            Expect.isEmpty (CF.inbound session) "A locally constructed -32014 is not peer bytes"
+            Expect.equal (CF.localCount session) 1 "Explicit local origin"
+    ]

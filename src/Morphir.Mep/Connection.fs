@@ -68,26 +68,101 @@ type ConnectionEnd =
         | Stopped -> stopped.Invoke()
         | FramingFailed failure -> framingFailed.Invoke failure
 
+/// The first request ID for ordinary transports or an explicitly opted-in conformance session.
+[<RequireQualifiedAccess>]
+type internal RequestIdStartPolicy =
+    | Product
+    | Conformance
+
+    member this.InitialCounter =
+        match this with
+        | Product -> -1L
+        | Conformance -> 0L
+
 /// A JSON-RPC connection on a framed stream pair (design RPC-1): it dispatches inbound requests, matches inbound
 /// responses to the pending-request table, and sends and receives $/cancelRequest.
 [<Sealed>]
-type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: Func<bool>) =
+type Connection
+    private
+    (
+        input: Stream,
+        output: Stream,
+        dispatcher: Dispatcher,
+        isDone: Func<bool>,
+        idStart: RequestIdStartPolicy,
+        capture: ConformanceCapture option
+    ) =
     let writeLock = new SemaphoreSlim(1, 1)
-    let pending = ConcurrentDictionary<RequestId, TaskCompletionSource<Result<JsonElement, RpcError>>>()
+    let pending = ConcurrentDictionary<RequestId, TaskCompletionSource<ConformanceCallResult<JsonElement>>>()
+    let pendingOperations = ConcurrentDictionary<RequestId, ConformanceOperationId>()
     let inflight = ConcurrentDictionary<RequestId, CancellationTokenSource>()
     let diagnostics = ConcurrentQueue<ConnectionDiagnostic>()
-    let mutable nextId = -1L
+    let mutable nextId = idStart.InitialCounter
+    let pendingGate = obj ()
+    let mutable closed = false
 
-    let write (message: JsonRpcMessage) =
+    let closePending () =
+        lock pendingGate (fun () ->
+            closed <- true
+            for KeyValue(id, waiter) in pending do
+                if pending.TryRemove(id) |> fst then
+                    pendingOperations.TryRemove id |> ignore
+                    waiter.TrySetResult
+                        { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "The connection closed.")
+                          Exchange = None
+                          Submitted = false }
+                    |> ignore)
+
+    let lifetimeRegistration = capture |> Option.map (fun owned -> owned.Token.Register(Action closePending))
+
+    let writeCaptured (owned: ConformanceCapture) (admission: ConformanceOperationId option) (message: JsonRpcMessage) =
         task {
-            let bytes = JsonRpc.Write message
-            do! writeLock.WaitAsync()
-
+            let mutable entered = false
+            let mutable prepared = None
+            let mutable framingCompleted = false
             try
-                do! ContentLengthFraming.WriteAsync(output, ReadOnlyMemory bytes, CancellationToken.None)
+                try
+                    do! writeLock.WaitAsync owned.Token
+                    entered <- true
+                    let bytes = JsonRpc.Write message
+                    if bytes.Length > ContentLengthFraming.MaxBodyBytes then
+                        invalidArg (nameof message) (FramingFailure.BodyTooLarge.ToString())
+                    let id =
+                        match message with
+                        | JsonRpcMessage.Request(id, _, _) | JsonRpcMessage.Response(id, _) -> Some id
+                        | JsonRpcMessage.ErrorResponse(id, _) -> id
+                        | JsonRpcMessage.Notification _ -> None
+                    match owned.Prepare(id, bytes, ConformanceSubmission.Framed, admission) with
+                    | None -> return raise (OperationCanceledException("Conformance capture cannot retain this write.", owned.Token))
+                    | Some operation ->
+                        prepared <- Some operation
+                        do! ContentLengthFraming.WriteAsync(output, ReadOnlyMemory bytes, owned.Token)
+                        framingCompleted <- true
+                        if not (owned.WriteCompleted operation) then
+                            return raise (OperationCanceledException("Conformance write observation is incomplete.", owned.Token))
+                with error ->
+                    match prepared with
+                    | Some operation when not framingCompleted -> owned.WriteFailed(operation, error)
+                    | _ -> owned.Incomplete(ConformanceCaptureFailure.ObservationFailed error)
+                    return raise error
             finally
-                writeLock.Release() |> ignore
+                if entered then writeLock.Release() |> ignore
         }
+
+    let writeWithOperation (admission: ConformanceOperationId option) (message: JsonRpcMessage) =
+        task {
+            match capture with
+            | Some owned -> do! writeCaptured owned admission message
+            | None ->
+                let bytes = JsonRpc.Write message
+                do! writeLock.WaitAsync()
+                try
+                    do! ContentLengthFraming.WriteAsync(output, ReadOnlyMemory bytes, CancellationToken.None)
+                finally
+                    writeLock.Release() |> ignore
+        }
+
+    let write message = writeWithOperation None message
 
     let report diagnostic = diagnostics.Enqueue diagnostic
 
@@ -146,14 +221,109 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
             }
             :> Task
 
-    let complete (id: RequestId option) (result: Result<JsonElement, RpcError>) =
-        match id |> Option.bind (fun id -> match pending.TryRemove id with | true, waiter -> Some waiter | _ -> None) with
-        | Some waiter -> waiter.TrySetResult result |> ignore
-        | None -> report (ConnectionDiagnostic.UnsolicitedResponse id)
+    let complete (id: RequestId option) (result: Result<JsonElement, RpcError>) (body: ConformanceBody option) =
+        lock pendingGate (fun () ->
+            match id with
+            | Some id ->
+                match pending.TryRemove id with
+                | true, waiter ->
+                    let admission = match pendingOperations.TryRemove id with true, key -> Some key | _ -> None
+                    // Only this TryRemove winner can associate this body with the waiter it actually completes.
+                    let exchange =
+                        match capture, admission, body with
+                        | Some owned, Some operation, Some response -> owned.CompleteExchange(operation, id, response)
+                        | _ -> None
+                    if not (waiter.TrySetResult { Result = result; Exchange = exchange; Submitted = exchange.IsSome }) then
+                        capture |> Option.iter (fun owned -> owned.Incomplete(ConformanceCaptureFailure.ObservationFailed(InvalidOperationException "The winning response could not complete its waiter.")))
+                | _ -> report (ConnectionDiagnostic.UnsolicitedResponse(Some id))
+            | None -> report (ConnectionDiagnostic.UnsolicitedResponse None))
+
+    let request (admission: ConformanceOperationId option) (method: string) (parameters: JsonElement option) (cancellation: CancellationToken) =
+        match capture with
+        | None ->
+            let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
+            let waiter = TaskCompletionSource<ConformanceCallResult<JsonElement>>(TaskCreationOptions.RunContinuationsAsynchronously)
+            pending[id] <- waiter
+            task {
+                do! write (JsonRpcMessage.Request(id, method, parameters))
+                use _ =
+                    cancellation.Register(fun () ->
+                        let cancel = JsonSerializer.SerializeToElement({ Id = id }, MepJson.Default.CancelParams)
+                        write (JsonRpcMessage.Notification(Method.CancelRequest.WireValue, Some cancel)) |> ignore)
+                return! waiter.Task
+            }
+        | Some owned ->
+            task {
+                let registered =
+                    lock pendingGate (fun () ->
+                        if closed || not owned.CanSubmit then None
+                        else
+                            let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
+                            let waiter = TaskCompletionSource<ConformanceCallResult<JsonElement>>(TaskCreationOptions.RunContinuationsAsynchronously)
+                            admission |> Option.iter (fun key -> pendingOperations[id] <- key)
+                            pending[id] <- waiter
+                            Some(id, waiter))
+                match registered with
+                | None ->
+                    return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "The conformance connection is closed."); Exchange = None; Submitted = false }
+                | Some(id, waiter) ->
+                    let cancellationWrites = ConcurrentQueue<Task>()
+                    try
+                        do! writeWithOperation admission (JsonRpcMessage.Request(id, method, parameters))
+                        use registration =
+                            cancellation.Register(fun () ->
+                                let work =
+                                    task {
+                                        try
+                                            let cancel = JsonSerializer.SerializeToElement({ Id = id }, MepJson.Default.CancelParams)
+                                            do! writeWithOperation admission (JsonRpcMessage.Notification(Method.CancelRequest.WireValue, Some cancel))
+                                        with error -> owned.Incomplete(ConformanceCaptureFailure.ObservationFailed error)
+                                    }
+                                cancellationWrites.Enqueue(work :> Task))
+                        let! result = waiter.Task
+                        registration.Dispose()
+                        do! Task.WhenAll(cancellationWrites.ToArray())
+                        return result
+                    with error ->
+                        pending.TryRemove id |> ignore
+                        pendingOperations.TryRemove id |> ignore
+                        owned.Incomplete(ConformanceCaptureFailure.ObservationFailed error)
+                        do! Task.WhenAll(cancellationWrites.ToArray())
+                        return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "The conformance request did not complete."); Exchange = None; Submitted = false }
+            }
+
+    /// A connection that also stops when isDone returns true. Ordinary requests start at ID0.
+    new(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: Func<bool>) =
+        Connection(input, output, dispatcher, isDone, RequestIdStartPolicy.Product, None)
 
     /// A connection that runs until the stream ends or the framing fails.
     new(input: Stream, output: Stream, dispatcher: Dispatcher) =
         Connection(input, output, dispatcher, Func<bool>(fun () -> false))
+
+    /// Uses the same framed connection with a per-connection conformance counter starting at ID1.
+    static member internal CreateConformance
+        (input: Stream, output: Stream, dispatcher: Dispatcher, isDone: Func<bool>, limits: ConformanceEvidenceLimits, lifetime: CancellationToken) =
+        Connection(input, output, dispatcher, isDone, RequestIdStartPolicy.Conformance, Some(ConformanceCapture.Create(limits, lifetime)))
+
+    member internal _.ConformanceSnapshot = capture |> Option.map (fun owned -> owned.Snapshot())
+    member internal _.ConformanceToken = capture |> Option.map _.Token |> Option.defaultValue CancellationToken.None
+    member internal _.ConformanceEnd = capture |> Option.bind _.EndReason
+    member internal _.AdmitOperation() = capture |> Option.bind (fun owned -> owned.AdmitOperation())
+    member internal _.LocalRefused(cause) = capture |> Option.iter (fun owned -> owned.LocalRefused cause)
+    member internal _.OperationCancelled(operation) = capture |> Option.iter (fun owned -> owned.OperationCancelled operation)
+
+    member internal _.RequestObservedAsync(operation, method, parameters, cancellation) =
+        request (Some operation) method parameters cancellation
+
+    member internal _.NotifyObservedAsync(operation, method, parameters) =
+        task {
+            try
+                do! writeWithOperation (Some operation) (JsonRpcMessage.Notification(method, parameters))
+                return { Result = Ok(); Exchange = None; Submitted = true }
+            with error ->
+                capture |> Option.iter (fun owned -> owned.Incomplete(ConformanceCaptureFailure.ObservationFailed error))
+                return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "The conformance notification did not complete."); Exchange = None; Submitted = false }
+        }
 
     /// The protocol diagnostics found so far.
     member _.Diagnostics: IReadOnlyList<ConnectionDiagnostic> = diagnostics.ToArray()
@@ -167,14 +337,18 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
     /// cancellation or read failure then reaches the caller.
     member _.RunAsync(cancellation: CancellationToken) : Task<ConnectionEnd> =
         task {
-            use lifetime = CancellationTokenSource.CreateLinkedTokenSource cancellation
+            use lifetime =
+                match capture with
+                | None -> CancellationTokenSource.CreateLinkedTokenSource cancellation
+                | Some owned -> CancellationTokenSource.CreateLinkedTokenSource(cancellation, owned.Token)
+            let readCancellation = match capture with None -> cancellation | Some _ -> lifetime.Token
             let running = ResizeArray<Task>()
             let mutable finished = None
             let mutable failure: ExceptionDispatchInfo option = None
 
             try
                 while finished.IsNone do
-                    let! frame = ContentLengthFraming.ReadAsync(input, cancellation)
+                    let! frame = ContentLengthFraming.ReadAsync(input, readCancellation)
 
                     match frame with
                     | FrameRead.EndOfStream -> finished <- Some ConnectionEnd.EndOfStream
@@ -182,14 +356,21 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
                         report (ConnectionDiagnostic.FramingFailed failure)
                         finished <- Some(ConnectionEnd.FramingFailed failure)
                     | FrameRead.Message body ->
+                        let observed =
+                            match capture with
+                            | Some owned ->
+                                match owned.ObserveInbound body with
+                                | Some original -> Some original
+                                | None -> raise (OperationCanceledException("Conformance inbound observation is incomplete.", owned.Token))
+                            | None -> None
                         match JsonRpc.Read(ReadOnlyMemory body) with
                         | Error refusal ->
                             report (ConnectionDiagnostic.RefusedMessage refusal)
 
                             if refusal.Answer then
                                 do! write (JsonRpc.Reply refusal)
-                        | Ok(JsonRpcMessage.Response(id, result)) -> complete (Some id) (Ok result)
-                        | Ok(JsonRpcMessage.ErrorResponse(id, error)) -> complete id (Error error)
+                        | Ok(JsonRpcMessage.Response(id, result)) -> complete (Some id) (Ok result) observed
+                        | Ok(JsonRpcMessage.ErrorResponse(id, error)) -> complete id (Error error) observed
                         | Ok(JsonRpcMessage.Notification(method, parameters)) when method = Method.CancelRequest.WireValue ->
                             if dispatcher.Admits(method, MethodKind.Notification) then
                                 cancelInflight parameters
@@ -203,6 +384,7 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
                             finished <- Some ConnectionEnd.Stopped
             with error ->
                 failure <- Some(ExceptionDispatchInfo.Capture error)
+                capture |> Option.iter (fun owned -> owned.Incomplete(ConformanceCaptureFailure.ObservationFailed error))
 
             // A refused frame, a read failure or a cancellation stops the running handlers. After a normal end they
             // finish; the token is linked to the caller's token, so the caller can still stop them.
@@ -215,10 +397,22 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
             with _ ->
                 ()
 
-            for KeyValue(id, waiter) in pending do
-                if pending.TryRemove(id) |> fst then
-                    waiter.TrySetResult(Error(RpcErrors.withMessage ErrorCode.InternalError "The connection closed."))
-                    |> ignore
+            match capture with
+            | Some owned ->
+                match finished with
+                | Some ConnectionEnd.EndOfStream -> owned.End ConformanceTransportEnd.EndOfStream
+                | Some ConnectionEnd.Stopped -> owned.End ConformanceTransportEnd.Stopped
+                | Some(ConnectionEnd.FramingFailed cause) ->
+                    owned.Incomplete(ConformanceCaptureFailure.FramingFailed cause)
+                    owned.End(ConformanceTransportEnd.FramingFailed cause)
+                | None -> ()
+                closePending ()
+                lifetimeRegistration |> Option.iter _.Dispose()
+            | None ->
+                for KeyValue(id, waiter) in pending do
+                    if pending.TryRemove(id) |> fst then
+                        waiter.TrySetResult { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "The connection closed."); Exchange = None; Submitted = false }
+                        |> ignore
 
             match failure, finished with
             | Some error, _ ->
@@ -231,20 +425,8 @@ type Connection(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: F
     /// Sends a request and waits for its reply. Cancelling the token sends $/cancelRequest; the reply is then the
     /// peer's answer, normally -32800.
     member _.RequestAsync(method: string, parameters: JsonElement option, cancellation: CancellationToken) =
-        let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
-        let waiter = TaskCompletionSource<Result<JsonElement, RpcError>>(TaskCreationOptions.RunContinuationsAsynchronously)
-        pending[id] <- waiter
-
-        task {
-            do! write (JsonRpcMessage.Request(id, method, parameters))
-
-            use _ =
-                cancellation.Register(fun () ->
-                    let cancel = JsonSerializer.SerializeToElement({ Id = id }, MepJson.Default.CancelParams)
-                    write (JsonRpcMessage.Notification(Method.CancelRequest.WireValue, Some cancel)) |> ignore)
-
-            return! waiter.Task
-        }
+        task { let! result = request None method parameters cancellation
+               return result.Result }
 
     /// Sends a notification.
     member _.NotifyAsync(method: string, parameters: JsonElement option) : Task =

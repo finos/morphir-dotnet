@@ -6,6 +6,7 @@ open System
 open System.IO
 open System.IO.Pipelines
 open System.Text
+open System.Text.Json
 open System.Threading
 open System.Threading.Tasks
 open Expecto
@@ -271,3 +272,386 @@ let tests =
                   connection.Diagnostics
                   (ConnectionDiagnostic.FramingFailed FramingFailure.NotFramed)
                   "Protocol diagnostic" ]
+
+/// Test-owned transport controls only. These helpers never manufacture recorder events or guest receipts.
+/// The missing internal API is the accepted V3 proposal, not a new public test API.
+module internal ConformanceFixture =
+    let wait (work: Task<'T>) = work.WaitAsync(TimeSpan.FromSeconds 5.).GetAwaiter().GetResult()
+    let finish (work: Task) = work.WaitAsync(TimeSpan.FromSeconds 5.).GetAwaiter().GetResult()
+    let signal () = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+    /// Cancel and observe owned adapter/reader tasks even when an assertion fails before a barrier is released.
+    type Lifetime() =
+        let source = new CancellationTokenSource()
+        let owned = System.Collections.Concurrent.ConcurrentBag<Task>()
+        member _.Token = source.Token
+        member _.Cancel() = source.Cancel()
+        member _.Track(work: Task) = owned.Add work
+        interface IDisposable with
+            member _.Dispose() =
+                source.Cancel()
+                try
+                    try finish (Task.WhenAll(owned.ToArray()))
+                    with
+                    | :? TimeoutException -> failtest "Owned conformance test tasks did not settle during cleanup"
+                    | :? OperationCanceledException -> ()
+                    | :? IOException -> ()
+                finally
+                    source.Dispose()
+    let utf8 (text: string) = Encoding.UTF8.GetBytes text
+    let json (body: byte array) = JsonDocument.Parse(ReadOnlyMemory body)
+    let host: PeerInfo = { Kind = PeerKind.Cli; Name = "conformance-test"; Version = "1.0.0" }
+    let limits () : ConformanceEvidenceLimits = ConformanceEvidenceLimits.Create(512, 256L * 1024L * 1024L)
+    let control (session: HostSession) : ConformanceControl = session.Conformance |> Option.defaultWith (fun () -> failtest "Missing conformance control")
+    let events (session: HostSession) : ConformanceEvent list = (control session).Snapshot().Events |> Seq.map _.Event |> List.ofSeq
+    let prepared session =
+        events session |> List.choose (function ConformanceEvent.OutboundBodyPrepared(_, _, body) -> Some body | _ -> None)
+    let inbound session =
+        events session |> List.choose (function ConformanceEvent.InboundBodyObserved body -> Some body | _ -> None)
+    let localCount session =
+        events session |> List.filter (function ConformanceEvent.LocalRefused _ -> true | _ -> false) |> List.length
+    let ids (bodies: byte array list) =
+        bodies |> List.choose (fun body ->
+            use document = json body
+            match document.RootElement.TryGetProperty "id" with
+            | true, id -> Some(id.GetUInt64())
+            | _ -> None)
+    let methodOf body =
+        use document = json body
+        document.RootElement.GetProperty("method").GetString() |> Option.ofObj |> Option.get
+    let methods bodies = bodies |> List.map methodOf
+    let expectOk result =
+        match result with Ok value -> value | Error error -> failtestf "Expected success, got %A" error
+    let expectNotSubmitted (outcome: ConformanceProbeOutcome) =
+        match outcome with
+        | ConformanceProbeOutcome.NotSubmitted _ -> ()
+        | other -> failtestf "Expected a local refusal, got %A" other
+    let expectSubmitted (outcome: ConformanceProbeOutcome) : ConformanceObservedReply option =
+        match outcome with
+        | ConformanceProbeOutcome.Submitted(_, reply) -> reply
+        | other -> failtestf "Expected submission, got %A" other
+
+    // Independently authored narrow model offer. The tests do not implement the generic kit selector.
+    let offerJson = """{"tuples":[{"operation":"morphir.frontend.compileModel","profile":"morphir-ir","codec":"morphir-json","envelopeVersion":"0.1.0-draft.1","irVersion":"4.0.0"},{"operation":"morphir.backend.generateModel","profile":"morphir-ir","codec":"morphir-json","envelopeVersion":"0.1.0-draft.1","irVersion":"4.0.0"}],"limits":{"maxEncodedBytes":8192,"maxDecodedBytes":4096,"maxDepth":64,"maxNodes":256},"guarantees":["urn:test:owned"]}"""
+    let offer () = JsonSerializer.Deserialize(offerJson, MepJson.Default.ModelTransportSupport) |> nonNull
+    let claims = """{"claimsVersion":"0.1.0-draft.2","protocolVersions":["0.2.0-draft.1"],"extension":{"id":"org.example.conformance","name":"Test peer","version":"1.0.0","types":["frontend","backend"]},"capabilities":{"modelTransport":OFF}}""".Replace("OFF", offerJson)
+    let response id result = utf8 ($"{{\"jsonrpc\":\"2.0\",\"id\":{id},\"result\":{result}}}")
+    let error id code = utf8 ($"{{\"jsonrpc\":\"2.0\",\"id\":{id},\"error\":{{\"code\":{code},\"message\":\"test peer refusal\"}}}}")
+
+    /// A deterministic await barrier. The five-second bounds detect deadlocks, never establish ordering.
+    type Barrier() =
+        let entered = signal ()
+        let released = signal ()
+        member _.Entered = entered.Task
+        member _.Release() = released.TrySetResult() |> ignore
+        member _.Pause(token: CancellationToken) =
+            entered.TrySetResult() |> ignore
+            released.Task.WaitAsync token
+        interface IDisposable with
+            member _.Dispose() = released.TrySetResult() |> ignore
+
+    /// Records the complete actual callback bytes, including IDs. Null means only an adapter return.
+    type Edge() =
+        let calls = System.Collections.Concurrent.ConcurrentQueue<string * byte array>()
+        let mutable before: string -> CancellationToken -> Task = fun _ _ -> Task.CompletedTask
+        let mutable after: string -> CancellationToken -> Task = fun _ _ -> Task.CompletedTask
+        let mutable replace: string -> byte array | null -> byte array | null = fun _ value -> value
+        let mutable shutDown = false
+        let mutable active = 0
+        let mutable overlap = false
+        let mutable track: Task -> unit = ignore
+        let answer method (body: byte array) =
+            use document = json body
+            match document.RootElement.TryGetProperty "id" with
+            | false, _ -> null
+            | true, id ->
+                let id = id.GetRawText()
+                match method with
+                | "morphir.extension.describe" -> response id claims
+                | "morphir.initialize" ->
+                    let selected =
+                        match document.RootElement.TryGetProperty "params" with
+                        | true, parameters when parameters.ValueKind = JsonValueKind.Object ->
+                            match parameters.TryGetProperty "modelTransport" with
+                            | true, offer -> Some(offer.GetRawText())
+                            | _ -> None
+                        | _ -> None
+                    match selected with
+                    | Some offer ->
+                        response id ("""{"protocolVersion":"0.2.0-draft.1","extension":{"id":"org.example.conformance","name":"Test peer","version":"1.0.0","types":["frontend","backend"]},"capabilities":{"modelTransport":OFF}}""".Replace("OFF", offer))
+                    | None ->
+                        // A legacy-shaped initialize is valid peer input. Record it and
+                        // answer without inventing an offer, so no-I/O assertions can fail.
+                        response id """{"protocolVersion":"0.2.0-draft.1","extension":{"id":"org.example.conformance","name":"Test peer","version":"1.0.0","types":["frontend","backend"]},"capabilities":{}}"""
+                | "morphir.shutdown" -> shutDown <- true; response id "{}"
+                | "morphir.ping" when shutDown -> error id -32014
+                | "morphir.ping" -> response id "{\"ok\":true}"
+                | _ -> error id -32601
+        let invoke method (message: ReadOnlyMemory<byte>) token =
+            let work =
+                task {
+                    if Interlocked.Increment(&active) > 1 then overlap <- true
+                    try
+                        let body = message.ToArray()
+                        calls.Enqueue(method, body)
+                        do! before method token
+                        let result = answer method body |> replace method
+                        do! after method token
+                        return result
+                    finally
+                        Interlocked.Decrement(&active) |> ignore
+                }
+            track (work :> Task)
+            work
+        member _.Bodies = calls.ToArray() |> Array.map snd |> List.ofArray
+        member _.Overlapped = overlap
+        member _.Before with set value = before <- value
+        member _.After with set value = after <- value
+        member _.Replace with set value = replace <- value
+        member _.Track with set value = track <- value
+        interface ISingleMessageChannel with
+            member _.RequestAsync(method, message, token) = invoke method message token
+            member _.NotifyAsync(method, message, token) = invoke method message token
+
+    let create (edge: Edge) (lifetime: Lifetime) : HostSession =
+        edge.Track <- lifetime.Track
+        let session = HostSession.CreateConformance(edge :> ISingleMessageChannel, host, limits (), lifetime.Token)
+        lifetime.Track(session.RunAsync lifetime.Token)
+        session
+    let describeAndBind (session: HostSession) =
+        wait (session.DescribeAsync CancellationToken.None) |> expectOk |> ignore
+        let receipt = (control session).DescribeReceipt |> Option.defaultWith (fun () -> failtest "No original describe receipt")
+        (control session).BindSelectedOffer(receipt, offer ()) |> expectOk
+        receipt
+    let initialize (session: HostSession) =
+        describeAndBind session |> ignore
+        wait (session.InitializeAsync CancellationToken.None) |> expectOk |> ignore
+    let emptyParams body =
+        use document = json body
+        let root = document.RootElement
+        Expect.equal (root.GetProperty("params").GetRawText()) "{}" "Canonical private sender choice is an explicit empty object"
+    let noParams body =
+        use document = json body
+        Expect.isFalse (document.RootElement.TryGetProperty "params" |> fst) "Product optional-member default stays absent"
+
+    /// Blocks the actual first stream write until release or lifetime cancellation.
+    type BlockedWrite(inner: Stream, initiallyBlocked: bool) =
+        inherit Stream()
+        let barrier = new Barrier()
+        let mutable armed = initiallyBlocked
+        let mutable afterFlush: unit -> unit = ignore
+        member _.Barrier = barrier
+        member _.Arm() = armed <- true
+        member _.AfterFlush with set value = afterFlush <- value
+        override _.CanRead = false
+        override _.CanWrite = true
+        override _.CanSeek = false
+        override _.Length = raise (NotSupportedException())
+        override _.Position with get () = raise (NotSupportedException()) and set _ = raise (NotSupportedException())
+        override _.Read(_, _, _) = raise (NotSupportedException())
+        override _.Seek(_, _) = raise (NotSupportedException())
+        override _.SetLength _ = raise (NotSupportedException())
+        override _.Write(_, _, _) = raise (NotSupportedException())
+        override _.Flush() = inner.Flush()
+        override _.FlushAsync token =
+            task {
+                do! inner.FlushAsync token
+                afterFlush ()
+            } :> Task
+        override _.WriteAsync(buffer: ReadOnlyMemory<byte>, token) =
+            ValueTask(
+                task {
+                    if armed then do! barrier.Pause token
+                    do! inner.WriteAsync(buffer, token)
+                }
+            )
+
+    type StreamEdge(?blocked: bool, ?budget: ConformanceEvidenceLimits) =
+        let fromPeer = Pipe()
+        let toPeer = Pipe()
+        let lifetime = new CancellationTokenSource()
+        let input = fromPeer.Reader.AsStream()
+        let output = toPeer.Writer.AsStream()
+        let peerInput = toPeer.Reader.AsStream()
+        let peerOutput = fromPeer.Writer.AsStream()
+        let blockedOutput = new BlockedWrite(output, defaultArg blocked false)
+        let session = HostSession.CreateConformance(input, blockedOutput, host, defaultArg budget (limits ()), lifetime.Token)
+        let run = session.RunAsync lifetime.Token
+        member _.Session = session
+        member _.Lifetime = lifetime
+        member _.WriteBarrier = blockedOutput.Barrier
+        member _.ArmWrites() = blockedOutput.Arm()
+        member _.AfterFlush with set value = blockedOutput.AfterFlush <- value
+        member _.Run = run
+        member _.Read() =
+            match wait (ContentLengthFraming.ReadAsync(peerInput, lifetime.Token)) with
+            | FrameRead.Message body -> body
+            | other -> failtestf "Expected an actual frame, got %A" other
+        member _.Send(body: byte array) = finish (ContentLengthFraming.WriteAsync(peerOutput, ReadOnlyMemory body, lifetime.Token))
+        member _.End() = peerOutput.Dispose()
+        interface IDisposable with
+            member _.Dispose() =
+                lifetime.Cancel()
+                try wait run |> ignore with :? OperationCanceledException -> ()
+                input.Dispose(); output.Dispose(); peerInput.Dispose(); peerOutput.Dispose()
+                blockedOutput.Dispose(); lifetime.Dispose()
+
+[<Tests>]
+let conformanceStreamTests =
+    let moduleName = "MEP conformance stream evidence"
+    let wait = ConformanceFixture.wait
+    testSequenced <| testList moduleName [
+        testCase "describe starts at one and retains exact sent and whitespace reply bodies" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            let pending = edge.Session.DescribeAsync CancellationToken.None
+            let sent = edge.Read()
+            let reply = ConformanceFixture.utf8 (" { \"jsonrpc\": \"2.0\", \"id\": 1, \"result\": " + ConformanceFixture.claims + " } \n")
+            Expect.equal (ConformanceFixture.ids [sent]) [1UL] "Actual wire ID"
+            edge.Send reply
+            wait pending |> ConformanceFixture.expectOk |> ignore
+            Expect.equal (ConformanceFixture.prepared edge.Session) [sent] "Bytes before framing, without reserialization"
+            Expect.equal (ConformanceFixture.inbound edge.Session) [reply] "Observed bytes retain whitespace"
+            Expect.isTrue (ConformanceFixture.events edge.Session |> List.exists (function ConformanceEvent.FramedWriteCompleted _ -> true | _ -> false)) "Completed framing is separately recorded"
+
+        testCase "independent conformance sessions each start at one" <| fun _ ->
+            for _ in 1..2 do
+                use edge = new ConformanceFixture.StreamEdge()
+                let pending = edge.Session.DescribeAsync CancellationToken.None
+                Expect.equal (ConformanceFixture.ids [edge.Read()]) [1UL] "No global counter"
+                edge.Send(ConformanceFixture.response "1" ConformanceFixture.claims)
+                wait pending |> ignore
+
+        testCase "ordinary stream session still starts at zero with no control" <| fun _ ->
+            use fromPeer = new MemoryStream(ConformanceFixture.utf8 "")
+            use output = new MemoryStream()
+            let session = HostSession(fromPeer, output, ConformanceFixture.host)
+            Expect.isNone session.Conformance "Explicit opt-in only"
+            let pending = session.DescribeAsync CancellationToken.None
+            output.Position <- 0L
+            match wait (ContentLengthFraming.ReadAsync(output, CancellationToken.None)) with
+            | FrameRead.Message body -> Expect.equal (ConformanceFixture.ids [body]) [0UL] "Product seed"
+            | other -> failtestf "Expected frame, got %A" other
+            wait (session.RunAsync CancellationToken.None) |> ignore
+            wait pending |> ignore
+
+        testCase "invalid and unsolicited inbound bodies are observed before parsing and correlation" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            let pending = edge.Session.DescribeAsync CancellationToken.None
+            edge.Read() |> ignore
+            let invalid = ConformanceFixture.utf8 "{ broken json"
+            let unsolicited = ConformanceFixture.response "99" "{}"
+            edge.Send invalid
+            edge.Read() |> ignore // Actual parse-error response, not the describe response.
+            edge.Send unsolicited
+            edge.Send(ConformanceFixture.response "1" ConformanceFixture.claims)
+            wait pending |> ignore
+            Expect.equal (ConformanceFixture.inbound edge.Session) [invalid; unsolicited; ConformanceFixture.response "1" ConformanceFixture.claims] "Original input order"
+
+        testCase "blocked write has prepared bytes but no completed write and lifetime settles it" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge(blocked = true)
+            let pending = edge.Session.DescribeAsync CancellationToken.None
+            wait edge.WriteBarrier.Entered |> ignore
+            Expect.equal (ConformanceFixture.prepared edge.Session |> List.length) 1 "Prepared at existing serialization boundary"
+            Expect.isFalse (ConformanceFixture.events edge.Session |> List.exists (function ConformanceEvent.FramedWriteCompleted _ -> true | _ -> false)) "Blocked write is not wire completion"
+            edge.Lifetime.Cancel()
+            wait pending |> ignore
+            Expect.isFalse ((ConformanceFixture.control edge.Session).Snapshot().IsComplete) "Uncertain submission is incomplete"
+
+        testCase "successful flush followed by capture cancellation is not a failed write" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            let mutable flushed = false
+            edge.AfterFlush <- fun () ->
+                flushed <- true
+                edge.Lifetime.Cancel()
+            let result = wait (edge.Session.DescribeAsync CancellationToken.None)
+            Expect.isTrue flushed "The actual stream flush completed before cancellation"
+            Expect.isError result "Cancellation still settles the request"
+            Expect.equal (ConformanceFixture.prepared edge.Session |> List.length) 1 "Actual preparation remains recorded"
+            Expect.isFalse
+                (ConformanceFixture.events edge.Session |> List.exists (function ConformanceEvent.FramedWriteFailed _ -> true | _ -> false))
+                "Losing a completion observation cannot invent a transport failure"
+            Expect.isFalse ((ConformanceFixture.control edge.Session).Snapshot().IsComplete) "Observation loss stays incomplete"
+
+        testCase "reader and owned cancel write progress while request awaits an ignoring peer" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            use requestCancellation = new CancellationTokenSource()
+            let pending = edge.Session.DescribeAsync requestCancellation.Token
+            edge.Read() |> ignore
+            requestCancellation.Cancel()
+            let cancel = edge.Read()
+            Expect.equal (ConformanceFixture.methods [cancel]) ["$/cancelRequest"] "Cancel does not wait for operation admission"
+            Expect.equal (ConformanceFixture.ids [cancel]) [] "Cancellation notification consumes no request ID"
+            edge.Send(ConformanceFixture.response "99" "{}")
+            edge.Send(ConformanceFixture.response "1" ConformanceFixture.claims)
+            wait pending |> ignore
+            Expect.contains (ConformanceFixture.inbound edge.Session) (ConformanceFixture.response "99" "{}") "Independent reader still observes peer bytes"
+
+        testCase "lifetime settles a pending request when the peer ignores the cancel notification" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            use requestCancellation = new CancellationTokenSource()
+            let pending = edge.Session.DescribeAsync requestCancellation.Token
+            edge.Read() |> ignore
+            requestCancellation.Cancel()
+            Expect.equal (ConformanceFixture.methods [edge.Read()]) ["$/cancelRequest"] "Actual cancel write completed without operation permit"
+            edge.Lifetime.Cancel()
+            Expect.isError (wait pending) "An ignoring peer cannot keep the owned waiter alive"
+            Expect.isEmpty (ConformanceFixture.inbound edge.Session) "No local cancellation error is a received peer reply"
+
+        testCase "terminal drain settles the admitted waiter and refuses its queued registration" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            let admitted = edge.Session.DescribeAsync CancellationToken.None
+            let sent = edge.Read()
+            let queued = edge.Session.DescribeAsync CancellationToken.None
+            edge.End()
+            wait edge.Run |> ignore
+            Expect.isError (wait admitted) "Active pending request drained"
+            Expect.isError (wait queued) "No registration can survive the terminal drain"
+            Expect.equal (ConformanceFixture.prepared edge.Session) [sent] "Queued operation never submits after EOF"
+            Expect.isEmpty (ConformanceFixture.inbound edge.Session) "Drain errors are local"
+
+        testCase "terminal drain refuses a later request without an abandoned registration" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            edge.End()
+            wait edge.Run |> ignore
+            let before = ConformanceFixture.prepared edge.Session
+            Expect.isError (wait (edge.Session.DescribeAsync CancellationToken.None)) "Already ended"
+            Expect.equal (ConformanceFixture.prepared edge.Session) before "No post-drain submission"
+            Expect.isNone (ConformanceFixture.control edge.Session).DescribeReceipt "Local error cannot issue a receipt"
+    ]
+
+[<Tests>]
+let conformanceCaptureIntegrityTests =
+    testSequenced <| testList "MEP conformance capture integrity" [
+        testCase "snapshot mutation cannot rewrite retained stream bodies or event order" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge()
+            let pending = edge.Session.DescribeAsync CancellationToken.None
+            let sent = edge.Read()
+            let reply = ConformanceFixture.response "1" ConformanceFixture.claims
+            edge.Send reply
+            ConformanceFixture.wait pending |> ignore
+            let snapshot = (ConformanceFixture.control edge.Session).Snapshot()
+            for body in ConformanceFixture.prepared edge.Session @ ConformanceFixture.inbound edge.Session do Array.fill body 0 body.Length 0uy
+            Expect.equal (ConformanceFixture.prepared edge.Session) [sent] "Snapshot owns outbound copies"
+            Expect.equal (ConformanceFixture.inbound edge.Session) [reply] "Snapshot owns inbound copies"
+            let sequences = snapshot.Events |> Seq.map _.Sequence |> List.ofSeq
+            Expect.equal sequences (List.sort sequences |> List.distinct) "Strict monotonic sequence"
+
+        for events, payload in [0, 1L; -1, 1L; 1, 0L; 1, -1L] do
+            testCase $"nonpositive capture budget {events}/{payload} is rejected" <| fun _ ->
+                Expect.throwsT<ArgumentException> (fun () -> ConformanceEvidenceLimits.Create(events, payload) |> ignore) "Admission refuses invalid bounds"
+
+        testCase "event overflow closes capture instead of silently dropping evidence" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge(budget = ConformanceEvidenceLimits.Create(1, 1048576L))
+            let pending = edge.Session.DescribeAsync CancellationToken.None
+            ConformanceFixture.wait pending |> ignore
+            let snapshot = (ConformanceFixture.control edge.Session).Snapshot()
+            Expect.isFalse snapshot.IsComplete "Overflow is sticky incomplete"
+            let before = ConformanceFixture.prepared edge.Session
+            Expect.isError (ConformanceFixture.wait (edge.Session.DescribeAsync CancellationToken.None)) "Fails closed"
+            Expect.equal (ConformanceFixture.prepared edge.Session) before "No later submission"
+
+        testCase "payload overflow fails before a body over the remaining budget is submitted" <| fun _ ->
+            use edge = new ConformanceFixture.StreamEdge(budget = ConformanceEvidenceLimits.Create(512, 1L))
+            ConformanceFixture.wait (edge.Session.DescribeAsync CancellationToken.None) |> ignore
+            Expect.isFalse ((ConformanceFixture.control edge.Session).Snapshot().IsComplete) "Cannot retain the prepared body"
+            Expect.isEmpty (ConformanceFixture.prepared edge.Session) "No truncated body masquerades as complete evidence"
+    ]
