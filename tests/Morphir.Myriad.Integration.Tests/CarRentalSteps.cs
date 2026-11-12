@@ -17,16 +17,22 @@ public sealed class CarRentalSteps
     private sealed class DotnetFailureException(string message) : Exception(message);
     private sealed record PackageArtifact(string Feed, string Version);
 
+    /// <summary>
+    /// The configuration of this test assembly, from its folder bin/&lt;configuration&gt;/&lt;framework&gt;/. The project
+    /// reference in the test project builds Morphir.Myriad in the same configuration.
+    /// </summary>
+    private static readonly string Configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent?.Name ?? "Debug";
+
     private static async Task<PackageArtifact> PackPlugin()
     {
         var root = FindRoot();
         var feed = Path.Combine(packageWorkspace, "feed");
         var version = "0.1.0-test." + Guid.NewGuid().ToString("N");
-        // --no-build: the project reference in the test project builds Morphir.Myriad first. A pack that builds
+        // --no-build: the build of this test project built Morphir.Myriad in this configuration. A pack that builds
         // with this PackageVersion replaces the assemblies of the solution build in obj and bin, the next build
         // compiles them and their users again, and test assemblies that run at the same time write the same files.
         await Run(root, "pack", Path.Combine(root, "src", "Morphir.Myriad", "Morphir.Myriad.fsproj"),
-            "-c", "Release", "--no-build", "-o", feed, "-p:PackageVersion=" + version);
+            "-c", Configuration, "--no-build", "-o", feed, "-p:PackageVersion=" + version);
         return new PackageArtifact(feed, version);
     }
 

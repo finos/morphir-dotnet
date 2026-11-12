@@ -117,14 +117,16 @@ partial class Build
     {
         // --no-build: Compile made the assemblies. A pack that builds with the PackageVersion of the scripts changes
         // the assembly information of the packed projects, and then the next Compile builds the solution again.
+        // The scripts pack the Release configuration, so with another configuration they must build.
+        string[] noBuild = Configuration == "Release" ? ["--no-build"] : [];
         var script = TestsDirectory / "Morphir.Myriad.Tests" / "package-tests.fsx";
-        if (RunCommand("dotnet", "fsi", script, "--no-build") != 0)
+        if (RunCommand("dotnet", ["fsi", script, .. noBuild]) != 0)
         {
             throw new Exception("Myriad package-consumer checks failed");
         }
 
         var jsonScript = TestsDirectory / "Morphir.Myriad.SystemTextJson.Tests" / "package-tests.fsx";
-        if (RunCommand("dotnet", "fsi", jsonScript, "--no-build") != 0)
+        if (RunCommand("dotnet", ["fsi", jsonScript, .. noBuild]) != 0)
         {
             throw new Exception("Morphir.Myriad.SystemTextJson package-consumer checks failed");
         }
