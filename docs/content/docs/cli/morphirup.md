@@ -19,7 +19,7 @@ authenticate a publisher. Contributor status and the remaining integration bound
 
 ## Download and verify
 
-Releases of morphir-dotnet attach `morphirup` for four platforms, beside the `morphir` assets on the
+Releases of morphir-dotnet attach `morphirup` for five platforms, beside the `morphir` assets on the
 [releases page](https://github.com/finos/morphir-dotnet/releases):
 
 | Platform | Executable | Archive |
@@ -27,6 +27,7 @@ Releases of morphir-dotnet attach `morphirup` for four platforms, beside the `mo
 | Linux glibc x64 | `morphirup-linux-x64` | `morphirup-linux-x64-v<version>.tar.gz` |
 | Linux glibc ARM64 | `morphirup-linux-arm64` | `morphirup-linux-arm64-v<version>.tar.gz` |
 | Windows x64 | `morphirup-win-x64.exe` | `morphirup-win-x64-v<version>.tar.gz` |
+| Windows ARM64 | `morphirup-win-arm64.exe` | `morphirup-win-arm64-v<version>.tar.gz` |
 | macOS ARM64 | `morphirup-osx-arm64` | `morphirup-osx-arm64-v<version>.tar.gz` |
 
 A Linux executable needs glibc 2.35 or later from the machine, which Ubuntu 22.04, Debian 12 and later releases of both
@@ -34,6 +35,12 @@ have, and nothing else: no .NET, no ICU and no OpenSSL. It does not run on musl 
 macOS executable needs macOS 12.0 or later: that is the minimum its `LC_BUILD_VERSION` load command declares, as the
 release job logged for `v0.4.0-alpha.4`. The job checks the executable only on the runner's macOS (macOS 26), not on
 macOS 12.
+
+The Windows ARM64 executable is built and checked on the GitHub-hosted Windows 11 ARM64 runner, natively, not
+cross-built on x64. Releases before the first one that lists it have no `win-arm64` files. The explicit local developer
+journey ([Local morphirup candidate]({{< relref "/docs/getting-started/local-morphirup-candidate" >}}): `setup
+--local-developer`, `select`, `use` and `run`) is still for the Windows x64 manager only; on Windows ARM64 it refuses
+with `local.platform_mismatch`, because its local-toolchains `0.1.0-preview.1` documents admit only `win-x64`.
 
 Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`, with the repository's
 `LICENSE` and `NOTICE` and the executable's `THIRD-PARTY-NOTICES.txt` beside it. The release also carries that file as
@@ -258,7 +265,7 @@ No `morphirup` command uses any of this yet. Nothing downloads anything, and not
 A provider's claims say what its publisher claims the artifact does. Checking that they name the provider's capability, MEP version, language or target and model tuple is not running the artifact. A recipe digest authenticates the bytes; the descriptor's `claimCheck` says whether anyone ran them to read the claims. The two are kept apart, and a recipe never changes `claimCheck`.
 ## Platforms and prerequisites
 
-`morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure. These are the platforms it can plan for; releases publish the executable for four of them, listed under [Download and verify](#download-and-verify).
+`morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure. These are the platforms it can plan for; releases publish the executable for five of them, listed under [Download and verify](#download-and-verify).
 
 The executable needs no .NET runtime, no ICU and no OpenSSL: it is built in invariant globalization mode, it normalizes strings for the plan digest to NFC with its own Unicode 17.0.0 tables, and it computes SHA-256 with BouncyCastle's managed implementation. So it runs on a Linux machine without the `libicu` or `libssl` packages, and a plan digest is the same whatever Unicode version the machine has.
 

@@ -2,7 +2,7 @@ name: "morphirup"
 
 # Proves the morphirup release path on a pull request that can change it: the same build-and-check definition that the
 # release workflow runs (morphirup-build.yml), for every platform that releases build, then the checksum file over the
-# assets of all four. The development workflow has no path filters, so this check lives in its own workflow.
+# assets of all of them. The development workflow has no path filters, so this check lives in its own workflow.
 
 on:
     pull_request:
@@ -37,6 +37,7 @@ jobs:
                     - { rid: linux-x64, os: ubuntu-latest }
                     - { rid: linux-arm64, os: ubuntu-24.04-arm }
                     - { rid: win-x64, os: windows-latest }
+                    - { rid: win-arm64, os: windows-11-arm }
                     - { rid: osx-arm64, os: macos-latest }
         uses: ./.github/workflows/morphirup-build.yml
         with:

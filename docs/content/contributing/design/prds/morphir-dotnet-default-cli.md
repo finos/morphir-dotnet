@@ -106,7 +106,7 @@ Parity is not one large change. Each increment is a set of small changes. Each c
 | 1. Compile and generate loop | `compile` (F# frontend, IR writers, `--json-lines`, task records); `generate` reads a prior compile; first MCK suite | add-fsharp-compile | PC-1 (first suite), PC-2, PC-5 (frontend), PC-6, PC-7 |
 | 2. Kit and oracle | `mck run`, `report-check`, `list`; a cold-start benchmark; suites run against the Rust CLI | establish-morphir-compatibility-kit | PC-1, PC-3 |
 | 3. Core user commands | `version`; `ir migrate` / `migrate`; `validate` and `schema`; `generate` targets and options from `[codegen]` | One change for each command family (not yet proposed) | PC-1, PC-9 |
-| 4. Release reach | The win-arm64 build; monthly signed releases | Release workflow change (not yet proposed) | PC-4, PC-10 |
+| 4. Release reach | The win-arm64 build; monthly signed releases | Release workflow change: win-arm64 added to the release matrices (12 November 2026); signed monthly releases not yet proposed | PC-4, PC-10 |
 | 5. Ecosystem acquisition | `extension`, `tool` and `dist` verbs; MEP backend hosting (`generateModel`) | One change for each (not yet proposed) | PC-5, PC-8 |
 | Later, one at a time | `cache`, `diagnostics`, `eval`, `package`, `metadata`, `decoration`; `itest` folded into `mck` | Prioritized by user need | PC-9 (tracking only) |
 | Separate decision | `ui`, `desktop`, `playground` | Open question 4 | — |
@@ -122,7 +122,7 @@ morphir-dotnet can be proposed as the default only when every criterion below pa
 | PC-1 | MCK conformance | 100% of the required cases pass for each suite the CLI claims, with no unexplained skips. The same suites run against the Rust CLI, and both results are published. | establish-morphir-compatibility-kit. add-fsharp-compile provides the first suite (F# compile and IR writing). |
 | PC-2 | Native AOT size | Single-file executable of 12 MB or less for each release RID (the repository target for a feature-rich CLI is 8–12 MB). No new trimming or AOT warnings in shipped assemblies. FSharp.Compiler.Service is not in the closure of the AOT executable. | add-fsharp-compile task 9.4, then every release. |
 | PC-3 | Cold start | Median cold start of `morphir --version` and `morphir config show --json` is 100 ms or less, and no more than 2× the Rust CLI on the same machine. | A benchmark task in establish-morphir-compatibility-kit, or a separate change. |
-| PC-4 | Platform matrix | A published, smoke-tested executable for every upstream release target: linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64, win-arm64. morphir-dotnet does not publish win-arm64 today. | Release workflow change (not yet proposed). |
+| PC-4 | Platform matrix | A published, smoke-tested executable for every upstream release target: linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64, win-arm64. The release matrices build win-arm64 on the hosted Windows 11 ARM64 runner (maintainer decision, 12 November 2026); no published release has it yet, and osx-x64 is still not built. | Release workflow change. |
 | PC-5 | MEP host coverage | The MCK host suite passes for MEP `0.2.0-draft.1`: frontend `compileModel` (add-fsharp-compile), backend `generateModel`, and at least one upstream guest run through the .NET host. | add-fsharp-compile (frontend). Backend hosting is not yet proposed. |
 | PC-6 | Output contracts | Stdout carries data only. `--json` writes one document. `--json-lines` writes one record per event and ends with one `completed` record. Exit codes are 0, 1, 2 and 130. All of this is verified by the MCK CLI suite. | add-fsharp-compile (STRM-2). establish-morphir-compatibility-kit (CLI suite). |
 | PC-7 | Task-record interop | The .NET and Rust CLIs read each other's `.morphir/out` compile records in both directions (compile with one CLI, generate with the other), with locks respected. | add-fsharp-compile (compile-task-records). |
@@ -146,7 +146,7 @@ morphir-dotnet can be proposed as the default only when every criterion below pa
 | F# compile steel thread (first proof point) | Planned | add-fsharp-compile | — |
 | MCK home and oracle | Planned | establish-morphir-compatibility-kit | — |
 | Cold-start benchmark (PC-3) | Not started | — | — |
-| win-arm64 release (PC-4) | Not started | — | — |
+| win-arm64 release (PC-4) | In progress | Release matrices of `deployment.yml`, `morphirup.yml`; official CLI in finos/morphir | Source and workflow change; no release published with it yet |
 | Increment 3: core user commands (PC-9) | Not started | One change for each command family | `version`, `ir`/`migrate`, `validate`, `schema`, `[codegen]` targets |
 | Increment 5: ecosystem acquisition (PC-5, PC-8) | Not started | One change for each | `extension`, `tool`, `dist`; MEP backend hosting |
 | Later commands (PC-9 tracking) | Not started | One change each, by user need | `cache`, `diagnostics`, `eval`, `package`, `metadata`, `decoration`; `itest` into `mck` |

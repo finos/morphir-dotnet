@@ -7,6 +7,20 @@ mod tests;
 
 static NAME: &str = "Morphir";
 
+/// The runtime identifier in `morphir-{rid}-v{version}.tar.gz` for a host, or `None` for a host the plugin does not
+/// support.
+pub(crate) fn platform_rid(os: HostOS, arch: HostArch) -> Option<&'static str> {
+    match (os, arch) {
+        (HostOS::Linux, HostArch::X64) => Some("linux-x64"),
+        (HostOS::Linux, HostArch::Arm64) => Some("linux-arm64"),
+        (HostOS::MacOS, HostArch::X64) => Some("osx-x64"),
+        (HostOS::MacOS, HostArch::Arm64) => Some("osx-arm64"),
+        (HostOS::Windows, HostArch::X64) => Some("win-x64"),
+        (HostOS::Windows, HostArch::Arm64) => Some("win-arm64"),
+        _ => None,
+    }
+}
+
 /// Register the Morphir tool with proto
 #[plugin_fn]
 pub fn register_tool(Json(_): Json<RegisterToolInput>) -> FnResult<Json<RegisterToolOutput>> {
@@ -65,13 +79,9 @@ pub fn download_prebuilt(
     let env = get_host_environment()?;
 
     // Determine the platform-specific executable name and RID
-    let rid = match (env.os, env.arch) {
-        (HostOS::Linux, HostArch::X64) => "linux-x64",
-        (HostOS::Linux, HostArch::Arm64) => "linux-arm64",
-        (HostOS::MacOS, HostArch::X64) => "osx-x64",
-        (HostOS::MacOS, HostArch::Arm64) => "osx-arm64",
-        (HostOS::Windows, HostArch::X64) => "win-x64",
-        _ => {
+    let rid = match platform_rid(env.os, env.arch) {
+        Some(rid) => rid,
+        None => {
             return Err(plugin_err!("Unsupported platform: {} {}", env.os, env.arch));
         }
     };

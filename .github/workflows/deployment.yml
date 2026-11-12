@@ -106,6 +106,9 @@ jobs:
                       os: ubuntu-24.04-arm
                     - rid: win-x64
                       os: windows-latest
+                    # The hosted Windows 11 ARM64 runner: win-arm64 is built and tested natively, not cross-built on x64.
+                    - rid: win-arm64
+                      os: windows-11-arm
                     - rid: osx-arm64
                       os: macos-latest
         runs-on: ${{ matrix.os }}
@@ -130,6 +133,11 @@ jobs:
                   key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
                   restore-keys: |
                       ${{ runner.os }}-nuget
+
+            # Fails unless the runner and its .NET SDK are native for the RID, and logs the machine that builds it.
+            - name: Check the build machine for ${{ matrix.rid }}
+              shell: bash
+              run: ./build.sh --target CheckBuildMachine --rid ${{ matrix.rid }}
 
             - name: Restore dependencies
               shell: bash
@@ -163,6 +171,7 @@ jobs:
                     - { rid: linux-x64, os: ubuntu-latest }
                     - { rid: linux-arm64, os: ubuntu-24.04-arm }
                     - { rid: win-x64, os: windows-latest }
+                    - { rid: win-arm64, os: windows-11-arm }
                     - { rid: osx-arm64, os: macos-latest }
         uses: ./.github/workflows/morphirup-build.yml
         with:
@@ -305,7 +314,7 @@ jobs:
                   # For each platform publish the bare executable and a proto tarball.
                   # The proto plugin downloads morphir-{rid}-v{version}.tar.gz and strips
                   # the {rid}/ prefix (archive_prefix), so the executable must sit under it.
-                  for rid in linux-x64 linux-arm64 win-x64 osx-arm64; do
+                  for rid in linux-x64 linux-arm64 win-x64 win-arm64 osx-arm64; do
                     artifact_dir="./artifacts/executables/morphir-$rid"
                     if [ -f "$artifact_dir/morphir" ]; then
                       exe=morphir; suffix=""

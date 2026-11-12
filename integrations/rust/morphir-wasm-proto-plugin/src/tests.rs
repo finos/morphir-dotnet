@@ -100,6 +100,23 @@ mod tests {
             };
             assert_eq!(rid, "win-x64");
         }
+
+        // The mapping that download_prebuilt uses.
+        #[test]
+        fn test_platform_rid_maps_every_released_host() {
+            use crate::platform_rid;
+            assert_eq!(platform_rid(HostOS::Linux, HostArch::X64), Some("linux-x64"));
+            assert_eq!(platform_rid(HostOS::Linux, HostArch::Arm64), Some("linux-arm64"));
+            assert_eq!(platform_rid(HostOS::MacOS, HostArch::X64), Some("osx-x64"));
+            assert_eq!(platform_rid(HostOS::MacOS, HostArch::Arm64), Some("osx-arm64"));
+            assert_eq!(platform_rid(HostOS::Windows, HostArch::X64), Some("win-x64"));
+            assert_eq!(platform_rid(HostOS::Windows, HostArch::Arm64), Some("win-arm64"));
+        }
+
+        #[test]
+        fn test_platform_rid_refuses_an_unsupported_host() {
+            assert_eq!(crate::platform_rid(HostOS::Windows, HostArch::X86), None);
+        }
     }
 
     // Tests for URL generation

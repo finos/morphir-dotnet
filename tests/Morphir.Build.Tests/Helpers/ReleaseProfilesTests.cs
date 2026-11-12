@@ -201,9 +201,11 @@ public class ReleaseProfilesTests
     {
         var legacy = LegacyAsset.TrimmedSingleFile;
         legacy.ExecutableName("win-x64").Should().Be("morphir-win-x64.exe");
+        legacy.ExecutableName("win-arm64").Should().Be("morphir-win-arm64.exe");
         legacy.ExecutableName("linux-arm64").Should().Be("morphir-linux-arm64");
         legacy.TarballName("osx-arm64", "0.4.0-alpha.3").Should().Be("morphir-osx-arm64-v0.4.0-alpha.3.tar.gz");
-        legacy.ReleasedPlatforms.Select(platform => platform.Rid).Should().Equal("win-x64", "osx-arm64", "linux-x64", "linux-arm64");
+        legacy.TarballName("win-arm64", "0.4.0-alpha.3").Should().Be("morphir-win-arm64-v0.4.0-alpha.3.tar.gz");
+        legacy.ReleasedPlatforms.Select(platform => platform.Rid).Should().Equal("win-x64", "win-arm64", "osx-arm64", "linux-x64", "linux-arm64");
 
         // The same settings as the PublishSingleFile target that releases have used.
         legacy.Project.Should().Be("src/Morphir/Morphir.csproj");
