@@ -57,7 +57,7 @@ let private tinyBundle () =
         "assets",Value.Array(List.map asset ReleaseBundleDocument.roles)] |> JsonText.toBytes
 
 [<Tests>]
-let publicationLocks = testList "ComposedPublicationLocks" [
+let publicationLocks = testLabel "PlatformSpecific" <| testList "ComposedPublicationLocks" [
     testCaseTask "running host captures state while publication waits for its mutation lease" (fun () -> task {
         use sandbox = TestSandbox.Create()
         use root = Morphir.Extensions.Installation.SafeDirectory.Open(Path.Combine(sandbox.Work,"home"),true)
@@ -124,7 +124,7 @@ let publicationLocks = testList "ComposedPublicationLocks" [
 ]
 
 [<Tests>]
-let tests = testList "WindowsReleaseSetup" [
+let tests = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
     testCaseTask "wrong release checksum refuses before Home, staging or installation" (fun () -> task {
         use sandbox = TestSandbox.Create()
         let raw = tinyBundle ()
@@ -194,7 +194,7 @@ let tests = testList "WindowsReleaseSetup" [
 
 /// The producer supplies actual full folders, archives and metadata. No test creates executable substitutes.
 [<Tests>]
-let acquiredJourney = testList "WindowsReleaseSetup" [testCaseTask "actual installed release setup and offline process workflow" (fun () -> task {
+let acquiredJourney = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [testCaseTask "actual installed release setup and offline process workflow" (fun () -> task {
     let folder = Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_ASSETS" |> Option.ofObj |> Option.defaultWith(fun () -> skiptest "Actual PackWindowsToolchain assets were not supplied.")
     let platform =
         match OperatingSystem.IsWindows(),RuntimeInformation.ProcessArchitecture with

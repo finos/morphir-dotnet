@@ -9,6 +9,7 @@ using TUnit.Core;
 
 namespace Morphir.Build.Tests;
 
+[Category("PlatformSpecific")]
 public class ExtensionProcessProducerTests
 {
     [Test]

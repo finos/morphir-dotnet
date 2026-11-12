@@ -274,7 +274,7 @@ jobs:
                   $runner = 'tests/Morphir.Toolchain.Tests/bin/Release/net11.0/Morphir.Toolchain.Tests.dll'
                   $listed = @(dotnet $runner --filter-test-list WindowsReleaseSetup --list-tests --join-with / --colours 0)
                   if ($LASTEXITCODE) { exit $LASTEXITCODE }
-                  $expected = @($listed | Where-Object { $_ -match '^WindowsReleaseSetup/' }).Count
+                  $expected = @($listed | Where-Object { $_ -match '(^|/)WindowsReleaseSetup/' }).Count
                   if ($expected -le 0) { throw 'No setup tests were discovered.' }
                   dotnet $runner --filter-test-list WindowsReleaseSetup --sequenced --colours 0 2>&1 | Tee-Object -FilePath artifacts/windows-setup-tests.log
                   if ($LASTEXITCODE) { exit $LASTEXITCODE }

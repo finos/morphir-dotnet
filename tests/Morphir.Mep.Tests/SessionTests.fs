@@ -197,6 +197,7 @@ let tests =
               let entries = read "lifecycle-violations.md"
               let guest = replay entries Set.empty
               Expect.equal guest.State SessionState.Exited "Exit ends the session"
+          |> testLabel "PlatformSpecific"
 
           testCase "the capabilities that lifecycle-violations.md did not advertise are refused"
           <| fun _ ->
@@ -208,11 +209,13 @@ let tests =
                   match Lifecycle.admit guest.State method.WireValue method.Kind with
                   | Admission.Refuse error -> Expect.equal error.Code -32013 $"{method} is not advertised"
                   | Admission.Proceed -> failtest $"{method} must be refused"
+          |> testLabel "PlatformSpecific"
 
           testCase "replay of protocol-errors.md"
           <| fun _ ->
               // Entries 5 and 6 need the compile request type, which belongs to add-fsharp-compile, not to the core.
               replay (read "protocol-errors.md") (Set.ofList [ 5 ]) |> ignore
+          |> testLabel "PlatformSpecific"
 
           testCase "replies with a wrong or unknown id are protocol diagnostics of the host connection"
           <| fun _ ->
@@ -254,6 +257,7 @@ let tests =
                   [ ConnectionDiagnostic.UnsolicitedResponse(Some(RequestId.Number 30UL))
                     ConnectionDiagnostic.UnsolicitedResponse(Some(RequestId.Number 99UL)) ]
                   "Entries 8 and 9"
+          |> testLabel "PlatformSpecific"
 
           testCase "a second initialize fails and leaves the session initialized"
           <| fun _ ->
@@ -272,6 +276,7 @@ let tests =
               match guest.State with
               | SessionState.Initialized _ -> ()
               | other -> failtest $"Still initialized, not {other}"
+          |> testLabel "PlatformSpecific"
 
           testCase "a legacy-only host gets -32011, and a later initialize succeeds"
           <| fun _ ->
@@ -287,6 +292,7 @@ let tests =
                   "The versions of both peers, as the Rust guest sends them"
               Expect.equal guest.State SessionState.Created "Still uninitialized"
               Expect.isNone (dispatch guest entries[0].Text |> Option.get |> code) "Then initialize succeeds"
+          |> testLabel "PlatformSpecific"
 
           testCase "the host offers only 0.2.0-draft.1"
           <| fun _ -> Expect.equal (Lifecycle.protocolVersions |> List.ofSeq |> List.map string) [ "0.2.0-draft.1" ] "No 0.1"
@@ -351,7 +357,8 @@ let tests =
               Expect.equal ((replies[2]["result"] |> nonNull).ToJsonString()) """{"ok":true}""" "ping result"
               Expect.equal ((replies[5]["result"] |> nonNull).ToJsonString()) "{}" "shutdown result"
               Expect.isTrue (JsonNode.DeepEquals(sent[7], entries[entries.Length - 1].Node)) "exit notification"
-              Expect.equal replies.Length 6 "One reply for each request, none for notifications" ]
+              Expect.equal replies.Length 6 "One reply for each request, none for notifications"
+          |> testLabel "PlatformSpecific" ]
 
 // Tests only. Synthetic adapter messages cannot establish inner-WASM delivery, process exit or stdout EOF.
 [<Tests>]

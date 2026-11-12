@@ -151,6 +151,7 @@ let tests =
             match withinBudget 10.0 "the candidate rule over 10,000 offerings and operations" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Operations.Length 10_000 "every operation"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testLabel "PlatformSpecific"
 
         testCase "the candidate rule is linear in offerings times unfit providers (shape B)" (fun () ->
             let bytes = candidateShape 'B' 10_000
@@ -159,6 +160,7 @@ let tests =
             match withinBudget 10.0 "the candidate rule over 10,000 offerings and unfit providers" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Providers.Length 10_001 "every provider"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testLabel "PlatformSpecific"
 
         testCase "an operation one offering cannot perform is still refused" (fun () ->
             // Control: the classes of offerings must not hide one that no candidate fits.
@@ -170,6 +172,7 @@ let tests =
             match RecipeDocument.read (Canonical.bytes edited |> ok "canonical") with
             | Error refusal -> Expect.equal (refusal.Code, DocumentPath.render refusal.Path) (ReaderCode.InconsistentDocument, "operations[0]") "no candidate fits"
             | Ok _ -> failtest "an offering without a candidate was read")
+        |> testLabel "PlatformSpecific"
         testCase "a recipe of 100,000 operations is refused in linear time" (fun () ->
             // The repeated-operation check compared each operation with every earlier one.
             let recipe = parsed (Fixtures.bytes "recipe/fsharp-synthetic.json")
@@ -181,6 +184,7 @@ let tests =
                 // No offering performs l1, so the candidate rule refuses it, after the repetition check has run.
                 Expect.equal (refusal.Code, DocumentPath.render refusal.Path) (ReaderCode.InconsistentDocument, "operations[0]") "no candidate"
             | Ok _ -> failtest "an operation without a candidate was read")
+        |> testLabel "PlatformSpecific"
 
         testCase "a recipe of 1,000 unfit providers and 100,000 MEP versions is read in linear time" (fun () ->
             // Every fit check scanned the offering's MEP versions.
@@ -198,6 +202,7 @@ let tests =
             match withinBudget 20.0 "reading 1,000 unfit providers" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Providers.Length 1_003 "every provider"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testLabel "PlatformSpecific"
 
         testCase "a request of 100,000 provider choices reads in linear time" (fun () ->
             let bytes = requestFor 100_000
@@ -232,6 +237,7 @@ let tests =
                 let read = ResultDocument.read (JsonText.toBytes (ResultDocument.value result)) |> ok "the result reads"
                 Expect.isSome read.Plan "the plan reads back against its lock")
             |> ignore)
+        |> testLabel "PlatformSpecific"
 
         testCase "a lock whose closure has 100,000 providers reads in linear time" (fun () ->
             let lock = parsed (Fixtures.bytes "lock/built-in-frontend.json")
@@ -250,6 +256,7 @@ let tests =
             match withinBudget 20.0 "reading 100,000 locked providers" (fun () -> LockDocument.read bytes) with
             | Ok lock -> Expect.equal (lock.Platforms.Items.Head |> snd).Providers.Length 100_000 "every provider"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testLabel "PlatformSpecific"
         testCase "a recipe offering with 100,000 MEP versions reads in linear time" (fun () ->
             // Review of #582, R1: the duplicate check compared each element with every earlier one.
             let bytes = recipeWithEntries "protocolVersions" (fun i -> $"0.2.0-{i}") 100_000
@@ -258,6 +265,7 @@ let tests =
             match withinBudget 20.0 "reading 100,000 protocolVersions" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Hosts.Head.ProtocolVersions.Length 100_001 "every version"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testLabel "PlatformSpecific"
 
         testCase "a recipe offering with 100,000 WASM ABIs reads in linear time" (fun () ->
             let bytes = recipeWithEntries "wasmAbis" (fun i -> $"abi-{i}") 100_000
@@ -265,6 +273,7 @@ let tests =
             match withinBudget 20.0 "reading 100,000 wasmAbis" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Hosts.Head.WasmAbis.Length 100_000 "every ABI"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testLabel "PlatformSpecific"
 
         testCase "a repeated entry among 100,000 is still refused at the repetition" (fun () ->
             let bytes = recipeWithEntries "protocolVersions" (fun i -> if i = 100_000 then "0.2.0-1" else $"0.2.0-{i}") 100_000
@@ -276,6 +285,7 @@ let tests =
                     (ReaderCode.InconsistentDocument, "hosts[0].protocolVersions[99999]")
                     "the repetition"
             | Ok _ -> failtest "a repeated version was read")
+        |> testLabel "PlatformSpecific"
         testList "a refused critical path is reported exactly as written" [
             for critical in [ ".host"; "..x"; "host."; "a..b"; "platforms.*.unknownMember" ] ->
                 testCase critical (fun () ->
@@ -284,6 +294,7 @@ let tests =
                         ("unsupported_critical_member", critical)
                         "the diagnostic path is the critical entry")
         ]
+        |> testLabel "PlatformSpecific"
 
         testList "a result's diagnostic path round-trips exactly" [
             for path in [ ".x"; "a..b"; "providers[0].identity"; "x."; "" ] ->
@@ -323,6 +334,7 @@ let tests =
                     approved
                     + $"\nnote = \"{deep}\"\nliteral = '{deep}'\nmulti = \"\"\"\n{deep}\"\"\"\"\nraw = '''{deep}'''\n# {deep}\n"
                 Expect.isOk (RequestDocument.read (Encoding.UTF8.GetBytes(text.Replace("[host]", "x = 1\n[host]")))) "a valid request")
+            |> testLabel "PlatformSpecific"
         ]
         testCase "U+FFFE, which string.Normalize refuses, is its own NFC and never stops a document" (fun () ->
             let noncharacter = string (char 0xFFFE)
@@ -363,6 +375,7 @@ let tests =
                     testCase $"{name} in a receipt" (fun () ->
                         refusedAt ReceiptDocument.read (withMember "receipt/win-x64-qualified.json" name value) $"providers[1].identity.{name}")
         ]
+        |> testLabel "PlatformSpecific"
         testCase "a host plan component whose source names another artifact is inconsistent_document at source.target" (fun () ->
             // manager-result.md: the host component's source target is that platform's host artifact, at source.target.
             let text = Encoding.UTF8.GetString(Fixtures.bytes "result/setup-plan.json")
@@ -379,6 +392,7 @@ let tests =
                     (ReaderCode.InconsistentDocument, "plan.components[0].source.target")
                     "refused at the host's source target"
             | Ok _ -> failtest "a host source naming another artifact was read")
+        |> testLabel "PlatformSpecific"
         testCase "a host plan source with the right target and another digest is inconsistent_document at source.sha256" (fun () ->
             // Review of #582, R5: the contract author decided the target is checked first, at source.target, then the
             // digest, at source.sha256: the coming case result/negative/plan-host-source-other-digest.json.
@@ -395,6 +409,7 @@ let tests =
                     (ReaderCode.InconsistentDocument, "plan.components[0].source.sha256")
                     "refused at the host's source digest"
             | Ok _ -> failtest "a host source naming another digest was read")
+        |> testLabel "PlatformSpecific"
         testCase "a host plan component with a recipe-digest source is inconsistent_document at its source" (fun () ->
             // manager-result.md: a host's source is repository-target or external-owner. No fixture pins recipe-digest.
             let text = Encoding.UTF8.GetString(Fixtures.bytes "result/setup-plan.json")
@@ -409,6 +424,7 @@ let tests =
                     (ReaderCode.InconsistentDocument, "plan.components[0].source")
                     "refused at the host's source"
             | Ok _ -> failtest "a host authenticated by the recipe's digest was read")
+        |> testLabel "PlatformSpecific"
         testCase "only the exact draft text is supported; build metadata is refused" (fun () ->
             Expect.equal (ContractVersion.check "0.1.0-draft.1") (Ok()) "the draft"
             Expect.equal (ContractVersion.check "0.1.0-draft.1+meta") (Error ReaderCode.UnsupportedContractVersion) "build metadata"
@@ -431,6 +447,7 @@ let tests =
                   "https://mirror.example.invalid/#top", Error ReaderCode.CredentialInDocument ] ->
                 testCase text (fun () -> Expect.equal (Mirror.tryParse text |> Result.map ignore) expected text)
         ]
+        |> testLabel "PlatformSpecific"
     ]
 
 let private withoutMember (name: string) (value: Value) =
@@ -583,3 +600,4 @@ let distinctClassTests =
                 let recipe = { signed with Hosts = hosts; Providers = providers }
                 Expect.equal (RecipeDocument.firstUnperformed recipe) (referenceUnperformed recipe) $"trial {trial}")
     ]
+    |> testLabel "PlatformSpecific"

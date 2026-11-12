@@ -8,6 +8,7 @@ using Morphir.Tooling.Features.Compile;
 namespace Morphir.Tooling.Tests.Features.Compile;
 
 /// <summary>Task 4.2: compile settings precedence, origins and exact format versions (CLI-1, VER-1, SRC-2).</summary>
+[Category("PlatformSpecific")]
 public sealed class CompileSettingsResolverTests
 {
     private static readonly ProjectCompileSettingsResolver Resolver = new();

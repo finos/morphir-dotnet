@@ -14,6 +14,7 @@ namespace Morphir.Tooling.Tests.Features.Validate;
 /// Every command in docs/content/docs/cli/validate.md runs against the test fixtures, and its documented output is the
 /// real output. <c>model.json</c> in the page is the classic fixture with a type mismatch.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed partial class ValidateDocumentationTests
 {
     private static readonly string Model = ModelValidationTests.Fixture("daily-rate-mismatch-v3.json");

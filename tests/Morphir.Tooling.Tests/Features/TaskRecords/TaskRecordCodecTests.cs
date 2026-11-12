@@ -15,6 +15,7 @@ namespace Morphir.Tooling.Tests.Features.TaskRecords;
 /// Spec: compile-task-records, "Records follow the ecosystem schema". The oracle is the record example
 /// pinned from finos/morphir (tests/Fixtures/MorphirOut), never output of this codec.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class TaskRecordCodecTests
 {
     private static string UpstreamRecordText() =>

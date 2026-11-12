@@ -5,6 +5,7 @@ using FluentAssertions;
 
 namespace Morphir.Configuration.IO.Tests;
 
+[Category("PlatformSpecific")]
 public sealed class Json5ConformanceTests
 {
     [Test]

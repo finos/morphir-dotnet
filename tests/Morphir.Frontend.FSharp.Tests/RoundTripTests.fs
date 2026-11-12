@@ -117,3 +117,4 @@ let tests =
                 failtestf "%d round trip(s) fail:\n%s" failures.Length (String.concat "\n" failures)
         }
     ]
+    |> testLabel "PlatformSpecific"

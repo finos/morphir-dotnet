@@ -337,6 +337,7 @@ let tests =
                 let _, rewritten = writeRead written
                 Expect.sequenceEqual rewritten written "writing is deterministic and stable"
             }
+            |> testLabel "PlatformSpecific"
 
         test "the version-spelling scenario" {
             let text profile =
@@ -376,6 +377,7 @@ let tests =
                 Expect.equal (readNormalized indented) (readNormalized compact) "same model"
             | _ -> failtest "write failed"
         }
+        |> testLabel "PlatformSpecific"
 
         test "a Specs distribution is refused" {
             let specs: Distribution<unit, Type<unit>> =

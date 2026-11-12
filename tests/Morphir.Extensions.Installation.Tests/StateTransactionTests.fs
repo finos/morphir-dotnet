@@ -52,7 +52,7 @@ let emptyCatalog =
 
 [<Tests>]
 let readers =
-    testList "StateReaders" [
+    testLabel "PlatformSpecific" <| testList "StateReaders" [
         test "valid published catalog and lock have consistent bindings" {
             let catalog =
                 StateDocuments.readCatalog (bytes (sample "catalog.schema.json"))
@@ -207,7 +207,7 @@ let readers =
 
 [<Tests>]
 let transactions =
-    testList "StateTransactions" [
+    testLabel "PlatformSpecific" <| testList "StateTransactions" [
         test "transaction preserves an identical-byte substituted journal identity" {
             use sandbox = TestSandbox.Create()
             let root = home sandbox
@@ -491,7 +491,7 @@ let corpus =
         |> Seq.map (fun value -> value.Clone())
         |> Seq.toList
 
-    testList "StateCorpus" [
+    testLabel "PlatformSpecific" <| testList "StateCorpus" [
         for case in cases do
             let input = case.GetProperty "input"
             let mutable operation = Unchecked.defaultof<JsonElement>

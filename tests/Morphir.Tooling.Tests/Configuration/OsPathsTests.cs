@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace Morphir.Tooling.Tests.Configuration;
 
+[Category("PlatformSpecific")]
 public class OsPathsTests
 {
     [Test]

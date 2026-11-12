@@ -24,6 +24,7 @@ public class GenerationSettingsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task RelativePathsUseTheInvocationAndRequireNoProject()
     {
         var result = await Resolve(Valid);

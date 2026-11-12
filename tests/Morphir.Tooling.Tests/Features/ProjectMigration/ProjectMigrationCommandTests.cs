@@ -53,6 +53,7 @@ public sealed class ProjectMigrationCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void ArgumentsBindWithoutReadingAmbientConfiguration()
     {
         var host = new ObservingHost();
@@ -67,6 +68,7 @@ public sealed class ProjectMigrationCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void BoundaryThatExcludesTheCurrentDirectoryFailsBeforeHostAccess()
     {
         var host = new ObservingHost();
@@ -90,6 +92,7 @@ public sealed class ProjectMigrationCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void HostIoFailureReturnsAControlledResult()
     {
         var host = new ObservingHost { Fail = true };

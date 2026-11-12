@@ -12,7 +12,7 @@ open IoTestSupport
 
 [<Tests>]
 let tests =
-    testList "InstalledState" [
+    testLabel "PlatformSpecific" <| testList "InstalledState" [
         test "shared package readers coexist and exclude an exclusive collector" {
             use sandbox = TestSandbox.Create()
             use root = SafeDirectory.Open(home sandbox, false)

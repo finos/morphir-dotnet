@@ -6,6 +6,7 @@ namespace Morphir.Tooling.Tests.Infrastructure;
 public class RuntimeIdentifierTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     public void GetCurrentRid_ShouldReturnValidRid()
     {
         // Act
@@ -20,6 +21,7 @@ public class RuntimeIdentifierTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void GetCurrentRid_ShouldMatchExpectedPlatform()
     {
         // Act
@@ -80,6 +82,7 @@ public class RuntimeIdentifierTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void GetCurrentRid_ShouldBeValid()
     {
         // Act

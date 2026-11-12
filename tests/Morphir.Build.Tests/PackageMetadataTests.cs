@@ -7,6 +7,7 @@ namespace Morphir.Build.Tests;
 /// <summary>
 /// Tests for validating NuGet package metadata (version, authors, license, etc.)
 /// </summary>
+[Category("PlatformSpecific")]
 public class PackageMetadataTests
 {
     [Test]

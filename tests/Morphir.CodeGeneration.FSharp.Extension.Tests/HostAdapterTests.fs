@@ -578,3 +578,4 @@ let tests =
                   dispose backend
 
               Expect.isTrue backend.HasExited "The guest process is gone" ]
+    |> testLabel "PlatformSpecific"

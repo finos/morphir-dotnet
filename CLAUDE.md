@@ -13,6 +13,7 @@ This file provides Claude Code-specific guidance for the morphir-dotnet reposito
 - `@skill technical-writer` - Documentation, Hugo/Docsy, diagrams, style guide
 - `@skill vulnerability-resolver` - CVE scanning, fix/suppress decisions, security documentation
 - `fsharp-csharp-interop` - Rules for F# code that C# calls; subagent `fsharp-csharp-interop-reviewer` reviews the diff. Canonical copy: `.agents/skills/fsharp-csharp-interop/` (edit there, then run `dotnet fsi scripts/sync-agent-skills.fsx`)
+- `dotnet-msbuild`, `dotnet11`, `dotnet-upgrade`, `dotnet-nuget`, `dotnet-diag` - .NET team plugins from the `dotnet-agent-skills` marketplace ([dotnet/skills](https://github.com/dotnet/skills)), enabled in `.claude/settings.json`. Skill names have the plugin prefix, for example `dotnet-msbuild:build-perf-diagnostics`
 
 See [.agents/skills-reference.md](./.agents/skills-reference.md) for complete skill documentation.
 

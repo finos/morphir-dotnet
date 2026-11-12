@@ -16,6 +16,7 @@ namespace Morphir.Build.Tests.Helpers;
 /// per platform archive, and the embedded Extism kernel module. Each must agree with the pin it describes, so that a
 /// pin moved without its declaration fails here.
 /// </summary>
+[Category("PlatformSpecific")]
 public class NativeNoticeDeclarationsTests
 {
     private static readonly string Root = PathHelper.GetRepositoryRoot();

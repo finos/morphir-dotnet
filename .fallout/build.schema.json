@@ -164,6 +164,11 @@
           "type": "string",
           "description": "NuGet API key for publishing"
         },
+        "BuildNodes": {
+          "type": "integer",
+          "format": "int32",
+          "description": "MSBuild nodes for Restore and Compile; 0 uses one node for each processor - Default is 0"
+        },
         "CiOs": {
           "type": "string",
           "description": "CIPlan: the os input of a manual run (auto, linux, full, or a comma-separated list of windows and macos)"
@@ -277,6 +282,18 @@
         "TestHangTimeout": {
           "type": "string",
           "description": "Time with no test progress after which a Microsoft.Testing.Platform test run takes a hang dump and stops - Default is '10m'"
+        },
+        "TestParallelism": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32",
+          "description": "Test: the number of test assemblies that run at the same time - Default is half the processors, rounded up, from 1 to 4"
+        },
+        "TestScope": {
+          "type": "string",
+          "description": "Test: 'all' runs every test; 'platform' runs only the tests with the PlatformSpecific marker - Default is 'all'"
         },
         "ToolchainLocalDeveloper": {
           "type": "boolean",

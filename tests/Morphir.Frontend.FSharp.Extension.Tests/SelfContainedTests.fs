@@ -455,3 +455,4 @@ let tests =
                       (fun diagnostic -> diagnostic.Severity = DiagnosticSeverity.Error)
                       "The probe cannot open a namespace of the frontend's own assemblies"
               | fixedPackage, probe -> failtest $"The fixed package compiles and the probe fails: {fixedPackage}; {probe}" ]
+    |> testLabel "PlatformSpecific"

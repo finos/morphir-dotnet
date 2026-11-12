@@ -72,3 +72,4 @@ let tests =
                     "Checkout newline style must not affect manifest parsing"
             )
     ]
+    |> testLabel "PlatformSpecific"

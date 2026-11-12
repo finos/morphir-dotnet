@@ -9,6 +9,7 @@ namespace Morphir.Tooling.Tests.Infrastructure.JsonSchema;
 /// <summary>
 /// Documents written by the classic writer conform to the bundled JSON schema of their version (task 2.2).
 /// </summary>
+[Category("PlatformSpecific")]
 public class ClassicWriterSchemaTests
 {
     private readonly SchemaValidator _validator = new(new SchemaLoader());

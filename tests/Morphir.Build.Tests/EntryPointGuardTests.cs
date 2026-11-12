@@ -13,6 +13,7 @@ namespace Morphir.Build.Tests;
 /// The AOT-compatible and the managed entry points both build an assembly named morphir, so a project whose resolved
 /// references hold two different morphir.dll files fails instead of keeping whichever copy came last.
 /// </summary>
+[Category("PlatformSpecific")]
 public class EntryPointGuardTests
 {
     private const string ManagedProject = "src/Morphir.Managed/Morphir.Managed.csproj";

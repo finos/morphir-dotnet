@@ -234,6 +234,7 @@ let limits =
           <| fun () ->
               let deep = String('[', 5000) + String(']', 5000)
               Expect.equal (read deep) (Error(IonReadError.DepthLimitExceeded 512)) "5000 lists"
+          |> testLabel "PlatformSpecific"
 
           testCase "depth counts the root as one"
           <| fun () ->
@@ -245,6 +246,7 @@ let limits =
           <| fun () ->
               let deep = String('[', 511) + "1" + String(']', 511)
               Expect.isOk (read deep) "512 levels"
+          |> testLabel "PlatformSpecific"
 
           testCase "node limit"
           <| fun () ->
@@ -352,3 +354,4 @@ let vendored =
                   Expect.equal data.Length (asset.GetProperty("decodedByteLength").GetInt32()) path
                   Expect.equal (Fixtures.sha256 data) (asset.GetProperty("sha256").GetString()) path
                   Expect.equal (Convert.ToBase64String data) (asset.GetProperty("content").GetString()) path ]
+    |> testLabel "PlatformSpecific"

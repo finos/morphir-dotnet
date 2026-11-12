@@ -105,6 +105,7 @@ let tests =
 
                       Expect.isOk read $"IR {version} reads back"
                   | failed -> failtest $"IR {version} compiles: {failed}"
+          |> testLabel "PlatformSpecific"
 
           testCase "Warnings travel with a successful model"
           <| fun _ ->
@@ -130,6 +131,7 @@ module Pricing =
                           && diagnostic.Code = Some "fsharp.compiler")
                       "The incomplete-match warning is in the result"
               | failed -> failtest $"A warning does not fail the compilation: {failed}"
+          |> testLabel "PlatformSpecific"
 
           testCase "An unsupported construct is a failed result with no model member"
           <| fun _ ->
@@ -154,6 +156,7 @@ module Pricing =
                       (fun diagnostic -> diagnostic.Code = Some "fsharp.unsupported_mutable" && diagnostic.Location.IsSome)
                       "The catalog diagnostic with its location"
               | compiled -> failtest $"Expected a failure: {compiled}"
+          |> testLabel "PlatformSpecific"
 
           testCase "A payload whose SHA-256 does not match is refused with -32602 before the IR is decoded, and the session stays usable"
           <| fun _ ->
@@ -181,6 +184,7 @@ module Pricing =
                   | Ok _ -> ()
                   | Error failure -> failtest $"The next model in the session is admitted: {failure}"
               | failed -> failtest $"A valid compileModel after the refusal succeeds in the same session: {failed}"
+          |> testLabel "PlatformSpecific"
 
           testCase "Requests that the session does not admit are -32602 or lifecycle errors, and the session stays usable"
           <| fun _ ->
@@ -214,6 +218,7 @@ module Pricing =
               match resultOf (dispatch guest (compileMessage 9 request) |> Option.get) with
               | CompileModelResult.Compiled _ -> ()
               | failed -> failtest $"The session stays usable: {failed}"
+          |> testLabel "PlatformSpecific"
 
           testCase "A types-only request is refused, because the guest does not support it yet"
           <| fun _ ->
@@ -242,6 +247,7 @@ module Pricing =
               Expect.isNull reply["result"] "No result"
               Expect.equal (text ((reply["error"] |> nonNull)["code"])) "-32603" "The guest reports that the model does not fit"
               Expect.stringContains (text ((reply["error"] |> nonNull)["message"])) "limit" "The message names the limit"
+          |> testLabel "PlatformSpecific"
 
           testCase "A host that agrees only 4.0.0 cannot get 3.0.0 from the guest"
           <| fun _ ->

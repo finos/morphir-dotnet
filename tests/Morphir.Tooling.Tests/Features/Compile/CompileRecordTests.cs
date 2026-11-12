@@ -11,6 +11,7 @@ namespace Morphir.Tooling.Tests.Features.Compile;
 /// Tasks 5.1 to 5.3 connected to <c>morphir compile</c>: the compile runner publishes through the task record
 /// store (record, tombstone, lock) and installs <c>-o</c> through the <c>installed</c> ledger.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class CompileRecordTests
 {
     private static CompileWorkspace Project(string pricing = CompileRunnerTests.Pricing)

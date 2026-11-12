@@ -15,7 +15,7 @@ open IoTestSupport
 
 [<Tests>]
 let tests =
-    testList "NamedLocks" [
+    testLabel "PlatformSpecific" <| testList "NamedLocks" [
         test "native async cancellation settles before returning and releases its open owner" {
             use sandbox = TestSandbox.Create()
             use root = SafeDirectory.Open(home sandbox, false)

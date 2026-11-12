@@ -14,6 +14,7 @@ public class FSharpGenerationBackendTests
     private sealed record OtherOptions : ValidatedBackendOptions;
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("options")]
     [Arguments("target")]
     [Arguments("cancelled")]
@@ -36,6 +37,7 @@ public class FSharpGenerationBackendTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task RegisteredDescriptorGeneratesV4ThroughThePublicTypedApi()
     {
         using var json = JsonDocument.Parse(GenerateSteps.V4Model);

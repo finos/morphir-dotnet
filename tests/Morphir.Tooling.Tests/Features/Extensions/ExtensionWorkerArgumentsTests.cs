@@ -11,6 +11,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// The arguments of <c>morphir extension worker</c> (task 4.1 of <c>add-wasm-extension-host</c>): every argument
 /// the pinned contract's <c>worker.arguments</c> lists, with its default, and the usage errors that exit with 2.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ExtensionWorkerArgumentsTests
 {
     private static JsonElement ContractWorker()

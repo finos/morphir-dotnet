@@ -8,6 +8,7 @@ using Morphir.TestSupport;
 namespace Morphir.Tooling.Tests.Features.Compile;
 
 /// <summary>Explicit-input JIT product journey. Standalone morphirup and generation authority require their own evidence.</summary>
+[Category("PlatformSpecific")]
 public sealed class InstalledProviderJourneyTests
 {
     [Test]

@@ -150,4 +150,5 @@ let tests =
               Expect.isTrue
                   (JsonNode.DeepEquals(tuples, JsonNode.Parse $"""[{jsonTuple "4.0.0"},{jsonTuple "3.0.0"}]"""))
                   "The claimed compileModel tuples" ]
+    |> testLabel "PlatformSpecific"
 

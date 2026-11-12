@@ -180,3 +180,4 @@ let tests =
                   messages () |> List.collect memberNames |> Set.ofList |> fun names -> names - known
 
               Expect.equal added (set [ "validator"; "rules" ]) "Only ExtensionCapabilities.validator and ValidatorCapability.rules are new" ]
+    |> testLabel "PlatformSpecific"

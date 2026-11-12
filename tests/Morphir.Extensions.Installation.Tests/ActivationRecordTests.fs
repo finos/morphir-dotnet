@@ -37,7 +37,7 @@ let private install root plan archive repository args =
 
 [<Tests>]
 let tests =
-    testList "ActivationRecords" [
+    testLabel "PlatformSpecific" <| testList "ActivationRecords" [
         test "foreign platform cannot create an activation lifetime or registration" {
             use sandbox = TestSandbox.Create()
             let cleanup = PackageTests.packageCleanup sandbox
@@ -361,7 +361,7 @@ let tests =
 
 [<Tests>]
 let interprocess =
-    testList "ActivationInterprocess" [
+    testLabel "PlatformSpecific" <| testList "ActivationInterprocess" [
         testTask
             "another process shares a live package lease and exclusive ownership waits for disposal" {
             use sandbox = TestSandbox.Create()
@@ -402,7 +402,7 @@ let interprocess =
 
 [<Tests>]
 let composedCapture =
-    testList "ComposedCapture" [
+    testLabel "PlatformSpecific" <| testList "ComposedCapture" [
         test "all selected records and leases share one exact export; expected drift refuses" {
             use sandbox = TestSandbox.Create()
             let owner = PackageTests.packageCleanup sandbox
@@ -469,7 +469,7 @@ let private sessionFixture () =
 
 [<Tests>]
 let sessionAgreement =
-    testList "InstalledSessionAgreement" [
+    testLabel "PlatformSpecific" <| testList "InstalledSessionAgreement" [
         test "actual matching session is accepted" {
             let claims,session = sessionFixture()
             Expect.isOk (Claims.agreeSession claims session) "same known members"
@@ -509,7 +509,7 @@ let sessionAgreement =
 
 [<Tests>]
 let repositoryRegistration =
-    testList "LocalRepositoryRegistration" [
+    testLabel "PlatformSpecific" <| testList "LocalRepositoryRegistration" [
         test "dry run validates a registered name and directory without creating Home or locks" {
             use sandbox = TestSandbox.Create()
             let source = sandbox.PathOf "source"

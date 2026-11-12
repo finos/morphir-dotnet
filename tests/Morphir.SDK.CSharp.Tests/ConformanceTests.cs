@@ -2,6 +2,7 @@ using Shouldly;
 
 namespace Morphir.SDK.CSharp.Tests;
 
+[Category("PlatformSpecific")]
 public sealed class ConformanceTests
 {
     [Test]

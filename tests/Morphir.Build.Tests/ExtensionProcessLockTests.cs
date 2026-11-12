@@ -13,6 +13,7 @@ namespace Morphir.Build.Tests;
 /// that it drives (PublishFSharpFrontendProcess among them), and src/Directory.Build.props then writes the lock files
 /// under obj/publish-lock/&lt;rid&gt;/. The redirect does not depend on a publish profile.
 /// </summary>
+[Category("PlatformSpecific")]
 public class ExtensionProcessLockTests
 {
     private const string Project = "src/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj";

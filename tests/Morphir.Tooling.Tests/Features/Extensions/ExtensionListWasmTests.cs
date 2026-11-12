@@ -11,6 +11,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// A <c>wasm</c> entry in <c>extension list</c>. Nothing registers one from configuration yet (issue #565), so these
 /// tests build the entry, and the WASM runtime availability that the runtime report of the host would state.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ExtensionListWasmTests
 {
     private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));

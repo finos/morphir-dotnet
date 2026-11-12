@@ -10,6 +10,7 @@ namespace Morphir.Build.Tests.Helpers;
 /// <summary>
 /// Tests for the Myriad plugin package check in PackageValidator.
 /// </summary>
+[Category("PlatformSpecific")]
 public class MyriadPluginPackageTests
 {
     private static readonly string[] CompleteEntries =

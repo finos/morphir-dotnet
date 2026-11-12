@@ -49,7 +49,7 @@ let private artifact (node: JsonNode) =
 
 [<Tests>]
 let tests =
-    testList "Packages" [
+    testLabel "PlatformSpecific" <| testList "Packages" [
         test "published package plan retains distinct archive and tree identities" {
             let plan =
                 read (sample ())
@@ -342,7 +342,7 @@ let packageCleanup (sandbox: TestSandbox) =
 
 [<Tests>]
 let mechanismTests =
-    testList "PackageTrees" [
+    testLabel "PlatformSpecific" <| testList "PackageTrees" [
         for operation in [ "acquire"; "verify" ] do
             testTask $"{operation} refuses a declared executable absent from the installed manifest" {
                 use sandbox = TestSandbox.Create()
@@ -701,7 +701,7 @@ let private producerRelease
 
 [<Tests>]
 let producerTests =
-    testList "PackageProducer" [
+    testLabel "PlatformSpecific" <| testList "PackageProducer" [
         test "public producer uses the existing canonical writer and owns its file list" {
             let expected = producerCanonical ()
 

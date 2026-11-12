@@ -15,6 +15,7 @@ namespace Morphir.Tooling.Tests.Features.Compile;
 /// its documented output. <c>output</c>, <c>sources.root</c> and <c>generation.output</c> show example paths, so
 /// they are not compared. Task 6.2 adds the <c>--target</c> example.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed partial class CompileDocumentationTests
 {
     internal static string RepositoryRoot()

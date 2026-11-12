@@ -594,3 +594,4 @@ let tests =
               Expect.isNone error.Data "No data member that the pin does not define"
               let protocol = AdmissionFailure.UnsupportedProtocol(ProtocolVersion.Create "0.1")
               Expect.equal (protocol.ToRpcError().Code) -32013 "Capability unavailable" ]
+    |> testLabel "PlatformSpecific"

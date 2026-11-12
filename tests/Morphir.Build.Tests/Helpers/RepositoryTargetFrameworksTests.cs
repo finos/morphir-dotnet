@@ -11,6 +11,7 @@ namespace Morphir.Build.Tests.Helpers;
 /// It reads the target frameworks from Directory.Build.props, the file that the projects use, so the two cannot
 /// disagree.
 /// </summary>
+[Category("PlatformSpecific")]
 public class RepositoryTargetFrameworksTests
 {
     [Test]

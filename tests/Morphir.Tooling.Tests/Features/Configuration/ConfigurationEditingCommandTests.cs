@@ -33,6 +33,7 @@ public sealed class ConfigurationEditingCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("--type", "unsupported")]
     [Arguments("--type", "bool")]
     [Arguments("--type", "array")]
@@ -55,6 +56,7 @@ public sealed class ConfigurationEditingCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("--workspace")]
     [Arguments("--user")]
     [Arguments("--global")]

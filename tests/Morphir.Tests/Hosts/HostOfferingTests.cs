@@ -44,6 +44,7 @@ public sealed class HostOfferingTests
 
     /// <summary>The available frontend entries are exactly the in-process frontends that compile can select.</summary>
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(true)]
     [Arguments(false)]
     public void TheAvailableFrontendEntriesAreTheFrontendsThatCompileSelects(bool tool)
@@ -61,6 +62,7 @@ public sealed class HostOfferingTests
 
     /// <summary>The declared F# frontend entry claims what the registered F# frontend advertises.</summary>
     [Test]
+    [Category("PlatformSpecific")]
     public void TheFSharpFrontendEntryClaimsWhatTheFrontendAdvertises()
     {
         using var app = Morphir.Tool.Program.CreateApp([]);
@@ -73,6 +75,7 @@ public sealed class HostOfferingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheAotCompileRefusalAndTheRegistryReasonComeFromTheSameSource()
     {
         using var app = Morphir.Program.CreateApp([], Morphir.Program.Host, Morphir.Program.NativeComposition);

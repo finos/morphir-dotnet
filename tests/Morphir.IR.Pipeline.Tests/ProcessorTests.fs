@@ -709,6 +709,7 @@ let compilePhaseTests =
             finally
                 System.IO.File.Delete temp
         }
+        |> testLabel "PlatformSpecific"
     ]
 
 [<Tests>]

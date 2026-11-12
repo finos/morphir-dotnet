@@ -7,6 +7,7 @@ using Morphir.Tooling.Features.Generate;
 
 namespace Morphir.Tooling.Tests.Features.Compile;
 
+[Category("PlatformSpecific")]
 public sealed class InstalledProviderCommandTests
 {
     [Test]

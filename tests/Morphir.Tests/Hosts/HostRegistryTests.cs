@@ -6,6 +6,7 @@ using Morphir.Tooling.Features.Validate;
 namespace Morphir.Tests.Hosts;
 
 /// <summary>The shared composition registers the extension sources and the registry for both hosts.</summary>
+[Category("PlatformSpecific")]
 public sealed class HostRegistryTests
 {
     [Test]

@@ -1,3 +1,4 @@
+@PlatformSpecific
 Feature: CLI artifact management commands are not implemented yet
   As a user of the Morphir CLI
   I want the dist, tool and extension commands to say they are not implemented yet

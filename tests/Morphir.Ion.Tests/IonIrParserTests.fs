@@ -468,6 +468,7 @@ let tests =
         testList "The README sample" [
             testCase "The sample in the README is the sample compiled here"
             <| fun () -> Expect.equal (sampleFromReadme ()) (sampleFromSource ()) "The same text"
+            |> testLabel "PlatformSpecific"
 
             testCase "describeTree reads a tree from disk"
             <| fun () ->
@@ -506,6 +507,7 @@ let tests =
                 finally
                     if Directory.Exists directory then
                         Directory.Delete(directory, true)
+            |> testLabel "PlatformSpecific"
 
             testCase "withIon puts the Ion parser first"
             <| fun () ->

@@ -16,6 +16,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// statuses and interruption. The modules are the pinned crafted corpus and this repository's two worker guests.
 /// Stdout is read strictly as Content-Length frames in every test.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ExtensionWorkerTests
 {
     [TUnit.Core.Before(HookType.Test)]

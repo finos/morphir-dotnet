@@ -473,10 +473,11 @@ let tests =
               | Ok frontend ->
                   dispose frontend
                   failtest "A missing executable cannot connect" ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let processTreeOwnership =
-    testList "MepProcessTreeOwnership" [
+    testLabel "PlatformSpecific" <| testList "MepProcessTreeOwnership" [
         testCase "disposal settles an inherited-pipe descendant after its direct guest root exits" (fun () ->
             if not (OperatingSystem.IsWindows()) then skiptest "Windows creation-time job control."
             let marker = Path.Combine(guestWork.Value.Work,"descendant.pid")
@@ -510,7 +511,7 @@ let processTreeOwnership =
 
 [<Tests>]
 let negotiatedObservation =
-    testList "MepOperationObservation" [
+    testLabel "PlatformSpecific" <| testList "MepOperationObservation" [
         testCase "tuple observation is absent before an actual successful operation" (fun () ->
             let frontend = connect (guestOptions())
             try

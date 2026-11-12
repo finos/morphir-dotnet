@@ -1,10 +1,14 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Fallout.Common;
 using Fallout.Common.IO;
 using Fallout.Common.Tools.DotNet;
+using Morphir.Build.Helpers;
 using static Fallout.Common.Tools.DotNet.DotNetTasks;
 
 /// <summary>
@@ -15,30 +19,23 @@ partial class Build
     [Parameter("Time with no test progress after which a Microsoft.Testing.Platform test run takes a hang dump and stops - Default is '10m'")]
     readonly string TestHangTimeout = "10m";
 
+    [Parameter("Test: 'all' runs every test; 'platform' runs only the tests with the PlatformSpecific marker - Default is 'all'")]
+    readonly string TestScope = "all";
+
+    [Parameter("Test: the number of test assemblies that run at the same time - Default is half the processors, rounded up, from 1 to 4")]
+    readonly int? TestParallelism;
+
     /// <summary>The variable that names the published self-contained F# frontend folder for its process test.</summary>
     const string FSharpFrontendProcessDirVariable = "MORPHIR_FSHARP_FRONTEND_PROCESS_DIR";
 
     /// <summary>Results of the last Test run (reports, hang logs and hang dumps), one directory for each test assembly.</summary>
     AbsolutePath TestResultsDirectory => RootDirectory / "artifacts" / "test-results";
 
-    /// <summary>The test assemblies that run on Microsoft.Testing.Platform and reference its HangDump extension.</summary>
-    static readonly string[] HangDumpProjects =
-    [
-        "Morphir.Core.Tests",
-        "Morphir.Tooling.Tests",
-        "Morphir.Configuration.IO.Tests",
-        "Morphir.Configuration.Microsoft.Tests",
-        "Morphir.TestSupport.Tests",
-        "Morphir.SDK.Conformance.Tests",
-        "Morphir.SDK.CSharp.Tests",
-        "Morphir.Tests",
-        "Morphir.Managed.Tests",
-        "Morphir.Myriad.Integration.Tests",
-    ];
-
     /// <summary>
-    /// Run unit tests (Morphir.Core.Tests, Morphir.Tooling.Tests, Morphir.Internal.CodeGeneration.Tests, Morphir.Models.Tests, Morphir.IR.Pipeline.Tests, Morphir.SDK.Tests)
-    /// Tests are run using TUnit and Expecto test frameworks
+    /// Run the test assemblies of <see cref="Morphir.Build.Helpers.TestPlan.Suites"/> (TUnit and Expecto), then the
+    /// Myriad package-consumer checks. <c>--test-scope platform</c> runs only the tests with the PlatformSpecific
+    /// marker: CI uses it on the operating systems other than Linux, where the managed tests already ran.
+    /// <c>--test-parallelism</c> runs more than one assembly at the same time.
     /// </summary>
     Target Test => _ => _
         .DependsOn(Compile)
@@ -118,14 +115,18 @@ partial class Build
 
     void RunMyriadPackageTests()
     {
+        // --no-build: Compile made the assemblies. A pack that builds with the PackageVersion of the scripts changes
+        // the assembly information of the packed projects, and then the next Compile builds the solution again.
+        // The scripts pack the Release configuration, so with another configuration they must build.
+        string[] noBuild = Configuration == "Release" ? ["--no-build"] : [];
         var script = TestsDirectory / "Morphir.Myriad.Tests" / "package-tests.fsx";
-        if (RunCommand("dotnet", "fsi", script) != 0)
+        if (RunCommand("dotnet", ["fsi", script, .. noBuild]) != 0)
         {
             throw new Exception("Myriad package-consumer checks failed");
         }
 
         var jsonScript = TestsDirectory / "Morphir.Myriad.SystemTextJson.Tests" / "package-tests.fsx";
-        if (RunCommand("dotnet", "fsi", jsonScript) != 0)
+        if (RunCommand("dotnet", ["fsi", jsonScript, .. noBuild]) != 0)
         {
             throw new Exception("Morphir.Myriad.SystemTextJson package-consumer checks failed");
         }
@@ -167,137 +168,114 @@ partial class Build
             }
         });
 
+    /// <summary>The outcome of one test assembly.</summary>
+    readonly record struct SuiteResult(TestSuite Suite, int ExitCode, TimeSpan Duration);
+
     // Helper method for running tests
     void RunTests(string configuration)
     {
-        Serilog.Log.Information($"Running tests with configuration: {configuration}");
+        if (!Morphir.Build.Helpers.TestScope.TryParse(TestScope, out var scope))
+            throw new Exception($"The test scope '{TestScope}' is not all or platform.");
+        var parallelism = TestParallelism ?? TestPlan.DefaultParallelism(Environment.ProcessorCount);
+        if (parallelism < 1)
+            throw new Exception($"The test parallelism {parallelism} is not 1 or more.");
+
+        var runs = TestPlan.Select(scope, TestPlan.Suites, HasPlatformTests);
+        Serilog.Log.Information("Running tests with configuration: {Configuration}", configuration);
+        Serilog.Log.Information("Test scope: {Scope}. {Count} of {Total} test assemblies, {Parallelism} at the same time.",
+            scope, runs.Length, TestPlan.Suites.Length, parallelism);
         Serilog.Log.Information("================================================");
+
+        // A scope that selects nothing must not pass: the marker or its filter is then wrong.
+        if (runs.IsEmpty)
+            throw new Exception($"The test scope '{scope}' selects no test assembly: no test source below {TestsDirectory} has the {TestPlan.PlatformMarker} marker.");
 
         // A retry must not see the hang logs of the attempt before it.
         TestResultsDirectory.CreateOrCleanDirectory();
 
-        // Run Morphir.Core.Tests
-        Serilog.Log.Information("");
-        Serilog.Log.Information("Running Morphir.Core.Tests...");
-        var coreTestDll = TestsDirectory / "Morphir.Core.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Core.Tests.dll";
-        var coreExitCode = RunTestAssembly("Morphir.Core.Tests", coreTestDll);
-
-        // Run Morphir.Tooling.Tests
-        Serilog.Log.Information("");
-        Serilog.Log.Information("Running Morphir.Tooling.Tests...");
-        var toolingTestDll = TestsDirectory / "Morphir.Tooling.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Tooling.Tests.dll";
-        var toolingExitCode = RunTestAssembly("Morphir.Tooling.Tests", toolingTestDll);
-
-        // Reuse compiled outputs and invoke each configuration suite's configured runner.
-        var configurationTestDll = TestsDirectory / "Morphir.Configuration.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Configuration.Tests.dll";
-        var configurationExitCode = RunCommand("dotnet", "exec", configurationTestDll, "--sequenced");
-        var configurationIoTestDll = TestsDirectory / "Morphir.Configuration.IO.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Configuration.IO.Tests.dll";
-        var configurationIoExitCode = RunTestAssembly("Morphir.Configuration.IO.Tests", configurationIoTestDll, "--maximum-parallel-tests", "1");
-
-        var configurationMicrosoftTestDll = TestsDirectory / "Morphir.Configuration.Microsoft.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Configuration.Microsoft.Tests.dll";
-        var configurationMicrosoftExitCode = RunTestAssembly("Morphir.Configuration.Microsoft.Tests", configurationMicrosoftTestDll, "--maximum-parallel-tests", "1");
-
-        // Exercise the actual generated CLI DTO source without loading the CLI host.
-        var configurationInspectionSmokeDll = TestsDirectory / "Morphir.Configuration.Inspection.Smoke" / "bin" / configuration / CurrentTargetFramework / "Morphir.Configuration.Inspection.Smoke.dll";
-        var configurationInspectionExitCode = RunCommand("dotnet", "exec", configurationInspectionSmokeDll);
-
-        // Run Morphir.Internal.CodeGeneration.Tests
-        Serilog.Log.Information("");
-        Serilog.Log.Information("Running Morphir.Internal.CodeGeneration.Tests...");
-        var codeGenTestDll = TestsDirectory / "Morphir.Internal.CodeGeneration.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Internal.CodeGeneration.Tests.dll";
-        var codeGenExitCode = RunCommand("dotnet", "exec", codeGenTestDll);
-
-        // Run Morphir.Models.Tests (Expecto)
-        Serilog.Log.Information("");
-        Serilog.Log.Information("Running Morphir.Models.Tests...");
-        var modelsTestDll = TestsDirectory / "Morphir.Models.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Models.Tests.dll";
-        var modelsExitCode = RunCommand("dotnet", "exec", modelsTestDll);
-
-        // Run Morphir.IR.Pipeline.Tests (Expecto)
-        Serilog.Log.Information("");
-        Serilog.Log.Information("Running Morphir.IR.Pipeline.Tests...");
-        var pipelineTestDll = TestsDirectory / "Morphir.IR.Pipeline.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.IR.Pipeline.Tests.dll";
-        var pipelineExitCode = RunCommand("dotnet", "exec", pipelineTestDll);
-
-        // Run Morphir.SDK.Tests (Expecto)
-        Serilog.Log.Information("");
-        Serilog.Log.Information("Running Morphir.SDK.Tests...");
-        var sdkTestDll = TestsDirectory / "Morphir.SDK.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.SDK.Tests.dll";
-        var sdkExitCode = RunCommand("dotnet", "exec", sdkTestDll);
-
         // The self-contained process test of the F# frontend runs against a folder published once here, not in the
         // test. Only that assembly gets the variable.
-        var frontendProcess = PublishFSharpFrontendProcessForTests();
+        const string frontendTests = "Morphir.Frontend.FSharp.Extension.Tests";
+        var frontendProcess = runs.Any(run => run.Suite.Project == frontendTests)
+            ? PublishFSharpFrontendProcessForTests()
+            : null;
 
-        var myriadExitCodes = new[]
+        // The link-refusal tests need a temporary directory with no link in its path. The default one of macOS is
+        // below /var, which is a link, so every test process gets the physical path.
+        var temporary = PhysicalPath(Path.GetTempPath());
+
+        SuiteResult Run(TestRun run, bool buffered)
         {
-            "Morphir.TestSupport.Tests",
-            "Morphir.Frontend.FSharp.Tests",
-            "Morphir.Conformance.Tests",
-            "Morphir.SDK.Conformance.Tests",
-            "Morphir.SDK.CSharp.Tests",
-            "Morphir.IR.Pipeline.Plugins.Tests",
-            "Morphir.Extensions.Tests",
-            "Morphir.Extensions.Wasm.Tests",
-            "Morphir.Extensions.Installation.Tests",
-            "Morphir.Analyzers.Tests",
-            "Morphir.Mep.Tests",
-            "Morphir.Toolchain.Tests",
-            "Morphir.Toolchain.IO.Tests",
-            "Morphir.Compilation.Tests",
-            "Morphir.Compilation.Mep.Tests",
-            "Morphir.Frontend.FSharp.Extension.Tests",
-            "Morphir.Tests",
-            "Morphir.Managed.Tests",
-            "Morphir.CodeGeneration.FSharp.Tests",
-            "Morphir.CodeGeneration.FSharp.Extension.Tests",
-            "Morphir.CodeGeneration.CSharp.Tests",
-            "Morphir.Ion.Tests",
-            "Morphir.Myriad.Tests",
-            "Morphir.Myriad.Integration.Tests",
-            "Morphir.Myriad.SystemTextJson.Tests",
-        }.Select(project =>
+            var environment = new Dictionary<string, string> { ["TMPDIR"] = temporary, ["TEMP"] = temporary, ["TMP"] = temporary };
+            if (run.Suite.Project == frontendTests && frontendProcess is not null)
+                environment[FSharpFrontendProcessDirVariable] = frontendProcess.ToString();
+            return RunSuite(run, configuration, environment, buffered);
+        }
+
+        var results = new List<SuiteResult>();
+        if (parallelism == 1)
         {
-            Serilog.Log.Information("Running {Project}...", project);
-            var testDll = TestsDirectory / project / "bin" / configuration / CurrentTargetFramework / $"{project}.dll";
-            var frontendTests = project == "Morphir.Frontend.FSharp.Extension.Tests" && frontendProcess is not null;
-            if (frontendTests) Environment.SetEnvironmentVariable(FSharpFrontendProcessDirVariable, frontendProcess!.ToString());
-            int exitCode;
-            try
+            foreach (var run in runs) results.Add(Run(run, buffered: false));
+        }
+        else
+        {
+            // Each worker starts the next assembly that can start (TestPlan.NextRunnable), so the long assemblies do
+            // not wait for each other. The assemblies that run MSBuild on source projects run one at a time, and an
+            // assembly with time budgets runs alone.
+            // The output of an assembly is one block, written when the assembly completes.
+            var gate = new object();
+            var pending = runs.ToList();
+            var running = new List<TestSuite>();
+
+            void Work()
             {
-                exitCode = project == "Morphir.CodeGeneration.CSharp.Tests"
-                    ? RunCommand("dotnet", "exec", testDll, "--sequenced")
-                    : RunTestAssembly(project, testDll);
+                while (true)
+                {
+                    TestRun? run;
+                    lock (gate)
+                    {
+                        while ((run = TestPlan.NextRunnable(pending, running)) is null)
+                        {
+                            if (pending.Count == 0) return;
+                            Monitor.Wait(gate);
+                        }
+
+                        pending.Remove(run);
+                        running.Add(run.Suite);
+                    }
+
+                    SuiteResult result;
+                    try
+                    {
+                        result = Run(run, buffered: true);
+                    }
+                    finally
+                    {
+                        lock (gate)
+                        {
+                            running.Remove(run.Suite);
+                            Monitor.PulseAll(gate);
+                        }
+                    }
+
+                    lock (gate) results.Add(result);
+                }
             }
-            finally
-            {
-                if (frontendTests) Environment.SetEnvironmentVariable(FSharpFrontendProcessDirVariable, null);
-            }
-            if (exitCode != 0)
-            {
-                Serilog.Log.Error("{Project}: exit code {ExitCode}", project, exitCode);
-            }
-            return exitCode;
-        }).ToArray();
+
+            Task.WaitAll(Enumerable.Range(0, Math.Min(parallelism, runs.Length)).Select(_ => Task.Run(Work)).ToArray());
+        }
 
         ReportHangs();
+        ReportSuites(scope, results);
 
-        // Check if any tests failed
-        if (coreExitCode != 0 || toolingExitCode != 0 || configurationExitCode != 0 || configurationIoExitCode != 0 || configurationMicrosoftExitCode != 0 || configurationInspectionExitCode != 0 || codeGenExitCode != 0 || modelsExitCode != 0 || pipelineExitCode != 0 || sdkExitCode != 0 || myriadExitCodes.Any(code => code != 0))
+        var failed = results.Where(result => result.ExitCode != 0).ToArray();
+        if (failed.Length > 0)
         {
             Serilog.Log.Error("");
             Serilog.Log.Error("================================================");
             Serilog.Log.Error("Tests FAILED");
-            Serilog.Log.Error($"  Morphir.Core.Tests: exit code {coreExitCode}");
-            Serilog.Log.Error($"  Morphir.Tooling.Tests: exit code {toolingExitCode}");
-            Serilog.Log.Error($"  Morphir.Configuration.Tests: exit code {configurationExitCode}");
-            Serilog.Log.Error($"  Morphir.Configuration.IO.Tests: exit code {configurationIoExitCode}");
-            Serilog.Log.Error($"  Morphir.Configuration.Microsoft.Tests: exit code {configurationMicrosoftExitCode}");
-            Serilog.Log.Error($"  Morphir.Configuration.Inspection.Smoke: exit code {configurationInspectionExitCode}");
-            Serilog.Log.Error($"  Morphir.Internal.CodeGeneration.Tests: exit code {codeGenExitCode}");
-            Serilog.Log.Error($"  Morphir.Models.Tests: exit code {modelsExitCode}");
-            Serilog.Log.Error($"  Morphir.IR.Pipeline.Tests: exit code {pipelineExitCode}");
-            Serilog.Log.Error($"  Morphir.SDK.Tests: exit code {sdkExitCode}");
+            foreach (var result in failed)
+                Serilog.Log.Error("  {Project}: exit code {ExitCode}", result.Suite.Project, result.ExitCode);
             throw new Exception("Tests failed");
         }
 
@@ -307,16 +285,126 @@ partial class Build
     }
 
     /// <summary>
+    /// True when a test source file or feature file of the suite has the PlatformSpecific marker. The sources are the
+    /// one record of the marked tests, so the build holds no second list that can differ from them.
+    /// </summary>
+    bool HasPlatformTests(TestSuite suite)
+    {
+        var directory = TestsDirectory / suite.Project;
+        return Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Where(file => Path.GetExtension(file) is ".cs" or ".fs" or ".feature")
+            .Where(file => !Path.GetRelativePath(directory, file).Split(Path.DirectorySeparatorChar).Any(part => part is "bin" or "obj"))
+            .Any(file => TestPlan.MentionsPlatformMarker(File.ReadAllText(file)));
+    }
+
+    /// <summary>
     /// Runs one test assembly. A Microsoft.Testing.Platform assembly gets a hang dump: after
     /// <see cref="TestHangTimeout"/> with no test progress, the platform writes the names of the running tests
     /// and a mini dump to <see cref="TestResultsDirectory"/>, then stops the test process.
     /// </summary>
-    int RunTestAssembly(string project, AbsolutePath testDll, params string[] options)
+    SuiteResult RunSuite(TestRun run, string configuration, IReadOnlyDictionary<string, string> environment, bool buffered)
     {
-        string[] hangDump = HangDumpProjects.Contains(project)
+        var project = run.Suite.Project;
+        var testDll = TestsDirectory / project / "bin" / configuration / CurrentTargetFramework / $"{project}.dll";
+        string[] hangDump = run.Suite.TakesHangDump
             ? ["--hangdump", "--hangdump-timeout", TestHangTimeout, "--hangdump-type", "Mini", "--results-directory", TestResultsDirectory / project]
             : [];
-        return RunCommand("dotnet", ["exec", testDll, .. options, .. hangDump]);
+
+        var start = new ProcessStartInfo("dotnet")
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        foreach (var argument in (string[])["exec", testDll, .. run.Arguments, .. hangDump]) start.ArgumentList.Add(argument);
+        foreach (var (name, value) in environment) start.Environment[name] = value;
+
+        // (isError, line) in the order of arrival, when the output is one block.
+        var lines = new List<(bool IsError, string Text)>();
+        var ranNoTests = false;
+        void Write(bool isError, string? line)
+        {
+            if (line is null) return;
+            if (TestPlan.ReportsNoTests(line)) ranNoTests = true;
+            if (buffered) lock (lines) lines.Add((isError, line));
+            else if (isError) Serilog.Log.Error(line);
+            else Serilog.Log.Information(line);
+        }
+
+        if (!buffered)
+        {
+            Serilog.Log.Information("");
+            Serilog.Log.Information("Running {Project}...", project);
+        }
+
+        var watch = Stopwatch.StartNew();
+        using var process = new Process { StartInfo = start };
+        process.OutputDataReceived += (_, e) => Write(false, e.Data);
+        process.ErrorDataReceived += (_, e) => Write(true, e.Data);
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        process.WaitForExit();
+        // A suite runs because it has tests, or in the platform scope because it has the marker. A run that selects
+        // no test means that the marker or its filter is wrong. TUnit exits with 8 then; Expecto exits with 0.
+        var exitCode = process.ExitCode == 0 && ranNoTests ? NoTestsExitCode : process.ExitCode;
+        var result = new SuiteResult(run.Suite, exitCode, watch.Elapsed);
+
+        lock (SuiteOutputLock)
+        {
+            foreach (var (isError, text) in lines)
+            {
+                if (isError) Serilog.Log.Error(text);
+                else Serilog.Log.Information(text);
+            }
+
+            if (result.ExitCode == 0)
+                Serilog.Log.Information("{Project}: passed in {Seconds:0}s", project, result.Duration.TotalSeconds);
+            else if (result.ExitCode == NoTestsExitCode)
+                Serilog.Log.Error("{Project}: the run selected no test (exit code {ExitCode})", project, result.ExitCode);
+            else
+                Serilog.Log.Error("{Project}: exit code {ExitCode} after {Seconds:0}s", project, result.ExitCode, result.Duration.TotalSeconds);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The path with each directory that is a link replaced by its target, for example /private/var/folders/x on
+    /// macOS for /var/folders/x.
+    /// </summary>
+    static string PhysicalPath(string path)
+    {
+        var full = Path.GetFullPath(path);
+        var current = Path.GetPathRoot(full) ?? throw new Exception($"{full} has no root.");
+        foreach (var part in full[current.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, part);
+            if (new DirectoryInfo(current).ResolveLinkTarget(returnFinalTarget: true) is { } target) current = target.FullName;
+        }
+
+        return current;
+    }
+
+    /// <summary>The exit code of a test assembly that ran no test. Microsoft.Testing.Platform uses the same number.</summary>
+    const int NoTestsExitCode = 8;
+
+    /// <summary>One assembly writes its buffered output at a time.</summary>
+    static readonly object SuiteOutputLock = new();
+
+    /// <summary>Logs the time of each test assembly, longest first. In GitHub Actions it also adds them to the job summary.</summary>
+    static void ReportSuites(Morphir.Build.Helpers.TestScope scope, IReadOnlyCollection<SuiteResult> results)
+    {
+        var summary = new System.Text.StringBuilder($"### Test assemblies (scope: {scope})\n\n| Assembly | Result | Seconds |\n| --- | --- | ---: |\n");
+        foreach (var result in results.OrderByDescending(result => result.Duration))
+        {
+            var outcome = result.ExitCode == 0 ? "passed" : $"exit code {result.ExitCode}";
+            Serilog.Log.Information("  {Seconds,5:0}s  {Project} ({Outcome})", result.Duration.TotalSeconds, result.Suite.Project, outcome);
+            summary.Append($"| {result.Suite.Project} | {outcome} | {result.Duration.TotalSeconds:0} |\n");
+        }
+
+        var stepSummary = Environment.GetEnvironmentVariable("GITHUB_STEP_SUMMARY");
+        if (!string.IsNullOrEmpty(stepSummary)) File.AppendAllText(stepSummary, summary.Append('\n').ToString());
     }
 
     /// <summary>
