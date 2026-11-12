@@ -17,7 +17,7 @@ the task that adds its first test, so no registered suite is empty.
 
 ## 0. Tracking
 
-- [ ] 0.1 Open a GitHub issue for this change, link it in `proposal.md` under Tracking, and verify the link opens.
+- [x] 0.1 Open a GitHub issue for this change, link it in `proposal.md` under Tracking, and verify the link opens.
 - [x] 0.2 Run `evidence/inventory.py` on the base commit of pull request 1 and verify that it gives the 128 files in 25 projects of `evidence/inventory.md`. Each later pull request runs it again, and a new file that starts a process or a build gets a row with a destination in that pull request.
 
 ## 1. Driver contract in `Morphir.TestSupport` (pull request 1)

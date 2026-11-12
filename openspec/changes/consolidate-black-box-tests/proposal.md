@@ -163,7 +163,7 @@ None. The product specifications do not change.
 - Earlier work: [#612](https://github.com/finos/morphir-dotnet/pull/612) (CI time, the `PlatformSpecific` marker,
   `build/Helpers/TestPlan.cs`, the rules for tests that build source projects in
   `docs/contributing/ci-os-matrix.md`).
-- GitHub issue: none yet. Task 0.1 opens it before the implementation starts.
+- GitHub issue: [#618](https://github.com/finos/morphir-dotnet/issues/618).
 - This repository has no Beads database. Tracking is GitHub issues and OpenSpec.
 
 ## Impact
