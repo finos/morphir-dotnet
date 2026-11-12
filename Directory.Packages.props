@@ -57,7 +57,7 @@
     <PackageVersion Include="Oakton" Version="6.3.0" />
     <PackageVersion Include="Packaging.Targets" Version="0.1.232" PrivateAssets="All" />
     <PackageVersion Include="LightBDD.Framework" Version="$(LightBDDVersion)" />
-    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.11.0" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.12.2" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
     <PackageVersion Include="altcover" Version="8.9.3" />
     <PackageVersion Include="System.CommandLine" Version="2.0.15" />
@@ -126,7 +126,7 @@
     <PackageVersion Include="FSharp.SystemTextJson" Version="1.4.36" />
     <!-- Code Generation Dependencies -->
     <PackageVersion Include="Myriad.Core" Version="0.85.0" />
-    <PackageVersion Include="Microsoft.Build.Framework" Version="18.11.0" />
+    <PackageVersion Include="Microsoft.Build.Framework" Version="18.12.2" />
     <PackageVersion Include="Fabulous.AST" Version="1.10.0" />
     <PackageVersion Include="Fantomas.Core" Version="7.0.5" />
     <!-- Configuration Dependencies -->

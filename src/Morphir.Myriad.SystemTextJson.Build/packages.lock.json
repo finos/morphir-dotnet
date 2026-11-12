@@ -10,26 +10,26 @@
       },
       "Microsoft.Build.Framework": {
         "type": "Direct",
-        "requested": "[18.11.0, )",
-        "resolved": "18.11.0",
-        "contentHash": "g0Uuh7+iNZ0rX3tWiG2z8mWP/gOWn967UcbtlTwmal85yYttp5miVljm744u/0LsAuC3gIKIiHWR6Zg1OIDnvA==",
+        "requested": "[18.12.2, )",
+        "resolved": "18.12.2",
+        "contentHash": "+sSdqeFtdZKl7AITUkqirWOfrJPrQJ74wHtiwHoVqaGkTrXie5vELQzGxvgF4b4+p0i09t2KrdT3ml8MOIjFzw==",
         "dependencies": {
-          "Microsoft.NET.StringTools": "[18.11.0]"
+          "Microsoft.NET.StringTools": "[18.12.2]"
         }
       },
       "Microsoft.Build.Utilities.Core": {
         "type": "Direct",
-        "requested": "[18.11.0, )",
-        "resolved": "18.11.0",
-        "contentHash": "vENSscllKBclnB7A/K++YKSbW3I371v/7buxbvUMVJlnLHvt8DqGQN6CvKrNNHsbjdyevxy/KqTFVqNmdG4pvg==",
+        "requested": "[18.12.2, )",
+        "resolved": "18.12.2",
+        "contentHash": "xaXBe2bF2zpWXoupmplgFFPorBNvuDsUZQdAGrbyLWhVAUBvy6qjEWBvEWUuuYYlauzXAaUseUVARhi9yfiEcw==",
         "dependencies": {
-          "Microsoft.Build.Framework": "[18.11.0]"
+          "Microsoft.Build.Framework": "[18.12.2]"
         }
       },
       "Microsoft.NET.StringTools": {
         "type": "Transitive",
-        "resolved": "18.11.0",
-        "contentHash": "46dxu08YSKeHQXbBlz/HYfVnSMJnfF1nM4v3tmfHVqIdBaz5eF8GrxWz6nl8mM3fGHZIOcp/Pr8I2zZCdb6CLA=="
+        "resolved": "18.12.2",
+        "contentHash": "qw/bBa2GCn4jBm/zCTOxyEGN6xUkd5QeXe119DLMtv+umudhMT1ZT16r/FPz+mqPgQYodaaLVG0CmB/5X8/pqg=="
       },
       "morphir.myriad.hosting": {
         "type": "Project"
