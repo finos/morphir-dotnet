@@ -18,6 +18,7 @@ Feature: Generate C# from a Morphir model
 
 - Put the group tag on the feature when each scenario has the same group.
 - A step states an intent (`I generate "csharp" from the model`), not a command line. Use `When I run the command {string}` only when the command line is the subject of the test.
+- A capability with no driver interface yet (the interface comes with its second scenario) has a step class of its own. Its step states the intent and gives the arguments to `ICliDriver.RunAsync`.
 - Use a scenario outline for rows of data, and a table for a list.
 - A scenario makes no assumption about another scenario. Each one has its own workspace.
 
@@ -60,7 +61,7 @@ public sealed class CorpusTests : BlackBoxTest
 
 - Only for a loop over a corpus, a property test or a test with a time budget.
 - The class derives from `BlackBoxTest` and has the group as a category. `Drivers` and `Workspace` are there while the test runs.
-- A lane, a host or a capability is a category with the same name as the tag, without `@`: `[Category("host-managed")]`.
+- A lane, a host or a capability is a category with the same name as the tag, without `@`, on the class or on the test method: `[Category("host-managed")]`.
 
 ## A fixture
 

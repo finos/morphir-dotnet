@@ -26,7 +26,7 @@ Gherkin is the default form of a black-box test. Three forms do not fit Gherkin:
 | A property test | A law over generated inputs |
 | A test with a time budget | A deadline with a margin |
 
-Such a test is a framework test (TUnit or Expecto). Step 4 says if it is a black-box test or a unit test.
+Such a test is a framework test. Step 4 says if it is a black-box test (a TUnit class in the black-box project) or a unit test (the framework of its project: TUnit or Expecto).
 
 ## Step 4: black-box or not
 
@@ -56,8 +56,10 @@ A unit test that uses the real file system, paths, line endings, processes or an
 Hard cases:
 
 - **A command that runs two times** is one capability, so it is integration. Example: generate, change the model, generate again.
-- **A journey on a published executable** is a journey. The target is where the test runs. It does not change the class. If the journey needs the published executable, it gets the lane `@lane @published`.
+- **A journey on a published executable** is a journey. The target is where the test runs. It does not change the class. A journey with no lane runs on the development build in a pull request and on each published target in the release and manual workflows. If the journey cannot run on the development build, it gets the lane `@lane @published`, also when the published executable is the Native AOT executable.
 - **`--help` of one command** is smoke if it proves only that the artifact starts. A check of the options that the help text shows is integration.
+- **One command on one input.** `ir verify` on one model, with a check of the exit code and the text, checks the capability. It is integration, not smoke.
+- **Three different commands for one goal** are three capabilities, so the test is a journey.
 - **An end-to-end test on the development build.** A property that the delivered form must have can be a check of the build output (for example the runtime configuration file of an executable). It is end-to-end with no lane, and a pull request runs it on each operating system.
 
 ## After the class: the lane, the host and the capabilities
@@ -65,10 +67,10 @@ Hard cases:
 | Need | Tag |
 | --- | --- |
 | Only the development build | None |
-| The packed packages | `@lane @packages` |
-| A Native AOT publish | `@lane @native-aot` |
-| A published or packaged executable | `@lane @published` |
-| One entry point | `@host-native`, `@host-managed` or `@host-tool` |
-| A driver capability that not each target has | The tag of the capability, for example `@needs-in-process-fsharp-frontend` |
+| The packages that the build packs | `@lane @packages` |
+| To publish a program with Native AOT in the test (a library host or a probe) | `@lane @native-aot` |
+| An executable that a release publishes or packs, also its Native AOT executable, when the test cannot run on the development build | `@lane @published` |
+| One entry point (`morphir` of `src/Morphir`, `morphir` of `src/Morphir.Managed`, `dotnet-morphir` of `src/Morphir.Tool`) | `@host-native`, `@host-managed` or `@host-tool` |
+| A driver capability | The tag of the capability: `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` |
 
 A test with a lane does not run in the run of its group. The lane decides where it runs. Do not give a test a lane that it does not need: a test with no lane runs in a pull request on each operating system, and also on each published target in the release and manual workflows.
