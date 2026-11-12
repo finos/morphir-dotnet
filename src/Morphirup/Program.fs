@@ -11,11 +11,31 @@ open Morphir.Toolchain
 let main args =
     use stdout = Console.OpenStandardOutput()
     // UTF-8 on every platform: Console.Error follows the console code page on Windows, which mangles paths and names.
-    use stderr = new StreamWriter(Console.OpenStandardError(), UTF8Encoding(false), AutoFlush = true)
+    use stderr =
+        new StreamWriter(Console.OpenStandardError(), UTF8Encoding(false), AutoFlush = true)
 
-    Cli.run
-        { Out = stdout
-          Error = stderr
-          CurrentDirectory = Environment.CurrentDirectory
-          Platform = Platform.current () }
+    use cancellation = new Threading.CancellationTokenSource()
+
+    Console.CancelKeyPress.Add(fun event ->
+        event.Cancel <- true
+        cancellation.Cancel()
+    )
+    // Only the executable entry point waits for its asynchronous lifetime. No transport or reader blocks on async I/O.
+    Cli.runWithInheritedInputAsync
+        {
+            Out = stdout
+            Error = stderr
+            CurrentDirectory = Environment.CurrentDirectory
+            Platform =
+                Cli.executionPlatform
+                    (if OperatingSystem.IsWindows() then
+                         Runtime.InteropServices.OSPlatform.Windows
+                     else
+                         Runtime.InteropServices.OSPlatform.Linux)
+                    Runtime.InteropServices.RuntimeInformation.ProcessArchitecture
+                    (Platform.current ())
+                    (List.ofArray args)
+        }
         (List.ofArray args)
+        cancellation.Token
+    |> fun operation -> operation.GetAwaiter().GetResult()

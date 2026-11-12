@@ -10,6 +10,41 @@ On 9 November 2026 the maintainer decided that the .NET installer is built insid
 
 ## What Changes
 
+Implementation update, 11 November 2026: the installer plan merged as #567.
+Parent #1147, #1150, #1151 and #1152 are merged too. Group 1 now publishes schemas,
+member tables and fixed identity/package cases through #1156 at immutable parent
+main `0439c4c06d8ca6d4a46e41afb226ba0872f9bff8`. Shared readers will use that source
+authority and corpus in the next tranche. Root checked all seven production
+schema URLs for HTTP 200, exact `$id` and matching text against this source;
+no production raw-byte hash comparison is claimed.
+Distribution parsers, platform mappings, MEP eligibility, the single-file store,
+generic bounded archive inspection and run-directory ownership are implemented.
+Probing, extraction, inventory, transactions, activation and command integration
+are unfinished. Security review reopened task 3.3. Six runtime RED cases preceded
+the corrections, which pass 131 executed Windows tests with three Unix-only cases
+ignored. Independent security/interop re-review of exact `b6936ba5` found no
+concrete remaining finding in the four I/O sources/delta under the approved
+cooperating Home boundary. The earlier JIT probe is historical evidence;
+Unix filesystem runs and Native AOT qualification remain outstanding. Full installer and user/technical docs remain
+the destination, with every later mutating command supporting `--dry-run`.
+
+The maintainer approved portable local-inventory pins, overlay precedence,
+explicit id configuration, CMD-1/stable diagnostics, developer consent and
+generated local-directory provenance on 11 November. Portable pin/overlay
+schemas and examples still await the separate parent toolchain contract. The
+user-owned Home model serializes supported writers with stable locks and detects
+tampering; arbitrary malicious same-UID isolation is not promised. Inherited
+default staged `auto` is not consent for automatic unsigned installation. Only
+explicit configuration or a command naming the local/staged source grants it.
+This supersedes old default-auto consent wording without changing a schema default.
+
+The internal current-family reader now shares embedded and standalone claim
+parsing, retains supplied JSON, projects understood recursive metadata and reuses
+the existing Toolchain comparator library. Claims 27/27 and the affected
+SharedReaders 19/19 pass in focused Windows runs, repeated after pinned formatting.
+Full corpus conformance, public codecs, probes and installation lifecycle remain
+unfinished. This is separate from the earlier Windows I/O evidence.
+
 A developer on Windows adds a local extension repository and installs a process backend from it. A second project pins a newer version of the same backend without changing the global selection, and a `morphirup` toolchain generation selects its own versions over the shared store. A teammate who clones a repository with an extension package archive in `.morphir/extensions/staged/` gets a clear message, and no code from the clone runs until they install it.
 
 This host does not support MEP `0.1` (maintainer decision, 9 November 2026): "we don't have users to support the cost of maintaining 2 versions". The maintainer said the same day what is supported instead: "We should support 0.2.0 all prerelease and final 0.2.x releases".
@@ -23,7 +58,7 @@ The same day the maintainer decided to stop reading transient pre-1.0 document f
 
 - **What this host reads.** Only documents with their current `$schema`. It reads no `schemaVersion` draft, and converts nothing.
 - **A home an older CLI wrote** is not read. The host offers to move it to a marked backup and goes on. Without consent, or without a terminal and without `--yes`, the command is refused and nothing changes. `morphir doctor` reports such a home, and `morphir doctor --fix` moves it (Decisions 10 and 11).
-- **The exact schema URLs and shared-file rules** come from finos/morphir#1150, which is open, so the specs mark them provisional.
+- **The exact schema URLs and shared-file rules** come from merged finos/morphir#1150. Parent group 1 is publishing the schemas and normative member tables; codecs wait for that publication.
 
 Every global install goes to the shared catalog, `catalog/extensions.json`, so the current hosts (.NET now, MoonBit later) share what is installed. The maintainer accepted the cost on 9 November 2026: a released Rust CLI cannot list a Morphir Home the .NET host has installed into, because one catalog entry it cannot run fails every Rust `compile`, `generate` and `extension list`. "For now we are treating the rust cli as legacy", and on 10 November it decided the Rust product CLI is to be deleted (Decision 16). A user who needs a released copy gives it its own `MORPHIR_HOME`.
 
@@ -62,14 +97,13 @@ The design groups its questions by what they need:
 - **Follows the reference or an open parent proposal.** The specs follow #1150, or the reference source, where the contract is unwritten. The ask is to write it into the contract pages, and no maintainer answer is needed to start.
 - **Needs the maintainer.** The requirements that depend on these questions are marked provisional in the spec text, and each question names the tasks it blocks.
 
-The decision that mattered most, what may enter the shared catalog (Q-SHARED), is settled: every global install. The design records how the question went three turns, so the .NET-only layer is not restored again. Multi-file extensions are settled too: the maintainer chose a package form (finos/morphir#1146), whose contract is finos/morphir#1151 (open), so this change keeps refusing multi-file artifacts and packages follow in their own change.
+The decision that mattered most, what may enter the shared catalog (Q-SHARED), is settled: every global install. The design records how the question went three turns, so the .NET-only layer is not restored again. Multi-file extensions follow merged finos/morphir#1151 and its VERIFY-B/LAUNCH-A decisions. The one-executable target-archive recommendation is superseded. Raw single-file activation remains a different path; package implementation waits for the parent tables and cases.
 
-Parent contracts still pending, which block the tasks the design names:
+Implementation prerequisites remain after the approved decisions:
 
-- the member tables of #1149's task 1.4, and its shared id cases (task 1.2);
-- the shared-file rules and schema URLs of #1150;
-- the package contract of #1151;
-- the toolchain contract (#1147) for pins, overlays and the plan.
+- shared readers, comparisons, inventory, locks/journal/recovery and probes must now be implemented against parent `0439c4c0` and its fixed corpus;
+- portable pin/overlay schemas, paths, member tables and corpus must come from the separate parent toolchain contract;
+- outer release-assets packaging and Windows executable/path assumptions remain named open questions; approval of other choices does not complete those tasks.
 
 Nothing here is shipped, released or qualified.
 
@@ -94,9 +128,9 @@ Nothing here is shipped, released or qualified.
 - Parent contract: finos/morphir `docs/design/draft/extensions/distribution-and-acquisition.md` and the reference implementation `ecosystem/morphir-rust/crates/morphir-distribution`, read at finos/morphir `c247aad39` (submodule `c9f79da`). The toolchain pages were read at finos/morphir `efdbc34da`.
 - Approved change: finos/morphir `openspec/changes/add-deployment-and-acquisition/` (tasks 3.3, 3.4, 4.4). Its adoption in this repository is on main (`b8ebd12cd`).
 - Dotted ids: finos/morphir#1149, merged on 10 November 2026 (`9690dfc37`). Every id is in one `catalog/extensions.json`, `locks/extensions/` and repository `extensions/`, and its task 2.3 is for this installer. Its tasks 1.1, 1.2 and 1.4 are not done.
-- Shared extension files: finos/morphir#1150 (open, read at `6e15650`), which carries Decisions 10, 11, 13 and 15A for the extension family.
-- Multi-file packages: finos/morphir#1151 (open, read at `083b41eb`).
-- Toolchain contract pages: finos/morphir#1147 (open), read at `60d363059`.
+- Shared extension files: finos/morphir#1150 (merged, original inspection at `6e15650`), which carries Decisions 10, 11, 13 and 15A for the extension family.
+- Multi-file packages: finos/morphir#1151 (merged, original inspection at `083b41eb`).
+- Toolchain contract pages: finos/morphir#1147 (merged), read at `60d363059`.
 - Maintainer decisions are recorded in finos/morphir#1146.
 - Issues: #492 wires the existing handlers, which this change replaces for extensions; the design recommends closing #492 as superseded. #490 (`dist`) and #491 (`tool`) are not part of this change.
 

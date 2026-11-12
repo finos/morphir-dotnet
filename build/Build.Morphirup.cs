@@ -82,7 +82,8 @@ partial class Build
             string[] arguments =
             [
                 "publish", RootDirectory / "src" / "Morphirup" / "Morphirup.fsproj",
-                "-c", Configuration.ToString(), "-r", Rid!, "-o", publish, "-nologo", "-nodeReuse:false",
+                "-c", Configuration.ToString(), "-r", Rid!, "-o", publish, "-nologo", "-m:1", "-nodeReuse:false",
+                "-p:BuildInParallel=false", "-p:UseSharedCompilation=false",
                 "-p:PublishAot=true", "-p:CopyOutputSymbolsToPublishDirectory=false",
                 $"-p:{TargetSettings.RidSpecificPublishProperty}=true",
             ];

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Keeps installed extensions under Morphir Home in the shared store, catalog and lock files, with the members and values the shared contract defines, so that a reader never sees partial state and every current host shares global installs. The documents belong to the extension state family, versioned once by a required `$schema` (maintainer Decision 15A, 10 November 2026). finos/morphir#1149 (merged) puts every id in one catalog; the shared-file rules marked provisional below come from finos/morphir#1150 (open, read at `6e15650`). The Rust product CLI is to be deleted (Decision 16), and keeping it working on a shared home is not a goal.
+Keeps installed extensions under Morphir Home in the shared store, catalog and lock files, with the members and values the shared contract defines, so that a reader never sees partial state and every current host shares global installs. The documents belong to the extension state family, versioned once by a required `$schema` (maintainer Decision 15A, 10 November 2026). finos/morphir#1149 (merged) puts every id in one catalog; the shared-file rules marked provisional below come from finos/morphir#1150 (merged, original inspection at `6e15650`). The Rust product CLI is to be deleted (Decision 16), and keeping it working on a shared home is not a goal.
 
 ## ADDED Requirements
 
@@ -18,7 +18,7 @@ The installer SHALL keep extension state under Morphir Home: a nonempty `MORPHIR
 - **THEN** it is used as an absolute path and is not joined onto the current directory
 
 ### Requirement: A home on a network file system is refused
-Provisional pending finos/morphir#1150. A home on a network file system SHALL be outside the contract, because the lock primitive does not keep its guarantees there. When the host can tell that Morphir Home is on a network file system, it SHALL refuse every command that reads or writes extension state, naming the home. A host is not required to detect it.
+Parent group 1 is published at `0439c4c0`; its schema/member tables and corpus are authoritative. A home on a network file system SHALL be outside the contract, because the lock primitive does not keep its guarantees there. When the host can tell that Morphir Home is on a network file system, it SHALL refuse every command that reads or writes extension state, naming the home. A host is not required to detect it.
 
 #### Scenario: Home on NFS
 - **WHEN** on Linux `statfs` reports that `MORPHIR_HOME` is on NFS and a user runs an install
@@ -46,6 +46,21 @@ Before it reuses an existing store object, the installer SHALL hash it. An objec
 - **WHEN** the file at the store path of a digest holds other bytes, and an install selects that digest
 - **THEN** the install fails with `extension.store_object_mismatch` naming the path
 - **AND** the file, the catalog and the locks are unchanged
+
+### Requirement: Publication preserves the verified object identity
+The installer SHALL keep the verified file descriptor open through a platform operation bound to that descriptor. A stage pathname precheck followed by pathname publication SHALL NOT suffice. A substituted stage name SHALL never produce corrupt success. Cleanup SHALL retain foreign replacement objects; unsupported descriptor-bound publication SHALL fail closed.
+
+#### Scenario: Stage name replaced after hashing
+- **WHEN** another writer replaces the staging name after hashing and before publication
+- **THEN** publication uses the verified object or refuses without corrupt success
+- **AND** foreign objects are not overwritten or removed by cleanup
+
+### Requirement: Supported writers serialize and detect directory tampering
+Morphir Home SHALL be user-owned. Supported concurrent managers SHALL honor stable interprocess locks. The installer SHALL check opened directory identities against their expected ancestry before mutation and commit, and SHALL refuse detected rename-out or replacement. This contract does not promise isolation from arbitrary malicious same-UID actors, and does not require a broker or sandbox.
+
+#### Scenario: Opened directory renamed out
+- **WHEN** a test interleaving moves an opened digest directory outside Morphir Home before commit
+- **THEN** the installer refuses with `extension.path_escape` and does not publish through the moved descriptor
 
 #### Scenario: Two installs of one object
 - **WHEN** two processes publish the same verified artifact at the same time
@@ -85,7 +100,7 @@ Writers SHALL write every extension state document (descriptor, index record, ca
 
 #### Scenario: A lock at the family version
 - **WHEN** a user installs `acme-backend`
-- **THEN** `locks/extensions/acme-backend.json` starts with a `$schema` naming the lock schema at `0.1.0-preview.1`, as finos/morphir#1150 proposes it (`https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/lock.schema.json`), and has no `schemaVersion`
+- **THEN** `locks/extensions/acme-backend.json` starts with a `$schema` naming the lock schema at `0.1.0-preview.1`, as merged finos/morphir#1150 defines it (`https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/lock.schema.json`), and has no `schemaVersion`
 
 #### Scenario: Embedded claims
 - **WHEN** a catalog entry holds the installed claim set
@@ -209,7 +224,7 @@ The installer SHALL write each catalog, lock, journal, repositories configuratio
 - **THEN** it considers only the journal and leaves `.stage-3f2a` in place
 
 ### Requirement: Shared documents are I-JSON compared by parsed values
-Provisional pending finos/morphir#1150. Every shared document SHALL be UTF-8 without a byte order mark and I-JSON, with no repeated member names and integer numbers only. An absent member SHALL differ from `null`. Two writers SHALL conform when their documents are equal as parsed values; bytes, member order and spacing need not be equal.
+Parent group 1 is published at `0439c4c0`; its schema/member tables and corpus are authoritative. Every shared document SHALL be UTF-8 without a byte order mark and I-JSON, with no repeated member names and integer numbers only. An absent member SHALL differ from `null`. Two writers SHALL conform when their documents are equal as parsed values; bytes, member order and spacing need not be equal.
 
 #### Scenario: A fraction in a journal
 - **WHEN** a host reads a journal whose `nextLock` holds `123.0`
@@ -240,3 +255,14 @@ A .NET host SHALL make its private run copies in directories named `morphir-dotn
 #### Scenario: Copy left by a crash
 - **WHEN** a .NET run copy from a crashed compile remains and no process uses it
 - **THEN** the next .NET activation removes it and leaves every `morphir-extension-*` directory in place
+
+### Requirement: Run creation and sweeping preserve ownership identity
+Creation and sweeping SHALL serialize across processes until the new run directory has its owner lease. A sweep SHALL skip a busy creator or owner without waiting. Disposal and removal SHALL check the original directory and owner identities and SHALL refuse detected substitutions. Process-local serialization alone SHALL NOT satisfy this requirement.
+
+#### Scenario: Sweep before owner creation
+- **WHEN** an independent process sweeps after a run directory is created but before its owner lease is acquired
+- **THEN** the creator's directory survives until ownership is established
+
+#### Scenario: Replaced owner during disposal
+- **WHEN** a test replaces the owned directory or owner file before disposal
+- **THEN** disposal leaves the replacement objects untouched

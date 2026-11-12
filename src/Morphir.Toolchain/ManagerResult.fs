@@ -672,12 +672,12 @@ module ResultDocument =
             | Some _ -> refuse ReaderCode.InconsistentDocument (n.Path.Child "platforms")
             | None -> Ok(PlannedPrerequisite.ofPrerequisite read))
 
-    let private plannedComponent (n: Node) : Read<PlannedComponent> =
+    let private plannedComponent readIdentity (n: Node) : Read<PlannedComponent> =
         result {
             let! o = asObject n
             let! on = required "component" componentOf o
             let! version = required "version" version o
-            let! extensionId = optional "extensionId" extensionId o
+            let! extensionId = optional "extensionId" readIdentity o
             let! delivery = optional "delivery" (tag deliveries) o
             let! source = required "source" componentSource o
             let! downloadBytes = required "downloadBytes" integer o
@@ -814,7 +814,7 @@ module ResultDocument =
                         do! boundTo at SourceRole.Provider { Target = package.Target; Sha256 = package.Sha256 } provider.Source
         }
 
-    let private plan (n: Node) : Read<Plan> =
+    let private plan readIdentity readLock (n: Node) : Read<Plan> =
         result {
             let! o = asObject n
             let! implementation = required "implementation" token o
@@ -825,8 +825,8 @@ module ResultDocument =
             let! metadataRefresh =
                 required "metadataRefresh" (tag [ "required", MetadataRefresh.Required; "not-required", MetadataRefresh.NotRequired ]) o
 
-            let! components = required "components" (array plannedComponent) o
-            let! lock = required "lock" LockDocument.readNested o
+            let! components = required "components" (array (plannedComponent readIdentity)) o
+            let! lock = required "lock" readLock o
 
             let plan =
                 { Implementation = implementation
@@ -900,14 +900,14 @@ module ResultDocument =
             }
         | _ -> Ok()
 
-    let private body (o: ObjectNode) : Read<ManagerResult> =
+    let private body readIdentity readLock (o: ObjectNode) : Read<ManagerResult> =
         result {
             let! command = required "command" (tag (Command.all |> List.map (fun (command, name) -> name, command))) o
 
             let! outcome =
                 required "outcome" (tag [ "planned", Outcome.Planned; "succeeded", Outcome.Succeeded; "failed", Outcome.Failed ]) o
 
-            let! plan = optional "plan" plan o
+            let! plan = optional "plan" (plan readIdentity readLock) o
             let! planSha256 = optional "planSha256" sha256 o
             let! selection = optional "selection" selection o
             let! diagnostics = required "diagnostics" (array diagnostic) o
@@ -944,7 +944,11 @@ module ResultDocument =
 
     /// Reads the exact bytes of a manager result, including the plan digest check.
     let read (bytes: byte array) : Result<ManagerResult, ReaderRefusal> =
-        document Syntax.parseJson understoodCriticalPaths body bytes
+        document Syntax.parseJson understoodCriticalPaths (body extensionId LockDocument.readNested) bytes
+
+    /// Reads preview results and their preview-family nested locks, without fallback.
+    let internal readPreview (bytes: byte array) : Result<ManagerResult, ReaderRefusal> =
+        previewDocument PreviewDocument.Result understoodCriticalPaths (body previewExtensionId LockDocument.readPreviewNested) bytes
 
     // ---- writing ------------------------------------------------------------------------------------------------
 

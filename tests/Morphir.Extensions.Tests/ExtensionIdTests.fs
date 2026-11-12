@@ -49,11 +49,58 @@ let tests =
         refused "a_b" (ParseFailure.InvalidSegment(field, 0))
         refused (String('a', 239)) (ParseFailure.TooLong(field, 238))
 
-        test "ReservedForBuiltIns: every id that starts with morphir. is reserved; org.finos.morphir ids are not" {
+        for text in [ "con"; "con.tools"; "prn"; "aux"; "nul"; "com1.tools"; "lpt9" ] do
+            test $"refuses a device name in the first segment: {text}" {
+                Expect.equal
+                    (ExtensionId.Parse text)
+                    (Error(ParseFailure.DeviceName field))
+                    "not portable on Windows"
+            }
+
+        test "grammar precedes length and device-name checks" {
+            Expect.equal
+                (ExtensionId.Parse(
+                    "con."
+                    + String('A', 239)
+                ))
+                (Error(ParseFailure.InvalidSegment(field, 1)))
+                "report the grammar error first"
+        }
+
+        test "device names after the first segment are ordinary tokens" {
+            Expect.isOk
+                (ExtensionId.Parse "tools.con")
+                "the derived file name does not start with a device name"
+
+            Expect.isOk (ExtensionId.Parse "con-tools") "a whole segment is checked"
+            Expect.isOk (ExtensionId.Parse "com0") "COM0 is not reserved"
+        }
+
+        test "length precedes the first-segment device check" {
+            Expect.equal
+                (ExtensionId.Parse(
+                    "con."
+                    + String('a', 235)
+                ))
+                (Error(ParseFailure.TooLong(field, 238)))
+                "length first"
+        }
+
+        test
+            "ReservedForBuiltIns: every id that starts with morphir. is reserved; org.finos.morphir ids are not" {
             Expect.isTrue (ExtensionId.Create "morphir.fsharp").ReservedForBuiltIns "morphir.fsharp"
-            Expect.isTrue (ExtensionId.Create "morphir.not-yet-shipped").ReservedForBuiltIns "a future built-in"
-            Expect.isFalse (ExtensionId.Create "org.finos.morphir.fsharp-backend").ReservedForBuiltIns "the F# backend guest"
-            Expect.isFalse (ExtensionId.Create "morphir-dotnet.fsharp").ReservedForBuiltIns "another first token"
+
+            Expect.isTrue
+                (ExtensionId.Create "morphir.not-yet-shipped").ReservedForBuiltIns
+                "a future built-in"
+
+            Expect.isFalse
+                (ExtensionId.Create "org.finos.morphir.fsharp-backend").ReservedForBuiltIns
+                "the F# backend guest"
+
+            Expect.isFalse
+                (ExtensionId.Create "morphir-dotnet.fsharp").ReservedForBuiltIns
+                "another first token"
         }
 
         test "TryParse gives the id or the failure" {

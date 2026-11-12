@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="YoloDev.Expecto.TestSdk" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Morphir.Toolchain/Morphir.Toolchain.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Toolchain.IO/Morphir.Toolchain.IO.fsproj" />
+    <Compile Include="ScriptedIO.fs" />
+    <Compile Include="AcquisitionTests.fs" />
+    <Compile Include="HttpTransportTests.fs" />
+    <Compile Include="IncrementalDigestTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+</Project>
