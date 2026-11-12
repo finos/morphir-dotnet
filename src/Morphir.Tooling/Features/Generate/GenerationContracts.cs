@@ -120,6 +120,8 @@ public sealed record GenerationSettings(ModelInput Input, RequestedTarget Target
     public Morphir.Tooling.Features.Compile.Setting<string>? Extension { get; init; }
     /// <summary>Validated installed process identity, with no implicit path lookup.</summary>
     public ExtensionId? InstalledExtensionId { get; init; }
+    /// <summary>The selected WASM module from the same effective configuration snapshot.</summary>
+    public Morphir.Tooling.Features.Extensions.WasmModuleSource? WasmModule { get; init; }
 
     /// <summary>
     /// A hold on the input, or null. <c>generate</c> releases it when model loading ends, after it admits the

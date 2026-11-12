@@ -77,7 +77,7 @@ public static class GenerateHandler
         IEnumerable<IGenerationBackend> registered)
     {
         var connected = await connector.ConnectAsync(new BackendExtensionRequest(extension, target, context.WorkingDirectory)
-        { InstalledId = settings.InstalledExtensionId, Environment = context.Environment }, ct);
+        { InstalledId = settings.InstalledExtensionId, Environment = context.Environment, WasmModule = settings.WasmModule }, ct);
         if (connected is Outcome<IExternalGenerationBackend>.Failure connectFailure) return GenerationStages.Failed(connectFailure.Error, null);
         await using var backend = ((Outcome<IExternalGenerationBackend>.Success)connected).Value;
         var id = backend.Descriptor.Id;

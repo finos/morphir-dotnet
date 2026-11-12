@@ -165,7 +165,7 @@ public sealed class CompileRunner(
             var extension = value.Extension ?? new Setting<string>(value.InstalledExtensionId!.Value.Value, value.InstalledExtensionId.Origin);
             var connection = await extensions.ConnectAsync(
                 new FrontendExtensionRequest(extension, value.Language?.Value, value.WorkingDirectory)
-                { InstalledId = value.InstalledExtensionId?.Value, Environment = context.Environment, Home = value.MorphirHome }, ct);
+                { InstalledId = value.InstalledExtensionId?.Value, Environment = context.Environment, Home = value.MorphirHome, WasmModule = value.WasmModule }, ct);
             diagnostics.AddRange(connection.Diagnostics);
             if (!connection.TryGetValue(out var frontend)) return Checked<ResolvedRun>.Fail(diagnostics);
             ICompilePublication? started = null;

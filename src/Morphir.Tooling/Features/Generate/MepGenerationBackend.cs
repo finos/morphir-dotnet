@@ -73,16 +73,18 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     /// <summary>The bytes kept free in a frame for the JSON-RPC members around the request's params.</summary>
     private const int FrameMargin = 1024;
 
-    private readonly MepGuestProcess _guest;
+    private readonly IMepGuestSession _guest;
+    private readonly string _transport;
     private readonly IReadOnlyList<ModelTransportTuple> _agreed;
     private readonly ModelTransportLimits _limits;
 
     private sealed record PassedOptions(ImmutableDictionary<string, JsonElement> Values) : ValidatedBackendOptions;
 
-    private MepGenerationBackend(MepGuestProcess guest, BackendDescriptor descriptor, string version, IReadOnlyList<ModelTransportTuple> agreed,
-        ModelTransportLimits limits)
+    private MepGenerationBackend(IMepGuestSession guest, BackendDescriptor descriptor, string version, IReadOnlyList<ModelTransportTuple> agreed,
+        ModelTransportLimits limits, string transport)
     {
         _guest = guest;
+        _transport = transport;
         Descriptor = descriptor;
         ExtensionVersion = version;
         _agreed = agreed;
@@ -98,8 +100,8 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     /// <summary>The guest's own release version, as it gave it.</summary>
     public string ExtensionVersion { get; }
 
-    /// <summary>The transport: <c>mep</c>, a MEP 0.2.0-draft.1 guest process.</summary>
-    public string Transport => "mep";
+    /// <summary>The transport: <c>mep</c> for a process, or <c>wasm</c> for an owned WASM channel.</summary>
+    public string Transport => _transport;
 
     /// <summary>The guest's extension id and version, for example <c>org.example.backend 1.0.0</c>.</summary>
     public string Identity => $"{Descriptor.Id.Value} {ExtensionVersion}";
@@ -110,8 +112,8 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     internal NegotiatedSession Session => _guest.Session;
     internal ModelTransportTuple? LastModelTuple { get; private set; }
 
-    /// <summary>True when the guest process has exited.</summary>
-    public bool HasExited => _guest.HasExited;
+    /// <summary>True when the owned guest session has ended.</summary>
+    public bool HasExited => _guest.IsClosed;
 
     /// <summary>
     /// Starts the guest and initializes a session. Fails when the guest does not start or initialize, when it does
@@ -133,7 +135,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         var owned = true;
         try
         {
-            var outcome = await FromSession(guest, options, offer, ct);
+            var outcome = await FromSession(guest, options, offer, "mep", ct);
             owned = outcome is not Outcome<MepGenerationBackend>.Success;
             return outcome;
         }
@@ -143,9 +145,32 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         }
     }
 
+    /// <summary>Initializes an owned WASM channel and applies the same model and artifact checks as a process guest.</summary>
+    public static async Task<Outcome<MepGenerationBackend>> ConnectChannelAsync(MepBackendOptions options, ISingleMessageChannel channel, CancellationToken ct)
+    {
+        var host = MepGuestOptions.Create(options.Executable, options.Arguments, options.WorkingDirectory, options.Deadline,
+            options.Stderr, options.HostName, options.HostVersion).Host;
+        var offer = OfferWith(options.OfferLimits);
+        var start = await MepChannelGuest.StartCheckedAsync(channel, host, offer, options.Deadline, ct);
+        var guest = start.Match<IMepGuestSession?>(started => started, _ => null);
+        if (guest is null)
+            return start.Match(_ => throw new InvalidOperationException(), failed => Fail<MepGenerationBackend>(GenerationFailureKind.Operational, failed.Code, failed.Message));
+        var owned = true;
+        try
+        {
+            var outcome = await FromSession(guest, options, offer, "wasm", ct);
+            owned = outcome is not Outcome<MepGenerationBackend>.Success;
+            return outcome;
+        }
+        finally
+        {
+            if (owned) await guest.DisposeAsync();
+        }
+    }
+
     /// <summary>The backend over a started guest, or why it cannot serve the target. It does not dispose the guest.</summary>
-    private static async Task<Outcome<MepGenerationBackend>> FromSession(MepGuestProcess guest, MepBackendOptions options,
-        ModelTransportSupport offer, CancellationToken ct)
+    private static async Task<Outcome<MepGenerationBackend>> FromSession(IMepGuestSession guest, MepBackendOptions options,
+        ModelTransportSupport offer, string transport, CancellationToken ct)
     {
         var session = guest.Session;
         var extension = session.Extension;
@@ -210,7 +235,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         var descriptor = new BackendDescriptor(id, name, options.Target, capabilities) { Description = description };
         // The host admits each model against the agreed limits, which are at most its own offer.
         var limits = session.Capabilities.ModelTransportOrNull()?.Limits ?? options.OfferLimits;
-        return new Outcome<MepGenerationBackend>.Success(new(guest, descriptor, extension.Version, agreed, limits));
+        return new Outcome<MepGenerationBackend>.Success(new(guest, descriptor, extension.Version, agreed, limits, transport));
     }
 
     /// <summary>Passes every option to the guest, which validates them; a refusal comes back from generation.</summary>

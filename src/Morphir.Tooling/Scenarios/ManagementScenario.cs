@@ -26,7 +26,7 @@ public class ManagementScenario : IMorphirCliScenario
             // The worker, which runs before this composition exists, reads the same WasmRuntime.Process.
             services.TryAddSingleton(WasmRuntime.Process);
             services.TryAddSingleton<ExtensionRegistry>();
-            // The configured WASM module loader (design CFG-1). No command uses it yet (design review question 5).
+            // The configured WASM module loader, shared by experimental compile/generate and the worker.
             services.TryAddSingleton<IWasmModuleLoader, WasmModuleLoader>();
         });
 

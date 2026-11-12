@@ -16,6 +16,8 @@ public sealed record FrontendExtensionRequest(Setting<string> Extension, Languag
     public IReadOnlyDictionary<string, string>? Environment { get; init; }
     /// <summary>The resolved Morphir Home of this invocation.</summary>
     public string? Home { get; init; }
+    /// <summary>The module parsed by the settings resolver, or null for a process guest.</summary>
+    public Features.Extensions.WasmModuleSource? WasmModule { get; init; }
 }
 
 /// <summary>

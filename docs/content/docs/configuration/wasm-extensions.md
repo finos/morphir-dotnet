@@ -11,9 +11,9 @@ The host runs WASM extensions of the `extism-kernel-v1` profile: an Extism guest
 Extension Protocol (MEP) `0.2.0-draft.1`. [Extension settings](extensions.md) says how to name a module and
 how the host checks it before it runs.
 
-No command loads a configured module in this release. Today only the internal worker mode,
-[`morphir extension worker`](../cli/extension-worker.md), runs a module. The bounds below are the ones every
-session gets, and the ones the first product commands will use.
+Experimental [`morphir compile` and `morphir generate`](../getting-started/python-wasm.md)
+run a configured Python module through the same runtime as the internal
+[`morphir extension worker`](../cli/extension-worker.md). The bounds below apply to each session.
 
 ## One instance for each session
 

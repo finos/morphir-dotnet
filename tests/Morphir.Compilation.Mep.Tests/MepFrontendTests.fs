@@ -482,7 +482,11 @@ let processTreeOwnership =
             if not (OperatingSystem.IsWindows()) then skiptest "Windows creation-time job control."
             let marker = Path.Combine(guestWork.Value.Work,"descendant.pid")
             if File.Exists marker then File.Delete marker
-            let frontend = connect {fakeOptions "root-exits-with-child" with Deadline=TimeSpan.FromSeconds 1.}
+            let startup = Stopwatch.StartNew()
+            let frontend =
+                // This controls tree settlement, not a one-second cold initialization SLA.
+                try connect {fakeOptions "root-exits-with-child" with Deadline=TimeSpan.FromSeconds 5.}
+                finally eprintfn "Ownership fixture initialization took %O; child stderr: %s" startup.Elapsed (stderr.ToString())
             let mutable child: Process option = None
             try
                 let _ = (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend,CancellationToken.None).GetAwaiter().GetResult()

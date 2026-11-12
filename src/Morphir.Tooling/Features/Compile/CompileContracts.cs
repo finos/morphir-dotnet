@@ -206,6 +206,8 @@ public sealed record CompileSettings
     public Setting<string>? Extension { get; init; }
     /// <summary>Validated installed identity selected explicitly by --extension-id.</summary>
     public Setting<Morphir.Extensions.ExtensionId>? InstalledExtensionId { get; init; }
+    /// <summary>The selected WASM module, parsed from the same effective configuration as these settings.</summary>
+    public Features.Extensions.WasmModuleSource? WasmModule { get; init; }
     /// <summary>Where the sources come from.</summary>
     public required SourceRequest Sources { get; init; }
     /// <summary>
