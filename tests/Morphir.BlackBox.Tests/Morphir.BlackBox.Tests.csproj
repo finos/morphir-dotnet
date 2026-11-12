@@ -1,0 +1,132 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The black-box tests of the product: the tests that reach it only through a built artifact. See README.md.
+    This project references Morphir.TestSupport only. No assembly from src/ is visible to its code: a step or a test
+    reaches the product through a driver of Morphir.TestSupport.Drivers.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Morphir.BlackBox.Tests</RootNamespace>
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
+    <ReqnrollUseIntermediateOutputPathForCodeBehind>true</ReqnrollUseIntermediateOutputPathForCodeBehind>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Reqnroll" />
+    <PackageReference Include="Reqnroll.TUnit" />
+    <!-- The checks of a report against its published JSON schema (Steps/ReportSchema.cs). -->
+    <PackageReference Include="JsonSchema.Net" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="**/*.feature" Exclude="bin/**;obj/**" />
+    <!-- The kit suites are fixtures of the conformance host: the build copies them to bin/, and they are not tests here. -->
+    <ReqnrollFeatureFile Remove="bin/**;obj/**" />
+    <!-- The fixture files that a workspace copies (IScenarioWorkspace.CopyFixture). -->
+    <None Include="Fixtures/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Fixtures that have one source in the repository: the car rental example and the shared IR fixtures. -->
+    <None Include="../../examples/car-rental/models/car-rental-v1.json" Link="Fixtures/WireForms/daily-rate-1.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/car-rental/models/car-rental-v2.json" Link="Fixtures/WireForms/daily-rate-2.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIon/pairs/v3-daily-rate.json" Link="Fixtures/WireForms/daily-rate-3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-v4.json" Link="Fixtures/WireForms/daily-rate-4.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/car-rental/models/car-rental-v3.json" Link="Fixtures/Models/car-rental-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-v3.json" Link="Fixtures/Models/daily-rate-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-v4.json" Link="Fixtures/Models/daily-rate-v4.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-mismatch-v3.json" Link="Fixtures/Models/daily-rate-mismatch-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The pinned crafted corpus and modules of the WASM worker; see ../Fixtures/MepWasm/PROVENANCE.md. -->
+    <None Include="../Fixtures/MepWasm/**/*" Link="Fixtures/MepWasm/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
+    <!-- The guests of the worker scenarios; see ../Fixtures/WorkerGuests/README.md. -->
+    <None Include="../Fixtures/WorkerGuests/**/*" Link="Fixtures/WorkerGuests/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
+    <!-- The frozen workflow of the local candidate journey; see ../Fixtures/Toolchain. -->
+    <None Include="../Fixtures/Toolchain/workflows/fsharp-compile-generate/**/*" Link="Fixtures/Toolchain/workflows/fsharp-compile-generate/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The pinned package versions, for the engine version that a runtime report states. -->
+    <None Include="../../Directory.Packages.props" Link="Fixtures/Directory.Packages.props" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The inputs of the library hosts and of the morphirup plan. -->
+    <None Include="../Fixtures/Configuration/**/*" Link="Fixtures/Configuration/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../conformance/**/*" Link="Fixtures/Conformance/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.Toolchain.Tests/AotProbe/*" Link="Fixtures/Morphirup/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The unit tests of Morphir.Tooling.Tests read the same five models in their TestData folder. -->
+    <None Include="../Morphir.Tooling.Tests/TestData/valid-ir-v1.json" Link="Fixtures/Models/valid-ir-v1.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.Tooling.Tests/TestData/valid-ir-v2.json" Link="Fixtures/Models/valid-ir-v2.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.Tooling.Tests/TestData/valid-ir-v3.json" Link="Fixtures/Models/valid-ir-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.Tooling.Tests/TestData/invalid-missing-formatversion.json" Link="Fixtures/Models/invalid-missing-formatversion.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.Tooling.Tests/TestData/malformed.json" Link="Fixtures/Models/malformed.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The models and the program of the Myriad consumers. -->
+    <None Include="../../examples/car-rental/models/car-rental-v1.json" Link="Fixtures/Models/car-rental-v1.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/car-rental/models/car-rental-v2.json" Link="Fixtures/Models/car-rental-v2.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/malformed-model.txt" Link="Fixtures/Models/malformed-model.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/car-rental/Program.fs" Link="Fixtures/Myriad/car-rental-program.fs" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The wire rules of the System.Text.Json plugin, which its unit tests also compile. -->
+    <None Include="../Morphir.Myriad.SystemTextJson.Tests/Contexts/WireRules.fs" Link="Fixtures/SystemTextJson/WireRules.fs" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The consumers of the F# SDK packages: the source, the precompiled baseline and the generated Ordering source. -->
+    <None Include="../Morphir.SDK.Tests/Packaging/LegacyConsumer.fs" Link="Fixtures/SdkPackages/LegacyConsumer.fs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.SDK.Tests/Packaging/Baseline/LegacyConsumer.dll" Link="Fixtures/SdkPackages/Baseline/LegacyConsumer.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.SDK.Tests/Packaging/Baseline/public-api.txt" Link="Fixtures/SdkPackages/Baseline/public-api.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.SDK.Tests/Packaging/Baseline/README.md" Link="Fixtures/SdkPackages/Baseline/README.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.SDK.Tests/Packaging/Generated/Ordering.fs" Link="Fixtures/SdkPackages/Generated/Ordering.fs" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The changelog gives the version of the packed packages; global.json gives the SDK of a consumer. -->
+    <None Include="../../CHANGELOG.md" Link="Fixtures/Repository/CHANGELOG.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../global.json" Link="Fixtures/Repository/global.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The pinned finos/morphir toolchain case fsharp-compile-generate: its IR and its frozen generated file. -->
+    <None Include="../Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/ir-4.0.0.json" Link="Fixtures/Toolchain/fsharp-compile-generate/ir-4.0.0.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/generated/Pricing.fs" Link="Fixtures/Toolchain/fsharp-compile-generate/Pricing.fs" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The pages of the documentation whose commands a scenario runs, and the example of the F# pricing tutorial. -->
+    <None Include="../../docs/content/docs/cli/compile.md" Link="Fixtures/Docs/cli/compile.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/cli/generate.md" Link="Fixtures/Docs/cli/generate.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/cli/validate.md" Link="Fixtures/Docs/cli/validate.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/guides/fsharp-pricing-tutorial.md" Link="Fixtures/Docs/guides/fsharp-pricing-tutorial.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/getting-started/compile-fsharp.md" Link="Fixtures/Docs/getting-started/compile-fsharp.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/car-rental-pricing/**/*" Exclude="../../examples/car-rental-pricing/bin/**;../../examples/car-rental-pricing/obj/**"
+          Link="Fixtures/Examples/car-rental-pricing/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-mismatch-v3.json" Link="Fixtures/Models/daily-rate-mismatch-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-v4.json" Link="Fixtures/Models/daily-rate-v4.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The published JSON schemas of the configuration and migration reports. -->
+    <None Include="../../docs/spec/schemas/config-inspection-result.schema.json" Link="Fixtures/Schemas/config-inspection-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/spec/schemas/config-edit-result.schema.json" Link="Fixtures/Schemas/config-edit-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/spec/schemas/project-migration-result.schema.json" Link="Fixtures/Schemas/project-migration-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/spec/schemas/workspace-migration-result.schema.json" Link="Fixtures/Schemas/workspace-migration-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Reqnroll" />
+    <Using Include="Morphir.TestSupport.Drivers" />
+  </ItemGroup>
+
+  <!-- The CLI entry points of the development build: built first, and their paths in the assembly metadata. -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
+  <!-- The extension guests of the development build: built first, and their paths in the assembly metadata. -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.ExtensionArtifacts.targets" />
+
+  <!-- The projects that the package driver packs: built first, and their paths in the assembly metadata. -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.PackageSources.targets" />
+  <!--
+    The programs of the repository that are not the CLI, which the library host driver and the inspection driver use:
+    the hosts of shipped libraries that the CLI does not reach (evidence/library-hosts.md of the change
+    consolidate-black-box-tests), the Native AOT probes, and morphirup. Built first, and their paths in the assembly
+    metadata.
+  -->
+  <ItemGroup>
+    <MorphirTestProgram Include="../Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" Name="compilation-smoke" />
+    <MorphirTestProgram Include="../Morphir.Configuration.IO.Smoke/Morphir.Configuration.IO.Smoke.csproj" Name="configuration-io-smoke" />
+    <MorphirTestProgram Include="../Morphir.Configuration.Inspection.Smoke/Morphir.Configuration.Inspection.Smoke.csproj" Name="configuration-inspection-smoke" />
+    <MorphirTestProgram Include="../Morphir.Configuration.Microsoft.Smoke/Morphir.Configuration.Microsoft.Smoke.csproj" Name="configuration-microsoft-smoke" />
+    <MorphirTestProgram Include="../Morphir.Conformance.Smoke/Morphir.Conformance.Smoke.fsproj" Name="conformance-smoke" />
+    <MorphirTestProgram Include="../Morphir.Myriad.SystemTextJson.AotProbe/Morphir.Myriad.SystemTextJson.AotProbe.fsproj" Name="myriad-json-probe" />
+    <MorphirTestProgram Include="../Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" Name="mep-probe" />
+    <MorphirTestProgram Include="../../src/Morphirup/Morphirup.fsproj" Name="morphirup" />
+  </ItemGroup>
+  <Import Project="../Morphir.TestSupport/build/Morphir.TestPrograms.targets" />
+
+</Project>

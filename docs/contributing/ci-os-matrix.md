@@ -42,6 +42,10 @@ Mark a test that uses the real file system, paths, line endings, processes, the 
 system API, native code or sockets, directly or through the code under test. A test with no marker has no Windows and
 macOS coverage in a pull request. If you are not sure, mark the test.
 
+The black-box project `tests/Morphir.BlackBox.Tests` needs no marker on a test. Each of its tests starts the product
+on the operating system of the run, so the assembly has the marker, and each operating system runs each of its
+groups (see [The black-box groups](#the-black-box-groups)).
+
 The `Test` target has the parameter `--test-scope` (`build/Build.Testing.cs`, `build/Helpers/TestPlan.cs`):
 
 | Scope | Tests | Used by |
@@ -51,14 +55,58 @@ The `Test` target has the parameter `--test-scope` (`build/Build.Testing.cs`, `b
 
 The scope `platform` finds the test assemblies with a search for the three marker forms in the sources below
 `tests/<project>/`. The word `PlatformSpecific` alone is not the marker, because a Morphir IR type has a case with
-that name. An assembly that has a marker but selects no test fails the run. The Myriad package-consumer checks run
-in both scopes. To run every test on every operating system for a branch, use a manual
-run with `os=full`.
+that name. An assembly that has a marker but selects no test fails the run. To run every test on every operating
+system for a branch, use a manual run with `os=full`.
 
 ```bash
 ./build.sh --target Test --test-scope platform   # only the marked tests
 ./build.sh --target Test --test-parallelism 1    # one test assembly at a time
+./build.sh --target Test --test-group smoke      # only one group of the black-box tests
 ```
+
+## The black-box groups
+
+A black-box test reaches the product only through a built artifact. Those tests are in one project,
+`tests/Morphir.BlackBox.Tests`, in four groups by their purpose
+(see [its README](../../tests/Morphir.BlackBox.Tests/README.md)):
+
+| Group | Proves | Pull request, each operating system | Release and manual workflows |
+| --- | --- | --- | --- |
+| `integration` | The components behind one capability work together. | Development build | Also each published target that supports the capabilities of the test |
+| `journey` | One user goal that needs two or more capabilities. | Development build | Also each published target |
+| `smoke` | An artifact starts and does one basic function. For the host of a library that the CLI does not reach: the host runs and passes its checks. | Development build, with the managed library hosts. The Native AOT lane (`TestAot`, the probes and the hosts): Linux only | Also the published targets |
+| `e2e` | The delivered form itself: installation, layout, start. | Development build, for a test with no lane | Each published and packaged target |
+
+The group states the purpose. The form of the product on which a test runs is the target, and the target does not
+change the group.
+
+A group is a suite of the `Test` target (`build/Helpers/TestPlan.cs`): it runs as its own test process, at the same
+time as other suites, with its own row in the report and its own result directory. A group suite has one filter in
+both scopes, `[(Category=<group>)&(Category!=lane)]`. A group with no test fails its run, so a group is in the plan
+from the change that adds its first test. `--test-group <group>` runs only the suites of that group and no other
+suite. The `integration` and `e2e` groups pack projects of the repository (the package driver), so they run as
+suites that use the source projects.
+
+The Linux test job runs the Native AOT lane after the tests: `./build.sh --target TestAot` publishes each probe,
+each library host and morphirup with Native AOT, checks the trim and AOT warnings of each publish, and compares the
+native output with the managed output.
+
+A test that needs more than the development build has the tag `@lane` and one lane tag (`@packages`,
+`@native-aot` or `@published`). The run of a group does not select it. If another run selects it, the test is
+skipped before its first step, with the lane of the test and the lane of the run as the reason. The report row of a
+black-box suite shows the count of skipped tests by reason (lane, host, capability).
+
+The release and manual workflows (`deployment.yml`, `manual-e2e-test.yml`, `manual-aot-test.yml`) run each group
+against a published or packaged target with `TestE2E` (`scripts/run-e2e-tests.cs`): one test process for each group,
+with `MORPHIR_TEST_TARGET` and `MORPHIR_TEST_LANE=published`. That run executes the tests with no lane and the tests
+of the published lane, and skips each test that the target does not support with its reason.
+
+The packages lane (`@lane @packages`) has the tests of the packages that the pack step makes: their layout, their
+metadata, their versions, and the install of the tools. In a pull request, each operating system runs it in the step
+"Run build tests", after "Pack packages for build testing": the `TestBuild` target runs the build tests and then the
+black-box project with the filter `[Category=packages]`, `MORPHIR_TEST_LANE=packages` and
+`MORPHIR_TEST_PACKAGES` set to the output folder of `PackAll`. The package driver reads only that folder; a run with
+no package there stops before its first test with the pack command.
 
 ## Parallel builds and tests
 
@@ -68,6 +116,24 @@ one build runs on the machine at the same time.
 `Test` runs more than one test assembly at the same time: half the processors, rounded up, from 1 to 4
 (`--test-parallelism`). Each assembly writes its output as one block when it completes. The job summary and the log
 show the time of each assembly.
+
+A test process limits the product processes that it runs at the same time (`ProcessGate` of
+`tests/Morphir.TestSupport`). Each test process has its own limit, so `Test` gives each one a fixed share of one
+limit for the machine, in `MORPHIR_TEST_MAX_PROCESSES`:
+
+- The limit for the machine is `MORPHIR_TEST_MAX_PROCESSES` of the caller, or half the processors and not less
+  than 2.
+- No more test processes run at the same time than that limit.
+- Each test process gets the limit divided by the number of test processes at the same time, rounded down. The
+  share does not depend on the moment at which a suite starts.
+- A suite that runs alone gets the complete limit.
+
+For example, a limit of 8 with 2 test processes at the same time gives 4 to each, and with 3 it gives 2 to each.
+The first lines of the `Test` log show the limit and the share.
+
+The test jobs of `development.yml` set `MORPHIR_TEST_MAX_PROCESSES` to 4. A runner has 3 or 4 processors and runs 2
+test processes at the same time, so each test process gets 2. On a machine with many processors you can set a
+larger limit for a faster run, for example `MORPHIR_TEST_MAX_PROCESSES=18 ./build.sh --target Test`.
 
 All test assemblies share the `obj` and `bin` folders of the repository. A test that runs `dotnet build`, `pack` or
 `publish` on a project of the repository must obey these rules:

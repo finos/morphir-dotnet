@@ -58,7 +58,7 @@
     -->
     <None Include="../Fixtures/MepWasm/**/*" Link="Fixtures/MepWasm/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
     <!-- The worker's own crafted guests (add-wasm-extension-host, task 4.1), shared with the end-to-end tests. -->
-    <None Include="../Morphir.E2E.Tests/TestData/Wasm/*" Link="WorkerGuests/%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
+    <None Include="../Fixtures/WorkerGuests/*.wasm;../Fixtures/WorkerGuests/*.wat" Link="WorkerGuests/%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
     <Content Include="**/*.feature"/>
   </ItemGroup>
 
@@ -70,6 +70,12 @@
     <!-- hiding .gitkeep files in Visual Studio; they are only needed to ensure the existence of the empty folders in git -->
     <None Update="**/.gitkeep" Visible="false" />
   </ItemGroup>
+
+  <!--
+    The CLI entry points of the development build, for the tests that start the CLI (CliTestHelper, DevelopmentCli).
+    This project references the tooling library and no entry point, so this import makes its build build them.
+  -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
 
 </Project>
 

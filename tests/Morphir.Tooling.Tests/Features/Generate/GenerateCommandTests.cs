@@ -1,4 +1,3 @@
-using System.Text.Json;
 using FluentAssertions;
 using Morphir.Tooling.Tests.Integration.CLI;
 using Morphir.Testing;
@@ -7,6 +6,10 @@ using Morphir.TestSupport;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
+/// <summary>
+/// The text output of <c>generate</c>, checked with the common corpus of the product (GenerationCases) in the test
+/// process. The other cases of the command are in tests/Morphir.BlackBox.Tests/Integration/FSharpGeneration.feature.
+/// </summary>
 [Category("PlatformSpecific")]
 public sealed class GenerateCommandTests : IDisposable
 {
@@ -14,58 +17,16 @@ public sealed class GenerateCommandTests : IDisposable
     public GenerateCommandTests() => Directory.CreateDirectory(_root);
 
     [Test]
-    [Arguments("--target missing")]
-    [Arguments("--option unknown=true")]
-    [Arguments("--option optimize=not-a-boolean")]
-    [Arguments("--input-format yaml")]
-    [Arguments("--unavailable")]
-    [Arguments("--option")]
-    public async Task InvalidInvocationReturnsTwoWithoutPublication(string argument)
+    public async Task HumanOutputReservesStdoutForArtifacts()
     {
         var input = GenerationInputFixtures.DailyRate(_root, "4", "json");
         var output = Path.Combine(_root, "output");
-        var target = argument.StartsWith("--target ", StringComparison.Ordinal) ? "" : "--target fsharp";
-        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI")).ExecuteCommandAsync($"generate --input \"{input}\" {target} --output \"{output}\" --json {argument}", timeout: TimeSpan.FromSeconds(60));
-        result.ExitCode.Should().Be(2, result.CombinedOutput);
-        using var json = JsonDocument.Parse(result.StandardOutput);
-        json.RootElement.GetProperty("success").GetBoolean().Should().BeFalse();
-        if (argument.StartsWith("--target ", StringComparison.Ordinal)) json.RootElement.GetProperty("diagnostics")[0].GetProperty("code").GetString().Should().Be("unknown-target");
-        if (argument.StartsWith("--option ", StringComparison.Ordinal)) json.RootElement.GetProperty("backend").GetString().Should().Be("morphir.fsharp");
-        Directory.Exists(output).Should().BeFalse();
+        var response = await CliTestHelper.ForTarget().ExecuteCommandAsync(
+            $"generate --input \"{input}\" --target fsharp --output \"{output}\"", timeout: TimeSpan.FromSeconds(30));
+        response.ExitCode.Should().Be(0, response.CombinedOutput);
+        response.StandardOutput.Should().Be("Inventory.fs");
+        GenerationCases.checkDailyRate("4", "json", "file", [Tuple.Create("Inventory.fs", File.ReadAllText(Path.Combine(output, "Inventory.fs")))]);
     }
 
-    [Test]
-    [Arguments(true)]
-    [Arguments(false)]
-    public async Task HumanOutputReservesStdoutForArtifacts(bool valid)
-    {
-        var input = GenerationInputFixtures.DailyRate(_root, "4", "json");
-        var output = Path.Combine(_root, "output");
-        var response = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI")).ExecuteCommandAsync(
-            $"generate --input \"{input}\" --target {(valid ? "fsharp" : "unknown")} --output \"{output}\"", timeout: TimeSpan.FromSeconds(30));
-        response.ExitCode.Should().Be(valid ? 0 : 2, response.CombinedOutput);
-        if (valid)
-        {
-            response.StandardOutput.Should().Be("Inventory.fs");
-            GenerationCases.checkDailyRate("4", "json", "file", [Tuple.Create("Inventory.fs", File.ReadAllText(Path.Combine(output, "Inventory.fs")))]);
-        }
-        else
-        {
-            response.StandardOutput.Should().BeEmpty();
-            response.StandardError.Should().Contain("unknown-target");
-            Directory.Exists(output).Should().BeFalse();
-        }
-    }
-
-    [Test]
-    public async Task RepeatedOptionsPreserveExplicitFalseAndLastValue()
-    {
-        var input = GenerationInputFixtures.DailyRate(_root, "4.0.0", "binary");
-        var output = Path.Combine(_root, "output");
-        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI")).ExecuteCommandAsync($"generate --input \"{input}\" --target fsharp --output \"{output}\" --input-format ion --option optimize=true --option optimize=false --json", timeout: TimeSpan.FromSeconds(60));
-        result.ExitCode.Should().Be(0, result.CombinedOutput);
-        using var json = JsonDocument.Parse(result.StandardOutput);
-        json.RootElement.GetProperty("artifacts").GetArrayLength().Should().BeGreaterThan(0);
-    }
     public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

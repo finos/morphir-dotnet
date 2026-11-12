@@ -96,18 +96,42 @@ public class TestPlanTests
 
     [Test]
     public void TheSuitesThatRunMSBuildOnSourceProjectsAreKnown() =>
-        TestPlan.Suites.Where(suite => suite.UsesSourceProjects).Select(suite => suite.Project).Should().BeEquivalentTo(
-            "Morphir.SDK.Tests",
+        TestPlan.Suites.Where(suite => suite.UsesSourceProjects).Select(suite => suite.Name).Should().BeEquivalentTo(
+            "Morphir.TestSupport.Tests",
             "Morphir.Mep.Tests",
             "Morphir.Frontend.FSharp.Extension.Tests",
-            "Morphir.CodeGeneration.FSharp.Extension.Tests",
             "Morphir.Myriad.Tests",
-            "Morphir.Myriad.Integration.Tests",
-            "Morphir.Myriad.SystemTextJson.Tests");
+            // The package driver packs projects of the repository with no build: it reads their obj and bin folders.
+            "Morphir.BlackBox.Tests (integration)",
+            "Morphir.BlackBox.Tests (e2e)");
+
+    [Test]
+    public void ThePackagesLaneRunSelectsOnlyTheTestsOfThePackagesLane()
+    {
+        var run = TestPlan.PackagesLaneRun;
+
+        run.Suite.Project.Should().Be(TestPlan.BlackBoxProject);
+        run.Suite.Group.Should().BeNull("the lane is not a group: it has the tests of each group that need the packed packages");
+        run.Suite.TakesHangDump.Should().BeTrue();
+        run.Arguments.Should().Equal("--treenode-filter", "/*/*/*/*[Category=packages]");
+    }
+
+    [Test]
+    public void ThePackagesLaneRunGetsItsLaneAndTheFolderOfThePackedPackages()
+    {
+        var environment = TestPlan.PackagesLaneEnvironment("/repo/artifacts/packages");
+
+        environment.Should().Equal(new Dictionary<string, string>
+        {
+            ["MORPHIR_TEST_LANE"] = "packages",
+            ["MORPHIR_TEST_PACKAGES"] = "/repo/artifacts/packages",
+        });
+    }
 
     [Test]
     public void TheSuitesWithTimeBudgetsRunAlone() =>
-        TestPlan.Suites.Where(suite => suite.RunsAlone).Select(suite => suite.Project).Should().Equal("Morphir.Extensions.Wasm.Tests", "Morphir.Toolchain.Tests");
+        TestPlan.Suites.Where(suite => suite.RunsAlone).Select(suite => suite.Group is null ? suite.Project : $"{suite.Project} ({suite.Group})")
+            .Should().Equal("Morphir.Extensions.Wasm.Tests", "Morphir.Toolchain.Tests", "Morphir.BlackBox.Tests (integration)");
 
     [Test]
     public void TheNextRunIsTheFirstThatWaits()
@@ -168,8 +192,180 @@ public class TestPlanTests
     [Test]
     public void TheSuitesOfTheTestTargetAreUnique()
     {
-        TestPlan.Suites.Should().HaveCount(35);
-        TestPlan.Suites.Select(suite => suite.Project).Should().OnlyHaveUniqueItems();
+        TestPlan.Suites.Should().HaveCount(37);
+        TestPlan.Suites.Select(suite => suite.Name).Should().OnlyHaveUniqueItems();
+        TestPlan.Suites.Where(suite => suite.Group is null).Select(suite => suite.Project).Should().OnlyHaveUniqueItems();
+    }
+
+    // A group of the black-box project is a suite (design GRP-1 of the change consolidate-black-box-tests).
+
+    private static readonly TestSuite Integration = TestSuite.TUnit("H.BlackBox.Tests").InGroup("integration");
+    private static readonly TestSuite SmokeGroup = TestSuite.TUnit("H.BlackBox.Tests").InGroup("smoke");
+    private const string IntegrationFilter = "/*/*/*/*[(Category=integration)&(Category!=lane)]";
+
+    [Test]
+    public void AGroupSuiteHasItsGroupInItsNameAndInItsResultDirectory()
+    {
+        Integration.Project.Should().Be("H.BlackBox.Tests");
+        Integration.Group.Should().Be("integration");
+        Integration.Name.Should().Be("H.BlackBox.Tests (integration)");
+        Integration.ResultsDirectoryName.Should().Be("H.BlackBox.Tests.integration");
+        Unit.Group.Should().BeNull();
+        Unit.Name.Should().Be("A.Tests");
+        Unit.ResultsDirectoryName.Should().Be("A.Tests");
+    }
+
+    [Test]
+    public void AGroupSuiteSelectsItsGroupAndNoTestOfALaneInTheScopeAll()
+    {
+        var run = TestPlan.Select(TestScope.All, [Integration], _ => false).Single();
+
+        run.Arguments.Should().Equal("--treenode-filter", IntegrationFilter);
+    }
+
+    [Test]
+    public void AGroupSuiteHasOneFilterAndNeverTwoInTheScopePlatform()
+    {
+        var run = TestPlan.Select(TestScope.Platform, [Integration], _ => true).Single();
+
+        run.Arguments.Should().Equal("--treenode-filter", IntegrationFilter);
+        run.Arguments.Count(argument => argument == "--treenode-filter").Should().Be(1);
+    }
+
+    [Test]
+    public void AGroupSuiteKeepsItsOwnArguments()
+    {
+        var suite = TestSuite.TUnit("H.BlackBox.Tests", "--maximum-parallel-tests", "1").InGroup("smoke");
+
+        TestPlan.Select(TestScope.All, [suite], _ => false).Single().Arguments
+            .Should().Equal("--maximum-parallel-tests", "1", "--treenode-filter", "/*/*/*/*[(Category=smoke)&(Category!=lane)]");
+    }
+
+    [Test]
+    public void AGroupCanUseSourceProjectsAndCanRunAlone()
+    {
+        var sources = Integration.WithSourceProjects();
+        var alone = Integration.Alone();
+
+        sources.Group.Should().Be("integration");
+        sources.UsesSourceProjects.Should().BeTrue();
+        alone.Group.Should().Be("integration");
+        alone.RunsAlone.Should().BeTrue();
+        TestSuite.TUnit("H.BlackBox.Tests").WithSourceProjects().InGroup("e2e").UsesSourceProjects.Should().BeTrue();
+        TestPlan.NextRunnable(Runs(sources), running: [OtherSources]).Should().BeNull();
+    }
+
+    [Test]
+    public void TwoGroupsOfOneProjectAreTwoRuns()
+    {
+        var runs = TestPlan.Select(TestScope.All, [Integration, SmokeGroup], _ => false);
+
+        runs.Should().HaveCount(2);
+        runs.Select(run => run.Suite.Project).Should().Equal("H.BlackBox.Tests", "H.BlackBox.Tests");
+        runs.Select(run => run.Suite.ResultsDirectoryName).Should().OnlyHaveUniqueItems();
+        Integration.Should().NotBe(SmokeGroup);
+    }
+
+    [Test]
+    public void OnlyATUnitSuiteHasAGroup()
+    {
+        var group = () => TestSuite.Expecto("C.Tests").InGroup("smoke");
+
+        group.Should().Throw<InvalidOperationException>().WithMessage("*TUnit*");
+    }
+
+    [Test]
+    public void AnUnknownGroupIsRefused()
+    {
+        var group = () => TestSuite.TUnit("H.BlackBox.Tests").InGroup("unit");
+
+        group.Should().Throw<ArgumentException>().WithMessage("*integration, e2e, smoke, journey*");
+        TestPlan.Groups.Should().Equal("integration", "e2e", "smoke", "journey");
+    }
+
+    [Test]
+    public void TheOptionTestGroupSelectsOnlyTheSuitesOfThatGroup()
+    {
+        TestSuite[] suites = [Unit, Integration, Lists, SmokeGroup];
+
+        TestPlan.SuitesOf("smoke", suites).Should().Equal(SmokeGroup);
+        TestPlan.SuitesOf(null, suites).Should().Equal(suites);
+        TestPlan.SuitesOf(" Smoke ", suites).Should().Equal(SmokeGroup);
+    }
+
+    [Test]
+    public void AGroupThatIsNotAGroupOrThatHasNoSuiteIsAnError()
+    {
+        var unknown = () => TestPlan.SuitesOf("unit", [Unit, SmokeGroup]);
+        var empty = () => TestPlan.SuitesOf("journey", [Unit, SmokeGroup]);
+
+        unknown.Should().Throw<ArgumentException>().WithMessage("*'unit'*").WithMessage("*integration, e2e, smoke, journey*");
+        empty.Should().Throw<ArgumentException>().WithMessage("*journey*").WithMessage("*no suite*");
+    }
+
+    [Test]
+    [Arguments("integration")]
+    [Arguments("e2e")]
+    [Arguments("smoke")]
+    [Arguments("journey")]
+    public void AGroupOfTheBlackBoxProjectThatHasATestIsASuiteOfThePlan(string group)
+    {
+        var suite = TestPlan.SuitesOf(group, TestPlan.Suites).Should().ContainSingle().Subject;
+
+        suite.Project.Should().Be("Morphir.BlackBox.Tests");
+        suite.Framework.Should().Be(TestFramework.TUnit);
+    }
+
+    // The fixed share of the process limit (design DRV-4).
+
+    [Test]
+    [Arguments(8, 2, 2, 4)]
+    [Arguments(8, 3, 3, 2)]
+    [Arguments(1, 2, 1, 1)]
+    [Arguments(8, 1, 1, 8)]
+    [Arguments(3, 4, 3, 1)]
+    public void EachLaneGetsAFixedShareOfTheMachineLimit(int machine, int parallelism, int lanes, int share)
+    {
+        var limit = TestPlan.ShareProcessLimit(machine, parallelism);
+
+        limit.Lanes.Should().Be(lanes);
+        limit.Share.Should().Be(share);
+        (limit.Lanes * limit.Share).Should().BeLessThanOrEqualTo(machine);
+        limit.Of(Unit).Should().Be(share);
+    }
+
+    [Test]
+    public void ASuiteThatRunsAloneGetsTheMachineLimit() =>
+        TestPlan.ShareProcessLimit(machineLimit: 8, parallelism: 3).Of(Timed).Should().Be(8);
+
+    [Test]
+    public void ASuiteThatStartsInALaneThatAnotherSuiteLeftGetsTheSameShare()
+    {
+        var limit = TestPlan.ShareProcessLimit(machineLimit: 8, parallelism: 2);
+
+        // The share is a property of the run, not of the moment: the first suite and a later suite get the same.
+        limit.Of(Unit).Should().Be(4);
+        limit.Of(Serial).Should().Be(4);
+        limit.Of(Integration).Should().Be(4);
+    }
+
+    [Test]
+    [Arguments(null, 18, 9)]
+    [Arguments("", 4, 2)]
+    [Arguments("6", 18, 6)]
+    [Arguments("0", 2, 2)]
+    [Arguments("many", 3, 2)]
+    public void TheMachineLimitIsTheVariableOfTheCallerOrTheDefaultOfTheProcessGate(string? variable, int processors, int limit) =>
+        TestPlan.MachineProcessLimit(variable, processors).Should().Be(limit);
+
+    [Test]
+    public void ALimitOrAParallelismBelowOneIsRefused()
+    {
+        var noLimit = () => TestPlan.ShareProcessLimit(machineLimit: 0, parallelism: 2);
+        var noLane = () => TestPlan.ShareProcessLimit(machineLimit: 8, parallelism: 0);
+
+        noLimit.Should().Throw<ArgumentOutOfRangeException>();
+        noLane.Should().Throw<ArgumentOutOfRangeException>();
     }
 
     [Test]
@@ -200,6 +396,24 @@ public class TestPlanTests
     [Arguments("[04:49:13 INF] EXPECTO! 143 tests run in 00:00:35.9465402 for PlatformSpecific – 143 passed", false)]
     public void AnExpectoRunThatSelectsNoTestIsFound(string line, bool expected) =>
         TestPlan.ReportsNoTests(line).Should().Be(expected);
+
+    [Test]
+    public void ALaneRunSelectsEachGroupOfTheBlackBoxProjectWithTheFilterOfTheLane()
+    {
+        var run = TestPlan.LaneRun("native-aot");
+
+        run.Suite.Project.Should().Be("Morphir.BlackBox.Tests");
+        run.Suite.Group.Should().BeNull();
+        run.Arguments.Should().Equal("--treenode-filter", "/*/*/*/*[Category=native-aot]");
+        ((Action)(() => TestPlan.LaneRun("none"))).Should().Throw<ArgumentException>().WithMessage("*packages, native-aot, published*");
+    }
+
+    [Test]
+    [Arguments("Skipped tests by reason: lane 2, host 0, capability 1", "lane 2, host 0, capability 1")]
+    [Arguments("[10:01:02 INF] Skipped tests by reason: lane 0, host 0, capability 0 ", "lane 0, host 0, capability 0")]
+    [Arguments("Test run summary: Passed!", null)]
+    public void TheSkipCountsOfABlackBoxRunAreReadFromItsOutput(string line, string? counts) =>
+        TestPlan.SkipCountsOf(line).Should().Be(counts);
 
     private static IEnumerable<string> ArgumentsOf(string project) =>
         TestPlan.Suites.Single(suite => suite.Project == project).Arguments;

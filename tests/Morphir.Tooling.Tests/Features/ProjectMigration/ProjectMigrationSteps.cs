@@ -10,6 +10,7 @@ using Morphir.Configuration.IO;
 using Microsoft.FSharp.Collections;
 
 using Morphir.TestSupport;
+using Morphir.Tooling.Tests.Integration.CLI;
 
 namespace Morphir.Tooling.Tests.Features.ProjectMigration;
 
@@ -156,22 +157,8 @@ public sealed class ProjectMigrationSteps : IDisposable
     private async Task Run(string[] arguments, bool json, bool boundaryFlag = true)
     {
         if (File.Exists(Target)) _targetTimestamp = File.GetLastWriteTimeUtc(Target);
-        var repo = new DirectoryInfo(AppContext.BaseDirectory);
-        while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "Morphir.slnx"))) repo = repo.Parent;
-        var configuration = GetType().Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo!.FullName, "src", "Morphir", "bin", configuration, "net11.0", "morphir.dll");
-        var info = new ProcessStartInfo(cli.EndsWith(".dll", StringComparison.Ordinal) ? "dotnet" : cli)
-        {
-            WorkingDirectory = _working,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-        if (cli.EndsWith(".dll", StringComparison.Ordinal)) info.ArgumentList.Add(cli);
-        foreach (var arg in new[] { "project", "migrate" }.Concat(arguments).Concat(json ? ["--json"] : []).Concat(boundaryFlag ? ["--discovery-boundary", _root] : [])) info.ArgumentList.Add(arg);
-        foreach (var key in info.Environment.Keys.Where(k => k.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(key);
-        foreach (var pair in _environment) info.Environment[pair.Key] = pair.Value;
-        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        string[] command = [.. new[] { "project", "migrate" }.Concat(arguments).Concat(json ? ["--json"] : []).Concat(boundaryFlag ? ["--discovery-boundary", _root] : [])];
+        var result = await DevelopmentCli.RunAsync(command, _working, _environment);
         _exit = result.ExitCode; _stdout = result.StandardOutput; _stderr = result.StandardError;
     }
 

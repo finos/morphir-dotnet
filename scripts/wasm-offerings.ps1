@@ -1,14 +1,15 @@
 #Requires -Version 7
 <#
 .SYNOPSIS
-    Task 5.2 of add-wasm-extension-host: pack each offering on this machine's platform, run the packaged E2E suite
+    Task 5.2 of add-wasm-extension-host: pack each offering on this machine's platform, run the black-box tests
     against it, run the crafted wasm-host corpus through the packaged executable, and record the results.
 
 .DESCRIPTION
     For each offering, in turn:
       1. PackRelease (the repository's target) into <WorkDirectory>/release.
       2. TestE2E for the offering (scripts/run-e2e-tests.cs), which installs the packed artifact into a new directory
-         whose path has a space and runs every non-manual scenario, the packaged feature's engine scenarios included.
+         whose path has a space and runs each group of the black-box tests, the packaged feature's engine scenarios
+         included.
       3. Installs the artifact itself, the same way: an archive extracted into a directory whose path has a space, the
          tool package with dotnet tool install --tool-path from a local feed. Then 'mck wasm-host run' over
          conformance/suites/wasm-host with the packaged executable as runner and host, and 'report-check' with
@@ -93,11 +94,11 @@ function Get-IlWarnings([string] $Log) {
         } | Sort-Object -Unique)
 }
 
-# The test totals of the last 'Test run summary' in an E2E log.
+# The test totals of a TestE2E log: the sum of the 'Test run summary' of each group of the black-box tests.
 function Get-TestTotals([string] $Log) {
     $totals = [ordered]@{ total = $null; succeeded = $null; failed = $null; skipped = $null }
     foreach ($line in Get-PlainLines $Log) {
-        if ($line -match '\b(?<name>total|succeeded|failed|skipped):\s*(?<count>\d+)\s*$') { $totals[$matches.name] = [int]$matches.count }
+        if ($line -match '\b(?<name>total|succeeded|failed|skipped):\s*(?<count>\d+)\s*$') { $totals[$matches.name] = [int]$totals[$matches.name] + [int]$matches.count }
     }
     return $totals
 }
@@ -232,7 +233,7 @@ function Test-Offering([string] $Offering) {
     $result.files = [object[]]@($contents.files)
     $result.engines = $null -eq $contents.engines ? $null : [object[]]@($contents.engines)
 
-    # 2. The packaged E2E suite. The E2E project was built once before the first offering.
+    # 2. Each group of the black-box tests on the offering. The black-box project was built once before the first offering.
     $e2eLog = Join-Path $logs "$Rid-$Offering-e2e.log"
     $e2e = Invoke-Build @('--target', 'TestE2E', '--skip', '--executable-type', $Offering, '--configuration', $Configuration) $e2eLog @{ MORPHIR_RELEASE_DIR = $release }
     $result.e2e = Get-TestTotals $e2eLog

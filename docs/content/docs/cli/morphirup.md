@@ -38,12 +38,24 @@ runtime-bundled Morphir host and independent F# frontend and backend from that s
 counts and SHA-256 values, installs their complete folders, executes the fixed readiness workflow, and selects the
 completed generation last. `--home` is optional and defaults to `MORPHIR_HOME`, then `~/.morphir`. A dry run creates
 no Home, locks, staging, receipts or selection and runs no guest.
+Setup refuses before those effects if the final host or provider executable path would exceed the Windows launch
+limit of 259 characters. Choose a shorter `--home` when the diagnostic names this limit.
+
+Setup normally removes its own private staging folders. If the mutation lease stays busy for five seconds,
+cleanup leaves that folder and writes one warning on stderr without changing setup's achieved result.
+A later setup does not sweep deferred or interrupted stages; that follow-up is tracked in
+[#617](https://github.com/finos/morphir-dotnet/issues/617).
 
 This is **release-checksum delivery, not publisher-authenticated**. HTTPS and a matching release checksum do not
 authenticate the publisher. The release transport starts only at the exact `finos/morphir-dotnet` repository and
 version tag. It permits at most three HTTPS redirects to `github.com`, `release-assets.githubusercontent.com` or
 `objects.githubusercontent.com`, without credentials or a downgrade. The generic acquisition transport keeps its
 existing no-redirect policy.
+
+For composed generations, `run` selects the installed F# frontend when `compile --language fsharp` is explicit,
+and the installed backend for `generate --target fsharp`. Without `--language`, the host resolves project
+configuration; the manager does not force F# over another language. Explicit `--extension` or `--extension-id`
+selections are passed through unchanged.
 
 After setup succeeds, the same `run` commands use installed folders and retained selected records without network
 access or the download cache. The existing explicit local candidate commands remain diagnostic entry points.

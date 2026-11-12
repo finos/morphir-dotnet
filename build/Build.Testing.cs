@@ -12,7 +12,7 @@ using Morphir.Build.Helpers;
 using static Fallout.Common.Tools.DotNet.DotNetTasks;
 
 /// <summary>
-/// Build targets for testing (unit tests, E2E tests)
+/// Build targets for testing (the test suites, and the black-box tests on the published targets)
 /// </summary>
 partial class Build
 {
@@ -25,6 +25,15 @@ partial class Build
     [Parameter("Test: the number of test assemblies that run at the same time - Default is half the processors, rounded up, from 1 to 4")]
     readonly int? TestParallelism;
 
+    [Parameter("Test: run only one purpose group of the black-box tests: integration, e2e, smoke or journey - Default is every suite")]
+    readonly string? TestGroup;
+
+    /// <summary>The variable that gives a test process its limit of product processes at the same time.</summary>
+    const string MaxProcessesVariable = "MORPHIR_TEST_MAX_PROCESSES";
+
+    /// <summary>The variable that gives a black-box test process the lane of its run.</summary>
+    const string TestLaneVariable = "MORPHIR_TEST_LANE";
+
     /// <summary>The variable that names the published self-contained F# frontend folder for its process test.</summary>
     const string FSharpFrontendProcessDirVariable = "MORPHIR_FSHARP_FRONTEND_PROCESS_DIR";
 
@@ -32,28 +41,25 @@ partial class Build
     AbsolutePath TestResultsDirectory => RootDirectory / "artifacts" / "test-results";
 
     /// <summary>
-    /// Run the test assemblies of <see cref="Morphir.Build.Helpers.TestPlan.Suites"/> (TUnit and Expecto), then the
-    /// Myriad package-consumer checks. <c>--test-scope platform</c> runs only the tests with the PlatformSpecific
+    /// Run the test assemblies of <see cref="Morphir.Build.Helpers.TestPlan.Suites"/> (TUnit and Expecto) and the
+    /// groups of the black-box tests. <c>--test-scope platform</c> runs only the tests with the PlatformSpecific
     /// marker: CI uses it on the operating systems other than Linux, where the managed tests already ran.
-    /// <c>--test-parallelism</c> runs more than one assembly at the same time.
+    /// <c>--test-parallelism</c> runs more than one assembly at the same time. <c>--test-group</c> runs only the
+    /// suites of one purpose group of the black-box tests.
     /// </summary>
     Target Test => _ => _
         .DependsOn(Compile)
-        .Description("Run unit suites, Myriad BDD consumers and cold package lifecycle checks")
-        .Executes(() =>
-        {
-            RunTests(Configuration);
-            RunMyriadPackageTests();
-        });
+        .Description("Run unit suites and black-box groups, with the Myriad and SDK package consumers")
+        .Executes(() => RunTests(Configuration));
 
     /// <summary>
-    /// Run build tests (Morphir.Build.Tests)
-    /// Validates package structure, metadata, and local installation
-    /// NOTE: Requires packages to be built first (run PackAll target)
+    /// Run the build tests (Morphir.Build.Tests), then the packages lane of the black-box tests
+    /// (<see cref="TestPlan.PackagesLaneRun"/>): the tests of the packed packages, which read the output folder of
+    /// PackAll. NOTE: Requires packages to be built first (run PackAll target)
     /// </summary>
     Target TestBuild => _ => _
         .DependsOn(Compile)
-        .Description("Run build/package validation tests (requires packages to be built)")
+        .Description("Run build tests and the packages lane of the black-box tests (requires packages to be built)")
         .Executes(() =>
         {
             Serilog.Log.Information("Running build/package validation tests...");
@@ -90,6 +96,24 @@ partial class Build
             {
                 Serilog.Log.Information("✓ Build tests PASSED");
             }
+
+            // The packages lane reads only the packed packages of PackAll. A run with no package there stops before its
+            // first test with the pack command; the check above already ended this target in that case.
+            var temporary = PhysicalPath(Path.GetTempPath());
+            var environment = new Dictionary<string, string>(TestPlan.PackagesLaneEnvironment(packagesDir.ToString()))
+            {
+                ["TMPDIR"] = temporary,
+                ["TEMP"] = temporary,
+                ["TMP"] = temporary,
+                [MaxProcessesVariable] = TestPlan.MachineProcessLimit(Environment.GetEnvironmentVariable(MaxProcessesVariable), Environment.ProcessorCount)
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture),
+            };
+            Serilog.Log.Information("Running the packages lane of {Project} with the packages of {Folder}...", TestPlan.BlackBoxProject, packagesDir);
+            var lane = RunSuite(TestPlan.PackagesLaneRun, Configuration, environment, buffered: false);
+            ReportHangs();
+            if (lane.ExitCode != 0)
+                throw new Exception($"The packages lane failed with exit code {lane.ExitCode}");
+            Serilog.Log.Information("✓ Packages lane PASSED ({Seconds:0}s; skipped: {Skips})", lane.Duration.TotalSeconds, lane.Skips ?? "none");
         });
 
     /// <summary>
@@ -99,91 +123,110 @@ partial class Build
     /// </summary>
     Target TestAll => _ => _
         .DependsOn(Test, TestBuild)
-        .Description("Run unit, BDD and package-consumer suites plus build/package validation")
+        .Description("Run unit suites and black-box groups, plus the build tests and the packages lane")
         .Executes(() =>
         {
             Serilog.Log.Information("All tests completed successfully");
         });
 
     /// <summary>
-    /// Exercise cold package consumers, module publication and rebuild behavior.
+    /// Run the Native AOT lane of the black-box tests: each test with <c>@lane @native-aot</c>, on the development
+    /// build. The tests publish each probe, each library host and morphirup with Native AOT into their workspaces,
+    /// check the trim and AOT warnings of the publish, and compare the native output with the managed output.
     /// </summary>
-    Target TestMyriadPackages => _ => _
+    Target TestAot => _ => _
         .DependsOn(Compile)
-        .Description("Run Myriad package-consumer lifecycle checks")
-        .Executes(RunMyriadPackageTests);
-
-    void RunMyriadPackageTests()
-    {
-        // --no-build: Compile made the assemblies. A pack that builds with the PackageVersion of the scripts changes
-        // the assembly information of the packed projects, and then the next Compile builds the solution again.
-        // The scripts pack the Release configuration, so with another configuration they must build.
-        string[] noBuild = Configuration == "Release" ? ["--no-build"] : [];
-        var script = TestsDirectory / "Morphir.Myriad.Tests" / "package-tests.fsx";
-        if (RunCommand("dotnet", ["fsi", script, .. noBuild]) != 0)
+        .Description("Run the Native AOT lane of the black-box tests (publish, compare with the managed run)")
+        .Executes(() =>
         {
-            throw new Exception("Myriad package-consumer checks failed");
-        }
-
-        var jsonScript = TestsDirectory / "Morphir.Myriad.SystemTextJson.Tests" / "package-tests.fsx";
-        if (RunCommand("dotnet", ["fsi", jsonScript, .. noBuild]) != 0)
-        {
-            throw new Exception("Morphir.Myriad.SystemTextJson package-consumer checks failed");
-        }
-    }
+            var run = TestPlan.LaneRun("native-aot");
+            var limit = TestPlan.MachineProcessLimit(Environment.GetEnvironmentVariable(MaxProcessesVariable), Environment.ProcessorCount);
+            var temporary = PhysicalPath(Path.GetTempPath());
+            var environment = new Dictionary<string, string>
+            {
+                ["TMPDIR"] = temporary,
+                ["TEMP"] = temporary,
+                ["TMP"] = temporary,
+                [MaxProcessesVariable] = limit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                [TestLaneVariable] = "native-aot",
+            };
+            (TestResultsDirectory / run.Suite.ResultsDirectoryName).CreateOrCleanDirectory();
+            var result = RunSuite(run, Configuration, environment, buffered: false);
+            if (result.ExitCode != 0)
+                throw new Exception($"The Native AOT lane failed with exit code {result.ExitCode}");
+        });
 
     /// <summary>
-    /// Build the E2E test project (Morphir.E2E.Tests)
-    /// E2E tests use Reqnroll (BDD/Gherkin) to test executables
+    /// Build the black-box test project (Morphir.BlackBox.Tests) for TestE2E. Its build also builds the three hosts of
+    /// the development build (tests/Morphir.TestSupport/build/Morphir.CliArtifacts.targets).
     /// </summary>
     Target BuildE2ETests => _ => _
         .DependsOn(Compile)
-        .Description("Build the E2E test project")
+        .Description("Build the black-box test project for the published targets")
         .Executes(() =>
         {
             DotNetBuild(s => s
-                .SetProjectFile(MorphirE2ETestsProject)
+                .SetProjectFile(BlackBoxTestsProject)
                 .SetConfiguration(Configuration)
                 .SetNoRestore(false));
         });
 
     /// <summary>
-    /// Run end-to-end tests against Morphir executables (BDD/Gherkin using Reqnroll)
-    /// Parameters: --executable-type (aot, trimmed, untrimmed, tool, all - default: all; or a packaged release profile:
-    /// native-aot, self-contained, framework-dependent, dotnet-tool, or offerings for all four, which run from PackRelease artifacts)
-    /// Note: Requires executables to be published first (PublishExecutable, PublishSingleFile, etc.)
+    /// Run every group of the black-box tests against a published or packaged target (scripts/run-e2e-tests.cs).
+    /// Parameter --executable-type: a value of MORPHIR_TEST_TARGET (dev, aot, trimmed, untrimmed, native-aot,
+    /// self-contained, framework-dependent, dotnet-tool, executable), or tool (the development build with the tool
+    /// host), all (aot, trimmed, untrimmed, tool) or offerings (the four packaged offerings). Default: all. The script
+    /// publishes or packs a target that has no artifact.
     /// </summary>
     Target TestE2E => _ => _
         .DependsOn(BuildE2ETests)
-        .Description("Run end-to-end tests against Morphir executables (BDD/Gherkin)")
+        .Description("Run every group of the black-box tests against a published or packaged target")
         .Executes(() =>
         {
-            Serilog.Log.Information($"Running E2E tests for executable type: {ExecutableType}");
+            Serilog.Log.Information($"Running the black-box tests against the target: {ExecutableType}");
             var exitCode = RunCommand("dotnet",
                 ScriptsDirectory / "run-e2e-tests.cs", ExecutableType, Configuration);
 
             if (exitCode != 0)
             {
-                throw new Exception($"E2E tests failed with exit code {exitCode}");
+                throw new Exception($"The black-box tests failed with exit code {exitCode}");
             }
         });
 
-    /// <summary>The outcome of one test assembly.</summary>
-    readonly record struct SuiteResult(TestSuite Suite, int ExitCode, TimeSpan Duration);
+    /// <summary>The outcome of one suite. <paramref name="Skips"/> is the count of skipped tests by reason, when the suite reports it.</summary>
+    readonly record struct SuiteResult(TestSuite Suite, int ExitCode, TimeSpan Duration, string? Skips);
 
     // Helper method for running tests
     void RunTests(string configuration)
     {
         if (!Morphir.Build.Helpers.TestScope.TryParse(TestScope, out var scope))
             throw new Exception($"The test scope '{TestScope}' is not all or platform.");
-        var parallelism = TestParallelism ?? TestPlan.DefaultParallelism(Environment.ProcessorCount);
-        if (parallelism < 1)
-            throw new Exception($"The test parallelism {parallelism} is not 1 or more.");
+        var requested = TestParallelism ?? TestPlan.DefaultParallelism(Environment.ProcessorCount);
+        if (requested < 1)
+            throw new Exception($"The test parallelism {requested} is not 1 or more.");
 
-        var runs = TestPlan.Select(scope, TestPlan.Suites, HasPlatformTests);
+        // Each test process has its own process gate. So that the limit holds for the complete run, each test process
+        // gets a fixed share of one limit, and no more test processes run at the same time than the limit.
+        var limit = TestPlan.ShareProcessLimit(
+            TestPlan.MachineProcessLimit(Environment.GetEnvironmentVariable(MaxProcessesVariable), Environment.ProcessorCount), requested);
+        var parallelism = limit.Lanes;
+
+        System.Collections.Immutable.ImmutableArray<TestSuite> suites;
+        try
+        {
+            suites = TestPlan.SuitesOf(TestGroup, TestPlan.Suites);
+        }
+        catch (ArgumentException error)
+        {
+            throw new Exception(error.Message);
+        }
+
+        var runs = TestPlan.Select(scope, suites, HasPlatformTests);
         Serilog.Log.Information("Running tests with configuration: {Configuration}", configuration);
-        Serilog.Log.Information("Test scope: {Scope}. {Count} of {Total} test assemblies, {Parallelism} at the same time.",
-            scope, runs.Length, TestPlan.Suites.Length, parallelism);
+        Serilog.Log.Information("Test scope: {Scope}. Test group: {Group}. {Count} of {Total} suites, {Parallelism} at the same time.",
+            scope, TestGroup ?? "every suite", runs.Length, TestPlan.Suites.Length, parallelism);
+        Serilog.Log.Information("Product processes at the same time: {Machine} for the run, {Share} for each test process, {Machine} for a suite that runs alone.",
+            limit.Machine, limit.Share, limit.Machine);
         Serilog.Log.Information("================================================");
 
         // A scope that selects nothing must not pass: the marker or its filter is then wrong.
@@ -206,7 +249,15 @@ partial class Build
 
         SuiteResult Run(TestRun run, bool buffered)
         {
-            var environment = new Dictionary<string, string> { ["TMPDIR"] = temporary, ["TEMP"] = temporary, ["TMP"] = temporary };
+            var environment = new Dictionary<string, string>
+            {
+                ["TMPDIR"] = temporary,
+                ["TEMP"] = temporary,
+                ["TMP"] = temporary,
+                [MaxProcessesVariable] = limit.Of(run.Suite).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            };
+            // A group runs the tests with no lane, on the development build.
+            if (run.Suite.Group is not null) environment[TestLaneVariable] = "none";
             if (run.Suite.Project == frontendTests && frontendProcess is not null)
                 environment[FSharpFrontendProcessDirVariable] = frontendProcess.ToString();
             return RunSuite(run, configuration, environment, buffered);
@@ -275,7 +326,7 @@ partial class Build
             Serilog.Log.Error("================================================");
             Serilog.Log.Error("Tests FAILED");
             foreach (var result in failed)
-                Serilog.Log.Error("  {Project}: exit code {ExitCode}", result.Suite.Project, result.ExitCode);
+                Serilog.Log.Error("  {Suite}: exit code {ExitCode}", result.Suite.Name, result.ExitCode);
             throw new Exception("Tests failed");
         }
 
@@ -304,10 +355,12 @@ partial class Build
     /// </summary>
     SuiteResult RunSuite(TestRun run, string configuration, IReadOnlyDictionary<string, string> environment, bool buffered)
     {
-        var project = run.Suite.Project;
-        var testDll = TestsDirectory / project / "bin" / configuration / CurrentTargetFramework / $"{project}.dll";
+        // The name of a group suite has its group, so that two groups of one assembly have two rows and two directories.
+        var project = run.Suite.Name;
+        var assembly = run.Suite.Project;
+        var testDll = TestsDirectory / assembly / "bin" / configuration / CurrentTargetFramework / $"{assembly}.dll";
         string[] hangDump = run.Suite.TakesHangDump
-            ? ["--hangdump", "--hangdump-timeout", TestHangTimeout, "--hangdump-type", "Mini", "--results-directory", TestResultsDirectory / project]
+            ? ["--hangdump", "--hangdump-timeout", TestHangTimeout, "--hangdump-type", "Mini", "--results-directory", TestResultsDirectory / run.Suite.ResultsDirectoryName]
             : [];
 
         var start = new ProcessStartInfo("dotnet")
@@ -322,10 +375,12 @@ partial class Build
         // (isError, line) in the order of arrival, when the output is one block.
         var lines = new List<(bool IsError, string Text)>();
         var ranNoTests = false;
+        string? skips = null;
         void Write(bool isError, string? line)
         {
             if (line is null) return;
             if (TestPlan.ReportsNoTests(line)) ranNoTests = true;
+            if (TestPlan.SkipCountsOf(line) is { } counts) skips = counts;
             if (buffered) lock (lines) lines.Add((isError, line));
             else if (isError) Serilog.Log.Error(line);
             else Serilog.Log.Information(line);
@@ -334,7 +389,7 @@ partial class Build
         if (!buffered)
         {
             Serilog.Log.Information("");
-            Serilog.Log.Information("Running {Project}...", project);
+            Serilog.Log.Information("Running {Project} ({Limit} product processes at the same time)...", project, environment[MaxProcessesVariable]);
         }
 
         var watch = Stopwatch.StartNew();
@@ -348,7 +403,7 @@ partial class Build
         // A suite runs because it has tests, or in the platform scope because it has the marker. A run that selects
         // no test means that the marker or its filter is wrong. TUnit exits with 8 then; Expecto exits with 0.
         var exitCode = process.ExitCode == 0 && ranNoTests ? NoTestsExitCode : process.ExitCode;
-        var result = new SuiteResult(run.Suite, exitCode, watch.Elapsed);
+        var result = new SuiteResult(run.Suite, exitCode, watch.Elapsed, skips);
 
         lock (SuiteOutputLock)
         {
@@ -359,7 +414,7 @@ partial class Build
             }
 
             if (result.ExitCode == 0)
-                Serilog.Log.Information("{Project}: passed in {Seconds:0}s", project, result.Duration.TotalSeconds);
+                Serilog.Log.Information("{Project}: passed in {Seconds:0}s ({Limit} product processes at the same time)", project, result.Duration.TotalSeconds, environment[MaxProcessesVariable]);
             else if (result.ExitCode == NoTestsExitCode)
                 Serilog.Log.Error("{Project}: the run selected no test (exit code {ExitCode})", project, result.ExitCode);
             else
@@ -395,12 +450,13 @@ partial class Build
     /// <summary>Logs the time of each test assembly, longest first. In GitHub Actions it also adds them to the job summary.</summary>
     static void ReportSuites(Morphir.Build.Helpers.TestScope scope, IReadOnlyCollection<SuiteResult> results)
     {
-        var summary = new System.Text.StringBuilder($"### Test assemblies (scope: {scope})\n\n| Assembly | Result | Seconds |\n| --- | --- | ---: |\n");
+        var summary = new System.Text.StringBuilder($"### Test suites (scope: {scope})\n\n| Suite | Result | Seconds | Skipped tests by reason |\n| --- | --- | ---: | --- |\n");
         foreach (var result in results.OrderByDescending(result => result.Duration))
         {
             var outcome = result.ExitCode == 0 ? "passed" : $"exit code {result.ExitCode}";
-            Serilog.Log.Information("  {Seconds,5:0}s  {Project} ({Outcome})", result.Duration.TotalSeconds, result.Suite.Project, outcome);
-            summary.Append($"| {result.Suite.Project} | {outcome} | {result.Duration.TotalSeconds:0} |\n");
+            var skips = result.Skips is null ? "" : $"; skipped: {result.Skips}";
+            Serilog.Log.Information("  {Seconds,5:0}s  {Suite} ({Outcome}{Skips})", result.Duration.TotalSeconds, result.Suite.Name, outcome, skips);
+            summary.Append($"| {result.Suite.Name} | {outcome} | {result.Duration.TotalSeconds:0} | {result.Skips} |\n");
         }
 
         var stepSummary = Environment.GetEnvironmentVariable("GITHUB_STEP_SUMMARY");

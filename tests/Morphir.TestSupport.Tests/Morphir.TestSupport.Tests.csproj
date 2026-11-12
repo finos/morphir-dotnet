@@ -18,6 +18,39 @@
 
   <ItemGroup>
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <!-- The fixture process of the session driver tests: a scripted worker that reads and writes frames. -->
+    <ProjectReference Include="../Morphir.Conformance.FakeWorker/Morphir.Conformance.FakeWorker.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Fixture files for the workspace and driver tests. -->
+    <None Include="Fixtures/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The pinned crafted corpus of the worker, for the tests of WorkerCorpus; see ../Fixtures/MepWasm/PROVENANCE.md. -->
+    <None Include="../Fixtures/MepWasm/**/*" Link="Fixtures/MepWasm/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
+    <!-- The .NET host traces of the packaged run tests. -->
+    <None Include="Packaging/Fixtures/**" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The README of the library, for the test that keeps its names equal to the code. -->
+    <None Include="../Morphir.TestSupport/README.md" Link="Fixtures/TestSupport.README.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Real models for the tests that start the CLI. -->
+    <None Include="../Morphir.Tooling.Tests/TestData/valid-ir-v3.json" Link="Fixtures/Cli/valid-ir-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Morphir.Tooling.Tests/TestData/invalid-missing-formatversion.json" Link="Fixtures/Cli/invalid-missing-formatversion.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/car-rental/models/car-rental-v3.json" Link="Fixtures/Cli/car-rental-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/MorphirIR/daily-rate-mismatch-v3.json" Link="Fixtures/Cli/daily-rate-mismatch-v3.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The pinned package versions, for the engine version of a runtime report. -->
+    <None Include="../../Directory.Packages.props" Link="Fixtures/Directory.Packages.props" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The CLI entry points of the development build, for the real-process tests of the CLI driver. -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
+  <!-- The extension guests of the development build, for the tests of the extension driver. -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.ExtensionArtifacts.targets" />
+
+  <!-- The projects that the package driver packs, for the tests of the package driver. -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.PackageSources.targets" />
+  <!-- A small host program, for the real-process tests of the library host driver and the inspection driver. -->
+  <ItemGroup>
+    <MorphirTestProgram Include="../Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" Name="compilation-smoke" />
+  </ItemGroup>
+  <Import Project="../Morphir.TestSupport/build/Morphir.TestPrograms.targets" />
 
 </Project>

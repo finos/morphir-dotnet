@@ -73,13 +73,13 @@
         "Restore",
         "Test",
         "TestAll",
+        "TestAot",
         "TestBuild",
         "TestE2E",
         "TestExtensionInstallationAot",
         "TestMepAot",
         "TestMorphirupAot",
         "TestMyriadJsonAot",
-        "TestMyriadPackages",
         "TestProtoPlugin",
         "WindowsToolchainChecksums"
       ]
@@ -190,7 +190,7 @@
         },
         "ExecutableType": {
           "type": "string",
-          "description": "Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)"
+          "description": "Target of TestE2E, a value of MORPHIR_TEST_TARGET: dev, aot, trimmed, untrimmed, native-aot, self-contained, framework-dependent, dotnet-tool or executable (with MORPHIR_TEST_EXECUTABLE and MORPHIR_TEST_HOST); or tool (the development build with the tool host), all (aot, trimmed, untrimmed and tool) or offerings (the four packaged offerings)"
         },
         "ExtensionArchive": {
           "type": "string",
@@ -288,6 +288,10 @@
         "SingleFileUntrimmedDir": {
           "type": "string",
           "description": "Output directory for untrimmed single-file executables"
+        },
+        "TestGroup": {
+          "type": "string",
+          "description": "Test: run only one purpose group of the black-box tests: integration, e2e, smoke or journey - Default is every suite"
         },
         "TestHangTimeout": {
           "type": "string",

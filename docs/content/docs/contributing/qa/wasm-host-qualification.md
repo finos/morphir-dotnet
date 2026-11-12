@@ -24,7 +24,7 @@ parent normative task 1.4. The adapter reference is
 | The worker adapter, comparer, judge, report and check | `src/Morphir.Conformance/WasmHost/` (`Worker.fs`, `Comparer.fs`, `Judge.fs`, `HostRunner.fs`, `HostReport.fs`, `Commands.fs`) |
 | The commands | `src/Morphir.Tooling/Features/Mck/` |
 | The tests, with a scripted fake worker | `tests/Morphir.Conformance.Tests/`, `tests/Morphir.Conformance.FakeWorker/` |
-| The generic guest kit's model tier through a worker (no command) | `src/Morphir.Conformance/GuestKit/WorkerSessions.fs`, `tests/Morphir.E2E.Tests/Features/ExecutableGuestKitModelTierTests.cs` |
+| The generic guest kit's model tier through a worker (no command) | `src/Morphir.Conformance/GuestKit/WorkerSessions.fs`, `tests/Morphir.Extensions.Wasm.Tests/WorkerGuestKitModelTierTests.cs` |
 
 ## The .NET worker
 
@@ -43,19 +43,20 @@ opens a `HostSession` on the same `WasmChannel` in process. The reference is
 | The build identity, and the engine identity it covers | `WorkerBuildIdentity.cs`, `WasmRuntimeIdentity.cs` |
 | Stdio, Ctrl+C and the private directory | `ExtensionWorkerProcess.cs`, called from `MorphirApplication.Run`, where every entry point starts, before the CLI host is built |
 | Service tests | `tests/Morphir.Tooling.Tests/Features/Extensions/ExtensionWorker*Tests.cs` |
-| Process tests, both executables | `tests/Morphir.E2E.Tests/Features/ExecutableExtensionWorker.*` |
+| Process tests, each host and target | `tests/Morphir.BlackBox.Tests/Integration/ExtensionWorker.feature`, `ExtensionWorkerCorpusTests.cs`, `ExtensionRuntimes.feature` |
 
 The worker relays messages; it is not a second MEP host (design WRK-2). It does not negotiate, and it
 looks inside a message only for its `id` and `method`. Its events and exit statuses follow the pinned
 contract's `worker` section. When the contract and the MoonBit worker's README differ, the contract
 wins.
 
-To run the end-to-end tests against each executable, build `src/Morphir`, `src/Morphir.Managed` and
-`src/Morphir.Tool` in Release and run the E2E assembly once for each: with no variable for the Native
-AOT `morphir` in `artifacts/executables/<rid>/`, with `MORPHIR_EXECUTABLE_PATH` set to
-`src/Morphir/bin/Release/net10.0/morphir` or `src/Morphir.Managed/bin/Release/net10.0/morphir`
-(`.exe` on Windows), and with `MORPHIR_EXECUTABLE_TYPE=tool`. `MORPHIR_WORKER_CORPUS=all` drives every case of the pinned corpus
-through the worker in `ExecutableExtensionWorkerTests`, not only the sample. On Windows the Ctrl+C
+The black-box tests run the process tests on each host and target. A pull request runs them on the native host
+of the development build. To run them on another host or target, set the variables of the testing library
+(`tests/Morphir.TestSupport/README.md`): `MORPHIR_TEST_HOST=managed` or `MORPHIR_TEST_HOST=tool` for the other hosts of
+the development build, and `MORPHIR_TEST_TARGET=aot` with `MORPHIR_TEST_LANE=published` for the Native AOT `morphir`
+in `artifacts/executables/<rid>/` (`./build.sh --target TestE2E --executable-type aot` publishes it first).
+`MORPHIR_WORKER_CORPUS=all` drives every case of the pinned corpus through the worker in
+`ExtensionWorkerCorpusTests`, not only the sample. On Windows the Ctrl+C
 and Ctrl+Break tests send the console control event through a hidden Windows PowerShell helper that
 attaches to the worker's console; no window opens.
 
@@ -118,9 +119,9 @@ reads the build identity from the host's `--help --json`, gives the runner a `Ho
 worker's stdio and keeps the worker's stderr events. `EndAsync` waits for each worker to exit, stops
 the process tree of one that does not, and reports each worker's exit status, events and problems.
 
-This is internal and experimental, and there is no command for it. The end-to-end test
-`ExecutableGuestKitModelTierTests` runs it for the published Python `0.6.0` guest against the
-executable the E2E run selects. It covers the model tier only. The host does not speak MEP `0.1`, so
+This is internal and experimental, and there is no command for it. The conformance test
+`WorkerGuestKitModelTierTests` of `tests/Morphir.Extensions.Wasm.Tests` runs it for the published Python `0.6.0` guest
+against the executable of the target of the run (the native host of the development build by default). It covers the model tier only. The host does not speak MEP `0.1`, so
 the kit's legacy tier is not run, and the result is not a complete run of the generic guest kit. The
 approved [finos/morphir#1154 plan](https://github.com/finos/morphir/pull/1154) now owns the full 21-case runner and dedicated development entry point. The historical 16-step evidence is not a full kit pass.
 

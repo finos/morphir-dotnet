@@ -9,6 +9,7 @@ using Morphir.Configuration;
 using Morphir.Configuration.IO;
 
 using Morphir.TestSupport;
+using Morphir.Tooling.Tests.Integration.CLI;
 
 namespace Morphir.Tooling.Tests.Features.Configuration;
 
@@ -138,23 +139,11 @@ public sealed class ConfigurationEditingSteps : IDisposable
 
     private async Task Run(string[] arguments, bool boundaryFlag = true)
     {
-        var repo = new DirectoryInfo(AppContext.BaseDirectory);
-        while (repo is not null && !File.Exists(Path.Combine(repo.FullName, "Morphir.slnx"))) repo = repo.Parent;
-        var configuration = GetType().Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo!.FullName, "src", "Morphir", "bin", configuration, "net11.0", "morphir.dll");
-        var info = new ProcessStartInfo(cli.EndsWith(".dll", StringComparison.Ordinal) ? "dotnet" : cli)
-        {
-            WorkingDirectory = _workingDirectory ?? _root,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-        if (cli.EndsWith(".dll", StringComparison.Ordinal)) info.ArgumentList.Add(cli);
-        foreach (var arg in new[] { "config" }.Concat(arguments).Concat(boundaryFlag ? ["--json", "--discovery-boundary", _root] : ["--json"])) info.ArgumentList.Add(arg);
-        foreach (var key in info.Environment.Keys.Where(k => k.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(key);
-        foreach (var key in new[] { "HOME", "USERPROFILE", "APPDATA", "PROGRAMDATA", "XDG_CONFIG_HOME" }) info.Environment[key] = Path.Combine(_root, "home");
-        foreach (var pair in _environment) info.Environment[pair.Key] = pair.Value;
-        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        string[] command = [.. new[] { "config" }.Concat(arguments).Concat(boundaryFlag ? ["--json", "--discovery-boundary", _root] : ["--json"])];
+        var environment = new Dictionary<string, string>();
+        foreach (var key in new[] { "HOME", "USERPROFILE", "APPDATA", "PROGRAMDATA", "XDG_CONFIG_HOME" }) environment[key] = Path.Combine(_root, "home");
+        foreach (var pair in _environment) environment[pair.Key] = pair.Value;
+        var result = await DevelopmentCli.RunAsync(command, _workingDirectory ?? _root, environment);
         _exit = result.ExitCode; _stdout = result.StandardOutput; _stderr = result.StandardError;
     }
 

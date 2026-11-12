@@ -31,7 +31,8 @@ internal static class PhysicalTempDirectory
 
     private static string Trim(string path) => path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-    private static string Resolve(string full, int depth = 0)
+    /// <summary>The path with each directory that is a link replaced by its target.</summary>
+    internal static string Resolve(string full, int depth = 0)
     {
         if (depth > 32) throw new IOException($"Too many links while resolving {full}.");
         var root = Path.GetPathRoot(full) ?? "";

@@ -116,6 +116,9 @@
           "TUnit.Core": "1.81.10"
         }
       },
+      "morphir.conformance.fakeworker": {
+        "type": "Project"
+      },
       "morphir.testsupport": {
         "type": "Project"
       },

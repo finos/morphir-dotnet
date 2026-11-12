@@ -8,6 +8,9 @@
 **Specialized skills**: [.agents/skills-reference.md](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager, Technical Writer
 
 **F# code that C# calls**: use the `fsharp-csharp-interop` skill (`.agents/skills/fsharp-csharp-interop/`) and the `fsharp-csharp-interop-reviewer` custom agent (`.github/agents/`). `.github/instructions/fsharp-csharp-interop.instructions.md` applies to `*.fs`, `*.fsi` and `*.fsproj` files.
+
+**Tests**: use the `test-manager` skill (`.agents/skills/test-manager/`) before you add, move, rename or delete a test, a feature file, a step, a driver or a test project, and the `test-manager-reviewer` agent on the diff.
+
 **Cross-agent compatibility**: [.agents/capabilities-matrix.md](./.agents/capabilities-matrix.md)
 
 **Purpose**: Morphir .NET provides .NET tooling and libraries for Morphir IR (Intermediate Representation).

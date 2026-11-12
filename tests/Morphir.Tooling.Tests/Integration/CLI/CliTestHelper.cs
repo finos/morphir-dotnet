@@ -1,8 +1,6 @@
-using System.Diagnostics;
-using System.Reflection;
-using System.Text;
 using System.Text.Json;
 using Morphir.TestSupport;
+using Morphir.TestSupport.Drivers;
 
 namespace Morphir.Tooling.Tests.Integration.CLI;
 
@@ -18,16 +16,19 @@ public enum CliHost
 /// </summary>
 public class CliTestHelper
 {
-    private readonly string _cliProjectPath;
+    private static readonly Lazy<CliArtifacts> DevelopmentBuild =
+        new(() => CliArtifacts.OfDevelopmentBuild(typeof(CliTestHelper).Assembly));
+
     private readonly string _testDataDirectory;
     private readonly string? _executablePath;
+    private readonly MorphirHost _host;
     private readonly ProcessGate? _gate;
 
-    /// <param name="executablePath">A published CLI to run instead of <c>dotnet run</c> on the CLI project.</param>
+    /// <param name="executablePath">A published CLI to run instead of the development build of the CLI project.</param>
     /// <param name="gate">The process gate for each command. The default is <see cref="ProcessGate.Shared"/>.</param>
     public CliTestHelper(string? executablePath = null, ProcessGate? gate = null) : this(executablePath, CliHost.Morphir, gate) { }
 
-    /// <summary>Runs <paramref name="host"/> from source, or <paramref name="executablePath"/> when one is given.</summary>
+    /// <summary>Runs the development build of <paramref name="host"/>, or <paramref name="executablePath"/> when one is given.</summary>
     /// <param name="gate">The process gate for each command. The default is <see cref="ProcessGate.Shared"/>.</param>
     public CliTestHelper(string? executablePath, CliHost host, ProcessGate? gate = null)
     {
@@ -37,26 +38,44 @@ public class CliTestHelper
             _executablePath = Path.GetFullPath(executablePath);
             if (!File.Exists(_executablePath)) throw new FileNotFoundException("Published CLI executable not found.", _executablePath);
         }
-        // Navigate from test project to CLI project
-        var currentDir = Directory.GetCurrentDirectory();
-        var repoRoot = FindRepositoryRoot(currentDir);
 
-        _cliProjectPath = host switch
+        _host = host switch
         {
-            CliHost.Morphir => Path.Combine(repoRoot, "src", "Morphir", "Morphir.csproj"),
-            CliHost.DotnetTool => Path.Combine(repoRoot, "src", "Morphir.Tool", "Morphir.Tool.csproj"),
+            CliHost.Morphir => MorphirHost.Native,
+            CliHost.DotnetTool => MorphirHost.DotnetTool,
             _ => throw new ArgumentOutOfRangeException(nameof(host), host, "Unknown CLI host.")
         };
-        _testDataDirectory = Path.Combine(repoRoot, "tests", "Morphir.Tooling.Tests", "TestData");
 
-        if (!File.Exists(_cliProjectPath))
-        {
-            throw new InvalidOperationException($"CLI project not found at: {_cliProjectPath}");
-        }
+        // Navigate from test project to the test data
+        var currentDir = Directory.GetCurrentDirectory();
+        var repoRoot = FindRepositoryRoot(currentDir);
+        _testDataDirectory = Path.Combine(repoRoot, "tests", "Morphir.Tooling.Tests", "TestData");
 
         if (!Directory.Exists(_testDataDirectory))
         {
             throw new InvalidOperationException($"Test data directory not found at: {_testDataDirectory}");
+        }
+    }
+
+    /// <summary>
+    /// The CLI of the target of the testing library (<c>MORPHIR_TEST_TARGET</c>, <c>MORPHIR_TEST_HOST</c>,
+    /// <c>MORPHIR_TEST_EXECUTABLE</c>; see tests/Morphir.TestSupport/README.md) on <paramref name="host"/>: the
+    /// development build of that host, or the executable at a path when the target is <c>executable</c> with that
+    /// host. A target that does not have the host skips the test with that reason: no other form is used.
+    /// </summary>
+    public static CliTestHelper ForTarget(CliHost host = CliHost.Morphir)
+    {
+        var settings = TestRunSettings.Parse(Environment.GetEnvironmentVariable, File.Exists);
+        var wanted = host == CliHost.DotnetTool ? MorphirHost.DotnetTool : MorphirHost.Native;
+        switch (settings.Target)
+        {
+            case TestTarget.DevelopmentBuild:
+                return new CliTestHelper(null, host);
+            case TestTarget.Executable executable when executable.Host == wanted:
+                return new CliTestHelper(executable.Path, host);
+            default:
+                Skip.Test(settings.Target.MissingHostReason(wanted));
+                throw new InvalidOperationException("Skip.Test returns no value.");
         }
     }
 
@@ -77,29 +96,19 @@ public class CliTestHelper
         // Replace <test-data> placeholder with actual path
         arguments = arguments.Replace("<test-data>", _testDataDirectory);
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = _executablePath ?? "dotnet",
-            Arguments = _executablePath is null
-                ? $"run --project \"{_cliProjectPath}\" --configuration {typeof(CliTestHelper).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration} --no-build -- {arguments}"
-                : arguments,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        // Each invocation runs contained in its own workspace: a fake home and machine locations, inherited MORPHIR_*
+        // replaced by the workspace's MORPHIR_HOME, discovery boundary and isolation, and the work area as its directory.
+        await using var workspace = ScenarioWorkspace.Create(_testDataDirectory);
 
-        // Each invocation runs contained: a fake home and machine locations, inherited MORPHIR_* replaced by the
-        // sandbox's MORPHIR_HOME, discovery boundary and isolation, and the sandbox work area as its directory.
-        await using var sandbox = TestSandbox.Create("morphir-cli-");
-        startInfo.WorkingDirectory = sandbox.Work;
-        sandbox.Apply(startInfo);
-        if (environment is not null)
-            foreach (var (name, value) in environment)
-                startInfo.Environment[name] = value;
-
-        // The shared runner gates concurrency, reads both streams, and kills and awaits the tree on timeout.
-        var result = await ChildProcess.RunAsync(startInfo, timeout ?? DefaultTimeout, ct, _gate);
+        // The CLI driver starts the built assembly of the host with dotnet (not dotnet run, which evaluates the
+        // project for each start). The path comes from the build of this test project (Morphir.CliArtifacts.targets),
+        // so a missing build is an error. The driver gates concurrency, reads both streams, and kills and awaits the
+        // tree on timeout.
+        var driver = _executablePath is null
+            ? new CliDriver(new TestTarget.DevelopmentBuild(), _host, DevelopmentBuild.Value.PathOf(_host), workspace, _gate)
+            : new CliDriver(new TestTarget.Executable(_executablePath, _host), _host, _executablePath, workspace, _gate);
+        var result = await driver.RunCommandLineAsync(
+            arguments, new CliRunOptions { Timeout = timeout ?? DefaultTimeout, Environment = environment }, ct);
         return new CliExecutionResult(
             ExitCode: result.ExitCode,
             StandardOutput: result.StandardOutput.Trim(),

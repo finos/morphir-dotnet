@@ -74,7 +74,6 @@
     <Project Path="tests/Morphir.CodeGeneration.FSharp.Extension.Tests/Morphir.CodeGeneration.FSharp.Extension.Tests.fsproj" />
     <Project Path="tests/Morphir.CodeGeneration.CSharp.Tests/Morphir.CodeGeneration.CSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Myriad.Tests/Morphir.Myriad.Tests.fsproj" />
-    <Project Path="tests/Morphir.Myriad.Integration.Tests/Morphir.Myriad.Integration.Tests.csproj" />
     <Project Path="tests/Morphir.Myriad.SystemTextJson.Tests/Morphir.Myriad.SystemTextJson.Tests.fsproj" />
     <Project Path="tests/Morphir.Myriad.SystemTextJson.AotProbe/Morphir.Myriad.SystemTextJson.AotProbe.fsproj" />
     <Project Path="tests/Morphir.Configuration.Tests/Morphir.Configuration.Tests.fsproj" />
@@ -85,7 +84,6 @@
     <Project Path="tests/Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" />
     <Project Path="tests/Morphir.Compilation.Tests/Morphir.Compilation.Tests.fsproj" />
     <Project Path="tests/Morphir.Configuration.Inspection.Smoke/Morphir.Configuration.Inspection.Smoke.csproj" />
-    <Project Path="tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj" />
     <Project Path="tests/Morphir.Internal.CodeGeneration.Tests/Morphir.Internal.CodeGeneration.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Tests/Morphir.IR.Pipeline.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Plugins.Tests/Morphir.IR.Pipeline.Plugins.Tests.fsproj" />
@@ -103,6 +101,7 @@
     <Project Path="tests/Morphir.Tooling.Tests/Morphir.Tooling.Tests.csproj" />
     <Project Path="tests/Morphir.TestSupport/Morphir.TestSupport.csproj" />
     <Project Path="tests/Morphir.TestSupport.Tests/Morphir.TestSupport.Tests.csproj" />
+    <Project Path="tests/Morphir.BlackBox.Tests/Morphir.BlackBox.Tests.csproj" />
     <Project Path="tests\Morphir.Core.Tests\Morphir.Core.Tests.csproj" />
     <Project Path="tests\Morphir.Ion.Tests\Morphir.Ion.Tests.fsproj" />
     <Project Path="tests\Morphir.Models.Tests\Morphir.Models.Tests.fsproj" />

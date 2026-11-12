@@ -29,4 +29,9 @@
     <!-- The pinned generic guest kit; see ../Fixtures/MepGuestKit/PROVENANCE.md. -->
     <None Include="../Fixtures/MepGuestKit/**/*" Link="Fixtures/MepGuestKit/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
   </ItemGroup>
+  <!--
+    The CLI entry points of the development build, for the guest kit test through the worker of the host
+    (WorkerGuestKitModelTierTests): built first, and their paths in the assembly metadata.
+  -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
 </Project>

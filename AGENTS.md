@@ -10,6 +10,7 @@ changes aligned with Morphir IR and tooling.
 - **Specialized Topics**: See [.agents/](./.agents/) directory for domain-specific guides
   - [Skills Reference](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager, Technical Writer
   - [F# and C# interop skill](./.agents/skills/fsharp-csharp-interop/SKILL.md) - Rules for F# code that C# calls; reviewer agent `fsharp-csharp-interop-reviewer`
+  - [Test manager skill](./.agents/skills/test-manager/SKILL.md) - The class, the place and the form of each test; reviewer agent `test-manager-reviewer`
   - [Capabilities Matrix](./.agents/capabilities-matrix.md) - Cross-agent feature availability
   - [QA Testing](./.agents/qa-testing.md) - Test plans, playbooks, scripts
   - [AOT Optimization](./.agents/aot-optimization.md) - Trimming, AOT guidance
@@ -302,6 +303,21 @@ chmod +x scripts/format-all scripts/test-all scripts/check-contracts scripts/gen
 
 ## 9) Testing Strategy
 
+**Use the `test-manager` skill before you add, move, rename or delete a test, a feature file, a step, a driver or a
+test project** ([.agents/skills/test-manager/SKILL.md](./.agents/skills/test-manager/SKILL.md)). It classifies the
+test (unit, property, conformance, build, integration, end-to-end, smoke or journey) and gives its place, its form,
+its tags and its parallel rule. After the change, run the `test-manager-reviewer` agent on the diff.
+
+Where a test goes
+- A test that reaches the product only through a built artifact (the command line of an executable, a package, a
+  published folder) is a black-box test. It goes in `tests/Morphir.BlackBox.Tests`, in the folder of its purpose
+  group (`Integration/`, `EndToEnd/`, `Smoke/`, `Journeys/`), as a Gherkin scenario on the test drivers of
+  `tests/Morphir.TestSupport`. See [tests/Morphir.BlackBox.Tests/README.md](./tests/Morphir.BlackBox.Tests/README.md).
+- A test that needs a product type in the test process is a unit test. It goes in the test project of its library.
+- A test of the build of the repository goes in `tests/Morphir.Build.Tests`.
+- The guard tests in `tests/Morphir.Build.Tests/Helpers/BlackBoxRulesTests.cs` check the rules of the black-box
+  project that a program can check.
+
 Unit testing (TUnit)
 - Place unit tests in tests/csharp.unit or equivalent.
 - Cover smart constructors, ADT exhaustiveness, and edge cases.
@@ -523,6 +539,7 @@ Tests run in parallel and must stay hermetic. Use `tests/Morphir.TestSupport` (s
 - Clean up with `TolerantDirectory.TryDelete`/`TryDeleteAsync`; never let cleanup fail a passing test.
 - Never call `Environment.SetEnvironmentVariable` or `Directory.SetCurrentDirectory` in tests.
 - Process-heavy test projects add the `MachineTripwire` assembly hook, which fails the run if a test escaped its sandbox.
+- A black-box test (`tests/Morphir.BlackBox.Tests`) does not use these types directly. It uses the driver interfaces of `Morphir.TestSupport.Drivers`, which give each test a contained workspace and own its processes ([tests/Morphir.TestSupport/README.md](tests/Morphir.TestSupport/README.md)).
 
 ### TDD Anti-Patterns to Avoid
 

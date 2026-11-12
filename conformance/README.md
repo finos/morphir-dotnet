@@ -60,8 +60,9 @@ dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenc
 
 Set `MORPHIR_MCK_REPORT_DIR` to a directory to keep the verdict reports
 (`library.json`, `cli.json`, `cli-target-fsharp.json` and
-`cli-target-csharp.json`). Set `MORPHIR_DOTNET_TOOL_CLI` to qualify a published
-`dotnet-morphir` executable instead of the solution build.
+`cli-target-csharp.json`). To qualify a published `dotnet-morphir` executable instead of the solution build, set
+`MORPHIR_TEST_TARGET=executable`, `MORPHIR_TEST_EXECUTABLE` to its path and `MORPHIR_TEST_HOST=tool` (the target of
+the testing library; see `tests/Morphir.TestSupport/README.md`).
 
 The suite has one refusal case for each code of the F# admission catalog, grouped
 by construct family, and semantic cases. A semantic case has expected IR written

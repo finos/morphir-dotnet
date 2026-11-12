@@ -9,6 +9,7 @@ using Morphir.Configuration;
 using Morphir.Configuration.IO;
 
 using Morphir.TestSupport;
+using Morphir.Tooling.Tests.Integration.CLI;
 
 namespace Morphir.Tooling.Tests.Features.WorkspaceMigration;
 
@@ -228,22 +229,7 @@ public sealed class WorkspaceMigrationSteps : IDisposable
         _targets.Clear();
         foreach (var path in Directory.GetFiles(_root, "*.toml", SearchOption.AllDirectories))
             _targets[path] = (File.ReadAllBytes(path), File.GetLastWriteTimeUtc(path));
-        var repo = Repo();
-        var configuration = GetType().Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo, "src", "Morphir", "bin", configuration, "net11.0", "morphir.dll");
-        var dll = cli.EndsWith(".dll", StringComparison.Ordinal);
-        var info = new ProcessStartInfo(dll ? "dotnet" : cli)
-        {
-            WorkingDirectory = _working,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        };
-        if (dll) info.ArgumentList.Add(cli);
-        foreach (var argument in arguments) info.ArgumentList.Add(argument);
-        foreach (var key in info.Environment.Keys.Where(key => key.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(key);
-        foreach (var pair in _environment) info.Environment[pair.Key] = pair.Value;
-        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        var result = await DevelopmentCli.RunAsync(arguments, _working, _environment);
         _exit = result.ExitCode;
         _stdout = result.StandardOutput;
         _stderr = result.StandardError;

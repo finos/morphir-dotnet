@@ -16,6 +16,7 @@ open System.Threading.Tasks
 open Expecto
 open Morphir.Conformance
 open Morphir.TestSupport
+open Morphir.TestSupport.Drivers
 
 let private repositoryRoot =
     Path.GetFullPath(Path.Combine(__SOURCE_DIRECTORY__, "..", ".."))
@@ -26,36 +27,29 @@ let private dotnetHost =
     | host -> host
 
 /// <summary>
-/// The <c>dotnet-morphir</c> under test: <c>MORPHIR_DOTNET_TOOL_CLI</c> (a published executable), else the
-/// tool assembly of the solution build in the configuration of this test assembly. Returns the command, its
-/// prefix arguments and the implementation file.
+/// The executable of the target of the run of the testing library (<c>MORPHIR_TEST_TARGET</c>,
+/// <c>MORPHIR_TEST_HOST</c> and <c>MORPHIR_TEST_EXECUTABLE</c>), on <paramref name="defaultHost"/> when the run names
+/// no host and the target has it. Returns the command, its prefix arguments, the implementation file, and the
+/// capabilities of the drivers for that target and host.
+/// </summary>
+let private targetOf defaultHost =
+    let cli = TargetCli.OfTestRun(typeof<FakeMorphir.Marker>.Assembly, defaultHost)
+    let command = if cli.FileName = "dotnet" then dotnetHost else cli.FileName
+    (command, List.ofSeq cli.PrefixArguments, cli.Artifact), DriverCapabilities.Of(cli.Target, cli.Host), cli
+
+/// <summary>
+/// The <c>dotnet-morphir</c> under test: the target of the run, with the tool host as the default, because the
+/// cases need the F# frontend in the host. A target and a host with no in-process F# frontend skip the cases.
 /// </summary>
 let private dotnetMorphir =
     lazy
-        (match Environment.GetEnvironmentVariable "MORPHIR_DOTNET_TOOL_CLI" with
-         | null
-         | "" ->
-             let configuration =
-                 typeof<FakeMorphir.Marker>.Assembly
-                     .GetCustomAttribute<AssemblyConfigurationAttribute>()
-                     .Configuration
+        (let command, capabilities, cli = targetOf MorphirHost.DotnetTool
 
-             let assembly =
-                 Path.Combine(
-                     repositoryRoot,
-                     "src",
-                     "Morphir.Tool",
-                     "bin",
-                     configuration,
-                     "net11.0",
-                     "dotnet-morphir.dll"
-                 )
+         if not (capabilities.Contains DriverCapability.InProcessFSharpFrontend) then
+             skiptest
+                 $"capability: InProcessFSharpFrontend on target {cli.Target.Name}, host {MorphirHosts.Name cli.Host}"
 
-             if not (File.Exists assembly) then
-                 failtestf "Build the solution first: %s does not exist." assembly
-
-             dotnetHost, [ "exec"; assembly ], assembly
-         | executable -> Path.GetFullPath executable, [], Path.GetFullPath executable)
+         command)
 
 /// <summary>The fake: this test executable with its fake argument.</summary>
 let private fake =
@@ -413,26 +407,33 @@ let tests =
                 expectQualified report
         }
         |> testLabel "PlatformSpecific"
-            // Task 9.4: the published Native AOT morphir with the installed MEP guest. Opt-in, because it needs a
-        // publish and an installed tool: set MORPHIR_AOT_CLI to the published executable and MORPHIR_FSHARP_GUEST to
-        // the installed morphir-fsharp-frontend command.
+        // Task 9.4: the native morphir of a published target of the run (the Native AOT executable:
+        // MORPHIR_TEST_TARGET=aot, or MORPHIR_TEST_TARGET=executable with MORPHIR_TEST_EXECUTABLE) with the installed
+        // MEP guest. Opt-in, because it needs a publish and an installed tool: set MORPHIR_FSHARP_GUEST to the
+        // installed morphir-fsharp-frontend command. The development build and a host that is not native skip it.
         testTask "The complete suite through the cli adapter against the AOT morphir with the installed guest equals the library" {
-            match Environment.GetEnvironmentVariable "MORPHIR_AOT_CLI", Environment.GetEnvironmentVariable "MORPHIR_FSHARP_GUEST" with
-            | null, _
-            | "", _
-            | _, null
-            | _, "" -> skiptest "Set MORPHIR_AOT_CLI and MORPHIR_FSHARP_GUEST to run the AOT suite"
-            | executable, guest ->
+            match Environment.GetEnvironmentVariable "MORPHIR_FSHARP_GUEST" with
+            | null
+            | "" -> skiptest "Set MORPHIR_FSHARP_GUEST, and MORPHIR_TEST_TARGET to the published executable, to run the AOT suite"
+            | guest ->
+                let morphir, _, cli = targetOf MorphirHost.Native
+
+                if cli.Host <> MorphirHost.Native then
+                    skiptest $"host: the AOT suite runs the native host, and the run has the {MorphirHosts.Name cli.Host} host"
+
+                // The development build is not a published executable: the suite needs the target of a publish.
+                if (cli.Target :? TestTarget.DevelopmentBuild) then
+                    skiptest "target: the AOT suite runs a published native morphir; set MORPHIR_TEST_TARGET (aot, or executable with MORPHIR_TEST_EXECUTABLE)"
+
+                let executable = cli.Artifact
                 use sandbox = TestSandbox.Create "morphir-mck-aot-"
                 let suite = CorpusTests.suite.Value
-                let morphir = Path.GetFullPath executable, [], Path.GetFullPath executable
-
                 let options =
                     { optionsFor morphir sandbox [] with
                         ExtraArguments = [ "--extension"; guest ]
                     }
 
-                let! identity = CliAdapter.identify options (Path.GetFullPath executable) CancellationToken.None
+                let! identity = CliAdapter.identify options executable CancellationToken.None
                 let! aot = run (CliAdapter.create identity options) suite
                 let! library = run CorpusTests.adapter suite
                 keep "cli-aot-mep.json" aot
