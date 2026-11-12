@@ -774,7 +774,12 @@ module private ActivationState =
 [<AbstractClass; Sealed>]
 type InstalledExtensions private () =
     static member internal ReadGenerationAsync(home: string, directory: string, ct: CancellationToken) : Task<InstallationResult<GenerationSnapshot>> =
-        Operations.runAsync ct (fun () -> StateOwnership.withLockAsync home ct (fun root -> GenerationBinding.load root directory))
+        Operations.runAsync ct (fun () -> task {
+            use root = SafeDirectory.Open(home,false)
+            StateOwnership.checkUnderLock root ct
+            ct.ThrowIfCancellationRequested()
+            return GenerationBinding.load root directory
+        })
 
     /// Internal composition only: the complete generation binding is checked before any retained record is acquired.
     static member internal CaptureOverlayAsync(home: string, directory: string, selectedId: Morphir.Extensions.ExtensionId, host: SemVer, ct: CancellationToken) : Task<InstallationResult<CapturedExtension>> =

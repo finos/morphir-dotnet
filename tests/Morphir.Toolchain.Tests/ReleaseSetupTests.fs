@@ -93,7 +93,7 @@ let tests = testList "WindowsReleaseSetup" [
 
 /// The producer supplies actual full folders, archives and metadata. No test creates executable substitutes.
 [<Tests>]
-let acquiredJourney = testCaseTask "WindowsReleaseSetup.actual installed release setup and offline process workflow" (fun () -> task {
+let acquiredJourney = testList "WindowsReleaseSetup" [testCaseTask "actual installed release setup and offline process workflow" (fun () -> task {
     let folder = Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_ASSETS" |> Option.ofObj |> Option.defaultWith(fun () -> skiptest "Actual PackWindowsToolchain assets were not supplied.")
     if not(OperatingSystem.IsWindows()) || RuntimeInformation.ProcessArchitecture <> Architecture.X64 then
         skiptest "The actual Windows x64 process composition requires an x64 test process."
@@ -144,4 +144,4 @@ let acquiredJourney = testCaseTask "WindowsReleaseSetup.actual installed release
     do! run ["generate";"--target";"fsharp";"--output";"generated";"--option";"format=false"]
     Expect.equal calls before "retained run performs no acquisition"
     Expect.equal (File.ReadAllBytes(Path.Combine(home,"toolchains/default.json"))) pointer "selection remains unchanged offline"
-})
+})]

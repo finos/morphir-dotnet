@@ -65,7 +65,7 @@ type ReleaseTransport(handler: HttpMessageHandler) =
 
 let private accepted = function
     | Ok value -> value
-    | Error failure -> refuse "acquisition.refused" $"Bounded release transfer refused: {failure}."
+    | Error _ -> refuse "acquisition.refused" "The bounded release transfer was refused by transport or byte-integrity checks."
 
 let request source maximum = {Source=source;MaxBytes=maximum;Deadline=DateTimeOffset.UtcNow.AddMinutes 3.0;Mode=AcquisitionMode.Online}
 

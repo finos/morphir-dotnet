@@ -35,6 +35,11 @@ jobs:
         name: morphirup ${{ inputs.rid }}
         runs-on: ${{ inputs.os }}
         timeout-minutes: 45
+        env:
+            DOTNET_PROCESSOR_COUNT: '2'
+            MORPHIR_TEST_MAX_PROCESSES: '2'
+            DOTNET_CLI_USE_MSBUILD_SERVER: '0'
+            MSBUILDDISABLENODEREUSE: '1'
         steps:
             - name: Fetch Source Code
               uses: actions/checkout@v6.1.0
@@ -86,7 +91,25 @@ jobs:
                       linux=(--morphirup-build-image ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11
                           --morphirup-containers debian:12-slim ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11)
                   fi
-                  ./build.sh --target PackMorphirup CheckMorphirup --rid "${{ inputs.rid }}" --configuration "${{ inputs.configuration }}" ${linux[@]+"${linux[@]}"}
+                  targets=(PackMorphirup CheckMorphirup)
+                  profile=()
+                  if [ "${{ inputs.rid }}" = win-x64 ]; then
+                      targets=(PackWindowsToolchain CheckMorphirup)
+                      profile=(--deployment self-contained)
+                  fi
+                  ./build.sh --target "${targets[@]}" --rid "${{ inputs.rid }}" --configuration "${{ inputs.configuration }}" ${profile[@]+"${profile[@]}"} ${linux[@]+"${linux[@]}"}
+
+            - name: Exercise the Windows setup composition with actual produced archives
+              if: inputs.rid == 'win-x64'
+              shell: pwsh
+              env:
+                  MORPHIR_WINDOWS_TOOLCHAIN_ASSETS: ${{ github.workspace }}/artifacts/release-assets
+              run: |
+                  dotnet build tests/Morphir.Toolchain.Tests/Morphir.Toolchain.Tests.fsproj -c Release -m:1 -p:UseSharedCompilation=false -nodeReuse:false
+                  if ($LASTEXITCODE) { exit $LASTEXITCODE }
+                  dotnet tests/Morphir.Toolchain.Tests/bin/Release/net11.0/Morphir.Toolchain.Tests.dll --filter-test-list WindowsReleaseSetup 2>&1 | Tee-Object -FilePath artifacts/windows-setup-tests.log
+                  if ($LASTEXITCODE) { exit $LASTEXITCODE }
+                  if (!(Select-String artifacts/windows-setup-tests.log -Pattern '4 passed, 0 ignored, 0 failed, 0 errored' -Quiet)) { throw 'The complete nonempty setup journey test group did not run.' }
 
             - name: Upload the morphirup release assets
               uses: actions/upload-artifact@v6

@@ -279,5 +279,6 @@ let runAsync home args directory input output errors ct = task {
     use root = SafeDirectory.Open(home,false)
     use! lease = FileSafety.mutationLeaseAsync root ct
     checkHost root candidate.Host false ct
+    errors.WriteLine($"morphirup: {ComposedDocuments.origin snapshot.Family} delivery, NOT publisher-authenticated.")
     return! LocalProcess.runWithOverlayAsync (path home (LocalCandidateDocument.installationPath candidate.Host+"/"+candidate.Host.EntryPoint.Target.Text)) args directory home input output errors snapshot.Directory ct
 }
