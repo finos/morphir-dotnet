@@ -214,6 +214,35 @@ module private NativeFiles =
     [<DllImport("libc", EntryPoint = "flock", SetLastError = true)>]
     extern int flock(int descriptor, int operation)
 
+    [<DllImport("libc", EntryPoint = "fcntl", SetLastError = true)>]
+    extern int fcntlFixed(int descriptor, int command, int argument)
+
+    // fcntl is variadic like open: on Darwin arm64 the argument goes in the first stack slot.
+    [<DllImport("libc", EntryPoint = "fcntl", SetLastError = true)>]
+    extern int fcntlDarwinArm64(
+        int descriptor,
+        int command,
+        nativeint padding2,
+        nativeint padding3,
+        nativeint padding4,
+        nativeint padding5,
+        nativeint padding6,
+        nativeint padding7,
+        int argument
+    )
+
+    let fcntl (descriptor, command, argument) =
+        match RuntimeInformation.ProcessArchitecture with
+        | Architecture.Arm64 when OperatingSystem.IsMacOS() ->
+            fcntlDarwinArm64 (descriptor, command, 0n, 0n, 0n, 0n, 0n, 0n, argument)
+        | Architecture.X64 when
+            OperatingSystem.IsMacOS()
+            || OperatingSystem.IsLinux()
+            ->
+            fcntlFixed (descriptor, command, argument)
+        | Architecture.Arm64 when OperatingSystem.IsLinux() -> fcntlFixed (descriptor, command, argument)
+        | _ -> Operations.fail "extension.io_error" "Unsupported native fcntl ABI."
+
     let directoryFlags = if OperatingSystem.IsMacOS() then 0x100000 else 0x10000
     let noFollow = if OperatingSystem.IsMacOS() then 0x100 else 0x20000
     let closeOnExec = if OperatingSystem.IsMacOS() then 0x1000000 else 0x80000
@@ -258,6 +287,22 @@ module private NativeFiles =
             error path (Marshal.GetLastPInvokeError())
 
         new SafeFileHandle(nativeint value, true)
+
+    // O_NONBLOCK lets the open of a planted FIFO return instead of blocking. A regular file needs no non-blocking
+    // I/O, and from .NET 11 SafeFileHandle.IsAsync reads O_NONBLOCK from the descriptor: FileStream then reads and
+    // writes at the descriptor offset and ignores its Position. Clear the flag before a FileStream wraps the handle,
+    // and before anything reads IsAsync, which .NET caches.
+    let synchronous path (handle: SafeFileHandle) =
+        let flags = fcntl (fd handle, 3 (* F_GETFL *), 0)
+
+        if flags < 0 then
+            error path (Marshal.GetLastPInvokeError())
+
+        if
+            flags &&& nonBlock <> 0
+            && fcntl (fd handle, 4 (* F_SETFL *), flags &&& ~~~nonBlock) < 0
+        then
+            error path (Marshal.GetLastPInvokeError())
 
     let windowsHandle path (handle: SafeFileHandle) =
         if handle.IsInvalid then
@@ -593,6 +638,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
         try
             NativeFiles.attributes full file false
 
+            if not (OperatingSystem.IsWindows()) then
+                NativeFiles.synchronous full file
+
             if
                 lease
                 && not (OperatingSystem.IsWindows())
@@ -609,9 +657,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
 
                 NativeFiles.error full error
 
-            // Raw Unix SafeFileHandle wrappers have IsAsync=false. .NET still
-            // implements their WriteAsync/FlushAsync through awaited I/O; the
-            // constructor flag must describe the handle, not our caller's API.
+            // Unix descriptors are synchronous here (O_NONBLOCK is cleared above), so
+            // IsAsync=false. .NET still implements their WriteAsync/FlushAsync through
+            // awaited I/O; the constructor flag must describe the handle, not our caller's API.
             // Windows alone opened an OVERLAPPED handle above when requested.
             let asynchronousHandle =
                 asynchronous
