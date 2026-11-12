@@ -792,6 +792,13 @@ product, not about this change.</td>
 the next compile builds 48 projects again. Pull request 4 moves their fixture builds to <code>IPackageDriver</code>
 (task 8.2).</td>
 <td><code>slice-1-times.md</code></td></tr>
+<tr><td><a href="#drv-2">DRV-2</a>, the first Windows run</td>
+<td>The CLI driver reads standard output and standard error as UTF-8, the encoding that the product writes. On
+Windows a redirected stream is read in the code page of the console by default, so <code>dotnet run</code> hid this,
+and the direct start of the assembly showed it: a check mark and the lines of a table arrived as other characters.
+A test in <code>CliDriverTests</code> checks it. The same run found a defect of the product: <code>ir verify</code>
+with a path in a directory that is not there fails with an unhandled exception on Windows.</td>
+<td><code>slice-1-moves.md</code></td></tr>
 <tr><td>Review of the branch</td>
 <td>The <code>test-manager-reviewer</code> agent compared the 44 old tests that moved with their new tests and gave
 six findings. Each one is corrected: <code>GenerationReport</code> requires each of its lists, so a check that a list

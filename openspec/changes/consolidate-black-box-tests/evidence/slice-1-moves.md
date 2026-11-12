@@ -111,6 +111,11 @@ Moved cases: 17. Cases that stay: 16. New scenarios in `Generation.feature`: 33.
 
 ## Findings about the product (not in the scope of this change)
 
+- On Windows, `morphir ir verify <path>` with a path in a directory that is not there fails with an unhandled
+  `System.IO.DirectoryNotFoundException` and gives no validation result. A missing file in a directory that is there
+  gives the validation error. The scenario `A file that is not there is an error` uses a missing file in the work
+  area, as the old scenario did (`<test-data>/nonexistent.json`). Found in the first Windows run of pull request 1.
+
 - `morphir ir verify examples/car-rental/models/car-rental-v3.json` (207 KB) runs for 2 minutes and is then killed
   by the operating system (exit code 137). So the journey does not use the car rental model.
 - `morphir ir verify` says that `tests/Fixtures/MorphirIon/pairs/v3-daily-rate.json` is not valid, and
