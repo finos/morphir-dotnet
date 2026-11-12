@@ -70,14 +70,18 @@ public sealed class ExecutableExtensionWorkerSteps : IDisposable
     [When("the worker serves \"(.*)\" with the frames \"(.*)\" and the arguments \"(.*)\"")]
     public async Task WhenTheWorkerServesWithTheFramesAndTheArguments(string module, string frames, string arguments)
     {
+        await ExecutableExtensionRuntimesTests.RequireGuestRuntimeAsync(Executable);
         running = await WorkerProcess.StartAsync(Executable,
             await ArgumentsAsync(ModulePath(module), arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries)), Environment);
         await running.WriteAsync(Frames(frames));
     }
 
     [When("the worker serves \"([^\"]*)\" with the frames \"([^\"]*)\"$")]
-    public async Task WhenTheWorkerServesWithTheFrames(string module, string frames) =>
+    public async Task WhenTheWorkerServesWithTheFrames(string module, string frames)
+    {
+        await ExecutableExtensionRuntimesTests.RequireGuestRuntimeAsync(Executable);
         run = await ServeAsync(await ArgumentsAsync(ModulePath(module)), Frames(frames));
+    }
 
     [When("the worker is started with another build identity for a module file that does not exist")]
     public async Task WhenTheWorkerIsStartedWithAnotherBuildIdentity()
@@ -91,14 +95,18 @@ public sealed class ExecutableExtensionWorkerSteps : IDisposable
     [When("the worker serves a text file named \"(.*)\"")]
     public async Task WhenTheWorkerServesATextFileNamed(string name)
     {
+        await ExecutableExtensionRuntimesTests.RequireGuestRuntimeAsync(Executable);
         var path = sandbox.PathOf(name);
         await File.WriteAllTextAsync(path, "This is a text file, not a module.\n");
         run = await ServeAsync(await ArgumentsAsync(path), Frames("initialize"));
     }
 
     [When("the worker serves a module file that does not exist")]
-    public async Task WhenTheWorkerServesAModuleFileThatDoesNotExist() =>
+    public async Task WhenTheWorkerServesAModuleFileThatDoesNotExist()
+    {
+        await ExecutableExtensionRuntimesTests.RequireGuestRuntimeAsync(Executable);
         run = await ServeAsync(await ArgumentsAsync(sandbox.PathOf("missing.wasm")), Frames("initialize"));
+    }
 
     [When("the worker is started with the extra argument \"(.*)\"")]
     public async Task WhenTheWorkerIsStartedWithTheExtraArgument(string argument) =>

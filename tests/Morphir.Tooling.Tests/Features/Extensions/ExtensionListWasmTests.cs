@@ -155,13 +155,22 @@ public sealed class ExtensionListWasmTests
         entries["morphir.csharp"].Available.Should().BeTrue();
     }
 
-    /// <summary>The registry reads the runtime of its host (task 4.2): this test process carries the engine.</summary>
+    /// <summary>The registry reports the availability and reason of this process, including an unsupported engine.</summary>
     [Test]
     public void ARegistryOfThisProcessListsTheWasmEntryAsTheProcessRuntimeReportsIt()
     {
         var registry = new ExtensionRegistry([new FixedSource(WasmEntry())], Native, WasmRuntime.Process);
-        Entries(Run(registry, json: true))["acme.python"].Available.Should().Be(WasmRuntime.Process.Availability.CanRunModules);
-        WasmRuntime.Process.Availability.Should().Be(WasmRuntimeAvailability.Available);
+        var report = Run(registry, json: true);
+        Entries(report)["acme.python"].Available.Should().Be(WasmRuntime.Process.Availability.CanRunModules);
+        using var document = JsonDocument.Parse(report);
+        var entry = document.RootElement.GetProperty("extensions").EnumerateArray()
+            .Single(value => value.GetProperty("id").GetString() == "acme.python");
+        var expectedReason = WasmRuntime.Process.Availability.Match<string?>(
+            available: () => null, unavailable: reason => $"The WASM runtime is unavailable: {reason.Description}.");
+        if (expectedReason is null)
+            entry.TryGetProperty("reason", out var reason).Should().BeFalse();
+        else
+            entry.GetProperty("reason").GetString().Should().Be(expectedReason);
     }
 
     [Test]

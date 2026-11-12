@@ -68,7 +68,7 @@ Feature: Packaged release artifacts
   # Requirement "Runtime availability is reported", scenario "Supported platform", from the installed artifact.
   Scenario: The runtime report of the installed artifact
     When I run the installed artifact with "extension runtimes --json" from a new empty directory
-    Then the installed artifact reports the WASM runtime available with the pinned engine on this platform
+    Then the installed artifact reports its WASM runtime availability with the pinned engine on this platform
 
   # Requirement "Worker mode", scenario "Conformance runner drives a guest", and "The Extism profile in every offering".
   Scenario: A WASM worker session from the installed artifact
@@ -89,7 +89,7 @@ Feature: Packaged release artifacts
   Scenario: A WASM guest runs from a read-only install directory, and its first run extracts nothing
     Given a second installation of the artifact under test, made read-only before its first run
     When I run the installed artifact with "extension runtimes --json" from a new empty directory
-    Then the installed artifact reports the WASM runtime available with the pinned engine on this platform
+    Then the installed artifact reports its WASM runtime availability with the pinned engine on this platform
     When the installed artifact serves the pinned module "extism-echo" with the frames "initialize, initialized, shutdown, exit" in a worker session
     Then the packaged worker session exits with status 0
     And the packaged worker session's stdout holds only these frames:

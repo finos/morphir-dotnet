@@ -156,6 +156,17 @@ public sealed class ExtensionWorkerRuntimeTests
 
         var run = await Run(arguments, loader.Loader);
 
+        if (firstFailing == "module" && WasmRuntime.Process.Platform == "win-x64")
+        {
+            run.ExitCode.Should().Be(ExtensionWorker.Refused, run.Describe());
+            run.Stdout.Should().BeEmpty();
+            run.Single("refused").Text("error.code").Should().Be("extension.runtime_unavailable");
+            run.Single("refused").Text("error.message").Should().Contain("win_x64_trap_unsupported");
+            run.EventNames.Should().NotContain("fault", "the process safety refusal precedes module I/O");
+            loader.Probes.Should().Be(1);
+            return;
+        }
+
         run.ExitCode.Should().Be(exitCode, run.Describe());
         run.Stdout.Should().BeEmpty();
         if (code is null)
@@ -186,6 +197,9 @@ public sealed class ExtensionWorkerRuntimeTests
     [Test]
     public async Task AWorkerWithTheRuntimeServesAsBefore()
     {
+        if (WasmRuntime.Process.Platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: guest worker execution is unavailable; #609.");
+
         var loader = new CountingLoader(WasmRuntimeAvailability.Available);
 
         var run = await WorkerHarness.RunAsync(WorkerHarness.Arguments(WorkerHarness.Corpus("extism-echo")),

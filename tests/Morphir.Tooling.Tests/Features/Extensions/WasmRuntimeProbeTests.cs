@@ -43,6 +43,27 @@ public sealed class WasmRuntimeProbeTests
     }
 
     [Test]
+    [Arguments("win-x64")]
+    [Arguments("win-arm64")]
+    public void AnAvailableRuntimeCannotOverrideWindowsX64SafetyBeforeModuleIo(string claimedPlatform)
+    {
+        if (claimedPlatform != "win-x64" && WasmRuntime.Process.Platform != "win-x64")
+            Skip.Test("This row checks the actual Windows x64 process against a misidentified runtime.");
+        using var sandbox = TestSandbox.Create();
+        var runtime = new WasmRuntime(claimedPlatform, () => WasmRuntimeAvailability.Available);
+        var host = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+        var loader = new WasmModuleLoader(runtime, host);
+
+        var outcome = loader.Load(new WasmModuleSource("python", sandbox.PathOf("does-not-exist.wasm")));
+
+        var failure = outcome.Should().BeOfType<WasmModuleLoad.Failed>().Subject.Failure
+            .Should().BeOfType<WasmModuleFailure.RuntimeUnavailable>().Subject;
+        failure.Platform.Should().Be("win-x64");
+        failure.Reason.Should().Be(WasmRuntimeUnavailableReason.WinX64TrapUnsupported);
+        failure.Code.Should().Be("extension.runtime_unavailable");
+    }
+
+    [Test]
     [Arguments("linux-musl-x64")]
     [Arguments("linux-musl-arm64")]
     [Arguments("freebsd-x64")]

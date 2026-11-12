@@ -12,7 +12,8 @@ namespace Morphir.E2E.Tests.Features;
 /// <c>extension runtimes</c> and <c>extension.runtime_unavailable</c> of the executable under test (task 4.2 of
 /// add-wasm-extension-host). The unmodified executable reports the engine of its Wasmtime package. A copy of its output
 /// folder with the engine's native library deleted is a host started without its engine library: it reports
-/// <c>engine_missing</c>, refuses a worker by name, and still runs the commands that need no WASM. The real build output
+/// <c>engine_missing</c> on a runnable platform, or the platform's safety refusal. It refuses a worker by name and still
+/// runs the commands that need no WASM. The real build output
 /// is never changed. Run the assembly once with <c>MORPHIR_EXECUTABLE_TYPE=tool</c> and once with
 /// <c>MORPHIR_EXECUTABLE_PATH</c> at a <c>morphir</c> build to cover both hosts.
 /// </summary>
@@ -39,6 +40,26 @@ public sealed class ExecutableExtensionRuntimesTests
         return document.RootElement.GetProperty("runtimes").EnumerateArray().Should().ContainSingle().Subject.Clone();
     }
 
+    internal static bool IsWindowsX64(string report)
+    {
+        using var document = JsonDocument.Parse(report);
+        return document.RootElement.GetProperty("platform").GetString() == "win-x64";
+    }
+
+    internal static async Task RequireGuestRuntimeAsync(string executable)
+    {
+        var report = await Run(executable, "extension runtimes --json");
+        report.ExitCode.Should().Be(0, report.CombinedOutput);
+        var wasm = Wasm(report);
+        if (IsWindowsX64(report.StandardOutput))
+        {
+            wasm.GetProperty("available").GetBoolean().Should().BeFalse(report.StandardOutput);
+            wasm.GetProperty("reason").GetString().Should().Be("win_x64_trap_unsupported");
+            Skip.Test("win_x64_trap_unsupported: the executable cannot run guests; #609.");
+        }
+        wasm.GetProperty("available").GetBoolean().Should().BeTrue(report.StandardOutput);
+    }
+
     /// <summary>The version of the Wasmtime package that <c>Directory.Packages.props</c> pins.</summary>
     internal static string PackageVersion()
     {
@@ -57,13 +78,15 @@ public sealed class ExecutableExtensionRuntimesTests
     // --- The unmodified executable ------------------------------------------------------------------------------
 
     [Test]
-    public async Task The_executable_reports_the_wasm_runtime_as_available_with_the_engine_of_its_package()
+    public async Task The_executable_reports_its_platforms_wasm_availability_with_the_engine_of_its_package()
     {
         var result = await Run(ExecutableExtensionWorkerSteps.Executable, "extension runtimes --json");
 
         result.ExitCode.Should().Be(0, result.CombinedOutput);
         var wasm = Wasm(result);
-        wasm.GetProperty("available").GetBoolean().Should().BeTrue(result.StandardOutput);
+        wasm.GetProperty("available").GetBoolean().Should().Be(!IsWindowsX64(result.StandardOutput), result.StandardOutput);
+        if (IsWindowsX64(result.StandardOutput))
+            wasm.GetProperty("reason").GetString().Should().Be("win_x64_trap_unsupported");
         wasm.GetProperty("engine").GetProperty("name").GetString().Should().Be("wasmtime");
         wasm.GetProperty("engine").GetProperty("version").GetString().Should().Be(PackageVersion());
         wasm.GetProperty("profiles").EnumerateArray().Select(profile => profile.GetString()).Should().Equal("extism-kernel-v1");
@@ -73,7 +96,7 @@ public sealed class ExecutableExtensionRuntimesTests
     // --- A copy without the engine library ----------------------------------------------------------------------
 
     [Test]
-    public async Task Without_its_engine_library_the_executable_reports_engine_missing()
+    public async Task Without_its_engine_library_the_executable_reports_the_applicable_unavailable_reason()
     {
         var copy = await EngineFree();
 
@@ -82,7 +105,8 @@ public sealed class ExecutableExtensionRuntimesTests
         result.ExitCode.Should().Be(0, result.CombinedOutput);
         var wasm = Wasm(result);
         wasm.GetProperty("available").GetBoolean().Should().BeFalse(result.StandardOutput);
-        wasm.GetProperty("reason").GetString().Should().Be("engine_missing");
+        wasm.GetProperty("reason").GetString().Should().Be(IsWindowsX64(result.StandardOutput)
+            ? "win_x64_trap_unsupported" : "engine_missing");
         wasm.GetProperty("engine").GetProperty("version").GetString().Should().Be(PackageVersion());
         result.StandardError.Should().NotContain("DllNotFoundException");
     }
@@ -91,6 +115,8 @@ public sealed class ExecutableExtensionRuntimesTests
     public async Task Without_its_engine_library_a_worker_is_refused_by_name_with_no_stdout_bytes()
     {
         var copy = await EngineFree();
+        var report = await Run(copy.Executable, "extension runtimes --json");
+        report.ExitCode.Should().Be(0, report.CombinedOutput);
         var identity = await ExecutableExtensionWorkerSteps.IdentityAsync(copy.Executable);
         await using var worker = await WorkerProcess.StartAsync(copy.Executable,
             ["--abi", "extism-kernel-v1", "--module", WorkerCorpus.ModulePath("extism-echo"), "--build-identity", identity, "--json"]);
@@ -103,7 +129,8 @@ public sealed class ExecutableExtensionRuntimesTests
         run.EventNames.Should().Equal(["refused", "exited"], run.Describe());
         var refused = run.Events.Single(e => e.Name == "refused").Json.GetProperty("error");
         refused.GetProperty("code").GetString().Should().Be("extension.runtime_unavailable");
-        refused.GetProperty("message").GetString().Should().Contain("engine_missing").And.NotContain("DllNotFoundException");
+        refused.GetProperty("message").GetString().Should().Contain(IsWindowsX64(report.StandardOutput)
+            ? "win_x64_trap_unsupported" : "engine_missing").And.NotContain("DllNotFoundException");
     }
 
     [Test]
