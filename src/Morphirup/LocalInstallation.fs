@@ -98,17 +98,23 @@ let private copyChecked
         refuse "local.digest_mismatch" "Exact streamed SHA-256 differs from the candidate."
 
 let private structure (candidate: LocalHostCandidate) (read: string -> byte array) =
+    let expectedMachine =
+        match candidate.Platform with
+        | Platform.WinX64 -> Machine.Amd64
+        | Platform.WinArm64 -> Machine.Arm64
+        | _ -> refuse "local.platform_mismatch" "Only the two Windows executable platforms are supported."
     try
         use image = new MemoryStream(read candidate.EntryPoint.Target.Text, false)
         use pe = new PEReader(image)
 
         if
             pe.PEHeaders.CoffHeader.Machine
-            <> Machine.Amd64
+            <> expectedMachine
             || not (pe.PEHeaders.CoffHeader.Characteristics.HasFlag Characteristics.ExecutableImage)
             || pe.PEHeaders.CoffHeader.Characteristics.HasFlag Characteristics.Dll
         then
-            refuse "local.platform_mismatch" "The actual entry point is not an AMD64 executable."
+            let architecture = if candidate.Platform=Platform.WinX64 then "AMD64" else "ARM64"
+            refuse "local.platform_mismatch" $"The actual entry point is not an {architecture} executable."
     with :? BadImageFormatException ->
         refuse "local.platform_mismatch" "The actual entry point is not a Windows executable."
 
@@ -199,8 +205,8 @@ let private structure (candidate: LocalHostCandidate) (read: string -> byte arra
         |> Option.ofObj
         |> Option.defaultValue ""
 
-    if not (target.EndsWith("/win-x64", StringComparison.Ordinal)) then
-        refuse "local.platform_mismatch" "The managed dependency closure is not win-x64."
+    if not (target.EndsWith("/" + Platform.name candidate.Platform, StringComparison.Ordinal)) then
+        refuse "local.platform_mismatch" $"The managed dependency closure is not {Platform.name candidate.Platform}."
 
 let private pinnedRead (root: SafeDirectory) path maximum =
     use file = FileSafety.openRelative root (relative root.Path path)

@@ -223,45 +223,52 @@ module LocalCandidatePlanning =
         files
         |> List.forall (fun file -> seen.Add file.Artifact.Target.Text)
 
-    /// One validation route for setup apply and dry-run. It performs no I/O,
-    /// staging, lock admission or execution and chooses no fallback offering.
-    let plan currentPlatform consent maximumArchiveBytes (candidate: LocalHostCandidate) =
+    let private validate supported currentPlatform maximumArchiveBytes (candidate: LocalHostCandidate) =
+        if
+            candidate.Platform
+            <> currentPlatform
+        then
+            Error LocalCandidateRefusal.PlatformMismatch
+        elif
+            not (supported candidate.Platform)
+            || candidate.Host.Implementation.Text
+               <> "dotnet"
+            || candidate.Host.Deployment.Text
+               <> "self-contained"
+        then
+            Error LocalCandidateRefusal.UnsupportedOffering
+        elif
+            candidate.ArchiveBytes = 0UL
+            || candidate.ArchiveBytes > maximumArchiveBytes
+        then
+            Error LocalCandidateRefusal.ArchiveBound
+        elif
+            candidate.Files.IsEmpty
+            || candidate.Files.Length > 8192
+            || candidate.Files
+               |> List.filter (fun file -> file.Artifact = candidate.EntryPoint)
+               |> List.length
+               <> 1
+            || candidate.Files
+               |> List.exists (fun file -> file.Bytes > maximumArchiveBytes)
+            || not (uniqueFiles candidate.Files)
+        then
+            Error LocalCandidateRefusal.ClosureMismatch
+        else
+            Ok ()
+
+    /// One validation route for historical local setup apply and dry-run. It performs no I/O.
+    let plan currentPlatform consent maximumArchiveBytes candidate =
         match consent with
         | None -> Error LocalCandidateRefusal.ExplicitConsentRequired
         | Some LocalConsent.LocalDeveloper ->
-            if
-                candidate.Platform
-                <> currentPlatform
-            then
-                Error LocalCandidateRefusal.PlatformMismatch
-            elif
-                candidate.Platform
-                <> Platform.WinX64
-                || candidate.Host.Implementation.Text
-                   <> "dotnet"
-                || candidate.Host.Deployment.Text
-                   <> "self-contained"
-            then
-                Error LocalCandidateRefusal.UnsupportedOffering
-            elif
-                candidate.ArchiveBytes = 0UL
-                || candidate.ArchiveBytes > maximumArchiveBytes
-            then
-                Error LocalCandidateRefusal.ArchiveBound
-            elif
-                candidate.Files.IsEmpty
-                || candidate.Files.Length > 8192
-                || candidate.Files
-                   |> List.filter (fun file -> file.Artifact = candidate.EntryPoint)
-                   |> List.length
-                   <> 1
-                || candidate.Files
-                   |> List.exists (fun file -> file.Bytes > maximumArchiveBytes)
-                || not (uniqueFiles candidate.Files)
-            then
-                Error LocalCandidateRefusal.ClosureMismatch
-            else
-                Ok(LocalCandidatePlan(LocalConsent.LocalDeveloper, candidate))
+            validate ((=) Platform.WinX64) currentPlatform maximumArchiveBytes candidate
+            |> Result.map (fun () -> LocalCandidatePlan(LocalConsent.LocalDeveloper, candidate))
+
+    // Preview.3 accepts only the two Windows process platforms. Acquisition or
+    // explicit developer consent is checked by its caller, never granted by this plan.
+    let internal planRelease currentPlatform maximumArchiveBytes candidate =
+        validate Platform.isWindows currentPlatform maximumArchiveBytes candidate
 
 /// The explicit local pointer binds immutable receipt bytes, not a repository or a recipe.
 type LocalCandidateSelection = {
@@ -334,11 +341,13 @@ module LocalCandidateDocument =
         return ()
     }
 
-    let private identityFor origin o = result {
-        do! constant "origin" origin o
+    let private identityFor releaseFamily o = result {
+        do! if releaseFamily then required "origin" (tag ["local-developer",();"release-checksum",()]) o
+            else constant "origin" "local-developer" o
         do! constant "implementation" "dotnet" o
         do! constant "deployment" "self-contained" o
-        do! constant "platform" "win-x64" o
+        do! if releaseFamily then Ok () else constant "platform" "win-x64" o
+        let! platform = required "platform" (if releaseFamily then tag ["win-x64",Platform.WinX64;"win-arm64",Platform.WinArm64] else platform) o
         let! version = required "version" version o
         let! source = required "sourceCommit" text o
 
@@ -364,10 +373,10 @@ module LocalCandidateDocument =
             })
 
         let! buildIdentity = required "buildIdentity" (validated NonBlankText.tryParse) o
-        return version, sourceCommit, buildIdentity
+        return version, sourceCommit, buildIdentity, platform
     }
 
-    let private identity o = identityFor "local-developer" o
+    let private identity o = identityFor false o |> Result.map(fun (version,source,build,_) -> version,source,build)
 
     let private portablePath n = result {
         let! path = targetPath n
@@ -416,7 +425,7 @@ module LocalCandidateDocument =
                 ] @ extraNames)
                 bytes
 
-        let! version, sourceCommit, buildIdentity = identityFor (if family = "0.1.0-preview.3" then "release-checksum" else "local-developer") o
+        let! version, sourceCommit, buildIdentity, platform = identityFor (family = "0.1.0-preview.3") o
         do! constant "sourceRepository" "https://github.com/finos/morphir-dotnet" o
 
         let! archive =
@@ -487,7 +496,7 @@ module LocalCandidateDocument =
                 Deployment = deployment
                 Version = version
             }
-            Platform = Platform.WinX64
+            Platform = platform
             SourceCommit = sourceCommit
             BuildIdentity = buildIdentity
             ArchiveSha256 = digest

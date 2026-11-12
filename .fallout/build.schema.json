@@ -46,6 +46,7 @@
         "PackPlatformTarballs",
         "PackRelease",
         "PackTool",
+        "PackWindowsToolchain",
         "Precommit",
         "PrepareExtensionProcessPackage",
         "PrepareRelease",

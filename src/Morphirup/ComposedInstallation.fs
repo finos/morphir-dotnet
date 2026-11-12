@@ -111,31 +111,37 @@ let private publishSelection (root: SafeDirectory) (snapshot: GenerationSnapshot
     let current = GenerationBinding.load root snapshot.Directory
     if current.Receipt <> snapshot.Receipt then refuse "setup.generation_changed" "The completed generation changed before selection."
     FileSafety.withDirectories root ["toolchains"] false (fun folder ->
-        folder.ReplaceStateFile("default.json",ComposedDocuments.pointer snapshot.Family manifest.Identity receipt))
+        folder.ReplaceStateFile("default.json",ComposedDocuments.pointer snapshot.Family snapshot.Candidate manifest.Identity receipt))
 }
 
-/// The one release setup path. Dry-run reads metadata and plans without creating Home or running code.
-let setupWithTransportAsync home version (transport: IAcquisitionTransport) dryRun ct = task {
-    validateHome home ct
-    let! bundle,rawBundle,checksums = AcquisitionDelivery.inspectAsync transport version ct
+// Both explicitly consented local inputs and acquired releases drive this same
+// installation/readiness core. Only acquired releases carry retained acquisition bytes.
+let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: byte array) (transport: IAcquisitionTransport) (acquisition: (byte array * byte array) option) dryRun ct = task {
     let metadata role =
         let asset = asset bundle role
         AcquisitionDelivery.metadataAsync transport asset.Url (8UL <<< 20) (Some {Version=1UL;Length=asset.Bytes;Sha256=asset.Sha256}) ct
-    let! rawCandidate = metadata "host-candidate"
+    let candidateAsset = asset bundle "host-candidate"
+    if uint64 rawCandidate.LongLength <> candidateAsset.Bytes || Sha256.ofBytes rawCandidate <> candidateAsset.Sha256 then
+        refuse "acquisition.binding_mismatch" "The exact candidate bytes differ from the bundle."
     let candidate = LocalComposedDocument.readReleaseCandidate rawCandidate |> reader
+    let expectedOrigin = if Option.isSome acquisition then ComposedOrigin.ReleaseChecksum else ComposedOrigin.LocalDeveloper
+    if candidate.Origin <> expectedOrigin then
+        refuse "acquisition.origin_mismatch" "The candidate origin differs from the actual input route."
     let! selection = metadata "selection"
-    let pins = ComposedDocuments.readPins selection |> reader
+    let pins = ComposedDocuments.readPinsFor candidate.Host.Platform selection |> reader
     if Sha256.ofBytes selection <> candidate.SelectionSha256 || candidate.Host.SourceCommit.Text <> bundle.SourceCommit
        || candidate.Host.ArchiveSha256 <> (asset bundle "host-archive").Sha256
-       || candidate.Host.ArchiveBytes <> (asset bundle "host-archive").Bytes then
+       || candidate.Host.ArchiveBytes <> (asset bundle "host-archive").Bytes
+       || candidate.Host.Platform <> bundle.Platform
+       || candidate.Host.Host.Version.Text.Split('+')[0] <> bundle.Version.Text then
         refuse "acquisition.binding_mismatch" "The release host, selection and bundle identities disagree."
-    match LocalCandidatePlanning.plan Platform.WinX64 (Some LocalConsent.LocalDeveloper) LocalInstallation.maximumArchive candidate.Host with
-    | Error _ -> refuse "acquisition.plan_refused" "The declared host closure is not a supported Windows x64 runtime-bundled toolchain."
+    match LocalCandidatePlanning.planRelease platform LocalInstallation.maximumArchive candidate.Host with
+    | Error _ -> refuse "acquisition.plan_refused" "The declared host closure is not a matching Windows runtime-bundled toolchain."
     | Ok _ -> ()
     let descriptors = ResizeArray<string * byte array * PackagePlan>()
     for role,selected in ["frontend",candidate.FrontendId;"backend",candidate.BackendId] do
         let! raw = metadata (role+"-release")
-        let plan = PackagePlan.Read(raw,InstallationPlatform.Create "win-x64") |> successful
+        let plan = PackagePlan.Read(raw,InstallationPlatform.Create(Platform.name candidate.Host.Platform)) |> successful
         let pin = pins |> List.tryFind(fun pin -> pin.Id=selected) |> Option.defaultWith(fun () -> refuse "acquisition.selection_mismatch" "The required process role is not selected.")
         if plan.Descriptor.ExtensionId.Value <> selected.Text || plan.ArchiveDigest.Value <> pin.ArchiveSha256.Text || plan.Descriptor.Version <> pin.Version
            || plan.ArchiveDigest.Value <> (asset bundle (role+"-archive")).Sha256.Text
@@ -180,14 +186,17 @@ let setupWithTransportAsync home version (transport: IAcquisitionTransport) dryR
             LocalInstallation.writeFile generation "extensions/catalog.json" captures.CatalogBytes
             for id,bytes in locks do LocalInstallation.writeFile generation $"extensions/locks/{id.Text}.json" bytes
             for _,path,bytes in metadata do LocalInstallation.writeFile generation path.Text bytes
-            LocalInstallation.writeFile generation "acquisition/bundle.json" rawBundle
-            LocalInstallation.writeFile generation "acquisition/SHA256SUMS" checksums)
+            match acquisition with
+            | Some(rawBundle,checksums) ->
+                LocalInstallation.writeFile generation "acquisition/bundle.json" rawBundle
+                LocalInstallation.writeFile generation "acquisition/SHA256SUMS" checksums
+            | None -> ())
         let! workflow = readiness root stage candidate captures.CatalogBytes captures.Captures home ct
-        let proof = Value.Object [
-            "repository",value AcquisitionDelivery.repository;"tag",value("v"+version)
+        let proof = acquisition |> Option.map(fun (rawBundle,checksums) -> Value.Object [
+            "repository",value AcquisitionDelivery.repository;"tag",value("v"+bundle.Version.Text)
             "bundle",Value.Object ["path",value "acquisition/bundle.json";"sha256",value (Sha256.ofBytes rawBundle).Text]
-            "checksums",Value.Object ["path",value "acquisition/SHA256SUMS";"sha256",value (Sha256.ofBytes checksums).Text]]
-        let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.3" candidate captures.CatalogBytes locks metadata workflow (Some proof)
+            "checksums",Value.Object ["path",value "acquisition/SHA256SUMS";"sha256",value (Sha256.ofBytes checksums).Text]])
+        let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.3" candidate captures.CatalogBytes locks metadata workflow proof
         let manifest = ComposedDocuments.readManifest "0.1.0-preview.3" candidate manifestBytes |> reader
         let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate manifest.Identity
         use generation = stage.Child("generation",false)
@@ -205,8 +214,48 @@ let setupWithTransportAsync home version (transport: IAcquisitionTransport) dryR
         }),ct)
         successful result
         let snapshot = GenerationBinding.load root (path home (LocalCandidateDocument.generationPath manifest.Identity))
-        do! publishSelection root snapshot ct
+        if Option.isSome acquisition then do! publishSelection root snapshot ct
         return candidate.Host.ManifestSha256,Some manifest.Identity
+}
+
+/// The one release setup path. Dry-run reads metadata and plans without creating Home or running code.
+let setupWithTransportAsync platform home version (transport: IAcquisitionTransport) dryRun ct = task {
+    validateHome home ct
+    let! bundle,rawBundle,checksums = AcquisitionDelivery.inspectAsync transport platform version ct
+    let candidate = asset bundle "host-candidate"
+    let! rawCandidate = AcquisitionDelivery.metadataAsync transport candidate.Url (8UL <<< 20) (Some {Version=1UL;Length=candidate.Bytes;Sha256=candidate.Sha256}) ct
+    return! setupCoreAsync platform home bundle rawCandidate transport (Some(rawBundle,checksums)) dryRun ct
+}
+
+/// Explicit local files remain local developer input, even when their bundle uses official release URL spellings.
+let setupLocalAsync platform home candidatePath archivePath bundlePath dryRun ct = task {
+    validateHome home ct
+    let rawCandidate = LocalCandidate.readBytes LocalInstallation.documentBound candidatePath
+    let fields = Syntax.parseJson rawCandidate |> reader |> SharedJson.members "candidate"
+    let origin = SharedJson.required "candidate" "origin" fields |> SharedJson.text "origin"
+    if origin <> "local-developer" then refuse "local.origin_mismatch" "Explicit local setup requires a local-developer candidate."
+    let rawBundle = LocalCandidate.readBytes (8L <<< 20) bundlePath
+    let bundle = ReleaseBundleDocument.read rawBundle |> reader
+    if bundle.Platform <> platform then refuse "local.platform_mismatch" "The local bundle differs from the actual manager process platform."
+    let directory = Path.GetDirectoryName(Path.GetFullPath bundlePath)
+    let files = bundle.Assets |> List.map(fun asset ->
+        let file = match asset.Role with "host-candidate" -> candidatePath | "host-archive" -> archivePath | _ -> Path.Combine(directory,asset.Name.Text)
+        asset.Url.AbsoluteUri,file) |> Map.ofList
+    let transport = {
+        new IAcquisitionTransport with
+            member _.OpenAsync(source,ct) = task {
+                ct.ThrowIfCancellationRequested()
+                let file = files.TryFind source.AbsoluteUri |> Option.defaultWith(fun () -> refuse "local.asset_missing" "The local bundle does not contain this asset.")
+                let stream = FileSafety.openInput file
+                return {
+                    new IAcquisitionResponse with
+                        member _.Content = stream
+                        member _.DeclaredLength = Some stream.Length
+                    interface IAsyncDisposable with member _.DisposeAsync() = stream.DisposeAsync()
+                }
+            }
+    }
+    return! setupCoreAsync platform home bundle rawCandidate transport None dryRun ct
 }
 
 let selected home ct = task {
@@ -214,8 +263,9 @@ let selected home ct = task {
     let raw = read root LocalCandidateDocument.selectionPath
     let schema = Syntax.parseJson raw |> reader |> SharedJson.members "selection" |> SharedJson.required "selection" "$schema" |> SharedJson.text "$schema"
     let family = if schema=ComposedDocuments.schemaFor "0.1.0-preview.3" "selection" then "0.1.0-preview.3" else "0.1.0-preview.2"
-    let identity,receiptHash = ComposedDocuments.readPointer family raw |> reader
+    let identity,receiptHash,origin = ComposedDocuments.readPointer family raw |> reader
     let! snapshot = currentSnapshot home (path home (LocalCandidateDocument.generationPath identity)) ct
+    if snapshot.Family <> family || snapshot.Candidate.Origin <> origin then refuse "setup.origin_mismatch" "The selected origin or family differs from its bound candidate."
     if (snapshot.Receipt |> Option.map Sha256.ofBytes) <> Some receiptHash then refuse "setup.receipt_changed" "Selected receipt bytes differ."
     checkHost root snapshot.Candidate.Host false ct
     return snapshot
@@ -259,16 +309,22 @@ let releaseVersion directory (ownVersion: string) =
         | HostRelease.Exact version -> version.Text.Split('+')[0]
         | HostRelease.Channel _ -> refuse "setup.exact_version_required" "Release setup requires an exact project host version; moving channels are not selected."
 
-let selectAsync home identity dryRun ct = task {
+let private executionPlatform platform (snapshot: GenerationSnapshot) =
+    if snapshot.Candidate.Host.Platform <> platform then
+        refuse "local.platform_mismatch" "The selected host platform differs from the actual manager process."
+
+let selectAsync platform home identity dryRun ct = task {
     let! snapshot = currentSnapshot home (path home (LocalCandidateDocument.generationPath identity)) ct
+    executionPlatform platform snapshot
     if not dryRun then
         use root = SafeDirectory.Open(home,false)
         do! publishSelection root snapshot ct
     return snapshot
 }
 
-let runAsync home args directory input output (errors: TextWriter) ct = task {
+let runAsync platform home args directory input output (errors: TextWriter) ct = task {
     let! snapshot = selected home ct
+    executionPlatform platform snapshot
     let candidate = snapshot.Candidate
     let args =
         if args |> List.exists(fun arg -> arg="--extension" || arg="--extension-id") then args
@@ -279,6 +335,6 @@ let runAsync home args directory input output (errors: TextWriter) ct = task {
     use root = SafeDirectory.Open(home,false)
     use! lease = FileSafety.mutationLeaseAsync root ct
     checkHost root candidate.Host false ct
-    errors.WriteLine($"morphirup: {ComposedDocuments.origin snapshot.Family} delivery, NOT publisher-authenticated.")
+    errors.WriteLine($"morphirup: {candidate.Origin.WireValue} delivery, NOT publisher-authenticated.")
     return! LocalProcess.runWithOverlayAsync (path home (LocalCandidateDocument.installationPath candidate.Host+"/"+candidate.Host.EntryPoint.Target.Text)) args directory home input output errors snapshot.Directory ct
 }

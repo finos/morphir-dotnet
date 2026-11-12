@@ -14,7 +14,6 @@ open Morphir.Extensions.Installation
 open LocalCandidate
 
 let repository = ReleaseBundleDocument.repository
-let bundleName = "morphir-toolchain-win-x64.json"
 let checksumName = "SHA256SUMS"
 
 /// The release-specific redirect rule does not change the generic acquisition transport.
@@ -114,11 +113,14 @@ let downloadAsync home directory (transport: IAcquisitionTransport) (asset: Rele
 
 type Inputs = {Bundle: ReleaseBundle; RawBundle: byte array; Checksums: byte array; Directory: string}
 
-let inspectAsync transport version ct = task {
+let inspectAsync transport platform version ct = task {
+    if not(Platform.isWindows platform) then refuse "acquisition.platform_mismatch" "Release acquisition supports only win-x64 and win-arm64."
+    let bundleName = ReleaseBundleDocument.fileName platform
     let prefix = $"{repository}/releases/download/v{version}/"
     let! checksums = metadataAsync transport (Uri(prefix+checksumName)) (1UL <<< 20) None ct
     let! raw = metadataAsync transport (Uri(prefix+bundleName)) (8UL <<< 20) None ct
     let bundle = ReleaseBundleDocument.read raw |> reader
+    if bundle.Platform <> platform then refuse "acquisition.platform_mismatch" "The release bundle does not match the manager process platform."
     if bundle.Version.Text <> version then refuse "acquisition.version_mismatch" "The release bundle does not name the requested release."
     ReleaseBundleDocument.verifyChecksums bundleName raw checksums bundle |> reader
     return bundle,raw,checksums

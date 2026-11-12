@@ -39,11 +39,12 @@ public class ExtensionProcessProducerTests
     [Test]
     [Arguments("PublishFSharpFrontendProcess")]
     [Arguments("PublishFSharpBackendProcess")]
+    [Arguments("PackWindowsToolchain")]
     public void BothProvidersHaveAnOfficialFocusedPublishTarget(string target)
     {
         var build = typeof(ReleaseArchive).Assembly.GetType("Build", throwOnError: true)!;
         build.GetProperty(target, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
-            .Should().NotBeNull("both providers need the real build producer, not an ad hoc publish substitute");
+            .Should().NotBeNull("the Windows toolchain uses the existing producers");
     }
 
     private static async Task<Dictionary<string, string>> Properties(string project, params string[] options)

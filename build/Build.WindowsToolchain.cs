@@ -9,19 +9,25 @@ using Morphir.Build.Helpers;
 using Morphir.Compilation.Mep;
 using Morphir.IR.Model;
 using Morphir.Mep;
+using Morphir.Extensions.Installation;
 
 partial class Build
 {
+    [Parameter("Produce an explicit local-developer candidate instead of release-checksum release input")]
+    readonly bool ToolchainLocalDeveloper;
+
     /// <summary>One Windows release setup closure, using the existing offering, process, archive and package producers.</summary>
     Target PackWindowsToolchain => _ => _
-        .Description("Pack the Windows x64 runtime-bundled F# toolchain, package metadata and release checksums")
+        .Description("Pack the Windows x64 or ARM64 runtime-bundled F# toolchain, package metadata and release checksums")
         .DependsOn(PackRelease, PublishFSharpFrontendProcess, PublishFSharpBackendProcess, PackMorphirup)
         .Executes(() => PackWindowsToolchainAsync().GetAwaiter().GetResult());
 
     async Task PackWindowsToolchainAsync()
     {
-            if (Rid != "win-x64" || DeploymentId != "self-contained")
-                throw new InvalidOperationException("PackWindowsToolchain requires --rid win-x64 --deployment self-contained.");
+            if (Rid is not ("win-x64" or "win-arm64") || DeploymentId != "self-contained")
+                throw new InvalidOperationException("PackWindowsToolchain requires --rid win-x64 or win-arm64 --deployment self-contained.");
+            var rid = Rid!;
+            var platform = InstallationPlatform.Create(rid);
             ReleaseAssetsDir.CreateDirectory();
             var releaseVersion = Version.ToString();
             var origin = CurrentPackOrigin();
@@ -39,8 +45,8 @@ partial class Build
             foreach (var role in new[] { "frontend", "backend" })
             {
                 var stem = $"morphir-fsharp-{role}";
-                var folder = ExtensionProcessesDir / stem / "win-x64";
-                var archive = ExtensionProcessesDir / $"{stem}-{releaseVersion}-win-x64.zip";
+                var folder = ExtensionProcessesDir / stem / rid;
+                var archive = ExtensionProcessesDir / $"{stem}-{releaseVersion}-{rid}.zip";
                 var exe = stem + ".exe";
                 var tuples = new[] { ModelOperation.CompileModel, ModelOperation.GenerateModel }
                     .SelectMany(operation => new[] { "4.0.0", "3.0.0" }.Select(version => new ModelTransportTuple(operation,
@@ -66,13 +72,13 @@ partial class Build
                     ["platformDifferences"]="none",
                     ["artifacts"]=new JsonArray(new JsonObject
                     {
-                        ["runtime"]="process",["platform"]="x86_64-pc-windows-msvc",["filename"]=Path.GetFileName(archive),
+                        ["runtime"]="process",["platform"]=platform.DescriptorTriple,["filename"]=Path.GetFileName(archive),
                         ["sha256"]=ReleaseArchive.Sha256(archive),["claims"]=claimNode
                     })
                 };
-                var prepared = ExtensionPackageProducer.Prepare(Encoding.UTF8.GetBytes(descriptor.ToJsonString()),folder,archive,"win-x64",exe);
-                var releaseName=$"{stem}-{releaseVersion}-win-x64.release.json";
-                var manifestName=$"{stem}-{releaseVersion}-win-x64.manifest";
+                var prepared = ExtensionPackageProducer.Prepare(Encoding.UTF8.GetBytes(descriptor.ToJsonString()),folder,archive,rid,exe);
+                var releaseName=$"{stem}-{releaseVersion}-{rid}.release.json";
+                var manifestName=$"{stem}-{releaseVersion}-{rid}.manifest";
                 File.Copy(archive,ReleaseAssetsDir / Path.GetFileName(archive),true);
                 File.WriteAllBytes(ReleaseAssetsDir / releaseName,prepared.Release);
                 File.WriteAllBytes(ReleaseAssetsDir / manifestName,prepared.Manifest);
@@ -84,15 +90,15 @@ partial class Build
                 ["extensions"]=new JsonArray(providers.OrderBy(provider=>provider.Id,StringComparer.Ordinal).Select(provider=>(JsonNode)new JsonObject
                 {
                     ["extensionId"]=provider.Id,["version"]=provider.Version,["runtime"]="process",
-                    ["platforms"]=new JsonObject { ["win-x64"]=ReleaseArchive.Sha256(ReleaseAssetsDir / provider.Archive) }
+                    ["platforms"]=new JsonObject { [rid]=ReleaseArchive.Sha256(ReleaseAssetsDir / provider.Archive) }
                 }).ToArray())
             };
-            var selectionName="morphir-extensions-win-x64.json";
+            var selectionName=$"morphir-extensions-{rid}.json";
             File.WriteAllText(ReleaseAssetsDir / selectionName,selection.ToJsonString(),new UTF8Encoding(false));
             var candidate = new JsonObject
             {
                 ["$schema"]="https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/candidate.schema.json",
-                ["origin"]="release-checksum",["implementation"]="dotnet",["deployment"]="self-contained",["platform"]="win-x64",
+                ["origin"]=ToolchainLocalDeveloper ? "local-developer" : "release-checksum",["implementation"]="dotnet",["deployment"]="self-contained",["platform"]=rid,
                 ["version"]=hostVersion,["sourceRepository"]="https://github.com/finos/morphir-dotnet",["sourceCommit"]=origin.Commit,
                 ["buildIdentity"]=$"Source {origin.Commit}; working tree clean: {origin.WorkingTreeClean}; packed at {origin.PackedAt:O}",
                 ["archive"]=new JsonObject { ["format"]="zip",["sha256"]=ReleaseArchive.Sha256(hostArchive),["bytes"]=new FileInfo(hostArchive).Length },
@@ -106,7 +112,7 @@ partial class Build
                     ["backendId"]=providers.Single(provider=>provider.Role=="backend").Id
                 }
             };
-            var candidateName="morphir-host-candidate-win-x64.json";
+            var candidateName=$"morphir-host-candidate-{rid}.json";
             File.WriteAllText(ReleaseAssetsDir / candidateName,candidate.ToJsonString(),new UTF8Encoding(false));
             var assets = new List<(string Role,string Name)> { ("host-candidate",candidateName),("host-archive",artifact.FileName),("selection",selectionName) };
             foreach (var provider in providers)
@@ -114,7 +120,7 @@ partial class Build
             var bundle = new JsonObject
             {
                 ["$schema"]="https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/bundle.schema.json",
-                ["version"]=releaseVersion,["sourceCommit"]=origin.Commit,["platform"]="win-x64",
+                ["version"]=releaseVersion,["sourceCommit"]=origin.Commit,["platform"]=rid,
                 ["assets"]=new JsonArray(assets.Select(asset=>(JsonNode)new JsonObject
                 {
                     ["name"]=asset.Name,["role"]=asset.Role,["bytes"]=new FileInfo(ReleaseAssetsDir / asset.Name).Length,
@@ -122,7 +128,7 @@ partial class Build
                     ["url"]=$"https://github.com/finos/morphir-dotnet/releases/download/v{releaseVersion}/{asset.Name}"
                 }).ToArray())
             };
-            File.WriteAllText(ReleaseAssetsDir / "morphir-toolchain-win-x64.json",bundle.ToJsonString(),new UTF8Encoding(false));
+            File.WriteAllText(ReleaseAssetsDir / $"morphir-toolchain-{rid}.json",bundle.ToJsonString(),new UTF8Encoding(false));
             var sums = Directory.GetFiles(ReleaseAssetsDir).Where(file=>Path.GetFileName(file)!="SHA256SUMS")
                 .OrderBy(Path.GetFileName,StringComparer.Ordinal).Select(file=>$"{ReleaseArchive.Sha256(file)}  {Path.GetFileName(file)}\n");
             File.WriteAllText(ReleaseAssetsDir / "SHA256SUMS",string.Concat(sums),new UTF8Encoding(false));

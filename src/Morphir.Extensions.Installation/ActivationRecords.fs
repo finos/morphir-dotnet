@@ -123,7 +123,7 @@ module internal GenerationBinding =
         let candidate = ComposedDocuments.candidateForFamily family rawCandidate |> unwrap
         let selection = bytes "extensions/selection.json"
         same candidate.SelectionSha256 (Sha256.ofBytes selection)
-        let pins = ComposedDocuments.readPins selection |> unwrap
+        let pins = ComposedDocuments.readPinsFor candidate.Host.Platform selection |> unwrap
         let catalogBytes = bytes "extensions/catalog.json"
         let catalog = StateDocuments.readCatalog catalogBytes |> StateOwnership.unwrap
         let locks = pins |> List.map(fun pin ->
@@ -131,6 +131,10 @@ module internal GenerationBinding =
             let entry = catalog.Entries |> List.tryFind(fun entry -> entry.Id = pin.Id.Text)
                         |> Option.defaultWith(fun () -> Operations.fail "extension.generation_mismatch" "A selected catalog identity is missing.")
             StateDocuments.bind entry locked |> StateOwnership.unwrap
+            if family="0.1.0-preview.3" then
+                let retained = PackagePlan.FromState(entry,locked)
+                if retained.Artifact.Platform <> Some (InstallationPlatform.Create(Platform.name candidate.Host.Platform).DescriptorTriple) then
+                    Operations.fail "extension.generation_mismatch" "The retained process platform differs from the host candidate."
             if entry.Version <> pin.Version || entry.Digest.Value <> pin.ArchiveSha256.Text then
                 Operations.fail "extension.generation_mismatch" "Portable pin differs from the retained installed record."
             locked)
@@ -139,6 +143,8 @@ module internal GenerationBinding =
             Operations.fail "extension.generation_mismatch" "The selected catalog projection is not the complete portable selection."
         use folder = SafeDirectory.Open(directory,false)
         let names = folder.Entries()
+        if family="0.1.0-preview.3" && candidate.Origin=ComposedOrigin.LocalDeveloper && Array.contains "acquisition" names then
+            Operations.fail "extension.generation_mismatch" "Explicit local development cannot retain acquired-release proof files."
         let hasManifest = names |> Array.contains "generation.json"
         let hasReceipt = names |> Array.contains "receipt.json"
         let manifest,receipt =
@@ -156,7 +162,7 @@ module internal GenerationBinding =
                 for id,path,digest in manifest.Metadata do
                     let raw = bytes path.Text
                     same digest (Sha256.ofBytes raw)
-                    let result = PackagePlan.Read(raw,InstallationPlatform.Create "win-x64")
+                    let result = PackagePlan.Read(raw,InstallationPlatform.Create(Platform.name candidate.Host.Platform))
                     let plan = result.Match(Func<PackagePlan,_>(fun value -> value),Func<InstallationFailure,_>(fun failure -> raise (InstallationException failure)))
                     let locked = locks |> List.find(fun locked -> locked.Entry.Id = id.Text)
                     let retained = PackagePlan.FromState(locked.Entry,locked)
@@ -164,7 +170,7 @@ module internal GenerationBinding =
                        || plan.Descriptor.ExtensionId.Value <> id.Text || plan.Descriptor.Version <> locked.Entry.Version
                        || (SharedJson.difference "claims" plan.Artifact.Claims.Json locked.Entry.Claims.Json |> Option.isSome) then
                         Operations.fail "extension.generation_mismatch" "Retained release envelope differs from the installed launch record."
-                if family="0.1.0-preview.3" then
+                if candidate.Origin=ComposedOrigin.ReleaseChecksum then
                     let proof = manifest.Acquisition |> Option.defaultWith(fun () -> Operations.fail "extension.generation_incomplete" "Missing release acquisition proof.")
                     let bundleRaw = bytes "acquisition/bundle.json"
                     let sums = bytes "acquisition/SHA256SUMS"
@@ -172,7 +178,8 @@ module internal GenerationBinding =
                     same (proofHash "bundle") (Sha256.ofBytes bundleRaw).Text
                     same (proofHash "checksums") (Sha256.ofBytes sums).Text
                     let bundle = ReleaseBundleDocument.read bundleRaw |> unwrap
-                    ReleaseBundleDocument.verifyChecksums "morphir-toolchain-win-x64.json" bundleRaw sums bundle |> unwrap
+                    same candidate.Host.Platform bundle.Platform
+                    ReleaseBundleDocument.verifyChecksums (ReleaseBundleDocument.fileName bundle.Platform) bundleRaw sums bundle |> unwrap
                     same ("v"+bundle.Version.Text) (get "tag" proof |> SharedJson.text "tag")
                     same bundle.SourceCommit candidate.Host.SourceCommit.Text
                     same bundle.Version.Text (candidate.Host.Host.Version.Text.Split('+')[0])
