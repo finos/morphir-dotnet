@@ -322,9 +322,13 @@ public class PackageDriverTests
             System.Console.WriteLine(string.Join(" ", System.Linq.Enumerable.Select(input, character => ((int)character).ToString("x4"))));
             System.Console.WriteLine("✓ " + input);
             """);
-        (await driver.DotnetAsync(consumer, ["build", "Echo.csproj", "-nologo"])).ShouldExitWith(0);
+        // The CI jobs set CONFIGURATION=Release, and MSBuild reads an environment variable as a property. So the build
+        // names its configuration and its output folder, and the test does not depend on the environment of the job.
+        var job = new PackageCommandOptions { Environment = new Dictionary<string, string?> { ["CONFIGURATION"] = "Release" } };
+        var output = workspace.Directory("echo output");
+        (await driver.DotnetAsync(consumer, ["build", "Echo.csproj", "-c", "Debug", "-o", output.Path, "-nologo"], job)).ShouldExitWith(0);
 
-        var result = await driver.DotnetAsync(consumer, ["exec", consumer.File("bin", "Debug", "net11.0", "Echo.dll").Path], new PackageCommandOptions { StandardInput = "é│" });
+        var result = await driver.DotnetAsync(consumer, ["exec", output.File("Echo.dll").Path], new PackageCommandOptions { StandardInput = "é│" });
 
         result.ShouldExitWith(0);
         result.StandardOutput.Split('\n')[0].Trim().Should().Be("00e9 2502", "the input has no byte order mark, and its characters are UTF-8");
