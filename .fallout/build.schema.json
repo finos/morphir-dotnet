@@ -27,6 +27,7 @@
         "BuildE2ETests",
         "BuildProtoPlugin",
         "Check",
+        "CheckBuildMachine",
         "CheckMorphirup",
         "CI",
         "CIGate",
@@ -39,6 +40,7 @@
         "Compile",
         "CreateGitHubRelease",
         "DevWorkflow",
+        "FlattenReleaseAssets",
         "Format",
         "Lint",
         "MorphirupChecksums",
@@ -78,7 +80,8 @@
         "TestMorphirupAot",
         "TestMyriadJsonAot",
         "TestMyriadPackages",
-        "TestProtoPlugin"
+        "TestProtoPlugin",
+        "WindowsToolchainChecksums"
       ]
     },
     "Verbosity": {
@@ -259,6 +262,13 @@
           "type": "string",
           "description": "Folder for the morphirup release assets and their checksum file"
         },
+        "ReleaseAssetSources": {
+          "type": "array",
+          "description": "Folders of downloaded platform outputs that FlattenReleaseAssets copies into the release assets folder",
+          "items": {
+            "type": "string"
+          }
+        },
         "ReleaseDir": {
           "type": "string",
           "description": "Output directory for release profile artifacts"
@@ -302,6 +312,13 @@
         "ToolDllDir": {
           "type": "string",
           "description": "Output directory for tool DLLs"
+        },
+        "WindowsToolchainSources": {
+          "type": "array",
+          "description": "Folders of the downloaded Windows toolchain outputs that WindowsToolchainChecksums lists, one per Windows RID",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

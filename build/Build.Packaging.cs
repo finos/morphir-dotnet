@@ -66,6 +66,7 @@ partial class Build
                 Serilog.Log.Information($"Packing {packageId}...");
                 DotNetPack(s => s
                     .SetProject(project)
+                    .AddProcessAdditionalArguments(BuildProcessArguments)
                     .SetConfiguration(Configuration)
                     .SetOutputDirectory(OutputDir));
             }
@@ -138,6 +139,7 @@ partial class Build
             // The dotnet-tool profile's pack properties: PackAsTool, the dotnet-morphir command, no PDB, no symbols.
             DotNetPack(s => TargetSettings.PackTool.Aggregate(
                 s.SetProject(MorphirToolProject)
+                    .AddProcessAdditionalArguments(BuildProcessArguments)
                     .SetConfiguration(Configuration)
                     .SetOutputDirectory(OutputDir),
                 (settings, property) => settings.SetProperty(property.Key, property.Value)));
@@ -146,6 +148,7 @@ partial class Build
             Serilog.Log.Information("Packing Morphir.Frontend.FSharp.Extension as dotnet tool...");
             DotNetPack(s => s
                 .SetProject(FSharpFrontendExtensionProject)
+                .AddProcessAdditionalArguments(BuildProcessArguments)
                 .SetConfiguration(Configuration)
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("DebugType", "none")
@@ -161,6 +164,7 @@ partial class Build
             Serilog.Log.Information("Packing Morphir.CodeGeneration.FSharp.Extension as dotnet tool...");
             DotNetPack(s => s
                 .SetProject(FSharpBackendExtensionProject)
+                .AddProcessAdditionalArguments(BuildProcessArguments)
                 .SetConfiguration(Configuration)
                 .SetOutputDirectory(OutputDir)
                 .SetProperty("DebugType", "none")
