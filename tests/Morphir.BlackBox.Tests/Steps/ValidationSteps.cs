@@ -66,6 +66,52 @@ public sealed class ValidationSteps(IModelValidationDriver validation, DriverSet
         Check(first.ToJsonString() == second.ToJsonString(), "The two hosts write other reports apart from the host.");
     }
 
+    // The checks of the old E2E validate scenarios (pull request 2 of consolidate-black-box-tests): the diagnostics
+    // and the analyzers of the report.
+
+    private IEnumerable<System.Text.Json.JsonElement> DiagnosticsOf(ValidationReport report) =>
+        report.Required("diagnostics").EnumerateArray();
+
+    [Then("the validation report has {int} {string} diagnostic with the code {string} from {string}")]
+    public void TheReportHasDiagnosticsFrom(int count, string severity, string code, string extension)
+    {
+        var report = ValidationReport.Of(run.Result);
+        var found = DiagnosticsOf(report).Count(diagnostic => Text(diagnostic, "severity") == severity && Text(diagnostic, "code") == code && Text(diagnostic, "extension") == extension);
+        Check(found == count, $"The validation report has {found} {severity} diagnostics with the code {code} from {extension}, not {count}.");
+    }
+
+    [Then("the validation report has {int} {string} diagnostic with the code {string}")]
+    public void TheReportHasDiagnostics(int count, string severity, string code)
+    {
+        var report = ValidationReport.Of(run.Result);
+        var found = DiagnosticsOf(report).Count(diagnostic => Text(diagnostic, "severity") == severity && Text(diagnostic, "code") == code);
+        Check(found == count, $"The validation report has {found} {severity} diagnostics with the code {code}, not {count}.");
+    }
+
+    [Then("the validation report has no diagnostic")]
+    public void TheReportHasNoDiagnostic() =>
+        Check(!DiagnosticsOf(ValidationReport.Of(run.Result)).Any(), "The validation report has diagnostics.");
+
+    [Then("the validation report lists the analyzer {string} as {string}")]
+    public void TheReportListsTheAnalyzerAs(string id, string status)
+    {
+        var analyzers = ValidationReport.Of(run.Result).Required("analyzers").EnumerateArray().Where(analyzer => Text(analyzer, "id") == id).ToArray();
+        Check(analyzers.Length == 1 && Text(analyzers[0], "status") == status, $"The validation report does not list the analyzer {id} once as {status}.");
+    }
+
+    [Then("the analyzers of the validation report are the validator entries of extension list")]
+    public async Task TheAnalyzersAreTheValidatorEntries()
+    {
+        var analyzers = ValidationReport.Of(run.Result).Required("analyzers").EnumerateArray().Select(analyzer => Text(analyzer, "id")).ToArray();
+        var list = (await drivers.Cli.RunAsync(ExtensionListReport.Arguments)).ShouldExitWith(0);
+        var validators = ExtensionListReport.Of(list).Extensions.Where(entry => entry.Types.Contains("validator")).Select(entry => (string?)entry.Id).ToArray();
+        Check(analyzers.Length > 0 && analyzers.SequenceEqual(validators),
+            $"The analyzers {string.Join(", ", analyzers)} are not the validators {string.Join(", ", validators)} of extension list.");
+    }
+
+    private static string? Text(System.Text.Json.JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString() : null;
+
     private void Check(bool condition, string reason)
     {
         if (!condition) throw new CommandAssertionException(reason, run.Result);

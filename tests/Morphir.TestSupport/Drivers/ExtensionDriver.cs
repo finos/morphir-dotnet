@@ -121,7 +121,27 @@ public sealed class ExtensionDriver(ICliDriver cli, ExtensionArtifacts? guests =
 }
 
 /// <summary>One extension of an extension list report.</summary>
-public sealed record ListedExtension(string Id, bool Available, string? Reason);
+/// <param name="Reason">The reason of the entry, or null when the entry has no member <c>reason</c> or its value is null.</param>
+public sealed record ListedExtension(string Id, bool Available, string? Reason)
+{
+    /// <summary>The types of the entry, for example <c>validator</c>.</summary>
+    public IReadOnlyList<string> Types { get; init; } = [];
+
+    /// <summary>The delivery of the entry, for example <c>built-in</c>.</summary>
+    public string? Delivery { get; init; }
+
+    /// <summary>The command names of the hosts that have the entry.</summary>
+    public IReadOnlyList<string> Hosts { get; init; } = [];
+
+    /// <summary>True when the entry has the member <c>reason</c>, also with a null value.</summary>
+    public bool HasReason { get; init; }
+
+    /// <summary>The IR versions of the validator capability of the entry, or null when the entry claims no validator.</summary>
+    public IReadOnlyList<string>? ValidatorIrVersions { get; init; }
+
+    /// <summary>The JSON text of the entry, to compare the entries of two reports.</summary>
+    public string RawJson { get; init; } = "";
+}
 
 /// <summary>
 /// The JSON report of <c>extension list --json</c>: the host and the extensions that it has. It has its own form:
@@ -132,12 +152,12 @@ public sealed class ExtensionListReport : JsonCommandReport
     private ExtensionListReport(CommandResult result) : base(result, "extension list")
     {
         Extensions = Required("extensions") is { ValueKind: JsonValueKind.Array } list
-            ? [.. list.EnumerateArray().Select(item => new ListedExtension(
-                item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString()! : "",
-                item.TryGetProperty("available", out var available) && available.ValueKind == JsonValueKind.True,
-                item.TryGetProperty("reason", out var reason) && reason.ValueKind == JsonValueKind.String ? reason.GetString() : null))]
+            ? [.. list.EnumerateArray().Select(Entry)]
             : throw new CommandAssertionException("The extension list report has no list extensions.", result);
     }
+
+    /// <summary>The arguments of <c>extension list --json</c>.</summary>
+    public static IReadOnlyList<string> Arguments { get; } = ["extension", "list", "--json"];
 
     /// <summary>The command name of the host, for example <c>morphir</c>.</summary>
     public string? Host => Text("host");
@@ -148,18 +168,78 @@ public sealed class ExtensionListReport : JsonCommandReport
     /// <summary>True when the report states a deployment. A development build states none.</summary>
     public bool HasDeployment => Member("deployment") is not null;
 
+    /// <summary>The deployment of the build, or null when the report states none.</summary>
+    public string? Deployment => Text("deployment");
+
     public IReadOnlyList<ListedExtension> Extensions { get; }
 
     /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
     public static ExtensionListReport Of(CommandResult result) => new(result);
+
+    /// <summary>The entry with <paramref name="id"/>; a report with no such entry is a failure of the check.</summary>
+    public ListedExtension Extension(string id) =>
+        Extensions.SingleOrDefault(entry => entry.Id == id)
+        ?? throw new CommandAssertionException($"The extension list has no entry '{id}'.", Result);
+
+    /// <summary>The executable name of a host in a report: <c>morphir</c>, or <c>dotnet-morphir</c> for the tool host.</summary>
+    public static string HostName(MorphirHost host) => host == MorphirHost.DotnetTool ? "dotnet-morphir" : "morphir";
+
+    /// <summary>
+    /// The deployment and the execution that the build of a target reports. The Native AOT executable is published
+    /// with the settings of the native-aot profile, and each packaged offering is the output of its own release
+    /// profile. The development build, the single-file executables and an executable at a path name no profile.
+    /// </summary>
+    public static (string? Deployment, string Execution) ExpectedDeploymentOf(TestTarget target) => target switch
+    {
+        TestTarget.NativeAot => ("native-aot", "native-aot"),
+        TestTarget.Packaged packaged => (packaged.Name, packaged.Offering == PackagedOffering.NativeAot ? "native-aot" : "jit"),
+        _ => (null, "jit"),
+    };
+
+    private static ListedExtension Entry(JsonElement item)
+    {
+        static IReadOnlyList<string> Texts(JsonElement element, string name) =>
+            element.TryGetProperty(name, out var list) && list.ValueKind == JsonValueKind.Array
+                ? [.. list.EnumerateArray().Where(value => value.ValueKind == JsonValueKind.String).Select(value => value.GetString()!)]
+                : [];
+
+        return new ListedExtension(
+            item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString()! : "",
+            item.TryGetProperty("available", out var available) && available.ValueKind == JsonValueKind.True,
+            item.TryGetProperty("reason", out var reason) && reason.ValueKind == JsonValueKind.String ? reason.GetString() : null)
+        {
+            Types = Texts(item, "types"),
+            Delivery = item.TryGetProperty("delivery", out var delivery) && delivery.ValueKind == JsonValueKind.String ? delivery.GetString() : null,
+            Hosts = Texts(item, "hosts"),
+            HasReason = item.TryGetProperty("reason", out _),
+            ValidatorIrVersions = item.TryGetProperty("capabilities", out var capabilities) && capabilities.ValueKind == JsonValueKind.Object
+                && capabilities.TryGetProperty("validator", out var validator) && validator.ValueKind == JsonValueKind.Object
+                    ? Texts(validator, "irVersions")
+                    : null,
+            RawJson = item.GetRawText(),
+        };
+    }
 }
 
-/// <summary>One runtime of an extension runtimes report.</summary>
-public sealed record ExtensionRuntime(string Kind, bool Available, string? Reason, string? EngineName, string? EngineVersion);
+/// <summary>
+/// One runtime of an extension runtimes report. A runtime that is not available can have no profiles and no bounds:
+/// <see cref="Profiles"/> is then empty and <see cref="MemoryBytes"/> null.
+/// </summary>
+public sealed record ExtensionRuntime(string Kind, bool Available, string? Reason, string? EngineName, string? EngineVersion)
+{
+    /// <summary>The profiles of the runtime, for example <c>extism-kernel-v1</c>.</summary>
+    public IReadOnlyList<string> Profiles { get; init; } = [];
+
+    /// <summary>The memory bound of a guest, in bytes (<c>bounds.memoryBytes</c>), or null when the runtime states none.</summary>
+    public long? MemoryBytes { get; init; }
+}
 
 /// <summary>The JSON report of <c>extension runtimes --json</c>: the host, its platform, and its extension runtimes.</summary>
 public sealed class ExtensionRuntimesReport : JsonCommandReport
 {
+    /// <summary>The reason of a host that cannot run guests on Windows x64 (#609).</summary>
+    public const string WindowsX64Reason = "win_x64_trap_unsupported";
+
     private ExtensionRuntimesReport(CommandResult result) : base(result, "extension runtimes")
     {
         Runtimes = Required("runtimes") is { ValueKind: JsonValueKind.Array } list
@@ -167,12 +247,23 @@ public sealed class ExtensionRuntimesReport : JsonCommandReport
             : throw new CommandAssertionException("The extension runtimes report has no list runtimes.", result);
     }
 
+    /// <summary>The arguments of <c>extension runtimes --json</c>.</summary>
+    public static IReadOnlyList<string> Arguments { get; } = ["extension", "runtimes", "--json"];
+
     public string? Host => Text("host");
 
     /// <summary>The runtime identifier of the host process, for example <c>osx-arm64</c>.</summary>
     public string? Platform => Text("platform");
 
     public IReadOnlyList<ExtensionRuntime> Runtimes { get; }
+
+    /// <summary>The one runtime of the kind <c>wasm</c>; a report with no such runtime, or with more, is a failure of the check.</summary>
+    public ExtensionRuntime Wasm => Runtimes.Count(runtime => runtime.Kind == "wasm") == 1
+        ? Runtimes.Single(runtime => runtime.Kind == "wasm")
+        : throw new CommandAssertionException($"The runtime report has {Runtimes.Count(runtime => runtime.Kind == "wasm")} runtimes of the kind wasm, not one.", Result);
+
+    /// <summary>True on Windows x64, where the host reports that it cannot run guests (#609).</summary>
+    public bool IsWindowsX64 => Platform == "win-x64";
 
     /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
     public static ExtensionRuntimesReport Of(CommandResult result) => new(result);
@@ -190,7 +281,16 @@ public sealed class ExtensionRuntimesReport : JsonCommandReport
             item.TryGetProperty("available", out var available) && available.ValueKind == JsonValueKind.True,
             Field(item, "reason"),
             Field(engine, "name"),
-            Field(engine, "version"));
+            Field(engine, "version"))
+        {
+            Profiles = item.TryGetProperty("profiles", out var profiles) && profiles.ValueKind == JsonValueKind.Array
+                ? [.. profiles.EnumerateArray().Where(profile => profile.ValueKind == JsonValueKind.String).Select(profile => profile.GetString()!)]
+                : [],
+            MemoryBytes = item.TryGetProperty("bounds", out var bounds) && bounds.ValueKind == JsonValueKind.Object
+                && bounds.TryGetProperty("memoryBytes", out var memory) && memory.ValueKind == JsonValueKind.Number
+                    ? memory.GetInt64()
+                    : null,
+        };
     }
 }
 
@@ -217,4 +317,3 @@ public static class ExtensionPlatform
     /// <summary>The platform on which the WASM runtime of the product is refused before it loads (issue #609).</summary>
     public const string WithoutWasm = "win-x64";
 }
-

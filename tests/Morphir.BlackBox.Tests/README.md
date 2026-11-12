@@ -43,6 +43,7 @@ its library. A test that needs both an artifact and a product assembly is two te
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that entry point. With no host tag, a test runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs`, `@needs-development-packages` | A capability that the test needs from the drivers. `@needs-built-programs`: the build output of the programs of the repository that are not the CLI (library hosts, probes, morphirup); only the development build has them. `@needs-development-packages`: the test packs a project of the development build into the feed of its workspace (`IPackageDriver`). |
 | `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
+| `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form`, `@needs-wasm-guests` | A capability that the test needs from the drivers (see `tests/Morphir.TestSupport/README.md`): a packaged installation, a Native AOT executable, a target of one known form, or the WASM guests of the host. `@needs-wasm-guests` is not on Windows x64 (#609). |
 
 Before the first step, one decision says if the test runs: the lane, then the host, then the capabilities. A test
 that the run does not execute ends as skipped with one reason, for example `lane: test packages, run none`.
@@ -429,6 +430,11 @@ two steps have the same pattern.
 | Model validation | `Then the validation text is a plain table with the error {string}` |
 | Model validation | `When I validate the model as JSON on the native host and on the tool host` |
 | Model validation | `Then both hosts write the same validation report apart from the host` |
+| Model validation | `Then the validation report has {int} {string} diagnostic with the code {string} from {string}` |
+| Model validation | `Then the validation report has {int} {string} diagnostic with the code {string}` |
+| Model validation | `Then the validation report has no diagnostic` |
+| Model validation | `Then the validation report lists the analyzer {string} as {string}` |
+| Model validation | `Then the analyzers of the validation report are the validator entries of extension list` |
 | Extensions | `When I list the extensions as JSON with the options {string}` |
 | Extensions | `When I list the extensions as text` |
 | Extensions | `When I report the extension runtimes as JSON` |
@@ -462,12 +468,78 @@ two steps have the same pattern.
 | Tool routing | `Then the exit code is neither 0 nor {int}` |
 | Tool routing | `Then the help lists the command mck` |
 | Tool routing | `Then the tool alone with the arguments {string} exits with {int}` |
-
-The scenarios that pull request 3 of the change `consolidate-black-box-tests` moved keep the step texts of their old
-features, so that each moved scenario has its old steps and its old checks. Some of those steps say one thing in the
-words of their feature: for example `environment variable {word} is {string}` and `migration environment variable
-{word} is {string}`, or `inspection diagnostics include {string}` and `workspace migration diagnostics include
-{string}`. A later change can join them. A new scenario uses the general step where one exists.
+| Model verification | `When I verify the model with the schema version {int} as JSON` |
+| Model verification | `Then the verification report has the detection method {string}` |
+| Extension list | `When I list the extensions as JSON` |
+| Extension list | `When I list the extensions as JSON on the other host` |
+| Extension list | `Then the extension list names the host of the run` |
+| Extension list | `Then the extension list has the ids {string}` |
+| Extension list | `Then each listed extension except {string} is available in the host` |
+| Extension list | `Then the in-process F# frontend is available exactly when the host has it` |
+| Extension list | `Then the extension list names the deployment of the target` |
+| Extension list | `Then the extension {string} has the types {string}` |
+| Extension list | `Then the extension {string} has the delivery {string} and the hosts {string}` |
+| Extension list | `Then the extension {string} claims the validator IR versions {string}` |
+| Extension list | `Then the extensions that are available in both hosts are equal in both lists` |
+| Extension worker | `When I ask the worker for its help as JSON` |
+| Extension worker | `When the worker serves {string} with the frames {string} and the arguments {string}` |
+| Extension worker | `When the worker serves {string} with the frames {string}` |
+| Extension worker | `When the worker is started with another build identity for a module file that is not there` |
+| Extension worker | `When the worker serves a text file named {string}` |
+| Extension worker | `When the worker serves a module file that is not there` |
+| Extension worker | `When the worker is started with the extra argument {string}` |
+| Extension worker | `When the guest has made its private workspace` |
+| Extension worker | `When I interrupt the worker` |
+| Extension worker | `Then the worker exits with status {int}` |
+| Extension worker | `Then the worker exits with status {int} within one second of the interrupt` |
+| Extension worker | `Then standard output of the worker is one command result whose build identity is 64 hexadecimal digits` |
+| Extension worker | `Then the help in the command result contains {string}` |
+| Extension worker | `Then standard output of the worker holds only these frames:` |
+| Extension worker | `Then standard output of the worker holds only {int} frames that are each {}` |
+| Extension worker | `Then standard output of the worker is empty` |
+| Extension worker | `Then the guest output contains {string}` |
+| Extension worker | `Then standard error of the worker has the events {string}` |
+| Extension worker | `Then standard error of the worker has exactly one {string} event with the code {string}` |
+| Extension worker | `Then standard error of the worker has no {string} event` |
+| Extension worker | `Then the fault has the kind {string} and a message that contains {string}` |
+| Extension worker | `Then each output event line of the worker is at most {int} bytes` |
+| Extension worker | `Then the output events state that more than {int} MiB of guest output were dropped` |
+| Extension worker | `Then standard error of the worker holds less than {int} KiB` |
+| Extension worker | `Then the peak working set of the worker is less than {int} MiB above that of an echo session` |
+| Extension worker | `Then the temporary directory of the worker is empty` |
+| Extension runtimes | `Given a copy of the host without its engine library` |
+| Extension runtimes | `When I ask for the runtimes of the host as JSON` |
+| Extension runtimes | `When I ask for the runtimes of the copy as JSON` |
+| Extension runtimes | `When I run {string} with the copy` |
+| Extension runtimes | `When the copy serves {string} with the frames {string}` |
+| Extension runtimes | `Then the runtime report names the host of the run` |
+| Extension runtimes | `Then the WASM runtime is available exactly when the platform can run guests` |
+| Extension runtimes | `Then the WASM runtime has the engine of the pinned Wasmtime package, the profile {string} and {long} bytes of memory` |
+| Extension runtimes | `Then the WASM runtime is not available, with the reason of a missing engine on this platform` |
+| Extension runtimes | `Then the WASM runtime has the engine version of the pinned Wasmtime package` |
+| Extension runtimes | `Then the worker is refused with {string} and the reason of a missing engine on this platform` |
+| Extension runtimes | `Then the command of the copy wrote its result with no word of the engine` |
+| Packaged artifact | `Given the packaged artifact of the run is installed into a new directory whose path contains a space` |
+| Packaged artifact | `Then the archive matches the SHA-256 in its launch metadata` |
+| Packaged artifact | `Then the launch path of the launch metadata is in the installed directory` |
+| Packaged artifact | `Then the installed layout is what the offering claims` |
+| Packaged artifact | `When I run the installed artifact with {string} from a new empty directory` |
+| Packaged artifact | `When I run the installed artifact with {string} with no .NET runtime reachable` |
+| Packaged artifact | `When I run the installed artifact with {string} with the .NET runtime of the machine reachable` |
+| Packaged artifact | `When I compile an F# source file with the installed artifact` |
+| Packaged artifact | `When I validate the model fixture {string} with the installed artifact` |
+| Packaged artifact | `Then the installed artifact exits with code {int}` |
+| Packaged artifact | `Then the installed artifact prints the release of its launch metadata` |
+| Packaged artifact | `Then the installed artifact lists the extensions of its host` |
+| Packaged artifact | `Then the F# compile follows the in-process F# frontend of the launch metadata` |
+| Packaged artifact | `Then the installed artifact runs without a runtime as its launch metadata says` |
+| Packaged artifact | `Then the installed artifact uses the runtime that its launch metadata declares` |
+| Packaged artifact | `Then the engine libraries in the installed artifact are exactly the separate libraries that its build contents record` |
+| Packaged artifact | `Then the installed artifact reports its WASM runtime availability with the pinned engine on this platform` |
+| Packaged artifact | `When the installed artifact serves the pinned module {string} with the frames {string} in a worker session` |
+| Packaged artifact | `Given a second installation of the artifact of the run, made read-only before its first run` |
+| Packaged artifact | `Then the read-only installation holds the same files as before its first run` |
+| Host file | `Then the folder of the host has no file {string}` |
 | CLI | `Then the JSON document on standard output has the field {string} with the value true` |
 | Library hosts | `When I run the program {string}` |
 | Library hosts | `When I plan the morphirup setup of the probe with no ICU` |
@@ -480,6 +552,12 @@ words of their feature: for example `environment variable {word} is {string}` an
 | Build output | `Then the assembly {string} references no member {string} of {string}` |
 | Build output | `Then the assembly {string} references no assembly {string} and no type of its namespace` |
 | Build output | `Then the assembly {string} uses no type of the namespace {string}` |
+
+The scenarios that pull request 3 of the change `consolidate-black-box-tests` moved keep the step texts of their old
+features, so that each moved scenario has its old steps and its old checks. Some of those steps say one thing in the
+words of their feature: for example `environment variable {word} is {string}` and `migration environment variable
+{word} is {string}`, or `inspection diagnostics include {string}` and `workspace migration diagnostics include
+{string}`. A later change can join them. A new scenario uses the general step where one exists.
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.
@@ -525,6 +603,18 @@ MORPHIR_TEST_HOST=tool ./build.sh --target Test --skip Restore Compile --test-gr
 
 # Keep the workspace of a failed test. The log gives its path.
 MORPHIR_TEST_KEEP=failed ./build.sh --target Test --skip Restore Compile --test-group smoke
+```
+
+The release and manual workflows run each group against a published or packaged target with `TestE2E`
+(`scripts/run-e2e-tests.cs`). It publishes or packs a target that has no artifact, and runs each group with
+`MORPHIR_TEST_LANE=published`: the tests with no lane and the tests of the published lane.
+
+```bash
+# Each group on the Native AOT executable; the script publishes it first when it is not there.
+./build.sh --target TestE2E --executable-type aot
+
+# Each group on the four packaged offerings.
+./build.sh --target TestE2E --executable-type offerings
 ```
 
 ## The rules that a program checks

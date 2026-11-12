@@ -1,11 +1,20 @@
 #!/usr/bin/env dotnet run
-// Run end-to-end tests against Morphir executables
-// Usage: dotnet run scripts/run-e2e-tests.cs [EXECUTABLE_TYPE] [CONFIGURATION]
-// EXECUTABLE_TYPE: aot, trimmed, untrimmed, tool, all (those four), one of the packaged offerings native-aot,
-// self-contained, framework-dependent or dotnet-tool, or offerings (all four). The packaged offerings run from the
-// artifacts that the PackRelease target writes to artifacts/release (or MORPHIR_RELEASE_DIR). An offering with no
-// artifact there is packed first. An artifact packed from another commit than HEAD is refused, unless
-// MORPHIR_REUSE_PACKAGED_ARTIFACTS=true says to test it anyway.
+// Runs every group of the black-box tests (tests/Morphir.BlackBox.Tests) against a published or packaged target.
+// Usage: dotnet run scripts/run-e2e-tests.cs [TARGET] [CONFIGURATION]
+//
+// TARGET is a value of MORPHIR_TEST_TARGET (dev, aot, trimmed, untrimmed, native-aot, self-contained,
+// framework-dependent, dotnet-tool, executable), or one of:
+//   tool       the development build with the tool host as the default host (MORPHIR_TEST_HOST=tool)
+//   all        aot, trimmed, untrimmed and tool
+//   offerings  the four packaged offerings
+// For executable, set MORPHIR_TEST_EXECUTABLE to the path of the executable and MORPHIR_TEST_HOST to its host.
+//
+// A published executable that is not there is published first (PublishExecutable, PublishSingleFile,
+// PublishSingleFileUntrimmed). A packaged offering with no artifact in artifacts/release (or MORPHIR_RELEASE_DIR) is
+// packed first. An artifact packed from another commit than HEAD is refused, unless
+// MORPHIR_REUSE_PACKAGED_ARTIFACTS=true says to test it anyway. Each run has MORPHIR_TEST_LANE=published, so the
+// tests with no lane and the tests of the published lane run, and each test that the target does not support is
+// skipped with its reason. The TRX report of each group is in artifacts/test-results/black-box/<target>/<group>.
 
 using System;
 using System.IO;
@@ -16,137 +25,60 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 
 var scriptArgs = Environment.GetCommandLineArgs().Skip(1).ToArray();
-var executableType = scriptArgs.Length > 0 ? scriptArgs[0] : "all";
+var requested = scriptArgs.Length > 0 ? scriptArgs[0] : "all";
 var config = scriptArgs.Length > 1 ? scriptArgs[1] : "Release";
+
+// The groups of the black-box project (build/Helpers/TestPlan.cs, TestPlan.Groups).
+string[] groups = ["integration", "e2e", "smoke", "journey"];
 
 static string GetProjectRoot()
 {
     var currentDir = Directory.GetCurrentDirectory();
-    var scriptsDir = Path.Combine(currentDir, "scripts");
-    
-    if (Directory.Exists(scriptsDir))
-    {
-        return currentDir;
-    }
-    
-    if (Path.GetFileName(currentDir) == "scripts")
-    {
-        return Directory.GetParent(currentDir)!.FullName;
-    }
-    
+    if (Directory.Exists(Path.Combine(currentDir, "scripts"))) return currentDir;
+    if (Path.GetFileName(currentDir) == "scripts") return Directory.GetParent(currentDir)!.FullName;
     return currentDir;
 }
 
-static string GetCurrentRid()
+static string GetCurrentRid() => RuntimeInformation.OSArchitecture switch
 {
-    var os = RuntimeInformation.OSArchitecture switch
-    {
-        Architecture.X64 => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "win-x64" :
-                           RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "osx-x64" : "linux-x64",
-        Architecture.Arm64 => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "win-arm64" :
-                            RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "osx-arm64" : "linux-arm64",
-        _ => throw new NotSupportedException($"Unsupported architecture: {RuntimeInformation.OSArchitecture}")
-    };
-    return os;
-}
+    Architecture.X64 => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "win-x64" :
+                       RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "osx-x64" : "linux-x64",
+    Architecture.Arm64 => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "win-arm64" :
+                        RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "osx-arm64" : "linux-arm64",
+    _ => throw new NotSupportedException($"Unsupported architecture: {RuntimeInformation.OSArchitecture}")
+};
 
-static string GetExecutableName(string rid, bool isAot = false)
+static int RunCommand(string command, IReadOnlyDictionary<string, string>? environment, params string[] args)
 {
-    // Every morphir executable is named morphir, AOT included; "Morphir" never matched on Linux and macOS.
-    var baseName = "morphir";
-    if (rid.StartsWith("win-"))
-    {
-        return $"{baseName}.exe";
-    }
-    return baseName;
-}
-
-static int RunCommand(string command, params string[] args)
-{
-    var process = new Process
-    {
-        StartInfo = new ProcessStartInfo
-        {
-            FileName = command,
-            Arguments = string.Join(" ", args.Select(a => a.Contains(" ") ? $"\"{a}\"" : a)),
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        }
-    };
-
-    process.OutputDataReceived += (sender, e) => { if (e.Data != null) Console.WriteLine(e.Data); };
-    process.ErrorDataReceived += (sender, e) => { if (e.Data != null) Console.Error.WriteLine(e.Data); };
-
-    process.Start();
-    process.BeginOutputReadLine();
-    process.BeginErrorReadLine();
+    var start = new ProcessStartInfo(command) { UseShellExecute = false };
+    foreach (var argument in args) start.ArgumentList.Add(argument);
+    foreach (var (name, value) in environment ?? new Dictionary<string, string>()) start.Environment[name] = value;
+    using var process = Process.Start(start)!;
     process.WaitForExit();
-
-    return process.ExitCode;
-}
-
-static int RunCommandWithEnv(string command, Dictionary<string, string>? envVars, params string[] args)
-{
-    var process = new Process
-    {
-        StartInfo = new ProcessStartInfo
-        {
-            FileName = command,
-            Arguments = string.Join(" ", args.Select(a => a.Contains(" ") ? $"\"{a}\"" : a)),
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        }
-    };
-
-    if (envVars != null)
-    {
-        foreach (var kvp in envVars)
-        {
-            process.StartInfo.EnvironmentVariables[kvp.Key] = kvp.Value;
-        }
-    }
-
-    process.OutputDataReceived += (sender, e) => { if (e.Data != null) Console.WriteLine(e.Data); };
-    process.ErrorDataReceived += (sender, e) => { if (e.Data != null) Console.Error.WriteLine(e.Data); };
-
-    process.Start();
-    process.BeginOutputReadLine();
-    process.BeginErrorReadLine();
-    process.WaitForExit();
-
     return process.ExitCode;
 }
 
 var projectRoot = GetProjectRoot();
 Directory.SetCurrentDirectory(projectRoot);
-
 var rid = GetCurrentRid();
+var buildScript = Path.Combine(projectRoot, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "build.cmd" : "build.sh");
 
 Console.WriteLine($"Detected platform RID: {rid}");
-Console.WriteLine($"Executable type: {executableType}");
+Console.WriteLine($"Target: {requested}");
 Console.WriteLine($"Configuration: {config}");
 
-// Determine which executable types to test
-var packagedTypes = new[] { "native-aot", "self-contained", "framework-dependent", "dotnet-tool" };
-var executableTypes = new List<string>();
-if (executableType == "all")
+string[] packagedTargets = ["native-aot", "self-contained", "framework-dependent", "dotnet-tool"];
+string[] knownTargets = ["dev", "aot", "trimmed", "untrimmed", "tool", "executable", .. packagedTargets];
+var targets = requested switch
 {
-    executableTypes.AddRange(new[] { "aot", "trimmed", "untrimmed", "tool" });
-}
-else if (executableType == "offerings")
-{
-    executableTypes.AddRange(packagedTypes);
-}
-else
-{
-    executableTypes.Add(executableType);
-}
+    "all" => new List<string> { "aot", "trimmed", "untrimmed", "tool" },
+    "offerings" => [.. packagedTargets],
+    _ when knownTargets.Contains(requested) => [requested],
+    _ => throw new ArgumentException($"'{requested}' is not a target. The values are: {string.Join(", ", knownTargets)}, all, offerings."),
+};
 
 // The one release folder of this run: PackRelease writes into it (--release-dir) and the tests read from it
-// (MORPHIR_RELEASE_DIR, which ExecutableLocator.ReleaseDirectory resolves the same way). No trailing separator, so the
-// quoted argument of a path with spaces cannot end in \".
+// (MORPHIR_RELEASE_DIR). No trailing separator, so the quoted argument of a path with spaces cannot end in \".
 var releaseDir = Path.TrimEndingDirectorySeparator(Environment.GetEnvironmentVariable("MORPHIR_RELEASE_DIR") is { Length: > 0 } customRelease
     ? Path.GetFullPath(customRelease)
     : Path.Combine(projectRoot, "artifacts", "release"));
@@ -215,213 +147,121 @@ bool CheckPackagedArtifact(string deployment, string launchFile)
     }
 
     Console.Error.WriteLine($"✗ Error: the packaged {deployment} artifact may be stale: {why}. Pack it again " +
-        $"({packCommand(deployment)}) " +
-        "or set MORPHIR_REUSE_PACKAGED_ARTIFACTS=true to test it as it is.");
+        $"({packCommand(deployment)}) or set MORPHIR_REUSE_PACKAGED_ARTIFACTS=true to test it as it is.");
     return false;
 }
 
-// Build all executables that will be tested
-foreach (var type in executableTypes)
+// Each published executable is in the folder of its own publish target. A target never uses another form.
+var published = new Dictionary<string, (string Folder, string Target)>
 {
-    string? exePath = null;
-    
-    if (type == "aot")
-    {
-        var exeName = GetExecutableName(rid, isAot: true);
-        exePath = Path.Combine(projectRoot, "artifacts", "executables", rid, exeName);
+    ["aot"] = ("executables", "PublishExecutable"),
+    ["trimmed"] = ("single-file", "PublishSingleFile"),
+    ["untrimmed"] = ("single-file-untrimmed", "PublishSingleFileUntrimmed"),
+};
 
-        if (!File.Exists(exePath))
+foreach (var target in targets)
+{
+    if (published.TryGetValue(target, out var publish))
+    {
+        var executable = Path.Combine(projectRoot, "artifacts", publish.Folder, rid, rid.StartsWith("win-") ? "morphir.exe" : "morphir");
+        if (File.Exists(executable))
         {
-            Console.WriteLine($"Building AOT executable for {rid}...");
-            var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? Path.Combine(projectRoot, "build.cmd")
-                : Path.Combine(projectRoot, "build.sh");
-            var exitCode = RunCommand(buildScript, "--target", "PublishExecutable", "--configuration", config, "--rid", rid);
-            if (exitCode != 0)
-            {
-                Console.Error.WriteLine($"✗ Error: Failed to build AOT executable");
-                Environment.Exit(exitCode);
-            }
+            Console.WriteLine($"✓ The {target} executable is there: {executable}");
+            continue;
         }
-        else
+
+        Console.WriteLine($"Publishing the {target} executable for {rid}...");
+        if (RunCommand(buildScript, null, "--target", publish.Target, "--configuration", config, "--rid", rid) != 0)
         {
-            Console.WriteLine($"✓ AOT executable found: {exePath}");
+            Console.Error.WriteLine($"✗ Error: {publish.Target} failed for {rid}");
+            Environment.Exit(1);
         }
     }
-    else if (type == "trimmed")
+    else if (packagedTargets.Contains(target))
     {
-        var exeName = GetExecutableName(rid, isAot: false);
-        exePath = Path.Combine(projectRoot, "artifacts", "single-file", rid, exeName);
-
-        if (!File.Exists(exePath))
+        if (PackagedLaunchFiles(target).Count == 0)
         {
-            Console.WriteLine($"Building trimmed single-file executable for {rid}...");
-            var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? Path.Combine(projectRoot, "build.cmd")
-                : Path.Combine(projectRoot, "build.sh");
-            var exitCode = RunCommand(buildScript, "--target", "PublishSingleFile", "--configuration", config, "--rid", rid);
-            if (exitCode != 0)
+            Console.WriteLine($"Packing the {target} release profile for {rid} into {releaseDir}...");
+            var packArgs = new List<string> { "--target", "PackRelease", "--deployment", target, "--configuration", config, "--release-dir", releaseDir };
+            if (target != "dotnet-tool") packArgs.AddRange(["--rid", rid]);
+            if (RunCommand(buildScript, null, [.. packArgs]) != 0)
             {
-                Console.WriteLine("⚠ Warning: Failed to build trimmed executable");
-            }
-        }
-        else
-        {
-            Console.WriteLine($"✓ Trimmed executable found: {exePath}");
-        }
-    }
-    else if (packagedTypes.Contains(type))
-    {
-        if (PackagedLaunchFiles(type).Count == 0)
-        {
-            Console.WriteLine($"Packing the {type} release profile for {rid}...");
-            var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? Path.Combine(projectRoot, "build.cmd")
-                : Path.Combine(projectRoot, "build.sh");
-            Console.WriteLine($"  into {releaseDir}");
-            var packArgs = new List<string> { "--target", "PackRelease", "--deployment", type, "--configuration", config, "--release-dir", releaseDir };
-            if (type != "dotnet-tool") packArgs.AddRange(new[] { "--rid", rid });
-            var exitCode = RunCommand(buildScript, packArgs.ToArray());
-            if (exitCode != 0)
-            {
-                Console.Error.WriteLine($"✗ Error: Failed to pack the {type} release profile");
-                Environment.Exit(exitCode);
+                Console.Error.WriteLine($"✗ Error: Failed to pack the {target} release profile");
+                Environment.Exit(1);
             }
         }
 
-        var launchFiles = PackagedLaunchFiles(type);
+        var launchFiles = PackagedLaunchFiles(target);
         if (launchFiles.Count != 1)
         {
-            Console.Error.WriteLine($"✗ Error: {launchFiles.Count} packaged {type} artifacts for {rid} in {releaseDir}; keep exactly one.");
+            Console.Error.WriteLine($"✗ Error: {launchFiles.Count} packaged {target} artifacts for {rid} in {releaseDir}; keep exactly one.");
             Environment.Exit(1);
         }
 
-        if (!CheckPackagedArtifact(type, launchFiles[0]))
-            Environment.Exit(1);
+        if (!CheckPackagedArtifact(target, launchFiles[0])) Environment.Exit(1);
     }
-    else if (type == "untrimmed")
+    else if (target == "executable")
     {
-        var exeName = GetExecutableName(rid, isAot: false);
-        exePath = Path.Combine(projectRoot, "artifacts", "single-file-untrimmed", rid, exeName);
-
-        if (!File.Exists(exePath))
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MORPHIR_TEST_EXECUTABLE"))
+            || string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MORPHIR_TEST_HOST")))
         {
-            Console.WriteLine($"Building untrimmed single-file executable for {rid}...");
-            var buildScript = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? Path.Combine(projectRoot, "build.cmd")
-                : Path.Combine(projectRoot, "build.sh");
-            var exitCode = RunCommand(buildScript, "--target", "PublishSingleFileUntrimmed", "--configuration", config, "--rid", rid);
-            if (exitCode != 0)
-            {
-                Console.WriteLine("⚠ Warning: Failed to build untrimmed executable");
-            }
+            Console.Error.WriteLine("✗ Error: the target executable needs MORPHIR_TEST_EXECUTABLE (the path) and MORPHIR_TEST_HOST (native, managed or tool).");
+            Environment.Exit(1);
+        }
+    }
+}
+
+// The build of the black-box project (BuildE2ETests) also builds the three hosts of the development build.
+var testDllPath = Path.Combine(projectRoot, "tests", "Morphir.BlackBox.Tests", "bin", config, "net11.0", "Morphir.BlackBox.Tests.dll");
+if (!File.Exists(testDllPath))
+{
+    Console.Error.WriteLine($"✗ Error: the black-box test project is not built ({testDllPath}). Run 'build.sh --target BuildE2ETests' first.");
+    Environment.Exit(1);
+}
+
+var failed = new List<string>();
+var passed = new List<string>();
+foreach (var target in targets)
+{
+    var environment = new Dictionary<string, string>
+    {
+        ["MORPHIR_TEST_TARGET"] = target == "tool" ? "dev" : target,
+        ["MORPHIR_TEST_LANE"] = "published",
+        ["MORPHIR_RELEASE_DIR"] = releaseDir,
+    };
+    if (target == "tool") environment["MORPHIR_TEST_HOST"] = "tool";
+
+    foreach (var group in groups)
+    {
+        Console.WriteLine("");
+        Console.WriteLine("================================================");
+        Console.WriteLine($"Target {target}, group {group}");
+        Console.WriteLine("================================================");
+        var results = Path.Combine(projectRoot, "artifacts", "test-results", "black-box", target, group);
+        // One group filter for each process. The published lane needs no lane exclusion: the eligibility decision
+        // runs the tests with no lane and the tests of the published lane, and skips the others with their reason.
+        var exitCode = RunCommand("dotnet", environment, "exec", testDllPath,
+            "--treenode-filter", $"/*/*/*/*[Category={group}]",
+            "--results-directory", results, "--report-trx", "--report-trx-filename", $"{target}-{group}.trx");
+        var name = $"{target}/{group}";
+        if (exitCode == 0)
+        {
+            Console.WriteLine($"✓ {name} PASSED");
+            passed.Add(name);
         }
         else
         {
-            Console.WriteLine($"✓ Untrimmed executable found: {exePath}");
+            Console.WriteLine($"✗ {name} FAILED (exit code {exitCode})");
+            failed.Add(name);
         }
     }
 }
 
-// The dotnet tool build is cheap. Every run builds it, so the scenarios that compare both hosts
-// (and the "tool" executable type) can run it next to the executable under test.
-Console.WriteLine("");
-Console.WriteLine("Building the dotnet-morphir tool...");
-if (RunCommand("dotnet", "build", Path.Combine(projectRoot, "src", "Morphir.Tool", "Morphir.Tool.csproj"), "--configuration", config) != 0)
-{
-    Console.Error.WriteLine("✗ Error: Failed to build src/Morphir.Tool");
-    Environment.Exit(1);
-}
-Console.WriteLine("✓ dotnet-morphir tool is built");
-
-// E2E test project should already be built via BuildE2ETests target
-Console.WriteLine("");
-Console.WriteLine("Verifying E2E test project is built...");
-var testDllPath = Path.Combine(projectRoot, "tests", "Morphir.E2E.Tests", "bin", config, "net11.0", "Morphir.E2E.Tests.dll");
-if (!File.Exists(testDllPath))
-{
-    Console.Error.WriteLine("✗ Error: E2E test project not built. Run 'build.cmd --target BuildE2ETests' first.");
-    Environment.Exit(1);
-}
-Console.WriteLine("✓ E2E test project is built");
-
-// Check if we should exclude manual-only tests (AOT tests)
-// These should only run in the manual-aot-test workflow
-var includeManualTests = Environment.GetEnvironmentVariable("INCLUDE_MANUAL_TESTS") == "true";
-if (!includeManualTests)
-{
-    Console.WriteLine("ℹ Excluding @manual-only tests (use INCLUDE_MANUAL_TESTS=true to include them)");
-}
-
-// Track results for each executable type
-var failedTypes = new List<string>();
-var passedTypes = new List<string>();
-
-// Run E2E tests for each executable type
-foreach (var type in executableTypes)
-{
-    Console.WriteLine("");
-    Console.WriteLine("================================================");
-    Console.WriteLine($"Testing executable type: {type}");
-    Console.WriteLine("================================================");
-    
-    // Set environment variable for executable type
-    Environment.SetEnvironmentVariable("MORPHIR_EXECUTABLE_TYPE", type);
-    
-    // Run tests (exclude manual-only tests unless explicitly included)
-    // Reqnroll turns tags into TUnit categories. The filter needs the full /assembly/namespace/class/test path: a
-    // shorter one selects no tests at all. The @packaged scenarios run only for the packaged offerings, which install
-    // their release artifact. The @manual-only scenarios (the AOT and trimming features) build their own executables
-    // from the source tree, so they never run for a packaged type, even with INCLUDE_MANUAL_TESTS=true.
-    var testArgs = new List<string> { "exec", testDllPath, "--treenode-filter" };
-    if (packagedTypes.Contains(type))
-    {
-        if (includeManualTests)
-            Console.WriteLine($"ℹ INCLUDE_MANUAL_TESTS=true does not apply to the packaged type {type}: @manual-only scenarios build from source");
-        testArgs.Add("/*/*/*/*[Category!=manual-only]");
-    }
-    else
-    {
-        testArgs.Add(includeManualTests ? "/*/*/*/*[Category!=packaged]" : "/*/*/*/*[(Category!=manual-only)&(Category!=packaged)]");
-    }
-    
-    var exitCode = RunCommand("dotnet", testArgs.ToArray());
-    
-    if (exitCode == 0)
-    {
-        Console.WriteLine("");
-        Console.WriteLine($"✓ E2E tests PASSED for {type}");
-        passedTypes.Add(type);
-    }
-    else
-    {
-        Console.WriteLine("");
-        Console.WriteLine($"✗ E2E tests FAILED for {type} (exit code: {exitCode})");
-        failedTypes.Add(type);
-    }
-}
-
-// Report summary
 Console.WriteLine("");
 Console.WriteLine("================================================");
-Console.WriteLine("E2E Test Summary");
+Console.WriteLine("Black-box test summary");
 Console.WriteLine("================================================");
-if (passedTypes.Count > 0)
-{
-    Console.WriteLine($"✓ Passed: {string.Join(" ", passedTypes)}");
-}
-if (failedTypes.Count > 0)
-{
-    Console.WriteLine($"✗ Failed: {string.Join(" ", failedTypes)}");
-}
+if (passed.Count > 0) Console.WriteLine($"✓ Passed: {string.Join(" ", passed)}");
+if (failed.Count > 0) Console.WriteLine($"✗ Failed: {string.Join(" ", failed)}");
 Console.WriteLine("================================================");
-
-// Exit with failure if any executable type failed
-if (failedTypes.Count > 0)
-{
-    Environment.Exit(1);
-}
-else
-{
-    Environment.Exit(0);
-}
+Environment.Exit(failed.Count > 0 ? 1 : 0);

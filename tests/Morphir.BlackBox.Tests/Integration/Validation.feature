@@ -13,6 +13,30 @@ Feature: Validate a Morphir model with the analyzers of the host
       | daily-rate-v3.json          | 0    |
       | daily-rate-v4.json          | 0    |
 
+  Scenario: A classic model with a type mismatch gives one type-mismatch error
+    Given the model fixture "Models/daily-rate-mismatch-v3.json"
+    When I validate the model as JSON
+    Then validation exits with 1 and one JSON report
+    And the validation report has 1 "error" diagnostic with the code "type-mismatch" from "morphir.type-validator"
+
+  Scenario: A clean classic model gives no diagnostic
+    Given the model fixture "Models/daily-rate-v3.json"
+    When I validate the model as JSON
+    Then validation exits with 0 and one JSON report
+    And the validation report has no diagnostic
+
+  Scenario: A V4 model gives one info diagnostic that names the family
+    Given the model fixture "Models/daily-rate-v4.json"
+    When I validate the model as JSON
+    Then validation exits with 0 and one JSON report
+    And the validation report has 1 "info" diagnostic with the code "no-analyzer"
+    And the validation report lists the analyzer "morphir.type-validator" as "not-run"
+
+  Scenario: The validator entries of extension list are the analyzers of validate
+    Given the model fixture "Models/daily-rate-v3.json"
+    When I validate the model as JSON
+    Then the analyzers of the validation report are the validator entries of extension list
+
   Scenario: A missing input exits with 2 and names the path
     Given no model file "missing.json"
     When I validate the model
@@ -30,6 +54,7 @@ Feature: Validate a Morphir model with the analyzers of the host
     When I validate the model
     Then the exit code is 1
     And the validation text is a plain table with the error "type-mismatch"
+    And standard output contains "1 error, 0 warnings, 0 info, 0 hints."
 
   @needs-all-hosts
   Scenario Outline: Both hosts write the same report apart from the host

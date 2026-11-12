@@ -363,7 +363,7 @@ morphir-dotnet/
 │   │   └── LocalInstallationTests.cs
 │   ├── Morphir.Core.Tests/
 │   ├── Morphir.Tooling.Tests/
-│   └── Morphir.E2E.Tests/
+│   └── Morphir.BlackBox.Tests/
 │
 ├── build/
 │   ├── Build.cs                      # Entry point
@@ -1286,7 +1286,7 @@ Feature: Deployment workflow
 
   - `NUGET_TOKEN`: NuGet API key (CI only)
   - `CONFIGURATION`: Build configuration override
-  - `MORPHIR_EXECUTABLE_PATH`: E2E test executable path
+  - `MORPHIR_TEST_TARGET`, `MORPHIR_TEST_EXECUTABLE`: the target of the black-box tests and the path of an executable
   ```
 
 - [ ] Add section: "Changelog-Driven Versioning"
@@ -1381,7 +1381,7 @@ Feature: Deployment workflow
 - [ ] Add deployment checklist
 
 **5.5 Write BDD Feature Files**
-- [ ] Create `tests/Morphir.E2E.Tests/Features/ToolInstallation.feature`:
+- [ ] Create `tests/Morphir.BlackBox.Tests/EndToEnd/ToolInstallation.feature`:
   ```gherkin
   Feature: Morphir Tool Installation
     As a .NET developer
@@ -1402,7 +1402,7 @@ Feature: Deployment workflow
       And the new version should be active
   ```
 
-- [ ] Create `tests/Morphir.E2E.Tests/Features/ExecutableDownload.feature`:
+- [ ] Create `tests/Morphir.BlackBox.Tests/EndToEnd/ExecutableDownload.feature`:
   ```gherkin
   Feature: Morphir Executable Download
     As a shell script user
@@ -1510,7 +1510,7 @@ See individual phase BDD tests in [Implementation Plan](#implementation-plan) se
 
 ```
          /\
-        /E2E\        E2E Tests (Morphir.E2E.Tests)
+        /E2E\        Black-box Tests (Morphir.BlackBox.Tests)
        /______\      - Full tool installation workflows
       /        \     - Executable download and usage
      / Integration\  - Cross-platform verification
@@ -1553,7 +1553,7 @@ See individual phase BDD tests in [Implementation Plan](#implementation-plan) se
 - Run --version and validate output
 - Uninstall successfully
 
-#### 2. E2E Tests (tests/Morphir.E2E.Tests/)
+#### 2. Black-box Tests (tests/Morphir.BlackBox.Tests/)
 
 **Tool Installation Tests**:
 - Install from NuGet feed
