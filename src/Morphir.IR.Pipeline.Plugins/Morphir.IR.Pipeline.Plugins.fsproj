@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
     <RootNamespace>Morphir.IR.Pipeline.Plugins</RootNamespace>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Description>Pipeline plugins for Morphir IR packages: optimizer, type validator, exact scalar folding and pretty printer.</Description>

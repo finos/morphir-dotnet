@@ -98,7 +98,7 @@ public class GenerateFormattingTests
     private static async Task<ChildProcessResult> RunWithoutDynamicCode(TestSandbox sandbox, params string[] arguments)
     {
         var configuration = typeof(GenerateFormattingTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var bin = Path.Combine(GenerateSteps.RepositoryRoot(), "src", "Morphir", "bin", configuration, "net10.0");
+        var bin = Path.Combine(GenerateSteps.RepositoryRoot(), "src", "Morphir", "bin", configuration, "net11.0");
         var runtimeConfig = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(bin, "morphir.runtimeconfig.json")))!;
         var runtimeOptions = runtimeConfig["runtimeOptions"]!.AsObject();
         if (runtimeOptions["configProperties"] is not JsonObject properties)
@@ -144,7 +144,7 @@ public class GenerateFormattingTests
     private static async Task<ChildProcessResult> RunCli(TestSandbox sandbox, params string[] arguments)
     {
         var configuration = typeof(GenerateFormattingTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var bin = Path.Combine(GenerateSteps.RepositoryRoot(), "src", "Morphir", "bin", configuration, "net10.0");
+        var bin = Path.Combine(GenerateSteps.RepositoryRoot(), "src", "Morphir", "bin", configuration, "net11.0");
         var start = ChildProcess.StartInfo("dotnet", ["exec", Path.Combine(bin, "morphir.dll"), .. arguments]);
         start.WorkingDirectory = sandbox.Work;
         sandbox.Apply(start);

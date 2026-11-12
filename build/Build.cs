@@ -67,6 +67,13 @@ partial class Build : FalloutBuild
     [Parameter("Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)")]
     readonly string ExecutableType = "all";
 
+    /// <summary>The target frameworks from Directory.Build.props. Outputs are below bin/&lt;configuration&gt;/&lt;tfm&gt;/.</summary>
+    static readonly Lazy<Morphir.Build.Helpers.RepositoryTargetFrameworks> RepositoryFrameworks =
+        new(() => Morphir.Build.Helpers.RepositoryTargetFrameworks.Load(RootDirectory / "Directory.Build.props"));
+
+    /// <summary>The target framework of applications, tools and tests.</summary>
+    static string CurrentTargetFramework => RepositoryFrameworks.Value.Current;
+
     AbsolutePath SourceDirectory => RootDirectory / "src";
     AbsolutePath TestsDirectory => RootDirectory / "tests";
     AbsolutePath ScriptsDirectory => RootDirectory / "scripts";

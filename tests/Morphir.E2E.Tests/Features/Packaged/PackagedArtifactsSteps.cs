@@ -217,15 +217,15 @@ public sealed class PackagedArtifactsSteps(ScenarioContext scenario, IUnitTestRu
             return;
         }
 
-        artifact.RequiredRuntime.Should().Be("Microsoft.NETCore.App 10.0");
+        artifact.RequiredRuntime.Should().Be("Microsoft.NETCore.App 11.0");
         var trace = Result.HostTrace ?? throw new InvalidOperationException("The apphost wrote no host trace.");
         var fxr = HostTrace.ResolvedFxr(trace);
         fxr.Should().NotBeNull(trace);
         PackagedRun.MachineRuntimeRoots().Should().Contain(root => HostTrace.IsUnder(fxr!, root),
             "a framework-dependent offering runs on the machine's shared runtime");
-        // The runtimeconfig asks for Microsoft.NETCore.App 10.0.0 with the default roll-forward (Minor): the newest
-        // 10.0 patch, or a higher 10.x minor when no 10.0 patch is installed, never 11.
-        HostTrace.ChosenFramework(trace).Should().StartWith("10.", trace);
+        // The runtimeconfig asks for Microsoft.NETCore.App 11.0.0 with the default roll-forward (Minor): the newest
+        // 11.0 patch, or a higher 11.x minor when no 11.0 patch is installed, never 12.
+        HostTrace.ChosenFramework(trace).Should().StartWith("11.", trace);
     }
 
     /// <summary>

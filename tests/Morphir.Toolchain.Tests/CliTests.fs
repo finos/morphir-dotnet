@@ -312,7 +312,7 @@ let tests =
             use sandbox = tempDirectory ()
 
             for device in [ "/dev/null"; "/dev/zero" ] do
-                let link = Path.Combine(sandbox.Work, nonNull (Path.GetFileName device) + ".toml")
+                let link = Path.Combine(sandbox.Work, Path.GetFileName device + ".toml")
                 File.CreateSymbolicLink(link, device) |> ignore
                 let run = runIn sandbox.Work Platform.LinuxX64 [ "doctor"; "--request"; link; "--lock"; fixture "lock/two-platforms-bound.json" ]
 

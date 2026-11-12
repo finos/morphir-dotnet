@@ -337,7 +337,7 @@ Console.WriteLine("✓ dotnet-morphir tool is built");
 // E2E test project should already be built via BuildE2ETests target
 Console.WriteLine("");
 Console.WriteLine("Verifying E2E test project is built...");
-var testDllPath = Path.Combine(projectRoot, "tests", "Morphir.E2E.Tests", "bin", config, "net10.0", "Morphir.E2E.Tests.dll");
+var testDllPath = Path.Combine(projectRoot, "tests", "Morphir.E2E.Tests", "bin", config, "net11.0", "Morphir.E2E.Tests.dll");
 if (!File.Exists(testDllPath))
 {
     Console.Error.WriteLine("✗ Error: E2E test project not built. Run 'build.cmd --target BuildE2ETests' first.");

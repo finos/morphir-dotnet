@@ -10,6 +10,11 @@
     <MorphirSystemTextJsonTaskAssembly>$(_MorphirSystemTextJsonSource)/../Morphir.Myriad.SystemTextJson.Build/bin/$(Configuration)/net10.0/Morphir.Myriad.SystemTextJson.Build.dll</MorphirSystemTextJsonTaskAssembly>
     <MorphirSystemTextJsonHostPath>$([MSBuild]::EnsureTrailingSlash('$(NuGetPackageRoot)'))myriad/0.85.0/tools/net9.0/any/Myriad.dll</MorphirSystemTextJsonHostPath>
     <MorphirSystemTextJsonTaskHost>true</MorphirSystemTextJsonTaskHost>
+    <!--
+      The task assembly is a build output. An IDE loads the project before the first build; a task that fails to
+      load there stops the IDE before it reads the packages to prune, and its restore then fails with NU1102.
+    -->
+    <MorphirSystemTextJsonTaskOptional>true</MorphirSystemTextJsonTaskOptional>
   </PropertyGroup>
   <Import Project="$(_MorphirSystemTextJsonSource)/build/Morphir.Myriad.SystemTextJson.props" />
   <Import Project="$(_MorphirSystemTextJsonSource)/build/Morphir.Myriad.SystemTextJson.targets" />

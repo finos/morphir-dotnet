@@ -47,7 +47,7 @@ let private dotnetMorphir =
                      "Morphir.Tool",
                      "bin",
                      configuration,
-                     "net10.0",
+                     "net11.0",
                      "dotnet-morphir.dll"
                  )
 

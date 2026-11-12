@@ -42,7 +42,7 @@ Architecture (high-level)
 - tests/: Unit (TUnit), snapshot (Verify), property-based (via generators), and BDD/acceptance (Reqnroll).
 
 Stacks and baselines
-- C# 14, .NET 10 (SDK pinned in global.json).
+- C# 15, .NET 11 SDK (pinned in global.json). Applications, tools and tests target net11.0; packable libraries target net11.0 and net10.0; MSBuild tasks and Myriad plugins target net10.0. Use the target-framework properties in Directory.Build.props, not literal TFMs.
 - F# for ADT-heavy components where appropriate.
   - When C# calls F# code, follow the `fsharp-csharp-interop` skill (`.agents/skills/fsharp-csharp-interop/SKILL.md`) and run the `fsharp-csharp-interop-reviewer` agent on the diff.
 - TypeScript optional for dev tooling/schema checks.
@@ -72,8 +72,8 @@ Avoid or escalate
 Adjust to actual repo layout.
 
 - src/
-    - Morphir: C# CLI/host (.csproj, C# 14)
-    - Morphir.Core: Core domain model and IR definition  (.csproj, C# 14)
+    - Morphir: C# CLI/host (.csproj, C# 15)
+    - Morphir.Core: Core domain model and IR definition  (.csproj, C# 15)
 - docs/spec/: IR specification and JSON/OpenAPI schemas, IR samples/fixtures
 - tests/**.csproj: TUnit, Reqnroll, contract tests
 - scripts/: format/test/contract/codegen utilities
@@ -95,7 +95,7 @@ First-time Setup
 - Install git hooks: `dotnet husky install`
 
 Commands
-- .NET (C# 14 / F#, .NET 10)
+- .NET (C# 15 / F#, .NET 11 SDK)
     - Build: `dotnet build` or `./build.sh`
     - Test (TUnit + Reqnroll): `dotnet test --nologo` or `./build.sh --target Test`
     - Format: `dotnet format` or `./build.sh --target Format`
@@ -127,7 +127,8 @@ Naming
 Formatting
 - `.editorconfig` + `dotnet format`. Prettier/ESLint for TS (if present).
 
-C# 14 / .NET 10 specifics
+C# 15 / .NET 11 specifics
+- Library code also compiles for net10.0. Do not use a .NET 11 API or a C# 15 feature that needs .NET 11 runtime types in a library, unless you guard it for net10.0.
 - Prefer readonly `record struct`/`record` where appropriate.
 - Use file‑scoped namespaces, primary constructors, and newer pattern features.
 - Favor spans and efficient collections only with benchmarks backing changes.

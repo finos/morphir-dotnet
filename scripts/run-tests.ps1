@@ -14,13 +14,13 @@ Write-Host "================================================"
 # Run Morphir.Core.Tests
 Write-Host ""
 Write-Host "Running Morphir.Core.Tests..."
-dotnet exec "tests/Morphir.Core.Tests/bin/$Configuration/net10.0/Morphir.Core.Tests.dll"
+dotnet exec "tests/Morphir.Core.Tests/bin/$Configuration/net11.0/Morphir.Core.Tests.dll"
 $coreExitCode = $LASTEXITCODE
 
 # Run Morphir.Tooling.Tests
 Write-Host ""
 Write-Host "Running Morphir.Tooling.Tests..."
-dotnet exec "tests/Morphir.Tooling.Tests/bin/$Configuration/net10.0/Morphir.Tooling.Tests.dll"
+dotnet exec "tests/Morphir.Tooling.Tests/bin/$Configuration/net11.0/Morphir.Tooling.Tests.dll"
 $toolingExitCode = $LASTEXITCODE
 
 # Check if any tests failed

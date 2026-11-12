@@ -16,8 +16,8 @@ What morphir-dotnet needs from the machine depends on the offering. A .NET runti
 | --- | --- | --- | --- |
 | Native AOT `morphir` | Nothing from .NET | Nothing | Not yet as this offering |
 | Self-contained `morphir` (carries its own .NET runtime) | Nothing from .NET | Nothing | Not yet |
-| Framework-dependent `morphir` | The .NET runtime `Microsoft.NETCore.App` 10.x | Nothing | Not yet |
-| `dotnet-morphir` (`Morphir.Tool` dotnet tool) | The .NET runtime `Microsoft.NETCore.App` 10.x | A .NET SDK 10.0.100 or later, for `dotnet tool install` | Yes, on NuGet |
+| Framework-dependent `morphir` | The .NET runtime `Microsoft.NETCore.App` 11.x | Nothing | Not yet |
+| `dotnet-morphir` (`Morphir.Tool` dotnet tool) | The .NET runtime `Microsoft.NETCore.App` 11.x | A .NET SDK 11.0.100 or later, for `dotnet tool install` | Yes, on NuGet |
 
 The `morphir-<rid>` executables that releases attach today are a trimmed single-file build that carries its runtime,
 so they need nothing from .NET either; no named release profile produces them, so they report no `deployment`. Building

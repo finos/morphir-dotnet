@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
         <RootNamespace>Morphir.Compilation.Tests</RootNamespace>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <GenerateProgramFile>false</GenerateProgramFile>

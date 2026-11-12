@@ -180,7 +180,7 @@ install_from_nuget() {
         return 1
     fi
     
-    # NuGet package structure: tools/net10.0/{rid}/morphir
+    # NuGet package structure: tools/net11.0/{rid}/morphir
     local extract_dir="$TEMP_DIR/extracted"
     unzip -q "$package_file" -d "$extract_dir" 2>/dev/null || {
         rm -rf "$TEMP_DIR"

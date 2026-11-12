@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.Extensions</RootNamespace>
         <Description>Morphir extension registry domain: parsed extension identities, capability claims and the extension catalog</Description>
         <PackageReleaseNotes>### Added

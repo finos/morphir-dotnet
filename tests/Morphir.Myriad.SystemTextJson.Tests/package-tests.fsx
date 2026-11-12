@@ -26,6 +26,9 @@ let run directory expectedSuccess (arguments: string list) =
     start.UseShellExecute <- false
     start.RedirectStandardOutput <- true
     start.RedirectStandardError <- true
+    // A reused MSBuild node keeps the task assemblies of the workspace packages loaded after the build. On Windows,
+    // it then locks those files, and the workspace cannot be deleted.
+    start.Environment["MSBUILDDISABLENODEREUSE"] <- "1"
 
     for argument in arguments do
         start.ArgumentList.Add argument

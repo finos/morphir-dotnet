@@ -55,7 +55,7 @@ public class ToolPackageInstallTests
         // The command runs the built bytes: the stub reports the folder it ran from.
         var run = await ChildProcess.RunAsync(conflict.Contained(ChildProcess.StartInfo(command, "a", "b c")), Timeout);
         run.ExitCode.Should().Be(0, run.CombinedOutput);
-        StubBase(run.StandardOutput).Should().Be(Folder(root.GetProperty("packageFolder").GetString()!, "tools", "net10.0", "any"));
+        StubBase(run.StandardOutput).Should().Be(Folder(root.GetProperty("packageFolder").GetString()!, "tools", "net11.0", "any"));
     }
 
     [Test]
@@ -91,7 +91,7 @@ public class ToolPackageInstallTests
         foreach (var variable in invocation.GetProperty("environment").EnumerateObject()) start.Environment[variable.Name] = variable.Value.GetString();
         var run = await ChildProcess.RunAsync(start, Timeout);
         run.ExitCode.Should().Be(0, run.CombinedOutput);
-        StubBase(run.StandardOutput).Should().Be(Folder(root.GetProperty("packageFolder").GetString()!, "tools", "net10.0", "any"));
+        StubBase(run.StandardOutput).Should().Be(Folder(root.GetProperty("packageFolder").GetString()!, "tools", "net11.0", "any"));
     }
 
     [Test]
@@ -326,13 +326,13 @@ public class ToolPackageInstallTests
                   </metadata>
                 </package>
                 """);
-            Write(zip, "tools/net10.0/any/DotnetToolSettings.xml", $"""
+            Write(zip, "tools/net11.0/any/DotnetToolSettings.xml", $"""
                 <?xml version="1.0" encoding="utf-8"?>
                 <DotNetCliTool Version="1"><Commands><Command Name="{Command}" EntryPoint="morphir-mck.dll" Runner="dotnet" /></Commands></DotNetCliTool>
                 """);
             foreach (var file in new[] { "morphir-mck.dll", "morphir-mck.runtimeconfig.json" })
-                zip.CreateEntryFromFile(Path.Combine(AppContext.BaseDirectory, file), $"tools/net10.0/any/{file}");
-            Write(zip, "tools/net10.0/any/marker.txt", marker);
+                zip.CreateEntryFromFile(Path.Combine(AppContext.BaseDirectory, file), $"tools/net11.0/any/{file}");
+            Write(zip, "tools/net11.0/any/marker.txt", marker);
             return path;
         }
 

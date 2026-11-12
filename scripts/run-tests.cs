@@ -41,12 +41,12 @@ Console.WriteLine("================================================");
 // Run Morphir.Core.Tests
 Console.WriteLine("");
 Console.WriteLine("Running Morphir.Core.Tests...");
-var coreExitCode = RunCommand("dotnet", "exec", $"tests/Morphir.Core.Tests/bin/{configuration}/net10.0/Morphir.Core.Tests.dll");
+var coreExitCode = RunCommand("dotnet", "exec", $"tests/Morphir.Core.Tests/bin/{configuration}/net11.0/Morphir.Core.Tests.dll");
 
 // Run Morphir.Tooling.Tests
 Console.WriteLine("");
 Console.WriteLine("Running Morphir.Tooling.Tests...");
-var toolingExitCode = RunCommand("dotnet", "exec", $"tests/Morphir.Tooling.Tests/bin/{configuration}/net10.0/Morphir.Tooling.Tests.dll");
+var toolingExitCode = RunCommand("dotnet", "exec", $"tests/Morphir.Tooling.Tests/bin/{configuration}/net11.0/Morphir.Tooling.Tests.dll");
 
 // Check if any tests failed
 if (coreExitCode != 0 || toolingExitCode != 0)

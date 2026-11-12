@@ -76,7 +76,7 @@ partial class Build
             Serilog.Log.Information("Running Morphir.Build.Tests...");
 
             // Use dotnet exec to run the test assembly directly (required for .NET 10 SDK + TUnit)
-            var buildTestDll = TestsDirectory / "Morphir.Build.Tests" / "bin" / Configuration / "net10.0" / "Morphir.Build.Tests.dll";
+            var buildTestDll = TestsDirectory / "Morphir.Build.Tests" / "bin" / Configuration / CurrentTargetFramework / "Morphir.Build.Tests.dll";
             var exitCode = RunCommand("dotnet", "exec", buildTestDll);
 
             // Exit code 0 = success, 8 = all tests skipped (expected when packages don't exist)
@@ -179,50 +179,50 @@ partial class Build
         // Run Morphir.Core.Tests
         Serilog.Log.Information("");
         Serilog.Log.Information("Running Morphir.Core.Tests...");
-        var coreTestDll = TestsDirectory / "Morphir.Core.Tests" / "bin" / configuration / "net10.0" / "Morphir.Core.Tests.dll";
+        var coreTestDll = TestsDirectory / "Morphir.Core.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Core.Tests.dll";
         var coreExitCode = RunTestAssembly("Morphir.Core.Tests", coreTestDll);
 
         // Run Morphir.Tooling.Tests
         Serilog.Log.Information("");
         Serilog.Log.Information("Running Morphir.Tooling.Tests...");
-        var toolingTestDll = TestsDirectory / "Morphir.Tooling.Tests" / "bin" / configuration / "net10.0" / "Morphir.Tooling.Tests.dll";
+        var toolingTestDll = TestsDirectory / "Morphir.Tooling.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Tooling.Tests.dll";
         var toolingExitCode = RunTestAssembly("Morphir.Tooling.Tests", toolingTestDll);
 
         // Reuse compiled outputs and invoke each configuration suite's configured runner.
-        var configurationTestDll = TestsDirectory / "Morphir.Configuration.Tests" / "bin" / configuration / "net10.0" / "Morphir.Configuration.Tests.dll";
+        var configurationTestDll = TestsDirectory / "Morphir.Configuration.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Configuration.Tests.dll";
         var configurationExitCode = RunCommand("dotnet", "exec", configurationTestDll, "--sequenced");
-        var configurationIoTestDll = TestsDirectory / "Morphir.Configuration.IO.Tests" / "bin" / configuration / "net10.0" / "Morphir.Configuration.IO.Tests.dll";
+        var configurationIoTestDll = TestsDirectory / "Morphir.Configuration.IO.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Configuration.IO.Tests.dll";
         var configurationIoExitCode = RunTestAssembly("Morphir.Configuration.IO.Tests", configurationIoTestDll, "--maximum-parallel-tests", "1");
 
-        var configurationMicrosoftTestDll = TestsDirectory / "Morphir.Configuration.Microsoft.Tests" / "bin" / configuration / "net10.0" / "Morphir.Configuration.Microsoft.Tests.dll";
+        var configurationMicrosoftTestDll = TestsDirectory / "Morphir.Configuration.Microsoft.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Configuration.Microsoft.Tests.dll";
         var configurationMicrosoftExitCode = RunTestAssembly("Morphir.Configuration.Microsoft.Tests", configurationMicrosoftTestDll, "--maximum-parallel-tests", "1");
 
         // Exercise the actual generated CLI DTO source without loading the CLI host.
-        var configurationInspectionSmokeDll = TestsDirectory / "Morphir.Configuration.Inspection.Smoke" / "bin" / configuration / "net10.0" / "Morphir.Configuration.Inspection.Smoke.dll";
+        var configurationInspectionSmokeDll = TestsDirectory / "Morphir.Configuration.Inspection.Smoke" / "bin" / configuration / CurrentTargetFramework / "Morphir.Configuration.Inspection.Smoke.dll";
         var configurationInspectionExitCode = RunCommand("dotnet", "exec", configurationInspectionSmokeDll);
 
         // Run Morphir.Internal.CodeGeneration.Tests
         Serilog.Log.Information("");
         Serilog.Log.Information("Running Morphir.Internal.CodeGeneration.Tests...");
-        var codeGenTestDll = TestsDirectory / "Morphir.Internal.CodeGeneration.Tests" / "bin" / configuration / "net10.0" / "Morphir.Internal.CodeGeneration.Tests.dll";
+        var codeGenTestDll = TestsDirectory / "Morphir.Internal.CodeGeneration.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Internal.CodeGeneration.Tests.dll";
         var codeGenExitCode = RunCommand("dotnet", "exec", codeGenTestDll);
 
         // Run Morphir.Models.Tests (Expecto)
         Serilog.Log.Information("");
         Serilog.Log.Information("Running Morphir.Models.Tests...");
-        var modelsTestDll = TestsDirectory / "Morphir.Models.Tests" / "bin" / configuration / "net10.0" / "Morphir.Models.Tests.dll";
+        var modelsTestDll = TestsDirectory / "Morphir.Models.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.Models.Tests.dll";
         var modelsExitCode = RunCommand("dotnet", "exec", modelsTestDll);
 
         // Run Morphir.IR.Pipeline.Tests (Expecto)
         Serilog.Log.Information("");
         Serilog.Log.Information("Running Morphir.IR.Pipeline.Tests...");
-        var pipelineTestDll = TestsDirectory / "Morphir.IR.Pipeline.Tests" / "bin" / configuration / "net10.0" / "Morphir.IR.Pipeline.Tests.dll";
+        var pipelineTestDll = TestsDirectory / "Morphir.IR.Pipeline.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.IR.Pipeline.Tests.dll";
         var pipelineExitCode = RunCommand("dotnet", "exec", pipelineTestDll);
 
         // Run Morphir.SDK.Tests (Expecto)
         Serilog.Log.Information("");
         Serilog.Log.Information("Running Morphir.SDK.Tests...");
-        var sdkTestDll = TestsDirectory / "Morphir.SDK.Tests" / "bin" / configuration / "net10.0" / "Morphir.SDK.Tests.dll";
+        var sdkTestDll = TestsDirectory / "Morphir.SDK.Tests" / "bin" / configuration / CurrentTargetFramework / "Morphir.SDK.Tests.dll";
         var sdkExitCode = RunCommand("dotnet", "exec", sdkTestDll);
 
         // The self-contained process test of the F# frontend runs against a folder published once here, not in the
@@ -257,7 +257,7 @@ partial class Build
         }.Select(project =>
         {
             Serilog.Log.Information("Running {Project}...", project);
-            var testDll = TestsDirectory / project / "bin" / configuration / "net10.0" / $"{project}.dll";
+            var testDll = TestsDirectory / project / "bin" / configuration / CurrentTargetFramework / $"{project}.dll";
             var frontendTests = project == "Morphir.Frontend.FSharp.Extension.Tests" && frontendProcess is not null;
             if (frontendTests) Environment.SetEnvironmentVariable(FSharpFrontendProcessDirVariable, frontendProcess!.ToString());
             int exitCode;

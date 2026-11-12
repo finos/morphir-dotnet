@@ -98,11 +98,12 @@ try {
 "@ | Set-Content -LiteralPath (Join-Path $consumer 'LegacyConsumer.fsproj') -Encoding utf8
             Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'LegacyConsumer.fs') -Destination (Join-Path $consumer 'Program.fs')
             Copy-Item -LiteralPath (Join-Path $repo 'global.json') -Destination (Join-Path $consumer 'global.json')
+            # The consumers target net10.0. The .NET 11 SDK has no .NET 10 targeting or host packs, so they come from nuget.org.
             @"
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <packageSources><clear/><add key="sdk-test" value="$feed"/><add key="nuget" value="https://api.nuget.org/v3/index.json"/></packageSources>
-  <packageSourceMapping><packageSource key="sdk-test"><package pattern="Morphir.SDK*"/></packageSource><packageSource key="nuget"><package pattern="FSharp.Core"/></packageSource></packageSourceMapping>
+  <packageSourceMapping><packageSource key="sdk-test"><package pattern="Morphir.SDK*"/></packageSource><packageSource key="nuget"><package pattern="FSharp.Core"/><package pattern="Microsoft.NETCore.App.*"/><package pattern="Microsoft.AspNetCore.App.*"/><package pattern="Microsoft.WindowsDesktop.App.*"/></packageSource></packageSourceMapping>
 </configuration>
 "@ | Set-Content -LiteralPath (Join-Path $consumer 'NuGet.Config') -Encoding utf8
             Invoke-Captured "$graph-restore" @('restore', 'LegacyConsumer.fsproj', '--packages', $cache, '--configfile', 'NuGet.Config', '--disable-parallel', '-m:1', '-nodeReuse:false') $consumer

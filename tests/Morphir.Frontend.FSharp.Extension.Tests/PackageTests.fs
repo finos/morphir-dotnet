@@ -74,7 +74,7 @@ let tests =
                   Directory.GetFiles(feed, "Morphir.Frontend.FSharp.Extension.*.nupkg") |> Array.exactlyOne
 
               let version =
-                  (Path.GetFileNameWithoutExtension package |> nonNull).Substring("Morphir.Frontend.FSharp.Extension.".Length)
+                  (Path.GetFileNameWithoutExtension package).Substring("Morphir.Frontend.FSharp.Extension.".Length)
 
               // The repository uses package source mapping, so the install reads a configuration with only the
               // local feed.

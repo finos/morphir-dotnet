@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
     <RootNamespace>Morphir.Toolchain.IO</RootNamespace>
     <Description>Bounded acquisition transport and byte integrity for the standalone toolchain manager</Description>
     <IsPackable>true</IsPackable>

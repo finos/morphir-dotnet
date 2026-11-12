@@ -87,7 +87,7 @@ public sealed class OfferingReportTests
         var runtime = prerequisites.GetProperty("runtime").EnumerateArray().Single();
         runtime.GetProperty("kind").GetString().Should().Be("runtime");
         runtime.GetProperty("name").GetString().Should().Be("Microsoft.NETCore.App");
-        Strings(runtime.GetProperty("versions")).Should().Equal(">=10.0.0", "<11.0.0");
+        Strings(runtime.GetProperty("versions")).Should().Equal(">=11.0.0", "<12.0.0");
         prerequisites.GetProperty("sdk").GetArrayLength().Should().Be(0, "running needs no SDK");
     }
 
@@ -101,7 +101,7 @@ public sealed class OfferingReportTests
         sdk.GetProperty("kind").GetString().Should().Be("sdk");
         sdk.GetProperty("name").GetString().Should().Be("Microsoft.NET.Sdk");
         sdk.GetProperty("phase").GetString().Should().Be("install", "the SDK is an installation prerequisite, not a runtime one");
-        Strings(sdk.GetProperty("versions")).Should().Equal(">=10.0.100");
+        Strings(sdk.GetProperty("versions")).Should().Equal(">=11.0.100");
     }
 
     [Test]

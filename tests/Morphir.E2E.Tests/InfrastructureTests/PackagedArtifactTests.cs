@@ -80,8 +80,8 @@ public sealed class PackagedArtifactTests
                 execution = deployment == "native-aot" ? "native" : "managed",
                 layout = "folder",
                 bundledRuntime = deployment is "native-aot" or "self-contained",
-                requiredRuntime = deployment is "native-aot" or "self-contained" ? null : "Microsoft.NETCore.App 10.0",
-                requiredSdk = deployment == "dotnet-tool" ? ".NET SDK 10.0" : null,
+                requiredRuntime = deployment is "native-aot" or "self-contained" ? null : "Microsoft.NETCore.App 11.0",
+                requiredSdk = deployment == "dotnet-tool" ? ".NET SDK 11.0" : null,
                 inProcessFSharpFrontend = deployment != "native-aot",
             }));
 

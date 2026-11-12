@@ -2,7 +2,7 @@
     <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>$(MorphirHostedTargetFramework)</TargetFramework>
         <IsPackable>true</IsPackable>
         <PackageId>Morphir.SDK</PackageId>
         <Description>Compatibility package for the Morphir F# runtime. Depends on Morphir.SDK.FSharp, which retains the Morphir.SDK namespace and runtime assembly identity.</Description>

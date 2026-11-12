@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
         <AssemblyName>morphirup</AssemblyName>
         <RootNamespace>Morphirup</RootNamespace>
         <Description>morphirup, the standalone Morphir toolchain manager. Explicit local developer setup, selection and installed execution, alongside toolchain document checks and recipe planning. Production authenticated acquisition remains unqualified.</Description>

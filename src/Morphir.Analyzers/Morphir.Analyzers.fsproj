@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.Analyzers</RootNamespace>
         <Description>Built-in Morphir model analyzers, such as the type validator, and their extension entries</Description>
         <PackageReleaseNotes>### Added
