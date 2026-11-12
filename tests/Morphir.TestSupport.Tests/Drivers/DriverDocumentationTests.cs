@@ -25,7 +25,7 @@ public class DriverDocumentationTests
             .Where(span => span is not ("IsValid" or "CliTestHelper"))
             .ToArray();
 
-        named.Should().Contain(["IScenarioWorkspace", "ICliDriver", "IModelVerificationDriver", "IGenerationDriver", "BlackBoxSession", "TestEligibility"]);
+        named.Should().Contain(["IScenarioWorkspace", "ICliDriver", "IModelVerificationDriver", "IGenerationDriver", "BlackBoxSession", "TestEligibility", "IPackageDriver"]);
         named.Where(name => !types.Contains(name)).Should().BeEmpty("each type that the README names is a type of Morphir.TestSupport");
     }
 
@@ -35,7 +35,7 @@ public class DriverDocumentationTests
         string[] current =
         [
             TestRunSettings.TargetVariable, TestRunSettings.HostVariable, TestRunSettings.ExecutableVariable,
-            TestRunSettings.LaneVariable, TestRunSettings.KeepVariable, ProcessGate.LimitVariable,
+            TestRunSettings.LaneVariable, TestRunSettings.KeepVariable, ProcessGate.LimitVariable, PackedPackages.Variable,
             ArtifactLocations.ReleaseDirectoryVariable, WorkerCorpus.AllCasesVariable,
         ];
         // The names that the new settings replace. The table "Old names" of the README is the only place for them.

@@ -70,7 +70,6 @@
         "TestMepAot",
         "TestMorphirupAot",
         "TestMyriadJsonAot",
-        "TestMyriadPackages",
         "TestProtoPlugin"
       ]
     },

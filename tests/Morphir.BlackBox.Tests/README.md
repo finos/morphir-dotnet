@@ -41,7 +41,7 @@ its library. A test that needs both an artifact and a product assembly is two te
 | `@integration`, `@e2e`, `@smoke`, `@journey` | The group. One for each test, on the feature or on the scenario. |
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build: the packed packages, a Native AOT publish, or a published executable. A group run does not select it. |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that entry point. With no host tag, a test runs on the default host of the run. |
-| `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs` | A capability that the test needs from the drivers. `@needs-built-programs`: the build output of the programs of the repository that are not the CLI (library hosts, probes, morphirup); only the development build has them. |
+| `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs`, `@needs-development-packages` | A capability that the test needs from the drivers. `@needs-built-programs`: the build output of the programs of the repository that are not the CLI (library hosts, probes, morphirup); only the development build has them. `@needs-development-packages`: the test packs a project of the development build into the feed of its workspace (`IPackageDriver`). |
 | `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
 | `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form`, `@needs-wasm-guests` | A capability that the test needs from the drivers (see `tests/Morphir.TestSupport/README.md`): a packaged installation, a Native AOT executable, a target of one known form, or the WASM guests of the host. `@needs-wasm-guests` is not on Windows x64 (#609). |
 
@@ -66,6 +66,7 @@ two steps have the same pattern.
 | CLI | `Then standard output is one JSON document` |
 | CLI | `Then standard output is a version` |
 | CLI | `Then the command ran on the {string} host` |
+| CLI | `Then the output does not contain {string}` |
 | CLI | `Then standard output is the text {string}` |
 | CLI | `Then standard error does not contain {string}` |
 | CLI | `Then standard output does not contain {string}` |
@@ -109,6 +110,107 @@ two steps have the same pattern.
 | Generation | `Then the output has no file {string}` |
 | Generation | `Given each file of the output has the time of the year 2000` |
 | Generation | `Then each file of the output still has the time of the year 2000` |
+| Packages | `Given the package {string} packed from the development build` |
+| Packages | `Given the packages {string} packed from the development build` |
+| Packages | `Given the packed package {string}` |
+| Packages | `Given the packed package {string} in the feed of the workspace` |
+| Packages | `Then the manifest of the package has the id {string}` |
+| Packages | `Then the authors of the package include {string}` |
+| Packages | `Then the package has a license` |
+| Packages | `Then the project URL of the package contains {string}` |
+| Packages | `Then the package type of the package is {string}` |
+| Packages | `Then the version of the package is the version of the changelog` |
+| Packages | `Then the packed packages {string} have one version` |
+| Packages | `Then each of the packed packages {string} has release notes that contain {string}` |
+| Packages | `Then each Morphir dependency of each packed package is packed at its version` |
+| Packages | `Then the package has the entries:` |
+| Packages | `Then the package has an entry below {string}` |
+| Packages | `Then the package has no entry below {string}` |
+| Packages | `Then the package has an entry that contains {string}` |
+| Packages | `Then the package has no entry with the file name {string}` |
+| Packages | `Then the entry {string} of the package contains the text:` |
+| Packages | `Then the packed packages {string} have no entry that ends with {string}` |
+| Packages | `Then the packed packages {string} have no entry that contains {string}` |
+| Packages | `Then each Morphir assembly of the package below {string} has the assembly version of the changelog` |
+| Packages | `Then each reference between the Morphir assemblies of the package below {string} has the assembly version of the changelog` |
+| Packages | `Then the package has no assembly` |
+| Packages | `Then the package depends only on {string} at exactly its own version` |
+| Package consumer | `When I build the consumer` |
+| Package consumer | `When I build the consumer with no restore` |
+| Package consumer | `When I build the consumer and it fails` |
+| Package consumer | `When I build the consumer with no restore and it fails` |
+| Package consumer | `When I build the consumer in the configurations {string} and {string} at the same time with no restore` |
+| Package consumer | `When I run the consumer` |
+| Package consumer | `When I build and run the consumer` |
+| Package consumer | `When I build and run the consumer with no restore` |
+| Package consumer | `When I clean the consumer` |
+| Package consumer | `Given the consumer program is:` |
+| Package consumer | `Given the consumer program is the fixture {string}` |
+| Package consumer | `Given the consumer types are:` |
+| Package consumer | `Given the consumer types are the fixture {string}` |
+| Package consumer | `Given the consumer has the property {string} with the value {string}` |
+| Package consumer | `Then the consumer prints {string}` |
+| Package consumer | `Then the consumer prints:` |
+| Package consumer | `Then the first line that the consumer prints is:` |
+| Package consumer | `Then the consumer prints {int} lines` |
+| Package consumer | `Then the consumer reports a complete rental costing {int} cents` |
+| Package consumer | `Then the consumer rejects invalid rental operations` |
+| Package consumer | `Then the consumer has the file {string}` |
+| Package consumer | `Then the consumer has no file {string}` |
+| Package consumer | `Then the consumer has no directory {string}` |
+| Package consumer | `Then the consumer directory {string} has no file` |
+| Package consumer | `Then the consumer has {int} generated file(s) {string}` |
+| Package consumer | `Then the consumer has no generated file {string} in a folder {string}` |
+| Package consumer | `Given I remember the generated files of the consumer` |
+| Package consumer | `Then the generated files of the consumer are the same as I remembered` |
+| Package consumer | `Given I remember the text of the generated file {string}` |
+| Package consumer | `Then the text of the generated file {string} is the same as I remembered` |
+| Package consumer | `Given I put the file {string} with the text {string} beside the generated file {string}` |
+| Package consumer | `Then the file {string} beside the generated files has the text {string}` |
+| Package consumer | `Given I wait {int} milliseconds` |
+| Myriad plugin | `Given a Myriad consumer of the model fixture {string}` |
+| Myriad plugin | `Given a Myriad consumer of a model with the modules:` |
+| Myriad plugin | `Given a Myriad consumer of the models:` |
+| Myriad plugin | `Given a Myriad consumer with no model file` |
+| Myriad plugin | `Given the consumer program is the car rental example` |
+| Myriad plugin | `Given the consumer program prints the daily rate of {string}` |
+| Myriad plugin | `When the consumer program prints the daily rate of {string}` |
+| Myriad plugin | `Given the consumer also uses the Myriad plugin with the model fixture {string}` |
+| Myriad plugin | `Given the consumer program also prints the daily rate of {string}` |
+| Myriad plugin | `Given the model {string} of the consumer has the output directory {string}` |
+| Myriad plugin | `Given the model {string} of the consumer has the output directory {string} with the separator of the operating system at its end` |
+| Myriad plugin | `When the model {string} of the consumer has the full path of the output directory {string} with the separator of the operating system at its end` |
+| Myriad plugin | `Given the consumer folder {string} is a symbolic link to its folder {string}` |
+| Myriad plugin | `When the model of the consumer changes to the modules:` |
+| Myriad plugin | `When the model of the consumer is the fixture {string}` |
+| Myriad plugin | `Given the daily rate of the module {string} of the model is the string {string}` |
+| Myriad plugin | `When the daily rate of the car rental model changes to {int} cents` |
+| Myriad plugin | `When the model of the consumer changes to the invalid input {string}` |
+| System.Text.Json plugin | `Given a System.Text.Json consumer` |
+| System.Text.Json plugin | `Given the context of the consumer has the name {string}` |
+| System.Text.Json plugin | `Given the context of the consumer has the metadata:` |
+| F# SDK packages | `Given the SDK packages built and packed in the workspace with the version of the changelog` |
+| F# SDK packages | `Given the SDK packages built and packed in the workspace at the version {string}` |
+| F# SDK packages | `Then the build of the package {string} in the workspace made no assembly` |
+| F# SDK packages | `Then the precompiled legacy consumer has its recorded SHA-256` |
+| F# SDK packages | `When a consumer of the package graph {string} restores, builds and runs` |
+| F# SDK packages | `Then the consumer resolves one runtime assembly, from the package {string}` |
+| F# SDK packages | `Then the consumer resolves only the packages of its graph` |
+| F# SDK packages | `Then the runtime assembly in the output of the consumer is the one of the package {string}, with its identity` |
+| F# SDK packages | `Then the consumer keeps each public declaration of the legacy runtime` |
+| F# SDK packages | `Then the precompiled legacy consumer ran unchanged on the runtime of the package {string}` |
+| F# SDK packages | `When a consumer of the generated Ordering source of {string} builds and runs against the package {string}` |
+| F# SDK packages | `Then the runtime assembly in the output of the consumer is the runtime of the package {string}` |
+| Tools | `When I install the tool {string} from the feed into a tool folder` |
+| Tools | `When I uninstall the tool {string} from the tool folder` |
+| Tools | `When I run the installed command {string} with {string}` |
+| Tools | `Then the tool folder has the command {string}` |
+| Tools | `Then the tool folder has no command {string}` |
+| Tools | `When I send a describe request to the installed command {string}` |
+| Tools | `Then the describe reply has the extension id {string}` |
+| Tools | `Then the describe reply has the claims version {string}` |
+| Tools | `Then the extension version of the describe reply is the version of the package {string}` |
+| Tools | `Then the describe reply claims the model transport tuples of {string} for the IR versions {string}` |
 | Generation | `Then generation exits with {int} and one JSON report` |
 | Generation | `When I generate {string} from the model without the setting {string}` |
 | Generation | `When I generate {string} from the model with the arguments {string}` |
@@ -477,6 +579,20 @@ Build first (`./build.sh --target Compile`), or let the build of the project bui
 # The test assembly, with the filter of a group.
 dotnet exec tests/Morphir.BlackBox.Tests/bin/Release/net11.0/Morphir.BlackBox.Tests.dll --treenode-filter "/*/*/*/*[(Category=smoke)&(Category!=lane)]"
 ```
+
+The packages lane has the tests that read the packages of the pack step (`@lane @packages`). The `TestBuild`
+target runs it after the build tests, with the output folder of `PackAll`:
+
+```bash
+./build.sh --target PackAll --skip Restore Compile
+./build.sh --target TestBuild --skip Restore Compile
+
+# The test assembly, with the filter of the lane and the folder of the packed packages.
+MORPHIR_TEST_LANE=packages MORPHIR_TEST_PACKAGES="$PWD/artifacts/packages" dotnet exec tests/Morphir.BlackBox.Tests/bin/Release/net11.0/Morphir.BlackBox.Tests.dll --treenode-filter "/*/*/*/*[Category=packages]"
+```
+
+`PackAll` packs the tool and the extensions with no symbol files, so it builds them again. Run
+`./build.sh --target Compile` after it, before a `Test` run: the package driver packs the projects with no build.
 
 The default target is the development build (`dev`), with the native host as the default host. To run on another
 host or target, set the variables of the testing library:

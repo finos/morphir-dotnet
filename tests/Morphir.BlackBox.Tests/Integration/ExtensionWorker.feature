@@ -82,7 +82,7 @@ Feature: The experimental extension worker
     And standard output of the worker is empty
     And standard error of the worker has no "started" event
 
-  @needs-wasm-guests
+  @lane @published @needs-wasm-guests
   Scenario: A guest that writes 20 MiB for each call keeps standard output to frames and its report bounded
     When the worker serves "guest:flood-output" with the frames "initialize, initialize, initialize, initialize, initialize, exit"
     Then the worker exits with status 0

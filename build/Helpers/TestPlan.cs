@@ -172,8 +172,9 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Internal.CodeGeneration.Tests"),
         TestSuite.Expecto("Morphir.Models.Tests"),
         TestSuite.Expecto("Morphir.IR.Pipeline.Tests"),
-        TestSuite.Expecto("Morphir.SDK.Tests").WithSourceProjects(),
-        // LibraryHostDriverTests publishes a host of the repository (its lock files go below obj/ of src/ projects).
+        TestSuite.Expecto("Morphir.SDK.Tests"),
+        // The tests of the package driver pack a project of the repository with no build, and LibraryHostDriverTests
+        // publishes a host of the repository (its lock files go below obj/ of src/ projects).
         TestSuite.TUnit("Morphir.TestSupport.Tests").WithSourceProjects(),
         TestSuite.Expecto("Morphir.Frontend.FSharp.Tests"),
         TestSuite.Expecto("Morphir.Conformance.Tests"),
@@ -195,18 +196,19 @@ public static class TestPlan
         TestSuite.TUnit("Morphir.Tests"),
         TestSuite.TUnit("Morphir.Managed.Tests"),
         TestSuite.Expecto("Morphir.CodeGeneration.FSharp.Tests"),
-        TestSuite.Expecto("Morphir.CodeGeneration.FSharp.Extension.Tests").WithSourceProjects(),
+        TestSuite.Expecto("Morphir.CodeGeneration.FSharp.Extension.Tests"),
         TestSuite.Expecto("Morphir.CodeGeneration.CSharp.Tests", "--sequenced"),
         TestSuite.Expecto("Morphir.Ion.Tests"),
         TestSuite.Expecto("Morphir.Myriad.Tests").WithSourceProjects(),
-        TestSuite.TUnit("Morphir.Myriad.Integration.Tests").WithSourceProjects(),
-        TestSuite.Expecto("Morphir.Myriad.SystemTextJson.Tests").WithSourceProjects(),
+        TestSuite.Expecto("Morphir.Myriad.SystemTextJson.Tests"),
         // The groups of the black-box project. A group is registered here in the change that adds its first test,
         // because a group that selects no test fails its run.
         // The integration group has tests with a time budget (the interrupt of a worker within one second, the bounds
-        // of the worker corpus), so it runs alone.
-        TestSuite.TUnit(BlackBoxProject).InGroup("integration").Alone(),
-        TestSuite.TUnit(BlackBoxProject).InGroup("e2e"),
+        // of the worker corpus), so it runs alone. The integration and e2e groups pack projects of the repository with
+        // no build or in the workspace (IPackageDriver), and the e2e group reads the build output of the programs of
+        // the repository.
+        TestSuite.TUnit(BlackBoxProject).InGroup("integration").WithSourceProjects().Alone(),
+        TestSuite.TUnit(BlackBoxProject).InGroup("e2e").WithSourceProjects(),
         TestSuite.TUnit(BlackBoxProject).InGroup("smoke"),
         TestSuite.TUnit(BlackBoxProject).InGroup("journey"),
     ];
@@ -317,11 +319,24 @@ public static class TestPlan
         return selected;
     }
 
+    /// <summary>The lane of the black-box tests that read the packages of the pack step.</summary>
+    public const string PackagesLane = "packages";
+
     /// <summary>
-    /// True when a Test run also runs the Myriad package-consumer scripts after its suites. A run of one group runs
-    /// only the suites of that group.
+    /// The run of the packages lane: the tests of the black-box project with the lane <c>packages</c>, of each group.
+    /// The TestBuild target starts it after the build tests, when the pack step made the packages.
     /// </summary>
-    public static bool RunsPackageConsumerScripts(string? group) => group is null;
+    public static TestRun PackagesLaneRun => LaneRun(PackagesLane);
+
+    /// <summary>
+    /// The variables of the packages lane run: its lane, and the folder of the packed packages, which the package
+    /// driver reads and no other folder.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> PackagesLaneEnvironment(string packagesFolder) => new Dictionary<string, string>
+    {
+        ["MORPHIR_TEST_LANE"] = PackagesLane,
+        ["MORPHIR_TEST_PACKAGES"] = packagesFolder,
+    };
 
     /// <summary>
     /// The limit of product processes for the complete Test run: the value of <c>MORPHIR_TEST_MAX_PROCESSES</c> of

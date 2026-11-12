@@ -80,7 +80,6 @@
         "TestMepAot",
         "TestMorphirupAot",
         "TestMyriadJsonAot",
-        "TestMyriadPackages",
         "TestProtoPlugin",
         "WindowsToolchainChecksums"
       ]
