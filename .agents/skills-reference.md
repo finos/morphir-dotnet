@@ -257,6 +257,25 @@ Muse Code skips project skills until the workspace is trusted (`muse skills list
 | Grok Build | `/agents`, then select `fsharp-csharp-interop-reviewer`. |
 | Muse Code | Start a subagent with the prompt in the skill's "Review mode" section. |
 
+### test-manager
+
+**Skill:** [.agents/skills/test-manager/SKILL.md](./skills/test-manager/SKILL.md), with the questions and examples in [references/classification.md](./skills/test-manager/references/classification.md) and the feature, step and driver patterns in [references/black-box-patterns.md](./skills/test-manager/references/black-box-patterns.md).
+
+**Use when:** you add, move, rename or delete a test, a feature file, a step, a driver or a test project; or you do not know in which project a test belongs.
+
+**Covers:** the classification steps (conformance, build, unit, property, end-to-end, journey, smoke, integration); the place, the form, the tags and the parallel rule of each class; the rules of the black-box project `tests/Morphir.BlackBox.Tests` (one group, drivers only, no product assembly, lanes, hosts, capabilities, the step table); the split of a test that needs a product assembly and an artifact; and the review check list with the guard test of each rule.
+
+**Reviewer agent:** `test-manager-reviewer` (Codex: `test_manager_reviewer`). It is read-only and reports `path:line: rule N: problem. fix.` findings.
+
+| Tool | How to run the reviewer |
+| --- | --- |
+| Claude Code | Ask Claude to use the `test-manager-reviewer` subagent. `/agents` lists it. |
+| Codex | Ask Codex to spawn the `test_manager_reviewer` agent. |
+| GitHub Copilot | Select `test-manager-reviewer` in the agents list (IDE, cloud agent) or use `/agent` in Copilot CLI. |
+| Cursor | Ask for the `test-manager-reviewer` subagent (Cursor reads `.claude/agents/`). |
+| Grok Build | `/agents`, then select `test-manager-reviewer`. |
+| Muse Code | Start a subagent with the prompt in the skill's "Review mode" section. |
+
 ### External skills: dotnet/skills
 
 The .NET team publishes skills in [dotnet/skills](https://github.com/dotnet/skills) as a plugin marketplace named `dotnet-agent-skills`. This repository uses the marketplace. It does not keep a copy of the skills, so `.agents/skills/` and the sync script do not change.

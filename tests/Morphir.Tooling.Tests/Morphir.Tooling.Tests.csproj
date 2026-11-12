@@ -71,5 +71,11 @@
     <None Update="**/.gitkeep" Visible="false" />
   </ItemGroup>
 
+  <!--
+    The CLI entry points of the development build, for the tests that start the CLI (CliTestHelper, DevelopmentCli).
+    This project references the tooling library and no entry point, so this import makes its build build them.
+  -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
+
 </Project>
 

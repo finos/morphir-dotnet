@@ -289,6 +289,10 @@
           "type": "string",
           "description": "Output directory for untrimmed single-file executables"
         },
+        "TestGroup": {
+          "type": "string",
+          "description": "Test: run only one purpose group of the black-box tests: integration, e2e, smoke or journey - Default is every suite"
+        },
         "TestHangTimeout": {
           "type": "string",
           "description": "Time with no test progress after which a Microsoft.Testing.Platform test run takes a hang dump and stops - Default is '10m'"

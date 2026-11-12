@@ -8,6 +8,7 @@ using FluentAssertions;
 using Morphir.Configuration;
 
 using Morphir.TestSupport;
+using Morphir.Tooling.Tests.Integration.CLI;
 
 namespace Morphir.Tooling.Tests.Features.Configuration;
 
@@ -203,26 +204,16 @@ public sealed class ConfigurationSteps : IDisposable
 
     private async Task Run(string[] arguments)
     {
-        var repo = RepositoryRoot();
-        var configuration = typeof(ConfigurationSteps).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var cli = Environment.GetEnvironmentVariable("MORPHIR_CONFIGURATION_CLI") ?? Path.Combine(repo!.FullName, "src", "Morphir", "bin", configuration, "net11.0", "morphir.dll");
-        var info = new ProcessStartInfo(cli.EndsWith(".dll", StringComparison.Ordinal) ? "dotnet" : cli)
+        var environment = new Dictionary<string, string>
         {
-            WorkingDirectory = _workingDirectory ?? Path.Combine(_root, "app", "src"),
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
+            ["HOME"] = _root,
+            ["USERPROFILE"] = _root,
+            ["APPDATA"] = _root,
+            ["PROGRAMDATA"] = _root,
+            ["XDG_CONFIG_HOME"] = _root,
         };
-        if (cli.EndsWith(".dll", StringComparison.Ordinal)) info.ArgumentList.Add(cli);
-        foreach (var argument in arguments) info.ArgumentList.Add(argument);
-        foreach (var variable in info.Environment.Keys.Where(k => k.StartsWith("MORPHIR_", StringComparison.Ordinal)).ToArray()) info.Environment.Remove(variable);
-        info.Environment["HOME"] = _root;
-        info.Environment["USERPROFILE"] = _root;
-        info.Environment["APPDATA"] = _root;
-        info.Environment["PROGRAMDATA"] = _root;
-        info.Environment["XDG_CONFIG_HOME"] = _root;
-        foreach (var variable in _variables) info.Environment[variable.Key] = variable.Value;
-        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        foreach (var variable in _variables) environment[variable.Key] = variable.Value;
+        var result = await DevelopmentCli.RunAsync(arguments, _workingDirectory ?? Path.Combine(_root, "app", "src"), environment);
         _exit = result.ExitCode;
         _stdout = result.StandardOutput;
         _stderr = result.StandardError;
