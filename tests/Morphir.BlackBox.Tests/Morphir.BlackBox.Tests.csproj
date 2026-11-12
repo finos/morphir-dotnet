@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The black-box tests of the product: the tests that reach it only through a built artifact. See README.md.
+    This project references Morphir.TestSupport only. No assembly from src/ is visible to its code: a step or a test
+    reaches the product through a driver of Morphir.TestSupport.Drivers.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Morphir.BlackBox.Tests</RootNamespace>
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
+    <ReqnrollUseIntermediateOutputPathForCodeBehind>true</ReqnrollUseIntermediateOutputPathForCodeBehind>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
+    <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="Reqnroll" />
+    <PackageReference Include="Reqnroll.TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="**/*.feature" />
+    <!-- The fixture files that a workspace copies (IScenarioWorkspace.CopyFixture). -->
+    <None Include="Fixtures/**/*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Reqnroll" />
+    <Using Include="Morphir.TestSupport.Drivers" />
+  </ItemGroup>
+
+  <!-- The CLI entry points of the development build: built first, and their paths in the assembly metadata. -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
+
+</Project>
