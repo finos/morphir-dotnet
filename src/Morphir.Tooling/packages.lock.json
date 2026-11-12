@@ -111,11 +111,6 @@
         "resolved": "2.0.15",
         "contentHash": "zsnY7Ex2dPmbS/Nrg5RUKJFCEMbHeP9TdzmTJrsNh59mgr8ulba1SHmE1SVgmVqivvr79kV1GAlInC44F4ggEg=="
       },
-      "Cucumber.Messages": {
-        "type": "Transitive",
-        "resolved": "29.0.1",
-        "contentHash": "R2oo/wR3mXrbdK04Yraf+KhB01f/lyBkLQZcdxYt9XKE6tV+Af45MEk+jfbsew1SVvrAO0WvkIRwGYUozKCJvQ=="
-      },
       "Fantomas.FCS": {
         "type": "Transitive",
         "resolved": "7.0.5",
@@ -453,15 +448,6 @@
           "YamlDotNet": "[16.3.0, )"
         }
       },
-      "morphir.conformance": {
-        "type": "Project",
-        "dependencies": {
-          "FSharp.Core": "[10.1.403, )",
-          "Gherkin": "[35.1.0, )",
-          "Morphir.Compilation": "[1.0.0, )",
-          "Morphir.Mep": "[1.0.0, )"
-        }
-      },
       "morphir.core": {
         "type": "Project",
         "dependencies": {
@@ -601,15 +587,6 @@
         "contentHash": "e9FfoO5R6+EYhH5l4iPsYykE7/hie+ZOegQUEnuG/QqT84Gv0XZXoSnvDDC0dlI6XvA5HVmVYqZkKGRvqJgU9A==",
         "dependencies": {
           "Generator.Equals.Runtime": "3.3.0"
-        }
-      },
-      "Gherkin": {
-        "type": "CentralTransitive",
-        "requested": "[35.1.0, )",
-        "resolved": "35.1.0",
-        "contentHash": "2eHlz7CQ7uNUsFTveswt9W7p50tN0lpBHeaz4XJ9+/nMGErOkd7fgzjXtzgrkCWQCqF9US8O3tBd81aIP603nA==",
-        "dependencies": {
-          "Cucumber.Messages": "29.0.1"
         }
       },
       "JsonPointer.Net": {

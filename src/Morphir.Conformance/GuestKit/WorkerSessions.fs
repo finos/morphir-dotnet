@@ -14,6 +14,7 @@ open System.Threading.Tasks
 open Morphir.Mep
 open Morphir.Conformance
 open Morphir.Conformance.WasmHost
+open Morphir.Toolchain.IO
 
 /// How long the sessions of a WorkerSessions factory may take.
 [<Sealed>]
@@ -57,7 +58,7 @@ type WorkerSessionLimits private (sessionLimit: TimeSpan, exitWait: TimeSpan) =
     override _.ToString() = $"session limit {sessionLimit}, exit wait {exitWait}"
 
 /// What a WorkerSessions factory saw of one worker process: its arguments, how it ended and every line it wrote on
-/// stderr. Only the factory builds one.
+/// stderr within the capture bounds. Only the factory builds one.
 [<Sealed>]
 type WorkerSessionRecord
     internal
@@ -94,7 +95,7 @@ type WorkerSessionRecord
     /// When the worker ended, in milliseconds from its start.
     member _.EndMs = endMs
 
-    /// Every line the worker wrote on stderr, in order, with the time it was read.
+    /// Retained stderr lines in order, with read times. Capture failures appear in Problems.
     member _.Stderr = stderr
 
     /// The event member of each morphir/command-event line on stderr, in order: started, then exited or fault.
@@ -263,15 +264,50 @@ module internal WorkerSessionCheck =
             yield $"the worker wrote {otherLines} stderr lines that are not morphir/command-event documents"
     ]
 
+/// The existing worker launch edge, with creation-time Windows job ownership supplied by Toolchain.IO.
+[<Sealed>]
+type internal WorkerProcess private
+    (id: int, input: Stream, output: Stream, errors: Stream, exited: Task<int>, stop: unit -> unit,
+     settle: unit -> Task, dispose: unit -> Task) =
+    let stderr = new StreamReader(errors, UTF8Encoding(false), false, 4096, true)
+    member _.Id = id
+    member _.StandardInput = input
+    member _.StandardOutput = output
+    member _.StandardError = stderr
+    member _.HasExited = exited.IsCompletedSuccessfully
+    member _.ExitCode = exited.GetAwaiter().GetResult()
+    member _.WaitForExitAsync() = exited
+    member _.RequestTermination() = stop ()
+    member _.SettleAsync() = settle ()
+    member _.DisposeAsync() = task {
+        try do! dispose ()
+        finally stderr.Dispose() }
+
+    static member StartAsync(start: ProcessStartInfo, cancellation: CancellationToken) = task {
+        if OperatingSystem.IsWindows() then
+            let! child = WindowsChild.StartAsync(start, cancellation)
+            let input = child.StandardInput |> Option.defaultWith (fun () -> invalidOp "Worker stdin was not redirected.")
+            return WorkerProcess(child.Id, input, child.StandardOutput, child.StandardError, child.WaitForExitAsync(),
+                child.RequestTermination, child.SettleAsync, fun () -> (child :> IAsyncDisposable).DisposeAsync().AsTask())
+        else
+            let proc = new Process(StartInfo = start)
+            try
+                if not (proc.Start()) then invalidOp "The worker process did not start."
+                let exited = task {
+                    do! proc.WaitForExitAsync()
+                    return proc.ExitCode }
+                let stop () =
+                    if not proc.HasExited then CliAdapter.stopProcessTree proc TimeSpan.Zero |> ignore
+                return WorkerProcess(proc.Id, proc.StandardInput.BaseStream, proc.StandardOutput.BaseStream, proc.StandardError.BaseStream,
+                    exited, stop, (fun () -> task { let! _ = exited in return () }),
+                    (fun () -> proc.Dispose(); Task.CompletedTask))
+            with error ->
+                proc.Dispose()
+                return raise error }
+
 /// One running worker process and what it wrote on stderr.
 [<Sealed>]
-type internal LiveWorker(purpose: KitSessionPurpose, proc: Process, arguments: IReadOnlyList<string>, limits: WorkerSessionLimits) =
-    static let killWait = TimeSpan.FromSeconds 10.0
-
-    /// How long the factory keeps reading stderr after the worker ended. A descendant that holds the pipe open is not
-    /// waited for longer.
-    static let drainWait = TimeSpan.FromSeconds 2.0
-
+type internal LiveWorker(purpose: KitSessionPurpose, proc: WorkerProcess, arguments: IReadOnlyList<string>, limits: WorkerSessionLimits) =
     let id = proc.Id
     let clock = Stopwatch.StartNew()
     let gate = obj ()
@@ -280,34 +316,53 @@ type internal LiveWorker(purpose: KitSessionPurpose, proc: Process, arguments: I
     let mutable disposed = false
     let mutable exitMs = 0L
     let mutable finished: Task<WorkerSessionRecord> option = None
+    let mutable stderrFailure: string option = None
     let watchdogCancel = new CancellationTokenSource()
 
     let exited =
         proc
-            .WaitForExitAsync(CancellationToken.None)
-            .ContinueWith(fun (_: Task) -> exitMs <- clock.ElapsedMilliseconds)
+            .WaitForExitAsync()
+            .ContinueWith(fun (_: Task<int>) -> exitMs <- clock.ElapsedMilliseconds)
 
     let readStderr = task {
+        let fail reason =
+            stderrFailure <- Some reason
+            lock gate (fun () ->
+                stopped <- true
+                proc.RequestTermination())
+
         try
+            let buffer = Array.zeroCreate<char> 4096
+            let line = StringBuilder()
+            let mutable total = 0
             let mutable reading = true
 
             while reading do
-                let! line = proc.StandardError.ReadLineAsync()
-
-                match line with
-                | null -> reading <- false
-                | line ->
-                    lock lines (fun () ->
-                        lines.Add
-                            {
-                                AtMs = clock.ElapsedMilliseconds
-                                Text = line
-                            }
-                    )
+                let! count = proc.StandardError.ReadAsync(buffer.AsMemory())
+                if count = 0 then
+                    reading <- false
+                    if line.Length > 0 then
+                        lock lines (fun () -> lines.Add { AtMs = clock.ElapsedMilliseconds; Text = line.ToString() })
+                else
+                    for index in 0 .. count - 1 do
+                        if reading then
+                            total <- total + 1
+                            if total > 1048576 || lines.Count >= 4096 then
+                                reading <- false
+                                fail "stderr capture limit exceeded: at most 1048576 characters and 4096 lines are retained"
+                            elif buffer[index] = '\n' then
+                                let text = line.ToString().TrimEnd('\r')
+                                lock lines (fun () -> lines.Add { AtMs = clock.ElapsedMilliseconds; Text = text })
+                                line.Clear() |> ignore
+                            elif line.Length >= 65536 then
+                                reading <- false
+                                fail "stderr capture limit exceeded: a line is longer than 65536 characters"
+                            else
+                                line.Append(buffer[index]) |> ignore
         with
-        | :? IOException
-        | :? ObjectDisposedException
-        | :? InvalidOperationException -> ()
+        | :? IOException as error -> fail $"stderr capture failed: {error.Message}"
+        | :? ObjectDisposedException as error -> fail $"stderr capture failed: {error.Message}"
+        | :? InvalidOperationException as error -> fail $"stderr capture failed: {error.Message}"
     }
 
     /// Stops the worker's process tree when it has not exited. It does not wait for the tree to end: the caller
@@ -317,8 +372,7 @@ type internal LiveWorker(purpose: KitSessionPurpose, proc: Process, arguments: I
             if not disposed && not exited.IsCompleted then
                 stopped <- true
 
-                CliAdapter.stopProcessTree proc TimeSpan.Zero
-                |> ignore
+                proc.RequestTermination()
         )
 
     let watchdog = task {
@@ -337,8 +391,10 @@ type internal LiveWorker(purpose: KitSessionPurpose, proc: Process, arguments: I
         let! _ = Task.WhenAny(exited, exitWait ())
         stop ()
         watchdogCancel.Cancel()
-        let! _ = Task.WhenAny(readStderr, Task.Delay drainWait)
-        let! _ = Task.WhenAny(exited, Task.Delay killWait)
+        // Settle the owned job even if the root exited before a surviving descendant.
+        do! proc.SettleAsync()
+        do! readStderr
+        do! exited
         let! _ = watchdog
 
         try
@@ -372,12 +428,13 @@ type internal LiveWorker(purpose: KitSessionPurpose, proc: Process, arguments: I
             |> List.filter (fun (_, name) -> name.IsNone)
             |> List.length
 
-        let problems = WorkerSessionCheck.problems ending events fault otherLines
+        let problems = WorkerSessionCheck.problems ending events fault otherLines @ Option.toList stderrFailure
 
         lock gate (fun () ->
             disposed <- true
-            proc.Dispose()
         )
+
+        do! proc.DisposeAsync()
 
         watchdogCancel.Dispose()
 
@@ -408,6 +465,8 @@ type internal LiveWorker(purpose: KitSessionPurpose, proc: Process, arguments: I
 
     /// The id of the worker process.
     member _.Id = id
+
+    member _.RequestStop() = stop ()
 
     /// Waits up to Limits.ExitWait for the worker to exit, or until the token is cancelled, stops its process tree
     /// when it has not exited, and records what it saw. The task always ends with the record; a second call returns
@@ -463,6 +522,47 @@ type WorkerSessions
         |> List.map (fun worker -> worker.StopAndFinishAsync() :> Task)
         |> Task.WhenAll
 
+    // Resolve once before the help probe. Creation-time Windows ownership requires
+    // an absolute image path, and the later worker must use the same image spelling.
+    static member private ResolveExecutable(executable: string) =
+        ArgumentException.ThrowIfNullOrEmpty executable
+        if Path.IsPathFullyQualified executable then executable
+        elif executable.IndexOfAny([| Path.DirectorySeparatorChar; Path.AltDirectorySeparatorChar |]) >= 0 then
+            Path.GetFullPath executable
+        else
+            let names =
+                if OperatingSystem.IsWindows() && Path.GetExtension(executable) = "" then
+                    [ executable; executable + ".exe" ]
+                else [ executable ]
+            let directories =
+                [
+                    match Environment.ProcessPath with
+                    | null -> ()
+                    | path when OperatingSystem.IsWindows() -> yield nonNull (Path.GetDirectoryName path)
+                    | _ -> ()
+                    if OperatingSystem.IsWindows() then
+                        yield Directory.GetCurrentDirectory()
+                        yield Environment.SystemDirectory
+                        yield Environment.GetFolderPath(Environment.SpecialFolder.Windows)
+                    match Environment.GetEnvironmentVariable "PATH" with
+                    | null -> ()
+                    | value -> yield! value.Split(Path.PathSeparator) |> Array.filter (String.IsNullOrWhiteSpace >> not)
+                ]
+            directories
+            |> List.tryPick (fun directory ->
+                names |> List.tryPick (fun name ->
+                    try
+                        let directory = if OperatingSystem.IsWindows() then directory.Trim '"' else directory
+                        let path = Path.GetFullPath(Path.Combine(directory, name))
+                        if File.Exists path then Some path else None
+                    with
+                    | :? ArgumentException
+                    | :? NotSupportedException
+                    | :? PathTooLongException -> None
+                )
+            )
+            |> Option.defaultWith (fun () -> invalidOp $"The host executable '{executable}' was not found.")
+
     /// Reads the build identity of the host from `<host> [host arguments] extension worker --help --json` and returns a
     /// factory for the module at modulePath. It throws InvalidOperationException when the help gives no build
     /// identity. host is the peer that each session's morphir.initialize introduces.
@@ -477,7 +577,7 @@ type WorkerSessions
         ) : Task<WorkerSessions> =
         task {
             let command = {
-                Executable = executable
+                Executable = WorkerSessions.ResolveExecutable executable
                 Arguments = List.ofSeq hostArguments
             }
 
@@ -536,7 +636,9 @@ type WorkerSessions
         if cancellation.IsCancellationRequested then
             Task.FromCanceled<HostSession> cancellation
         else
+          task {
             let start = ProcessStartInfo(host.Executable)
+            start.WorkingDirectory <- Directory.GetCurrentDirectory()
 
             for argument in host.Arguments do
                 start.ArgumentList.Add argument
@@ -550,52 +652,42 @@ type WorkerSessions
             start.RedirectStandardOutput <- true
             start.RedirectStandardError <- true
             start.StandardErrorEncoding <- UTF8Encoding(false)
-            let proc = new Process(StartInfo = start)
+            let! proc = WorkerProcess.StartAsync(start, cancellation)
+            let output = proc.StandardOutput
+            let input = new WorkerInput(proc.StandardInput, request.Purpose, proc.Id)
+            let worker = LiveWorker(request.Purpose, proc, workerArguments, limits)
 
-            let started =
-                try
-                    if proc.Start() then
-                        Ok()
+            let added =
+                lock gate (fun () ->
+                    if disposed then
+                        false
                     else
-                        Error "The process did not start"
-                with
-                | :? Win32Exception as error -> Error error.Message
-                | :? FileNotFoundException as error -> Error error.Message
-                | :? DirectoryNotFoundException as error -> Error error.Message
-                | :? UnauthorizedAccessException as error -> Error error.Message
+                        workers.Add worker
+                        true
+                )
 
-            match started with
-            | Error reason ->
-                proc.Dispose()
-                Task.FromException<HostSession>(InvalidOperationException $"The worker {host.Executable} did not start: {reason}")
-            | Ok() ->
-                let output = proc.StandardOutput.BaseStream
-                let input = new WorkerInput(proc.StandardInput.BaseStream, request.Purpose, proc.Id)
-                let worker = LiveWorker(request.Purpose, proc, workerArguments, limits)
+            if added then
+                match request.ConformanceLifetime with
+                | None -> return new HostSession(output, input, peer, request.OfferOrNull())
+                | Some lifetime ->
+                    let registration = lifetime.Register(fun () -> worker.RequestStop())
+                    request.AttachTerminalObserver(fun token -> task {
+                        try
+                            let! record = worker.FinishAsync token
+                            return if record.IsClean then Ok() else Error(String.Join("; ", record.Problems))
+                        finally registration.Dispose() })
+                    return HostSession.CreateConformance(output, input, peer, ConformanceEvidenceLimits.Create(512, 268435456L), lifetime)
+            else
+                    let! _ = worker.StopAndFinishAsync()
 
-                let added =
-                    lock gate (fun () ->
-                        if disposed then
-                            false
-                        else
-                            workers.Add worker
-                            true
-                    )
-
-                if added then
-                    Task.FromResult(new HostSession(output, input, peer, request.OfferOrNull()))
-                else
-                    task {
-                        let! _ = worker.StopAndFinishAsync()
-
-                        return
-                            raise (
-                                ObjectDisposedException(
-                                    nameof WorkerSessions,
-                                    "The factory was disposed while the worker started, so the worker was stopped."
-                                )
+                    return
+                        raise (
+                            ObjectDisposedException(
+                                nameof WorkerSessions,
+                                "The factory was disposed while the worker started, so the worker was stopped."
                             )
-                    }
+                        )
+          }
 
     /// OpenAsync as the delegate that ModelTierRunner.RunAsync takes, for F# callers.
     member this.Opener =

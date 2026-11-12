@@ -13,11 +13,10 @@ open System.Threading.Tasks
 open Morphir.Mep
 open Morphir.Conformance.WasmHost
 
-/// Where a step of the kit belongs: describe, which plans both tiers; the model tier on MEP 0.2.0-draft.1; or the
-/// legacy tier on MEP 0.1, which this host does not run.
+/// The describe and model cases of the adopted profile. Legacy remains a compatibility value and is never planned.
 [<RequireQualifiedAccess>]
 type KitTier =
-    /// The describe case, whose claim plans both tiers.
+    /// The describe case, whose claim selects the required model cases.
     | Describe
     /// A case of the model tier, on MEP 0.2.0-draft.1.
     | Model
@@ -78,7 +77,8 @@ type KitStep
         request: string | null,
         response: string | null,
         outcome: StepOutcome,
-        elapsed: TimeSpan
+        elapsed: TimeSpan,
+        observation: ConformanceOperationObservation option
     ) =
     /// The kit's case id, such as compile-model-vthree.
     member _.Id = id
@@ -89,7 +89,7 @@ type KitStep
     /// The MEP method of the case.
     member _.Method = method
 
-    /// How many requests the step sent to the guest.
+    /// Requests with completed channel submission. Zero does not prove absence of partial I/O.
     member _.Requests = requests
 
     /// How many notifications the step passed to the session; the channel decides whether one reaches the guest.
@@ -106,6 +106,12 @@ type KitStep
 
     /// How long the step took.
     member _.Elapsed = elapsed
+
+    /// The operation-owned wire observation, retained internally without defining a report carrier.
+    member internal _.Observation = observation
+
+    member internal _.WithObservation(observed: ConformanceOperationObservation) =
+        KitStep(id, tier, method, requests, notifications, request, response, outcome, elapsed, Some observed)
 
     /// Stable text for diagnostics.
     override _.ToString() = $"{id} ({tier}): {outcome}"
@@ -130,7 +136,27 @@ type KitSessionPurpose =
 /// What the runner asks of its caller when it needs a new session: its purpose and the model-transport support the
 /// host must offer in it.
 [<Sealed>]
-type KitSessionRequest internal (purpose: KitSessionPurpose, offer: ModelTransportSupport option) =
+type KitSessionRequest internal (purpose: KitSessionPurpose, offer: ModelTransportSupport option, lifetime: CancellationToken option) =
+    let mutable terminal: (CancellationToken -> Task<Result<unit, string>>) option = None
+
+    internal new(purpose, offer) = KitSessionRequest(purpose, offer, None)
+
+    member internal _.ConformanceLifetime = lifetime
+
+    member internal _.AttachTerminalObserver(observer) =
+        if terminal.IsSome then invalidOp "The session already has a process owner."
+        terminal <- Some observer
+
+    member internal _.SettleAsync(cancellation) =
+        match terminal with
+        | Some observer -> observer cancellation
+        | None -> Task.FromResult(Error "Actual process exit and stdout EOF have no process-owner observation.")
+
+    /// The existing test/adapter factory selects the opted-in session without exposing MEP's internal API.
+    member internal _.CreateSession(channel: ISingleMessageChannel, host: PeerInfo) =
+        match lifetime with
+        | Some token -> HostSession.CreateConformance(channel, host, ConformanceEvidenceLimits.Create(512, 268435456L), token)
+        | None -> HostSession(channel, host, Option.toObj offer)
     /// What the session is for.
     member _.Purpose = purpose
 
@@ -147,8 +173,8 @@ type KitSessionRequest internal (purpose: KitSessionPurpose, offer: ModelTranspo
         | Some support -> $"{purpose} session offering {support}"
         | None -> $"{purpose} session offering no model transport"
 
-/// The result of a model-tier run of the generic guest kit. It is never a run of the whole kit: the legacy tier is
-/// listed as not run, and the result holds no verdict for the kit. Only ModelTierRunner builds one.
+/// Transitional execution results, without a qualification verdict or an authoritative generic report carrier.
+/// Only ModelTierRunner builds one. Required NotRun cases prevent a complete generic run.
 [<Sealed>]
 type ModelTierRun
     internal
@@ -186,12 +212,11 @@ type ModelTierRun
     /// The describe step and the model tier's steps, in the order they ran.
     member _.Steps = steps
 
-    /// The legacy tier's cases of the plan, each not run.
+    /// Compatibility slot, empty for the adopted profile.
     member _.LegacyTier = legacyTier
 
-    /// Why the legacy tier was not run: this host does not negotiate MEP 0.1 (design MEP-1).
-    member _.LegacyTierReason =
-        "This host speaks MEP 0.2.0-draft.1 only and does not negotiate MEP 0.1 (design MEP-1), so the kit's legacy tier was not run. The describe case's check that the guest claims MEP 0.1 belongs to that tier and was not applied."
+    /// Why the compatibility legacy slot is empty.
+    member _.LegacyTierReason = "The adopted generic profile has no legacy tier."
 
     /// Always true: this runner runs the model tier only, so a result is never a complete run of the kit.
     member _.ModelTierOnly = true
@@ -314,12 +339,6 @@ module internal KitJson =
         | :? DecoderFallbackException -> Error "the payload is not UTF-8"
         | :? JsonException as error -> Error $"the payload is not JSON: {error.Message}"
 
-    /// The typed value written by the MEP serializer, as a JsonValue.
-    let ofTyped<'T> (info: JsonTypeInfo<'T>) (value: 'T) =
-        match ofElement (JsonSerializer.SerializeToElement(value, info)) with
-        | Ok json -> json
-        | Error message -> invalidOp $"The MEP serializer wrote JSON this reader refuses: {message}"
-
     /// A JsonValue read as a MEP type, or None when it does not match the type.
     let toTyped<'T when 'T: not null> (info: JsonTypeInfo<'T>) (value: JsonValue) : 'T option =
         try
@@ -328,15 +347,6 @@ module internal KitJson =
             | _ -> None
         with :? JsonException ->
             None
-
-    /// A JSON-RPC error as compact JSON.
-    let errorText (error: RpcError) =
-        let data =
-            match error.Data |> Option.map ofElement with
-            | Some(Ok data) -> [ "data", data ]
-            | _ -> []
-
-        Json.compact (obj ([ "code", num (int64 error.Code); "message", str error.Message ] @ data))
 
 /// The usable JSON versions selected by approved adoption SEL-1, with one version set in both projections.
 type internal Selection =
@@ -836,7 +846,7 @@ module internal ModelTierSession =
         "The legacy tier negotiates MEP 0.1, which this host does not speak (design MEP-1)."
 
     let private step id tier method requests notifications request response outcome (elapsed: TimeSpan) =
-        KitStep(id, tier, method, requests, notifications, request, response, outcome, elapsed)
+        KitStep(id, tier, method, requests, notifications, request, response, outcome, elapsed, None)
 
     let private notRun id tier method reason =
         step id tier method 0 0 null null (StepOutcome.NotRun reason) TimeSpan.Zero
@@ -845,6 +855,76 @@ module internal ModelTierSession =
         match check with
         | Ok() -> StepOutcome.Passed
         | Error difference -> StepOutcome.Failed difference
+
+    let private control (session: HostSession) =
+        session.Conformance |> Option.defaultWith (fun () -> invalidOp "The factory must create the requested conformance session.")
+
+    let private failureText = function
+        | ConformanceOperationFailure.ImplementationUnavailable -> "operation observation is unavailable"
+        | ConformanceOperationFailure.LocalLifecycleRefusal error -> $"local lifecycle refusal {error.Code}: {error.Message}"
+        | ConformanceOperationFailure.ProbeAlreadyReserved -> "the fixed probe was already reserved"
+        | ConformanceOperationFailure.ChannelFailed _ -> "the MEP channel failed"
+        | ConformanceOperationFailure.ConnectionEnded _ -> "the MEP connection ended"
+        | ConformanceOperationFailure.TransportFailed error -> $"transport failed: {error.Message}"
+        | ConformanceOperationFailure.CaptureFailed _ -> "operation capture is incomplete"
+        | ConformanceOperationFailure.Cancelled _ -> "operation was cancelled"
+
+    let private unavailable (observed: ConformanceOperationObservation) =
+        match observed.Origin with
+        | ConformanceOperationOrigin.AnsweredLocally cause -> Some $"Answered locally: {failureText cause}."
+        | ConformanceOperationOrigin.Incomplete cause -> Some $"Incomplete operation: {failureText cause}."
+        | ConformanceOperationOrigin.Submitted when observed.SubmissionCompleted && observed.Operation.IsSome && observed.RequestBody.IsSome -> None
+        | _ -> Some "Operation submission is not established; prepared bytes do not prove completed I/O."
+
+    let private requestIdValue = function
+        | RequestId.Number value -> JsonValue.Number(value.ToString(Globalization.CultureInfo.InvariantCulture))
+        | RequestId.Text value -> str value
+
+    /// Only the operation's actual winning correlated bodies supply request/result data.
+    let private exchange (observed: ConformanceOperationObservation) =
+        match unavailable observed with
+        | Some reason -> Error reason
+        | None ->
+            match observed.RequestId, observed.RequestBody, observed.ResponseBody with
+            | Some id, Some request, Some response ->
+                parseStrict request |> Result.bind (fun sent ->
+                    parseStrict response |> Result.bind (fun received ->
+                        require
+                            (memberOf "id" sent = Some(requestIdValue id) && memberOf "id" received = Some(requestIdValue id))
+                            "The operation's copied bodies do not carry its actual correlated id."
+                        |> Result.map (fun () -> sent, received)))
+            | _ -> Error "The operation has no complete correlated request and response bodies."
+
+    let private requestCount (observed: ConformanceOperationObservation) =
+        if observed.SubmissionCompleted && observed.RequestId.IsSome && observed.RequestBody.IsSome then 1 else 0
+
+    let private notificationCount (observed: ConformanceOperationObservation) =
+        if observed.SubmissionCompleted && observed.RequestId.IsNone && observed.RequestBody.IsSome then 1 else 0
+
+    let private rawParams (observed: ConformanceOperationObservation) =
+        observed.RequestBody |> Option.bind (parseStrict >> Result.toOption) |> Option.bind (memberOf "params")
+        |> Option.map Json.compact |> Option.toObj
+
+    let private rawResponse (observed: ConformanceOperationObservation) =
+        observed.ResponseBody |> Option.bind (parseStrict >> Result.toOption)
+        |> Option.bind (fun packet -> memberOf "result" packet |> Option.orElseWith (fun () -> memberOf "error" packet))
+        |> Option.map Json.compact |> Option.toObj
+
+    let private replyOf (observed: ConformanceOperationObservation) =
+        match exchange observed with
+        | Error reason -> Reply.TransportEnded reason
+        | Ok(_, packet) ->
+            match memberOf "result" packet, memberOf "error" packet with
+            | Some value, None -> Reply.Result value
+            | None, Some value ->
+                match toTyped MepJson.Default.RpcError value with
+                | Some error -> Reply.RpcError error
+                | None -> Reply.Unreadable "The actual peer error cannot be decoded."
+            | _ -> Reply.Unreadable "The actual peer packet must contain exactly one result or error."
+
+    let private observedStep id tier method (observed: ConformanceOperationObservation) outcome elapsed =
+        step id tier method (requestCount observed) (notificationCount observed) (rawParams observed) (rawResponse observed) outcome elapsed
+        |> fun value -> value.WithObservation observed
 
     /// Waits for a session to end after morphir.exit: the session's run task ends with exit or the end of the
     /// stream, and the session records no failure.
@@ -862,51 +942,12 @@ module internal ModelTierSession =
                 | (ConnectionEnd.Stopped | ConnectionEnd.EndOfStream), None -> return Ok()
         }
 
-    /// Why a write to the session failed: its transport ended, such as the stdin of a worker that has ended.
-    let private transportEnded (error: IO.IOException) =
-        $"The session's transport ended: {error.Message}"
-
-    /// Runs a send of the session; an IOException from its write is the end of the transport, with the reason.
-    let private sending (send: unit -> Task<'T>) =
-        task {
-            try
-                let! sent = send ()
-                return Ok sent
-            with :? IO.IOException as error ->
-                return Error(transportEnded error)
-        }
-
-    /// Sends morphir.exit and waits for the session to end; Error when the transport has ended or the session did
-    /// not end cleanly.
-    let exitAndFinish (session: HostSession) (run: Task<ConnectionEnd>) (cancellation: CancellationToken) =
-        task {
-            match! sending (fun () -> task { do! session.ExitAsync() }) with
-            | Error reason -> return Error reason
-            | Ok() -> return! finish session run cancellation
-        }
-
     let private request (session: HostSession) (method: Method) (parameters: JsonValue) (cancellation: CancellationToken) =
         task {
             let watch = Diagnostics.Stopwatch.StartNew()
-            let! sent = sending (fun () -> session.RequestAsync(method, Nullable(toElement parameters), cancellation))
+            let! sent = (control session).RequestAsync(method, Nullable(toElement parameters), cancellation)
             watch.Stop()
-
-            let response: string | null =
-                match sent with
-                | Ok(Ok element) -> element.GetRawText()
-                | Ok(Error error) -> errorText error
-                | Error _ -> null
-
-            let observed =
-                match sent with
-                | Ok(Ok element) ->
-                    match ofElement element with
-                    | Ok value -> Reply.Result value
-                    | Error message -> Reply.Unreadable $"the result is not JSON this runner reads: {message}"
-                | Ok(Error error) -> Reply.RpcError error
-                | Error reason -> Reply.TransportEnded reason
-
-            return observed, response, watch.Elapsed
+            return replyOf sent.Observation, sent.Observation, watch.Elapsed
         }
 
     /// The result of a reply, or why there is none.
@@ -926,40 +967,42 @@ module internal ModelTierSession =
         | Reply.Unreadable reason
         | Reply.TransportEnded reason -> Error reason
 
-    /// The describe session: describe, then exit.
-    let describe (kit: GuestKit) (openSession: Func<KitSessionRequest, CancellationToken, Task<HostSession>>) cancellation =
+    /// Describe on the same opted-in session that will initialize and execute the complete plan.
+    let describe (kit: GuestKit) (session: HostSession) cancellation =
         task {
-            let! session = openSession.Invoke(KitSessionRequest(KitSessionPurpose.Describe, None), cancellation)
-            let run = session.RunAsync cancellation
-            // The kit sends [0.2.0-draft.1, 0.1]; this host offers the 0.2 line only (design MEP-1).
-            let parameters = obj [ "protocolVersions", arr [ str ModelProtocol ] ]
-            let! observed, response, elapsed = request session Method.Describe parameters cancellation
-            let! ended = exitAndFinish session run cancellation
+            let watch = Diagnostics.Stopwatch.StartNew()
+            let api = control session
+            let! sent = api.DescribeAsync cancellation
+            watch.Stop()
+            // Join only these two issued observations by the opaque operation identity, never a matching-id search.
+            // Keep the call's origin/completion facts even when the receipt preserves an earlier successful exchange.
+            let receiptMatches =
+                match api.OriginalDescribeObservation, sent.Observation.Operation with
+                | Some original, Some admitted ->
+                    (original.Operation |> Option.exists (fun operation -> Object.ReferenceEquals(operation, admitted)))
+                    && original.RequestId = Some(RequestId.Number 1UL)
+                    && original.RequestId = sent.Observation.RequestId
+                    && original.RequestBody = sent.Observation.RequestBody
+                    && original.ResponseBody = sent.Observation.ResponseBody
+                | _ -> false
+            let observed = replyOf sent.Observation
 
             let checkedResult =
-                result observed
-                |> Result.bind (fun described -> checkDescribe kit described |> Result.map (fun selection -> described, selection))
+                match sent.Result with
+                | Ok _ when receiptMatches ->
+                    result observed
+                    |> Result.bind (fun described -> checkDescribe kit described |> Result.map (fun selection -> described, selection))
+                | Error error -> Error $"Describe could not be admitted: {error.Code}: {error.Message}"
+                | Ok _ -> Error "The original winning describe receipt does not belong to this first operation and request id 1."
 
             let outcome, planned =
-                match checkedResult, ended with
-                | Ok(result, selection), Ok() -> StepOutcome.Passed, Some(result, selection)
-                | Ok(result, selection), Error reason ->
-                    StepOutcome.Failed $"the describe session did not end cleanly: {reason}", Some(result, selection)
-                | Error difference, _ -> StepOutcome.Failed difference, None
+                match checkedResult with
+                | Ok(result, selection) -> StepOutcome.Passed, Some(result, selection)
+                | Error difference -> StepOutcome.Failed difference, None
 
             let guest = result observed |> Result.toOption |> Option.bind guest
 
-            let describeStep =
-                step
-                    "describe"
-                    KitTier.Describe
-                    Method.Describe.WireValue
-                    1
-                    1
-                    (Json.compact parameters)
-                    response
-                    outcome
-                    elapsed
+            let describeStep = observedStep "describe" KitTier.Describe Method.Describe.WireValue sent.Observation outcome watch.Elapsed
 
             return describeStep, guest, planned
         }
@@ -969,18 +1012,11 @@ module internal ModelTierSession =
         (kit: GuestKit)
         (describeResult: JsonValue)
         (selection: Selection)
-        (negotiated: NegotiatedSession)
+        (response: JsonValue)
         =
-        let extension = ofTyped MepJson.Default.ExtensionInfo negotiated.Extension
-        let capabilities = ofTyped MepJson.Default.ExtensionCapabilities negotiated.Capabilities
-
-        let describedExtension =
-            match memberOf "extension" describeResult with
-            | Some described ->
-                match toTyped MepJson.Default.ExtensionInfo described with
-                | Some typed -> Some(ofTyped MepJson.Default.ExtensionInfo typed)
-                | None -> Some described
-            | None -> None
+        let extension = memberOf "extension" response |> Option.defaultValue JsonValue.Null
+        let capabilities = memberOf "capabilities" response |> Option.defaultValue JsonValue.Null
+        let describedExtension = memberOf "extension" describeResult
 
         let expectedLimits () =
             let claimed name =
@@ -1004,12 +1040,6 @@ module internal ModelTierSession =
                     | None -> Ok(obj (results |> List.choose Result.toOption))
             | _ -> Error "static model limit missing"
 
-        let response =
-            obj
-                [ "protocolVersion", str negotiated.ProtocolVersion.Value
-                  "extension", extension
-                  "capabilities", capabilities ]
-
         let check =
             require (describedExtension |> Option.exists (same extension)) "initialized identity differs from description"
             |> Result.bind (fun () ->
@@ -1022,7 +1052,7 @@ module internal ModelTierSession =
                     Ok()
                 | _ -> Error "initialized capabilities differ from the description")
             |> Result.bind (fun () ->
-                require (negotiated.ProtocolVersion.Value = ModelProtocol) "wrong model protocol version")
+                require (memberOf "protocolVersion" response = Some(str ModelProtocol)) "wrong model protocol version")
             |> Result.bind expectedLimits
             |> Result.bind (fun expected ->
                 let chosen = memberOf "modelTransport" capabilities |> Option.defaultValue JsonValue.Null
@@ -1042,14 +1072,16 @@ module internal ModelTierSession =
                              | _ -> false))
                         "bilateral selected limits or guarantees differ"))
 
-        check, Json.compact response
+        check
 
     /// The model tier's session and steps, in the kit's order.
     let modelTier
         (kit: GuestKit)
         (describeResult: JsonValue)
         (selection: Selection)
-        (openSession: Func<KitSessionRequest, CancellationToken, Task<HostSession>>)
+        (session: HostSession)
+        (run: Task<ConnectionEnd>)
+        (sessionRequest: KitSessionRequest)
         (cancellation: CancellationToken)
         =
         task {
@@ -1060,86 +1092,59 @@ module internal ModelTierSession =
                 | Some support -> support
                 | None -> invalidOp "The kit's model-transport offer does not read as ModelTransportSupport."
 
-            let! session = openSession.Invoke(KitSessionRequest(KitSessionPurpose.ModelTier, Some support), cancellation)
-            let run = session.RunAsync cancellation
+            let control = session.Conformance |> Option.defaultWith (fun () -> invalidOp "The factory must create the requested conformance session.")
+            match control.DescribeReceipt with
+            | None -> invalidOp "The original same-session describe receipt is missing."
+            | Some receipt ->
+                match control.BindSelectedOffer(receipt, support) with
+                | Ok() -> ()
+                | Error reason -> invalidOp $"The selected offer could not be bound: {reason}"
             // Why the session's transport ended, once a send failed; no step after it runs.
             let transport: string option ref = ref None
 
             let watch = Diagnostics.Stopwatch.StartNew()
-            let! initialized = sending (fun () -> session.InitializeAsync cancellation)
+            let! initialized = control.InitializeAsync cancellation
             watch.Stop()
 
             let negotiated =
-                match initialized with
-                | Error reason ->
-                    transport.Value <- Some reason
-
-                    steps.Add(
-                        step
-                            "model-initialize"
-                            KitTier.Model
-                            Method.Initialize.WireValue
-                            1
-                            0
-                            null
-                            null
-                            (StepOutcome.Failed reason)
-                            watch.Elapsed
-                    )
-
-                    steps.Add(notRun "model-initialized-silent" KitTier.Model Method.Initialized.WireValue reason)
-                    None
-                | Ok(Ok negotiated) ->
-                    let check, response = checkInitialize kit describeResult selection negotiated
-                    steps.Add(step "model-initialize" KitTier.Model Method.Initialize.WireValue 1 0 null response (outcomeOf check) watch.Elapsed)
-
-                    steps.Add(
-                        step
-                            "model-initialized-silent"
-                            KitTier.Model
-                            Method.Initialized.WireValue
-                            0
-                            1
-                            null
-                            null
-                            StepOutcome.Passed
-                            TimeSpan.Zero
-                    )
-
+                let observation = initialized.Observation
+                match initialized.Result, replyOf observation with
+                | Ok negotiated, Reply.Result response ->
+                    let check = checkInitialize kit describeResult selection response
+                    steps.Add(observedStep "model-initialize" KitTier.Model Method.Initialize.WireValue observation (outcomeOf check) watch.Elapsed)
                     Some negotiated
-                | Ok(Error failure) ->
-                    let failureText =
-                        match session.FailureOrNull() with
-                        | null -> failure.ToString()
-                        | ended -> $"{failure}; the session ended: {ended}"
-
-                    steps.Add(
-                        step
-                            "model-initialize"
-                            KitTier.Model
-                            Method.Initialize.WireValue
-                            1
-                            0
-                            null
-                            null
-                            (StepOutcome.Failed $"HostSession did not initialize: {failureText}")
-                            watch.Elapsed
-                    )
-
-                    steps.Add(
-                        notRun
-                            "model-initialized-silent"
-                            KitTier.Model
-                            Method.Initialized.WireValue
-                            "HostSession sends morphir.initialized only after an initialize it accepts."
-                    )
-
+                | _, reply ->
+                    let reason =
+                        match reply with
+                        | Reply.TransportEnded reason | Reply.Unreadable reason -> reason
+                        | Reply.RpcError error -> $"The peer refused initialization with {error.Code}: {error.Message}"
+                        | Reply.Result _ -> "HostSession did not accept the actual initialization result."
+                    transport.Value <- Some reason
+                    let outcome =
+                        match observation.Origin with
+                        | ConformanceOperationOrigin.AnsweredLocally _ -> StepOutcome.NotRun reason
+                        | _ -> StepOutcome.Failed reason
+                    steps.Add(observedStep "model-initialize" KitTier.Model Method.Initialize.WireValue observation outcome watch.Elapsed)
                     None
+
+            let deliveryMissing = "Actual guest notification delivery is not established by a worker write or adapter return."
+            match List.ofSeq initialized.Notifications with
+            | [ observation ] ->
+                let reason = unavailable observation |> Option.defaultValue deliveryMissing
+                steps.Add(observedStep "model-initialized-silent" KitTier.Model Method.Initialized.WireValue observation (StepOutcome.NotRun reason) TimeSpan.Zero)
+            | [] ->
+                steps.Add(notRun "model-initialized-silent" KitTier.Model Method.Initialized.WireValue "No initialized notification observation accompanies initialization.")
+            | _ ->
+                steps.Add(notRun "model-initialized-silent" KitTier.Model Method.Initialized.WireValue "Unexpected additional notification observations accompany initialization.")
 
             let limits =
                 negotiated
                 |> Option.bind (fun negotiated -> negotiated.Capabilities.ModelTransport)
                 |> Option.map _.Limits
+
+            let! unknown = control.SendUnknownNotificationObservedAsync cancellation
+            let unknownReason = unavailable unknown.Observation |> Option.defaultValue deliveryMissing
+            steps.Add(observedStep "unknown-notification-silent" KitTier.Model "morphir.mck.unknown" unknown.Observation (StepOutcome.NotRun unknownReason) TimeSpan.Zero)
 
             let results = Collections.Generic.Dictionary<string, JsonValue>(StringComparer.Ordinal)
 
@@ -1168,7 +1173,7 @@ module internal ModelTierSession =
                         match build () with
                         | Error reason -> steps.Add(notRun id KitTier.Model method.WireValue reason)
                         | Ok parameters ->
-                            let! observed, response, elapsed = request session method parameters cancellation
+                            let! observed, observation, elapsed = request session method parameters cancellation
 
                             match observed with
                             | Reply.Result value -> results[id] <- value
@@ -1177,14 +1182,11 @@ module internal ModelTierSession =
                             | Reply.Unreadable _ -> ()
 
                             steps.Add(
-                                step
+                                observedStep
                                     id
                                     KitTier.Model
                                     method.WireValue
-                                    1
-                                    0
-                                    (Json.compact parameters)
-                                    response
+                                    observation
                                     (outcomeOf (check observed))
                                     elapsed
                             )
@@ -1261,36 +1263,88 @@ module internal ModelTierSession =
                     (fun () -> Ok(generateParams kit selection (withBadDigest (independentModel kit first)) first))
                     (expectError -32602)
 
+            let malformed =
+                selection.Language.Malformed
+                |> List.map (fun document -> str document.Uri, str document.Text)
+
+            do!
+                requestStep "malformed-source" Method.CompileModel []
+                    (fun () -> Ok(compileParams kit selection malformed first))
+                    (fun reply ->
+                        result reply |> Result.bind (fun value ->
+                            let diagnostics = memberOf "diagnostics" value
+                            require
+                                (memberOf "success" value = Some(JsonValue.Bool false)
+                                 && (memberOf "model" value |> Option.isNone)
+                                 && (match diagnostics with
+                                     | Some(JsonValue.Array values) -> values |> List.exists (fun diagnostic -> memberOf "severity" diagnostic = Some(str "error"))
+                                     | _ -> false))
+                                "malformed source must fail with an error diagnostic and no model"))
+
+            match blocked [] with
+            | Some reason -> steps.Add(notRun "unknown-method" KitTier.Model "morphir.mck.unknown" reason)
+            | None ->
+                let watch = Diagnostics.Stopwatch.StartNew()
+                let! unknown = control.RequestUnknownMethodAsync cancellation
+                watch.Stop()
+                let reply = replyOf unknown.Observation
+                match reply with
+                | Reply.TransportEnded reason -> transport.Value <- Some reason
+                | _ -> ()
+                steps.Add(observedStep "unknown-method" KitTier.Model "morphir.mck.unknown" unknown.Observation (outcomeOf (expectError -32601 reply)) watch.Elapsed)
+
+            do!
+                requestStep "describe-immutable" Method.Describe []
+                    (fun () -> Ok(obj [ "protocolVersions", arr [ str ModelProtocol ] ]))
+                    (fun reply -> result reply |> Result.bind (fun value -> require (same value describeResult) "describe changed during the session"))
+
             match blocked [] with
             | Some reason -> steps.Add(notRun "model-shutdown" KitTier.Model Method.Shutdown.WireValue reason)
             | None ->
                 let watch = Diagnostics.Stopwatch.StartNew()
-                let! reply = sending (fun () -> session.ShutdownAsync cancellation)
+                let! reply = control.ShutdownAsync cancellation
                 watch.Stop()
 
-                let (response: string | null), outcome =
-                    match reply with
-                    | Ok(Ok element) -> element.GetRawText(), StepOutcome.Passed
-                    | Ok(Error error) -> errorText error, StepOutcome.Failed $"expected a result, got RPC error {error.Code}: {error.Message}"
-                    | Error reason ->
+                let outcome =
+                    match replyOf reply.Observation with
+                    | Reply.Result _ -> StepOutcome.Passed
+                    | Reply.RpcError error -> StepOutcome.Failed $"expected a result, got peer RPC error {error.Code}: {error.Message}"
+                    | Reply.TransportEnded reason | Reply.Unreadable reason ->
                         transport.Value <- Some reason
-                        null, StepOutcome.Failed reason
+                        StepOutcome.Failed reason
 
-                steps.Add(step "model-shutdown" KitTier.Model Method.Shutdown.WireValue 1 0 null response outcome watch.Elapsed)
+                steps.Add(observedStep "model-shutdown" KitTier.Model Method.Shutdown.WireValue reply.Observation outcome watch.Elapsed)
+
+            let! afterShutdown = control.ProbeAfterShutdownObservedAsync cancellation
+            let afterOutcome =
+                match unavailable afterShutdown.Observation with
+                | Some reason -> StepOutcome.NotRun $"No actual peer refusal was observed: {reason}"
+                | None -> outcomeOf (expectError -32014 (replyOf afterShutdown.Observation))
+            steps.Add(observedStep "after-shutdown" KitTier.Model Method.Ping.WireValue afterShutdown.Observation afterOutcome TimeSpan.Zero)
 
             match transport.Value with
             | Some reason -> steps.Add(notRun "model-exit" KitTier.Model Method.Exit.WireValue reason)
             | None ->
                 let watch = Diagnostics.Stopwatch.StartNew()
-                let! ended = exitAndFinish session run cancellation
+                let! exited = control.ExitAsync()
+                let! ended =
+                    match unavailable exited.Observation, exited.Result with
+                    | None, Ok() -> finish session run cancellation
+                    | Some reason, _ -> Task.FromResult(Error reason)
+                    | _, Error error -> Task.FromResult(Error $"Exit was refused with {error.Code}: {error.Message}")
                 watch.Stop()
 
+                let! settled = sessionRequest.SettleAsync cancellation
                 let exitOutcome =
                     match ended with
-                    | Ok() -> StepOutcome.Passed
+                    | Ok() ->
+                        match settled, run.Result with
+                        | Ok(), ConnectionEnd.EndOfStream -> StepOutcome.Passed
+                        | Error reason, _ -> StepOutcome.NotRun reason
+                        | _, _ -> StepOutcome.NotRun "Actual process stdout EOF was not observed."
                     | Error reason -> StepOutcome.Failed $"unclean exit: {reason}"
 
-                steps.Add(step "model-exit" KitTier.Model Method.Exit.WireValue 0 1 null null exitOutcome watch.Elapsed)
+                steps.Add(observedStep "model-exit" KitTier.Model Method.Exit.WireValue exited.Observation exitOutcome watch.Elapsed)
 
             return List.ofSeq steps
         }
@@ -1298,12 +1352,10 @@ module internal ModelTierSession =
 /// Runs the model tier of the generic guest kit through HostSession.
 [<AbstractClass; Sealed>]
 type ModelTierRunner =
-    /// Runs the model tier of kit, as crates/morphir-mck/src/mep/generic.rs plans it, and returns every step with its
-    /// outcome; the legacy tier's cases are listed as not run. openSession gives a new HostSession, on a new guest
-    /// instance or worker process, for each session the runner asks for: first one that only describes, then, when
-    /// the describe claim plans a model tier, one that offers the request's model transport (pass OfferOrNull() to
-    /// the HostSession constructor). The runner starts each session's RunAsync, sends morphir.exit at its end and
-    /// waits for it to end. When a send of a session fails with an IOException, such as the WorkerEndedException of a
+    /// Opens one explicitly opted-in conformance session. The original describe receipt binds the selected model
+    /// offer before initialize; no second session or legacy tier is opened. Every selected case remains in order,
+    /// including cases whose required observation is unavailable and therefore NotRun. The runner sends exit and
+    /// awaits the same session and its attached process owner. When a send fails with an IOException, such as the WorkerEndedException of a
     /// worker that has ended, the session's transport has ended: that step fails, the session's later steps are not
     /// run, and the run keeps every step. Cancellation ends the run with an OperationCanceledException.
     static member RunAsync
@@ -1313,57 +1365,62 @@ type ModelTierRunner =
             cancellation: CancellationToken
         ) : Task<ModelTierRun> =
         task {
-            let! describeStep, guest, planned = ModelTierSession.describe kit openSession cancellation
+            use lifetime = CancellationTokenSource.CreateLinkedTokenSource cancellation
+            let sessionRequest = KitSessionRequest(KitSessionPurpose.ModelTier, None, Some lifetime.Token)
+            let! session = openSession.Invoke(sessionRequest, lifetime.Token)
+            let run = session.RunAsync lifetime.Token
+            let execute = task {
+                let! describeStep, guest, planned = ModelTierSession.describe kit session lifetime.Token
 
-            let reason: string | null =
-                match planned with
-                | None -> "The describe case failed, so the kit plans no model tier."
-                | Some(described, selection) when selection.ModelVersions.IsEmpty ->
-                    ModelTierPlan.noModelTier described selection
-                | Some _ -> null
+                let reason: string | null =
+                    match planned with
+                    | None -> "The describe case failed, so the kit plans no required model cases."
+                    | Some _ -> null
 
-            let! modelSteps =
-                match planned with
-                | Some(described, selection) when not selection.ModelVersions.IsEmpty ->
-                    ModelTierSession.modelTier kit described selection openSession cancellation
-                | _ -> Task.FromResult []
+                let! modelSteps =
+                    match planned with
+                    | Some(described, selection) ->
+                        ModelTierSession.modelTier kit described selection session run sessionRequest lifetime.Token
+                    | _ -> task {
+                        let! _ = (session.Conformance |> Option.get).ExitAsync()
+                        return [] }
 
-            let selection = planned |> Option.map snd
+                let selection = planned |> Option.map snd
 
-            let legacy =
-                match selection with
-                | Some selection ->
-                    ModelTierPlan.legacyCases selection
-                    |> List.map (fun (id, method) ->
-                        KitStep(
-                            id,
-                            KitTier.Legacy,
-                            method,
-                            0,
-                            0,
-                            null,
-                            null,
-                            StepOutcome.NotRun ModelTierSession.LegacyCaseReason,
-                            TimeSpan.Zero
-                        ))
-                | None -> []
+                let versions (pick: Selection -> IrVersion list) =
+                    selection
+                    |> Option.map (fun selection -> pick selection |> List.map _.WireValue)
+                    |> Option.defaultValue []
+                    |> List.toArray
+                    :> IReadOnlyList<_>
 
-            let versions (pick: Selection -> IrVersion list) =
-                selection
-                |> Option.map (fun selection -> pick selection |> List.map _.WireValue)
-                |> Option.defaultValue []
-                |> List.toArray
-                :> IReadOnlyList<_>
-
-            return
-                ModelTierRun(
-                    kit.Sha256,
-                    Option.toObj guest,
-                    selection |> Option.map _.Language.Id |> Option.toObj,
-                    versions _.Versions,
-                    versions _.ModelVersions,
-                    reason,
-                    (describeStep :: modelSteps) |> List.toArray :> IReadOnlyList<_>,
-                    legacy |> List.toArray :> IReadOnlyList<_>
-                )
+                return
+                    ModelTierRun(
+                        kit.Sha256,
+                        Option.toObj guest,
+                        selection |> Option.map _.Language.Id |> Option.toObj,
+                        versions _.Versions,
+                        versions _.ModelVersions,
+                        reason,
+                        (describeStep :: modelSteps) |> List.toArray :> IReadOnlyList<_>,
+                        Array.empty<KitStep> :> IReadOnlyList<_>) }
+            let! outcome = task {
+                try
+                    let! value = execute
+                    return Ok value
+                with error -> return Error error }
+            lifetime.Cancel()
+            let! _ = sessionRequest.SettleAsync CancellationToken.None
+            // Stopping our receive loop after a refused describe is cleanup, not caller cancellation.
+            // External cancellation and unexpected receiver failures still propagate.
+            try
+                let! _ = run
+                ()
+            with :? OperationCanceledException when not cancellation.IsCancellationRequested -> ()
+            // An observed operation may return a cancellation error while the reader ends normally.
+            // Propagate the caller's cancellation only after both process and reader have settled.
+            cancellation.ThrowIfCancellationRequested()
+            match outcome with
+            | Ok value -> return value
+            | Error error -> return raise error
         }

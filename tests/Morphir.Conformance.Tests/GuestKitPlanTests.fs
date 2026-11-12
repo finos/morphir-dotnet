@@ -5,6 +5,7 @@ module Morphir.Conformance.Tests.GuestKitPlanTests
 
 open System
 open System.Text
+open System.Threading.Tasks
 open Expecto
 open Morphir.Conformance.GuestKit
 open Morphir.Conformance.WasmHost
@@ -144,5 +145,120 @@ let transcriptTests =
             match pings.Head.ReplyBytes with
             | Some bytes -> Expect.equal (parse (Encoding.UTF8.GetString bytes) |> at [ "error"; "code" ]) (num -32014) "the peer, not HostSession, returned the lifecycle refusal"
             | None -> failtest "no peer reply was observed"
+        }
+    ]
+
+[<Tests>]
+let lifecycleEvidenceTests =
+    testList "Generic guest kit lifecycle evidence (task 3.2)" [
+        test "A previously described factory session cannot reuse another operation's receipt" {
+            let prepare (session: Morphir.Mep.HostSession) cancellation =
+                task {
+                    let! _ = session.DescribeAsync cancellation
+                    return ()
+                } :> Task
+            let trace = runClaimPrepared prepare (fun _ response -> response) claimBoth
+            Expect.equal (trace.Result.RequiredStep "describe").Outcome.WireValue "failed" "the runner's first case must own its original winning describe operation and id 1"
+            Expect.equal trace.Result.Steps.Count 1 "do not bind an earlier receipt and execute a shifted plan"
+        }
+
+        test "An undecodable original claim fails describe without inventing a receipt" {
+            let claim =
+                match claimBoth with
+                | JsonValue.Object fields -> obj (("requires", num 1) :: fields)
+                | _ -> failtest "Fixed description is an object"
+            let trace =
+                try runClaim claim
+                with error -> failtest $"Expected a recorded describe refusal, not a runner exception: {error.Message}"
+            Expect.equal (trace.Result.RequiredStep "describe").Outcome.WireValue "failed" "typed admission cannot be bypassed using raw result fields"
+            Expect.equal (trace.Result.Steps |> Seq.map _.Id |> Seq.toList) [ "describe" ] "no selected plan without the original receipt"
+            Expect.isFalse (trace.Exchanges |> List.exists (fun exchange -> at [ "method" ] (message exchange) = str "morphir.initialize")) "no initialization after refused description"
+        }
+
+        test "Original describe retains received JSON rather than typed reserialization" {
+            let claim =
+                match claimBoth with
+                | JsonValue.Object fields -> obj (("x-mck-opaque", obj [ "proof", str "original-receipt" ]) :: fields)
+                | _ -> failtest "Fixed description is an object"
+            let trace = runClaim claim
+            let response = (trace.Result.RequiredStep "describe").Response
+            Expect.isNotNull response "the original peer result was received"
+            Expect.equal (parse response |> at [ "x-mck-opaque"; "proof" ]) (str "original-receipt") "preserve original received members"
+            Expect.equal (trace.Result.RequiredStep "describe-immutable").Outcome StepOutcome.Passed "compare against that original received result"
+        }
+
+        test "Initialize retains the actual correlated result rather than a reconstructed one" {
+            let edit request response =
+                if memberOf "method" request = Some(str "morphir.initialize") then
+                    match at [ "result" ] response with
+                    | JsonValue.Object fields -> replaceAt [ "result" ] (obj (("x-mck-opaque", str "actual-initialize") :: fields)) response
+                    | _ -> failtest "Fixed initialization is an object"
+                else response
+            let trace = runClaimWith edit claimBoth
+            let response = (trace.Result.RequiredStep "model-initialize").Response
+            Expect.isNotNull response "the correlated peer result was received"
+            Expect.equal (parse response |> at [ "x-mck-opaque" ]) (str "actual-initialize") "keep observed result members"
+        }
+
+        test "A scripted adapter return does not establish either guest notification silence" {
+            let trace = runClaim claimBoth
+            for id in [ "model-initialized-silent"; "unknown-notification-silent" ] do
+                match (trace.Result.RequiredStep id).Outcome with
+                | StepOutcome.NotRun reason -> Expect.stringContains reason "delivery" "missing inner delivery remains explicit"
+                | other -> failtest $"{id}: a scripted adapter cannot establish actual guest delivery: {other}"
+        }
+
+        test "Adapter exit completion does not establish actual process exit and stdout EOF" {
+            let trace = runClaim claimBoth
+            match (trace.Result.RequiredStep "model-exit").Outcome with
+            | StepOutcome.NotRun reason -> Expect.stringContains reason "process" "no process ownership facts were supplied"
+            | other -> failtest $"no process was launched by this peer: {other}"
+        }
+
+        test "Malformed source refuses an explicitly null model member" {
+            let edit request response =
+                if memberOf "method" request = Some(str "morphir.frontend.compileModel")
+                   && (memberOf "result" response |> Option.bind (memberOf "success")) = Some(JsonValue.Bool false) then
+                    match at [ "result" ] response with
+                    | JsonValue.Object fields -> replaceAt [ "result" ] (obj (("model", JsonValue.Null) :: fields)) response
+                    | _ -> failtest "No malformed result"
+                else response
+            let trace = runClaimWith edit claimBoth
+            Expect.equal (trace.Result.RequiredStep "malformed-source").Outcome.WireValue "failed" "model must be absent, including no null member"
+        }
+
+        test "A changed describe result fails the immutable case" {
+            let mutable describes = 0
+            let edit request response =
+                if memberOf "method" request = Some(str "morphir.extension.describe") then
+                    describes <- describes + 1
+                    if describes = 2 then replaceAt [ "result"; "extension"; "version" ] (str "9.9.9") response else response
+                else response
+            let trace = runClaimWith edit claimBoth
+            Expect.equal (trace.Result.RequiredStep "describe-immutable").Outcome.WireValue "failed" "must equal original same-session describe"
+        }
+
+        test "An actual post-shutdown reply with another error code fails" {
+            let edit request response =
+                if memberOf "method" request = Some(str "morphir.ping") then replaceAt [ "error"; "code" ] (num -32601) response else response
+            let trace = runClaimWith edit claimBoth
+            Expect.equal (trace.Result.RequiredStep "after-shutdown").Outcome.WireValue "failed" "actual peer error must be exactly -32014"
+        }
+
+        test "The unknown request requires exactly peer error -32601" {
+            let edit request response =
+                if memberOf "method" request = Some(str "morphir.mck.unknown") then replaceAt [ "error"; "code" ] (num -32602) response else response
+            let trace = runClaimWith edit claimBoth
+            Expect.equal (trace.Result.RequiredStep "unknown-method").Outcome.WireValue "failed" "another peer error is not unknown-method success"
+        }
+
+        test "Malformed source cannot pass with only a warning diagnostic" {
+            let edit request response =
+                if memberOf "method" request = Some(str "morphir.frontend.compileModel")
+                   && at [ "result"; "success" ] response = JsonValue.Bool false then
+                    replaceAt [ "result"; "diagnostics" ] (arr [ obj [ "severity", str "warning"; "message", str "Not an error" ] ]) response
+                else response
+            let trace = runClaimWith edit claimBoth
+            Expect.equal (trace.Result.RequiredStep "malformed-source").Outcome.WireValue "failed" "an actual error diagnostic is required"
         }
     ]

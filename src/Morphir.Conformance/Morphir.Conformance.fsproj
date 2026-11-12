@@ -46,5 +46,6 @@
     <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
     <!-- The generic guest kit's model-tier runner drives a HostSession (task 3.5). -->
     <ProjectReference Include="..\Morphir.Mep\Morphir.Mep.fsproj" />
+    <ProjectReference Include="..\Morphir.Toolchain.IO\Morphir.Toolchain.IO.fsproj" />
   </ItemGroup>
 </Project>

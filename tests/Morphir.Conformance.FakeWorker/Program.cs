@@ -130,6 +130,11 @@ internal static class Program
                     for (var index = 0; index < value!.GetValue<int>(); index++)
                         if (ReadFrame(stdin) is null) return 1;
                     break;
+                case "expectFrame":
+                    var observed = ReadFrame(stdin);
+                    if (observed is null || !JsonNode.DeepEquals(JsonNode.Parse(observed), value))
+                        return Usage("the actual received frame differs from the fixed expected request");
+                    break;
                 case "echo":
                     for (var index = 0; index < value!.GetValue<int>(); index++)
                     {
