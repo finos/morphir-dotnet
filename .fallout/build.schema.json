@@ -29,7 +29,10 @@
         "Check",
         "CheckMorphirup",
         "CI",
+        "CIGate",
         "CILint",
+        "CIPlan",
+        "CIRequest",
         "CITest",
         "Clean",
         "CleanProtoPlugin",
@@ -157,6 +160,10 @@
         "ApiKey": {
           "type": "string",
           "description": "NuGet API key for publishing"
+        },
+        "CiOs": {
+          "type": "string",
+          "description": "CIPlan: the os input of a manual run (auto, linux, full, or a comma-separated list of windows and macos)"
         },
         "Configuration": {
           "type": "string",

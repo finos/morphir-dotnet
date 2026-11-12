@@ -6,6 +6,15 @@ on:
             - opened
             - synchronize
             - reopened
+            - ready_for_review
+    # Manual runs of a branch. GitHub does not count their checks for a pull request: change a ci:* label instead,
+    # and ci-request.yml re-runs the pull_request run.
+    workflow_dispatch:
+        inputs:
+            os:
+                description: "Platforms besides Linux: auto (all), linux, full, or a list such as windows or windows,macos"
+                type: string
+                default: auto
     workflow_call:
         inputs:
             configuration:
@@ -18,18 +27,52 @@ on:
                 required: true
                 type: string
 
-# A new push to a pull request supersedes its earlier run, so cancel the earlier run.
-# Calls from other workflows, such as a release, run to completion.
+# A new push to a pull request supersedes its earlier run, so cancel the earlier run. The plan job of the new run
+# reuses the jobs that already passed for the same head commit. Calls from other workflows, such as a release, and
+# manual runs run to completion.
 concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-    CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
-    RELEASE_VERSION: ${{ github.event.inputs.release-version }}
+    CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+    RELEASE_VERSION: ${{ inputs.release-version }}
 
 jobs:
+    # The Fallout target CIPlan (build/Build.CI.cs, build/Helpers/CiPlan.cs) selects the checks of this run. Linux
+    # always runs. A draft adds no platform; a pull request that is ready for review adds Windows and macOS. The
+    # ci:windows, ci:macos, ci:full and ci:linux-only labels and the os input change the selection. Jobs that passed
+    # in an earlier pull_request run (or attempt) for the same head commit do not run again. The job summaries of plan and ci show the selection.
+    plan:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            actions: read
+            pull-requests: read
+        outputs:
+            lint: ${{ steps.plan.outputs.lint }}
+            openspec: ${{ steps.plan.outputs.openspec }}
+            test: ${{ steps.plan.outputs.test }}
+            matrix: ${{ steps.plan.outputs.matrix }}
+            selection: ${{ steps.plan.outputs.selection }}
+            plan: ${{ steps.plan.outputs.plan }}
+        steps:
+            - uses: actions/checkout@v6.1.0
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+            - name: Plan the checks
+              id: plan
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  CI_OS: ${{ inputs.os }}
+              run: ./build.sh --target CIPlan ${CI_OS:+--ci-os "$CI_OS"}
+
     lint:
+        needs: plan
+        if: needs.plan.outputs.lint == 'true'
         runs-on: ubuntu-latest
 
         steps:
@@ -60,9 +103,11 @@ jobs:
               run: dotnet fsi scripts/sync-agent-skills.fsx --check
 
     test:
+        needs: plan
+        if: needs.plan.outputs.test == 'true'
         strategy:
             matrix:
-                os: [ubuntu-latest, windows-latest, macOS-latest]
+                os: ${{ fromJSON(needs.plan.outputs.matrix) }}
         runs-on: ${{ matrix.os }}
 
         steps:
@@ -156,6 +201,8 @@ jobs:
 
     openspec:
         name: OpenSpec workflow
+        needs: plan
+        if: needs.plan.outputs.openspec == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 10
         permissions:
@@ -168,10 +215,22 @@ jobs:
             - name: Validate the OpenSpec schema and changes
               run: mise run openspec:validate
 
+    # The Fallout target CIGate fails when a planned job did not succeed, or when a pull request that is ready for
+    # review has no passing Windows and macOS tests for its head commit. On a draft it passes with a warning.
     ci:
         runs-on: ubuntu-latest
-        needs: [lint, test, openspec]
+        needs: [plan, lint, test, openspec]
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        permissions:
+            contents: read
         steps:
             - uses: actions/checkout@v6.1.0
-            - name: Aggregate of lint, and all tests
-              run: echo "ci passed"
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+            - name: Evaluate the planned checks
+              env:
+                  CI_NEEDS: ${{ toJSON(needs) }}
+              run: ./build.sh --target CIGate
