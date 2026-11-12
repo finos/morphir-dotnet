@@ -792,6 +792,16 @@ product, not about this change.</td>
 the next compile builds 48 projects again. Pull request 4 moves their fixture builds to <code>IPackageDriver</code>
 (task 8.2).</td>
 <td><code>slice-1-times.md</code></td></tr>
+<tr><td><a href="#drv-2">DRV-2</a>, the first Windows run</td>
+<td>On Windows the CLI wrote standard output in the code page of the console, not in UTF-8: a product defect that
+<code>dotnet run</code> hid, because its console uses UTF-8. <code>ConsoleOutputHelper.RedirectConsoleToStderr</code>
+kept the stdout writer before <code>MorphirCli</code> set <code>Console.OutputEncoding</code> to UTF-8. The helper now
+sets the encoding first, so a pipe of <code>morphir</code> on Windows gets UTF-8. The CLI driver also reads both
+streams as UTF-8, because Windows reads a redirected stream in the code page of the console by default. A test in
+<code>CliDriverTests</code> checks a check mark of the output. The same run found a second defect of the product,
+which this change does not repair: <code>ir verify</code> with a path in a directory that is not there fails with an
+unhandled exception on Windows.</td>
+<td><code>slice-1-moves.md</code></td></tr>
 <tr><td>Review of the branch</td>
 <td>The <code>test-manager-reviewer</code> agent compared the 44 old tests that moved with their new tests and gave
 six findings. Each one is corrected: <code>GenerationReport</code> requires each of its lists, so a check that a list

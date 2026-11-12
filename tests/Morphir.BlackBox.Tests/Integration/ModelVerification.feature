@@ -69,7 +69,7 @@ Feature: Verify a Morphir IR file
     And the output contains "Found:"
 
   Scenario: A file that is not there is an error
-    Given no model file "Models/nonexistent.json"
+    Given no model file "nonexistent.json"
     When I verify the model
     Then the exit code is 1
     And the output contains "error" or "not found"

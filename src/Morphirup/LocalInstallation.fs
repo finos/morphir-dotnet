@@ -13,6 +13,75 @@ open Morphir.Toolchain
 open Morphir.Extensions.Installation
 open LocalCandidate
 
+let rec private captureStageEntries (created: Dictionary<string,StageIdentity>) (directory: SafeDirectory) =
+    for name in directory.Entries() do
+        let path = Path.Combine(directory.Path,name)
+        let attributes = File.GetAttributes path
+        if attributes.HasFlag FileAttributes.ReparsePoint then
+            refuse "local.path_escape" "A private setup stage contains a link; cleanup was refused."
+        if attributes.HasFlag FileAttributes.Directory then
+            use child = directory.Child(name,false)
+            created[path] <- child.Identity
+            captureStageEntries created child
+        else
+            use input = directory.File(name,false,false)
+            created[path] <- directory.FileIdentity input
+
+// Only this live invocation owns the stage. Published objects have already moved out before cleanup.
+let withPrivateStageAsync (root: SafeDirectory) (stage: SafeDirectory) (owner: FileStream) (errors: TextWriter) operation =
+    let name = Path.GetFileName stage.Path
+    let identity = stage.Identity
+    let ownerIdentity = stage.FileIdentity owner
+    let parentIdentity =
+        use parent = root.Child("tmp",false)
+        if stage.Path <> Path.Combine(parent.Path,name) || not(name.StartsWith("local-toolchain-",StringComparison.Ordinal)) then
+            refuse "local.path_escape" "Cleanup is restricted to this invocation's private setup stage."
+        parent.Identity
+    let cleanup = {
+        new IAsyncDisposable with
+            member _.DisposeAsync() = System.Threading.Tasks.ValueTask(task {
+                owner.Dispose()
+                (stage :> IDisposable).Dispose()
+                use deadline = new CancellationTokenSource(TimeSpan.FromSeconds 5.)
+                let! acquired = task {
+                    try
+                        let! lease = FileSafety.mutationLeaseAsync root deadline.Token
+                        return Some lease
+                    with :? OperationCanceledException when deadline.IsCancellationRequested ->
+                        return None
+                }
+                match acquired with
+                | None ->
+                    let folder = stage.Path.Replace("\r","\\r").Replace("\n","\\n")
+                    try
+                        errors.WriteLine($"morphirup: cleanup deferred; staging folder retained because the mutation lease is busy: '{folder}'")
+                    with
+                    | :? IOException | :? ObjectDisposedException -> ()
+                | Some lease ->
+                    use lease = lease
+                    use parent = root.Child("tmp",false)
+                    if parent.Identity <> parentIdentity then refuse "local.path_escape" "The private staging parent changed identity."
+                    let created = Dictionary<string,StageIdentity>(StringComparer.Ordinal)
+                    do
+                        use current = parent.Child(name,false)
+                        if current.Identity <> identity || not(current.HasFileIdentity(".owner",ownerIdentity)) then
+                            refuse "local.path_escape" "The private setup stage changed identity; cleanup was refused."
+                        captureStageEntries created current
+                    PackageTreeIO.removeStage parent name identity created
+            })
+    }
+    Morphir.Toolchain.IO.AsyncOwnership.runAsync cleanup operation
+
+let checkExecutablePaths platform home (paths: string seq) =
+    match platform with
+    | Platform.WinX64 | Platform.WinArm64 ->
+        for path in paths do
+            // CreateProcessW's application path includes a terminating null within MAX_PATH.
+            if path.Length >= 260 then
+                refuse "local.executable_path_too_long"
+                    $"Home '{home}' produces an installed executable path of {path.Length} characters: '{path}'. The Windows launch limit is 259 characters, excluding the terminating null. Choose a shorter --home."
+    | _ -> ()
+
 let maximumArchive = 1UL <<< 30
 let documentBound = 8L <<< 20
 
@@ -590,7 +659,8 @@ let writeFile (root: SafeDirectory) path bytes =
 
 type private HostPreparation = | HostOnly | Composed
 
-let private setupCoreAsync mode home raw candidate archive dryRun (ct: CancellationToken) = task {
+let private setupCoreAsync mode home raw (candidate: LocalHostCandidate) archive dryRun (ct: CancellationToken) = task {
+    checkExecutablePaths candidate.Platform home [relative home (LocalCandidateDocument.installationPath candidate+"/"+candidate.EntryPoint.Target.Text)]
     let admission root = if mode = HostOnly then validateSetupAdmission root else validateOwnedState root
     use source = FileSafety.openInput archive
     validateArchive source candidate (fun () -> if mode = HostOnly then existingHome home ct elif Directory.Exists home then use root = SafeDirectory.Open(home,false) in validateOwnedState root) ct
@@ -615,134 +685,136 @@ let private setupCoreAsync mode home raw candidate archive dryRun (ct: Cancellat
         use stage = SafeDirectory.Open(relative home stagePath, false)
         use owner = stage.File(".owner", true, true)
 
-        FileSafety.withDirectories
-            stage
-            [ "host" ]
-            true
-            (fun folder ->
-                source.Position <- 0L
-                use zip = new ZipArchive(source, ZipArchiveMode.Read, true)
-
-                for file in candidate.Files do
-                    let names = parts file.Artifact.Target.Text
-
-                    FileSafety.withDirectories
-                        folder
-                        (names
-                         |> List.take (
-                             names.Length
-                             - 1
-                         ))
-                        true
-                        (fun directory ->
-                            use output = directory.File(List.last names, true, false)
-                            use input = (entry zip file.Artifact.Target.Text).Open()
-                            copyChecked input (Some output) file.Bytes file.Artifact.Sha256 ct
-                            output.Flush true
-                        )
-
-                checkFolder folder candidate true ct
-            )
-
-        do! task {
-            use! lease = FileSafety.mutationLeaseAsync root ct
-            admission root
-
-            FileSafety.withDirectories
-                root
-                [ "store"; "tools"; "sha256" ]
-                true
-                (fun parent ->
-                    let destination =
-                        relative home (LocalCandidateDocument.installationPath candidate)
-
-                    if Directory.Exists destination then
-                        use folder = parent.Child(candidate.ArchiveSha256.Text, false)
-                        checkFolder folder candidate true ct
-                    else
-                        stage.ValidateLocation()
-                        parent.ValidateLocation()
-
-                        let identity =
-                            use sourceFolder = stage.Child("host", false)
-                            sourceFolder.Identity
-
-                        Directory.Move(Path.Combine(stage.Path, "host"), destination)
-                        use folder = parent.Child(candidate.ArchiveSha256.Text, false)
-
-                        if
-                            folder.Identity
-                            <> identity
-                        then
-                            refuse "local.path_escape" "Published host folder identity changed."
-
-                        checkFolder folder candidate true ct
-                )
-        }
-
-        let program =
-            relative
-                home
-                (LocalCandidateDocument.installationPath candidate
-                 + "/"
-                 + candidate.EntryPoint.Target.Text)
-
-        let directory =
-            Path.GetDirectoryName program
-            |> Option.ofObj
-            |> Option.defaultWith (fun () ->
-                refuse "local.path_escape" "Missing executable directory."
-            )
-
-        do! LocalProcess.verifyVersionAsync program candidate.Host.Version.Text directory home ct
-        if mode = HostOnly then
-            let receipt = LocalCandidateDocument.writeReceipt candidate
-
+        do! withPrivateStageAsync root stage owner Console.Error (fun () -> task {
             FileSafety.withDirectories
                 stage
-                [ "generation" ]
+                [ "host" ]
                 true
-                (fun generation ->
-                    writeFile generation "candidate.json" raw
-                    writeFile generation "receipt.json" receipt
+                (fun folder ->
+                    source.Position <- 0L
+                    use zip = new ZipArchive(source, ZipArchiveMode.Read, true)
+
+                    for file in candidate.Files do
+                        let names = parts file.Artifact.Target.Text
+
+                        FileSafety.withDirectories
+                            folder
+                            (names
+                             |> List.take (
+                                 names.Length
+                                 - 1
+                             ))
+                            true
+                            (fun directory ->
+                                use output = directory.File(List.last names, true, false)
+                                use input = (entry zip file.Artifact.Target.Text).Open()
+                                copyChecked input (Some output) file.Bytes file.Artifact.Sha256 ct
+                                output.Flush true
+                            )
+
+                    checkFolder folder candidate true ct
                 )
 
-            use! lease = FileSafety.mutationLeaseAsync root ct
+            do! task {
+                use! lease = FileSafety.mutationLeaseAsync root ct
+                admission root
 
-            FileSafety.withDirectories
-                root
-                [ "toolchains"; "generations" ]
-                true
-                (fun parent ->
-                    let destination = Path.Combine(parent.Path, candidate.ManifestSha256.Text)
+                FileSafety.withDirectories
+                    root
+                    [ "store"; "tools"; "sha256" ]
+                    true
+                    (fun parent ->
+                        let destination =
+                            relative home (LocalCandidateDocument.installationPath candidate)
 
-                    if Directory.Exists destination then
-                        let existing = loadGeneration root candidate.ManifestSha256 true ct
+                        if Directory.Exists destination then
+                            use folder = parent.Child(candidate.ArchiveSha256.Text, false)
+                            checkFolder folder candidate true ct
+                        else
+                            stage.ValidateLocation()
+                            parent.ValidateLocation()
 
-                        if
-                            existing.Receipt
-                            <> receipt
-                        then
-                            refuse "local.generation_conflict" "Existing immutable generation differs."
-                    else
-                        ct.ThrowIfCancellationRequested()
-                        stage.ValidateLocation()
-                        parent.ValidateLocation()
+                            let identity =
+                                use sourceFolder = stage.Child("host", false)
+                                sourceFolder.Identity
 
-                        let identity =
-                            use sourceFolder = stage.Child("generation", false)
-                            sourceFolder.Identity
+                            Directory.Move(Path.Combine(stage.Path, "host"), destination)
+                            use folder = parent.Child(candidate.ArchiveSha256.Text, false)
 
-                        Directory.Move(Path.Combine(stage.Path, "generation"), destination)
-                        use published = parent.Child(candidate.ManifestSha256.Text, false)
+                            if
+                                folder.Identity
+                                <> identity
+                            then
+                                refuse "local.path_escape" "Published host folder identity changed."
 
-                        if
-                            published.Identity
-                            <> identity
-                        then
-                            refuse "local.path_escape" "Published generation identity changed."
+                            checkFolder folder candidate true ct
+                    )
+            }
+
+            let program =
+                relative
+                    home
+                    (LocalCandidateDocument.installationPath candidate
+                     + "/"
+                     + candidate.EntryPoint.Target.Text)
+
+            let directory =
+                Path.GetDirectoryName program
+                |> Option.ofObj
+                |> Option.defaultWith (fun () ->
+                    refuse "local.path_escape" "Missing executable directory."
                 )
-// Interrupted private stages have no authority. They remain private, never mistaken for a completed generation.
+
+            do! LocalProcess.verifyVersionAsync program candidate.Host.Version.Text directory home ct
+            if mode = HostOnly then
+                let receipt = LocalCandidateDocument.writeReceipt candidate
+
+                FileSafety.withDirectories
+                    stage
+                    [ "generation" ]
+                    true
+                    (fun generation ->
+                        writeFile generation "candidate.json" raw
+                        writeFile generation "receipt.json" receipt
+                    )
+
+                use! lease = FileSafety.mutationLeaseAsync root ct
+
+                FileSafety.withDirectories
+                    root
+                    [ "toolchains"; "generations" ]
+                    true
+                    (fun parent ->
+                        let destination = Path.Combine(parent.Path, candidate.ManifestSha256.Text)
+
+                        if Directory.Exists destination then
+                            let existing = loadGeneration root candidate.ManifestSha256 true ct
+
+                            if
+                                existing.Receipt
+                                <> receipt
+                            then
+                                refuse "local.generation_conflict" "Existing immutable generation differs."
+                        else
+                            ct.ThrowIfCancellationRequested()
+                            stage.ValidateLocation()
+                            parent.ValidateLocation()
+
+                            let identity =
+                                use sourceFolder = stage.Child("generation", false)
+                                sourceFolder.Identity
+
+                            Directory.Move(Path.Combine(stage.Path, "generation"), destination)
+                            use published = parent.Child(candidate.ManifestSha256.Text, false)
+
+                            if
+                                published.Identity
+                                <> identity
+                            then
+                                refuse "local.path_escape" "Published generation identity changed."
+                    )
+        })
+// An interrupted process may leave a private orphan; normal completion awaits cleanup.
 }
 
 let setupAsync home raw candidate archive dryRun ct = setupCoreAsync HostOnly home raw candidate archive dryRun ct
