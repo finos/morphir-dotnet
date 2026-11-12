@@ -3,8 +3,9 @@
 Date: 2026-11-12. The rows are the tests that the runner discovers, from the reports of the source projects before
 the move: the TRX report of `Morphir.Myriad.Integration.Tests` and of the complete `Morphir.Build.Tests`, the test
 lists of the Expecto projects (`--filter-test-list`), and the `PASS` lines of the two `package-tests.fsx` scripts
-(a script is not a test project, so its checks are the lines that it prints). All ran on macOS arm64 in Release. After the move and the review: the complete `./build.sh --target Test` passed
-(38 suites, 280 s; the groups `integration` 98 s and `e2e` 15 s), and `./build.sh --target TestBuild` after `PackAll`
+(a script is not a test project, so its checks are the lines that it prints). All ran on macOS arm64 in Release. After the move, the review and the merge of `main` (with pull
+request 1): the complete `./build.sh --target Test` passed (38 suites, 229 s; the groups `integration` 90 s and `e2e`
+13 s; `Morphir.TestSupport.Tests` 224 tests), and `./build.sh --target TestBuild` after `PackAll`
 passed (461 build tests, then 19 tests of the packages lane in 2 s).
 
 ## Counts
@@ -43,6 +44,14 @@ each, two old tests became a scenario outline with 5 and 2 examples, and two che
   stay: a consumer restore from nuget.org writes the HTTP cache of NuGet of the machine (`NUGET_HTTP_CACHE_PATH`),
   and a build and pack of the SDK projects restores them with the NuGet folder of the machine, as the solution build
   and the old script did.
+- A command on a project of the repository (a pack, a build and pack) gets `NuGetPackageRoot` and
+  `NuGetPackageFolders` of the solution restore (`TestSandbox.RealNuGetPackagesFolder`). On Windows the restore writes
+  the package folder in `obj/*.nuget.g.props` as `$(UserProfile)\.nuget\packages\`, and the workspace has its own
+  home, so the first CI run of the pull request found no Myriad host for the pack (`Could not find a part of the path
+  '...\home\.nuget\packages\myriad\0.85.0'`). On macOS and Linux the file has the full path, so the defect was only
+  on Windows. `PackageDriverTests.ACommandOnAProjectOfTheRepositoryUsesThePackageFolderOfTheSolutionRestore` checks it
+  on each operating system with a project that has the Windows form.
+- The driver reads and writes the streams of a command as UTF-8 with no byte order mark, as the CLI driver does.
 - The consumers, the feed and the packages folder have a space in their paths (`consumer with a space`,
   `package feed`, `nuget packages`), as the folders of the old scripts and tests had.
 - A check that a build fails is `When I build the consumer and it fails`: the build must exit with a code that is not

@@ -872,6 +872,13 @@ packages; the failures of the repository form are not checked any more, and the 
 path. <code>PackAll</code> packs the tool and the extensions with <code>DebugType=none</code>, so it builds them again,
 and a pack with no build after it fails until the next compile; CI runs <code>Test</code> before <code>PackAll</code>.</td>
 <td><code>slice-4-moves.md</code></td></tr>
+<tr><td><a href="#drv-1">DRV-1</a>, the pack on Windows</td>
+<td>The first CI run failed on Windows: a pack with no restore looked for the Myriad host in the home of the
+workspace. On Windows the restore writes the package folder in <code>obj/*.nuget.g.props</code> as
+<code>$(UserProfile)\.nuget\packages\</code>, and the workspace redirects the home. A command of the driver on a
+project of the repository now gets <code>NuGetPackageRoot</code> and <code>NuGetPackageFolders</code> of the solution
+restore. The streams of a command are UTF-8, as for the CLI driver.</td>
+<td><code>slice-4-moves.md</code></td></tr>
 <tr><td>Review of the branch</td>
 <td>The <code>test-manager-reviewer</code> agent gave 13 findings. Each one is corrected: an exact version range is only
 <code>[v]</code> or <code>[v, v]</code>, and the dependency check keeps its old meaning; the consumers, the feed and the
