@@ -92,6 +92,11 @@ A test that needs more than the development build has the tag `@lane` and one la
 skipped before its first step, with the lane of the test and the lane of the run as the reason. The report row of a
 black-box suite shows the count of skipped tests by reason (lane, host, capability).
 
+The release and manual workflows (`deployment.yml`, `manual-e2e-test.yml`, `manual-aot-test.yml`) run each group
+against a published or packaged target with `TestE2E` (`scripts/run-e2e-tests.cs`): one test process for each group,
+with `MORPHIR_TEST_TARGET` and `MORPHIR_TEST_LANE=published`. That run executes the tests with no lane and the tests
+of the published lane, and skips each test that the target does not support with its reason.
+
 ## Parallel builds and tests
 
 `Restore` and `Compile` use one MSBuild node for each processor. `--build-nodes 1` keeps a build small when more than
