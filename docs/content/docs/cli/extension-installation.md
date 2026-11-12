@@ -11,6 +11,35 @@ selection and removal commands remain stubs. The
 [management reference](management.md#extension-commands) describes the current
 command status. These library changes are not a released installer.
 
+The current library increment on `ad24ce68` can install a release-bound local ZIP
+into its canonical package tree, register it through the published catalog/lock
+transaction, and capture immutable selected records with an owned package lease.
+Local no-probe installation is explicitly named `InstallLocalUncheckedAsync` and
+stays labelled local-developer/unchecked. Supported interrupted journals can be
+recovered with explicit consent; old formats are not converted.
+
+Unpublished snapshots remain expected-current inventory. They cannot authorize a
+new acquisition after current metadata changes. Retained-generation acquisition
+requires a supported published binding, which is not implemented by this increment.
+No new CLI command or generation metadata format is provided here.
+
+The review correction refuses a foreign process-platform activation before it
+returns ownership or registers local metadata. Windows x64 emulation remains
+supported. Malformed compressed ZIP content returns a typed archive refusal.
+Contended state/repository operations return asynchronously and cancellation waits
+for native lock ownership to settle rather than abandoning a waiter.
+
+Fresh Windows installer assembly runs before and after formatting each pass 285
+executed tests, with seven Unix controls ignored and no failures or errors. These
+include transaction interruptions, journal replacement, empty ZIP directories,
+exact current-export refusal, native cancellation and real cross-process leases.
+The existing C# consumer also passes its 27-line JIT run; it does not cover the new
+package APIs or establish AOT support. Tar packages, repair, full corpus checks,
+commands and the actual process-provider journey remain unfinished. Independent
+security/interop re-review, package C# consumer coverage, Unix runtime and Native
+AOT qualification are still gates. Parent composition contracts are merged at
+`d9f309a1`; their runtime binding remains unimplemented here.
+The earlier 194-test snapshot and evidence below keep their original source identities.
 Independent review requested security corrections to installation I/O. The fixes
 now pass 131 executed Windows tests; three Unix-only interleavings were explicitly
 ignored. Independent security/interop re-review of `b6936ba5` found no concrete

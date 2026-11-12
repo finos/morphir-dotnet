@@ -29,5 +29,9 @@
     <Compile Include="Store.fs" />
     <Compile Include="Archives.fs" />
     <Compile Include="RunCopies.fs" />
+    <Compile Include="StateDocuments.fs" />
+    <Compile Include="InstalledState.fs" />
+    <Compile Include="Packages.fs" />
+    <Compile Include="ActivationRecords.fs" />
   </ItemGroup>
 </Project>

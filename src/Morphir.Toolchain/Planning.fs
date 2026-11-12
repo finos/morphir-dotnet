@@ -297,7 +297,7 @@ module LocalCandidateDocument =
         | Some(name, _) -> refuse ReaderCode.InvalidDocument (o.Path.Child name)
         | None -> Ok o
 
-    let private envelope kind names bytes = result {
+    let private envelopeFor family kind names bytes = result {
         let! value = Syntax.parseJson bytes
         let! o = asObject (node value DocumentPath.root)
 
@@ -309,7 +309,7 @@ module LocalCandidateDocument =
 
         if
             identity
-            <> schema kind
+            <> $"https://morphir.finos.org/schemas/local-toolchains/{family}/{kind}.schema.json"
         then
             return! refuse ReaderCode.UnsupportedContractVersion (o.Path.Child "$schema")
 
@@ -319,6 +319,8 @@ module LocalCandidateDocument =
                  :: names)
                 o
     }
+
+    let private envelope kind names bytes = envelopeFor "0.1.0-preview.1" kind names bytes
 
     let private constant name expected o = result {
         let! actual = required name text o
@@ -332,8 +334,8 @@ module LocalCandidateDocument =
         return ()
     }
 
-    let private identity o = result {
-        do! constant "origin" "local-developer" o
+    let private identityFor origin o = result {
+        do! constant "origin" origin o
         do! constant "implementation" "dotnet" o
         do! constant "deployment" "self-contained" o
         do! constant "platform" "win-x64" o
@@ -365,6 +367,8 @@ module LocalCandidateDocument =
         return version, sourceCommit, buildIdentity
     }
 
+    let private identity o = identityFor "local-developer" o
+
     let private portablePath n = result {
         let! path = targetPath n
         // The local family has an additional ASCII lexical restriction, while portability stays with TargetPath.
@@ -393,11 +397,11 @@ module LocalCandidateDocument =
         return { Target = path; Sha256 = digest }
     }
 
-    let readCandidate (bytes: byte array) : Result<LocalHostCandidate, ReaderRefusal> = result {
+    let internal readCandidateFor family extraNames (bytes: byte array) : Result<LocalHostCandidate, ReaderRefusal> = result {
         let! o =
-            envelope
+            envelopeFor family
                 "candidate"
-                [
+                ([
                     "origin"
                     "implementation"
                     "deployment"
@@ -409,10 +413,10 @@ module LocalCandidateDocument =
                     "archive"
                     "entryPoint"
                     "files"
-                ]
+                ] @ extraNames)
                 bytes
 
-        let! version, sourceCommit, buildIdentity = identity o
+        let! version, sourceCommit, buildIdentity = identityFor (if family = "0.1.0-preview.3" then "release-checksum" else "local-developer") o
         do! constant "sourceRepository" "https://github.com/finos/morphir-dotnet" o
 
         let! archive =
@@ -492,6 +496,8 @@ module LocalCandidateDocument =
             Files = files
         }
     }
+
+    let readCandidate bytes = readCandidateFor "0.1.0-preview.1" [] bytes
 
     let private entryValue (entry: TargetBinding) =
         Value.Object [

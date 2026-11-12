@@ -9,6 +9,8 @@ public sealed record GenerationSuccess(string Target, string Backend, string Inp
     string SourceVersion, string Family, string DistributionKind, string Representation,
     GenerationPublication Publication, ImmutableArray<GenerationDiagnostic> Diagnostics)
 {
+    /// <summary>Actual installed-provider operation observation; absent for legacy and built-in paths.</summary>
+    public System.Text.Json.JsonElement? Provider { get; init; }
     /// <summary>The transport of the external backend that ran, for example <c>mep</c>; null for a built-in.</summary>
     public string? BackendTransport { get; init; }
 
@@ -53,9 +55,12 @@ public static class GenerateHandler
             var loaded = await LoadAsync(loader, settings, ct);
             if (loaded is Outcome<LoadedModel>.Failure loadFailure) return GenerationStages.Failed(loadFailure.Error, null);
             var model = ((Outcome<LoadedModel>.Success)loaded).Value;
-            if (settings.Extension is { } extension && settings.Target is RequestedTarget.Valid target)
+            if ((settings.Extension is not null || settings.InstalledExtensionId is not null) && settings.Target is RequestedTarget.Valid target)
+            {
+                var extension = settings.Extension ?? new Morphir.Tooling.Features.Compile.Setting<string>(settings.InstalledExtensionId!.Value,new Morphir.Tooling.Features.Compile.SettingOrigin.CommandLine("--extension-id"));
                 return await RunWithExtension(extension, target.Id, command.Context, model, settings, publisher, ct, logger,
                     backendExtensions ?? new MepBackendExtensionConnector(), registered);
+            }
             return await GenerationStages.RunFrom(model, settings, backendResolver, publisher, ct, logger);
         }
         catch (OperationCanceledException) { return GenerationStages.Cancelled(null); }
@@ -71,7 +76,8 @@ public static class GenerateHandler
         IGenerationPublisher publisher, CancellationToken ct, ILogger? logger, IBackendExtensionConnector connector,
         IEnumerable<IGenerationBackend> registered)
     {
-        var connected = await connector.ConnectAsync(new BackendExtensionRequest(extension, target, context.WorkingDirectory), ct);
+        var connected = await connector.ConnectAsync(new BackendExtensionRequest(extension, target, context.WorkingDirectory)
+        { InstalledId=settings.InstalledExtensionId, Environment=context.Environment }, ct);
         if (connected is Outcome<IExternalGenerationBackend>.Failure connectFailure) return GenerationStages.Failed(connectFailure.Error, null);
         await using var backend = ((Outcome<IExternalGenerationBackend>.Success)connected).Value;
         var id = backend.Descriptor.Id;
@@ -85,6 +91,7 @@ public static class GenerateHandler
             {
                 BackendTransport = backend.Transport,
                 BackendVersion = backend.ExtensionVersion,
+                Provider = (backend as Morphir.Tooling.Infrastructure.IInstalledProviderObservation)?.Provider,
             }),
             Outcome<GenerationSuccess>.Failure failure => new Outcome<GenerationSuccess>.Failure(failure.Error with
             {

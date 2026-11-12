@@ -23,7 +23,13 @@ public interface IExternalGenerationBackend : IGenerationBackend, IAsyncDisposab
 /// <param name="Extension">The extension and where it was configured.</param>
 /// <param name="Target">The target that the extension must generate.</param>
 /// <param name="WorkingDirectory">The invocation directory, for relative extension paths.</param>
-public sealed record BackendExtensionRequest(Setting<string> Extension, TargetId Target, string WorkingDirectory);
+public sealed record BackendExtensionRequest(Setting<string> Extension, TargetId Target, string WorkingDirectory)
+{
+    /// <summary>Explicit installed identity; null preserves the path/command connector.</summary>
+    public ExtensionId? InstalledId { get; init; }
+    /// <summary>The exact invocation environment.</summary>
+    public IReadOnlyDictionary<string,string>? Environment { get; init; }
+}
 
 /// <summary>
 /// Connects a configured backend extension and gives it as an <see cref="IExternalGenerationBackend"/>, as
@@ -47,6 +53,7 @@ public sealed class MepBackendExtensionConnector : IBackendExtensionConnector
     /// <inheritdoc />
     public async Task<Outcome<IExternalGenerationBackend>> ConnectAsync(BackendExtensionRequest request, CancellationToken ct)
     {
+        if (request.InstalledId is not null) return await InstalledExtensionConnector.BackendAsync(request,ct);
         if (!MepExtensionCommand.TryResolve(request.Extension.Value, request.WorkingDirectory, out var executable, out var arguments, out var error))
             return new Outcome<IExternalGenerationBackend>.Failure(GenerationFailure.One(GenerationFailureKind.Operational, "extension.unavailable", error));
         var options = new MepBackendOptions(executable, arguments, request.Target)

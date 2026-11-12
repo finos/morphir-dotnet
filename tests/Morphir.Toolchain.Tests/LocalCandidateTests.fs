@@ -1544,3 +1544,99 @@ let suppliedCandidateTests =
                         "no generation or pointer on refusal"
                 })
         ]
+
+let private composedInput frontend backend =
+    let raw = candidateJson ["morphir.exe"]
+    let fields = match Syntax.parseJson raw |> parsed with Value.Object values -> values | _ -> failtest "fixture"
+    Value.Object (
+        fields |> List.map(fun (name,value) -> if name="$schema" then name,Value.String(LocalComposedDocument.schema "candidate") else name,value)
+        |> fun values -> values @ ["extensions",Value.Object ["selectionSha256",Value.String digest.Text;"frontendId",Value.String frontend;"backendId",Value.String backend]])
+    |> JsonText.toBytes
+
+[<Tests>]
+let composedReaderTests =
+    testList "ComposedCandidate" [
+        test "preview2 retains exact raw candidate identity and distinct role identities" {
+            let raw = composedInput "org.finos.frontend" "org.finos.backend"
+            let value = LocalComposedDocument.readCandidate raw |> parsed
+            Expect.equal value.Host.ManifestSha256 (Sha256.ofBytes raw) "raw input identity, not re-encoded preview1"
+            Expect.equal value.FrontendId.Text "org.finos.frontend" "frontend"
+            Expect.equal value.BackendId.Text "org.finos.backend" "backend"
+            Expect.equal value.SelectionSha256 digest "selection has its own exact digest"
+            Expect.isError (LocalCandidateDocument.readCandidate raw) "preview1 remains isolated"
+        }
+        test "one identity cannot fill both process roles" {
+            Expect.isError (composedInput "org.finos.frontend" "org.finos.frontend" |> LocalComposedDocument.readCandidate) "distinct providers"
+        }
+        test "preview1 is not converted implicitly to composed" {
+            Expect.isError (candidateJson ["morphir.exe"] |> LocalComposedDocument.readCandidate) "exact family"
+        }
+        test "a changed exact candidate byte sequence has a different identity" {
+            let raw = composedInput "org.finos.frontend" "org.finos.backend"
+            let padded = Array.append raw [|32uy|]
+            let a = LocalComposedDocument.readCandidate raw |> parsed
+            let b = LocalComposedDocument.readCandidate padded |> parsed
+            Expect.notEqual a.Host.ManifestSha256 b.Host.ManifestSha256 "accepted whitespace remains part of raw identity"
+        }
+    ]
+
+[<Tests>]
+let releaseChecksumReaderTests =
+    let releaseBytes () =
+        let raw = composedInput "org.finos.frontend" "org.finos.backend"
+        let text = System.Text.Encoding.UTF8.GetString raw
+        System.Text.Encoding.UTF8.GetBytes(text.Replace("0.1.0-preview.2", "0.1.0-preview.3").Replace("local-developer", "release-checksum"))
+    testList "ReleaseChecksumCandidate" [
+        test "release checksum authority retains exact raw input and whole folder" {
+            let raw = releaseBytes ()
+            let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
+            Expect.equal candidate.Host.ManifestSha256 (Sha256.ofBytes raw) "raw checksum identity"
+            Expect.equal candidate.Host.Files.Length 1 "whole declared closure"
+        }
+        test "release checksum family cannot relabel local provenance" {
+            let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString
+            Expect.isError (System.Text.Encoding.UTF8.GetBytes(raw.Replace("release-checksum","local-developer")) |> LocalComposedDocument.readReleaseCandidate) "explicit authority"
+        }
+        test "published preview2 remains a separate local family" {
+            let raw = releaseBytes ()
+            Expect.isError (LocalComposedDocument.readCandidate raw) "no conversion"
+            Expect.isError (LocalComposedDocument.readReleaseCandidate (composedInput "org.finos.frontend" "org.finos.backend")) "no upgrade"
+        }
+    ]
+
+[<Tests>]
+let releaseBundleTests =
+    let hash = String('a',64)
+    let roles = ["host-candidate";"host-archive";"selection";"frontend-release";"frontend-manifest";"frontend-archive";"backend-release";"backend-manifest";"backend-archive";"sample"]
+    let bundle source =
+        Value.Object [
+            "$schema",Value.String "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/bundle.schema.json"
+            "version",Value.String "0.4.0-alpha.5"; "sourceCommit",Value.String(String('b',40)); "platform",Value.String "win-x64"
+            "assets",Value.Array [for role in roles -> Value.Object ["name",Value.String(role+".zip");"url",Value.String(source+role+".zip");"bytes",Value.Number "3";"sha256",Value.String hash;"role",Value.String role]]]
+        |> JsonText.toBytes
+    let official = "https://github.com/finos/morphir/releases/download/v0.4.0-alpha.5/"
+    testList "ReleaseBundle" [
+        test "one release covers every required independently installed component" {
+            let raw = bundle official
+            let value = ReleaseBundleDocument.read raw |> parsed
+            Expect.equal value.Assets.Length 10 "complete role coverage"
+            let sums = (Sha256.ofBytes raw).Text + "  morphir-toolchain-win-x64.json\n" + (roles |> List.map(fun role -> hash+"  "+role+".zip\n") |> String.concat "")
+            ReleaseBundleDocument.verifyChecksums "morphir-toolchain-win-x64.json" raw (System.Text.Encoding.UTF8.GetBytes sums) value |> parsed
+        }
+        test "HTTP cannot authorize release acquisition" {
+            Expect.isError (bundle (official.Replace("https:","http:")) |> ReleaseBundleDocument.read) "HTTPS required"
+        }
+        test "a different repository cannot be hidden in an asset URL" {
+            Expect.isError (bundle (official.Replace("finos/morphir/","other/project/")) |> ReleaseBundleDocument.read) "one approved release"
+        }
+        test "checksum coverage must include the raw bundle" {
+            let raw = bundle official
+            let value = ReleaseBundleDocument.read raw |> parsed
+            Expect.isError (ReleaseBundleDocument.verifyChecksums "morphir-toolchain-win-x64.json" raw [||] value) "no implicit acceptance"
+        }
+        test "portable process pins retain independent archive identities" {
+            let raw = System.Text.Encoding.UTF8.GetBytes("{\"$schema\":\"https://morphir.finos.org/schemas/toolchains/0.1.0-preview.1/selection.schema.json\",\"extensions\":[{\"extensionId\":\"org.finos.frontend\",\"version\":\"0.4.0-alpha.4\",\"runtime\":\"process\",\"platforms\":{\"win-x64\":\""+hash+"\"}}]}")
+            let pins = ComposedDocuments.readPins raw |> parsed
+            Expect.equal pins.Head.ArchiveSha256.Text hash "archive identity"
+        }
+    ]

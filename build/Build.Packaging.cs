@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using Morphir.Build.Helpers;
 using Fallout.Common;
 using Fallout.Common.IO;
+using Fallout.Common.Tooling;
 using Fallout.Common.Tools.DotNet;
 using static Fallout.Common.Tools.DotNet.DotNetTasks;
 
@@ -14,6 +15,37 @@ using static Fallout.Common.Tools.DotNet.DotNetTasks;
 /// </summary>
 partial class Build
 {
+    [Parameter("Existing release descriptor with actual provider identity and claims")]
+    readonly string? ExtensionReleaseTemplate;
+    [Parameter("Complete published process folder for package metadata preparation")]
+    readonly string? ExtensionPublishedFolder;
+    [Parameter("Existing whole-folder archive for package metadata preparation")]
+    readonly string? ExtensionArchive;
+    [Parameter("Portable entry-point path in the published process folder")]
+    readonly string? ExtensionEntryPoint;
+    [Parameter("New directory for release.json and the canonical package manifest")]
+    readonly string? ExtensionPackageOutput;
+
+    Target PrepareExtensionProcessPackage => _ => _
+        .Description("Prepare existing-format package metadata from an actual process publish folder and archive")
+        .Requires(() => Rid)
+        .Requires(() => ExtensionReleaseTemplate)
+        .Requires(() => ExtensionPublishedFolder)
+        .Requires(() => ExtensionArchive)
+        .Requires(() => ExtensionEntryPoint)
+        .Requires(() => ExtensionPackageOutput)
+        .Executes(() =>
+        {
+            var output = Path.GetFullPath(ExtensionPackageOutput!);
+            if (Directory.Exists(output) || File.Exists(output))
+                throw new InvalidOperationException("Package metadata output must be a new directory.");
+            var prepared = ExtensionPackageProducer.Prepare(File.ReadAllBytes(ExtensionReleaseTemplate!),
+                Path.GetFullPath(ExtensionPublishedFolder!), Path.GetFullPath(ExtensionArchive!), Rid!, ExtensionEntryPoint!);
+            Directory.CreateDirectory(output);
+            File.WriteAllBytes(Path.Combine(output, "release.json"), prepared.Release);
+            File.WriteAllBytes(Path.Combine(output, "manifest"), prepared.Manifest);
+        });
+
     /// <summary>
     /// Pack library projects and the Morphir.SDK compatibility package as NuGet packages
     /// Output: artifacts/packages/
@@ -177,6 +209,18 @@ partial class Build
             PublishExtensionProcess(FSharpFrontendExtensionProject, "morphir-fsharp-frontend", Rid!);
         });
 
+    /// <summary>
+    /// Publish the F# backend, its generator dependencies and its .NET runtime as a complete process folder and
+    /// archive for one runtime identifier. The framework-dependent tool from PackTool is unchanged.
+    /// </summary>
+    Target PublishFSharpBackendProcess => _ => _
+        .Description("Publish the F# backend extension as a self-contained process folder and archive (requires --rid)")
+        .Requires(() => Rid)
+        .Executes(() =>
+        {
+            PublishExtensionProcess(FSharpBackendExtensionProject, "morphir-fsharp-backend", Rid!);
+        });
+
 
     /// <summary>
     /// Publishes an extension project with a publish profile (by default SelfContainedProcess, which the project
@@ -200,6 +244,7 @@ partial class Build
             .SetRuntime(rid)
             .SetProperty("PublishProfile", profile)
             .SetProperty(TargetSettings.RidSpecificPublishProperty, "true")
+            .AddProcessAdditionalArguments("-m:1", "-p:BuildInParallel=false", "-p:UseSharedCompilation=false", "-nodeReuse:false")
             .SetOutput(folder));
 
         var executable = rid.StartsWith("win-", StringComparison.OrdinalIgnoreCase) ? $"{name}.exe" : name;

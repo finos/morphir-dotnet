@@ -139,6 +139,8 @@ public sealed record CompileOverrides
     public string? Config { get; init; }
     /// <summary><c>--extension</c>.</summary>
     public string? Extension { get; init; }
+    /// <summary>Explicit installed full identity; never interpreted as a path or command.</summary>
+    public string? ExtensionId { get; init; }
     /// <summary><c>--types-only</c>, which this build does not implement.</summary>
     public bool TypesOnly { get; init; }
     /// <summary><c>-o/--output</c>: the directory that receives an installed copy of the IR.</summary>
@@ -202,6 +204,8 @@ public sealed record CompileSettings
     /// null. When it is set, the run uses only the frontend that the extension connector gives (FE-2).
     /// </summary>
     public Setting<string>? Extension { get; init; }
+    /// <summary>Validated installed identity selected explicitly by --extension-id.</summary>
+    public Setting<Morphir.Extensions.ExtensionId>? InstalledExtensionId { get; init; }
     /// <summary>Where the sources come from.</summary>
     public required SourceRequest Sources { get; init; }
     /// <summary>
@@ -266,6 +270,8 @@ public sealed record PublishedCompile(string IrPath, ImmutableArray<string> Inst
 public sealed record CompileSuccess(string Language, string Frontend, SourceFormatVersion IrVersion,
     SelectedSources Sources, ImmutableArray<string> Modules, PublishedCompile Publication)
 {
+    /// <summary>Actual installed-provider operation observation; absent for legacy and built-in paths.</summary>
+    public System.Text.Json.JsonElement? Provider { get; init; }
     /// <summary>The generation of <c>--target</c>, or null when no target was requested.</summary>
     public CompileGeneration? Generation { get; init; }
 }

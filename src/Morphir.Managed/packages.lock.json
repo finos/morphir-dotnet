@@ -270,7 +270,8 @@
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "Morphir.Compilation": "[1.0.0, )",
-          "Morphir.Mep": "[1.0.0, )"
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Toolchain.IO": "[1.0.0, )"
         }
       },
       "morphir.configuration": {
@@ -303,6 +304,16 @@
           "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Mep": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.extensions.installation": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Extensions": "[1.0.0, )",
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Toolchain": "[1.0.0, )",
+          "Semver": "[3.0.0, )"
         }
       },
       "morphir.frontend.fsharp": {
@@ -389,6 +400,7 @@
           "Morphir.Configuration.IO": "[1.0.0, )",
           "Morphir.Core": "[1.0.0, )",
           "Morphir.Extensions": "[1.0.0, )",
+          "Morphir.Extensions.Installation": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )",
@@ -570,6 +582,15 @@
         "requested": "[3.0.0, )",
         "resolved": "3.0.0",
         "contentHash": "9jZCicsVgTebqkAujRWtC9J1A5EQVlu0TVKHcgoCuv345ve5DYf4D1MjhKEnQjdRZo6x/vdv6QQrYFs7ilGzLA=="
+      },
+      "Semver": {
+        "type": "CentralTransitive",
+        "requested": "[3.0.0, )",
+        "resolved": "3.0.0",
+        "contentHash": "9jZCicsVgTebqkAujRWtC9J1A5EQVlu0TVKHcgoCuv345ve5DYf4D1MjhKEnQjdRZo6x/vdv6QQrYFs7ilGzLA==",
+        "dependencies": {
+          "Microsoft.Extensions.Primitives": "5.0.1"
+        }
       },
       "Spectre.Console": {
         "type": "CentralTransitive",

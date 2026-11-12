@@ -50,6 +50,12 @@ let tests =
               let result = (dispatch guest (initialize [ jsonTuple "4.0.0" ]) |> Option.get)["result"] |> nonNull
               Expect.equal (text result["protocolVersion"]) "\"0.2.0-draft.1\"" "agreed version"
 
+              for flag in [ "streaming"; "incremental"; "cancellation"; "progress" ] do
+                  let declared = (claims["capabilities"] |> nonNull)[flag]
+                  let initialized = (result["capabilities"] |> nonNull)[flag]
+                  Expect.isNotNull declared $"describe includes {flag}"
+                  Expect.equal (text declared) (text initialized) $"describe declares the actual initialized {flag} value"
+
           testCase "A legacy-only host gets -32011, and a later initialize with 0.2.0-draft.1 succeeds"
           <| fun _ ->
               let guest = FSharpGuest.registration ()

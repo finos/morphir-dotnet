@@ -98,6 +98,8 @@ type MepFrontend
         capability: CompileCapability
     ) =
 
+    let mutable lastTuple: ModelTransportTuple option = None
+
     static let jsonTuple (version: string) : ModelTransportTuple =
         { Operation = ModelOperation.CompileModel
           Profile = "morphir-ir"
@@ -240,6 +242,8 @@ type MepFrontend
 
     /// <summary>The agreed session.</summary>
     member _.Session = negotiated
+    /// The tuple of the last successful operation, absent before invocation or after a failed new request.
+    member _.LastModelTupleOrNull() : ModelTransportTuple | null = Option.toObj lastTuple
 
     /// <summary>True when the extension process has exited.</summary>
     member _.HasExited = guest.HasExited
@@ -323,12 +327,20 @@ type MepFrontend
             | Error failure -> return Checked.fail (List.ofSeq failure.Diagnostics)
         }
 
+    /// Starts with the caller's exact invocation environment, for installed-provider composition.
+    static member ConnectCheckedAsync(options: MepFrontendOptions, environment: Collections.Generic.IReadOnlyDictionary<string,string>, cancellation: CancellationToken) : Task<Checked<IFrontend>> = task {
+        match! MepFrontend.ConnectAsync(options, environment, cancellation) with
+        | Ok frontend -> return Checked.pass (frontend :> IFrontend)
+        | Error failure -> return Checked.fail (List.ofSeq failure.Diagnostics)
+    }
+
     interface IFrontend with
         member _.Identity = identity
         member _.Transport = FrontendTransport.Mep
         member _.Capability = capability
 
         member _.CompileAsync(request, cancellation) =
+            lastTuple <- None
             let language = request.LanguageId.Value
 
             if not (capability.Languages |> Seq.exists (fun item -> item.Id = request.LanguageId)) then
@@ -408,6 +420,7 @@ type MepFrontend
                                     match read tuple admitted.Bytes with
                                     | Error message -> return protocol $"the model does not read as IR {tuple.IrVersion}: {message}"
                                     | Ok family ->
+                                        lastTuple <- Some tuple
                                         let compiled = { Model = family; Modules = modules }
                                         let converted = [ for diagnostic in diagnostics -> toDiagnostic diagnostic ]
                                         return FrontendOutcome.Completed(Checked.Of(compiled, converted))

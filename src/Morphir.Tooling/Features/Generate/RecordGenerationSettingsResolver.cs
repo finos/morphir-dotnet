@@ -45,7 +45,7 @@ public sealed class RecordGenerationSettingsResolver(
         {
             var explicitSettings = await inner.ResolveAsync(overrides, context, ct);
             // --extension wins; without it, the project configuration may select a backend extension.
-            if (explicitSettings is not Outcome<GenerationSettings>.Success { Value: var settings } || settings.Extension is not null)
+            if (explicitSettings is not Outcome<GenerationSettings>.Success { Value: var settings } || settings.Extension is not null || settings.InstalledExtensionId is not null)
                 return explicitSettings;
             var configuration = Load(overrides, compileContext);
             if (configuration is Outcome<LoadedCompileConfiguration>.Failure loadFailure)
@@ -127,6 +127,7 @@ public sealed class RecordGenerationSettingsResolver(
     /// </summary>
     private static Outcome<GenerationSettings> WithConfiguredExtension(GenerationSettings settings, LoadedCompileConfiguration loaded)
     {
+        if (settings.InstalledExtensionId is not null) return new Outcome<GenerationSettings>.Success(settings);
         if (settings.Target is not RequestedTarget.Valid target) return new Outcome<GenerationSettings>.Success(settings);
         var configured = new ProjectCompileSettingsResolver.ConfigurationView(loaded).String("codegen", target.Id.Value, "extension");
         if (configured is null) return new Outcome<GenerationSettings>.Success(settings);
