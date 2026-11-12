@@ -94,9 +94,6 @@ public interface IScenarioWorkspace : IAsyncDisposable
     /// <summary>Writes the file, and makes its directory when it is not there.</summary>
     void WriteBytes(WorkspaceFile file, byte[] bytes);
 
-    /// <summary>Makes the directory and its parents when they are not there.</summary>
-    void CreateDirectory(WorkspaceDirectory directory);
-
     /// <summary>Makes <paramref name="link"/> a symbolic link to the directory <paramref name="target"/>.</summary>
     void CreateDirectoryLink(WorkspaceDirectory link, WorkspaceDirectory target);
 
@@ -121,6 +118,15 @@ public interface IScenarioWorkspace : IAsyncDisposable
 
     /// <summary>Keeps the folder when the workspace is disposed, as evidence of a failed test.</summary>
     void Keep();
+
+    /// <summary>Makes the directory, with its parents, when it is not there.</summary>
+    void CreateDirectory(WorkspaceDirectory directory);
+
+    /// <summary>Removes the file when it is there.</summary>
+    void Delete(WorkspaceFile file);
+
+    /// <summary>The text of a fixture file of the test project, with no copy in the work area.</summary>
+    string ReadFixtureText(string fixture);
 }
 
 /// <summary>The workspace on a <see cref="TestSandbox"/>.</summary>
@@ -225,8 +231,6 @@ public sealed class ScenarioWorkspace : IScenarioWorkspace
         System.IO.File.WriteAllBytes(file.Path, bytes);
     }
 
-    public void CreateDirectory(WorkspaceDirectory directory) => System.IO.Directory.CreateDirectory(directory.Path);
-
     public void CreateDirectoryLink(WorkspaceDirectory link, WorkspaceDirectory target)
     {
         System.IO.Directory.CreateDirectory(Path.GetDirectoryName(link.Path)!);
@@ -258,6 +262,18 @@ public sealed class ScenarioWorkspace : IScenarioWorkspace
     }
 
     public void Keep() => _keep = true;
+
+    public void CreateDirectory(WorkspaceDirectory directory) => System.IO.Directory.CreateDirectory(directory.Path);
+
+    public void Delete(WorkspaceFile file) => System.IO.File.Delete(file.Path);
+
+    public string ReadFixtureText(string fixture)
+    {
+        var source = Below(_fixtures, [fixture]);
+        return System.IO.File.Exists(source)
+            ? System.IO.File.ReadAllText(source)
+            : throw new TestSessionException($"The fixture file '{fixture}' is not in the fixture folder {_fixtures}.");
+    }
 
     public async ValueTask DisposeAsync()
     {

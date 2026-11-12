@@ -1,4 +1,4 @@
-@ConfigurationEditing @CLI @Containment @PlatformSpecific
+@integration @needs-configuration
 Feature: Contain configuration edits
   Edits take the discovery boundary and isolation from a flag or the environment.
   Spec: openspec discovery-containment.

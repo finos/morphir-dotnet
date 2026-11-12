@@ -129,6 +129,16 @@ public class BlackBoxSessionTests
         first.Workspace.CopyFixture("Cli/valid-ir-v3.json");
         (await first.Verification.VerifyAsync(first.Workspace.File("Cli", "valid-ir-v3.json"))).ShouldExitWith(0);
         first.Generation.Should().NotBeNull();
+        first.Compilation.Should().NotBeNull();
+        first.Configuration.Should().NotBeNull();
+        first.Migration.Should().NotBeNull();
+        first.Extensions.Should().NotBeNull();
+        (await first.Validation.ValidateAsync(first.Workspace.File("Cli", "valid-ir-v3.json"))).ShouldExitWith(0);
+        first.CliOf(MorphirHost.Native).Should().BeSameAs(first.Cli);
+        first.CliOf(MorphirHost.DotnetTool).Host.Should().Be(MorphirHost.DotnetTool);
+        (await first.CliOf(MorphirHost.DotnetTool).RunAsync(["--version"])).CommandLine.Should().Contain("dotnet-morphir");
+        first.ValidationOf(MorphirHost.Native).Should().BeSameAs(first.Validation);
+        (await first.ValidationOf(MorphirHost.DotnetTool).ValidateAsync(first.Workspace.File("Cli", "valid-ir-v3.json"))).CommandLine.Should().Contain("dotnet-morphir");
     }
 
     [Test]
@@ -161,6 +171,19 @@ public class BlackBoxSessionTests
         var begin = () => session.BeginTest(MorphirHost.Managed);
 
         begin.Should().Throw<TestSessionException>().WithMessage("host: managed is not in target executable");
+    }
+
+    [Test]
+    public async Task TheCliOfAHostThatTheTargetDoesNotHaveIsAnError()
+    {
+        var executable = CliArtifacts.OfDevelopmentBuild(ThisAssembly).PathOf(MorphirHost.Native);
+        var session = Session(("MORPHIR_TEST_TARGET", "executable"), ("MORPHIR_TEST_EXECUTABLE", executable), ("MORPHIR_TEST_HOST", "native"));
+        await using var drivers = session.BeginTest(MorphirHost.Native);
+
+        var other = () => drivers.CliOf(MorphirHost.DotnetTool);
+
+        other.Should().Throw<TestSessionException>().WithMessage("host: tool is not in target executable");
+        drivers.Capabilities.Should().NotContain(DriverCapability.AllHosts);
     }
 
     [Test]

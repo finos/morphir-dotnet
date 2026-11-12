@@ -1,0 +1,39 @@
+<Project>
+
+  <!--
+    The extension guests of the development build, and the stub of the external tool morphir-mck, for a test project
+    that gives a built guest or tool to the product through a driver of Morphir.TestSupport
+    (IExtensionDriver.BuiltExtension, IToolRoutingDriver). As
+    Morphir.CliArtifacts.targets does for the entry points, it makes the build of the test project build each guest
+    first, with no assembly of the guest visible to the test code, and writes the path of each built guest into the
+    test assembly as assembly metadata.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirFSharpBackendExtensionArtifact" />
+    <!-- The stub of the external tool morphir-mck, which morphir mck runs. A program of the tests, not of the product. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../Morphir.Mck.Stub/Morphir.Mck.Stub.csproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirMckStubExtensionArtifact" />
+  </ItemGroup>
+
+  <Target Name="AddMorphirExtensionArtifactMetadata"
+          DependsOnTargets="ResolveProjectReferences"
+          BeforeTargets="GetAssemblyAttributes;CoreGenerateAssemblyInfo">
+    <Error Condition="'@(MorphirFSharpBackendExtensionArtifact->Count())' != '1' Or '@(MorphirMckStubExtensionArtifact->Count())' != '1'"
+           Text="Morphir.ExtensionArtifacts.targets needs one target path for each built extension. F# backend: '@(MorphirFSharpBackendExtensionArtifact)'. Stub morphir-mck: '@(MorphirMckStubExtensionArtifact)'." />
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Extension.FSharpBackend</_Parameter1>
+        <_Parameter2>@(MorphirFSharpBackendExtensionArtifact->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Extension.MckStub</_Parameter1>
+        <_Parameter2>@(MorphirMckStubExtensionArtifact->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+
+</Project>

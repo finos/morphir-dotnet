@@ -33,6 +33,8 @@
 
   <!-- The CLI entry points of the development build, for the real-process tests of the CLI driver. -->
   <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
+  <!-- The extension guests of the development build, for the tests of the extension driver. -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.ExtensionArtifacts.targets" />
 
   <!-- The projects that the package driver packs, for the tests of the package driver. -->
   <Import Project="../Morphir.TestSupport/build/Morphir.PackageSources.targets" />

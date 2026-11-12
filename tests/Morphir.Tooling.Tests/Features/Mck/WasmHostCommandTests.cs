@@ -8,7 +8,6 @@ using FluentAssertions;
 using Morphir.Conformance.WasmHost;
 using Morphir.TestSupport;
 using Morphir.Tooling.Features.Mck;
-using Morphir.Tooling.Tests.Integration.CLI;
 
 namespace Morphir.Tooling.Tests.Features.Mck;
 
@@ -221,25 +220,5 @@ public sealed class WasmHostCommandTests
         edited.ExitCode.Should().Be(1);
         Document(edited)["valid"]!.GetValue<bool>().Should().BeFalse();
         edited.Stderr.Should().Contain("has no result for the case wasm-host-");
-    }
-
-    [Test]
-    [Arguments(CliHost.Morphir)]
-    [Arguments(CliHost.DotnetTool)]
-    public async Task BothHostsForwardExperimentalCommandsToTheSeparateRunner(CliHost host)
-    {
-        await using var sandbox = TestSandbox.Create("morphir-mck-missing-");
-        var helper = new CliTestHelper(null, host);
-        var environment = new Dictionary<string, string?>
-        {
-            ["MORPHIR_MCK"] = sandbox.PathOf("missing-morphir-mck"),
-        };
-        foreach (var command in new[] { "mck wasm-host run --help", "mck wasm-host report-check" })
-        {
-            var result = await helper.ExecuteCommandAsync(command, timeout: TimeSpan.FromMinutes(2), environment: environment);
-            result.ExitCode.Should().Be(127, result.CombinedOutput);
-            result.StandardOutput.Should().BeEmpty();
-            result.StandardError.Should().Contain("morphir-mck").And.Contain("MORPHIR_MCK");
-        }
     }
 }
