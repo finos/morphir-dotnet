@@ -37,9 +37,10 @@ dotnet tool install --global Morphir.Tool --prerelease
 
 The standalone `morphir` is one file that carries its .NET runtime, so it needs no .NET SDK or runtime. It is a
 managed, trimmed, self-contained single-file build without an F# frontend, not a Native AOT executable. Download
-`morphir-linux-x64`, `morphir-linux-arm64`, `morphir-osx-arm64` or `morphir-win-x64.exe` from the
-[releases page](https://github.com/finos/morphir-dotnet/releases). To compile F# with it, also install the
-F# frontend extension:
+`morphir-linux-x64`, `morphir-linux-arm64`, `morphir-osx-arm64`, `morphir-win-x64.exe` or `morphir-win-arm64.exe`
+from the [releases page](https://github.com/finos/morphir-dotnet/releases). The Windows ARM64 file is built on a native
+Windows 11 ARM64 runner; releases before the first one that lists it have no `win-arm64` file. To compile
+F# with it, also install the F# frontend extension:
 
 ```bash
 dotnet tool install --global Morphir.Frontend.FSharp.Extension --prerelease
@@ -76,7 +77,7 @@ backend extension, `Morphir.CodeGeneration.FSharp.Extension` (command
 ### The morphirup toolchain manager
 
 Releases also attach `morphirup`, the standalone toolchain manager, as `morphirup-linux-x64`,
-`morphirup-linux-arm64`, `morphirup-osx-arm64` and `morphirup-win-x64.exe`, each also in a
+`morphirup-linux-arm64`, `morphirup-osx-arm64`, `morphirup-win-x64.exe` and `morphirup-win-arm64.exe`, each also in a
 `morphirup-<rid>-v<version>.tar.gz` archive, with the checksum file `morphirup-v<version>.sha256`. It is one
 Native AOT file that needs neither .NET nor ICU. The Linux files need glibc 2.35 or later (Ubuntu 22.04, Debian 12 or
 later) and nothing else from the machine, and do not run on musl distributions such as Alpine. Each archive holds

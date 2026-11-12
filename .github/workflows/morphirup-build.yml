@@ -52,6 +52,12 @@ jobs:
               with:
                   global-json-file: global.json
 
+            # Fails unless the runner and its .NET SDK are native for the RID (for win-arm64: the Windows 11 ARM64
+            # runner with an ARM64 SDK, not x64 under emulation), and logs the machine that builds the assets.
+            - name: Check the build machine for ${{ inputs.rid }}
+              shell: bash
+              run: ./build.sh --target CheckBuildMachine --rid "${{ inputs.rid }}"
+
             # CheckMorphirup reads the glibc versions a Linux executable needs with readelf, from binutils.
             - name: Install readelf
               if: runner.os == 'Linux'
