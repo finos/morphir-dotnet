@@ -15,6 +15,37 @@ using static Fallout.Common.Tools.DotNet.DotNetTasks;
 /// </summary>
 partial class Build
 {
+    [Parameter("Existing release descriptor with actual provider identity and claims")]
+    readonly string? ExtensionReleaseTemplate;
+    [Parameter("Complete published process folder for package metadata preparation")]
+    readonly string? ExtensionPublishedFolder;
+    [Parameter("Existing whole-folder archive for package metadata preparation")]
+    readonly string? ExtensionArchive;
+    [Parameter("Portable entry-point path in the published process folder")]
+    readonly string? ExtensionEntryPoint;
+    [Parameter("New directory for release.json and the canonical package manifest")]
+    readonly string? ExtensionPackageOutput;
+
+    Target PrepareExtensionProcessPackage => _ => _
+        .Description("Prepare existing-format package metadata from an actual process publish folder and archive")
+        .Requires(() => Rid)
+        .Requires(() => ExtensionReleaseTemplate)
+        .Requires(() => ExtensionPublishedFolder)
+        .Requires(() => ExtensionArchive)
+        .Requires(() => ExtensionEntryPoint)
+        .Requires(() => ExtensionPackageOutput)
+        .Executes(() =>
+        {
+            var output = Path.GetFullPath(ExtensionPackageOutput!);
+            if (Directory.Exists(output) || File.Exists(output))
+                throw new InvalidOperationException("Package metadata output must be a new directory.");
+            var prepared = ExtensionPackageProducer.Prepare(File.ReadAllBytes(ExtensionReleaseTemplate!),
+                Path.GetFullPath(ExtensionPublishedFolder!), Path.GetFullPath(ExtensionArchive!), Rid!, ExtensionEntryPoint!);
+            Directory.CreateDirectory(output);
+            File.WriteAllBytes(Path.Combine(output, "release.json"), prepared.Release);
+            File.WriteAllBytes(Path.Combine(output, "manifest"), prepared.Manifest);
+        });
+
     /// <summary>
     /// Pack library projects and the Morphir.SDK compatibility package as NuGet packages
     /// Output: artifacts/packages/

@@ -132,3 +132,76 @@ confirmed freshness without rebuilding or changing raw build metadata.
 Release at 2026-11-12 05:13:48.386Z records no remaining owned roots and an empty
 informational managed/compiler process inventory. No broader offering,
 platform, release-artifact or installed-provider qualification follows.
+
+## Complete-folder producer bridge
+
+At base `0a520b609900a4829bf0b7058269a40ae39ce2ad` plus the frozen local
+increment, the build producer consumes the installer's existing canonical
+manifest writer and executable-declaration guard. `PackageFile.Create`,
+`PackageManifest.FromFiles` and `PackageRelease.PrepareWholeArchive` expose
+typed, pure preparation results to the C# build helper. Existing release
+identity and unknown optional metadata remain intact. The official
+`PrepareExtensionProcessPackage` target writes a new output directory with
+the existing-format release descriptor and manifest. It grants no installed
+or readiness authority.
+
+Missing-API compiler diagnostics preceded implementation. Nine producer
+controls pass, and the final full installer run passes 301 with seven Unix
+ignores. Two C# build-helper controls pass after a fresh build; an initial
+incorrect namespace filter selected zero tests and is excluded. Build
+failures from an initially missing C# namespace import are retained separately.
+The final installer build has four existing support warnings and no errors;
+the build-helper build has eight existing support warnings and no errors.
+
+Mandatory first-session comparison exposed omitted static flags in both F#
+providers. Describe now derives the streaming, incremental, cancellation and
+progress declarations from the same serialized session capabilities used by
+initialize. Each provider's assertion failed before that source correction.
+The frontend regression selection passes 17 with one self-contained-input
+ignore; the backend selection passes 21 without ignores. These selections
+include their existing process/package controls. The final package files pass
+pinned Fantomas 5.2.4 formatting/check. That formatter cannot parse existing
+modern syntax in the frontend guest, so no all-provider formatter pass is
+claimed. The failure log remains preserved.
+
+Official win-x64 publish targets produced replacement local candidates:
+
+| Provider | Archive bytes | Archive SHA-256 | Canonical tree SHA-256 |
+| --- | ---: | --- | --- |
+| F# frontend | 49,050,158 | `8dd999918631873b20992ea5e287b5aab3d6f61d69292efe396b0c3e99c8b7b6` | `f2128b4c75a9968f6c3b24c96bfcd435026303cb06f2e04a3224b907690f5b3e` |
+| F# backend | 42,629,249 | `d382fa355f50b585b9872939dd6edecd58624ce0dd29999bb450f99f6b217ed0` | `7f40d944b4c5973665233a548bd73d46fe2b5dbc972203dc26439bef5ef3ab7f` |
+
+The folders contain 239 and 214 files respectively. Exact actual describe and
+initialize response bodies are retained separately; all four flags agree and
+both guests exit zero. The descriptor projection removes only the MEP
+`claimsVersion` wrapper from embedded claims. No missing claim is invented.
+Both package preparation targets succeed against the actual folders/archives.
+These are source-built local candidates with the existing build version,
+not published releases. Historical archives and observations are unchanged.
+
+Four lockfiles changed. Three carry new build/test graph edges; the IO lock
+normalizes only Primitives 10.0.14 to main's existing CPM 10.0.15. SDK/CPM and
+all other existing resolved versions remain unchanged. A restore overlapped
+the initial missing-helper compiler build for approximately four seconds;
+both raw intervals are retained. Later final builds/tests ran after the
+restore had settled. No claim of exclusively serial execution covers that
+initial overlap.
+
+The isolated official x64 runtime supplied for intermediate tests is tooling,
+not standalone qualification. Its archive SHA-512 matches Microsoft's exact
+10.0.14 release metadata, and no system installation or registry mutation was
+performed. Full installed-provider commands, composed-generation readiness,
+published binding, no-.NET standalone execution and portable-lock/offline
+restore still need their own actual journey evidence.
+
+The independent producer review found one additional P2: a trailing separator
+allowed a linked publish root to escape the helper's reparse check. The exact
+linked-root controls produced one pass and one assertion failure before repair.
+A further empty linked-directory control also failed before repair. The helper
+now trims the ending separator, checks the root and rejects linked entries
+before recursive file enumeration. All five helper controls pass after a fresh
+build, with zero errors and eight existing support warnings. Only the helper
+and its tests changed in this repair; the original reviewed source/closures and
+all produced package bytes remain preserved. Final cohesive milestone review
+must include this correction. The interrupted generic-worker repair is parked
+separately and is not part of this checkpoint.

@@ -47,6 +47,7 @@
         "PackRelease",
         "PackTool",
         "Precommit",
+        "PrepareExtensionProcessPackage",
         "PrepareRelease",
         "ProbeMorphirNative",
         "PublishAll",
@@ -175,9 +176,29 @@
           "type": "string",
           "description": "Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)"
         },
+        "ExtensionArchive": {
+          "type": "string",
+          "description": "Existing whole-folder archive for package metadata preparation"
+        },
+        "ExtensionEntryPoint": {
+          "type": "string",
+          "description": "Portable entry-point path in the published process folder"
+        },
+        "ExtensionPackageOutput": {
+          "type": "string",
+          "description": "New directory for release.json and the canonical package manifest"
+        },
         "ExtensionProcessesDir": {
           "type": "string",
           "description": "Output directory for self-contained extension process folders and archives"
+        },
+        "ExtensionPublishedFolder": {
+          "type": "string",
+          "description": "Complete published process folder for package metadata preparation"
+        },
+        "ExtensionReleaseTemplate": {
+          "type": "string",
+          "description": "Existing release descriptor with actual provider identity and claims"
         },
         "Global": {
           "type": "boolean",
