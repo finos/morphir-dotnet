@@ -65,11 +65,17 @@ two steps have the same pattern.
 | CLI | `Then standard output is one JSON document` |
 | CLI | `Then standard output is a version` |
 | CLI | `Then the command ran on the {string} host` |
+| CLI | `Then standard output is the text {string}` |
+| CLI | `Then standard error does not contain {string}` |
+| CLI | `Then standard output does not contain {string}` |
+| CLI | `Then standard output contains {string}` |
 | Model | `Given the model fixture {string}` |
 | Model | `Given the model tree fixture {string}` |
 | Model | `Given no model file {string}` |
 | Model | `When I replace {string} with {string} in the model` |
 | Model | `When I remove the module {string} from the model` |
+| Model | `Given the model has the problem {string}` |
+| Model | `Given the model fixture {string} as {string}` |
 | Model verification | `When I verify the model` |
 | Model verification | `When I verify the model with the schema version {int}` |
 | Model verification | `When I verify the model as JSON` |
@@ -102,6 +108,32 @@ two steps have the same pattern.
 | Generation | `Then the output has no file {string}` |
 | Generation | `Given each file of the output has the time of the year 2000` |
 | Generation | `Then each file of the output still has the time of the year 2000` |
+| Generation | `Then generation exits with {int} and one JSON report` |
+| Generation | `When I generate {string} from the model without the setting {string}` |
+| Generation | `When I generate {string} from the model with the arguments {string}` |
+| Generation | `When I generate {string} from the model with the input format {string} and the options` |
+| Generation | `When I generate {string} from the model with the built F# backend extension` |
+| Generation | `When I generate {string} from the model with the built F# backend extension and the option {string}` |
+| Generation | `Given a project whose configuration selects the built F# backend extension for {string}` |
+| Generation | `When I generate {string} from the model for the project` |
+| Generation | `When I generate {string} from the model for the project with the extension {string}` |
+| Generation | `Then the generation report names the external F# backend over MEP` |
+| Generation | `Then the generation report has no member {string}` |
+| Generation | `Then the generation report has these members in this order` |
+| Generation | `Then the generation report has the diagnostic {string} that names {string}` |
+| Generation | `Then the first diagnostic of the generation report has the code {string}` |
+| Generation | `Then the generation report has the target {string}` |
+| Generation | `Then the generation report has artifacts` |
+| Generation | `Then the generation report has one C# artifact that contains {string} and {string}` |
+| Generation | `Then the generation report lists only the artifact {string}` |
+| Generation | `Then the output file {string} has the bytes of the fixture {string}` |
+| Generation | `Given I remember the artifacts of the generation report` |
+| Generation | `Then the generation report has the remembered artifacts with the same text in the same order` |
+| Generation | `Then standard output lists only the artifacts of the output` |
+| Generation | `When I generate {string} from the model on a host without dynamic code` |
+| Generation | `When I generate {string} from the model as text on a host without dynamic code` |
+| Generation | `When I generate {string} from the model on a host without dynamic code with the option {string}` |
+| Generation | `Then the generation report has the formatting {string}` |
 | Configuration editing | `Given a configuration editing project` |
 | Configuration editing | `Given the editing project has mixed primary layouts and a personal override` |
 | Configuration editing | `Given the editing project is a workspace with two members` |
@@ -264,37 +296,6 @@ two steps have the same pattern.
 | Compilation | `Then both reports name the same backend` |
 | Compilation | `Then both generated outputs have the same paths and bytes` |
 | Compilation | `Then the compile record is a tombstone that keeps the earlier install ledger` |
-| Generation | `Then generation exits with {int} and one JSON report` |
-| CLI | `Then standard output is the text {string}` |
-| CLI | `Then standard error does not contain {string}` |
-| CLI | `Then standard output does not contain {string}` |
-| Generation | `When I generate {string} from the model without the setting {string}` |
-| Generation | `When I generate {string} from the model with the arguments {string}` |
-| Generation | `When I generate {string} from the model with the input format {string} and the options` |
-| Generation | `When I generate {string} from the model with the built F# backend extension` |
-| Generation | `When I generate {string} from the model with the built F# backend extension and the option {string}` |
-| Generation | `Given a project whose configuration selects the built F# backend extension for {string}` |
-| Generation | `When I generate {string} from the model for the project` |
-| Generation | `When I generate {string} from the model for the project with the extension {string}` |
-| Generation | `Then the generation report names the external F# backend over MEP` |
-| Generation | `Then the generation report has no member {string}` |
-| Generation | `Then the generation report has these members in this order` |
-| Generation | `Then the generation report has the diagnostic {string} that names {string}` |
-| Generation | `Then the first diagnostic of the generation report has the code {string}` |
-| Generation | `Then the generation report has the target {string}` |
-| Generation | `Then the generation report has artifacts` |
-| Generation | `Then the generation report has one C# artifact that contains {string} and {string}` |
-| Generation | `Then the generation report lists only the artifact {string}` |
-| Generation | `Then the output file {string} has the bytes of the fixture {string}` |
-| Generation | `Given I remember the artifacts of the generation report` |
-| Generation | `Then the generation report has the remembered artifacts with the same text in the same order` |
-| Generation | `Then standard output lists only the artifacts of the output` |
-| Generation | `When I generate {string} from the model on a host without dynamic code` |
-| Generation | `When I generate {string} from the model as text on a host without dynamic code` |
-| Generation | `When I generate {string} from the model on a host without dynamic code with the option {string}` |
-| Generation | `Then the generation report has the formatting {string}` |
-| Model | `Given the model has the problem {string}` |
-| CLI | `Then standard output contains {string}` |
 | Documentation | `Given the documentation page {string}` |
 | Documentation | `Given the section {string} of the documentation page {string}` |
 | Documentation | `Then the page documents these commands` |
@@ -307,19 +308,18 @@ two steps have the same pattern.
 | Documentation | `When I run the documented commands of the section in the project directory {string}` |
 | Documentation | `Then the documented compile writes the path of the published IR of the project {string}` |
 | Documentation | `Then the documented generate writes its documented files to {string} of the project {string}` |
-| Model | `Given the model fixture {string} as {string}` |
-| TutorialSteps | `Then each marked code block of the tutorial is the file of the example that it names` |
-| TutorialSteps | `Then the first F# code block of the page {string} is the file {string} of the example` |
-| TutorialSteps | `Given a copy of the example of the tutorial` |
-| TutorialSteps | `Given the guarded discount of the tutorial in the example` |
-| TutorialSteps | `When I compile the example as JSON` |
-| TutorialSteps | `When I compile the example` |
-| TutorialSteps | `Then the compile of the example succeeds with the modules {string} and no diagnostic` |
-| TutorialSteps | `When I generate {string} from the last compile of the example to {string}` |
-| TutorialSteps | `Then the example has the generated C# files {string} in {string}` |
-| TutorialSteps | `When I compile the example at the IR version {string} and install the IR to {string}` |
-| TutorialSteps | `When I validate the IR that the example installed in {string}` |
-| TutorialSteps | `When I compile the example with the target {string} and the generated output {string}` |
+| Tutorial | `Then each marked code block of the tutorial is the file of the example that it names` |
+| Tutorial | `Then the first F# code block of the page {string} is the file {string} of the example` |
+| Tutorial | `Given a copy of the example of the tutorial` |
+| Tutorial | `Given the guarded discount of the tutorial in the example` |
+| Tutorial | `When I compile the example as JSON` |
+| Tutorial | `When I compile the example` |
+| Tutorial | `Then the compile of the example succeeds with the modules {string} and no diagnostic` |
+| Tutorial | `When I generate {string} from the last compile of the example to {string}` |
+| Tutorial | `Then the example has the generated C# files {string} in {string}` |
+| Tutorial | `When I compile the example at the IR version {string} and install the IR to {string}` |
+| Tutorial | `When I validate the IR that the example installed in {string}` |
+| Tutorial | `When I compile the example with the target {string} and the generated output {string}` |
 | Model validation | `When I validate the model` |
 | Model validation | `When I validate the model as JSON` |
 | Model validation | `When I validate the model as JSON with the arguments {string}` |

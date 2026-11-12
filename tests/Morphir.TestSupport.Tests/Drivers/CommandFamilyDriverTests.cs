@@ -371,6 +371,26 @@ public class CommandFamilyDriverTests
     }
 
     [Test]
+    public async Task TheRoutingDriverRunsTheHostAndTheStubWithTheSearchPathOfTheScenario()
+    {
+        await using var workspace = Workspace();
+        var routing = new ToolRoutingDriver(Cli(workspace), workspace, ExtensionArtifacts.OfTestAssembly(typeof(CommandFamilyDriverTests).Assembly));
+        var stub = routing.InstallStub(workspace.Directory("my tools"));
+        var options = new ToolRoutingOptions { Path = [workspace.Directory("my tools")], Variables = new Dictionary<string, string> { ["MCK_STUB_EXIT"] = "3" } };
+
+        var routed = await routing.RunAsync(["mck", "run", "a b"], options);
+        var alone = await routing.RunStubAsync(stub, ["run", "a b"], options);
+
+        stub.Name.Should().Be(routing.ExecutableName("morphir-mck"));
+        routed.ShouldExitWith(3);
+        alone.ShouldExitWith(3);
+        StubReport.Of(routed).Arguments.Should().Equal("run", "a b");
+        routed.StandardOutput.Should().Be(alone.StandardOutput);
+        StubReport.Of(alone).WorkingDirectory.Should().EndWith("work");
+        (await routing.RunAsync(["mck", "run"], new ToolRoutingOptions())).ShouldExitWith(127);
+    }
+
+    [Test]
     public void ReportPathsHaveOneFormOnEachPlatform()
     {
         ReportPath.Normalize(@"C:\work\app\..\morphir.toml").Should().Be("C:/work/morphir.toml");

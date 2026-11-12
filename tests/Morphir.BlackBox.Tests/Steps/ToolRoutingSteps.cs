@@ -63,7 +63,7 @@ public sealed partial class ToolRoutingSteps(IToolRoutingDriver routing, IScenar
     }
 
     [Given("MORPHIR_MCK is the relative name of the tool")]
-    public void MorphirMckIsRelative() => _variables["MORPHIR_MCK"] = "morphir-mck" + (OperatingSystem.IsWindows() ? ".exe" : "");
+    public void MorphirMckIsRelative() => _variables["MORPHIR_MCK"] = routing.ExecutableName("morphir-mck");
 
     [Given("MORPHIR_MCK is the absolute path of the stub")]
     public void MorphirMckIsTheStub() => _variables["MORPHIR_MCK"] = (_stub ?? throw new InvalidOperationException("The scenario has no stub before this step.")).Path;

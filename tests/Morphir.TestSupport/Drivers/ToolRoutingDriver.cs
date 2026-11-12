@@ -56,6 +56,9 @@ public interface IToolRoutingDriver
     /// <summary>Copies the stub <c>morphir-mck</c> into <paramref name="folder"/> as <paramref name="name"/>, and returns its executable.</summary>
     WorkspaceFile InstallStub(WorkspaceDirectory folder, string name = "morphir-mck");
 
+    /// <summary>The file name of the executable of a tool on this machine: <c>morphir-mck.exe</c> on Windows, else <c>morphir-mck</c>.</summary>
+    string ExecutableName(string tool);
+
     /// <summary>Runs the product with <paramref name="arguments"/> and the search path of <paramref name="options"/>.</summary>
     Task<CommandResult> RunAsync(IReadOnlyList<string> arguments, ToolRoutingOptions options, CancellationToken cancellation = default);
 
@@ -90,6 +93,8 @@ public sealed class ToolRoutingDriver(ICliDriver cli, IScenarioWorkspace workspa
             ? executable
             : throw new TestSessionException($"The stub morphir-mck has no executable in {output}. Build it: dotnet build tests/Morphir.Mck.Stub/Morphir.Mck.Stub.csproj");
     }
+
+    public string ExecutableName(string tool) => tool + Suffix;
 
     public Task<CommandResult> RunAsync(IReadOnlyList<string> arguments, ToolRoutingOptions options, CancellationToken cancellation = default) =>
         cli.RunAsync(arguments, RunOptions(options), cancellation);

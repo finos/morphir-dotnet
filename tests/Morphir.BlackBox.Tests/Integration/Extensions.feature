@@ -31,6 +31,7 @@ Feature: List the extensions of a host and report its runtimes
   Scenario: The managed host lists the shared built-in extensions
     When I list the extensions as JSON with the options ""
     Then the exit code is 0
+    And the command ran on the "managed" host
     And the extension list report has the host "morphir" and the extensions "morphir-dotnet.fsharp, morphir.csharp, morphir.fsharp, morphir.type-validator"
     And the extension list report states no deployment and the execution "jit"
 
