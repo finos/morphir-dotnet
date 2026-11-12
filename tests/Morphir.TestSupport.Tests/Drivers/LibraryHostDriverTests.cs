@@ -131,6 +131,23 @@ public class LibraryHostDriverTests
         }
     }
 
+    [Test]
+    public void TheRestoreHasThePropertiesOfThePublishAndThePublishDoesNotRestore()
+    {
+        foreach (var form in Enum.GetValues<ProgramForm>())
+        {
+            var publish = LibraryHostDriver.PublishArguments("/repo/A.csproj", form, "Release", "linux-x64", "/w/artifacts", "/w/out");
+            var restore = LibraryHostDriver.RestoreArguments("/repo/A.csproj", form, "Release", "linux-x64", "/w/artifacts");
+
+            publish.Should().Contain("--no-restore");
+            restore.Should().StartWith(["restore", "/repo/A.csproj"]).And.NotContain(["-o", "/w/out", "--no-restore", "-c"]);
+            // The restore gets each property of the publish, so the publish finds the packages that it needs.
+            restore.Where(argument => argument.StartsWith("-p:", StringComparison.Ordinal) || argument == "-r" || argument == "linux-x64")
+                .Should().Equal(publish.Where(argument => argument.StartsWith("-p:", StringComparison.Ordinal) || argument == "-r" || argument == "linux-x64"));
+            restore.Should().Contain(["--artifacts-path", "/w/artifacts"]);
+        }
+    }
+
     private const string Log = """
           Determining projects to restore...
         /_/src/FSharp.Core/prim-types.fs(1): warning IL2104: Assembly 'FSharp.Core' produced trim warnings. For more information see https://aka.ms/il2104 [/repo/A.fsproj]

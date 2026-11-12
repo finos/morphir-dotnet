@@ -844,6 +844,13 @@ for it, and a publish of a host changed its committed lock file. A test checks b
 <td>With the default summary mode of the trimmer, each of the eight publishes has only the summary warnings IL2104 and
 IL3053 of <code>FSharp.Core</code>, also the two configuration hosts. The Native AOT lane takes 41 s on this machine.</td>
 <td><code>library-hosts.md</code></td></tr>
+<tr><td>The first Linux run of the Native AOT lane</td>
+<td>The eight publishes ran at the same time, and on a runner with an empty package cache their restores extracted
+the same ILCompiler package into the one NuGet cache at the same time; each publish failed (<code>Could not find file
+'.../runtime.linux-x64.microsoft.dotnet.ilcompiler/10.0.15/....way'</code>). The driver now restores one program at a
+time in the test process and then publishes with <code>--no-restore</code>; the publishes still run at the same time.
+Verified with an empty package cache: the lane passes (8 tests, 80 s).</td>
+<td><code>LibraryHostDriverTests</code></td></tr>
 <tr><td>The kit suites as fixtures</td>
 <td>The conformance host reads the kit suites, which are <code>.feature</code> files. The build copies them to
 <code>bin/</code>, and Reqnroll then compiles them as tests of the project; the project file removes <code>bin/</code>

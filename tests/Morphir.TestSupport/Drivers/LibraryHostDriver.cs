@@ -106,6 +106,11 @@ public sealed class LibraryHostDriver(TestPrograms programs, IScenarioWorkspace 
     /// <summary>The time limit of a publish. A Native AOT publish compiles the complete program.</summary>
     public static readonly TimeSpan PublishTimeout = TimeSpan.FromMinutes(15);
 
+    // One restore at a time in the test process. Two restores that download the same package (for example the
+    // ILCompiler package of a Native AOT publish) into the NuGet cache at the same time can fail: one of them reads
+    // a temporary file that the other one has moved. The publishes then run at the same time, with no restore.
+    private static readonly SemaphoreSlim RestoreLock = new(1, 1);
+
     public Task<CommandResult> RunBuiltAsync(string program, IReadOnlyList<string> arguments, CliRunOptions? options = null, CancellationToken cancellation = default) =>
         Run(programs.Of(program).Assembly, arguments, options, cancellation);
 
@@ -115,15 +120,27 @@ public sealed class LibraryHostDriver(TestPrograms programs, IScenarioWorkspace 
         var folder = workspace.Directory("publish", $"{program}-{form.ToString().ToLowerInvariant()}");
         var output = folder.Directory("out");
         var configuration = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(subject.Assembly)))!;
-        var info = new ProcessStartInfo("dotnet");
-        foreach (var argument in PublishArguments(subject.Project, form, configuration, RuntimeInformation.RuntimeIdentifier, folder.Directory("artifacts").Path, output.Path))
-            info.ArgumentList.Add(argument);
-
-        // The publish restores and builds with the SDK of the machine, so it needs the real NuGet cache; the workspace
-        // gives it its own home and temporary directory.
-        var result = await ProductProcess.RunAsync(
-            info, CliDriver.CommandLineOf(info), workspace, gate, new CliRunOptions { Timeout = PublishTimeout }, PublishTimeout, cancellation).ConfigureAwait(false);
+        var runtime = RuntimeInformation.RuntimeIdentifier;
+        var artifacts = folder.Directory("artifacts").Path;
         var name = Path.GetFileNameWithoutExtension(subject.Assembly);
+
+        // The restore and the publish use the SDK of the machine, so they need the real NuGet cache; the workspace
+        // gives them their own home and temporary directory.
+        await RestoreLock.WaitAsync(cancellation).ConfigureAwait(false);
+        CommandResult restore;
+        try
+        {
+            restore = await Dotnet(RestoreArguments(subject.Project, form, configuration, runtime, artifacts), cancellation).ConfigureAwait(false);
+        }
+        finally
+        {
+            RestoreLock.Release();
+        }
+
+        if (restore.ExitCode != 0)
+            return new PublishedProgram(program, form, "", PublishWarning.Parse(restore.StandardOutput + "\n" + restore.StandardError), restore);
+
+        var result = await Dotnet(PublishArguments(subject.Project, form, configuration, runtime, artifacts, output.Path), cancellation).ConfigureAwait(false);
         var executable = form == ProgramForm.Managed
             ? Path.Combine(output.Path, name + ".dll")
             : Path.Combine(output.Path, OperatingSystem.IsWindows() ? name + ".exe" : name);
@@ -136,11 +153,23 @@ public sealed class LibraryHostDriver(TestPrograms programs, IScenarioWorkspace 
         return Run(program.Executable, arguments, options, cancellation);
     }
 
-    /// <summary>The arguments of <c>dotnet</c> for the publish of <paramref name="project"/> in <paramref name="form"/>.</summary>
+    /// <summary>The arguments of <c>dotnet</c> for the publish of <paramref name="project"/> in <paramref name="form"/>, after its restore.</summary>
     public static IReadOnlyList<string> PublishArguments(
-        string project, ProgramForm form, string configuration, string runtimeIdentifier, string artifacts, string output)
+        string project, ProgramForm form, string configuration, string runtimeIdentifier, string artifacts, string output) =>
+        [
+            "publish", project, "-c", configuration, "--artifacts-path", artifacts, "-o", output, "-nologo", "--no-restore",
+            .. FormArguments(form, runtimeIdentifier),
+        ];
+
+    /// <summary>The arguments of <c>dotnet</c> for the restore of the publish: the same properties as the publish.</summary>
+    public static IReadOnlyList<string> RestoreArguments(
+        string project, ProgramForm form, string configuration, string runtimeIdentifier, string artifacts) =>
+        // A restore has no configuration; the configuration of the publish does not change the packages.
+        ["restore", project, "--artifacts-path", artifacts, "-nologo", .. FormArguments(form, runtimeIdentifier)];
+
+    private static List<string> FormArguments(ProgramForm form, string runtimeIdentifier)
     {
-        List<string> arguments = ["publish", project, "-c", configuration, "--artifacts-path", artifacts, "-o", output, "-nologo"];
+        List<string> arguments = [];
         switch (form)
         {
             case ProgramForm.Trimmed:
@@ -164,6 +193,14 @@ public sealed class LibraryHostDriver(TestPrograms programs, IScenarioWorkspace 
         // The warnings are a result of the test, not a failure of the publish.
         arguments.Add("-p:ILLinkTreatWarningsAsErrors=false");
         return arguments;
+    }
+
+    private Task<CommandResult> Dotnet(IReadOnlyList<string> arguments, CancellationToken cancellation)
+    {
+        var info = new ProcessStartInfo("dotnet");
+        foreach (var argument in arguments) info.ArgumentList.Add(argument);
+        return ProductProcess.RunAsync(
+            info, CliDriver.CommandLineOf(info), workspace, gate, new CliRunOptions { Timeout = PublishTimeout }, PublishTimeout, cancellation);
     }
 
     private Task<CommandResult> Run(string file, IReadOnlyList<string> arguments, CliRunOptions? options, CancellationToken cancellation)
