@@ -146,3 +146,39 @@ was disabled. Whitespace and OpenSpec strict validation pass. Root's independent
 final review and exact-head CI remain landing gates. No AOT, acquired/released
 artifact, platform/minimum-OS, packaging, CET/Spectre, OpenSSL, version, tag or
 publication decision is changed, and task 6.1 remains open.
+
+## Independent review correction, 12 November 2026
+
+The first independent review found that public `report-check` could accept an
+unchecked citation, although `RunAsync` already refused citation admission. It
+also found that the deadline margin was written and read as a string instead of
+the positive JSON number required by the pinned schema.
+
+Three new regressions reproduced those gaps as three assertion failures, with
+16 existing report tests passing and no test errors. They cover missing citation
+files, existing pass-shaped files with matching supplied digests, and the numeric
+deadline wire shape. Public report validation now refuses citation-bearing
+reports until the one actual generic-kit checker is integrated. The shared
+`checkContract` policy still evaluates synthetic positive and foreign-host
+controls; those fixtures grant no runtime evidence authority. The deadline writer
+uses a JSON number, and its reader refuses textual or non-positive values.
+
+The final fresh Release build passed with zero errors and four existing upstream
+support warnings. Final focused results were 24 contract controls, 19 report
+checks, 10 command controls, seven reader controls and 10 generation controls,
+all 70 passing with no ignored, failed or errored cases. The earlier 186 merged
+build/MEP controls remain historical evidence; they were not rerun in this repair.
+
+Pinned Fantomas 5.2.4 formatted only the two changed F# files and its final check
+passed. The first formatter capture incorrectly applied an immutable-source
+guard to the expected formatting edits. That instrumentation result is retained
+separately; it was not a product or runtime failure. No fixture, protocol,
+parent-schema or dependency input changed. All 121 frozen code/project entries
+and 240 tracked project/lock/config inputs stayed fixed through the final runs.
+
+The repair evidence is retained under `.dev/root-report-review-fix/`, including
+separate raw streams, the three assertion REDs, final build and five test results,
+five-artifact closure, formatter classification and release. CPU ownership was
+released at 02:56:31Z with no remaining owned processes. Fresh independent
+recheck and corrected-head CI are still required. Positive guest citation
+integration, full 21-case and inner-guest qualification remain open.

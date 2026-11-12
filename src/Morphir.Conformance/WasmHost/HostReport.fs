@@ -26,7 +26,8 @@ type ReportTotals = {
 module HostReport =
     /// The pinned report schema, always the first member written.
     [<Literal>]
-    let Schema = "https://morphir.finos.org/schemas/mep-wasm-host-kit/0.1.0-draft.1/report.schema.json"
+    let Schema =
+        "https://morphir.finos.org/schemas/mep-wasm-host-kit/0.1.0-draft.1/report.schema.json"
 
     let private invariant = CultureInfo.InvariantCulture
 
@@ -203,32 +204,66 @@ module HostReport =
         writer.WriteEndArray()
         writer.WriteEndObject()
 
-    let private memberValue name = function
-        | JsonValue.Object members -> members |> List.tryFind (fst >> (=) name) |> Option.map snd |> Option.defaultValue JsonValue.Null
+    let private memberValue name =
+        function
+        | JsonValue.Object members ->
+            members
+            |> List.tryFind (
+                fst
+                >> (=) name
+            )
+            |> Option.map snd
+            |> Option.defaultValue JsonValue.Null
         | _ -> JsonValue.Null
 
-    let private arrayValue = function JsonValue.Array items -> items | _ -> []
-    let private textValue = function JsonValue.String text -> text | _ -> ""
-    let private texts value = arrayValue value |> List.map textValue
-    let private field name value = memberValue name value |> textValue
+    let private arrayValue =
+        function
+        | JsonValue.Array items -> items
+        | _ -> []
+
+    let private textValue =
+        function
+        | JsonValue.String text -> text
+        | _ -> ""
+
+    let private texts value =
+        arrayValue value
+        |> List.map textValue
+
+    let private field name value =
+        memberValue name value
+        |> textValue
+
     let private profiles = [ "extism-kernel-v1"; "morphir-bytes-v1" ]
+
     let private declaration root bound =
-        memberValue "bounds" root |> arrayValue
+        memberValue "bounds" root
+        |> arrayValue
         |> List.tryFind (fun item -> field "bound" item = bound)
-        |> Option.map (field "declaration") |> Option.defaultValue "undeclared"
+        |> Option.map (field "declaration")
+        |> Option.defaultValue "undeclared"
 
     let private contractVerdict root =
         let host = memberValue "host" root
-        let declared = memberValue "profiles" host |> texts
-        let reason code key value = JsonValue.Object [ "code", JsonValue.String code; key, JsonValue.String value ]
+
+        let declared =
+            memberValue "profiles" host
+            |> texts
+
+        let reason code key value =
+            JsonValue.Object [ "code", JsonValue.String code; key, JsonValue.String value ]
+
         let reasons = [
             for bound in Contract.bounds do
                 match declaration root bound.WireValue with
                 | "undeclared" -> reason "bound_undeclared" "bound" bound.WireValue
                 | "inconsistent" -> reason "bound_inconsistent" "bound" bound.WireValue
-                | "not-enforced" when List.contains bound Contract.requiredForQualification -> reason "required_bound_not_enforced" "bound" bound.WireValue
+                | "not-enforced" when List.contains bound Contract.requiredForQualification ->
+                    reason "required_bound_not_enforced" "bound" bound.WireValue
                 | _ -> ()
-            for case in memberValue "cases" root |> arrayValue do
+            for case in
+                memberValue "cases" root
+                |> arrayValue do
                 match field "outcome" case with
                 | "failed" -> reason "case_failed" "caseId" (field "caseId" case)
                 | "error" -> reason "case_error" "caseId" (field "caseId" case)
@@ -236,83 +271,257 @@ module HostReport =
                 | _ -> ()
             for profile in profiles do
                 if List.contains profile declared then
-                    match memberValue "guestKitCitations" root |> arrayValue |> List.tryFind (fun item -> field "profile" item = profile) with
+                    match
+                        memberValue "guestKitCitations" root
+                        |> arrayValue
+                        |> List.tryFind (fun item -> field "profile" item = profile)
+                    with
                     | None -> reason "guest_kit_missing" "profile" profile
-                    | Some citation when field "hostSha256" citation <> field "sha256" host -> reason "guest_kit_host_mismatch" "profile" profile
+                    | Some citation when
+                        field "hostSha256" citation
+                        <> field "sha256" host
+                        ->
+                        reason "guest_kit_host_mismatch" "profile" profile
                     | _ -> ()
         ]
-        JsonValue.Object [ "qualified", JsonValue.Bool reasons.IsEmpty; "reasons", JsonValue.Array reasons ]
 
-    let rec private normalized = function
-        | JsonValue.Object members -> JsonValue.Object (members |> List.map (fun (key, value) -> key, normalized value) |> List.sortBy fst)
-        | JsonValue.Array values -> JsonValue.Array (List.map normalized values)
+        JsonValue.Object [
+            "qualified", JsonValue.Bool reasons.IsEmpty
+            "reasons", JsonValue.Array reasons
+        ]
+
+    let rec private normalized =
+        function
+        | JsonValue.Object members ->
+            JsonValue.Object(
+                members
+                |> List.map (fun (key, value) -> key, normalized value)
+                |> List.sortBy fst
+            )
+        | JsonValue.Array values -> JsonValue.Array(List.map normalized values)
         | value -> value
 
     /// The shared report-check contract decision. Observation reconstruction is an additional
     /// runner check below, rather than an alternative verdict implementation.
-    let internal checkContract (suite: WasmHostSuite) (bytes: byte array) : Result<JsonValue, string list> =
+    let internal checkContract
+        (suite: WasmHostSuite)
+        (bytes: byte array)
+        : Result<JsonValue, string list> =
         match Json.parse (Encoding.UTF8.GetString bytes) with
         | Error error -> Error [ $"The report is not JSON: {error}" ]
         | Ok root ->
             let host = memberValue "host" root
             let runner = memberValue "runner" root
-            let declared = memberValue "profiles" host |> texts
-            let cases = memberValue "cases" root |> arrayValue
-            let citations = memberValue "guestKitCitations" root |> arrayValue
+
+            let declared =
+                memberValue "profiles" host
+                |> texts
+
+            let cases =
+                memberValue "cases" root
+                |> arrayValue
+
+            let citations =
+                memberValue "guestKitCitations" root
+                |> arrayValue
+
             let verdict = contractVerdict root
-            let outcomes = [ "passed"; "failed"; "error"; "refused"; "not_applicable"; "not_enforced" ]
+
+            let outcomes = [
+                "passed"
+                "failed"
+                "error"
+                "refused"
+                "not_applicable"
+                "not_enforced"
+            ]
+
             let consistent case =
-                match suite.Cases |> List.tryFind (fun original -> original.Case.CaseId = field "caseId" case) with
+                match
+                    suite.Cases
+                    |> List.tryFind (fun original -> original.Case.CaseId = field "caseId" case)
+                with
                 | None -> true // Inventory refusal owns an unknown case.
                 | Some original ->
                     let outcome = field "outcome" case
                     let applies = List.contains original.Case.AppliesTo.WireValue declared
-                    let states = original.Case.Bounds |> List.map (fun bound -> declaration root bound.WireValue)
-                    let metadata = field "appliesTo" case = original.Case.AppliesTo.WireValue && (memberValue "bounds" case |> texts) = (original.Case.Bounds |> List.map (fun bound -> bound.WireValue))
-                    metadata && List.contains outcome outcomes &&
-                        (if not applies || outcome = "not_applicable" then not applies && outcome = "not_applicable"
-                         elif outcome = "error" || outcome = "refused" then true
-                         elif states |> List.exists (fun state -> state = "undeclared" || state = "inconsistent") then false
-                         elif List.contains "not-enforced" states then outcome = "not_enforced"
-                         else outcome = "passed" || outcome = "failed")
-            let counted = JsonValue.Object [
-                "cases", JsonValue.Number(string cases.Length)
-                for key, outcome in [ "passed","passed"; "failed","failed"; "error","error"; "refused","refused"; "notApplicable","not_applicable"; "notEnforced","not_enforced" ] do
-                    key, JsonValue.Number(string (cases |> List.filter (fun case -> field "outcome" case = outcome) |> List.length))
-            ]
+
+                    let states =
+                        original.Case.Bounds
+                        |> List.map (fun bound -> declaration root bound.WireValue)
+
+                    let metadata =
+                        field "appliesTo" case = original.Case.AppliesTo.WireValue
+                        && (memberValue "bounds" case
+                            |> texts) = (original.Case.Bounds
+                                         |> List.map (fun bound -> bound.WireValue))
+
+                    metadata
+                    && List.contains outcome outcomes
+                    && (if
+                            not applies
+                            || outcome = "not_applicable"
+                        then
+                            not applies
+                            && outcome = "not_applicable"
+                        elif
+                            outcome = "error"
+                            || outcome = "refused"
+                        then
+                            true
+                        elif
+                            states
+                            |> List.exists (fun state ->
+                                state = "undeclared"
+                                || state = "inconsistent"
+                            )
+                        then
+                            false
+                        elif List.contains "not-enforced" states then
+                            outcome = "not_enforced"
+                        else
+                            outcome = "passed"
+                            || outcome = "failed")
+
+            let counted =
+                JsonValue.Object [
+                    "cases", JsonValue.Number(string cases.Length)
+                    for key, outcome in
+                        [
+                            "passed", "passed"
+                            "failed", "failed"
+                            "error", "error"
+                            "refused", "refused"
+                            "notApplicable", "not_applicable"
+                            "notEnforced", "not_enforced"
+                        ] do
+                        key,
+                        JsonValue.Number(
+                            string (
+                                cases
+                                |> List.filter (fun case -> field "outcome" case = outcome)
+                                |> List.length
+                            )
+                        )
+                ]
+
             let totals = memberValue "totals" root
-            let totalsMatch = match counted with
-                              | JsonValue.Object members -> members |> List.forall (fun (key, value) -> memberValue key totals = value)
-                              | _ -> false
-            let cited = citations |> List.map (field "profile")
+
+            let totalsMatch =
+                match counted with
+                | JsonValue.Object members ->
+                    members
+                    |> List.forall (fun (key, value) -> memberValue key totals = value)
+                | _ -> false
+
+            let cited =
+                citations
+                |> List.map (field "profile")
+
             let refusals = [
-                if [ field "name" runner; field "version" runner; field "sha256" host; field "offering" host; field "platform" host; field "engine" host ] |> List.exists String.IsNullOrWhiteSpace then "identity_missing"
-                if declared.IsEmpty || List.distinct declared <> declared || not (List.contains "extism-kernel-v1" declared) || List.exists (fun profile -> not (List.contains profile profiles)) declared then "host_profiles"
-                if memberValue "suite" root |> memberValue "corpus" |> field "sha256" <> suite.Pin.Sha256 then "corpus_mismatch"
-                if List.map (field "caseId") cases <> (suite.Cases |> List.map (fun case -> case.Case.CaseId)) then "case_inventory"
-                if not (List.forall consistent cases) then "outcome_inconsistent"
-                if not totalsMatch then "totals_mismatch"
-                if List.distinct cited <> cited || List.exists (fun profile -> not (List.contains profile declared)) cited then "citation_invalid"
-                if normalized (memberValue "verdict" root) <> normalized verdict then "verdict_mismatch"
+                if
+                    [
+                        field "name" runner
+                        field "version" runner
+                        field "sha256" host
+                        field "offering" host
+                        field "platform" host
+                        field "engine" host
+                    ]
+                    |> List.exists String.IsNullOrWhiteSpace
+                then
+                    "identity_missing"
+                if
+                    declared.IsEmpty
+                    || List.distinct declared
+                       <> declared
+                    || not (List.contains "extism-kernel-v1" declared)
+                    || List.exists (fun profile -> not (List.contains profile profiles)) declared
+                then
+                    "host_profiles"
+                if
+                    memberValue "suite" root
+                    |> memberValue "corpus"
+                    |> field "sha256"
+                    <> suite.Pin.Sha256
+                then
+                    "corpus_mismatch"
+                if
+                    List.map (field "caseId") cases
+                    <> (suite.Cases
+                        |> List.map (fun case -> case.Case.CaseId))
+                then
+                    "case_inventory"
+                if not (List.forall consistent cases) then
+                    "outcome_inconsistent"
+                if not totalsMatch then
+                    "totals_mismatch"
+                if
+                    List.distinct cited
+                    <> cited
+                    || List.exists (fun profile -> not (List.contains profile declared)) cited
+                then
+                    "citation_invalid"
+                if
+                    normalized (memberValue "verdict" root)
+                    <> normalized verdict
+                then
+                    "verdict_mismatch"
             ]
+
             if refusals.IsEmpty then Ok verdict else Error refusals
 
     /// Computes the normative verdict from the runner's observations and identities.
     let internal verdict (report: WasmHostReport) =
         let s text = JsonValue.String text
-        let bounds = Contract.bounds |> List.map (fun bound ->
-            let state = match Map.tryFind bound report.Bounds with
-                        | Some(BoundDeclaration.Declared BoundState.Enforced) -> "enforced"
-                        | Some(BoundDeclaration.Declared(BoundState.NotEnforced _)) -> "not-enforced"
-                        | Some(BoundDeclaration.Inconsistent _) -> "inconsistent"
-                        | _ -> "undeclared"
-            JsonValue.Object [ "bound", s bound.WireValue; "declaration", s state ])
-        contractVerdict (JsonValue.Object [
-            "host", JsonValue.Object [ "sha256", s report.Host.Sha256; "profiles", JsonValue.Array (report.Host.Declared.Profiles |> List.map (fun profile -> s profile.WireValue)) ]
-            "bounds", JsonValue.Array bounds
-            "cases", JsonValue.Array (report.Cases |> List.map (fun case -> JsonValue.Object [ "caseId", s case.Case.Case.CaseId; "outcome", s case.Outcome.WireValue ]))
-            "guestKitCitations", JsonValue.Array (report.GuestKitCitations |> List.map (fun citation -> JsonValue.Object [ "profile", s citation.Profile.WireValue; "hostSha256", s citation.HostSha256 ]))
-        ])
+
+        let bounds =
+            Contract.bounds
+            |> List.map (fun bound ->
+                let state =
+                    match Map.tryFind bound report.Bounds with
+                    | Some(BoundDeclaration.Declared BoundState.Enforced) -> "enforced"
+                    | Some(BoundDeclaration.Declared(BoundState.NotEnforced _)) -> "not-enforced"
+                    | Some(BoundDeclaration.Inconsistent _) -> "inconsistent"
+                    | _ -> "undeclared"
+
+                JsonValue.Object [ "bound", s bound.WireValue; "declaration", s state ]
+            )
+
+        contractVerdict (
+            JsonValue.Object [
+                "host",
+                JsonValue.Object [
+                    "sha256", s report.Host.Sha256
+                    "profiles",
+                    JsonValue.Array(
+                        report.Host.Declared.Profiles
+                        |> List.map (fun profile -> s profile.WireValue)
+                    )
+                ]
+                "bounds", JsonValue.Array bounds
+                "cases",
+                JsonValue.Array(
+                    report.Cases
+                    |> List.map (fun case ->
+                        JsonValue.Object [
+                            "caseId", s case.Case.Case.CaseId
+                            "outcome", s case.Outcome.WireValue
+                        ]
+                    )
+                )
+                "guestKitCitations",
+                JsonValue.Array(
+                    report.GuestKitCitations
+                    |> List.map (fun citation ->
+                        JsonValue.Object [
+                            "profile", s citation.Profile.WireValue
+                            "hostSha256", s citation.HostSha256
+                        ]
+                    )
+                )
+            ]
+        )
 
     /// Writes the computed verdict for the command result as well as the persisted report.
     let internal writeVerdictObject (writer: Utf8JsonWriter) (report: WasmHostReport) =
@@ -348,10 +557,7 @@ module HostReport =
         writer.WriteString("path", report.Kit.ContractPath)
         writer.WriteEndObject()
 
-        writer.WriteString(
-            "deadlineMarginSeconds",
-            report.Kit.DeadlineMarginSeconds.ToString(invariant)
-        )
+        writer.WriteNumber("deadlineMarginSeconds", report.Kit.DeadlineMarginSeconds)
 
         writer.WriteStartObject "corpus"
         writer.WriteString("path", report.Pin.Corpus)
@@ -420,6 +626,7 @@ module HostReport =
         writer.WriteEndArray()
 
         writer.WriteStartArray "guestKitCitations"
+
         for citation in report.GuestKitCitations do
             writer.WriteStartObject()
             writer.WriteString("profile", citation.Profile.WireValue)
@@ -428,6 +635,7 @@ module HostReport =
             writer.WriteString("hostSha256", citation.HostSha256)
             writer.WriteString("guestModuleSha256", citation.GuestModuleSha256)
             writer.WriteEndObject()
+
         writer.WriteEndArray()
 
         writer.WriteStartObject "totals"
@@ -637,16 +845,15 @@ module HostReport =
                 |> Option.defaultValue suiteElement
 
             let margin =
-                match
-                    Decimal.TryParse(
-                        reader.Text suiteElement "suite" "deadlineMarginSeconds",
-                        NumberStyles.Number,
-                        invariant
-                    )
-                with
-                | true, value -> value
+                match reader.Member suiteElement "suite" "deadlineMarginSeconds" with
+                | Some value when value.ValueKind = JsonValueKind.Number ->
+                    match value.TryGetDecimal() with
+                    | true, margin when margin > 0m -> margin
+                    | _ ->
+                        reader.Problem "suite.deadlineMarginSeconds is not a positive JSON number"
+                        0m
                 | _ ->
-                    reader.Problem "suite.deadlineMarginSeconds is not a decimal number"
+                    reader.Problem "suite.deadlineMarginSeconds is not a positive JSON number"
                     0m
 
             let kit = {
@@ -720,14 +927,19 @@ module HostReport =
             let citations =
                 reader.Array root "$" "guestKitCitations"
                 |> List.choose (fun value ->
-                    profileOf reader "guestKitCitations.profile" (reader.Text value "guestKitCitations" "profile")
+                    profileOf
+                        reader
+                        "guestKitCitations.profile"
+                        (reader.Text value "guestKitCitations" "profile")
                     |> Option.map (fun profile -> {
                         Profile = profile
                         Report = reader.Text value "guestKitCitations" "report"
                         ReportSha256 = reader.Text value "guestKitCitations" "reportSha256"
                         HostSha256 = reader.Text value "guestKitCitations" "hostSha256"
-                        GuestModuleSha256 = reader.Text value "guestKitCitations" "guestModuleSha256"
-                    }))
+                        GuestModuleSha256 =
+                            reader.Text value "guestKitCitations" "guestModuleSha256"
+                    })
+                )
 
             let byId =
                 suite.Cases
@@ -866,14 +1078,27 @@ module HostReport =
         (expectations: Expectations)
         (bytes: byte array)
         : Result<WasmHostReport, string list> =
-        let contractProblems = match checkContract suite bytes with Ok _ -> [] | Error problems -> problems
+        let contractProblems =
+            match checkContract suite bytes with
+            | Ok _ -> []
+            | Error problems -> problems
+
         match parse suite bytes with
-        | Error problems -> Error(contractProblems @ problems)
+        | Error problems ->
+            Error(
+                contractProblems
+                @ problems
+            )
         | Ok parsed ->
             let report = parsed.Report
 
             let problems = [
                 yield! contractProblems
+                // checkContract evaluates synthetic policy data. Public validation also
+                // needs the cited kit's own checker before its evidence can qualify a host.
+                if not report.GuestKitCitations.IsEmpty then
+                    yield
+                        "The generic guest kit report checker is unavailable. Citation validation requires that check; matching file and caller-supplied digests are not validated guest evidence."
                 if
                     report.Kit
                     <> suite.Kit
