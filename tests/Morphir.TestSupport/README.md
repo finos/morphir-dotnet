@@ -32,6 +32,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `CliRunOptions.WithoutDynamicCode` | Runs an assembly host with the dynamic-code switch of the runtime off, as in a Native AOT executable, from a copy of its runtime configuration in the workspace (`@needs-host-without-dynamic-code`). |
 | `ExtensionPlatform` | The platform of this machine as the extension reports name it, for example `osx-arm64`, and the platform with no WASM runtime (`win-x64`). |
 | `IToolRoutingDriver` (`ToolRoutingDriver`) | The routing of a command to an external tool, as `morphir mck` runs `morphir-mck`: it installs the stub of the tool in the workspace, runs the product with the search path of the scenario (`ToolRoutingOptions`), and runs the stub alone. The stub reports in a `StubReport`. |
+| `DotnetHost` | The full path of the dotnet host that starts an assembly host: `DOTNET_HOST_PATH`, else the dotnet executable of the test process. A driver does not start it by its name: on Linux the process runner starts each child through `setsid`, which looks up the program in the `PATH` of the child, and a scenario can give the product a `PATH` with no dotnet. |
 | `ScenarioMachine` | The machine that a scenario of discovery and containment gives to the product: the working directory, the home and the machine locations, and exactly the Morphir variables of the scenario. |
 
 A capability driver builds its command line and calls `ICliDriver`. Only `ICliDriver` and `IScenarioWorkspace` know

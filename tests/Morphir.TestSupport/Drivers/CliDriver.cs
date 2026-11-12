@@ -153,7 +153,7 @@ public sealed class CliDriver : ICliDriver
     public Task<CommandResult> RunAsync(IReadOnlyList<string> arguments, CliRunOptions? options = null, CancellationToken cancellation = default)
     {
         // The built assembly starts in 0.02 s with dotnet. dotnet run takes 0.35 s for an MSBuild evaluation.
-        var info = new ProcessStartInfo(IsAssembly ? "dotnet" : _artifact);
+        var info = new ProcessStartInfo(IsAssembly ? DotnetHost.Path : _artifact);
         if (options?.WithoutDynamicCode == true)
         {
             if (!IsAssembly) throw new NotSupportedException($"The host {_artifact} is not an assembly, so it cannot run with the dynamic-code switch off.");
@@ -171,7 +171,7 @@ public sealed class CliDriver : ICliDriver
     {
         if (options?.WithoutDynamicCode == true)
             throw new NotSupportedException("A command line that is one string cannot run with the dynamic-code switch off. Give each argument apart (RunAsync).");
-        var info = new ProcessStartInfo(IsAssembly ? "dotnet" : _artifact)
+        var info = new ProcessStartInfo(IsAssembly ? DotnetHost.Path : _artifact)
         {
             Arguments = IsAssembly ? $"\"{_artifact}\" {commandLine}" : commandLine,
         };
