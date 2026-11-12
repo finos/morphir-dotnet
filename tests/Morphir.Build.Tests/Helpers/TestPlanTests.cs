@@ -191,7 +191,7 @@ public class TestPlanTests
     [Test]
     public void TheSuitesOfTheTestTargetAreUnique()
     {
-        TestPlan.Suites.Should().HaveCount(38);
+        TestPlan.Suites.Should().HaveCount(37);
         TestPlan.Suites.Select(suite => suite.Name).Should().OnlyHaveUniqueItems();
         TestPlan.Suites.Where(suite => suite.Group is null).Select(suite => suite.Project).Should().OnlyHaveUniqueItems();
     }
