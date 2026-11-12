@@ -49,6 +49,9 @@ public enum DriverCapability
 
     /// <summary>A host that no release profile built, so it states no deployment: the development build.</summary>
     UnprofiledBuild,
+
+    /// <summary>The routing of a command to an external tool, as <c>morphir mck</c> runs <c>morphir-mck</c> (<see cref="IToolRoutingDriver"/>).</summary>
+    ToolRouting,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -89,7 +92,7 @@ public static class DriverCapabilities
         ImmutableHashSet<DriverCapability> commands =
         [
             DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Compilation, DriverCapability.Configuration,
-            DriverCapability.Migration, DriverCapability.Extensions, DriverCapability.ModelValidation,
+            DriverCapability.Migration, DriverCapability.Extensions, DriverCapability.ModelValidation, DriverCapability.ToolRouting,
         ];
         // The guests are build output of the development build: a published target has none.
         // The development build runs each host as an assembly, which can also run with the dynamic-code switch off.

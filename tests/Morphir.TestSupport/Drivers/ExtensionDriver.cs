@@ -24,6 +24,9 @@ public enum BuiltExtension
 {
     /// <summary>The F# backend guest, <c>morphir-fsharp-backend</c> of <c>src/Morphir.CodeGeneration.FSharp.Extension</c>.</summary>
     FSharpBackend,
+
+    /// <summary>The stub of the external tool <c>morphir-mck</c> (<c>tests/Morphir.Mck.Stub</c>), which <c>morphir mck</c> runs.</summary>
+    MckStub,
 }
 
 /// <summary>
@@ -37,6 +40,7 @@ public sealed class ExtensionArtifacts
     private static readonly IReadOnlyDictionary<BuiltExtension, string> Projects = new Dictionary<BuiltExtension, string>
     {
         [BuiltExtension.FSharpBackend] = "src/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj",
+        [BuiltExtension.MckStub] = "tests/Morphir.Mck.Stub/Morphir.Mck.Stub.csproj",
     };
 
     private readonly IReadOnlyDictionary<string, string> _metadata;

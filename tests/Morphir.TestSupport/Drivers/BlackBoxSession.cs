@@ -31,6 +31,7 @@ public sealed class DriverSet : IAsyncDisposable
         Configuration = new ConfigurationDriver(Cli);
         Migration = new MigrationDriver(Cli);
         Extensions = new ExtensionDriver(Cli, guests);
+        ToolRouting = new ToolRoutingDriver(Cli, workspace, guests);
         Validation = new ModelValidationDriver(Cli);
         Capabilities = DriverCapabilities.Of(target, host);
     }
@@ -56,6 +57,8 @@ public sealed class DriverSet : IAsyncDisposable
     public IExtensionDriver Extensions { get; }
 
     public IModelValidationDriver Validation { get; }
+
+    public IToolRoutingDriver ToolRouting { get; }
 
     /// <summary>
     /// The CLI driver of another host of the target, in the same workspace, for a test that compares the hosts

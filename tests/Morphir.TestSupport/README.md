@@ -31,6 +31,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `ExtensionArtifacts` | The files of the extension guests of the development build (`BuiltExtension`), from the assembly metadata that `build/Morphir.ExtensionArtifacts.targets` writes. Only the development build has them (`@needs-built-extensions`). |
 | `CliRunOptions.WithoutDynamicCode` | Runs an assembly host with the dynamic-code switch of the runtime off, as in a Native AOT executable, from a copy of its runtime configuration in the workspace (`@needs-host-without-dynamic-code`). |
 | `ExtensionPlatform` | The platform of this machine as the extension reports name it, for example `osx-arm64`, and the platform with no WASM runtime (`win-x64`). |
+| `IToolRoutingDriver` (`ToolRoutingDriver`) | The routing of a command to an external tool, as `morphir mck` runs `morphir-mck`: it installs the stub of the tool in the workspace, runs the product with the search path of the scenario (`ToolRoutingOptions`), and runs the stub alone. The stub reports in a `StubReport`. |
 | `ScenarioMachine` | The machine that a scenario of discovery and containment gives to the product: the working directory, the home and the machine locations, and exactly the Morphir variables of the scenario. |
 
 A capability driver builds its command line and calls `ICliDriver`. Only `ICliDriver` and `IScenarioWorkspace` know
@@ -118,7 +119,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build (`TestLane`). |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | The test needs that `DriverCapability`. |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, or a host that no release profile built. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
 
 ## How to add a capability
 

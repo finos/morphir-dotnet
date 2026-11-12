@@ -42,7 +42,7 @@ its library. A test that needs both an artifact and a product assembly is two te
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build: the packed packages, a Native AOT publish, or a published executable. A group run does not select it. |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that entry point. With no host tag, a test runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | A capability that the test needs from the drivers. |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, or a host that no release profile built. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
 
 Before the first step, one decision says if the test runs: the lane, then the host, then the capabilities. A test
 that the run does not execute ends as skipped with one reason, for example `lane: test packages, run none`.
@@ -339,6 +339,26 @@ two steps have the same pattern.
 | Extensions | `Then the extension runtimes report has the host {string} and the platform of this machine` |
 | Extensions | `Then the WASM runtime of the report has the engine version {string} and is available on this machine unless it is win-x64` |
 | Extensions | `Then the runtimes text names the WASM runtime of this machine and the engine {string}` |
+| Tool routing | `Given the stub morphir-mck is on the search path` |
+| Tool routing | `Given no tool is on the search path` |
+| Tool routing | `Given the stub morphir-mck is in the current directory, and the current directory is on the search path` |
+| Tool routing | `Given the stub morphir-mck is in the current directory` |
+| Tool routing | `Given the stub of a tool {string} is on the search path` |
+| Tool routing | `Given MORPHIR_MCK is the relative name of the tool` |
+| Tool routing | `Given MORPHIR_MCK is the absolute path of the stub` |
+| Tool routing | `Given MORPHIR_MCK is the absolute path of a tool that is not there` |
+| Tool routing | `Given the tool exits with {int}` |
+| Tool routing | `Given the tool reads its standard input, and the input is {string}` |
+| Tool routing | `When I run mck with the arguments` |
+| Tool routing | `When I run the command {string} on the search path` |
+| Tool routing | `When I run mck with {string} and the tool alone with the same arguments` |
+| Tool routing | `When I run mck with the arguments and the tool alone with the same arguments` |
+| Tool routing | `Then the tool received the arguments` |
+| Tool routing | `Then the routed run writes and exits as the tool alone` |
+| Tool routing | `Then the tool read the input {string} in the directory of the tool alone, the work area` |
+| Tool routing | `Then standard output is not a report of the tool` |
+| Tool routing | `Then the exit code is neither 0 nor {int}` |
+| Tool routing | `Then the help lists the command mck` |
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.

@@ -8,42 +8,13 @@ namespace Morphir.Managed.Tests;
 
 /// <summary>
 /// The managed <c>morphir</c> routes <c>mck</c> as the other entry points do (cli-tool-dispatch). The produced managed
-/// apphost runs with a stub morphir-mck; Morphir.Tests covers the AOT-compatible morphir and dotnet-morphir.
+/// apphost runs with a stub morphir-mck and is killed: no driver of the testing library kills the CLI yet. The other
+/// routing tests of the managed host are in tests/Morphir.BlackBox.Tests/Integration/ToolRouting.feature.
 /// </summary>
 [Category("PlatformSpecific")]
 public sealed class ManagedMckRoutingTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
-
-    [Test]
-    public async Task TheManagedMorphirPassesTheArgumentsAndTheExitCodeThrough()
-    {
-        await using var routing = MckRouting.Create();
-        string[] arguments = ["run", "--suite", "frontend cases", "ünïcode.json", "--help", ""];
-        var routed = routing.EntryPoint("morphir", routing.Tools, ["mck", .. arguments]);
-        var standalone = routing.Standalone(routing.Tools, arguments);
-        routed.Environment["MCK_STUB_EXIT"] = standalone.Environment["MCK_STUB_EXIT"] = "3";
-
-        var viaCli = await ChildProcess.RunAsync(routed, Timeout);
-        var direct = await ChildProcess.RunAsync(standalone, Timeout);
-
-        viaCli.ExitCode.Should().Be(3, viaCli.CombinedOutput);
-        MckStubReport.Parse(viaCli.StandardOutput).Arguments.Should().Equal(arguments);
-        viaCli.StandardOutput.Should().Be(direct.StandardOutput);
-        viaCli.StandardError.Should().Be(direct.StandardError);
-    }
-
-    [Test]
-    public async Task WithNoToolTheManagedMorphirExits127()
-    {
-        await using var routing = MckRouting.Create();
-
-        var result = await ChildProcess.RunAsync(routing.EntryPoint("morphir", routing.Empty, "mck", "run"), Timeout);
-
-        result.ExitCode.Should().Be(127, result.CombinedOutput);
-        result.StandardOutput.Should().BeEmpty();
-        result.StandardError.Should().Contain("morphir-mck").And.Contain("MORPHIR_MCK");
-    }
 
     [Test]
     public async Task KillingTheManagedMorphirOnWindowsStopsTheToolAndItsChild()
