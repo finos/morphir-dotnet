@@ -36,16 +36,18 @@ public class PublishedTargetsTests
     }
 
     [Test]
-    [Arguments("trimmed", "/repo/artifacts/single-file/linux-x64/morphir")]
-    [Arguments("untrimmed", "/repo/artifacts/single-file-untrimmed/linux-x64/morphir")]
-    [Arguments("aot", "/repo/artifacts/executables/linux-x64/morphir")]
-    public void APublishedExecutableIsTheFileOfItsOwnPublishTarget(string name, string expected)
+    [Arguments("trimmed", "single-file")]
+    [Arguments("untrimmed", "single-file-untrimmed")]
+    [Arguments("aot", "executables")]
+    public void APublishedExecutableIsTheFileOfItsOwnPublishTarget(string name, string folder)
     {
         var target = TestRunSettings.Parse(Variables(("MORPHIR_TEST_TARGET", name)), _ => false).Target;
+        // The separator of the platform: the driver combines the parts of the path with it.
+        var expected = Path.Combine(Locations.ArtifactsDirectory, folder, Rid, "morphir");
 
-        var path = PublishedExecutables.PathOf(target, Locations, file => file == expected.Replace('/', Path.DirectorySeparatorChar));
+        var path = PublishedExecutables.PathOf(target, Locations, file => file == expected);
 
-        path.Should().Be(expected.Replace('/', Path.DirectorySeparatorChar));
+        path.Should().Be(expected);
     }
 
     [Test]
@@ -248,6 +250,18 @@ public class PublishedTargetsTests
         capabilities.Contains(DriverCapability.NativeAotExecutable).Should().Be(name is "aot" or "native-aot");
         capabilities.Contains(DriverCapability.InProcessFSharpFrontend).Should().Be(host is "managed" or "tool");
         capabilities.Should().Contain([DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Validation, DriverCapability.KnownForm]);
+        DriverCapabilities.Of(target, parsed, "linux-x64").Should().Contain(DriverCapability.WasmGuests);
+        DriverCapabilities.Of(target, parsed, "win-arm64").Should().Contain(DriverCapability.WasmGuests);
+    }
+
+    [Test]
+    public void NoDriverRunsAWasmGuestOnWindowsX64()
+    {
+        // The host on Windows x64 reports win_x64_trap_unsupported and refuses each guest (#609).
+        foreach (var host in MorphirHosts.All)
+            DriverCapabilities.Of(new TestTarget.DevelopmentBuild(), host, "win-x64").Should().NotContain(DriverCapability.WasmGuests);
+        DriverCapabilities.Of(new TestTarget.DevelopmentBuild(), MorphirHost.Native).Contains(DriverCapability.WasmGuests)
+            .Should().Be(RuntimeIdentifiers.Current != "win-x64", "the default is the platform of this machine");
     }
 
     [Test]

@@ -457,8 +457,9 @@ public class BlackBoxRulesTests
 
     /// <summary>
     /// The pull request runs, from the capabilities of the drivers. The development build runs on each operating
-    /// system with the same hosts and capabilities, so it is one row. Add the packages run and the Native AOT run
-    /// in the change that adds the run to the build.
+    /// system with the same hosts and capabilities, except <c>WasmGuests</c>, which Windows x64 does not have (#609).
+    /// So it is one row, with the capabilities of linux-x64, an operating system of that run, and not of the machine
+    /// of the build tests. Add the packages run and the Native AOT run in the change that adds the run to the build.
     /// </summary>
     private static ImmutableArray<PullRequestRun> PullRequestRuns()
     {
@@ -471,7 +472,7 @@ public class BlackBoxRulesTests
                 target.DefaultHost.Name(),
                 target.Hosts.ToImmutableDictionary(
                     host => host.Name(),
-                    host => DriverCapabilities.Of(target, host).Select(DriverCapabilities.TagOf).ToImmutableHashSet())),
+                    host => DriverCapabilities.Of(target, host, "linux-x64").Select(DriverCapabilities.TagOf).ToImmutableHashSet())),
         ];
     }
 

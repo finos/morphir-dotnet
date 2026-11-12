@@ -12,10 +12,28 @@ namespace Morphir.BlackBox.Tests.Integration;
 [Category("integration")]
 public sealed class ExtensionWorkerCorpusTests : BlackBoxTest
 {
-    public static IEnumerable<string> Cases() => WorkerCorpus.Selected(WorkerCorpus.Sample);
+    /// <summary>The cases that run a guest: each case of the selection except the <c>worker/</c> cases.</summary>
+    public static IEnumerable<string> Cases() => WorkerCorpus.Selected(WorkerCorpus.Sample).Where(id => !IsWorkerCase(id));
+
+    /// <summary>The <c>worker/</c> cases: the worker refuses the invocation before it loads the module.</summary>
+    public static IEnumerable<string> WorkerCases() => WorkerCorpus.Selected(WorkerCorpus.Sample).Where(IsWorkerCase);
+
+    static bool IsWorkerCase(string caseId) => caseId.StartsWith("worker/", StringComparison.Ordinal);
+
+    [Test]
+    [MethodDataSource(nameof(WorkerCases))]
+    public async Task A_worker_case_gives_its_expected_observation_with_no_guest(string caseId)
+    {
+        var identity = await ExtensionWorker.BuildIdentityAsync(Drivers.Sessions);
+
+        var outcome = await WorkerCorpus.RunAsync(Drivers.Sessions, identity, caseId);
+
+        await Assert.That(outcome.State is "passed" or "not_applicable").IsTrue().Because(outcome.ToString());
+    }
 
     [Test]
     [MethodDataSource(nameof(Cases))]
+    [Category("needs-wasm-guests")]
     public async Task A_corpus_case_gives_its_expected_observation_through_the_worker(string caseId)
     {
         var identity = await ExtensionWorker.BuildIdentityAsync(Drivers.Sessions);
@@ -32,6 +50,7 @@ public sealed class ExtensionWorkerCorpusTests : BlackBoxTest
     /// </summary>
     [Test]
     [RunOn(OS.Windows)]
+    [Category("needs-wasm-guests")]
     public async Task Ctrl_Break_stops_a_spinning_guest_within_one_second_with_130_and_no_fault()
     {
         var module = Workspace.CopyFixture("WorkerGuests/workspace-then-spin.wasm");

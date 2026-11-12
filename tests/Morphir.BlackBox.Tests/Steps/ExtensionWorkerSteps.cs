@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Text;
 using System.Text.Json;
-using Reqnroll.UnitTestProvider;
 
 namespace Morphir.BlackBox.Tests.Steps;
 
 /// <summary>The steps of <c>extension worker</c> on the session driver of the host (task 4.1 of add-wasm-extension-host).</summary>
 [Binding]
-public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverSet drivers, IScenarioWorkspace workspace, IUnitTestRuntimeProvider runtime, WorkerRun worker)
+public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverSet drivers, IScenarioWorkspace workspace, WorkerRun worker)
 {
     private static readonly TimeSpan RunLimit = TimeSpan.FromSeconds(120);
 
@@ -33,17 +32,13 @@ public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverS
     private async Task<IReadOnlyList<string>> ServeArgumentsAsync(string module, params string[] more) =>
         ExtensionWorker.ServeArguments(module, await ExtensionWorker.BuildIdentityAsync(sessions), more);
 
-    /// <summary>A host that cannot run guests on Windows x64 (#609) skips the scenario with the reason that its report gives.</summary>
+    /// <summary>
+    /// The WASM runtime of the host is available. A scenario that runs a guest has <c>@needs-wasm-guests</c>, so a run
+    /// on Windows x64, where the host refuses each guest (#609), skips it before this step with that reason.
+    /// </summary>
     private async Task RequireTheGuestRuntimeAsync()
     {
         var report = ExtensionRuntimesReport.Of((await drivers.Cli.RunAsync(ExtensionRuntimesReport.Arguments)).ShouldExitWith(0));
-        if (report.IsWindowsX64)
-        {
-            if (report.Wasm.Available || report.Wasm.Reason != ExtensionRuntimesReport.WindowsX64Reason)
-                throw new CommandAssertionException($"On win-x64 the WASM runtime must be unavailable with {ExtensionRuntimesReport.WindowsX64Reason}.", report.Result);
-            runtime.TestIgnore($"{ExtensionRuntimesReport.WindowsX64Reason}: the host cannot run guests; #609.");
-        }
-
         if (!report.Wasm.Available) throw new CommandAssertionException("The WASM runtime of the host is not available.", report.Result);
     }
 

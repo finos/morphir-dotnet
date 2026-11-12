@@ -71,6 +71,7 @@ Feature: Packaged release artifacts
     Then the installed artifact reports its WASM runtime availability with the pinned engine on this platform
 
   # Requirement "Worker mode", scenario "Conformance runner drives a guest", and "The Extism profile in every offering".
+  @needs-wasm-guests
   Scenario: A WASM worker session from the installed artifact
     When the installed artifact serves the pinned module "extism-echo" with the frames "initialize, initialized, shutdown, exit" in a worker session
     Then the worker exits with status 0
@@ -86,6 +87,7 @@ Feature: Packaged release artifacts
   # run of a fresh installation, read-only for this user, works and leaves the files of the installation as they were.
   # On Windows each file is read-only and the folder denies this user to make, write and delete below it; on Linux and
   # macOS each write bit is cleared. The permissions are given back after the scenario, pass or fail.
+  @needs-wasm-guests
   Scenario: A WASM guest runs from a read-only install directory, and its first run extracts nothing
     Given a second installation of the artifact of the run, made read-only before its first run
     When I run the installed artifact with "extension runtimes --json" from a new empty directory

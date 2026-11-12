@@ -72,6 +72,13 @@ public sealed class ExtensionRuntimesSteps(DriverSet drivers, IScenarioWorkspace
     {
         var wasm = Report.Wasm;
         Expect(wasm.EngineName == "wasmtime" && wasm.EngineVersion == PinnedWasmtime, $"The engine is {wasm.EngineName} {wasm.EngineVersion}, not wasmtime {PinnedWasmtime}.");
+        if (Report.IsWindowsX64)
+        {
+            // A runtime that is not available (Windows x64, #609) reports no profiles and no bounds.
+            Expect(wasm.Profiles.IsEmpty && wasm.MemoryBytes is null, $"The unavailable runtime reports the profiles {string.Join(", ", wasm.Profiles)} and the memory bound {wasm.MemoryBytes}.");
+            return;
+        }
+
         Expect(wasm.Profiles.SequenceEqual([profile]), $"The profiles are {string.Join(", ", wasm.Profiles)}, not {profile}.");
         Expect(wasm.MemoryBytes == memory, $"The memory bound is {wasm.MemoryBytes}, not {memory}.");
     }

@@ -903,6 +903,15 @@ time-budget tests into a suite of their own is an option then.</td>
 <code>IL3050</code> only, and slice 5 checks the warnings of the library hosts and the probes, not of the CLI. So no
 check refuses those warnings for the CLI now. It needs an owner and a decision.</td>
 <td><code>slice-2-moves.md</code></td></tr>
+<tr><td><a href="#drv-5">DRV-5</a>, Windows x64</td>
+<td>The host on Windows x64 refuses each WASM guest (#609). The capability <code>WasmGuests</code> is on each platform
+except win-x64, so the scenarios and the corpus cases that run a guest are skipped there with one reason, as
+<code>WasmPlatformTests</code> of <code>Morphir.Extensions.Wasm.Tests</code> skips them. <code>DriverCapabilities.Of</code>
+takes the platform; the guard <code>EachPullRequestTestHasOneRunThatSupportsIt</code> uses linux-x64, an operating
+system of the pull request run, and not the machine of the build tests. On Windows the read-only installation refuses
+new files and writes to files; a hosted runner can still make a folder in it, so that probe is for Linux and macOS
+only.</td>
+<td><code>slice-2-moves.md</code></td></tr>
 <tr><td>The worker guests</td>
 <td>The two guests of the worker moved from the removed project to <code>tests/Fixtures/WorkerGuests</code>, with a
 README. <code>Morphir.Tooling.Tests</code> links them from there: a one-line change of its project file.</td>

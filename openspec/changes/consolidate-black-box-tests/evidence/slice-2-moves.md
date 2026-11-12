@@ -59,6 +59,9 @@ published lane by lane, the Windows test and the opt-in journey).
   in the Native AOT `morphir` of macOS, so "The installed layout is what the offering claims", "No installed .NET
   runtime" and "The declared runtime" fail on macOS. The helper says that it is verified only on PE files. This is a
   finding about the helper, not about this change.
+- The scenarios and corpus cases that run a WASM guest have `@needs-wasm-guests`. On Windows x64, where the host refuses
+  each guest (#609), the drivers do not support it, so they are skipped there with the capability as the one reason.
+  The runs in this table are on macOS, where they run.
 - A skip by host is a smoke scenario with `@host-managed` or `@host-tool` on a target with one host. A skip by
   capability is a test of another target (the packaged scenarios, the Native AOT tests), or a test that compares two
   hosts on a target with one host (before, these ran the other host from a build folder; a target never uses
@@ -165,7 +168,7 @@ Wasmtime comes from `Directory.Packages.props`, linked as a fixture.
 
 | Old case | New scenario |
 | --- | --- |
-| `The_executable_reports_its_platforms_wasm_availability_with_the_engine_of_its_package` | The host reports the WASM availability of its platform with the engine of its package. The same checks. |
+| `The_executable_reports_its_platforms_wasm_availability_with_the_engine_of_its_package` | The host reports the WASM availability of its platform with the engine of its package. The same checks. On Windows x64 the runtime is not available, and the report has no profiles and no bounds; the old test read them there and failed (it never ran on Windows x64), so the new step checks that they are absent there. |
 | `Without_its_engine_library_the_executable_reports_the_applicable_unavailable_reason` | Without its engine library the host reports the applicable unavailable reason. The same checks, the host name included. |
 | `Without_its_engine_library_a_worker_is_refused_by_name_with_no_stdout_bytes` | Without its engine library a worker is refused by name with no bytes on standard output. The same checks, with the worker steps of `ExtensionWorker.feature`. |
 | `Without_its_engine_library_the_commands_that_need_no_wasm_still_work` (4 arguments) | The outline with the same 4 commands and the same checks. The model of `ir verify` is a fixture copy in the workspace. |
@@ -181,8 +184,8 @@ integration group has tests with a time budget now, so its suite runs alone (`Al
 | Old case | New test |
 | --- | --- |
 | `The_sample_has_every_worker_case_and_every_group` | The same name and the same checks, in `Morphir.TestSupport.Tests/Drivers/WorkerCorpusTests.cs`: it reaches no product, so it is a unit test of the sample, which is `WorkerCorpus.Sample` of the testing library now. |
-| `A_corpus_case_gives_its_expected_observation_through_the_worker` (21 cases of the sample) | The same name, the same 21 cases and the same checks. `MORPHIR_WORKER_CORPUS=all` still runs each case of the corpus. |
-| `Ctrl_Break_stops_a_spinning_guest_within_one_second_with_130_and_no_fault` (`RunOn(Windows)`) | The same name, the same checks, and `RunOn(Windows)`. The interrupt is Ctrl+Break through `IProcessSession.InterruptAsync`. |
+| `A_corpus_case_gives_its_expected_observation_through_the_worker` (21 cases of the sample) | The same checks for the same 21 cases, in two methods: the 2 `worker/` cases, which the worker refuses before it loads a module, in `A_worker_case_gives_its_expected_observation_with_no_guest`, and the 19 other cases in the method with the old name, with `@needs-wasm-guests`, so a run on Windows x64 skips them with that reason (#609). The old test was never run on Windows x64. `MORPHIR_WORKER_CORPUS=all` still runs each case of the corpus. |
+| `Ctrl_Break_stops_a_spinning_guest_within_one_second_with_130_and_no_fault` (`RunOn(Windows)`) | The same name, the same checks, `RunOn(Windows)` and `@needs-wasm-guests`: it runs on Windows arm64, and Windows x64 skips it (#609). The interrupt is Ctrl+Break through `IProcessSession.InterruptAsync`. |
 
 ## `Features/ExecutableGuestKitModelTierTests` (1 case)
 
@@ -295,7 +298,7 @@ them. Their tests moved with them to `tests/Morphir.TestSupport.Tests/Packaging`
 | `PackagedEngineLayoutTests` | 11 | `Packaging/PackagedEngineLayoutTests` |
 | `PackagedInstallationTests` | 3 | `Packaging/PackagedInstallationTests`. `PackagedInstallation` installs into a directory that the caller gives; the static cache of the old helper and its Reqnroll clean-up hook are gone, because the session installs once and removes the folder at the end of the run. |
 | `PackagedRunTests` | 8 | `Packaging/PackagedRunTests`. `PackagedRun.RunAsync` runs in a folder that the caller contains (the workspace). |
-| `ReadOnlyTreeTests` | 2 | `Packaging/ReadOnlyTreeTests` |
+| `ReadOnlyTreeTests` | 2 | `Packaging/ReadOnlyTreeTests`. On Windows the read-only claim is now what the attribute and the deny rule give: no new file and no write to a file. The pull request CI showed that a hosted Windows runner can still make a new folder in the tree, so `WriteProblems` probes a new folder on Linux and macOS only. The old tests never ran on Windows. |
 | `LocalDeveloperToolchainTests` | 1 | `Journeys/LocalCandidateJourneyTests` (`@journey @lane @published`, category `LocalCandidate`): a journey (morphirup installs, selects, compiles and generates) with a time budget, so a framework test. Its explicit inputs (`MORPHIR_LOCAL_*`) and its file work are in the driver `LocalCandidateJourney` of the testing library, with the same checks. It is skipped with the same two reasons when the inputs are not set or the machine is not Windows. It was not run here: it needs a candidate and a Windows x64 machine. |
 
 ## `CliAdapterTests.fs` of `Morphir.Frontend.FSharp.Tests` (task 6.6)

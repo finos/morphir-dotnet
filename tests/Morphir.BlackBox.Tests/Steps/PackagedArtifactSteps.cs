@@ -147,7 +147,8 @@ public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace 
         Expect(report.Wasm.Kind == "wasm" && report.Wasm.Available == !report.IsWindowsX64, Result.StandardOutput);
         if (report.IsWindowsX64) Expect(report.Wasm.Reason == ExtensionRuntimesReport.WindowsX64Reason, Result.StandardOutput);
         Expect(report.Wasm.EngineName == "wasmtime" && report.Wasm.EngineVersion == version, $"The engine is not the engine {version} of the pinned Wasmtime package.");
-        Expect(report.Wasm.Profiles.SequenceEqual(["extism-kernel-v1"]), Result.StandardOutput);
+        // A runtime that is not available reports no profiles (Windows x64, #609).
+        Expect(report.Wasm.Profiles.SequenceEqual(report.IsWindowsX64 ? [] : ["extism-kernel-v1"]), Result.StandardOutput);
         Expect(Installation.Artifact.RecordedEngines() is { } recorded && recorded.All(engine => engine.Version == version),
             "The artifact does not carry the engine of the version that it reports.");
     }
@@ -155,11 +156,6 @@ public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace 
     [When("the installed artifact serves the pinned module {string} with the frames {string} in a worker session")]
     public async Task TheArtifactServesAWorkerSession(string module, string frames)
     {
-        var runtimes = await Packaged.RunAsync(["extension", "runtimes", "--json"], RuntimeAccess.Visible, Packaged.NewWorkDirectory());
-        Expect(runtimes.ExitCode == 0, runtimes.Describe());
-        if (runtimes.StandardOutput.Contains("\"platform\":\"win-x64\"", StringComparison.Ordinal))
-            runtime.TestIgnore($"{ExtensionRuntimesReport.WindowsX64Reason}: the installed executable cannot run guests; #609.");
-
         // The same containment as each packaged run: a working directory whose path has a space, a contained home, and
         // here also a temporary directory of the session of its own, so its workspace can be seen and its removal checked.
         var work = Packaged.NewWorkDirectory();

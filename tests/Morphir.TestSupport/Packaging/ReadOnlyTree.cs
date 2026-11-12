@@ -73,8 +73,11 @@ public sealed class ReadOnlyTree : IDisposable
     }
 
     /// <summary>
-    /// The writes into <paramref name="root"/> that succeeded: a new file in each folder, a new folder in the root, and
-    /// opening each file for writing. Empty for a read-only tree. A probe that succeeds is undone; no file is changed.
+    /// The writes into <paramref name="root"/> that succeeded: a new file in each folder, a new folder in the root (on
+    /// Linux and macOS only), and opening each file for writing. Empty for a read-only tree. A probe that succeeds is
+    /// undone; no file is changed. On Windows the claim is what the read-only attribute and the deny rule give: no new
+    /// file and no write to a file. On a hosted Windows runner the deny rule does not stop a new folder in the root
+    /// (seen in the pull request CI of change consolidate-black-box-tests), so the folder probe is not a part of it.
     /// </summary>
     public static IReadOnlyList<string> WriteProblems(string root)
     {
@@ -90,7 +93,7 @@ public sealed class ReadOnlyTree : IDisposable
         }
 
         var probeFolder = Path.Combine(root, $"morphir-write-probe-{Guid.NewGuid():N}");
-        if (Try(() => Directory.CreateDirectory(probeFolder)))
+        if (!OperatingSystem.IsWindows() && Try(() => Directory.CreateDirectory(probeFolder)))
         {
             problems.Add($"a new folder can be created in {root}");
             Try(() => Directory.Delete(probeFolder));

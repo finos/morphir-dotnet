@@ -27,6 +27,7 @@ public sealed class ReadOnlyTreeTests
 
         using (var tree = ReadOnlyTree.Apply(root))
         {
+            // On Windows the claim is no new file and no write to a file; a hosted runner can still make a folder there.
             ReadOnlyTree.WriteProblems(root).Should().BeEmpty("no file can be added, changed or deleted anywhere in the tree");
             if (!OperatingSystem.IsWindows())
             {
@@ -51,7 +52,14 @@ public sealed class ReadOnlyTreeTests
         var root = Directory.CreateDirectory(sandbox.PathOf("install dir")).FullName;
         File.WriteAllText(Path.Combine(root, "tool"), "x");
 
-        ReadOnlyTree.WriteProblems(root).Should().NotBeEmpty();
+        var problems = ReadOnlyTree.WriteProblems(root);
+
+        problems.Should().Contain(problem => problem.StartsWith("a new file can be created in", StringComparison.Ordinal));
+        problems.Should().Contain(problem => problem.EndsWith("can be opened for writing", StringComparison.Ordinal));
+        if (OperatingSystem.IsWindows())
+            problems.Should().NotContain(problem => problem.StartsWith("a new folder", StringComparison.Ordinal), "the folder probe is not a part of the claim on Windows");
+        else
+            problems.Should().Contain(problem => problem.StartsWith("a new folder can be created in", StringComparison.Ordinal));
         ReadOnlyTree.Snapshot(root).Should().Equal(["tool 1"], "the probe leaves nothing behind");
     }
 }
