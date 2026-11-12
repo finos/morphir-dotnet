@@ -96,7 +96,7 @@ module internal GenerationBinding =
     let unwrap = function
         | Ok value -> value
         | Error(failure: ReaderRefusal) -> Operations.fail "extension.generation_invalid" $"Generation document refused at {DocumentPath.render failure.Path}."
-    let read (root: SafeDirectory) path =
+    let read (root: SafeDirectory) (path: string) =
         use input = FileSafety.openRelative root (Path.Combine(root.Path,path.Replace('/',Path.DirectorySeparatorChar)))
         if input.Length > (8L <<< 20) then Operations.fail "extension.generation_invalid" "Generation document exceeds its bound."
         use memory = new MemoryStream()
@@ -156,8 +156,8 @@ module internal GenerationBinding =
                 for id,path,digest in manifest.Metadata do
                     let raw = bytes path.Text
                     same digest (Sha256.ofBytes raw)
-                    let plan = PackagePlan.Read(raw,InstallationPlatform.Create "win-x64")
-                               .Match(Func<PackagePlan,_>(fun value -> value),Func<InstallationFailure,_>(fun failure -> raise (InstallationException failure)))
+                    let result = PackagePlan.Read(raw,InstallationPlatform.Create "win-x64")
+                    let plan = result.Match(Func<PackagePlan,_>(fun value -> value),Func<InstallationFailure,_>(fun failure -> raise (InstallationException failure)))
                     let locked = locks |> List.find(fun locked -> locked.Entry.Id = id.Text)
                     let retained = PackagePlan.FromState(locked.Entry,locked)
                     if plan.ArchiveDigest <> retained.ArchiveDigest || plan.TreeDigest <> retained.TreeDigest || plan.EntryPoint <> retained.EntryPoint
@@ -184,7 +184,8 @@ module internal GenerationBinding =
                     for role,id in ["frontend",candidate.FrontendId;"backend",candidate.BackendId] do
                         let locked = locks |> List.find(fun locked -> locked.Entry.Id=id.Text)
                         same (asset (role+"-archive")).Sha256.Text locked.Entry.Digest.Value
-                        let _,path,digest = manifest.Metadata |> List.tryFind(fun (candidate,_,_) -> candidate=id)
+                        let _,path,digest =
+                            manifest.Metadata |> List.tryFind(fun (candidate,_,_) -> candidate=id)
                             |> Option.defaultWith(fun () -> Operations.fail "extension.generation_incomplete" "Release checksum generation requires its original provider release envelopes.")
                         same (asset (role+"-release")).Sha256 digest
                         let plan = PackagePlan.FromState(locked.Entry,locked)

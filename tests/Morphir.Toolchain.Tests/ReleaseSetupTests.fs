@@ -45,12 +45,14 @@ type private RedirectHandler() =
 
 let private tinyBundle () =
     let hash = String('a',64)
+    let asset role = Value.Object [
+        "name",Value.String(role+".zip")
+        "url",Value.String(ReleaseBundleDocument.repository+"/releases/download/v0.4.0-alpha.5/"+role+".zip")
+        "bytes",Value.Number "3";"sha256",Value.String hash;"role",Value.String role]
     Value.Object [
         "$schema",Value.String(ReleaseBundleDocument.schema "bundle")
         "version",Value.String "0.4.0-alpha.5";"sourceCommit",Value.String(String('b',40));"platform",Value.String "win-x64"
-        "assets",Value.Array [for role in ReleaseBundleDocument.roles -> Value.Object [
-            "name",Value.String(role+".zip");"url",Value.String(ReleaseBundleDocument.repository+"/releases/download/v0.4.0-alpha.5/"+role+".zip")
-            "bytes",Value.Number "3";"sha256",Value.String hash;"role",Value.String role]] ] |> JsonText.toBytes
+        "assets",Value.Array(List.map asset ReleaseBundleDocument.roles)] |> JsonText.toBytes
 
 [<Tests>]
 let tests = testList "WindowsReleaseSetup" [

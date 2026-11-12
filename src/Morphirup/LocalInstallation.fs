@@ -563,7 +563,7 @@ let private validateArchive (source: Stream) candidate validateHome ct =
             output.ToArray()
         )
 
-    existingHome home ct
+    validateHome ()
 
 let writeFile (root: SafeDirectory) path bytes =
     let names = parts path

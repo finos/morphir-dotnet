@@ -430,6 +430,15 @@
           "Morphir.Models": "[1.0.0, )"
         }
       },
+      "morphir.compilation.mep": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Toolchain.IO": "[1.0.0, )"
+        }
+      },
       "morphir.extensions": {
         "type": "Project",
         "dependencies": {
@@ -472,6 +481,13 @@
           "CsToml": "[1.8.6, )",
           "FSharp.Core": "[10.1.403, )",
           "Semver": "[3.0.0, )"
+        }
+      },
+      "morphir.toolchain.io": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Toolchain": "[1.0.0, )"
         }
       },
       "Azure.Security.KeyVault.Certificates": {
@@ -563,10 +579,7 @@
         "type": "CentralTransitive",
         "requested": "[3.0.0, )",
         "resolved": "3.0.0",
-        "contentHash": "9jZCicsVgTebqkAujRWtC9J1A5EQVlu0TVKHcgoCuv345ve5DYf4D1MjhKEnQjdRZo6x/vdv6QQrYFs7ilGzLA==",
-        "dependencies": {
-          "Microsoft.Extensions.Primitives": "5.0.1"
-        }
+        "contentHash": "9jZCicsVgTebqkAujRWtC9J1A5EQVlu0TVKHcgoCuv345ve5DYf4D1MjhKEnQjdRZo6x/vdv6QQrYFs7ilGzLA=="
       },
       "Serilog": {
         "type": "CentralTransitive",

@@ -993,7 +993,7 @@ let private runCoreAsync
             let absolute path =
                 Path.GetFullPath(path, io.CurrentDirectory)
 
-            let home options =
+            let home (options: Options) =
                 options.TryGet "--home" |> Option.defaultWith ComposedInstallation.defaultHome
                 |> LocalCandidate.homePath
 

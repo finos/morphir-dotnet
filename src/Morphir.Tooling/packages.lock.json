@@ -452,7 +452,8 @@
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "Morphir.Compilation": "[1.0.0, )",
-          "Morphir.Mep": "[1.0.0, )"
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Toolchain.IO": "[1.0.0, )"
         }
       },
       "morphir.configuration": {
@@ -485,6 +486,16 @@
           "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Mep": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.extensions.installation": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Extensions": "[1.0.0, )",
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Toolchain": "[1.0.0, )",
+          "Semver": "[3.0.0, )"
         }
       },
       "morphir.ion": {

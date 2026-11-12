@@ -36,8 +36,8 @@ type ReleaseTransport(handler: HttpMessageHandler) =
                 if List.contains (int next.StatusCode) [301;302;303;307;308] then
                     try
                         redirects <- redirects+1
-                        let location = next.Headers.Location
-                        if isNull location || redirects > 3 then raise (HttpRequestException "Release redirect limit exceeded or missing location.")
+                        let location = next.Headers.Location |> Option.ofObj |> Option.defaultWith(fun () -> raise (HttpRequestException "Missing release redirect location."))
+                        if redirects > 3 then raise (HttpRequestException "Release redirect limit exceeded.")
                         let target = if location.IsAbsoluteUri then location else Uri(current,location)
                         if target.Scheme <> "https" || target.UserInfo <> "" || target.Fragment <> ""
                            || not(List.contains target.Host ["github.com";"release-assets.githubusercontent.com";"objects.githubusercontent.com"])
@@ -81,7 +81,7 @@ let downloadAsync home directory (transport: IAcquisitionTransport) (asset: Rele
     let store = {
         new IAcquisitionStore with
             member _.BeginAsync(_,expected,token) = task {
-                let! result = PrivateStaging.BeginAsync(home,expected.Length,Sha256Digest.Create expected.Sha256.Text,1UL <<< 30,token)
+                let! result = PrivateStaging.BeginAsync(home,expected.Length,Morphir.Mep.Sha256Digest.Create expected.Sha256.Text,1UL <<< 30,token)
                 let stage = result.Match(Func<PrivateArtifactStage,_>(id),Func<InstallationFailure,_>(fun failure -> raise (InstallationException failure)))
                 return {
                     new IPrivateObject with

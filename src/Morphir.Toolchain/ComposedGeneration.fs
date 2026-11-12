@@ -228,7 +228,7 @@ module internal ComposedDocuments =
         }
         let! checks = required "checks" (array workflowCheck) workflow
         if checks.Length <> 1 then return! refuse ReaderCode.InconsistentDocument (workflow.Path.Child "checks")
-        let! acquisition = optional "acquisition" (fun n -> result {
+        let acquisitionReader n = result {
             let! fields = asObject n |> Result.bind(closed ["repository";"tag";"bundle";"checksums"])
             do! constant "repository" repository fields
             let! tag = required "tag" text fields
@@ -240,7 +240,8 @@ module internal ComposedDocuments =
                 let! _ = required "sha256" sha256 item
                 ()
             return n.Value
-        }) o
+        }
+        let! acquisition = optional "acquisition" acquisitionReader o
         if (family = "0.1.0-preview.3") <> acquisition.IsSome then return! refuse ReaderCode.InconsistentDocument o.Path
         return {Identity=Sha256.ofBytes bytes;CandidateSha256=candidateHash;SelectionSha256=selection;CatalogSha256=catalog;Locks=locks;Metadata=metadata;Workflow=workflowNode.Value;Acquisition=acquisition}
     }
@@ -291,12 +292,12 @@ module internal ComposedDocuments =
         do! constant "receiptPath" (LocalCandidateDocument.receiptPath id) o
         return id,receipt
     }
-    let writeManifest family (candidate: LocalComposedCandidate) (catalog: byte array) (locks: (ExtensionId * byte array) list) metadata workflow acquisition =
+    let writeManifest family (candidate: LocalComposedCandidate) (catalog: byte array) (locks: (ExtensionId * byte array) list) (metadata: (ExtensionId * TargetPath * byte array) list) workflow acquisition =
         Value.Object ([
             "$schema",Value.String(schemaFor family "generation")
             "candidateSha256",Value.String candidate.Host.ManifestSha256.Text
             "selectionSha256",Value.String candidate.SelectionSha256.Text
             "catalogSha256",Value.String ((Sha256.ofBytes catalog).Text)
             "locks",Value.Array(locks |> List.sortBy(fun (id,_) -> id.Text) |> List.map(fun (id,bytes) -> Value.Object ["extensionId",Value.String id.Text;"sha256",Value.String ((Sha256.ofBytes bytes).Text)]))
-            "metadata",Value.Array(metadata |> List.sortBy(fun (id: ExtensionId,path: TargetPath,_) -> id.Text,path.Text) |> List.map(fun (id,path,bytes) -> Value.Object ["extensionId",Value.String id.Text;"path",Value.String path.Text;"sha256",Value.String ((Sha256.ofBytes bytes).Text)]))
+            "metadata",Value.Array(metadata |> List.sortBy(fun (id,path,_) -> id.Text,path.Text) |> List.map(fun (id,path,bytes) -> Value.Object ["extensionId",Value.String id.Text;"path",Value.String path.Text;"sha256",Value.String ((Sha256.ofBytes bytes).Text)]))
             "workflow",workflow ] @ (acquisition |> Option.map(fun value -> ["acquisition",value]) |> Option.defaultValue [])) |> JsonText.toBytes

@@ -22,7 +22,7 @@ let private path home (relative: string) = Path.Combine(home,relative.Replace('/
 let private read root name = GenerationBinding.read root name
 let private fixedBytes name =
     use input = typeof<LocalProcess.LimitedCapture>.Assembly.GetManifestResourceStream("Morphirup.Fixed."+name)
-    if isNull input then invalidOp "Missing fixed readiness resource."
+                |> Option.ofObj |> Option.defaultWith(fun () -> invalidOp "Missing fixed readiness resource.")
     use output = new MemoryStream()
     input.CopyTo output
     output.ToArray()
@@ -193,7 +193,7 @@ let setupWithTransportAsync home version (transport: IAcquisitionTransport) dryR
         use generation = stage.Child("generation",false)
         LocalInstallation.writeFile generation "generation.json" manifestBytes
         LocalInstallation.writeFile generation "receipt.json" receipt
-        let expectedLocks = locks |> List.map(fun (id,bytes) -> id.Text,bytes) |> dict
+        let expectedLocks = locks |> List.map(fun (id,bytes) -> id.Text,bytes) |> readOnlyDict
         let! result = InstalledExtensions.PublishExpectedAsync(home,captures.CatalogBytes,expectedLocks,candidate.Host.Host.Version,Func<Task>(fun () -> task {
             use! lease = FileSafety.mutationLeaseAsync root ct
             stage.ValidateLocation()
@@ -267,7 +267,7 @@ let selectAsync home identity dryRun ct = task {
     return snapshot
 }
 
-let runAsync home args directory input output errors ct = task {
+let runAsync home args directory input output (errors: TextWriter) ct = task {
     let! snapshot = selected home ct
     let candidate = snapshot.Candidate
     let args =

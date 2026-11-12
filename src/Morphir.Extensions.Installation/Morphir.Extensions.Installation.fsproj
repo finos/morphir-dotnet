@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+    <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
