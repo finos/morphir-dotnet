@@ -300,6 +300,37 @@ public class PackageDriverTests
         BuildOutputs(sources).Should().Equal(before, "a pack with no build and a consumer of the package write no file below the bin and obj folders of the repository, so a solution build after them compiles nothing");
     }
 
+    // A product tool writes UTF-8 and reads a framed message as UTF-8 with no byte order mark. On Windows the default
+    // encoding of a redirected stream is the code page of the console.
+    [Test]
+    public async Task ACommandReadsAndWritesItsStreamsAsUtf8()
+    {
+        await using var workspace = Workspace();
+        var driver = new PackageDriver(workspace, PackageSources.OfDevelopmentBuild(ThisAssembly), packed: null);
+        var consumer = workspace.Directory("echo consumer");
+        driver.WriteNuGetConfig(consumer, includeNuGetOrg: false);
+        workspace.WriteText(consumer.File("Echo.csproj"), """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework></PropertyGroup>
+            </Project>
+            """);
+        // The program writes the code of each character of its input, and then the input with a check mark.
+        workspace.WriteText(consumer.File("Program.cs"), """
+            System.Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+            System.Console.InputEncoding = new System.Text.UTF8Encoding(false);
+            var input = System.Console.In.ReadToEnd();
+            System.Console.WriteLine(string.Join(" ", System.Linq.Enumerable.Select(input, character => ((int)character).ToString("x4"))));
+            System.Console.WriteLine("✓ " + input);
+            """);
+        (await driver.DotnetAsync(consumer, ["build", "Echo.csproj", "-nologo"])).ShouldExitWith(0);
+
+        var result = await driver.DotnetAsync(consumer, ["exec", consumer.File("bin", "Debug", "net11.0", "Echo.dll").Path], new PackageCommandOptions { StandardInput = "é│" });
+
+        result.ShouldExitWith(0);
+        result.StandardOutput.Split('\n')[0].Trim().Should().Be("00e9 2502", "the input has no byte order mark, and its characters are UTF-8");
+        result.OutputShouldContain("✓ é│");
+    }
+
     [Test]
     public async Task APackOfAProjectThatIsNotBuiltFirstIsRefused()
     {

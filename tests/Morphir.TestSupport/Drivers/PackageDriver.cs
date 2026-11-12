@@ -202,6 +202,8 @@ public sealed class PackageDriver : IPackageDriver
 
     private static readonly Lazy<string?> RealHttpCache = new(FindHttpCache);
 
+    private static readonly System.Text.UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
+
     private readonly IScenarioWorkspace _workspace;
     private readonly PackageSources? _sources;
     private readonly PackedPackages? _packed;
@@ -353,6 +355,12 @@ public sealed class PackageDriver : IPackageDriver
                 else info.Environment[name] = value;
             }
         }
+
+        // A product tool and the SDK write UTF-8. Without this, Windows reads a redirected stream in the code page of
+        // the console, and a framed message gets a byte order mark.
+        info.StandardOutputEncoding = Utf8;
+        info.StandardErrorEncoding = Utf8;
+        if (options?.StandardInput is not null) info.StandardInputEncoding = Utf8;
 
         var commandLine = string.Join(' ', new[] { info.FileName }.Concat(info.ArgumentList).Select(Quoted));
         var mark = _workspace.Mark();
