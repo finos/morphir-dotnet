@@ -85,6 +85,15 @@ both interruptions, subsequent show/select/run, the original integrity and
 owned-state refusals, and real fixed compile/generate. The PR and bundle record
 the replacement native producer, exact artifact digest and repeated journey.
 
+Hosted build tests then caught a NuGet closure regression: `Morphir.Tooling`
+referenced `Morphir.Toolchain.IO`, but IO and its pure Toolchain dependency were
+not packed. Both are now included, in dependency order, in the existing library
+package set. The unchanged package-dependency regression passed against 18 real
+packages in Tooling's transitive closure, all at the existing source version.
+That targeted result is not a full PackLibs run or package publication. Runtime
+implementation files and the delivered native bytes did not change; the native
+producer identity stays distinct from the later packaging-only PR head.
+
 ## Reproduction and remaining acceptance
 
 The [user walkthrough](../../content/docs/getting-started/local-morphirup-candidate.md)
