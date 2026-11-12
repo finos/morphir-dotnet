@@ -296,6 +296,22 @@ type PackageFile internal (path: TargetPath, length: int64, digest: Sha256Digest
     override _.ToString() =
         $"Package file {path.Text}, {length} bytes, SHA-256 {digest.Value}."
 
+    /// Creates one bounded producer observation. This does not read a file or establish provenance.
+    static member Create(path: TargetPath, length: int64, digest: Sha256Digest, executable: bool) =
+        InstallationResult(
+            PackagePaths.result (fun () ->
+                let path = PackagePaths.read "package.tree_changed" path.Text
+
+                if
+                    length < 0L
+                    || length > InstallationLimits.MaxArtifactBytes
+                then
+                    Operations.fail "package.tree_changed" "File length exceeds package bounds."
+
+                PackageFile(path, length, digest, executable)
+            )
+        )
+
 /// The exact ASCII canonical manifest bound by package.treeSha256.
 [<Sealed>]
 type PackageManifest private (bytes: byte array, files: PackageFile array) =
@@ -467,6 +483,34 @@ type PackageManifest private (bytes: byte array, files: PackageFile array) =
 
         InstallationResult result
 
+    /// Writes through the existing canonical writer, then validates the complete owned file inventory.
+    /// C# callers supply a read-only collection; the returned manifest retains its own copy.
+    static member FromFiles(files: IReadOnlyList<PackageFile>) =
+        let result =
+            PackagePaths.result (fun () ->
+                if files.Count > 4096 then
+                    Operations.fail "package.tree_changed" "Too many regular package files."
+
+                let manifest =
+                    PackageManifest.Create(
+                        files
+                        |> Seq.toArray
+                    )
+
+                let bytes = manifest.ToBytes()
+
+                PackageManifest
+                    .Read(bytes, Sha256Digest.Create(Digest.ofBytes bytes))
+                    .Match(
+                        Func<PackageManifest, PackageManifest>(id),
+                        Func<InstallationFailure, PackageManifest>(fun failure ->
+                            raise (InstallationException failure)
+                        )
+                    )
+            )
+
+        InstallationResult result
+
 /// An installed immutable tree, without a claim that catalog registration or readiness probing occurred.
 [<Sealed>]
 type InstalledPackage internal (path: string, plan: PackagePlan, manifest: PackageManifest) =
@@ -604,7 +648,7 @@ module internal PackageTreeIO =
                 "package.tree_changed"
                 "Package file mode differs from the canonical executable declaration."
 
-    let private verifyExecutableDeclaration (plan: PackagePlan) isRegularFile =
+    let verifyExecutableDeclaration (plan: PackagePlan) isRegularFile =
         if
             plan.Artifact.Platform
             |> Option.exists (fun platform -> platform.Contains "windows")
@@ -1437,3 +1481,191 @@ type PackageInstaller private () =
                     )
                 )
         }
+
+/// Prepares the existing release format for a complete-folder producer archive.
+/// This pure writer makes no installation, readiness or authenticated-provenance claim.
+[<AbstractClass; Sealed>]
+type PackageRelease private () =
+    /// Binds an existing valid release descriptor to the actual archive and canonical file inventory.
+    /// Whole-folder archives have no enclosing package root. Identity and unknown optional metadata are retained.
+    static member PrepareWholeArchive
+        (
+            releaseBytes: byte array,
+            platform: InstallationPlatform,
+            archiveName: TargetPath,
+            archiveDigest: Sha256Digest,
+            manifest: PackageManifest,
+            entryPoint: TargetPath
+        ) =
+        InstallationResult(
+            PackagePaths.result (fun () ->
+                let descriptor =
+                    Descriptors.read releaseBytes
+                    |> StateOwnership.unwrap
+
+                SharedJson.protect (fun () ->
+                    let replace name value items =
+                        if
+                            items
+                            |> List.exists (fun (key, _) -> key = name)
+                        then
+                            items
+                            |> List.map (fun (key, current) ->
+                                key, (if key = name then value else current)
+                            )
+                        else
+                            items
+                            @ [ name, value ]
+
+                    let matching =
+                        descriptor.Artifacts
+                        |> List.filter (fun artifact ->
+                            artifact.Platform = Some platform.DescriptorTriple
+                        )
+
+                    match matching with
+                    | [ artifact ] when artifact.Runtime = ArtifactRuntime.Process -> ()
+                    | _ ->
+                        SharedJson.fail
+                            "extension.no_matching_artifact"
+                            "artifacts"
+                            "Expected one process artifact for this platform."
+
+                    let archiveName =
+                        DistributionIdentifiers.ParseArtifactFileName archiveName.Text
+                        |> StateOwnership.unwrap
+
+                    let format =
+                        if
+                            archiveName.Text.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+                        then
+                            "zip"
+                        elif
+                            archiveName.Text.EndsWith(
+                                ".tar.gz",
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                            || archiveName.Text.EndsWith(
+                                ".tgz",
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                        then
+                            "tar.gz"
+                        else
+                            SharedJson.fail
+                                "package.archive_format"
+                                "filename"
+                                "Expected a ZIP or tar.gz archive."
+
+                    let entryPoint = PackagePaths.read "package.path" entryPoint.Text
+
+                    let entry =
+                        manifest.Files
+                        |> Seq.tryFind (fun file -> file.Path = entryPoint)
+
+                    match entry with
+                    | None ->
+                        Operations.fail
+                            "package.entry_point_missing"
+                            "Entry point is absent from the canonical manifest."
+                    | Some file when not file.Executable ->
+                        Operations.fail
+                            "package.tree_changed"
+                            "Entry point must be declared executable."
+                    | _ -> ()
+
+                    let additional =
+                        manifest.Files
+                        |> Seq.filter (fun file ->
+                            file.Executable
+                            && file.Path
+                               <> entryPoint
+                        )
+                        |> Seq.map (fun file -> Value.String file.Path.Text)
+                        |> Seq.toList
+
+                    let root = SharedJson.members "release.json" descriptor.Json
+
+                    let artifacts =
+                        SharedJson.required "release.json" "artifacts" root
+                        |> SharedJson.array "artifacts"
+                        |> List.map (fun value ->
+                            let items = SharedJson.members "artifact" value
+
+                            if
+                                SharedJson.optional "platform" items
+                                <> Some(Value.String platform.DescriptorTriple)
+                            then
+                                value
+                            else
+                                let previousPackage =
+                                    SharedJson.optional "package" items
+                                    |> Option.map (SharedJson.members "package")
+                                    |> Option.defaultValue []
+                                    |> List.filter (fun (name, _) ->
+                                        name
+                                        <> "root"
+                                    )
+
+                                let declaration =
+                                    previousPackage
+                                    |> replace "format" (Value.String format)
+                                    |> replace "entryPoint" (Value.String entryPoint.Text)
+                                    |> replace "executables" (Value.Array additional)
+                                    |> replace
+                                        "treeSha256"
+                                        (Value.String(Digest.ofBytes (manifest.ToBytes())))
+
+                                items
+                                |> replace "filename" (Value.String archiveName.Text)
+                                |> replace "sha256" (Value.String archiveDigest.Value)
+                                |> replace "package" (Value.Object declaration)
+                                |> Value.Object
+                        )
+
+                    let critical =
+                        SharedJson.optional "critical" root
+                        |> Option.map (SharedJson.strings "critical")
+                        |> Option.defaultValue []
+
+                    let critical =
+                        if List.contains "artifacts.package" critical then
+                            critical
+                        else
+                            critical
+                            @ [ "artifacts.package" ]
+
+                    let updated =
+                        root
+                        |> replace "artifacts" (Value.Array artifacts)
+                        |> replace "critical" (Value.Array(List.map Value.String critical))
+
+                    let schema = SharedJson.required "release.json" "$schema" updated
+
+                    let bytes =
+                        Value.Object(
+                            ("$schema", schema)
+                            :: (updated
+                                |> List.filter (fun (name, _) ->
+                                    name
+                                    <> "$schema"
+                                ))
+                        )
+                        |> JsonText.toBytes
+
+                    let plan =
+                        PackagePlan.Read(bytes, platform)
+                        |> PackageTreeIO.unwrap
+
+                    PackageTreeIO.verifyExecutableDeclaration
+                        plan
+                        (fun path ->
+                            manifest.Files
+                            |> Seq.exists (fun file -> file.Path.Text = path)
+                        )
+
+                    bytes
+                )
+                |> StateOwnership.unwrap
+            )
+        )

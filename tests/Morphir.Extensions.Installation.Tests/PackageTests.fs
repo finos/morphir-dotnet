@@ -654,3 +654,177 @@ let mechanismTests =
             refused "package.tree_changed" result
         }
     ]
+
+let private producerCanonical () =
+    use document =
+        JsonDocument.Parse(
+            File.ReadAllBytes(
+                Path.Combine(AppContext.BaseDirectory, "ParentContracts", "package-cases.json")
+            )
+        )
+
+    let first =
+        document.RootElement.GetProperty("cases").EnumerateArray()
+        |> Seq.head
+
+    utf8 (nonNull (first.GetProperty("expected").GetProperty("manifest").GetString()))
+
+let private producerFact (path: string) (length: int64) (executable: bool) =
+    PackageFile.Create(
+        PackagePaths.read "package.tree_changed" path,
+        length,
+        digest [||],
+        executable
+    )
+    |> get
+
+let private producerRelease
+    (template: JsonNode)
+    (platform: InstallationPlatform)
+    (manifest: PackageManifest)
+    (entry: string)
+    =
+    let archiveName =
+        DistributionIdentifiers.ParseArtifactFileName "provider.ZIP"
+        |> function
+            | Ok value -> value
+            | Error error -> failtest (error.ToString())
+
+    PackageRelease.PrepareWholeArchive(
+        utf8 (template.ToJsonString()),
+        platform,
+        archiveName,
+        digest (utf8 "archive"),
+        manifest,
+        PackagePaths.read "package.tree_changed" entry
+    )
+
+[<Tests>]
+let producerTests =
+    testList "PackageProducer" [
+        test "public producer uses the existing canonical writer and owns its file list" {
+            let expected = producerCanonical ()
+
+            let original =
+                PackageManifest.Read(expected, digest expected)
+                |> get
+
+            let source =
+                original.Files
+                |> Seq.rev
+                |> Seq.map (fun file ->
+                    PackageFile.Create(file.Path, file.Length, file.Digest, file.Executable)
+                    |> get
+                )
+                |> Seq.toArray
+
+            let actual =
+                PackageManifest.FromFiles(Array.AsReadOnly source)
+                |> get
+
+            Array.Clear(source, 0, source.Length)
+            Expect.sequenceEqual (actual.ToBytes()) expected "exact frozen canonical bytes"
+            Expect.equal actual.Files.Count original.Files.Count "defensive ownership"
+        }
+        for length in
+            [
+                -1L
+                InstallationLimits.MaxArtifactBytes
+                + 1L
+            ] do
+            testCase
+                $"public file facts refuse an invalid length {length}"
+                (fun () ->
+                    PackageFile.Create(
+                        PackagePaths.read "package.tree_changed" "run",
+                        length,
+                        digest [||],
+                        true
+                    )
+                    |> refused "package.tree_changed"
+                )
+        for paths in [ [ "a"; "A" ]; [ "a"; "a/b" ] ] do
+            let label = String.concat "," paths
+
+            testCase
+                $"public manifest factory refuses conflicting paths {label}"
+                (fun () ->
+                    let files =
+                        paths
+                        |> List.map (fun path -> producerFact path 0L false)
+                        |> List.toArray
+
+                    PackageManifest.FromFiles(Array.AsReadOnly files)
+                    |> refused "package.tree_changed"
+                )
+        test
+            "release preparation binds actual archive and canonical manifest while preserving optional metadata" {
+            let template = sample ()
+            template["future"] <- JsonValue.Create "preserved"
+
+            let manifest =
+                PackageManifest.Read(producerCanonical (), digest (producerCanonical ()))
+                |> get
+
+            let bytes =
+                producerRelease template (InstallationPlatform.Create "linux-x64") manifest "run"
+                |> get
+
+            let plan =
+                PackagePlan.Read(bytes, InstallationPlatform.Create "linux-x64")
+                |> get
+
+            let parsed = nonNull (JsonNode.Parse(Encoding.UTF8.GetString bytes))
+
+            Expect.equal
+                ((nonNull parsed["future"]).GetValue<string>())
+                "preserved"
+                "unknown optional root value"
+
+            Expect.equal plan.ArchiveDigest (digest (utf8 "archive")) "actual archive identity"
+            Expect.equal plan.TreeDigest (digest (manifest.ToBytes())) "canonical manifest identity"
+            Expect.isNone plan.Root "the official producer archive has no enclosing root"
+
+            Expect.sequenceEqual
+                (plan.Executables
+                 |> Seq.map (fun path -> path.Text))
+                [ "tools/helper" ]
+                "only actual additional executables"
+
+            use document = JsonDocument.Parse bytes
+
+            Expect.equal
+                ((document.RootElement.EnumerateObject()
+                  |> Seq.head)
+                    .Name)
+                "$schema"
+                "schema written first"
+        }
+        test "release preparation refuses an absent entry point" {
+            let manifest =
+                PackageManifest.FromFiles(Array.AsReadOnly [| producerFact "data" 0L false |])
+                |> get
+
+            producerRelease (sample ()) (InstallationPlatform.Create "linux-x64") manifest "missing"
+            |> refused "package.entry_point_missing"
+        }
+        test "release preparation refuses an entry not marked executable" {
+            let manifest =
+                PackageManifest.FromFiles(Array.AsReadOnly [| producerFact "run" 0L false |])
+                |> get
+
+            producerRelease (sample ()) (InstallationPlatform.Create "linux-x64") manifest "run"
+            |> refused "package.tree_changed"
+        }
+        test "release preparation reuses the Windows executable declaration guard" {
+            let template = sample ()
+            (artifact template)["platform"] <- JsonValue.Create "x86_64-pc-windows-msvc"
+
+            let manifest =
+                PackageManifest.FromFiles(Array.AsReadOnly [| producerFact "run" 0L true |])
+                |> get
+
+            producerRelease template (InstallationPlatform.Create "win-x64") manifest "run"
+            |> refused "package.entry_point_not_exe"
+        }
+    ]
