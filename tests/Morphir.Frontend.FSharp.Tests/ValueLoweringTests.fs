@@ -449,6 +449,7 @@ let tests =
                     $"{version} refuses"
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 /// The text of a JSON string value, or "-" when the value is missing.
 let private textOf (node: JsonNode | null) =
@@ -774,3 +775,4 @@ let sdkTests =
                 | Error error -> failtestf "classic %A was not read back: %A" version error
         }
     ]
+    |> testLabel "PlatformSpecific"

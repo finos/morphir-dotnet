@@ -6,6 +6,7 @@ namespace Morphir.Build.Tests;
 /// <summary>
 /// Tests for validating NuGet package structure (directory layout, files, etc.)
 /// </summary>
+[Category("PlatformSpecific")]
 public class PackageStructureTests
 {
     [Test]

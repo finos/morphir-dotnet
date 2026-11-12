@@ -487,6 +487,7 @@ let tests =
                 "no commit through a moved directory descriptor"
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let sealedPublicationTests =
@@ -1119,3 +1120,4 @@ let sealedPublicationTests =
                 |> Option.iter (fun lease -> lease.Dispose())
         }
     ]
+    |> testLabel "PlatformSpecific"

@@ -7,6 +7,7 @@ using Morphir.Tooling.Infrastructure;
 namespace Morphir.Tooling.Tests.Infrastructure;
 
 /// <summary>Spec: discovery-containment, boundary and isolation precedence and validation.</summary>
+[Category("PlatformSpecific")]
 public class ContainmentTests
 {
     private static readonly string Root = ProjectPath.normalize(Path.GetFullPath(Path.Combine(Path.GetTempPath(), "morphir-containment")));

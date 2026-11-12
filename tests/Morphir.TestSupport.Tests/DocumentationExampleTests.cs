@@ -5,6 +5,7 @@ using FluentAssertions;
 namespace Morphir.TestSupport.Tests;
 
 /// <summary>Keeps the snippet in docs/content/docs/contributing/qa/test-isolation.md compiling and working.</summary>
+[Category("PlatformSpecific")]
 public class DocumentationExampleTests
 {
     [Test]

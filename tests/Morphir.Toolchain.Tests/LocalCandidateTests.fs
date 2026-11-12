@@ -518,6 +518,7 @@ let archiveControls =
                     "no candidate code, locks or state on refusal"
             })
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let commandRefusalTests =
@@ -617,6 +618,7 @@ let commandRefusalTests =
                     "no selection, staging, journal or lease creation"
             })
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let executionPlatformTests =
@@ -1544,3 +1546,4 @@ let suppliedCandidateTests =
                         "no generation or pointer on refusal"
                 })
         ]
+        |> testLabel "PlatformSpecific"

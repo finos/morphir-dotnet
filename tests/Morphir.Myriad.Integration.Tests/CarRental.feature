@@ -1,3 +1,4 @@
+@PlatformSpecific
 Feature: Compile Morphir car rental models through Myriad
   F# applications consume generated business rules from classic Morphir JSON.
 

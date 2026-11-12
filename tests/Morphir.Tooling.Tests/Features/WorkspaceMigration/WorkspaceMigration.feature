@@ -1,4 +1,4 @@
-@WorkspaceMigration @CLI
+@WorkspaceMigration @CLI @PlatformSpecific
 Feature: Adopt classic projects through one bounded workspace migration
   Workspace adoption reuses independently verified project conversion and retains sources.
 

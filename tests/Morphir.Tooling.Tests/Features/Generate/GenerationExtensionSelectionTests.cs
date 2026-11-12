@@ -22,6 +22,7 @@ namespace Morphir.Tooling.Tests.Features.Generate;
 /// <c>[codegen.&lt;target&gt;].extension</c> of the project configuration; with neither, the registered built-in
 /// backend of the target runs and the report keeps its members.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class GenerationExtensionSelectionTests
 {
     private static RecordGenerationSettingsResolver Resolver() =>

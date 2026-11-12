@@ -195,6 +195,7 @@ let costTests =
             let later = host0 |> setAt [ "implementation" ] (str "twin") |> setAt [ "version" ] (str "1.2.4")
             signed () |> editRecipe (setAt [ "hosts" ] (Value.Array [ host0; later ])) |> expectOutcome "target_not_authenticated @ hosts[1].source")
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let tupleTests =
@@ -220,6 +221,7 @@ let tupleTests =
             |> editTarget frontendTarget (eachArtifact (fun artifact -> setAt tuplePath (reversed (valueAt tuplePath artifact)) artifact))
             |> expectOutcome "valid")
     ]
+    |> testLabel "PlatformSpecific"
 [<Tests>]
 let servedBytesTests =
     let releaseTarget = "releases/morphir-dotnet-native-aot/1.2.3.json"
@@ -248,6 +250,7 @@ let servedBytesTests =
         testCase "a source that throws for a host release" (fun () ->
             Expect.equal (checkServing releaseTarget (fun () -> raise (System.IO.IOException "the source failed"))) "repository_unavailable @ hosts[0].source" "the outcome")
     ]
+    |> testLabel "PlatformSpecific"
 /// A tool-release record of the tool <c>tool</c> at a target, with its members.
 let private recordAt (target: string) (members: (string * Value) list) =
     target,
@@ -426,6 +429,7 @@ let hostRowTests =
             Expect.equal outcome "artifact_platform_mismatch @ hosts[0].platforms.linux-musl-x64.target" "musl"
             Expect.isNone (RecipeBindings.toolPlatform Platform.LinuxMuslArm64) "musl arm64")
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let providerRowTests =
@@ -487,6 +491,7 @@ let providerRowTests =
                 frontendArtifact "linux-arm64.zip" [ "claims"; "capabilities"; "frontend"; "languages"; "0"; "id" ] (str "elm") ]
         ]
     ]
+    |> testLabel "PlatformSpecific"
 let private readerOutcome (result: Result<'T, ReaderRefusal>) =
     match result with
     | Ok _ -> "read"
@@ -547,6 +552,7 @@ let readerRuleTests =
             Expect.equal (ExtensionReleaseDocument.read (paddedTo ExtensionReleaseDocument.limit bytes) |> readerOutcome) "read" "1 MiB"
             Expect.equal (ExtensionReleaseDocument.read (paddedTo (ExtensionReleaseDocument.limit + 1) bytes) |> readerOutcome) "invalid_document @ " "1 MiB + 1")
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let resolverRuleTests =
@@ -619,6 +625,7 @@ let listingTests =
                 let first = artifacts.Head |> setAt [ "platform"; "arch" ] (str "aarch64")
                 setAt [ "artifacts" ] (Value.Array(first :: artifacts)) release) ]
     ]
+    |> testLabel "PlatformSpecific"
 /// A string of the characters with these code points, written so that no editor normalizes them.
 let private chars (codes: int list) = codes |> List.map (char >> string) |> String.concat ""
 
@@ -660,6 +667,7 @@ let schemaReadingTests =
             for spelling in [ "2"; "1.5"; "0"; "-1"; "-1.0"; "1e400"; "1e-400"; "11e-1"; "0.99999999999999999999999999999"; "1e99999999999" ] do
                 Expect.equal (readRelease (setAt [ "schemaVersion" ] (Value.Number spelling))) "unsupported_contract_version @ schemaVersion" spelling)
     ]
+    |> testLabel "PlatformSpecific"
 [<Tests>]
 let constructionTests =
     // Review of #583, A8: with public constructors any caller could build a RecipeDigest without authenticating

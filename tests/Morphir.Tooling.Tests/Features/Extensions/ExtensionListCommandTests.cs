@@ -40,6 +40,7 @@ public sealed class ExtensionListCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TextOutputIsATableWithAHeaderAndOneSortedRowForEachEntry()
     {
         var (exit, lines, err) = Run(Registry(Native), json: false);
@@ -53,6 +54,7 @@ public sealed class ExtensionListCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void ATerminalProfileStylesTheTableAndPlainOutputDoesNot()
     {
         var styled = new List<string>();
@@ -64,6 +66,7 @@ public sealed class ExtensionListCommandTests
 
     /// <summary>The text table in docs/content/docs/cli/management.md, for version 0.4.0.</summary>
     [Test]
+    [Category("PlatformSpecific")]
     public void TextOutputMatchesTheDocumentation()
     {
         var (_, lines, _) = Run(HostRegistry(Native), json: false);
@@ -79,6 +82,7 @@ public sealed class ExtensionListCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheTypeValidatorRowShowsItsValidatorClaim()
     {
         var (_, lines, _) = Run(HostRegistry(Native), json: false);

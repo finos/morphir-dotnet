@@ -109,6 +109,7 @@ public class MckTerminationTests
     }
 
     [Test]
+    [TUnit.Core.Category("PlatformSpecific")]
     public void ACancellationBeforeStartStartsNothing()
     {
         using var diagnostics = new StringWriter();

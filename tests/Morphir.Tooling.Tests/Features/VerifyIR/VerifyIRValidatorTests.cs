@@ -13,6 +13,7 @@ public class VerifyIRValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Validate_ShouldSucceed_WhenFileExistsAndVersionValid()
     {
         // Arrange
@@ -30,6 +31,7 @@ public class VerifyIRValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Validate_ShouldSucceed_WhenFileExistsAndVersionNotSpecified()
     {
         // Arrange
@@ -64,6 +66,7 @@ public class VerifyIRValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Validate_ShouldFail_WhenFileDoesNotExist()
     {
         // Arrange
@@ -83,6 +86,7 @@ public class VerifyIRValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Validate_ShouldFail_WhenSchemaVersionLessThan1()
     {
         // Arrange
@@ -102,6 +106,7 @@ public class VerifyIRValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Validate_ShouldFail_WhenSchemaVersionGreaterThan3()
     {
         // Arrange
@@ -121,6 +126,7 @@ public class VerifyIRValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task Validate_ShouldSucceed_ForAllValidVersions()
     {
         // Arrange & Act & Assert

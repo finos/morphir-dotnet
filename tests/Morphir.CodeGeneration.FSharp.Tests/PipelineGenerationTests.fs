@@ -91,6 +91,7 @@ let treeTests =
             finally
                 if File.Exists path then File.Delete path
         }
+        |> testLabel "PlatformSpecific"
     ]
 
 [<Tests>]
@@ -143,6 +144,7 @@ let orderTests =
 
             Expect.equal (VFileTree.validatePublish options tree) (Ok ()) "should pass validation"
         }
+        |> testLabel "PlatformSpecific"
     ]
 
 [<Tests>]
@@ -310,6 +312,7 @@ let failureTests =
             Expect.isEmpty (VFileTree.allFiles tree) "should produce no files"
             Expect.equal (diagnosticsOf tree).Head.InputPath missing "should name the file"
         }
+        |> testLabel "PlatformSpecific"
 
         test "a file with no content should report an error" {
             let tree = generate (VFile.fromPath "bad.json")

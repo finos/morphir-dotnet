@@ -34,6 +34,7 @@ public sealed class CompileRunnerTests
     };
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheToolPathCompilesWithTheRealFrontendAndPublishes()
     {
         using var workspace = Project();
@@ -50,6 +51,7 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task EveryStageStartsAndCompletesInOrderAndCompletedIsLast()
     {
         using var workspace = Project();
@@ -60,6 +62,7 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ASourceErrorFailsWithExitCodeOneAndPublishesNothing()
     {
         using var workspace = Project(MutablePricing);
@@ -71,6 +74,7 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AnUndeclaredPreReleaseFailsInTheSettingsStageWithItsSpelling()
     {
         using var workspace = Project();
@@ -86,6 +90,7 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AnIrVersionThatTheFrontendDoesNotServeFailsBeforeCompilation()
     {
         using var workspace = Project();
@@ -98,6 +103,7 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task WithoutAnFSharpFrontendTheCompileFailsBeforeAnyProjectFileIsEvaluated()
     {
         using var workspace = Project();
@@ -115,6 +121,7 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AConfiguredExtensionReplacesTheRegisteredFrontendsThroughTheConnector()
     {
         using var workspace = Project();
@@ -136,6 +143,7 @@ public sealed class CompileRunnerTests
     /// in Morphir.Compilation.Mep.Tests). This test gives the run that outcome and checks exit code 2.
     /// </summary>
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AnExtensionProtocolFailureFailsTheRunWithExitCode2()
     {
         using var workspace = Project();
@@ -152,6 +160,7 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AConfiguredExtensionThatCannotStartFailsBeforeSourceSelection()
     {
         using var workspace = Project();
@@ -165,6 +174,7 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task CancellationDuringTheFrontendEndsWithACancelledCompletedEvent()
     {
         using var workspace = Project();
@@ -186,6 +196,7 @@ public sealed class CompileRunnerTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheHandlerGivesEveryEventToTheObserverAndFoldsTheSameResult()
     {
         using var workspace = Project();

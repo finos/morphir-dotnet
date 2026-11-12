@@ -1792,6 +1792,7 @@ let private depthTests =
             succeeds "the deep value" result.Value
             |> ignore
     ]
+    |> testLabel "PlatformSpecific"
 
 let private unexpectedFailureTests =
     testList "An unexpected exception becomes an error" [

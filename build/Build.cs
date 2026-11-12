@@ -52,6 +52,23 @@ partial class Build : FalloutBuild
     [Parameter("Runtime Identifier (e.g., linux-x64, win-x64, osx-arm64)")]
     readonly string? Rid;
 
+    [Parameter("MSBuild nodes for Restore and Compile; 0 uses one node for each processor - Default is 0")]
+    readonly int BuildNodes;
+
+    /// <summary>
+    /// The MSBuild arguments of Restore and Compile. The default is one node for each processor; --build-nodes 1
+    /// keeps a build small when more than one build runs on the machine at the same time. Shared compilation and
+    /// node reuse are off: they keep processes that lock files.
+    /// </summary>
+    string[] BuildProcessArguments
+    {
+        get
+        {
+            if (BuildNodes < 0) throw new Exception($"The build nodes {BuildNodes} is not 0 or more.");
+            return [BuildNodes == 0 ? "-m" : $"-m:{BuildNodes}", "-p:UseSharedCompilation=false", "-nodeReuse:false"];
+        }
+    }
+
     [Parameter("NuGet source URL")]
     readonly string NuGetSource = "https://api.nuget.org/v3/index.json";
 
@@ -186,13 +203,13 @@ partial class Build : FalloutBuild
             // Restore using .slnx solution file
             DotNetRestore(s => s
                 .SetProjectFile(SolutionFile)
-                .AddProcessAdditionalArguments("-m:1", "-p:UseSharedCompilation=false", "-nodeReuse:false"));
+                .AddProcessAdditionalArguments(BuildProcessArguments));
         });
 
     /// <summary>
     /// Compile all projects in the solution
     /// Note: VBCSCompiler processes are cleaned up on Windows before build to prevent file locking issues.
-    /// Builds use one MSBuild node with shared compilation disabled.
+    /// Shared compilation is disabled. <see cref="BuildProcessArguments"/> selects the number of MSBuild nodes.
     /// </summary>
     Target Compile => _ => _
         .DependsOn(Restore)
@@ -225,14 +242,13 @@ partial class Build : FalloutBuild
             }
 
             // Build using .slnx solution file
-            // Bound build resources for concurrent delivery work.
             // Pass no Version: every src project takes it from CHANGELOG.md, and a Version
             // here would win over the changelog and also rebuild the running build project.
             DotNetBuild(s => s
                 .SetProjectFile(SolutionFile)
                 .SetConfiguration(Configuration)
                 .SetNoRestore(true)
-                .AddProcessAdditionalArguments("-m:1", "-p:UseSharedCompilation=false", "-nodeReuse:false"));
+                .AddProcessAdditionalArguments(BuildProcessArguments));
         });
 
     /// <summary>

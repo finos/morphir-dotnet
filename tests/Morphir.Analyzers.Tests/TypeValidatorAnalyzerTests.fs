@@ -64,10 +64,12 @@ let tests =
                 Expect.isNone diagnostic.Location "an IR node has no source position"
             | other -> failtest $"expected one diagnostic, got {other}"
         }
+        |> testLabel "PlatformSpecific"
 
         test "a clean classic model gives no diagnostic" {
             Expect.isEmpty (analyze (load "daily-rate-v3.json")) "clean"
         }
+        |> testLabel "PlatformSpecific"
 
         test "the analyzer leaves the model unchanged" {
             let model = load "daily-rate-mismatch-v3.json"
@@ -75,6 +77,7 @@ let tests =
             analyze model |> ignore
             Expect.equal model.Distribution before "unchanged"
         }
+        |> testLabel "PlatformSpecific"
 
         test "the built-in analyzers are the type validator only" {
             Expect.equal

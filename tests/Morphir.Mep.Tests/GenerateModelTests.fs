@@ -63,6 +63,7 @@ let tests =
                   expected["model"] <- JsonNode.Parse(JsonSerializer.Serialize(envelope, MepJson.Default.MorphirModel))
 
                   Expect.isTrue (JsonNode.DeepEquals(written, expected)) $"{id} round-trips: {written}"
+          |> testLabel "PlatformSpecific"
 
           testCase "Absent requiredGuarantees and options read as empty, as the wire rules say"
           <| fun _ ->

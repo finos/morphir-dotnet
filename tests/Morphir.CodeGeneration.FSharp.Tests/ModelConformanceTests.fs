@@ -130,6 +130,7 @@ let tests =
             <| fun () ->
                 GenerationConformance.run (generateWith row.Representation.Optimize) rental row
                 |> ignore
+            |> testLabel "PlatformSpecific"
 
         let required = [
             for version in [ "3"; "4.0.0" ] ->
@@ -156,6 +157,7 @@ let tests =
             <| fun () ->
                 GenerationConformance.run generate case row
                 |> ignore
+            |> testLabel "PlatformSpecific"
 
             testCase $"visibility/{row.Representation.Version}"
             <| fun () ->
@@ -218,6 +220,7 @@ let tests =
                 <| fun () ->
                     GenerationConformance.run generate case row
                     |> ignore
+                |> testLabel "PlatformSpecific"
 
         let recursionRows = [
             for version in [ "3"; "4.0.0" ] ->
@@ -342,6 +345,7 @@ let tests =
                 <| fun () ->
                     GenerationConformance.run generate case row
                     |> ignore
+                |> testLabel "PlatformSpecific"
 
         testCase "inferred-type diagnostic retains its source range"
         <| fun () ->
@@ -398,6 +402,7 @@ let tests =
                 <| fun () ->
                     GenerationConformance.run generate case row
                     |> ignore
+                |> testLabel "PlatformSpecific"
 
         let dependencyRows: Representation list = [
             for version in [ "3"; "4.0.0" ] ->
@@ -431,6 +436,7 @@ let tests =
             <| fun () ->
                 GenerationConformance.run generate dependencyCase row
                 |> ignore
+            |> testLabel "PlatformSpecific"
 
         for id, code, inputs in ModelRefusalInputs.cases do
             let variants = [
@@ -468,6 +474,7 @@ let tests =
                 | Refused(materialize, _) ->
                     testCase $"publication/{case.Id}/{row.Representation.Version}"
                     <| fun () -> preservesPublication materialize
+                    |> testLabel "PlatformSpecific"
                 | _ -> ()
 
         testCase "opaque optional metadata is retained without becoming code"
@@ -492,6 +499,7 @@ let tests =
 
             GenerationConformance.run generate case row
             |> ignore
+        |> testLabel "PlatformSpecific"
 
         for arithmetic in GenerationArithmetic.cases do
             let required = [
@@ -551,6 +559,7 @@ let tests =
                                 && arithmetic.Folds
                             ))
                             "only proven exact folds replace operations"
+                |> testLabel "PlatformSpecific"
 
         for scalar in GenerationScalars.cases do
             let required = [
@@ -590,4 +599,5 @@ let tests =
                 <| fun () ->
                     GenerationConformance.run generate case row
                     |> ignore
+                |> testLabel "PlatformSpecific"
     ]

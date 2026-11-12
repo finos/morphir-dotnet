@@ -935,6 +935,7 @@ let vfileTreeWriteToDiskTests =
             Expect.stringContains description "disk full" "should include the cause"
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let vfileTreeMetadataTests =
@@ -1296,6 +1297,7 @@ let vfileTreeLoadFromDiskTests =
                 | other -> failtestf "expected a write failure, got %A" other)
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let vfileTreeIntegrationTests =

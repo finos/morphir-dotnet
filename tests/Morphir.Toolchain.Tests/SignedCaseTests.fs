@@ -1098,3 +1098,4 @@ let tests =
                 Expect.throwsT<AssertException> (fun () -> setAtPointer "/a/00" Value.Null array |> ignore) "a leading zero")
         ]
     ]
+    |> testLabel "PlatformSpecific"

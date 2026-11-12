@@ -80,6 +80,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("morphir.json", "{name:'App',exposedModules:[],custom:{value:'lower'}}")]
     [Arguments("morphir.json5", "{project:{name:'App'},custom:{value:'lower'}}")]
     [Arguments("morphir.yaml", "project: {name: App}\ncustom: {value: lower}\n")]
@@ -103,6 +104,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void CandidateTopologyIsResolvedAgainThroughCanonicalDiscovery()
     {
         using var fixture = new NativeFixture();
@@ -116,6 +118,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void NewAlternatePrimaryConflictsAndIdenticalWritesRetainTimestamp()
     {
         using var fixture = new NativeFixture();
@@ -132,6 +135,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void EditsRetainAcceptedBomEncodingsAndEveryUnrelatedByte()
     {
         Encoding[] encodings = [new UTF8Encoding(false, true), new UTF8Encoding(true, true), new UnicodeEncoding(false, true, true), new UnicodeEncoding(true, true, true), new UTF32Encoding(false, true, true), new UTF32Encoding(true, true, true)];
@@ -151,6 +155,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(false)]
     [Arguments(true)]
     public void WorkspaceWritesExplainSurvivingMemberOverrides(bool automaticAtRoot)
@@ -187,6 +192,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void MemberPersonalAndSelectedPersonalEditsKeepTheirOwnership()
     {
         using var fixture = new NativeFixture();
@@ -207,6 +213,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(false, false)]
     [Arguments(true, false)]
     [Arguments(false, true)]
@@ -238,6 +245,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void UserPromotionUsesTheExistingLowerFormatPersonalStem()
     {
         using var fixture = new NativeFixture();
@@ -255,6 +263,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void UserTargetsRetainAmbiguityAcrossEligiblePersonalLayouts()
     {
         using var fixture = new NativeFixture();
@@ -271,6 +280,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("morphir", false, true)]
     [Arguments("morphir", true, true)]
     [Arguments("morphir", false, false)]
@@ -299,6 +309,7 @@ public sealed class ConfigurationEditingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void ExplicitAlternateTomlPrimaryCannotIntroduceAmbiguity()
     {
         using var fixture = new NativeFixture();

@@ -66,3 +66,4 @@ let tests =
         testCase "a later package version retains source and genuine old binary compatibility"
         <| fun _ -> checkPackages (Some "0.4.1-sdkproof")
     ]
+    |> testLabel "PlatformSpecific"

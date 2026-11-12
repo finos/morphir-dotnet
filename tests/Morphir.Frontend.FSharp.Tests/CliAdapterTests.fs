@@ -280,6 +280,7 @@ let tests =
                  ))
                 "project-file rows run"
         }
+        |> testLabel "PlatformSpecific"
 
         testTask "Broken JSON Lines output gives an operational failure with its reason" {
             use sandbox = TestSandbox.Create "morphir-mck-cli-broken-"
@@ -315,6 +316,7 @@ let tests =
                 | Ok _ -> failtest $"The {mode} output was accepted"
                 | Error failure -> Expect.stringContains failure.Message expected mode
         }
+        |> testLabel "PlatformSpecific"
 
         testTask
             "The suite (complete with MORPHIR_MCK_COMPLETE=1) qualifies dotnet-morphir through the library and cli adapters, with equal IR" {
@@ -373,6 +375,7 @@ let tests =
                         (describe cliResult)
                 | _ -> ()
         }
+        |> testLabel "PlatformSpecific"
 
         testTask "A sample of the suite qualifies dotnet-morphir through compile --target" {
             use sandbox = TestSandbox.Create "morphir-mck-cli-target-"
@@ -409,6 +412,7 @@ let tests =
                 keep $"cli-target-{target}.json" report
                 expectQualified report
         }
+        |> testLabel "PlatformSpecific"
             // Task 9.4: the published Native AOT morphir with the installed MEP guest. Opt-in, because it needs a
         // publish and an installed tool: set MORPHIR_AOT_CLI to the published executable and MORPHIR_FSHARP_GUEST to
         // the installed morphir-fsharp-frontend command.
@@ -464,4 +468,5 @@ let tests =
                 let passed = aot.Results |> List.filter (fun result -> result.Verdict.IsPassed)
                 Expect.equal (passed.Length + refused.Length + (aot.Results |> List.filter (fun r -> r.Verdict.IsExcluded)).Length) aot.Results.Length "every variant is accounted for"
         }
+        |> testLabel "PlatformSpecific"
     ]

@@ -1,3 +1,4 @@
+@PlatformSpecific
 Feature: CLI IR Verification Integration
   As a developer using Morphir
   I want to verify Morphir IR JSON files via the CLI

@@ -14,6 +14,7 @@ namespace Morphir.Tests.Hosts;
 /// CLI-3: the dotnet tool has its own composition, which adds the in-process F# frontend. The AOT executable
 /// <c>morphir</c> has no F# frontend, and its assembly closure has no F# compiler service.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class HostFrontendCompositionTests
 {
     [Test]

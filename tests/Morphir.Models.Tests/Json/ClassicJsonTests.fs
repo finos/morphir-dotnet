@@ -122,11 +122,13 @@ let tests =
                   let inventory = definition.Modules[modulePath]
                   Expect.equal inventory.Access Public "module access"
                   Expect.isTrue (inventory.Value.Values.ContainsKey(Name [ "daily"; "rate" ])) "the value is present"
+          |> testLabel "PlatformSpecific"
 
           testCase "every classic version reads"
           <| fun _ ->
               for version, file in [ 1, "car-rental-v1.json"; 2, "car-rental-v2.json"; 3, "car-rental-v3.json" ] do
                   Expect.equal (ok (carRental file)).Version version file
+          |> testLabel "PlatformSpecific"
 
           testCase "dependency specifications"
           <| fun _ ->
@@ -288,4 +290,5 @@ let tests =
                       // Reading from a disposed document would throw here.
                       Expect.isNotNull (attributes.GetRawText()) "attributes"
                   | other -> failtestf "Expected a reference: %A" other
-              | None -> failtest "A library has a definition." ]
+              | None -> failtest "A library has a definition."
+          |> testLabel "PlatformSpecific" ]

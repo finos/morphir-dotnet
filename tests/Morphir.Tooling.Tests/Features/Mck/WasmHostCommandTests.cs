@@ -17,6 +17,7 @@ namespace Morphir.Tooling.Tests.Features.Mck;
 /// task 1.5): exit statuses 0, 1 and 2, one JSON document on stdout, diagnostics on stderr, and help that says
 /// experimental. The runner itself is tested in tests/Morphir.Conformance.Tests.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class WasmHostCommandTests
 {
     private const string Identity = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";

@@ -1,4 +1,4 @@
-@Compilation @CLI
+@Compilation @CLI @PlatformSpecific
 Feature: Compile F# source to Morphir IR
   The dotnet tool compiles F# in process. A compile writes one JSON report, publishes the IR
   and a task record, and can continue into generation. The AOT executable has no built-in F# frontend.

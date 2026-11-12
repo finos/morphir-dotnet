@@ -1,4 +1,4 @@
-@ConfigurationEditing @CLI
+@ConfigurationEditing @CLI @PlatformSpecific
 Feature: Edit one configuration file with a reviewable effective result
   Editing uses shared plans, preserves user text and keeps JSON stdout scriptable.
 

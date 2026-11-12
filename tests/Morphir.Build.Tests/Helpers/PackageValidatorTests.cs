@@ -10,6 +10,7 @@ namespace Morphir.Build.Tests.Helpers;
 public class PackageValidatorTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateToolPackage_ValidPackage_ReturnsSuccess()
     {
         // Arrange
@@ -27,6 +28,7 @@ public class PackageValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateToolPackage_NonExistentPackage_ThrowsFileNotFoundException()
     {
         // Arrange
@@ -41,6 +43,7 @@ public class PackageValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateLibraryPackage_ValidPackage_ReturnsSuccess()
     {
         // Arrange - Test with Morphir.Core package
@@ -58,6 +61,7 @@ public class PackageValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateLibraryPackage_NonExistentPackage_ThrowsFileNotFoundException()
     {
         // Arrange

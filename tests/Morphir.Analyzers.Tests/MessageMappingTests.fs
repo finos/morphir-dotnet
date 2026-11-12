@@ -68,6 +68,7 @@ let tests =
 
             Expect.equal diagnostic.Message "Bad." "a located message has no node prefix"
         }
+        |> testLabel "PlatformSpecific"
 
         test "a path without a position has no location" {
             let diagnostic =

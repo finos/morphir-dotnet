@@ -141,4 +141,5 @@ let tests =
                           Expect.isTrue
                               (JsonNode.DeepEquals(written, entry.Node))
                               $"{name} entry {entry.Entry} keeps its members"
-                      | Error refusal -> failtest $"{name} entry {entry.Entry} was refused: {refusal}" ]
+                      | Error refusal -> failtest $"{name} entry {entry.Entry} was refused: {refusal}"
+          |> testLabel "PlatformSpecific" ]

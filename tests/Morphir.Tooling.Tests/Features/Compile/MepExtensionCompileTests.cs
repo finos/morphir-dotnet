@@ -15,6 +15,7 @@ namespace Morphir.Tooling.Tests.Features.Compile;
 /// connector. The guest is <c>morphir-fsharp-frontend</c>, started on the dotnet host from the test output.
 /// </summary>
 [NotInParallel(nameof(MepExtensionCompileTests))]
+[Category("PlatformSpecific")]
 public sealed class MepExtensionCompileTests
 {
     private static readonly string Guest = Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-frontend.dll");

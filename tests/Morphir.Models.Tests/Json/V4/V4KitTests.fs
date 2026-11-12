@@ -200,3 +200,4 @@ let tests =
                     Expect.equal (sha256 (Path.Combine(fixtureRoot, file))) expected file
                 | None -> failtestf "%s has no row in PROVENANCE.md" file
     ]
+    |> testLabel "PlatformSpecific"

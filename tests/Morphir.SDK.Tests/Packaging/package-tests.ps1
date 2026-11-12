@@ -70,8 +70,13 @@ try {
                 Set-Content -LiteralPath $versionChangelog -Encoding utf8 -NoNewline
             $versionArguments = @("-p:ChangelogFile=$versionChangelog")
         }
-        Invoke-Captured 'canonical-pack' (@('pack', (Join-Path $repo 'src/Morphir.SDK.FSharp/Morphir.SDK.FSharp.fsproj'), '-c', 'Release', '-o', $feed, '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false') + $versionArguments)
-        Invoke-Captured 'legacy-pack' (@('pack', (Join-Path $repo 'src/Morphir.SDK/Morphir.SDK.fsproj'), '-c', 'Release', '-o', $feed, '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false') + $versionArguments)
+        # These packs build the SDK with the version of an isolated changelog. --artifacts-path keeps their
+        # intermediate and output files out of the obj and bin folders of the repository. Without it the packs
+        # replace the assemblies of the solution build, the next build compiles them and their users again, and
+        # two test assemblies that run at the same time write the same files.
+        $artifacts = Join-Path $evidence 'artifacts'
+        Invoke-Captured 'canonical-pack' (@('pack', (Join-Path $repo 'src/Morphir.SDK.FSharp/Morphir.SDK.FSharp.fsproj'), '-c', 'Release', '-o', $feed, '--artifacts-path', $artifacts, '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false') + $versionArguments)
+        Invoke-Captured 'legacy-pack' (@('pack', (Join-Path $repo 'src/Morphir.SDK/Morphir.SDK.fsproj'), '-c', 'Release', '-o', $feed, '--artifacts-path', $artifacts, '-m:1', '-p:UseSharedCompilation=false', '-nodeReuse:false') + $versionArguments)
     }
     $legacyPackage = @(Get-ChildItem -LiteralPath $feed -Filter '*.nupkg' | Where-Object { (Read-Package $_.FullName).Metadata.id -eq 'Morphir.SDK' })
     if ($legacyPackage.Count -ne 1) { throw 'Feed must have exactly one legacy SDK package' }

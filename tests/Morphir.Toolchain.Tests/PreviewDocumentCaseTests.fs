@@ -92,6 +92,7 @@ let tests () =
                     Expect.equal (Convert.ToHexStringLower(SHA256.HashData bytes)) case.Sha256 "read the exact approved input, without parsing and reserializing it"
                     read case.Contract bytes |> assertOutcome case)
         ]
+        |> testLabel "PlatformSpecific"
     | _ -> testCase "Preview reader adoption requires an explicit external corpus" (fun () -> failtest "select MORPHIR_TOOLCHAIN_CONTRACT_ROOT; no preview inputs are copied into the historical pin")
 
 /// Regression inputs for family isolation and the adopted extension identity

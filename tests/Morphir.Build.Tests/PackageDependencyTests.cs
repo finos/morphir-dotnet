@@ -10,6 +10,7 @@ namespace Morphir.Build.Tests;
 /// package depends on is packed alongside it, at the same version. Otherwise consumers
 /// cannot restore the package from NuGet.org.
 /// </summary>
+[Category("PlatformSpecific")]
 public class PackageDependencyTests
 {
     [Test]

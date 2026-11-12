@@ -76,6 +76,7 @@ let tests =
                         "printfn \"%d\" (Car.Rental.Workflow.bill 3 Car.Rental.Workflow.car)")
                     "15000"
                     "generated billing behavior"
+        |> testLabel "PlatformSpecific"
         testCase "the complete car rental model generates executable modules"
         <| fun _ ->
             let json = ModelResources.read "car-rental-v3.json"
@@ -86,6 +87,7 @@ let tests =
                 Expect.equal modules.Length 7 "one file per model module"
                 let output = execute modules "printfn \"%A\" (Car.Rental.Workflow.rent 3)"
                 Expect.stringContains output "15000" "three days at 5000 cents"
+        |> testLabel "PlatformSpecific"
         for version in [ 1; 2 ] do
             testCase $"classic version {version} executes the same rental"
             <| fun _ ->
@@ -98,6 +100,7 @@ let tests =
                         (execute modules "printfn \"%A\" (Car.Rental.Workflow.rent 3)")
                         "15000"
                         "equivalent rental"
+            |> testLabel "PlatformSpecific"
         testCase "case-insensitive module file collisions fail"
         <| fun _ ->
             let root = JsonNode.Parse(simpleModel)
@@ -161,6 +164,7 @@ let tests =
                         "printfn \"%d %s\" Car.Rental.Generic.anInt Car.Rental.Generic.aString")
                     "3 hello"
                     "generic use at distinct types"
+        |> testLabel "PlatformSpecific"
         testCase "module references remain distinct from same-named parameters"
         <| fun _ ->
             let json =
@@ -184,6 +188,7 @@ let tests =
                     (execute modules "printfn \"%d\" (Car.Rental.Capture.charge 7)")
                     "5007"
                     "qualified references retain module identity while variables retain lexical identity"
+        |> testLabel "PlatformSpecific"
         testCase "module references survive every lexical binding form"
         <| fun _ ->
             let json = ModelConformanceInputs.lexicalCaptureJson ()
@@ -198,6 +203,7 @@ let tests =
                     (execute modules oracle.Consumer)
                     oracle.ExpectedOutput
                     "shared behavior"
+        |> testLabel "PlatformSpecific"
         testCase "unbound variables are generation errors"
         <| fun _ ->
             let json =
@@ -221,6 +227,7 @@ let tests =
                     (execute modules oracle.Consumer)
                     oracle.ExpectedOutput
                     "shared behavior"
+        |> testLabel "PlatformSpecific"
         testCase "anonymous records and field functions execute"
         <| fun _ ->
             let json = ModelConformanceInputs.recordOperationsJson ()
@@ -235,6 +242,7 @@ let tests =
                     (execute modules oracle.Consumer)
                     oracle.ExpectedOutput
                     "shared behavior"
+        |> testLabel "PlatformSpecific"
         testCase "SDK list Maybe and Result mappings preserve function and type argument order"
         <| fun _ ->
             let json = ModelConformanceInputs.sdkMappingsJson ()
@@ -249,6 +257,7 @@ let tests =
                     (execute modules oracle.Consumer)
                     oracle.ExpectedOutput
                     "shared SDK behavior"
+        |> testLabel "PlatformSpecific"
         testCase "non-function initialization cycles fail before returning source"
         <| fun _ ->
             let json =
@@ -288,6 +297,7 @@ let tests =
                     .GetAwaiter()
                     .GetResult()
                 |> ignore
+        |> testLabel "PlatformSpecific"
         for description, json, category in
             [
                 "missing version",
@@ -385,6 +395,7 @@ let tests =
             | Error errors -> failtestf "%A" errors
             | Ok modules ->
                 Expect.equal (execute modules "printfn \"ok\"") "ok" "empty module compiles"
+        |> testLabel "PlatformSpecific"
         testCase "F# reserved names preserve their identity"
         <| fun _ ->
             let json =
@@ -401,6 +412,7 @@ let tests =
                     (execute modules "printfn \"%d\" (Car.Rental.Keywords.``type`` 4)")
                     "4"
                     "escaped keywords compile"
+        |> testLabel "PlatformSpecific"
         testCase "tuple aliases destructuring literal patterns and unit patterns execute"
         <| fun _ ->
             let tupleType = F.tTuple [ F.intType; F.intType ]
@@ -459,6 +471,7 @@ let tests =
                         "Car.Rental.Patterns.unitCase ()\nprintfn \"%d %d %d\" (Car.Rental.Patterns.sum (2, 5)) (Car.Rental.Patterns.classify 0) (Car.Rental.Patterns.classify 1)")
                     "7 9 4"
                     "pattern branches and bindings"
+        |> testLabel "PlatformSpecific"
         testCase "generic records and curried recursive union constructors compile"
         <| fun _ ->
             let tree = F.tRef (F.own "trees" "tree") []
@@ -504,6 +517,7 @@ let tests =
                         "printfn \"%d %A\" Car.Rental.Trees.boxed.item Car.Rental.Trees.tree")
                     "6 Branch (Leaf 1, Leaf 2)"
                     "generic record and constructor currying"
+        |> testLabel "PlatformSpecific"
         testCase "all literal families retain invariant syntax and escaping"
         <| fun _ ->
             let floatType = F.tRef (F.sdk "basics" "float") []
@@ -541,6 +555,7 @@ let tests =
                         "let a,b,c,d,e,f = Car.Rental.Literals.values\nprintfn \"%b %d %d %d %.1f %.2M\" a (int b) c.Length d e f")
                     "true 39 4 -2147483648 1.5 2.25"
                     "literal values"
+        |> testLabel "PlatformSpecific"
         testCase
             "generation keeps rounding a long decimal and refusing an exponent in a decimal string"
         <| fun _ ->
@@ -592,6 +607,7 @@ let tests =
                     (execute modules "printfn \"%d\" Car.Rental.Raw.item.value")
                     "8"
                     "raw attributes are ignored"
+        |> testLabel "PlatformSpecific"
         testCase "object metadata can carry a nested nominal record type"
         <| fun _ ->
             let vehicle = F.tRef (F.own "metadata" "vehicle") []
@@ -627,6 +643,7 @@ let tests =
                     (execute modules "printfn \"%A\" Car.Rental.Metadata.item")
                     "Holder { value = 8 }"
                     "nominal nested record annotation"
+        |> testLabel "PlatformSpecific"
         testCase "union case fields keep the constructor argument names"
         <| fun _ ->
             let json =
@@ -663,6 +680,7 @@ let tests =
                     (execute modules "printfn \"%A\" Car.Rental.Shapes.unit")
                     "Box (2, 3)"
                     "construction is positional"
+        |> testLabel "PlatformSpecific"
         testCase "a saturated List.cons is the F# operator, and a partial one is a function"
         <| fun _ ->
             let prices = F.a [ box "List"; null; F.a [ F.integer 2; F.integer 3 ] ]
@@ -698,6 +716,7 @@ let tests =
                         "printfn \"%A %A\" Car.Rental.Lists.full (Car.Rental.Lists.partial [ 4 ])")
                     "[1; 2; 3] [1; 4]"
                     "both forms prepend"
+        |> testLabel "PlatformSpecific"
         testCase "a parameter keeps its name when its definition does not use the module value"
         <| fun _ ->
             let json =
@@ -723,6 +742,7 @@ let tests =
                     (execute modules "printfn \"%d\" (Car.Rental.Seating.next 2)")
                     "3"
                     "the parameter is read"
+        |> testLabel "PlatformSpecific"
         testCase "a parameter that hides a module value used by its definition gets a new name"
         <| fun _ ->
             let json =
@@ -748,6 +768,7 @@ let tests =
                     (execute modules "printfn \"%d\" (Car.Rental.Seating.total 2)")
                     "6"
                     "the parameter and the module value stay separate"
+        |> testLabel "PlatformSpecific"
         testCase "known nominal record types propagate through containers and applications"
         <| fun _ ->
             let vehicle = F.tRef (F.own "expected" "vehicle") []
@@ -811,6 +832,7 @@ let tests =
                         "let pair,_ = Car.Rental.Expected.pair\nprintfn \"%d %d %d %d %A\" Car.Rental.Expected.items.Head.value pair.value Car.Rental.Expected.viaCall.value Car.Rental.Expected.generic.value.value Car.Rental.Expected.held")
                     "8 8 8 8 Holder { value = 8 }"
                     "nominal record context"
+        |> testLabel "PlatformSpecific"
     ]
 
 [<Tests>]
@@ -903,6 +925,7 @@ let contractTests =
                     (executeWithReferences [ runtime ] modules code)
                     "true"
                     "Order comparison semantics"
+        |> testLabel "PlatformSpecific"
         testCase "nested module paths retain separate files in dependency order"
         <| fun _ ->
             let json =
@@ -938,6 +961,7 @@ let contractTests =
                     (execute modules "printfn \"%d\" Car.Rental.Domain.Rules.total")
                     "15000"
                     "nested qualified reference"
+        |> testLabel "PlatformSpecific"
         testCase "duplicate definition maps are rejected before source emission"
         <| fun _ ->
             for duplicateModule in [ true; false ] do
@@ -984,6 +1008,7 @@ let contractTests =
                 .GetAwaiter()
                 .GetResult()
             |> ignore
+        |> testLabel "PlatformSpecific"
         testCase "source is stable across classic versions paths cultures and map order"
         <| fun _ ->
             let source version =
@@ -1023,6 +1048,7 @@ let contractTests =
                     "stable source and ordered manifest"
             finally
                 System.Globalization.CultureInfo.CurrentCulture <- previousCulture
+        |> testLabel "PlatformSpecific"
         testCase "private values constructors and modules stay inaccessible to another assembly"
         <| fun _ ->
             let hiddenType = F.tRef (F.own "privacy" "secret") []
@@ -1149,6 +1175,7 @@ let contractTests =
                         ($"Private declaration escaped: {expression}\n{privateOutput}")
             finally
                 Directory.Delete(directory, true)
+        |> testLabel "PlatformSpecific"
     ]
 
 [<Tests>]
@@ -1244,6 +1271,7 @@ let optimizationEquivalenceTests =
                 Expect.equal optimizedOutput plainOutput "same results with optimization on and off"
                 Expect.stringContains optimizedOutput "15000" "three days at 5000 cents"
     ]
+    |> testLabel "PlatformSpecific"
 
 [<EntryPoint>]
 let main argv =

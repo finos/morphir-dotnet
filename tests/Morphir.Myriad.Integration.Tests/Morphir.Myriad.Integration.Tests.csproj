@@ -20,6 +20,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+    <!-- Build order only: the scenarios pack Morphir.Myriad with no build, so a build of this project builds it first. -->
+    <ProjectReference Include="../../src/Morphir.Myriad/Morphir.Myriad.fsproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

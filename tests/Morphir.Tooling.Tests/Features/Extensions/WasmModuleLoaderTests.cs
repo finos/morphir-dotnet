@@ -18,6 +18,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// level: no product command reaches it in this change. The modules are the pinned crafted corpus under
 /// <c>tests/Fixtures/MepWasm/</c>; each test copies the bytes it needs into a <see cref="TestSandbox"/>.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class WasmModuleLoaderTests
 {
     [TUnit.Core.Before(HookType.Test)]

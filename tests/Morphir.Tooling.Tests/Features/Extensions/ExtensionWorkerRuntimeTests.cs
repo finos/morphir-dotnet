@@ -14,6 +14,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// <c>extension.runtime_unavailable</c> before the module is read, exit 3 (a refusal before any request), and no stdout
 /// bytes.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ExtensionWorkerRuntimeTests
 {
     private sealed class CountingLoader(WasmRuntimeAvailability answer, string platform = "win-arm64")

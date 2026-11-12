@@ -13,6 +13,7 @@ namespace Morphir.Build.Tests;
 /// packages.lock.json of the publish. The build sets <see cref="TargetSettings.RidSpecificPublishProperty"/> on such a
 /// publish, and src/Directory.Build.props then writes the lock files under obj/publish-lock/&lt;rid&gt;/ instead.
 /// </summary>
+[Category("PlatformSpecific")]
 public class PublishLockRedirectTests
 {
     private const string Project = "src/Morphir.Managed/Morphir.Managed.csproj";

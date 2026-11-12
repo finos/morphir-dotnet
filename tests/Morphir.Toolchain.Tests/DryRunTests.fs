@@ -190,3 +190,4 @@ let tests =
             File.AppendAllText(Path.Combine(sandbox.MorphirHome, "journal.jsonl"), "x")
             Expect.notEqual (snapshot sandbox.Root) before "a changed file is seen")
     ]
+    |> testLabel "PlatformSpecific"

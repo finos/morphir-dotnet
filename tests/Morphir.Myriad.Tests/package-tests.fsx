@@ -1,6 +1,9 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-// Run: dotnet fsi tests/Morphir.Myriad.Tests/package-tests.fsx
+// Run: dotnet fsi tests/Morphir.Myriad.Tests/package-tests.fsx [--no-build]
+// --no-build packs the Release assemblies that a build already made. The Test target uses it: a pack that builds
+// with this script's PackageVersion changes the assembly information of the packed projects, and then the next
+// solution build compiles them and all projects that use them again.
 open System
 open System.Diagnostics
 open System.IO
@@ -20,6 +23,7 @@ let workspace =
 
 let feed = Path.Combine(workspace, "feed")
 let version = "0.1.0-package." + Guid.NewGuid().ToString("N")
+let noBuild = fsi.CommandLineArgs |> Array.contains "--no-build"
 
 let run directory expectedSuccess arguments =
     let start = ProcessStartInfo(dotnet)
@@ -380,7 +384,9 @@ try
           "-o"
           feed
           "-p:PackageVersion=" + version
-          "--nologo" ]
+          "--nologo"
+          if noBuild then
+              "--no-build" ]
     |> ignore
 
     let mutable failures = []

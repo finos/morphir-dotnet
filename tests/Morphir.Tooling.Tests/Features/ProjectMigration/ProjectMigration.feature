@@ -1,4 +1,4 @@
-@ProjectMigration @CLI
+@ProjectMigration @CLI @PlatformSpecific
 Feature: Migrate one classic project without losing its configuration
   A reviewed TOML plan must work independently of the retained classic manifest.
 

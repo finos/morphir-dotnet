@@ -280,12 +280,14 @@ let tests =
                     (executeConsumer model 14 BusinessCases.carConsumer)
                     7
                     "independent lifecycle and seven rejections"
+            |> testLabel "PlatformSpecific"
         testCase "SYNTHESIZED TEST INPUT v4 car lifecycle"
         <| fun _ ->
             Expect.equal
                 (executeConsumer (BusinessCases.synthesizedV4Car ()) 14 BusinessCases.carConsumer)
                 7
                 "independent lifecycle"
+        |> testLabel "PlatformSpecific"
         for name, version in [ "daily-rate-v3.json", "3"; "daily-rate-v4.json", "4" ] do
             testCase (
                 "Original daily rate "
@@ -299,12 +301,14 @@ let tests =
                     (executeConsumer model 14 BusinessCases.dailyConsumer)
                     5000
                     "independent daily rate"
+            |> testLabel "PlatformSpecific"
         testCase "COMPATIBLE TYPE SLICE original v4 books and records"
         <| fun _ ->
             Expect.equal
                 (executeConsumer (BusinessCases.booksTypeSlice ()) 14 BusinessCases.booksConsumer)
                 1
                 "nonempty immutable nested type behavior"
+        |> testLabel "PlatformSpecific"
         for name, rule in
             [
                 "complete-example.json", "unresolved-type"
@@ -335,12 +339,14 @@ let tests =
                     "located original limitation"
         testCase "Mid-traversal cancellation interrupts acyclic alias expansion"
         <| fun _ -> CancellationCases.duringAliasExpansion ()
+        |> testLabel "PlatformSpecific"
         for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
             testCase (
                 "Large nonempty literal cancellation "
                 + family
             )
             <| fun _ -> CancellationCases.duringLargeLiteral make
+            |> testLabel "PlatformSpecific"
         for family in [ "classic"; "v4" ] do
             testCase (
                 "Public functions cannot expose private nominal types "
@@ -477,6 +483,7 @@ let tests =
                         (FrozenSdkCases.consumer ()))
                     207
                     "generated calls observe frozen values and errors"
+            |> testLabel "PlatformSpecific"
         for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
             for rule, definition in SdkCases.refusals do
                 testCase (
@@ -506,6 +513,7 @@ let tests =
                     (executeConsumer (make SdkCases.definitions) 14 SdkCases.consumer)
                     1
                     "SDK meaning and persistence"
+            |> testLabel "PlatformSpecific"
         for memberName in [ "referenceEquals"; "memberwiseClone"; "finalize" ] do
             testCase (
                 "Record payload cannot hide inherited "
@@ -567,6 +575,7 @@ let tests =
                 (executeConsumer (PatternCases.v4Reversed ()) 14 consumer)
                 1
                 "v4 ordered fields"
+        |> testLabel "PlatformSpecific"
         for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
             for index, (rule, definition) in
                 PatternCases.refusals
@@ -593,6 +602,7 @@ let tests =
                     (executeConsumer (make ()) 14 PatternCases.consumer)
                     1
                     "first match, aliases, recursion, record persistence and evaluation order"
+            |> testLabel "PlatformSpecific"
         for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
             testCase (
                 "Function generic parameter collisions are located "
@@ -876,6 +886,7 @@ let tests =
                     "public static class Observation { public static int Run() => Con.SampleModule.Answer(); }")
                 42
                 "device-named namespace compiles"
+        |> testLabel "PlatformSpecific"
         for family, make in [ "classic", FunctionCases.classicWith; "v4", FunctionCases.v4With ] do
             for index, (rule, definition) in
                 FunctionCases.refusals
@@ -902,6 +913,7 @@ let tests =
                     (executeConsumer (model ()) 14 FunctionCases.consumer)
                     1
                     "capture, shadowing, partial application, generics and evaluation order"
+            |> testLabel "PlatformSpecific"
         testCase "Nested record fields cannot hide their generated protocol"
         <| fun _ ->
             let inner =
@@ -1093,6 +1105,7 @@ let tests =
                     "public static class Observation { public static int Run() => new Example.DataModule.Data(2,\"x\").Age; }")
                 2
                 "separate module class identity"
+        |> testLabel "PlatformSpecific"
         for label, model, body in LiteralCases.admitted do
             testCase (
                 "Literal fidelity "
@@ -1108,6 +1121,7 @@ let tests =
                          + " } }"))
                     1
                     "independent literal observation"
+            |> testLabel "PlatformSpecific"
         for label, rule, model in LiteralCases.refused do
             testCase (
                 "Located literal refusal "
@@ -1153,6 +1167,7 @@ let tests =
                     (executeConsumer (model ()) 14 TypeCases.consumer)
                     17
                     "repeated alias use in actual type arguments is finite"
+            |> testLabel "PlatformSpecific"
 
             testCase (
                 "Genuinely recursive aliases fail without partial sources "
@@ -1186,6 +1201,7 @@ let tests =
                     (diagnostics
                      |> List.exists (fun diagnostic -> diagnostic.Id = "CS0122"))
                     "consumer cannot construct a hidden case"
+            |> testLabel "PlatformSpecific"
         testCase "Generation is invariant under Turkish culture"
         <| fun _ ->
             let current = Globalization.CultureInfo.CurrentCulture
@@ -1219,6 +1235,7 @@ let tests =
                 Expect.equal second.Sources first.Sources "same paths and bytes"
             finally
                 Globalization.CultureInfo.CurrentCulture <- current
+        |> testLabel "PlatformSpecific"
         testCase "Two public records mapping to one C# identity are refused"
         <| fun _ ->
             let model =
@@ -1277,6 +1294,7 @@ let tests =
                     (executeConsumer (model ()) 14 TypeCases.consumer)
                     17
                     "independent construction observation"
+            |> testLabel "PlatformSpecific"
 
             testCase (
                 "Compiled structural value protocol "
@@ -1287,6 +1305,7 @@ let tests =
                     (executeConsumer (model ()) 14 TypeCases.equalityConsumer)
                     1
                     "independent boxed/nested numeric observations"
+            |> testLabel "PlatformSpecific"
 
             testCase (
                 "Record aliases retain structural transparency "
@@ -1297,6 +1316,7 @@ let tests =
                     (executeConsumer (model ()) 14 TypeCases.aliasConsumer)
                     15
                     "equivalent records share the represented type"
+            |> testLabel "PlatformSpecific"
 
             testCase (
                 "Nested closed records retain typed immutable properties "
@@ -1307,6 +1327,7 @@ let tests =
                     (executeConsumer (model ()) 14 TypeCases.nestedConsumer)
                     1
                     "nested/function/unit types"
+            |> testLabel "PlatformSpecific"
         testCase "Empty v4 libraries preserve their typed family and source declaration"
         <| fun _ ->
             for version in [ "4"; "4.0.0" ] do
@@ -1554,6 +1575,7 @@ let tests =
             Expect.isEmpty result.Sources "no partials"
         testCase "Given a typed model, modern generator-driver AddSource compiles and executes"
         <| fun _ -> hostSmoke (constantModel ())
+        |> testLabel "PlatformSpecific"
         testCase "Core references only Models and framework support"
         <| fun _ ->
             let names =
@@ -1592,6 +1614,7 @@ let tests =
                     |> ignore
                 )
                 "driver cancellation"
+        |> testLabel "PlatformSpecific"
     ]
 
 [<EntryPoint>]
