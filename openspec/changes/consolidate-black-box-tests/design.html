@@ -881,6 +881,18 @@ change.</td>
 skipped exits with 0 (verified on the pinned TUnit). The target <code>executable</code> of the manual workflow is the
 trimmed executable, published to a folder of its own, with the native host.</td>
 <td><code>slice-2-runs.md</code></td></tr>
+<tr><td><a href="#grp-1">GRP-1</a>, the integration suite</td>
+<td>The integration group has tests with a time budget now (the interrupt of a worker within one second, the bounds
+of the corpus cases, the peak working set), so its suite runs alone (<code>Alone()</code>), as the rule of the skill
+says. On this machine the group takes 25 s. Pull request 3 moves more tests into this group; a split of the
+time-budget tests into a suite of their own is an option then.</td>
+<td><code>build/Helpers/TestPlan.cs</code>, <code>TestPlanTests</code></td></tr>
+<tr><td>Open point: the trim warnings of the CLI publish</td>
+<td>The removed manual scenario "Successful AOT compilation" refused <code>IL2026</code>, <code>IL2060</code> and
+<code>IL2070</code> in its own publish output. The release publish of <code>src/Morphir</code> fails on
+<code>IL3050</code> only, and slice 5 checks the warnings of the library hosts and the probes, not of the CLI. So no
+check refuses those warnings for the CLI now. It needs an owner and a decision.</td>
+<td><code>slice-2-moves.md</code></td></tr>
 <tr><td>The worker guests</td>
 <td>The two guests of the worker moved from the removed project to <code>tests/Fixtures/WorkerGuests</code>, with a
 README. <code>Morphir.Tooling.Tests</code> links them from there: a one-line change of its project file.</td>
