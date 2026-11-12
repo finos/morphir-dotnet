@@ -60,6 +60,7 @@ Hard cases:
 - **`--help` of one command** is smoke if it proves only that the artifact starts. A check of the options that the help text shows is integration.
 - **One command on one input.** `ir verify` on one model, with a check of the exit code and the text, checks the capability. It is integration, not smoke.
 - **Three different commands for one goal** are three capabilities, so the test is a journey.
+- **A shipped library that the CLI does not reach** gets a small host program below `tests/` that calls the library and exits with 0 when its checks hold. The checks of the test are in the black-box project: a run of the host is smoke (`Smoke/LibraryHosts.feature`), and its Native AOT publish is smoke with `@lane @native-aot` (`Smoke/NativeAot.feature`). When the CLI reaches the library for the behavior, test it through the CLI and add no host.
 - **An end-to-end test on the development build.** A property that the delivered form must have can be a check of the build output (for example the runtime configuration file of an executable). It is end-to-end with no lane, and a pull request runs it on each operating system.
 
 ## After the class: the lane, the host and the capabilities

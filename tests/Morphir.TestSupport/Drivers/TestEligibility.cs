@@ -52,6 +52,12 @@ public enum DriverCapability
 
     /// <summary>The routing of a command to an external tool, as <c>morphir mck</c> runs <c>morphir-mck</c> (<see cref="IToolRoutingDriver"/>).</summary>
     ToolRouting,
+    /// <summary>
+    /// The build output and the project files of the programs of the repository that are not the CLI: the library
+    /// hosts, the probes and <c>morphirup</c> (<see cref="ILibraryHostDriver"/>, <see cref="IArtifactInspectionDriver"/>).
+    /// Only the development build has them.
+    /// </summary>
+    BuiltPrograms,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -94,13 +100,19 @@ public static class DriverCapabilities
             DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Compilation, DriverCapability.Configuration,
             DriverCapability.Migration, DriverCapability.Extensions, DriverCapability.ModelValidation, DriverCapability.ToolRouting,
         ];
-        // The guests are build output of the development build: a published target has none.
+        if (host is MorphirHost.Managed or MorphirHost.DotnetTool) commands = commands.Add(DriverCapability.InProcessFSharpFrontend);
+        // The programs and the extension guests are build output of the development build: a published target has none.
         // The development build runs each host as an assembly, which can also run with the dynamic-code switch off.
         if (target is TestTarget.DevelopmentBuild)
-            commands = commands.Union([DriverCapability.BuiltExtensions, DriverCapability.HostWithoutDynamicCode, DriverCapability.AllHosts, DriverCapability.UnprofiledBuild]);
-        return host is MorphirHost.Managed or MorphirHost.DotnetTool
-            ? commands.Add(DriverCapability.InProcessFSharpFrontend)
-            : commands;
+        {
+            commands = commands.Union(
+            [
+                DriverCapability.BuiltPrograms, DriverCapability.BuiltExtensions, DriverCapability.HostWithoutDynamicCode, DriverCapability.AllHosts,
+                DriverCapability.UnprofiledBuild,
+            ]);
+        }
+
+        return commands;
     }
 }
 

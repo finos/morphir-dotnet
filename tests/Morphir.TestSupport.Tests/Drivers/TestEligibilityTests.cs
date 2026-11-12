@@ -205,6 +205,16 @@ public class TestEligibilityTests
     }
 
     [Test]
+    public void OnlyTheDevelopmentBuildHasTheBuiltPrograms()
+    {
+        foreach (var host in MorphirHosts.All)
+            DriverCapabilities.Of(Development, host).Should().Contain(DriverCapability.BuiltPrograms);
+
+        DriverCapabilities.Of(NativeAot, MorphirHost.Native).Should().NotContain(DriverCapability.BuiltPrograms);
+        DriverCapabilities.TagOf(DriverCapability.BuiltPrograms).Should().Be("needs-built-programs");
+    }
+
+    [Test]
     public void AHostThatATargetDoesNotHaveSupportsNoCapability() =>
         DriverCapabilities.Of(NativeAot, MorphirHost.Managed).Should().BeEmpty();
 

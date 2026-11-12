@@ -84,7 +84,7 @@ discovered tests of the complete project, so such a file is in it.
 | 4 | `Morphir.Myriad.Integration.Tests` | `CarRentalSteps.cs` | yes | yes | no | no | Move: journey (pack the plugin, build a consumer, run it). |
 | 4 | `Morphir.Myriad.SystemTextJson.Tests` | `BuildTests.fs` | yes | yes | yes | no | Move: integration (a fixture build with the plugin), with `IPackageDriver`. |
 | 4 | `Morphir.SDK.Tests` | `PackageMigrationTests.fs` | yes | no | no | no | Move: journey (the SDK package graphs), with `IPackageDriver` and `--artifacts-path`. |
-| 5 | `Morphir.Toolchain.Tests` | `GlobalizationTests.fs` | yes | no | no | no | Move every discovered case; none needs a product type. The case that runs the `morphirup` executable is smoke. The cases that read built assemblies with `PEReader` and `morphirup.runtimeconfig.json` are end-to-end tests of the build output, with no lane, on an artifact inspection driver. Task 9.1 states how the driver gets the `morphirup` executable. |
+| 5 (done) | `Morphir.Toolchain.Tests` | `GlobalizationTests.fs` | yes | no | no | no | Move every discovered case; none needs a product type. The case that runs the `morphirup` executable is smoke. The cases that read built assemblies with `PEReader` and `morphirup.runtimeconfig.json` are end-to-end tests of the build output, with no lane, on an artifact inspection driver. Task 9.1 states how the driver gets the `morphirup` executable. |
 | stays | `Morphir.Build.Tests` | `BuildProfileTargetsTests.cs` | yes | yes | no | yes | Stays as a build test: its subject is the build of the repository (project files, targets, workflows), not a built artifact of the product. |
 | stays | `Morphir.Build.Tests` | `CliDeliveryWorkflowTests.cs` | no | yes | no | no | Stays as a build test: its subject is the build of the repository (project files, targets, workflows), not a built artifact of the product. |
 | stays | `Morphir.Build.Tests` | `DevelopmentWorkflowTests.cs` | no | yes | no | yes | Stays as a build test: its subject is the build of the repository (project files, targets, workflows), not a built artifact of the product. |
@@ -196,8 +196,9 @@ The scan finds three new files of pull request 3. Each stays: it tests the drive
 | Pull request | Project | File | Process | Build verb | Artifact | Product types | Destination |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | stays | `Morphir.TestSupport.Tests` | `Drivers/CommandFamilyDriverTests.cs`, `Drivers/CliDriverTimeLimitTests.cs`, `Drivers/DotnetHostTests.cs` | yes | no | no | no | Stay: tests of the drivers of `Morphir.TestSupport` (task 7.2). |
+| stays | `Morphir.TestSupport.Tests` | `Drivers/LibraryHostDriverTests.cs` | no | yes | yes | no | Stays: a test of a driver of `Morphir.TestSupport`, from pull request 5 (#622). The merge of `main` at `8d752e7d` brought it into this branch. |
 
-After pull request 3 and the merge of `main` at `fbf7cff9`, the scan gives `# 132 files in 25 projects`. The rows above say which files of pull request 3
+After pull request 3 and the merge of `main` at `8d752e7d` (pull request 5), the scan gives `# 132 files in 25 projects`. The rows above say which files of pull request 3
 are removed, and which stay and why (`evidence/slice-3-moves.md`).
 
 ## Counts

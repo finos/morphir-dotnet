@@ -60,6 +60,14 @@ public sealed partial class CliSteps(ICliDriver cli, ScenarioRun run)
     [Then("standard output is one JSON document")]
     public void StandardOutputIsOneJsonDocument() => run.Result.ShouldWriteOneJsonDocument();
 
+    [Then("the JSON document on standard output has the field {string} with the value true")]
+    public void TheJsonDocumentHasTheFieldTrue(string field)
+    {
+        var document = run.Result.ShouldWriteOneJsonDocument();
+        if (!document.TryGetProperty(field, out var value) || value.ValueKind != System.Text.Json.JsonValueKind.True)
+            throw new CommandAssertionException($"The JSON document on standard output does not have the field {field} with the value true.", run.Result);
+    }
+
     /// <summary>
     /// Standard output is one version in the canonical form of SemVer 2.0.0, which each host parses at its start with
     /// <c>ReleaseVersion.Create</c>.
