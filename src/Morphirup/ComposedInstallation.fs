@@ -59,8 +59,17 @@ let private launchReport program args directory home overlay (ct: CancellationTo
         refuse "setup.readiness_failed" "The host report did not record success."
     let provider = fields |> List.tryFind(fun (name,_) -> name="provider") |> Option.map snd
                    |> Option.defaultWith(fun () -> refuse "setup.readiness_failed" "An installed process observation is missing.")
-    return provider
+    return provider,fields
 }
+
+let checkGeneratedSet (entries: string array) artifacts =
+    match artifacts with
+    | Value.Array [Value.String "Pricing.fs"] -> ()
+    | _ -> refuse "setup.readiness_failed" "The publisher's complete generated artifact set differs from the fixed expectation."
+    // The existing publisher emits its ownership metadata alongside the artifacts.
+    // It is not a generated F# source file and does not become a workflow output.
+    if Array.sort entries <> [|".morphir-generated.json";"Pricing.fs"|] then
+        refuse "setup.readiness_failed" "The complete generated directory differs from the fixed artifacts and publisher metadata."
 
 let private readiness (root: SafeDirectory) (stage: SafeDirectory) (candidate: LocalComposedCandidate) (catalog: byte array) (captures: IReadOnlyList<CapturedExtension>) home ct = task {
     let workPath = Path.Combine(stage.Path,"work")
@@ -68,14 +77,15 @@ let private readiness (root: SafeDirectory) (stage: SafeDirectory) (candidate: L
         LocalInstallation.writeFile work "Pricing.fs" (fixedBytes "Pricing.fs"))
     let program = path home (LocalCandidateDocument.installationPath candidate.Host+"/"+candidate.Host.EntryPoint.Target.Text)
     let overlay = Path.Combine(stage.Path,"generation")
-    let! frontend = launchReport program ["compile";"--language";"fsharp";"--input";Path.Combine(workPath,"Pricing.fs");"--package-name";"acme/demo";"--ir-version";"4";"--output";Path.Combine(workPath,"compiled");"--out-dir";Path.Combine(workPath,"out");"--extension-id";candidate.FrontendId.Text;"--json"] workPath home overlay ct
+    let! frontend,_ = launchReport program ["compile";"--language";"fsharp";"--input";Path.Combine(workPath,"Pricing.fs");"--package-name";"acme/demo";"--ir-version";"4";"--output";Path.Combine(workPath,"compiled");"--out-dir";Path.Combine(workPath,"out");"--extension-id";candidate.FrontendId.Text;"--json"] workPath home overlay ct
     use work = stage.Child("work",false)
     let ir = read work "compiled/morphir-ir.json"
     if not(JsonNode.DeepEquals(JsonNode.Parse ir,JsonNode.Parse(fixedBytes "ir.json"))) then
         refuse "setup.readiness_failed" "Compiled IR differs from the fixed semantic expectation."
-    let! backend = launchReport program ["generate";"--target";"fsharp";"--input";Path.Combine(workPath,"compiled/morphir-ir.json");"--output";Path.Combine(workPath,"generated");"--option";"format=false";"--extension-id";candidate.BackendId.Text;"--json"] workPath home overlay ct
+    let! backend,backendReport = launchReport program ["generate";"--target";"fsharp";"--input";Path.Combine(workPath,"compiled/morphir-ir.json");"--output";Path.Combine(workPath,"generated");"--option";"format=false";"--extension-id";candidate.BackendId.Text;"--json"] workPath home overlay ct
     use generated = work.Child("generated",false)
-    if generated.Entries() <> [|"Pricing.fs"|] then refuse "setup.readiness_failed" "The complete generated file set differs from the fixed expectation."
+    checkGeneratedSet (generated.Entries()) (SharedJson.required "report" "artifacts" backendReport)
+    read generated ".morphir-generated.json" |> ignore
     let source = read work "Pricing.fs"
     let generatedBytes = read generated "Pricing.fs"
     if generatedBytes <> fixedBytes "generated.fs" then refuse "setup.readiness_failed" "Generated F# differs from the fixed expected bytes."
@@ -237,7 +247,8 @@ let setupLocalAsync platform home candidatePath archivePath bundlePath dryRun ct
     let rawBundle = LocalCandidate.readBytes (8L <<< 20) bundlePath
     let bundle = ReleaseBundleDocument.read rawBundle |> reader
     if bundle.Platform <> platform then refuse "local.platform_mismatch" "The local bundle differs from the actual manager process platform."
-    let directory = Path.GetDirectoryName(Path.GetFullPath bundlePath)
+    let directory = Path.GetDirectoryName(Path.GetFullPath bundlePath) |> Option.ofObj
+                    |> Option.defaultWith(fun () -> refuse "local.invalid_path" "The local bundle must have a parent directory.")
     let files = bundle.Assets |> List.map(fun asset ->
         let file = match asset.Role with "host-candidate" -> candidatePath | "host-archive" -> archivePath | _ -> Path.Combine(directory,asset.Name.Text)
         asset.Url.AbsoluteUri,file) |> Map.ofList

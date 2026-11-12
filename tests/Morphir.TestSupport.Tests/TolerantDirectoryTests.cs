@@ -7,6 +7,54 @@ namespace Morphir.TestSupport.Tests;
 public class TolerantDirectoryTests
 {
     [Test]
+    public async Task Delete_ReadOnlyPackageFiles_RemovesOwnedTreeWithoutWarning()
+    {
+        var root = Directory.CreateTempSubdirectory("morphir-readonly-cleanup-").FullName;
+        var file = Path.Combine(Directory.CreateDirectory(Path.Combine(root, "store", "package")).FullName, "manifest");
+        await File.WriteAllTextAsync(file, "retained package bytes");
+        File.SetAttributes(file, File.GetAttributes(file) | FileAttributes.ReadOnly);
+        var logged = new List<string>();
+        try
+        {
+            (await TolerantDirectory.TryDeleteAsync(root, new TolerantDeleteOptions
+            {
+                Attempts = 1,
+                Log = logged.Add,
+            })).Should().BeTrue();
+            Directory.Exists(root).Should().BeFalse();
+            logged.Should().BeEmpty();
+        }
+        finally
+        {
+            if (File.Exists(file)) File.SetAttributes(file, FileAttributes.Normal);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Delete_DirectoryLink_DoesNotChangeOutsideReadOnlyFiles()
+    {
+        var root = Directory.CreateTempSubdirectory("morphir-link-cleanup-").FullName;
+        var outside = Directory.CreateTempSubdirectory("morphir-cleanup-target-").FullName;
+        var file = Path.Combine(outside, "keep");
+        await File.WriteAllTextAsync(file, "outside bytes");
+        File.SetAttributes(file, File.GetAttributes(file) | FileAttributes.ReadOnly);
+        try
+        {
+            Directory.CreateSymbolicLink(Path.Combine(root, "link"), outside);
+            (await TolerantDirectory.TryDeleteAsync(root)).Should().BeTrue();
+            File.ReadAllText(file).Should().Be("outside bytes");
+            File.GetAttributes(file).Should().HaveFlag(FileAttributes.ReadOnly);
+        }
+        finally
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            Directory.Delete(outside, recursive: true);
+        }
+    }
+
+    [Test]
     public async Task Delete_ReleasedDuringRetries_Succeeds()
     {
         var root = Directory.CreateTempSubdirectory("morphir-tolerant-").FullName;

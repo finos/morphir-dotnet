@@ -12,16 +12,18 @@ namespace Morphir.Build.Tests;
 public class ExtensionProcessProducerTests
 {
     [Test]
-    [Arguments("Morphir.Frontend.FSharp.Extension", "morphir-fsharp-frontend")]
-    [Arguments("Morphir.CodeGeneration.FSharp.Extension", "morphir-fsharp-backend")]
-    public async Task SelfContainedProcessIsACompleteUntrimmedRuntimeFolder(string project, string command)
+    [Arguments("Morphir.Frontend.FSharp.Extension", "morphir-fsharp-frontend", "win-x64")]
+    [Arguments("Morphir.CodeGeneration.FSharp.Extension", "morphir-fsharp-backend", "win-x64")]
+    [Arguments("Morphir.Frontend.FSharp.Extension", "morphir-fsharp-frontend", "win-arm64")]
+    [Arguments("Morphir.CodeGeneration.FSharp.Extension", "morphir-fsharp-backend", "win-arm64")]
+    public async Task SelfContainedProcessIsACompleteUntrimmedRuntimeFolder(string project, string command, string rid)
     {
-        var properties = await Properties(project, "-p:PublishProfile=SelfContainedProcess", "-p:RuntimeIdentifier=win-x64", "-p:MorphirRidSpecificPublish=true");
+        var properties = await Properties(project, "-p:PublishProfile=SelfContainedProcess", "-p:RuntimeIdentifier=" + rid, "-p:MorphirRidSpecificPublish=true");
         properties["SelfContained"].Should().Be("true");
         foreach (var name in new[] { "PublishSingleFile", "PublishTrimmed", "PublishAot", "PublishReadyToRun" })
             properties[name].Should().Be("false", name + " must not remove runtime/compiler/generator dependencies");
         properties["AssemblyName"].Should().Be(command);
-        properties["NuGetLockFilePath"].Replace('\\', '/').Should().EndWith($"{project}/obj/publish-lock/win-x64/packages.lock.json");
+        properties["NuGetLockFilePath"].Replace('\\', '/').Should().EndWith($"{project}/obj/publish-lock/{rid}/packages.lock.json");
     }
 
     [Test]

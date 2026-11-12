@@ -94,6 +94,13 @@ let tests = testList "WindowsReleaseSetup" [
         use sandbox = TestSandbox.Create()
         Expect.equal (ComposedInstallation.releaseVersion sandbox.Work "0.4.0-alpha.5+actual-source") "0.4.0-alpha.5" "no discovery or moving channel"
     }
+    test "readiness classifies existing ownership metadata separately from generated artifacts" {
+        ComposedInstallation.checkGeneratedSet [|".morphir-generated.json";"Pricing.fs"|] (Value.Array [Value.String "Pricing.fs"])
+    }
+    test "readiness still refuses an extra generated output" {
+        Expect.throwsT<LocalCandidate.Refused> (fun () ->
+            ComposedInstallation.checkGeneratedSet [|".morphir-generated.json";"Pricing.fs";"other.fs"|] (Value.Array [Value.String "Pricing.fs"])) "complete output set"
+    }
     testCaseTask "an ARM64 request cannot acquire an x64 bundle" (fun () -> task {
         let raw = tinyBundle ()
         let bundle = ReleaseBundleDocument.read raw |> function Ok value -> value | Error _ -> failtest "Invalid scripted bundle."

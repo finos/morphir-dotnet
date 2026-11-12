@@ -1630,7 +1630,8 @@ let releaseChecksumReaderTests =
             Expect.equal candidate.Host.Platform Platform.WinArm64 "declared platform"
             Expect.equal candidate.Host.ManifestSha256 (Sha256.ofBytes raw) "exact ARM64 input"
             let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate digest
-            Expect.stringContains (System.Text.Encoding.UTF8.GetString receipt) "\"platform\":\"win-arm64\"" "receipt platform"
+            use document = System.Text.Json.JsonDocument.Parse receipt
+            Expect.equal (document.RootElement.GetProperty("platform").GetString() |> Option.ofObj) (Some "win-arm64") "receipt platform"
             ComposedDocuments.receiptMatches "0.1.0-preview.3" candidate digest receipt |> parsed
         }
         test "preview3 planning accepts matching ARM64 and refuses cross-RID execution" {
@@ -1654,7 +1655,8 @@ let releaseChecksumReaderTests =
             let pointer = ComposedDocuments.pointer "0.1.0-preview.3" candidate digest receipt
             let _,_,origin = ComposedDocuments.readPointer "0.1.0-preview.3" pointer |> parsed
             Expect.equal origin candidate.Origin "pointer binds the validated origin"
-            Expect.stringContains (System.Text.Encoding.UTF8.GetString receipt) "\"origin\":\"local-developer\"" "receipt is not relabelled"
+            use document = System.Text.Json.JsonDocument.Parse receipt
+            Expect.equal (document.RootElement.GetProperty("origin").GetString() |> Option.ofObj) (Some "local-developer") "receipt is not relabelled"
         }
         test "preview3 acquisition is required only for the bound release-checksum candidate" {
             let release = releaseBytes () |> LocalComposedDocument.readReleaseCandidate |> parsed
