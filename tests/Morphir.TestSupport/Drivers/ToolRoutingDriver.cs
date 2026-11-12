@@ -77,6 +77,8 @@ public sealed class ToolRoutingDriver(ICliDriver cli, IScenarioWorkspace workspa
 
     private static readonly string Suffix = OperatingSystem.IsWindows() ? ".exe" : "";
 
+    private static readonly System.Text.UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
+
     /// <summary>The root of the runtime that runs the tests, for the apphost of the stub.</summary>
     public static string DotnetRoot { get; } = System.IO.Path.GetFullPath(System.IO.Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
 
@@ -115,6 +117,9 @@ public sealed class ToolRoutingDriver(ICliDriver cli, IScenarioWorkspace workspa
             else info.Environment[name] = value;
         }
 
+        // The same reading as the CLI driver: a routed run and a standalone run must compare equal on each platform.
+        info.StandardOutputEncoding = Utf8;
+        info.StandardErrorEncoding = Utf8;
         var mark = workspace.Mark();
         var result = await ChildProcess.RunAsync(info, Timeout, cancellation, standardInput: options.StandardInput).ConfigureAwait(false);
         return new CommandResult(
