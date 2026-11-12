@@ -84,7 +84,7 @@ type MepFrontendOptions =
               Version = hostVersion } }
 
 /// <summary>
-/// A frontend that runs as a MEP 0.2.0-draft.1 guest process. <c>ConnectAsync</c> starts the process and initializes
+/// A frontend over an owned MEP 0.2.0-draft.1 guest session. <c>ConnectAsync</c> starts a process and initializes
 /// the session; the capability then comes from the agreed session, and each compile checks it before dispatch.
 /// Classic versions 1 and 2 have no tuple: the adapter compiles at 3.0.0 and returns the typed classic model, which
 /// the host writes at the requested version (MEP-3). Dispose the frontend to end the session.
@@ -93,9 +93,10 @@ type MepFrontendOptions =
 type MepFrontend
     private
     (
-        guest: MepGuestProcess,
+        guest: IMepGuestSession,
         identity: ComponentId,
-        capability: CompileCapability
+        capability: CompileCapability,
+        transport: FrontendTransport
     ) =
 
     static let jsonTuple (version: string) : ModelTransportTuple =
@@ -241,8 +242,8 @@ type MepFrontend
     /// <summary>The agreed session.</summary>
     member _.Session = negotiated
 
-    /// <summary>True when the extension process has exited.</summary>
-    member _.HasExited = guest.HasExited
+    /// <summary>True when the owned extension session has ended.</summary>
+    member _.HasExited = guest.IsClosed
 
     /// <summary>Starts the extension, initializes a session and returns the frontend, or an operational failure.</summary>
     static member ConnectAsync(options: MepFrontendOptions, cancellation: CancellationToken) : Task<Result<MepFrontend, FrontendFailure>> =
@@ -268,7 +269,13 @@ type MepFrontend
                   Host = options.Host
                   Environment = environment }
 
-            match! MepGuestProcess.StartAsync(guestOptions, offer, cancellation) with
+            let! started = MepGuestProcess.StartAsync(guestOptions, offer, cancellation)
+            return! MepFrontend.FromSessionAsync(options, FrontendTransport.Mep, Result.map (fun guest -> guest :> IMepGuestSession) started)
+        }
+
+    static member private FromSessionAsync(options: MepFrontendOptions, transport: FrontendTransport, started: Result<IMepGuestSession, MepGuestFailure>) =
+        task {
+            match started with
             | Error failed -> return Error(failure (codeOf failed) failed.Message)
             | Ok guest when ReservedExtensionIds.IsReserved guest.Session.Extension.Id ->
                 // A guest must not pass as a built-in frontend: every morphir. id is reserved for built-ins.
@@ -310,7 +317,17 @@ type MepFrontend
                         |> Option.map _.MultiDocument
                         |> Option.defaultValue false }
 
-                return Ok(new MepFrontend(guest, identity, capability))
+                return Ok(new MepFrontend(guest, identity, capability, transport))
+        }
+
+    /// <summary>Initializes an owned WASM channel and reuses the ordinary frontend model validation.</summary>
+    static member ConnectChannelCheckedAsync(options: MepFrontendOptions, channel: ISingleMessageChannel, cancellation: CancellationToken) : Task<Checked<IFrontend>> =
+        task {
+            let! started = MepChannelGuest.StartCheckedAsync(channel, options.Host, offer, options.Deadline, cancellation)
+            let result = match started with MepChannelStart.Started guest -> Ok guest | MepChannelStart.Failed error -> Error error
+            match! MepFrontend.FromSessionAsync(options, FrontendTransport.Wasm, result) with
+            | Ok frontend -> return Checked.pass (frontend :> IFrontend)
+            | Error failure -> return Checked.fail (List.ofSeq failure.Diagnostics)
         }
     /// <summary>
     /// Starts the extension and initializes a session, for C# callers: a passed result holds the frontend, and a
@@ -325,7 +342,7 @@ type MepFrontend
 
     interface IFrontend with
         member _.Identity = identity
-        member _.Transport = FrontendTransport.Mep
+        member _.Transport = transport
         member _.Capability = capability
 
         member _.CompileAsync(request, cancellation) =

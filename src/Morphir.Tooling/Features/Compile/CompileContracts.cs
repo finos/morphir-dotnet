@@ -202,6 +202,8 @@ public sealed record CompileSettings
     /// null. When it is set, the run uses only the frontend that the extension connector gives (FE-2).
     /// </summary>
     public Setting<string>? Extension { get; init; }
+    /// <summary>The selected WASM module, parsed from the same effective configuration as these settings.</summary>
+    public Features.Extensions.WasmModuleSource? WasmModule { get; init; }
     /// <summary>Where the sources come from.</summary>
     public required SourceRequest Sources { get; init; }
     /// <summary>

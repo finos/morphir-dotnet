@@ -134,6 +134,18 @@ type MepGuestReply =
         | Error error -> error.ToString()
         | Failed failure -> failure.ToString()
 
+/// <summary>An initialized guest session whose owner settles requests and closes its transport.</summary>
+type IMepGuestSession =
+    inherit IAsyncDisposable
+    /// <summary>The negotiated identity and capabilities.</summary>
+    abstract Session: NegotiatedSession
+    /// <summary>Whether the owned session has ended. This is not a process exit receipt.</summary>
+    abstract IsClosed: bool
+    /// <summary>Sends a typed request over the existing session.</summary>
+    abstract SendAsync: Method * JsonElement * CancellationToken -> Task<MepGuestReply>
+    /// <summary>Reads the guest's claims over the existing session.</summary>
+    abstract DescribeAsync: CancellationToken -> Task<Result<CapabilityClaimSet, MepGuestFailure>>
+
 /// What ended a wait for a reply: the reply, the end of the connection, or the deadline.
 [<RequireQualifiedAccess>]
 type internal Waited =
@@ -372,6 +384,12 @@ type MepGuestProcess
         }
     /// <summary>The extension and the executable.</summary>
     override _.ToString() = $"Extension {name} ({options.Executable})"
+
+    interface IMepGuestSession with
+        member this.Session = this.Session
+        member this.IsClosed = this.HasExited
+        member this.SendAsync(method, parameters, cancellation) = this.SendAsync(method, parameters, cancellation)
+        member this.DescribeAsync(cancellation) = this.DescribeAsync(cancellation)
 
     interface IAsyncDisposable with
         member _.DisposeAsync() =

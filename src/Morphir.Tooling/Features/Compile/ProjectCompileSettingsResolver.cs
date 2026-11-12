@@ -196,6 +196,12 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         var extension = overrides.Extension is { } cliExtension
             ? new Setting<string>(cliExtension, new SettingOrigin.CommandLine("--extension"))
             : language is null ? null : config.String("frontend", language.Value.Value, "extension");
+        if (extension is null && language is not null && config.String("extensions", language.Value.Value, "path") is { } modulePath)
+            extension = new(language.Value.Value, modulePath.Origin);
+        Features.Extensions.WasmModuleSource? wasmModule = null;
+        if (extension is not null && !Features.Extensions.ConfiguredWasmModule.TryRead(config, extension.Value,
+                loaded.ProjectRoot ?? working, out wasmModule, out var moduleError))
+            Error(CompileCodes.InvalidSetting, moduleError!);
         if (extension is not null && string.IsNullOrWhiteSpace(extension.Value))
             Error(CompileCodes.InvalidSetting, $"The frontend extension from {Describe(extension.Origin)} is empty.");
 
@@ -256,6 +262,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             IrVersion = version,
             ExposedModules = exposed,
             Extension = extension,
+            WasmModule = wasmModule,
             Sources = sources,
             UnreadProjectFileKeys = unread,
             IgnoredBackendExtension = ignoredBackend,
@@ -287,6 +294,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
     /// </summary>
     internal sealed class ConfigurationView(LoadedCompileConfiguration loaded)
     {
+        public bool Has(params string[] path) => Find(path) is not null;
         private ConfigValue? Find(string[] path) =>
             ConfigValueProjections.TryFind(loaded.Effective, path, out var value) ? value : null;
 

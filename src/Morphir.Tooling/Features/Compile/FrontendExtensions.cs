@@ -8,7 +8,11 @@ namespace Morphir.Tooling.Features.Compile;
 /// <param name="Extension">The extension and where it was configured.</param>
 /// <param name="Language">The selected language, or null when the documents decide it.</param>
 /// <param name="WorkingDirectory">The invocation directory, for relative extension paths.</param>
-public sealed record FrontendExtensionRequest(Setting<string> Extension, LanguageId? Language, string WorkingDirectory);
+public sealed record FrontendExtensionRequest(Setting<string> Extension, LanguageId? Language, string WorkingDirectory)
+{
+    /// <summary>The module parsed by the settings resolver, or null for a process guest.</summary>
+    public Features.Extensions.WasmModuleSource? WasmModule { get; init; }
+}
 
 /// <summary>
 /// Connects a configured frontend extension and gives it as an <see cref="IFrontend"/> (FE-2). A transport adds
