@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using Morphir.Build.Helpers;
 using Fallout.Common;
 using Fallout.Common.IO;
+using Fallout.Common.Tooling;
 using Fallout.Common.Tools.DotNet;
 using static Fallout.Common.Tools.DotNet.DotNetTasks;
 
@@ -177,6 +178,18 @@ partial class Build
             PublishExtensionProcess(FSharpFrontendExtensionProject, "morphir-fsharp-frontend", Rid!);
         });
 
+    /// <summary>
+    /// Publish the F# backend, its generator dependencies and its .NET runtime as a complete process folder and
+    /// archive for one runtime identifier. The framework-dependent tool from PackTool is unchanged.
+    /// </summary>
+    Target PublishFSharpBackendProcess => _ => _
+        .Description("Publish the F# backend extension as a self-contained process folder and archive (requires --rid)")
+        .Requires(() => Rid)
+        .Executes(() =>
+        {
+            PublishExtensionProcess(FSharpBackendExtensionProject, "morphir-fsharp-backend", Rid!);
+        });
+
 
     /// <summary>
     /// Publishes an extension project with a publish profile (by default SelfContainedProcess, which the project
@@ -200,6 +213,7 @@ partial class Build
             .SetRuntime(rid)
             .SetProperty("PublishProfile", profile)
             .SetProperty(TargetSettings.RidSpecificPublishProperty, "true")
+            .AddProcessAdditionalArguments("-m:1", "-p:BuildInParallel=false", "-p:UseSharedCompilation=false", "-nodeReuse:false")
             .SetOutput(folder));
 
         var executable = rid.StartsWith("win-", StringComparison.OrdinalIgnoreCase) ? $"{name}.exe" : name;

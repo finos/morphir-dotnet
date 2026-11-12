@@ -53,6 +53,7 @@
         "PublishCliTool",
         "PublishExecutable",
         "PublishExtensionTools",
+        "PublishFSharpBackendProcess",
         "PublishFSharpFrontendProcess",
         "PublishLibs",
         "PublishLocalAll",
