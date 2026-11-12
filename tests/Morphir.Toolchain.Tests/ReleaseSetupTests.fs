@@ -56,6 +56,188 @@ let private tinyBundle () =
         "version",Value.String "0.4.0-alpha.5";"sourceCommit",Value.String(String('b',40));"platform",Value.String "win-x64"
         "assets",Value.Array(List.map asset ReleaseBundleDocument.roles)] |> JsonText.toBytes
 
+let private readinessRefusal report =
+    try
+        report () |> ignore
+        failtest "Readiness unexpectedly succeeded."
+    with LocalCandidate.Refused(code,message) ->
+        Expect.equal code "setup.readiness_failed" "manager refusal remains stable"
+        message
+
+[<Tests>]
+let readinessReports = testList "ReadinessReports" [
+    testCase "failed host stdout carries its own diagnostic instead of a stderr log" (fun () ->
+        let output = Encoding.UTF8.GetBytes """{"success":false,"diagnostics":[{"code":"extension.unavailable","message":"The F# frontend did not start: CreateProcessW"}]}"""
+        let message = readinessRefusal (fun () -> ComposedInstallation.readLaunchReport 1 output "Foundatio.Mediator registered 3 handlers")
+        Expect.stringContains message "extension.unavailable: The F# frontend did not start: CreateProcessW" "actual host cause survives"
+    )
+    testCase "unsuccessful JSON also preserves diagnostics when the host exits zero" (fun () ->
+        let output = Encoding.UTF8.GetBytes """{"success":false,"diagnostics":[{"code":"extension.timeout","message":"The frontend deadline expired."}]}"""
+        let message = readinessRefusal (fun () -> ComposedInstallation.readLaunchReport 0 output "")
+        Expect.stringContains message "extension.timeout: The frontend deadline expired." "success flag is checked independently"
+    )
+    testCase "failed host without a JSON report retains stderr" (fun () ->
+        let message = readinessRefusal (fun () -> ComposedInstallation.readLaunchReport 1 (Encoding.UTF8.GetBytes "not JSON") "host launch failed")
+        Expect.stringContains message "host launch failed" "fallback retains available failure evidence"
+    )
+    testCase "successful host report retains its provider observation" (fun () ->
+        let output = Encoding.UTF8.GetBytes """{"success":true,"provider":{"extensionId":"org.finos.frontend"},"diagnostics":[]}"""
+        let provider,_ = ComposedInstallation.readLaunchReport 0 output "a harmless host log"
+        Expect.equal provider (Value.Object ["extensionId",Value.String "org.finos.frontend"]) "existing observation validation follows unchanged"
+    )
+]
+
+[<Tests>]
+let stageCleanup = testLabel "PlatformSpecific" <| testList "SetupStageCleanup" [
+    testCaseTask "cleanup contention preserves completed setup result and writes one stderr warning" (fun () -> task {
+        use sandbox = TestSandbox.Create()
+        use root = Morphir.Extensions.Installation.SafeDirectory.Open(Path.Combine(sandbox.Work,"home"),true)
+        use parent = root.Child("tmp",true)
+        use stage = parent.Child("local-toolchain-contention",true)
+        use owner = stage.File(".owner",true,true)
+        use errors = new StringWriter()
+        use runningHost = Morphir.Extensions.Installation.FileSafety.mutationLease root
+        let folder = stage.Path
+        let elapsed = System.Diagnostics.Stopwatch.StartNew()
+        let! achieved = LocalInstallation.withPrivateStageAsync root stage owner errors (fun () -> task {
+            return "installed",0
+        })
+        Expect.equal achieved ("installed",0) "cleanup must not rewrite an achieved setup result or exit code"
+        Expect.isTrue (elapsed.Elapsed >= TimeSpan.FromSeconds 4.5) "the real five-second lease deadline was exercised"
+        Expect.isTrue runningHost.CanRead "the host still holds its lease when setup completes"
+        Expect.isTrue (Directory.Exists folder) "deferred private stage is retained"
+        let lines = errors.ToString().Split([|'\r';'\n'|],StringSplitOptions.RemoveEmptyEntries)
+        Expect.equal lines.Length 1 "one stderr line, no additional result output"
+        Expect.stringContains lines[0] folder "warning identifies the retained stage"
+        Expect.stringContains lines[0] "cleanup deferred" "warning explains why bytes remain"
+    })
+    testCaseTask "successful setup removes its readonly private stage and preserves shared tmp siblings" (fun () -> task {
+        use sandbox = TestSandbox.Create()
+        use root = Morphir.Extensions.Installation.SafeDirectory.Open(Path.Combine(sandbox.Work,"home"),true)
+        use parent = root.Child("tmp",true)
+        use stage = parent.Child("local-toolchain-test",true)
+        use owner = stage.File(".owner",true,true)
+        File.WriteAllText(Path.Combine(parent.Path,"unrelated.txt"),"shared tmp state")
+        let stagePath = stage.Path
+        let! result = LocalInstallation.withPrivateStageAsync root stage owner TextWriter.Null (fun () -> task {
+            use child = stage.Child("work",true)
+            LocalInstallation.writeFile child "readonly.txt" [|1uy|]
+            File.SetAttributes(Path.Combine(child.Path,"readonly.txt"),FileAttributes.ReadOnly)
+            return 42
+        })
+        Expect.equal result 42 "operation result survives cleanup"
+        Expect.isFalse (Directory.Exists stagePath) "completed private stage is removed"
+        Expect.equal (File.ReadAllText(Path.Combine(parent.Path,"unrelated.txt"))) "shared tmp state" "unknown siblings are not traversed"
+    })
+    testCaseTask "refused setup removes its stage before returning its original refusal" (fun () -> task {
+        use sandbox = TestSandbox.Create()
+        use root = Morphir.Extensions.Installation.SafeDirectory.Open(Path.Combine(sandbox.Work,"home"),true)
+        use parent = root.Child("tmp",true)
+        use stage = parent.Child("local-toolchain-test",true)
+        use owner = stage.File(".owner",true,true)
+        let stagePath = stage.Path
+        let! refused = task {
+            try
+                do! LocalInstallation.withPrivateStageAsync root stage owner TextWriter.Null (fun () -> task {
+                    LocalInstallation.writeFile stage "partial.zip" [|1uy;2uy|]
+                    return LocalCandidate.refuse "setup.readiness_failed" "original host refusal"
+                })
+                return false
+            with LocalCandidate.Refused(code,message) ->
+                Expect.equal (code,message) ("setup.readiness_failed","original host refusal") "original cause is preserved"
+                return true
+        }
+        Expect.isTrue refused "refusal remains a refusal"
+        Expect.isFalse (Directory.Exists stagePath) "refused private stage is removed"
+    })
+]
+
+[<Tests>]
+let providerRouting =
+    let id text = ExtensionId.tryParsePreview text |> function Ok value -> value | Error _ -> failtest "Invalid test identity."
+    let frontend,backend = id "org.finos.frontend",id "org.finos.backend"
+    let route = ComposedInstallation.providerArguments frontend backend
+    testList "InstalledProviderRouting" [
+        testCase "CSharp target with an output folder named fsharp keeps the built-in route" (fun () ->
+            let args = ["generate";"--target";"csharp";"--output";"fsharp"]
+            Expect.equal (route args) args "a folder name is not the target option value")
+        for options in [["--target";"fsharp"];["--target=fsharp"];["--target:fsharp"]] do
+            testCase ("FSharp target " + String.concat " " options) (fun () ->
+                let args = "generate"::options
+                Expect.equal (route args) (args@["--extension-id";backend.Text]) "selected FSharp backend")
+        testCase "the host has no short target option" (fun () ->
+            let args = ["generate";"-t";"fsharp"]
+            Expect.equal (route args) args "leave the host's usage refusal unchanged")
+        for options in [["--language";"fsharp"];["--language=fsharp"];["--language:fsharp"];["-l";"fsharp"];["-l=fsharp"];["-l:fsharp"];["-lfsharp"]] do
+            testCase ("explicit FSharp language " + String.concat " " options) (fun () ->
+                let args = "compile"::options
+                Expect.equal (route args) (args@["--extension-id";frontend.Text]) "selected FSharp frontend")
+        testCase "another explicit language keeps its host-selected frontend" (fun () ->
+            let args = ["compile";"--language";"python"]
+            Expect.equal (route args) args "never force the FSharp frontend")
+        testCase "absent language leaves project configuration with the host" (fun () ->
+            Expect.equal (route ["compile"]) ["compile"] "the manager does not duplicate configuration resolution")
+        for selection in ["--extension=python";"--extension-id:invalid"] do
+            testCase ("explicit selection remains terminal " + selection) (fun () ->
+                let args = ["compile";"--language";"fsharp";selection]
+                Expect.equal (route args) args "no additional installed override")
+    ]
+
+[<Tests>]
+let launchPathAdmission = testList "WindowsLaunchPathAdmission" [
+    for platform in [Platform.WinX64;Platform.WinArm64] do
+        testCase (Platform.name platform + " accepts a 259-character executable path") (fun () ->
+            let home = Path.Combine(Path.GetTempPath(),"example-home")
+            let executable = Path.Combine(home,String('a',259-home.Length-5)+".exe")
+            Expect.equal executable.Length 259 "boundary fixture"
+            LocalInstallation.checkExecutablePaths platform home [executable])
+        testCase (Platform.name platform + " refuses a 260-character executable path with the Home and limit") (fun () ->
+            let home = Path.Combine(Path.GetTempPath(),"example-home")
+            let executable = Path.Combine(home,String('a',260-home.Length-5)+".exe")
+            let refused =
+                try LocalInstallation.checkExecutablePaths platform home [executable]; false
+                with LocalCandidate.Refused(code,message) ->
+                    Expect.equal code "local.executable_path_too_long" "specific up-front refusal"
+                    Expect.stringContains message home "name the Home to shorten"
+                    Expect.stringContains message "259" "usable launch path limit"
+                    true
+            Expect.isTrue refused "path is refused before launch")
+]
+
+[<Tests>]
+let longHomeSetup = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
+    testCaseTask "provider path length refuses dry-run and apply before Home or archive transfer" (fun () -> task {
+        let folder = Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_ASSETS" |> Option.ofObj |> Option.defaultWith (fun () -> skiptest "The official produced Windows archives are required.")
+        let platform = match OperatingSystem.IsWindows(),RuntimeInformation.ProcessArchitecture with
+                       | true,Architecture.Arm64 -> Platform.WinArm64
+                       | true,Architecture.X64 -> Platform.WinX64
+                       | _ -> skiptest "The installed Windows setup is a Windows product path."
+        use sandbox = TestSandbox.Create("long-home-")
+        let raw = File.ReadAllBytes(Path.Combine(folder,ReleaseBundleDocument.fileName platform))
+        let bundle = ReleaseBundleDocument.read raw |> function Ok value -> value | Error _ -> failtest "Invalid produced bundle."
+        let candidateName = bundle.Assets |> List.find(fun asset -> asset.Role="host-candidate") |> fun asset -> asset.Name.Text
+        let candidate = File.ReadAllBytes(Path.Combine(folder,candidateName)) |> LocalComposedDocument.readReleaseCandidate |> function Ok value -> value | Error _ -> failtest "Invalid produced candidate."
+        let hostRelative = LocalCandidateDocument.installationPath candidate.Host + "/" + candidate.Host.EntryPoint.Target.Text
+        let homeLength = 259-hostRelative.Length-1
+        let home = Path.Combine(sandbox.Work,String('h',homeLength-sandbox.Work.Length-1))
+        Expect.equal (Path.Combine(home,hostRelative.Replace('/',Path.DirectorySeparatorChar))).Length 259 "host itself fits; the longer provider path must be checked"
+        let files = Directory.GetFiles(folder) |> Array.filter(fun name -> not(name.EndsWith(".zip",StringComparison.OrdinalIgnoreCase))) |> Array.map(fun name -> Path.GetFileName name,File.ReadAllBytes name) |> Map.ofArray
+        for dryRun in [true;false] do
+            let transport = BytesTransport files
+            let! refused = task {
+                try
+                    let! _ = ComposedInstallation.setupWithTransportAsync platform home bundle.Version.Text transport dryRun CancellationToken.None
+                    return false
+                with LocalCandidate.Refused(code,message) ->
+                    Expect.equal code "local.executable_path_too_long" "provider admission runs before transfer or effects"
+                    Expect.stringContains message home "actionable Home diagnostic"
+                    return true
+            }
+            Expect.isTrue refused "no success with an unlaunchable provider"
+            Expect.isFalse (Directory.Exists home) "no Home or staging created"
+    })
+]
+
 [<Tests>]
 let publicationLocks = testLabel "PlatformSpecific" <| testList "ComposedPublicationLocks" [
     testCaseTask "running host captures state while publication waits for its mutation lease" (fun () -> task {
@@ -230,6 +412,7 @@ let acquiredJourney = testLabel "PlatformSpecific" <| testList "WindowsReleaseSe
     Expect.isFalse (Directory.Exists home) "no locks or staging during planning"
     let! _,installed = ComposedInstallation.setupWithTransportAsync platform home bundle.Version.Text transport false CancellationToken.None
     Expect.isSome installed "completed acquisition, readiness and selection"
+    Expect.isEmpty (Directory.GetDirectories(Path.Combine(home,"tmp"),"local-toolchain-*")) "setup removes both completed private stages"
     let pointer = File.ReadAllBytes(Path.Combine(home,"toolchains/default.json"))
     let project = Path.Combine(sandbox.Work,"project")
     Directory.CreateDirectory project |> ignore
