@@ -17,6 +17,7 @@ public sealed class MepFrontendExtensionConnector : IFrontendExtensionConnector
     /// <inheritdoc />
     public Task<Checked<IFrontend>> ConnectAsync(FrontendExtensionRequest request, CancellationToken ct)
     {
+        if (request.InstalledId is not null) return InstalledExtensionConnector.FrontendAsync(request,ct);
         if (!MepExtensionCommand.TryResolve(request.Extension.Value, request.WorkingDirectory, out var executable, out var arguments, out var error))
             return Task.FromResult(Checked<IFrontend>.Fail([Diagnostic.Create(DiagnosticSeverity.Error, MepFrontendCodes.Unavailable, error, null)]));
         var options = MepFrontendOptions.Create(executable, arguments, request.WorkingDirectory, Console.Error,

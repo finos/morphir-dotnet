@@ -19,6 +19,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
         <ProjectReference Include="..\Morphir.Mep\Morphir.Mep.fsproj" />
+        <ProjectReference Include="..\Morphir.Toolchain.IO\Morphir.Toolchain.IO.fsproj" />
     </ItemGroup>
 
     <ItemGroup>

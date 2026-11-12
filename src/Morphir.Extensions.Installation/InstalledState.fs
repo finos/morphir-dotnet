@@ -5,6 +5,7 @@ namespace Morphir.Extensions.Installation
 open System
 open System.IO
 open System.Threading
+open System.Threading.Tasks
 open Morphir.Toolchain
 
 module internal StateOwnership =
@@ -58,83 +59,84 @@ module internal StateOwnership =
             then
                 checkDocument root "catalog/extensions.json" "catalog"
 
-        use locks = root.Child("locks", true)
+        if root.Entries() |> Array.contains "locks" then
+            use locks = root.Child("locks", false)
 
-        if
-            locks.Entries()
-            |> Array.contains "extensions"
-        then
-            use directory = locks.Child("extensions", false)
+            if
+                locks.Entries()
+                |> Array.contains "extensions"
+            then
+                use directory = locks.Child("extensions", false)
 
-            let journals =
-                directory.Entries()
-                |> Array.filter (fun name ->
-                    not (name.StartsWith '.')
-                    && name.EndsWith(".json.transaction", StringComparison.Ordinal)
-                )
-
-            if journals.Length > 1 then
-                Operations.fail "extension.old_state" "Multiple journals must not be replayed."
-
-            for name in directory.Entries() do
-                ct.ThrowIfCancellationRequested()
-
-                if name.StartsWith '.' then
-                    ()
-                elif name.EndsWith(".json.transaction", StringComparison.Ordinal) then
-                    checkDocument root $"locks/extensions/{name}" "journal"
-                elif name.EndsWith(".json", StringComparison.Ordinal) then
-                    checkDocument root $"locks/extensions/{name}" "lock"
-
-            if journals.Length = 1 then
-                let name = journals[0]
-
-                let id =
-                    name.Substring(
-                        0,
-                        name.Length
-                        - ".json.transaction".Length
+                let journals =
+                    directory.Entries()
+                    |> Array.filter (fun name ->
+                        not (name.StartsWith '.')
+                        && name.EndsWith(".json.transaction", StringComparison.Ordinal)
                     )
 
-                match Morphir.Extensions.ExtensionId.Parse id with
-                | Error _ ->
-                    Operations.fail
-                        "extension.old_state"
-                        "Journal filename is not a full extension id."
-                | Ok _ -> ()
+                if journals.Length > 1 then
+                    Operations.fail "extension.old_state" "Multiple journals must not be replayed."
 
-                let saved =
-                    match StateDocuments.readJournal (bytes root $"locks/extensions/{name}") with
-                    | Ok value -> value
-                    | Error failure -> Operations.fail "extension.old_state" failure.Message
+                for name in directory.Entries() do
+                    ct.ThrowIfCancellationRequested()
 
-                match saved.NextLock, saved.NextCatalog with
-                | Some locked, Some catalog ->
-                    if
-                        locked.Entry.Id
-                        <> id
-                    then
+                    if name.StartsWith '.' then
+                        ()
+                    elif name.EndsWith(".json.transaction", StringComparison.Ordinal) then
+                        checkDocument root $"locks/extensions/{name}" "journal"
+                    elif name.EndsWith(".json", StringComparison.Ordinal) then
+                        checkDocument root $"locks/extensions/{name}" "lock"
+
+                if journals.Length = 1 then
+                    let name = journals[0]
+
+                    let id =
+                        name.Substring(
+                            0,
+                            name.Length
+                            - ".json.transaction".Length
+                        )
+
+                    match Morphir.Extensions.ExtensionId.Parse id with
+                    | Error _ ->
                         Operations.fail
                             "extension.old_state"
-                            "Saved lock does not match journal filename."
+                            "Journal filename is not a full extension id."
+                    | Ok _ -> ()
 
-                    match
-                        catalog.Entries
-                        |> List.tryFind (fun entry -> entry.Id = id)
-                    with
-                    | Some entry ->
-                        match StateDocuments.bind entry locked with
-                        | Ok _ -> ()
+                    let saved =
+                        match StateDocuments.readJournal (bytes root $"locks/extensions/{name}") with
+                        | Ok value -> value
                         | Error failure -> Operations.fail "extension.old_state" failure.Message
-                    | None ->
-                        Operations.fail
-                            "extension.old_state"
-                            "Saved lock is absent from the saved catalog."
-                | Some _, None ->
-                    Operations.fail "extension.old_state" "Saved lock requires a saved catalog."
-                | _ -> ()
 
-                journal <- Some(name, saved)
+                    match saved.NextLock, saved.NextCatalog with
+                    | Some locked, Some catalog ->
+                        if
+                            locked.Entry.Id
+                            <> id
+                        then
+                            Operations.fail
+                                "extension.old_state"
+                                "Saved lock does not match journal filename."
+
+                        match
+                            catalog.Entries
+                            |> List.tryFind (fun entry -> entry.Id = id)
+                        with
+                        | Some entry ->
+                            match StateDocuments.bind entry locked with
+                            | Ok _ -> ()
+                            | Error failure -> Operations.fail "extension.old_state" failure.Message
+                        | None ->
+                            Operations.fail
+                                "extension.old_state"
+                                "Saved lock is absent from the saved catalog."
+                    | Some _, None ->
+                        Operations.fail "extension.old_state" "Saved lock requires a saved catalog."
+                    | _ -> ()
+
+                    journal <- Some(name, saved)
 
         journal
 
@@ -144,7 +146,7 @@ module internal StateOwnership =
                 "extension.recovery_required"
                 "A validated journal requires explicit recovery consent before mutation."
 
-    let private checkRepositoryDocuments (root: SafeDirectory) =
+    let checkRepositoryDocuments (root: SafeDirectory) =
         if
             root.Entries()
             |> Array.contains "config"
@@ -202,48 +204,49 @@ module internal StateOwnership =
                 None
 
         let locks = ResizeArray<StateLock>()
-        use lockRoot = root.Child("locks", true)
+        if root.Entries() |> Array.contains "locks" then
+            use lockRoot = root.Child("locks", false)
 
-        if
-            lockRoot.Entries()
-            |> Array.contains "extensions"
-        then
-            use directory = lockRoot.Child("extensions", false)
+            if
+                lockRoot.Entries()
+                |> Array.contains "extensions"
+            then
+                use directory = lockRoot.Child("extensions", false)
 
-            for name in directory.Entries() do
-                if
-                    not (name.StartsWith '.')
-                    && name.EndsWith(".json", StringComparison.Ordinal)
-                then
-                    let locked =
-                        StateDocuments.readLock (bytes root $"locks/extensions/{name}")
-                        |> unwrap
-
+                for name in directory.Entries() do
                     if
-                        name
-                        <> locked.Entry.Id
-                           + ".json"
+                        not (name.StartsWith '.')
+                        && name.EndsWith(".json", StringComparison.Ordinal)
                     then
-                        Operations.fail
-                            "extension.lock_mismatch"
-                            "Lock filename differs from extensionId."
+                        let locked =
+                            StateDocuments.readLock (bytes root $"locks/extensions/{name}")
+                            |> unwrap
 
-                    match
-                        catalog
-                        |> Option.bind (fun catalog ->
-                            catalog.Entries
-                            |> List.tryFind (fun entry -> entry.Id = locked.Entry.Id)
-                        )
-                    with
-                    | Some entry ->
-                        StateDocuments.bind entry locked
-                        |> unwrap
-                    | None ->
-                        Operations.fail
-                            "extension.lock_mismatch"
-                            "Lock has no matching catalog entry."
+                        if
+                            name
+                            <> locked.Entry.Id
+                               + ".json"
+                        then
+                            Operations.fail
+                                "extension.lock_mismatch"
+                                "Lock filename differs from extensionId."
 
-                    locks.Add locked
+                        match
+                            catalog
+                            |> Option.bind (fun catalog ->
+                                catalog.Entries
+                                |> List.tryFind (fun entry -> entry.Id = locked.Entry.Id)
+                            )
+                        with
+                        | Some entry ->
+                            StateDocuments.bind entry locked
+                            |> unwrap
+                        | None ->
+                            Operations.fail
+                                "extension.lock_mismatch"
+                                "Lock has no matching catalog entry."
+
+                        locks.Add locked
 
         catalog, List.ofSeq locks
 
@@ -448,9 +451,93 @@ type StateRecovery internal (recovered: bool) =
         else
             "No extension state journal."
 
+module private LocalRepositories =
+    let name text =
+        match Token.tryParse text with
+        | Ok parsed -> parsed.Text
+        | Error _ -> Operations.fail "extension.invalid_repository" "Repository must be a stable registered name, never a directory."
+
+    let document (root: SafeDirectory) =
+        StateOwnership.checkRepositoryDocuments root
+        if root.Entries() |> Array.contains "config" then
+            use config = root.Child("config",false)
+            if config.Entries() |> Array.contains "extensions" then
+                use extensions = config.Child("extensions",false)
+                if extensions.Entries() |> Array.contains "repositories.json" then
+                    let value = StateDocuments.readRepositories(StateOwnership.bytes root "config/extensions/repositories.json") |> StateOwnership.unwrap
+                    SharedJson.members "repositories" value |> SharedJson.required "repositories" "repositories" |> SharedJson.array "repositories"
+                else []
+            else []
+        else []
+
+    let endpoint name records =
+        records |> List.tryFind(fun record -> SharedJson.members "repository" record |> SharedJson.required "repository" "name" |> SharedJson.text "name" = name)
+        |> Option.map(fun record ->
+            let fields = SharedJson.members "repository" record
+            let state = SharedJson.required "repository" "state" fields |> SharedJson.text "state"
+            if state <> "enabled" then Operations.fail "extension.repository_disabled" "The registered repository is disabled."
+            fields |> SharedJson.required "repository" "endpoint" |> SharedJson.members "endpoint"
+            |> SharedJson.required "endpoint" "path" |> SharedJson.text "path")
+
+    let inspect root ct =
+        StateOwnership.checkUnderLock root ct
+        StateOwnership.readCurrent root |> ignore
+        document root
+
+    let planned (root: SafeDirectory option) name path ct =
+        let existing = root |> Option.map(fun root -> inspect root ct) |> Option.defaultValue []
+        match endpoint name existing with
+        | Some current when not (String.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath current),path,if OperatingSystem.IsWindows() then StringComparison.OrdinalIgnoreCase else StringComparison.Ordinal)) ->
+            Operations.fail "extension.repository_conflict" "A stable repository name already binds a different directory."
+        | Some _ -> None
+        | None ->
+            let record = Value.Object ["name",Value.String name;"endpoint",Value.Object["kind",Value.String "local-directory";"path",Value.String path];"state",Value.String "enabled"]
+            let records = record::existing |> List.sortBy(fun value -> SharedJson.members "repository" value |> SharedJson.required "repository" "name" |> SharedJson.text "name")
+            let value = Value.Object ["$schema",Value.String(StateDocuments.schemaUrl "repositories");"repositories",Value.Array records]
+            let bytes = JsonText.toBytes value
+            StateDocuments.readRepositories bytes |> StateOwnership.unwrap |> ignore
+            Some bytes
+
 /// Compatibility inspection only. This does not replay journals or certify current documents.
 [<AbstractClass; Sealed>]
 type InstalledState private () =
+    static member internal RegisterLocalRepositoryAsync(home: string, name: string, directory: string, dryRun: bool, ct: CancellationToken) : Task<InstallationResult<string>> =
+        Operations.runAsync ct (fun () -> task {
+            let name = LocalRepositories.name name
+            if not(Path.IsPathFullyQualified home) || not(Path.IsPathFullyQualified directory) then
+                Operations.fail "extension.invalid_repository" "Home and the local repository directory must be absolute."
+            use source = SafeDirectory.Open(directory,false)
+            let path = Path.TrimEndingDirectorySeparator source.Path
+            if dryRun then
+                if Directory.Exists home then
+                    use root = SafeDirectory.Open(home,false)
+                    LocalRepositories.planned (Some root) name path ct |> ignore
+                else LocalRepositories.planned None name path ct |> ignore
+            else
+                use root = SafeDirectory.Open(home,true)
+                use locks = root.Child("locks",true)
+                use! repositoryLease = locks.NamedLeaseAsync("extensions.repositories.lock",true,true,ct)
+                use! stateLease = locks.NamedLeaseAsync("extensions.state.lock",true,true,ct)
+                match LocalRepositories.planned (Some root) name path ct with
+                | None -> ()
+                | Some bytes ->
+                    ct.ThrowIfCancellationRequested()
+                    source.ValidateLocation()
+                    FileSafety.withDirectories root ["config";"extensions"] true (fun config -> config.ReplaceStateFile("repositories.json",bytes))
+            return path
+        })
+
+    static member internal ResolveLocalRepositoryAsync(home: string, name: string, ct: CancellationToken) : Task<InstallationResult<string>> =
+        Operations.runAsync ct (fun () -> task {
+            let name = LocalRepositories.name name
+            use root = SafeDirectory.Open(home,false)
+            let records = LocalRepositories.inspect root ct
+            match LocalRepositories.endpoint name records with
+            | None -> return Operations.fail "extension.repository_not_found" "No enabled registered local repository has this name."
+            | Some directory ->
+                use source = SafeDirectory.Open(directory,false)
+                return source.Path |> Path.TrimEndingDirectorySeparator
+        })
     /// Detects old shared-family state before any recovery or state mutation is attempted.
     static member CheckCompatibilityAsync(home: string, ct: CancellationToken) =
         Operations.runAsync

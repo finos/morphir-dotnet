@@ -116,6 +116,9 @@ public sealed record CompileReport(
     /// <summary>The generation of <c>--target</c> (CLI-2). Left out of the JSON when no target was requested.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public CompileReportGeneration? Generation { get; init; }
+    /// <summary>Actual installed process observation in the existing generation-provider shape.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Provider { get; init; }
 
     /// <summary>The report of a folded compile result.</summary>
     public static CompileReport From(CompileResult result)
@@ -128,7 +131,7 @@ public sealed record CompileReport(
             success => new CompileReport(true, 0, success.Language, success.Frontend, success.IrVersion.Text,
                 SourcesOf(success.Sources, result.Settings!.WorkingDirectory), [.. success.Modules], success.Publication.IrPath, [.. success.Publication.Installed],
                 diagnostics, null, origins)
-            { Generation = success.Generation is { } generation ? CompileReportGeneration.From(generation) : null },
+            { Generation = success.Generation is { } generation ? CompileReportGeneration.From(generation) : null, Provider=success.Provider },
             // A failure in the generation stages keeps the published compile (CLI-2).
             failure => new CompileReport(false, failure.Kind.ExitCode(), language, failure.Frontend, irVersion,
                 failure.Sources is { } sources ? SourcesOf(sources, result.Settings!.WorkingDirectory) : null,

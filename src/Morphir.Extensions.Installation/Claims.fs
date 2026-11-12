@@ -526,3 +526,47 @@ module internal Claims =
 
     let supportsHost (host: SemVer) (claims: ReleaseClaims) =
         Comparator.allMet claims.HostRequirements host
+    /// Checks an actual negotiated session against its installed static claims. This is not an invocation receipt.
+    let agreeSession (claims: ReleaseClaims) (session: NegotiatedSession) : Result<unit,InstallationFailure> =
+        protect (fun () ->
+            let mismatch rule path = fail "extension.claims_mismatch" path $"Installed session agreement rule {rule} failed."
+            if session.Extension.Id <> claims.Extension.Id || session.Extension.Name <> claims.Extension.Name || session.Extension.Version <> claims.Extension.Version then
+                mismatch 1 "extension"
+            if not (claims.ProtocolVersions |> List.contains session.ProtocolVersion) then mismatch 2 "protocolVersion"
+            for kind in session.Extension.Types do
+                if not (claims.Extension.Types |> Seq.contains kind) then mismatch 3 "extension.types"
+            let staticFields = members "claims" claims.Projection |> required "claims" "capabilities" |> members "claims.capabilities"
+            let actualBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(session.Capabilities,MepJson.Default.ExtensionCapabilities)
+            let actual = Syntax.parseJson actualBytes |> function Ok value -> value | Error _ -> invalid "session" "Malformed session capabilities."
+            for kind,capability in members "session.capabilities" actual do
+                let rule = if List.contains kind ["frontend";"backend";"workspace";"validator";"transform"] then 3 else 4
+                let known = optional kind staticFields |> Option.defaultWith(fun () -> mismatch rule kind; Value.Null)
+                if kind <> "modelTransport" && not (List.contains kind ["frontend";"backend";"workspace";"validator";"transform"]) then
+                    if difference kind known capability |> Option.isSome then mismatch 4 kind
+                elif kind <> "modelTransport" then
+                    let declared = members kind known
+                    for name,value in members kind capability do
+                        match optional name declared with
+                        | Some expected when difference name expected value |> Option.isNone -> ()
+                        | _ -> mismatch 4 $"capabilities.{kind}.{name}"
+                else
+                    let declared = members kind known
+                    let actual = members kind capability
+                    for name,value in actual do
+                        let expected = optional name declared |> Option.defaultWith(fun () -> mismatch 4 $"modelTransport.{name}"; Value.Null)
+                        match name with
+                        | "tuples" | "guarantees" ->
+                            let allowed = array name expected
+                            for item in array name value do
+                                if not (allowed |> List.exists(fun candidate -> difference name candidate item |> Option.isNone)) then mismatch 4 $"modelTransport.{name}"
+                        | "limits" ->
+                            let allowed = members name expected
+                            for limit,bound in members name value do
+                                let number = function
+                                    | Value.Number text -> Int32.Parse(text,Globalization.CultureInfo.InvariantCulture)
+                                    | _ -> mismatch 4 $"modelTransport.limits.{limit}"; 0
+                                let actual = number bound
+                                let maximum = required name limit allowed |> number
+                                if actual <= 0 || actual > maximum then mismatch 4 $"modelTransport.limits.{limit}"
+                        | _ -> mismatch 4 $"modelTransport.{name}"
+        )

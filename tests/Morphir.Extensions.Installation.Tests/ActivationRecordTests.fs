@@ -399,3 +399,145 @@ let interprocess =
                 (captured :> IDisposable).Dispose()
         }
     ]
+
+[<Tests>]
+let composedCapture =
+    testList "ComposedCapture" [
+        test "all selected records and leases share one exact export; expected drift refuses" {
+            use sandbox = TestSandbox.Create()
+            let owner = PackageTests.packageCleanup sandbox
+            use cleanup = { new IDisposable with member _.Dispose() = owner.DisposeAsync().GetAwaiter().GetResult() }
+            let plan, archive, _ = PackageTests.fixtureForHost sandbox
+            let root = home sandbox
+            let otherJson = nonNull (JsonNode.Parse(JsonText.toBytes plan.Descriptor.Json))
+            otherJson["extensionId"] <- JsonValue.Create "org.example.second"
+            otherJson["shortId"] <- JsonValue.Create "second"
+            let otherArtifact = nonNull ((nonNull otherJson["artifacts"])[0])
+            (nonNull ((nonNull otherArtifact["claims"])["extension"]))["id"] <- JsonValue.Create "org.example.second"
+            let other = PackagePlan.Read(Encoding.UTF8.GetBytes(otherJson.ToJsonString()), ActivationPlatforms.current() |> StateOwnership.unwrap) |> get
+            use first = install root plan archive (Path.Combine(root,"repo")) [||]
+            use second = install root other archive (Path.Combine(root,"repo2")) [|"--second"|]
+            let ids = Array.AsReadOnly [|first.Record.ExtensionId;second.Record.ExtensionId|]
+            (first :> IDisposable).Dispose()
+            (second :> IDisposable).Dispose()
+            use captured = InstalledExtensions.CaptureManyAsync(root, ids, host, ct).GetAwaiter().GetResult() |> get
+            Expect.equal captured.Captures.Count 2 "both roles captured"
+            let catalog = captured.CatalogBytes
+            let parsed = nonNull (JsonNode.Parse catalog)
+            Expect.equal ((nonNull parsed["extensions"]).AsArray().Count) 2 "one selected projection"
+            let expected = captured.Captures |> Seq.map(fun c -> c.Record.ExtensionId.Value,c.Record.LockBytes) |> readOnlyDict
+            use again = InstalledExtensions.CaptureManyExpectedAsync(root,catalog,expected,host,ct).GetAwaiter().GetResult() |> get
+            Expect.equal again.Captures.Count 2 "same exact export accepted"
+            catalog[0] <- 0uy
+            Expect.notEqual captured.CatalogBytes[0] 0uy "export is defensive"
+            File.AppendAllText(Path.Combine(root,"locks","extensions",second.Record.ExtensionId.Value+".json")," ")
+            InstalledExtensions.CaptureManyExpectedAsync(root,captured.CatalogBytes,expected,host,ct).GetAwaiter().GetResult()
+            |> refused "extension.current_record_changed"
+        }
+        test "a missing selected id never returns a partial capture" {
+            use sandbox = TestSandbox.Create()
+            let owner = PackageTests.packageCleanup sandbox
+            use cleanup = { new IDisposable with member _.Dispose() = owner.DisposeAsync().GetAwaiter().GetResult() }
+            let plan, archive, _ = PackageTests.fixtureForHost sandbox
+            let root = home sandbox
+            let captured = install root plan archive (Path.Combine(root,"repo")) [||]
+            let id = captured.Record.ExtensionId
+            (captured :> IDisposable).Dispose()
+            InstalledExtensions.CaptureManyAsync(root,Array.AsReadOnly [|id;Morphir.Extensions.ExtensionId.Create "org.example.missing"|],host,ct).GetAwaiter().GetResult()
+            |> refused "extension.not_installed"
+            use store = SafeDirectory.Open(Path.Combine(root,"store","extensions","packages","sha256"),false)
+            use exclusive = store.NamedLease(plan.TreeDigest.Value+".lease",true,false)
+            Expect.isTrue exclusive.CanRead "failure released any earlier selected package"
+        }
+    ]
+
+
+
+
+
+
+let private sessionFixture () =
+    let tuple = """{"operation":"morphir.frontend.compileModel","profile":"morphir-ir","codec":"morphir-json","envelopeVersion":"0.1.0-draft.1","irVersion":"4.0.0"}"""
+    let text = """{"protocolVersions":["0.2.0-draft.1"],"extension":{"id":"org.example.frontend","name":"Frontend","version":"1.0.0","types":["frontend"]},"capabilities":{"streaming":false,"incremental":false,"cancellation":false,"progress":false,"frontend":{"languages":[{"id":"fsharp","fileExtensions":[".fs"]}],"irVersions":["4.0.0"],"compile":false,"incremental":false,"fragments":false,"multiDocument":true},"modelTransport":{"tuples":[TUPLE],"limits":{"maxEncodedBytes":1000,"maxDecodedBytes":900,"maxDepth":100,"maxNodes":200},"guarantees":[]}}}""".Replace("TUPLE",tuple)
+    let value = Syntax.parseJson(Encoding.UTF8.GetBytes text) |> function Ok value -> value | Error _ -> failtest "invalid unit JSON"
+    let claims = Claims.readEmbedded "claims" value
+    let fields = SharedJson.members "claims" value
+    let caps = SharedJson.required "claims" "capabilities" fields
+    let capabilities = System.Text.Json.JsonSerializer.Deserialize(JsonText.toBytes caps, Morphir.Mep.MepJson.Default.ExtensionCapabilities) |> nonNull
+    let session: Morphir.Mep.NegotiatedSession = { ProtocolVersion=Morphir.Mep.ProtocolVersion.Create "0.2.0-draft.1"; Host={Kind=Morphir.Mep.PeerKind.Cli;Name="test";Version="1.0.0"};Extension=claims.Extension;Capabilities=capabilities }
+    claims,session
+
+[<Tests>]
+let sessionAgreement =
+    testList "InstalledSessionAgreement" [
+        test "actual matching session is accepted" {
+            let claims,session = sessionFixture()
+            Expect.isOk (Claims.agreeSession claims session) "same known members"
+        }
+        test "identity mismatch names the first agreement rule" {
+            let claims,session = sessionFixture()
+            match Claims.agreeSession claims {session with Extension={session.Extension with Version="2.0.0"}} with
+            | Error failure -> Expect.stringContains failure.Message "rule 1" "identity rule"
+            | Ok _ -> failtest "changed version accepted"
+        }
+        test "a negotiated protocol must occur in installed claims" {
+            let claims,session = sessionFixture()
+            Expect.isError (Claims.agreeSession claims {session with ProtocolVersion=Morphir.Mep.ProtocolVersion.Create "0.2.0"}) "protocol exact"
+        }
+        test "model transport positive limits may narrow" {
+            let claims,session = sessionFixture()
+            let transport = session.Capabilities.ModelTransport |> Option.get
+            let narrowed = {transport with Limits={transport.Limits with MaxEncodedBytes=500;MaxDepth=50}}
+            Expect.isOk (Claims.agreeSession claims {session with Capabilities={session.Capabilities with ModelTransport=Some narrowed}}) "negotiated subset is not whole-document equality"
+        }
+        test "model transport cannot expand static limits" {
+            let claims,session = sessionFixture()
+            let transport = session.Capabilities.ModelTransport |> Option.get
+            let wider = {transport with Limits={transport.Limits with MaxDepth=101}}
+            Expect.isError (Claims.agreeSession claims {session with Capabilities={session.Capabilities with ModelTransport=Some wider}}) "limits are bound"
+        }
+        test "an unclaimed tuple is rejected" {
+            let claims,session = sessionFixture()
+            let transport = session.Capabilities.ModelTransport |> Option.get
+            let tuple = {transport.Tuples[0] with IrVersion=Morphir.Mep.SemanticVersion.Create "3.0.0"}
+            Expect.isError (Claims.agreeSession claims {session with Capabilities={session.Capabilities with ModelTransport=Some {transport with Tuples=[|tuple|]}}}) "no tuple substitution"
+        }
+    ]
+
+
+
+
+[<Tests>]
+let repositoryRegistration =
+    testList "LocalRepositoryRegistration" [
+        test "dry run validates a registered name and directory without creating Home or locks" {
+            use sandbox = TestSandbox.Create()
+            let source = sandbox.PathOf "source"
+            Directory.CreateDirectory source |> ignore
+            let root = sandbox.MorphirHome
+            InstalledState.RegisterLocalRepositoryAsync(root,"local-dev",source,true,ct).GetAwaiter().GetResult() |> get |> ignore
+            Expect.isFalse (Directory.Exists root) "dry-run creates no Home"
+        }
+        test "registered repository names resolve; a directory string never resolves as a name" {
+            use sandbox = TestSandbox.Create()
+            let source = sandbox.PathOf "source"
+            Directory.CreateDirectory source |> ignore
+            let root = sandbox.MorphirHome
+            InstalledState.RegisterLocalRepositoryAsync(root,"local-dev",source,false,ct).GetAwaiter().GetResult() |> get |> ignore
+            let observed = InstalledState.ResolveLocalRepositoryAsync(root,"local-dev",ct).GetAwaiter().GetResult() |> get
+            Expect.equal observed (Path.GetFullPath source) "named endpoint"
+            InstalledState.ResolveLocalRepositoryAsync(root,source,ct).GetAwaiter().GetResult() |> refused "extension.invalid_repository"
+        }
+        test "an existing stable repository name cannot silently select a different directory" {
+            use sandbox = TestSandbox.Create()
+            let source = sandbox.PathOf "source"
+            let other = sandbox.PathOf "other"
+            Directory.CreateDirectory source |> ignore
+            Directory.CreateDirectory other |> ignore
+            let root = sandbox.MorphirHome
+            InstalledState.RegisterLocalRepositoryAsync(root,"local-dev",source,false,ct).GetAwaiter().GetResult() |> get |> ignore
+            InstalledState.RegisterLocalRepositoryAsync(root,"local-dev",other,false,ct).GetAwaiter().GetResult() |> refused "extension.repository_conflict"
+            let observed = InstalledState.ResolveLocalRepositoryAsync(root,"local-dev",ct).GetAwaiter().GetResult() |> get
+            Expect.equal observed source "stable binding preserved"
+        }
+    ]

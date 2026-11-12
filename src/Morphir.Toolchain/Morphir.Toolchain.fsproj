@@ -49,6 +49,7 @@
         <Compile Include="TufClient.fs" />
         <Compile Include="Resolution.fs" />
         <Compile Include="Planning.fs" />
+        <Compile Include="ComposedGeneration.fs" />
         <Compile Include="Diagnostics.fs" />
         <Compile Include="Discovery.fs" />
     </ItemGroup>

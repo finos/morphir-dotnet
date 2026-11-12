@@ -125,6 +125,21 @@ let private reservedId () =
     )
 
 /// Runs a scripted guest on stdin and stdout until the session ends.
+let private rootExitsWithChild () =
+    let handler = Handlers.raw(fun _ _ ->
+        let start = Diagnostics.ProcessStartInfo(nonNull Environment.ProcessPath)
+        start.UseShellExecute <- false
+        start.CreateNoWindow <- true
+        start.ArgumentList.Add(IO.Path.Combine(AppContext.BaseDirectory,"Morphir.Compilation.Mep.Tests.dll"))
+        start.ArgumentList.Add "--fake-sleeper"
+        use child = Diagnostics.Process.Start(start) |> nonNull
+        let marker = IO.Path.Combine(Environment.CurrentDirectory,"descendant.pid")
+        let clock = Diagnostics.Stopwatch.StartNew()
+        while not (IO.File.Exists marker) && clock.Elapsed < TimeSpan.FromSeconds 5. do Thread.Sleep 10
+        Environment.Exit 0
+        Task.FromResult(Error(RpcErrors.create ErrorCode.InternalError)))
+    Guest({ Claims=FSharpGuest.claims; Capabilities=FSharpGuest.capabilities; Methods=readOnlyDict [Method.CompileModel.WireValue,handler] })
+
 let run (scenario: string) =
     let output = Console.OpenStandardOutput()
     let input = Console.OpenStandardInput()
@@ -139,6 +154,7 @@ let run (scenario: string) =
         | "blocks-read-loop" -> blocksReadLoop ()
         | "huge-position" -> hugePosition ()
         | "reserved-id" -> reservedId ()
+        | "root-exits-with-child" -> rootExitsWithChild ()
         | other -> failwith $"Unknown fake guest scenario {other}"
 
     guest.RunAsync(input, output, CancellationToken.None).GetAwaiter().GetResult() |> ignore

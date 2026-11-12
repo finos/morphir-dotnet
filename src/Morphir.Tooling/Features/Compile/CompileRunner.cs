@@ -111,7 +111,8 @@ public sealed class CompileRunner(
             }
 
             var success = new CompileSuccess(compiled.Frontend.Language.Value, compiled.Frontend.Label, settings.IrVersion.Value, sources,
-                [.. compiled.Package.Modules], published);
+                [.. compiled.Package.Modules], published)
+            { Provider=(connected as Morphir.Tooling.Infrastructure.IInstalledProviderObservation)?.Provider };
             if (overrides.Target is not { } target)
             {
                 yield return new CompileEvent.Completed(new CompileConclusion.Succeeded(success), settings);
@@ -159,10 +160,12 @@ public sealed class CompileRunner(
         if (!writer.TryGetValue(out var resolvedWriter)) return Checked<ResolvedRun>.Fail(diagnostics);
 
         // A configured extension replaces the registered frontends for this run (FE-2).
-        if (value.Extension is { } extension)
+        if (value.Extension is not null || value.InstalledExtensionId is not null)
         {
+            var extension = value.Extension ?? new Setting<string>(value.InstalledExtensionId!.Value.Value,value.InstalledExtensionId.Origin);
             var connection = await extensions.ConnectAsync(
-                new FrontendExtensionRequest(extension, value.Language?.Value, value.WorkingDirectory), ct);
+                new FrontendExtensionRequest(extension, value.Language?.Value, value.WorkingDirectory)
+                { InstalledId=value.InstalledExtensionId?.Value, Environment=context.Environment, Home=value.MorphirHome }, ct);
             diagnostics.AddRange(connection.Diagnostics);
             if (!connection.TryGetValue(out var frontend)) return Checked<ResolvedRun>.Fail(diagnostics);
             ICompilePublication? started = null;

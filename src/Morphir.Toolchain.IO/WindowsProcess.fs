@@ -39,6 +39,10 @@ module internal AsyncOwnership =
             return raise primary
     }
 
+    /// The same awaited ownership rule for internal BCL/C# consumers.
+    let RunAsync(owner: IAsyncDisposable, operation: Func<System.Threading.Tasks.Task<'T>>) =
+        runAsync owner (fun () -> operation.Invoke())
+
 // Shared Win32 job declarations. The host's lifetime job and the manager's
 // per-launch job use the same creation, limits and handle ownership rules.
 module private JobNative =

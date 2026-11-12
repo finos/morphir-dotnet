@@ -1544,3 +1544,38 @@ let suppliedCandidateTests =
                         "no generation or pointer on refusal"
                 })
         ]
+
+let private composedInput frontend backend =
+    let raw = candidateJson ["morphir.exe"]
+    let fields = match Syntax.parseJson raw |> parsed with Value.Object values -> values | _ -> failtest "fixture"
+    Value.Object (
+        fields |> List.map(fun (name,value) -> if name="$schema" then name,Value.String(LocalComposedDocument.schema "candidate") else name,value)
+        |> fun values -> values @ ["extensions",Value.Object ["selectionSha256",Value.String digest.Text;"frontendId",Value.String frontend;"backendId",Value.String backend]])
+    |> JsonText.toBytes
+
+[<Tests>]
+let composedReaderTests =
+    testList "ComposedCandidate" [
+        test "preview2 retains exact raw candidate identity and distinct role identities" {
+            let raw = composedInput "org.finos.frontend" "org.finos.backend"
+            let value = LocalComposedDocument.readCandidate raw |> parsed
+            Expect.equal value.Host.ManifestSha256 (Sha256.ofBytes raw) "raw input identity, not re-encoded preview1"
+            Expect.equal value.FrontendId.Text "org.finos.frontend" "frontend"
+            Expect.equal value.BackendId.Text "org.finos.backend" "backend"
+            Expect.equal value.SelectionSha256 digest "selection has its own exact digest"
+            Expect.isError (LocalCandidateDocument.readCandidate raw) "preview1 remains isolated"
+        }
+        test "one identity cannot fill both process roles" {
+            Expect.isError (composedInput "org.finos.frontend" "org.finos.frontend" |> LocalComposedDocument.readCandidate) "distinct providers"
+        }
+        test "preview1 is not converted implicitly to composed" {
+            Expect.isError (candidateJson ["morphir.exe"] |> LocalComposedDocument.readCandidate) "exact family"
+        }
+        test "a changed exact candidate byte sequence has a different identity" {
+            let raw = composedInput "org.finos.frontend" "org.finos.backend"
+            let padded = Array.append raw [|32uy|]
+            let a = LocalComposedDocument.readCandidate raw |> parsed
+            let b = LocalComposedDocument.readCandidate padded |> parsed
+            Expect.notEqual a.Host.ManifestSha256 b.Host.ManifestSha256 "accepted whitespace remains part of raw identity"
+        }
+    ]

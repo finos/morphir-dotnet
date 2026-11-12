@@ -47,6 +47,9 @@ type InstalledActivationRecord
     member _.ClaimsBytes = JsonText.toBytes entry.Claims.Json
     /// Current published provenance is explicitly local developer provenance.
     member _.IsLocalDeveloper = true
+    /// Validates the actual negotiated session before an installed operation. This does not prove invocation.
+    member _.CheckSession(session: NegotiatedSession) =
+        InstallationResult(Claims.agreeSession entry.Claims session)
     member internal _.HomeIdentity = homeIdentity
     member internal _.Plan = plan
     member internal _.Entry = entry
@@ -69,6 +72,13 @@ type CapturedExtension internal (record: InstalledActivationRecord, activation: 
     interface IAsyncDisposable with
         member _.DisposeAsync() =
             (activation :> IAsyncDisposable).DisposeAsync()
+
+[<Sealed>]
+type internal CapturedExtensionSet internal (captures: CapturedExtension array, catalog: byte array) =
+    member _.Captures: IReadOnlyList<CapturedExtension> = Array.AsReadOnly captures
+    member _.CatalogBytes = Array.copy catalog
+    interface IDisposable with
+        member _.Dispose() = for capture in Array.rev captures do (capture :> IDisposable).Dispose()
 
 module private ActivationState =
     let value name (value: Value) =
@@ -244,6 +254,36 @@ module private ActivationState =
             changed ()
 
         capture root current entry locked host ct
+
+    let captureMany (root: SafeDirectory) (ids: string list) expected host ct =
+        if ids.IsEmpty || ids.Length > 8192 || (Set.ofList ids).Count <> ids.Length then
+            Operations.fail "extension.invalid_selection" "Selection must contain unique installed ids."
+        let current, locks = StateOwnership.readCurrent root
+        let catalog = current |> Option.defaultWith(fun () -> Operations.fail "extension.not_installed" "No installed catalog.")
+        let selected =
+            ids |> List.sort |> List.map(fun id ->
+                let entry = catalog.Entries |> List.tryFind(fun entry -> entry.Id = id)
+                            |> Option.defaultWith(fun () -> Operations.fail "extension.not_installed" "Selected id is absent.")
+                let locked = locks |> List.tryFind(fun locked -> locked.Entry.Id = id)
+                             |> Option.defaultWith(fun () -> Operations.fail "extension.lock_mismatch" "Selected lock is absent.")
+                entry, locked)
+        let exported = withFields ["extensions", Value.Array(selected |> List.map(fun (entry,_) -> entry.Json))] catalog.Json |> JsonText.toBytes
+        match expected with
+        | None -> ()
+        | Some(expectedCatalog: byte array, expectedLocks: IReadOnlyDictionary<string,byte array>) ->
+            if not (exported.AsSpan().SequenceEqual(expectedCatalog.AsSpan())) || expectedLocks.Count <> selected.Length then
+                Operations.fail "extension.current_record_changed" "Current selected catalog differs from the preparation."
+            for entry, locked in selected do
+                match expectedLocks.TryGetValue entry.Id with
+                | true, bytes when locked.Bytes.AsSpan().SequenceEqual(bytes.AsSpan()) -> ()
+                | _ -> Operations.fail "extension.current_record_changed" "Current selected lock differs from the preparation."
+        let captures = ResizeArray<CapturedExtension>()
+        try
+            for entry, locked in selected do captures.Add(capture root catalog entry locked host ct)
+            new CapturedExtensionSet(captures.ToArray(),exported)
+        with _ ->
+            for captured in Seq.rev captures do (captured :> IDisposable).Dispose()
+            reraise()
 
     let compact value =
         use parsed = JsonDocument.Parse(JsonText.toBytes value)
@@ -620,6 +660,16 @@ module private ActivationState =
 /// Installation and activation through the existing extension catalog/lock contracts.
 [<AbstractClass; Sealed>]
 type InstalledExtensions private () =
+    static member internal CaptureManyAsync(home: string, ids: IReadOnlyList<Morphir.Extensions.ExtensionId>, host: SemVer, ct: CancellationToken) : Task<InstallationResult<CapturedExtensionSet>> =
+        let ids = ids |> Seq.map _.Value |> List.ofSeq
+        Operations.runAsync ct (fun () -> StateOwnership.withLockAsync home ct (fun root -> ActivationState.captureMany root ids None host ct))
+
+    static member internal CaptureManyExpectedAsync(home: string, catalog: byte array, locks: IReadOnlyDictionary<string, byte array>, host: SemVer, ct: CancellationToken) : Task<InstallationResult<CapturedExtensionSet>> =
+        let catalog = Array.copy catalog
+        let locks = locks |> Seq.map(fun (KeyValue(id,bytes)) -> id,Array.copy bytes) |> readOnlyDict
+        Operations.runAsync ct (fun () -> StateOwnership.withLockAsync home ct (fun root ->
+            let parsed = StateDocuments.readCatalog catalog |> StateOwnership.unwrap
+            ActivationState.captureMany root (parsed.Entries |> List.map _.Id) (Some(catalog,locks)) host ct))
     /// Installs an explicitly named local developer package without probing it, then captures its registered lease.
     static member internal InstallLocalWithObserverAsync
         (
