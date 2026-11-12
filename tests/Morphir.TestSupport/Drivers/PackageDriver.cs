@@ -319,6 +319,14 @@ public sealed class PackageDriver : IPackageDriver
         WorkspaceDirectory directory, IReadOnlyList<string> arguments, PackageCommandOptions? options = null, CancellationToken cancellation = default) =>
         RunDotnetAsync(directory, arguments, consumer: true, options, cancellation);
 
+    /// <summary>
+    /// Runs one <c>dotnet</c> command on a project of the repository, as a pack of the driver does: contained in the
+    /// workspace, with the NuGet folder of the machine.
+    /// </summary>
+    public Task<CommandResult> DotnetOnSourcesAsync(
+        WorkspaceDirectory directory, IReadOnlyList<string> arguments, PackageCommandOptions? options = null, CancellationToken cancellation = default) =>
+        RunDotnetAsync(directory, arguments, consumer: false, options, cancellation);
+
     public Task<CommandResult> RunAsync(
         WorkspaceFile executable, IReadOnlyList<string> arguments, PackageCommandOptions? options = null, CancellationToken cancellation = default) =>
         RunProcessAsync(executable.Path, Path.GetDirectoryName(executable.Path) ?? _workspace.Work.Path, arguments, consumer: true, options, cancellation);
@@ -327,7 +335,19 @@ public sealed class PackageDriver : IPackageDriver
         WorkspaceDirectory directory, IReadOnlyList<string> arguments, bool consumer, PackageCommandOptions? options, CancellationToken cancellation)
     {
         Directory.CreateDirectory(directory.Path);
-        return RunProcessAsync("dotnet", directory.Path, arguments, consumer, options, cancellation);
+        return RunProcessAsync("dotnet", directory.Path, consumer ? arguments : [.. arguments, .. SolutionRestoreFolders], consumer, options, cancellation);
+    }
+
+    // On Windows the restore writes the package folder of a project in its obj/*.nuget.g.props as
+    // $(UserProfile)\.nuget\packages\, and the workspace has its own home. A command on a project of the repository
+    // gets the package folder of the solution restore, so a pack with no restore finds the restored packages.
+    private static string[] SolutionRestoreFolders
+    {
+        get
+        {
+            var folder = Path.TrimEndingDirectorySeparator(TestSandbox.RealNuGetPackagesFolder) + Path.DirectorySeparatorChar;
+            return [$"-p:NuGetPackageRoot={folder}", $"-p:NuGetPackageFolders={folder}"];
+        }
     }
 
     private async Task<CommandResult> RunProcessAsync(

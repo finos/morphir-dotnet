@@ -331,6 +331,32 @@ public class PackageDriverTests
         result.OutputShouldContain("✓ é│");
     }
 
+    // On Windows the restore writes the package folder of a project as $(UserProfile)\.nuget\packages\ in its
+    // obj/*.nuget.g.props, and the workspace has its own home. So a command on a project of the repository gets the
+    // package folder of the solution restore, and it does not look in the home of the workspace.
+    [Test]
+    public async Task ACommandOnAProjectOfTheRepositoryUsesThePackageFolderOfTheSolutionRestore()
+    {
+        await using var workspace = Workspace();
+        var driver = new PackageDriver(workspace, PackageSources.OfDevelopmentBuild(ThisAssembly), packed: null);
+        var project = workspace.Directory("project like windows");
+        workspace.WriteText(project.File("Fixture.proj"), """
+            <Project>
+              <PropertyGroup>
+                <NuGetPackageRoot Condition=" '$(NuGetPackageRoot)' == '' ">$(UserProfile)\.nuget\packages\</NuGetPackageRoot>
+                <NuGetPackageFolders Condition=" '$(NuGetPackageFolders)' == '' ">$(UserProfile)\.nuget\packages\</NuGetPackageFolders>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        var result = await driver.DotnetOnSourcesAsync(project, ["msbuild", "Fixture.proj", "-getProperty:NuGetPackageRoot", "-getProperty:NuGetPackageFolders", "-nologo"]);
+
+        var folder = Path.TrimEndingDirectorySeparator(TestSandbox.RealNuGetPackagesFolder) + Path.DirectorySeparatorChar;
+        using var properties = System.Text.Json.JsonDocument.Parse(result.ShouldExitWith(0).StandardOutput);
+        properties.RootElement.GetProperty("Properties").GetProperty("NuGetPackageRoot").GetString().Should().Be(folder);
+        properties.RootElement.GetProperty("Properties").GetProperty("NuGetPackageFolders").GetString().Should().Be(folder);
+    }
+
     [Test]
     public async Task APackOfAProjectThatIsNotBuiltFirstIsRefused()
     {
