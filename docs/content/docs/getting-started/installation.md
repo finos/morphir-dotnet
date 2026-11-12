@@ -38,8 +38,8 @@ dotnet tool install --global Morphir.Tool --prerelease
 The standalone `morphir` is one file that carries its .NET runtime, so it needs no .NET SDK or runtime. It is a
 managed, trimmed, self-contained single-file build without an F# frontend, not a Native AOT executable. Download
 `morphir-linux-x64`, `morphir-linux-arm64`, `morphir-osx-arm64`, `morphir-win-x64.exe` or `morphir-win-arm64.exe`
-from the [releases page](https://github.com/finos/morphir-dotnet/releases). The Windows ARM64 file is built and tested
-on a native Windows 11 ARM64 runner; releases before the first one that lists it have no `win-arm64` file. To compile
+from the [releases page](https://github.com/finos/morphir-dotnet/releases). The Windows ARM64 file is built on a native
+Windows 11 ARM64 runner; releases before the first one that lists it have no `win-arm64` file. To compile
 F# with it, also install the F# frontend extension:
 
 ```bash

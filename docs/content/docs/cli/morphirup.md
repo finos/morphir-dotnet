@@ -37,13 +37,7 @@ release job logged for `v0.4.0-alpha.4`. The job checks the executable only on t
 macOS 12.
 
 The Windows ARM64 executable is built and checked on the GitHub-hosted Windows 11 ARM64 runner, natively, not
-cross-built on x64. Releases before the first one that lists it have no `win-arm64` files. The explicit local developer
-journey ([Local morphirup candidate]({{< relref "/docs/getting-started/local-morphirup-candidate" >}}): `setup
---local-developer`, `select`, `use` and `run`) on Windows ARM64 uses the local-toolchains `0.1.0-preview.3`
-documents, whose `platform` is `win-x64` or `win-arm64`. The published `0.1.0-preview.1` and `0.1.0-preview.2`
-documents admit only `win-x64` and do not change. <!-- Draft #611: this journey is not yet implemented or proven on
-win-arm64; it depends on the preview.3 support of #608 (contract: finos/morphir#1163, merged at 7586a0a4). Remove this note when the native proof is
-recorded. -->
+cross-built on x64. Releases before the first one that lists it have no `win-arm64` files.
 
 Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`, with the repository's
 `LICENSE` and `NOTICE` and the executable's `THIRD-PARTY-NOTICES.txt` beside it. The release also carries that file as
