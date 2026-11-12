@@ -96,15 +96,37 @@ public class TestPlanTests
 
     [Test]
     public void TheSuitesThatRunMSBuildOnSourceProjectsAreKnown() =>
-        TestPlan.Suites.Where(suite => suite.UsesSourceProjects).Select(suite => suite.Project).Should().BeEquivalentTo(
-            "Morphir.SDK.Tests",
+        TestPlan.Suites.Where(suite => suite.UsesSourceProjects).Select(suite => suite.Name).Should().BeEquivalentTo(
             "Morphir.TestSupport.Tests",
             "Morphir.Mep.Tests",
             "Morphir.Frontend.FSharp.Extension.Tests",
-            "Morphir.CodeGeneration.FSharp.Extension.Tests",
             "Morphir.Myriad.Tests",
-            "Morphir.Myriad.Integration.Tests",
-            "Morphir.Myriad.SystemTextJson.Tests");
+            // The package driver packs projects of the repository with no build: it reads their obj and bin folders.
+            "Morphir.BlackBox.Tests (integration)",
+            "Morphir.BlackBox.Tests (e2e)");
+
+    [Test]
+    public void ThePackagesLaneRunSelectsOnlyTheTestsOfThePackagesLane()
+    {
+        var run = TestPlan.PackagesLaneRun;
+
+        run.Suite.Project.Should().Be(TestPlan.BlackBoxProject);
+        run.Suite.Group.Should().BeNull("the lane is not a group: it has the tests of each group that need the packed packages");
+        run.Suite.TakesHangDump.Should().BeTrue();
+        run.Arguments.Should().Equal("--treenode-filter", "/*/*/*/*[Category=packages]");
+    }
+
+    [Test]
+    public void ThePackagesLaneRunGetsItsLaneAndTheFolderOfThePackedPackages()
+    {
+        var environment = TestPlan.PackagesLaneEnvironment("/repo/artifacts/packages");
+
+        environment.Should().Equal(new Dictionary<string, string>
+        {
+            ["MORPHIR_TEST_LANE"] = "packages",
+            ["MORPHIR_TEST_PACKAGES"] = "/repo/artifacts/packages",
+        });
+    }
 
     [Test]
     public void TheSuitesWithTimeBudgetsRunAlone() =>
@@ -169,7 +191,7 @@ public class TestPlanTests
     [Test]
     public void TheSuitesOfTheTestTargetAreUnique()
     {
-        TestPlan.Suites.Should().HaveCount(38);
+        TestPlan.Suites.Should().HaveCount(37);
         TestPlan.Suites.Select(suite => suite.Name).Should().OnlyHaveUniqueItems();
         TestPlan.Suites.Where(suite => suite.Group is null).Select(suite => suite.Project).Should().OnlyHaveUniqueItems();
     }
@@ -278,13 +300,6 @@ public class TestPlanTests
 
         unknown.Should().Throw<ArgumentException>().WithMessage("*'unit'*").WithMessage("*integration, e2e, smoke, journey*");
         empty.Should().Throw<ArgumentException>().WithMessage("*journey*").WithMessage("*no suite*");
-    }
-
-    [Test]
-    public void AGroupSelectionDoesNotIncludeTheMyriadPackageConsumerScripts()
-    {
-        TestPlan.RunsPackageConsumerScripts(group: null).Should().BeTrue();
-        TestPlan.RunsPackageConsumerScripts(group: "smoke").Should().BeFalse();
     }
 
     [Test]

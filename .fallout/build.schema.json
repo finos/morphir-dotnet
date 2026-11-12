@@ -77,7 +77,6 @@
         "TestBuild",
         "TestE2E",
         "TestExtensionInstallationAot",
-        "TestMyriadPackages",
         "TestProtoPlugin",
         "WindowsToolchainChecksums"
       ]

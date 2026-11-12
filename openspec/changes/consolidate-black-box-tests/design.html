@@ -884,6 +884,78 @@ the native host and on the tool host. Each such outline checks that the command 
 </tbody>
 </table>
 
+<h3 id="record-pr4">Pull request 4 (task group 8), 2026-11-12</h3>
+<table>
+<thead><tr><th>Decision</th><th>What happened</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><a href="#drv-1">DRV-1</a>, <code>IPackageDriver</code></td>
+<td>The driver packs a project of the development build with <code>--no-build --no-restore</code> and puts the
+manifest in the workspace (<code>NuspecOutputPath</code>); it builds and packs the SDK projects with
+<code>--artifacts-path</code> in the workspace. <code>tests/Morphir.TestSupport/build/Morphir.PackageSources.targets</code>
+gives the project paths as assembly metadata, as the targets file of the CLI does. The feed, the packages folder and the
+build folder are beside the work area, so the mark of the files of a command stays small; their names and the
+consumer folders have a space. A consumer restores into
+the packages folder of its workspace, with the HTTP cache of NuGet of the machine (<code>NUGET_HTTP_CACHE_PATH</code>),
+so no package of a test goes into a NuGet folder of the machine (the HTTP cache and the restore of the SDK projects
+for their build still write NuGet folders of the machine). A new capability, <code>DevelopmentPackages</code>
+(<code>@needs-development-packages</code>), belongs only to the target <code>dev</code>, so a published run skips the
+scenarios that pack with a capability reason.</td>
+<td><code>slice-4-moves.md</code></td></tr>
+<tr><td>Task 8.2, the solution build after the driver</td>
+<td>The compile after the 40 package scenarios with no lane, the 19 of the packages lane and the driver tests builds
+no project. The cause of the 48 projects of pull request 1: a fixture build in a <code>TestSandbox</code> restores its
+project references again, with a <code>NUGET_PACKAGES</code> that has no separator at its end and a home with no user
+NuGet configuration. NuGet then writes the restore files of the referenced source projects, and the next compile
+builds them and their users. The build test that keeps the IDE load check of the repository targets restores its
+fixture only (<code>-p:RestoreRecursive=false</code>). <code>Morphir.Mep.Tests</code> keeps the defect; it is not a
+test of this change (open).</td>
+<td><code>slice-4-moves.md</code></td></tr>
+<tr><td><a href="#grp-1">GRP-1</a>, the packages lane</td>
+<td><code>TestBuild</code> runs the build tests and then <code>TestPlan.PackagesLaneRun</code>:
+<code>[Category=packages]</code>, <code>MORPHIR_TEST_LANE=packages</code> and <code>MORPHIR_TEST_PACKAGES</code> set to
+the output folder of <code>PackAll</code>. The session reads the folder before the first test, and a folder with no
+package stops the run with the pack command. The guard has a pull request run for the lane. The package tests of the
+two extensions and the layout checks of the System.Text.Json packages are in the lane, on the packages of
+<code>PackAll</code>: a pack of a dotnet tool in a test publishes into the <code>obj</code> and <code>bin</code> folders of
+its project, so the driver packs no tool. The SDK package graphs are <code>e2e</code> tests with no lane (they prove
+properties of the delivered packages), so the plan has the <code>e2e</code> suite from this pull request. The car rental
+features of the Myriad plugin are integration, not journey: they use one capability. The inventory had journey for
+both.</td>
+<td><code>slice-4-moves.md</code></td></tr>
+<tr><td>The plan</td>
+<td>The groups <code>integration</code> and <code>e2e</code> and <code>Morphir.TestSupport.Tests</code> pack projects of
+the repository, so their suites have <code>WithSourceProjects()</code>: a pack reads the restore files that a fixture
+build of another suite can write. <code>Morphir.SDK.Tests</code>, <code>Morphir.Myriad.SystemTextJson.Tests</code> and
+<code>Morphir.CodeGeneration.FSharp.Extension.Tests</code> run no MSBuild any more and lose it. The
+<code>RunMyriadPackageTests</code> step, the target <code>TestMyriadPackages</code> and
+<code>TestPlan.RunsPackageConsumerScripts</code> are removed.</td>
+<td><code>build/Helpers/TestPlan.cs</code></td></tr>
+<tr><td><a href="#form-1">FORM-1</a>, the split</td>
+<td><code>SelfContainedTests.fs</code> stays: it needs the kit library in the test process (classification step 1).
+The four fixture builds of <code>BuildTests.fs</code> through the repository targets are scenarios on the packed
+packages; the failures of the repository form are not checked any more, and the solution build checks its success
+path. <code>PackAll</code> packs the tool and the extensions with <code>DebugType=none</code>, so it builds them again,
+and a pack with no build after it fails until the next compile; CI runs <code>Test</code> before <code>PackAll</code>.</td>
+<td><code>slice-4-moves.md</code></td></tr>
+<tr><td><a href="#drv-1">DRV-1</a>, the pack on Windows</td>
+<td>The first CI run failed on Windows: a pack with no restore looked for the Myriad host in the home of the
+workspace. On Windows the restore writes the package folder in <code>obj/*.nuget.g.props</code> as
+<code>$(UserProfile)\.nuget\packages\</code>, and the workspace redirects the home. A command of the driver on a
+project of the repository now gets <code>NuGetPackageRoot</code> and <code>NuGetPackageFolders</code> of the solution
+restore. The streams of a command are UTF-8, as for the CLI driver.</td>
+<td><code>slice-4-moves.md</code></td></tr>
+<tr><td>Review of the branch</td>
+<td>The <code>test-manager-reviewer</code> agent gave 13 findings. Each one is corrected: an exact version range is only
+<code>[v]</code> or <code>[v, v]</code>, and the dependency check keeps its old meaning; the consumers, the feed and the
+packages folder have a space in their paths, as the old ones had; the SDK feature is <code>e2e</code> and the car rental
+feature is <code>integration</code>; the driver packs no dotnet tool; the two writes into NuGet folders of the machine
+are stated; the install steps check their exit codes; the counts of the move table; the skip on Windows is stated;
+the step "the output does not contain" uses <code>CommandResultAssertions</code>; one step method for one pattern; the
+README of the SDK baseline is a fixture; the check of <code>Morphir.SDK</code> is a class of its own.</td>
+<td><code>slice-4-moves.md</code></td></tr>
+</tbody>
+</table>
+
 <h3 id="record-pr5">Pull request 5 (task group 9), 2026-11-12</h3>
 <table>
 <thead><tr><th>Decision</th><th>What happened</th><th>Evidence</th></tr></thead>

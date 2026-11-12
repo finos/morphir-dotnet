@@ -53,6 +53,12 @@ public enum DriverCapability
     /// <summary>The routing of a command to an external tool, as <c>morphir mck</c> runs <c>morphir-mck</c> (<see cref="IToolRoutingDriver"/>).</summary>
     ToolRouting,
     /// <summary>
+    /// The package driver packs the projects of the development build in the test (<see cref="IPackageDriver.PackAsync"/>,
+    /// <see cref="IPackageDriver.BuildAndPackAsync"/>). Only the target dev has them.
+    /// </summary>
+    DevelopmentPackages,
+
+    /// <summary>
     /// The build output and the project files of the programs of the repository that are not the CLI: the library
     /// hosts, the probes and <c>morphirup</c> (<see cref="ILibraryHostDriver"/>, <see cref="IArtifactInspectionDriver"/>).
     /// Only the development build has them.
@@ -103,12 +109,13 @@ public static class DriverCapabilities
         if (host is MorphirHost.Managed or MorphirHost.DotnetTool) commands = commands.Add(DriverCapability.InProcessFSharpFrontend);
         // The programs and the extension guests are build output of the development build: a published target has none.
         // The development build runs each host as an assembly, which can also run with the dynamic-code switch off.
+        // The projects of the repository are packed from the development build, so only that target has them.
         if (target is TestTarget.DevelopmentBuild)
         {
             commands = commands.Union(
             [
                 DriverCapability.BuiltPrograms, DriverCapability.BuiltExtensions, DriverCapability.HostWithoutDynamicCode, DriverCapability.AllHosts,
-                DriverCapability.UnprofiledBuild,
+                DriverCapability.UnprofiledBuild, DriverCapability.DevelopmentPackages,
             ]);
         }
 

@@ -88,6 +88,10 @@ public static class CommandResultAssertions
     public static CommandResult OutputShouldContain(this CommandResult result, string text) =>
         Contains(result, text) ? result : throw new CommandAssertionException($"The output does not contain '{text}'.", result);
 
+    /// <summary>The text is neither on standard output nor on standard error, with the same case.</summary>
+    public static CommandResult OutputShouldNotContain(this CommandResult result, string text) =>
+        Contains(result, text) ? throw new CommandAssertionException($"The output contains '{text}'.", result) : result;
+
     /// <summary>One of the texts is on standard output or on standard error, with the same case.</summary>
     public static CommandResult OutputShouldContainOneOf(this CommandResult result, params string[] texts) =>
         texts.Any(text => Contains(result, text))
