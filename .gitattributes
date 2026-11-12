@@ -54,6 +54,8 @@ tests/Fixtures/MepGuestKit/** -text
 # Toolchain acquisition contract fixtures are checked by SHA-256 against finos/morphir; the plan digest fixture
 # holds exact canonical bytes, and request identity is the SHA-256 of the exact TOML bytes.
 tests/Fixtures/Toolchain/** -text
+# Published extension contract blobs are verified offline against their parent Git bytes.
+tests/Fixtures/ExtensionAcquisition/parent-0439c4c0/** -text
 # The morphirup AOT probe's plan digest covers the SHA-256 of its recipe bytes.
 tests/Morphir.Toolchain.Tests/AotProbe/** -text
 

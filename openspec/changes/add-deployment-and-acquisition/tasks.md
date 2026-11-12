@@ -117,6 +117,18 @@ Commands follow the repository's build settings. Build one project with `dotnet 
 
 ## Workflow follow-up
 
+Preview-reader implementation progress, 11 November 2026: parent PR1157's
+current-family inputs landed at `1d89fc50`. Internal explicit preview entry
+points in the five existing document modules now execute their 18 fixed inputs;
+selection's 16 and workflow-case's three remain unrun. The 19-case first slice
+had 13 assertion failures before implementation, then all passed. Six separate
+identity/family controls had two assertion failures before the grammar
+correction, then all passed. The current external corpus passed 1,094/1,094,
+zero ignored/failed/errored. Historical public codecs/writers and CLI behavior
+are unchanged. Preview writers, authentication/binding, selection integration,
+durable restore and artifact qualification remain pending. No task is completed
+by these narrow reader results.
+
 - Link the owning GitHub issue in the proposal and here before claiming tasks. Follow AGENTS.md and `openspec/config.yaml` for review and explicit approval before merge.
 - Answer the design's questions for review before the tasks they name start.
 - Keep each group's tests and documentation in that group's pull requests.

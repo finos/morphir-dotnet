@@ -397,7 +397,7 @@ type SuiteCase = {
 type WasmHostSuite = {
     Pin: Pin
     Kit: KitIdentity
-    /// The cases, by file in ordinal order and by id within a file.
+    /// Validated cases in pinned corpus order. The raw feature parser uses file order.
     Cases: SuiteCase list
 }
 

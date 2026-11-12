@@ -256,6 +256,7 @@ type WasmHostCommands =
                 profiles
                 |> Seq.map Profile.Parse
                 |> List.ofSeq
+                |> function [] -> [ Ok Profile.Required ] | declared -> declared
 
             let invalid code message =
                 WasmHostCommands.Invalid(command, code, [ message ])
@@ -295,48 +296,38 @@ type WasmHostCommands =
                     )
                 with
                 | Some message -> return invalid "mck.usage" message
+                | None when not (List.contains (Ok Profile.Required) parsedProfiles) ->
+                    return invalid "mck.usage" "--host-profile must include extism-kernel-v1"
+                | None when List.distinct parsedProfiles <> parsedProfiles ->
+                    return invalid "mck.usage" "--host-profile must not repeat a profile"
                 | None when not (File.Exists hostPath) ->
                     return invalid "mck.usage" $"The host {hostPath} is not a file"
                 | None ->
                     match WasmHostCommands.Deviations(WasmHostCommands.Text deviations) with
                     | Error message -> return invalid "mck.usage" message
                     | Ok deviationList ->
-                        let citation =
+                        let citation: Result<GuestKitCitation option, Choice<string, string>> =
                             match
                                 WasmHostCommands.Text guestKitReport,
                                 WasmHostCommands.Text guestKitHostSha256,
                                 WasmHostCommands.Text guestKitModuleSha256
                             with
                             | None, None, None -> Ok None
-                            | Some path, Some hostSha, Some moduleSha ->
-                                if not (File.Exists path) then
-                                    Error $"The guest kit report {path} is not a file"
-                                else
-                                    Ok(
-                                        Some
-                                            {
-                                                Report = Path.GetFullPath path
-                                                ReportSha256 = HostRunner.fileSha256 path
-                                                HostSha256 = hostSha.ToLowerInvariant()
-                                                GuestModuleSha256 = moduleSha.ToLowerInvariant()
-                                            }
-                                    )
+                            | Some _, Some _, Some _ ->
+                                Error(Choice2Of2 "The generic guest kit report checker is unavailable. Citation admission requires that check; file hashes and caller-supplied host or module digests are not validated guest evidence. No worker or report was started.")
                             | _ ->
-                                Error
-                                    "--guest-kit-report, --guest-kit-host-sha256 and --guest-kit-module-sha256 are given together or not at all"
-
-                        let hostSha = HostRunner.fileSha256 hostPath
+                                Error(Choice1Of2 "--guest-kit-report, --guest-kit-host-sha256 and --guest-kit-module-sha256 are given together or not at all")
 
                         match citation with
-                        | Error message -> return invalid "mck.usage" message
-                        | Ok(Some cited) when
-                            cited.HostSha256
-                            <> hostSha
-                            ->
-                            return
-                                invalid
-                                    "mck.guest_kit_other_executable"
-                                    $"The cited generic guest kit run records the host executable digest {cited.HostSha256}, and --host has the digest {hostSha}"
+                        | Error(Choice1Of2 message) -> return invalid "mck.usage" message
+                        | Error(Choice2Of2 message) ->
+                            let code = "mck.guest_kit_check_unavailable"
+                            let document = WasmHostCommands.Document(command, 1, fun writer ->
+                                writer.WriteStartObject "error"
+                                writer.WriteString("code", code)
+                                writer.WriteString("message", message)
+                                writer.WriteEndObject())
+                            return WasmHostCommandResult(1, document, [ $"Error: {code}: {message}" ])
                         | Ok citation ->
                             match Kit.load kit with
                             | Error issues ->
@@ -444,10 +435,7 @@ type WasmHostCommands =
                                                         |> List.map (fun case -> case.Outcome)
                                                     ))
 
-                                                writer.WriteString(
-                                                    "qualificationNotice",
-                                                    HostReport.QualificationNotice
-                                                )
+                                                HostReport.writeVerdictObject writer hostReport
                                         )
 
                                     return
@@ -514,6 +502,11 @@ type WasmHostCommands =
                             fun writer ->
                                 writer.WriteString("report", fullPath)
                                 writer.WriteBoolean("valid", false)
+                                writer.WriteStartArray "refusals"
+                                for problem in problems do
+                                    if List.contains problem [ "identity_missing"; "host_profiles"; "corpus_mismatch"; "case_inventory"; "outcome_inconsistent"; "totals_mismatch"; "citation_invalid"; "verdict_mismatch" ] then
+                                        writer.WriteStringValue problem
+                                writer.WriteEndArray()
                                 writer.WriteStartArray "problems"
 
                                 for problem in problems do
@@ -547,10 +540,7 @@ type WasmHostCommands =
                                         |> List.map (fun case -> case.Outcome)
                                     ))
 
-                                writer.WriteString(
-                                    "qualificationNotice",
-                                    HostReport.QualificationNotice
-                                )
+                                HostReport.writeVerdictObject writer checkedReport
                         )
 
                     WasmHostCommandResult(

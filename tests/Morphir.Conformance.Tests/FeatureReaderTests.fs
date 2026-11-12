@@ -43,6 +43,13 @@ let private editCase (caseId: string) (fragment: string) (replacement: string) (
 [<Tests>]
 let tests =
     testList "WASM host feature reader (task 1.5)" [
+        test "Validated report cases retain the pinned corpus order" {
+            let suite = FeatureReader.read (corpus.Force()) (committed ()) |> requireOk "suite"
+            Expect.equal
+                (suite.Cases |> List.map (fun item -> item.Case.CaseId))
+                ((corpus.Force()).Cases |> List.map (fun item -> item.CaseId))
+                "report contract corpus order"
+        }
         // Spec scenario: Both formats give the same cases.
         test "The generated features and the pinned JSON give equal case models for every case" {
             let corpus = corpus.Force()

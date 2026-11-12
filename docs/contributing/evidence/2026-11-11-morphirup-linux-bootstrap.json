@@ -1,0 +1,556 @@
+{
+  "RecordedUtc": "2026-11-11T16:59:31.1115595Z",
+  "BaselineHead": "9d89d3cd41f662a0b560109130c4508c4340ff82",
+  "BaseMain": "017b37554c09279450be762b41ff1de566c34941",
+  "PullRequest": "https://github.com/finos/morphir-dotnet/pull/596",
+  "OriginalWorkflowRun": "43041138729",
+  "FailedJobs": [
+    {
+      "Rid": "linux-x64",
+      "Job": "130592922143",
+      "Sha256": "170660C0A943E56D7216D1A5169E34D51E41BEC5D57F775F1E37580C6ADB67D7",
+      "Failure": "Ubuntu repository names could not resolve; apt-get then could not locate clang, before compilation"
+    },
+    {
+      "Rid": "linux-arm64",
+      "Job": "130592921563",
+      "Sha256": "768719A7E72BD2427FC8EF543E9D54EA26D0E9C8269A40405782BC857223BDEF",
+      "Failure": "Ubuntu repository names could not resolve; apt-get then could not locate clang, before compilation"
+    }
+  ],
+  "PinnedImageInspection": {
+    "CapturedUtc": "2026-11-11T16:57:41.92382Z",
+    "Method": "Read-only Docker Registry HTTPS downloads; index, child manifest and compressed rootfs SHA-256 verified; tar entries inspected without execution or Docker.",
+    "Image": "ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11",
+    "Architectures": [
+      {
+        "Architecture": "amd64",
+        "ManifestDigest": "sha256:8a2321a92b438238f93b4346fff61bc4259c99fdd4d9b52ee86f153fee0c344f",
+        "LayerDigest": "sha256:0626d3cc316c9fea3d4891e2ec19b8f371fe22ffb915622f6072a2ee2ca9017f",
+        "LayerBytes": 29752488,
+        "HasStandardCaBundle": false,
+        "AdditionalSourceFiles": [],
+        "Files": [
+          {
+            "Path": "etc/apt/sources.list",
+            "Type": "RegularFile",
+            "Length": 2403,
+            "LinkTarget": "",
+            "Sha256": "15a39563d491def84446c8a5304e873a6b6509d56e2b54edce8eea154e1290a0"
+          },
+          {
+            "Path": "usr/bin/gpgv",
+            "Type": "RegularFile",
+            "Length": 277544,
+            "LinkTarget": "",
+            "Sha256": "c1bd4addb6df50d8bc010c5fc3550f5b5d2c11063cee1d37587f9b3391815a68"
+          },
+          {
+            "Path": "usr/bin/mawk",
+            "Type": "RegularFile",
+            "Length": 158504,
+            "LinkTarget": "",
+            "Sha256": "dc157030a32367742480403025a6f731275b07d039238d167ade535e6f3eb98e"
+          },
+          {
+            "Path": "usr/bin/sha256sum",
+            "Type": "RegularFile",
+            "Length": 51624,
+            "LinkTarget": "",
+            "Sha256": "2254ae8a3629397425dda96789958e4ced86d6ad89760e75f6e34aa26067854c"
+          },
+          {
+            "Path": "usr/bin/timeout",
+            "Type": "RegularFile",
+            "Length": 39880,
+            "LinkTarget": "",
+            "Sha256": "2e3f2616d64647f6c30250f258ae350e2d21e4e413bd2c1e4f7c2d9f9c17f984"
+          },
+          {
+            "Path": "usr/lib/apt/apt-helper",
+            "Type": "RegularFile",
+            "Length": 39560,
+            "LinkTarget": "",
+            "Sha256": "5197c35de9366eb13de8d7a0cf13ffc28313ce4821b8b563c001a31e8efe4f3f"
+          },
+          {
+            "Path": "usr/lib/apt/methods/http",
+            "Type": "RegularFile",
+            "Length": 195040,
+            "LinkTarget": "",
+            "Sha256": "0ce857d663d03de0f52671ddc90db931f4d794fc7e3c66d3aeff37f29a1fef7e"
+          },
+          {
+            "Path": "usr/lib/apt/methods/https",
+            "Type": "SymbolicLink",
+            "Length": 0,
+            "LinkTarget": "http",
+            "Sha256": null
+          },
+          {
+            "Path": "usr/share/keyrings/ubuntu-archive-keyring.gpg",
+            "Type": "RegularFile",
+            "Length": 7399,
+            "LinkTarget": "",
+            "Sha256": "1a4dd63e5c76728960a2edddae22e2e0fc53df8e8b87806deb971030ac704eb0"
+          }
+        ],
+        "InstalledPackages": [
+          {
+            "Package": "apt",
+            "Installed": true,
+            "Version": "2.4.14"
+          },
+          {
+            "Package": "gpgv",
+            "Installed": true,
+            "Version": "2.2.27-3ubuntu2.5"
+          },
+          {
+            "Package": "ubuntu-keyring",
+            "Installed": true,
+            "Version": "2021.03.26"
+          },
+          {
+            "Package": "mawk",
+            "Installed": true,
+            "Version": "1.3.4.20200120-3"
+          },
+          {
+            "Package": "coreutils",
+            "Installed": true,
+            "Version": "8.32-4.1ubuntu1.4"
+          },
+          {
+            "Package": "ca-certificates",
+            "Installed": false,
+            "Version": null
+          }
+        ],
+        "AptConfiguration": [
+          {
+            "Path": "etc/apt/apt.conf.d/01-vendor-ubuntu",
+            "Sha256": "364d5eeac5475b7dddfd629899ea88b91ed8d8e8e319c29bb9dbd6772e87ed55",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/01autoremove",
+            "Sha256": "93e7e6d2fdb36b04cb10127e3b0d1b9d19d822327fd959484639bbbd65cce004",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/70debconf",
+            "Sha256": "db749e19baf3b72ca2c157c70c52522cae23d94bc8b2dc5793fd43d427445367",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-autoremove-suggests",
+            "Sha256": "4f4226614def131b475bcdaf1e5dda59a1af62fee838cbfc02a01c25e614efc1",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-clean",
+            "Sha256": "49d72455b2eaa50fa4b09b3ecffff753f3b90193266b2999f30e3f696403fde2",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-disable-periodic-update",
+            "Sha256": "76438287a35c23e21dcadba0db4d4aff4be121c581e759ad425c16ed4e4f4dbb",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-gzip-indexes",
+            "Sha256": "151044925acbe5c83434424d1b628e208790ecb2db0aabbe83dc8622495cf846",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-no-languages",
+            "Sha256": "5970f921a86106d617c00deb6b2c7e5a37922fda8f2296bf43eebb83a72a2a4a",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          }
+        ]
+      },
+      {
+        "Architecture": "arm64",
+        "ManifestDigest": "sha256:a8fb2ba88181746111cbbe2969826d6546b71226785b196c93d2c3445a25000d",
+        "LayerDigest": "sha256:771eed73ee82c7916df197c0fd7ef3ac4eedcb9a6318b10d2652948c6c4ca08f",
+        "LayerBytes": 27684607,
+        "HasStandardCaBundle": false,
+        "AdditionalSourceFiles": [],
+        "Files": [
+          {
+            "Path": "etc/apt/sources.list",
+            "Type": "RegularFile",
+            "Length": 2477,
+            "LinkTarget": "",
+            "Sha256": "f2f7236d53efac527a2d30dc5a37745890a00ebbd3094b660f2c89afd6977093"
+          },
+          {
+            "Path": "usr/bin/gpgv",
+            "Type": "RegularFile",
+            "Length": 264968,
+            "LinkTarget": "",
+            "Sha256": "e8bad70745029fb1e2dc7edfa98cfd68bd6b551e14b1920fbb3d5efeffc01722"
+          },
+          {
+            "Path": "usr/bin/mawk",
+            "Type": "RegularFile",
+            "Length": 150000,
+            "LinkTarget": "",
+            "Sha256": "448a787677989ad0e86e9370ba1f8285461ecf21d42e0410bce1ae2d33d2b487"
+          },
+          {
+            "Path": "usr/bin/sha256sum",
+            "Type": "RegularFile",
+            "Length": 43320,
+            "LinkTarget": "",
+            "Sha256": "e9107db8f179eb0f7392482bb3624fd9139c0be559f602e7030c1c2ba35fe1d1"
+          },
+          {
+            "Path": "usr/bin/timeout",
+            "Type": "RegularFile",
+            "Length": 31512,
+            "LinkTarget": "",
+            "Sha256": "41a08cc0fb2f24f029ed7a4208723d6b4522fe3ffdcbe8c9845d4627962c51fb"
+          },
+          {
+            "Path": "usr/lib/apt/apt-helper",
+            "Type": "RegularFile",
+            "Length": 31128,
+            "LinkTarget": "",
+            "Sha256": "d98b117efd323ad342ec7abff388d327afcc4c21ab356c544d26176dacfd8588"
+          },
+          {
+            "Path": "usr/lib/apt/methods/http",
+            "Type": "RegularFile",
+            "Length": 170240,
+            "LinkTarget": "",
+            "Sha256": "035cd7c8296dac373090c6a9a3892d5589925db594f9df7f7f3e43ded333e54a"
+          },
+          {
+            "Path": "usr/lib/apt/methods/https",
+            "Type": "SymbolicLink",
+            "Length": 0,
+            "LinkTarget": "http",
+            "Sha256": null
+          },
+          {
+            "Path": "usr/share/keyrings/ubuntu-archive-keyring.gpg",
+            "Type": "RegularFile",
+            "Length": 7399,
+            "LinkTarget": "",
+            "Sha256": "1a4dd63e5c76728960a2edddae22e2e0fc53df8e8b87806deb971030ac704eb0"
+          }
+        ],
+        "InstalledPackages": [
+          {
+            "Package": "apt",
+            "Installed": true,
+            "Version": "2.4.14"
+          },
+          {
+            "Package": "gpgv",
+            "Installed": true,
+            "Version": "2.2.27-3ubuntu2.5"
+          },
+          {
+            "Package": "ubuntu-keyring",
+            "Installed": true,
+            "Version": "2021.03.26"
+          },
+          {
+            "Package": "mawk",
+            "Installed": true,
+            "Version": "1.3.4.20200120-3"
+          },
+          {
+            "Package": "coreutils",
+            "Installed": true,
+            "Version": "8.32-4.1ubuntu1.4"
+          },
+          {
+            "Package": "ca-certificates",
+            "Installed": false,
+            "Version": null
+          }
+        ],
+        "AptConfiguration": [
+          {
+            "Path": "etc/apt/apt.conf.d/01-vendor-ubuntu",
+            "Sha256": "364d5eeac5475b7dddfd629899ea88b91ed8d8e8e319c29bb9dbd6772e87ed55",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/01autoremove",
+            "Sha256": "93e7e6d2fdb36b04cb10127e3b0d1b9d19d822327fd959484639bbbd65cce004",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/70debconf",
+            "Sha256": "db749e19baf3b72ca2c157c70c52522cae23d94bc8b2dc5793fd43d427445367",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-autoremove-suggests",
+            "Sha256": "4f4226614def131b475bcdaf1e5dda59a1af62fee838cbfc02a01c25e614efc1",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-clean",
+            "Sha256": "49d72455b2eaa50fa4b09b3ecffff753f3b90193266b2999f30e3f696403fde2",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-disable-periodic-update",
+            "Sha256": "76438287a35c23e21dcadba0db4d4aff4be121c581e759ad425c16ed4e4f4dbb",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-gzip-indexes",
+            "Sha256": "151044925acbe5c83434424d1b628e208790ecb2db0aabbe83dc8622495cf846",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          },
+          {
+            "Path": "etc/apt/apt.conf.d/docker-no-languages",
+            "Sha256": "5970f921a86106d617c00deb6b2c7e5a37922fda8f2296bf43eebb83a72a2a4a",
+            "ContainsSignatureDateExpiryOrTlsOverride": false
+          }
+        ]
+      }
+    ]
+  },
+  "MirrorOperator": {
+    "Url": "https://ftp.kaist.ac.kr/",
+    "Status": 200,
+    "Redirect": null,
+    "Utc": "2026-11-11T16:59:31.0025931Z",
+    "Sha256": "021C8F23632352CBD86A98B6B4ADE1086EEACB60773DA8406EF60A7B01328C67",
+    "Basis": "Current KAIST operator page advertises HTTP and HTTPS service and links /ubuntu/ and /ubuntu-ports/; no claim of fresh Launchpad registry endorsement."
+  },
+  "HttpEndpointObservations": [
+    {
+      "Tree": "ubuntu",
+      "Suite": "jammy",
+      "Url": "http://ftp.kaist.ac.kr/ubuntu/dists/jammy/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Length": 270087,
+      "Utc": "2026-11-11T16:49:01.5772781Z"
+    },
+    {
+      "Tree": "ubuntu",
+      "Suite": "jammy-updates",
+      "Url": "http://ftp.kaist.ac.kr/ubuntu/dists/jammy-updates/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Length": 128049,
+      "Utc": "2026-11-11T16:49:01.5773106Z"
+    },
+    {
+      "Tree": "ubuntu",
+      "Suite": "jammy-backports",
+      "Url": "http://ftp.kaist.ac.kr/ubuntu/dists/jammy-backports/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Length": 127185,
+      "Utc": "2026-11-11T16:49:01.5773233Z"
+    },
+    {
+      "Tree": "ubuntu",
+      "Suite": "jammy-security",
+      "Url": "http://ftp.kaist.ac.kr/ubuntu/dists/jammy-security/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Length": 128927,
+      "Utc": "2026-11-11T16:49:01.5772843Z"
+    },
+    {
+      "Tree": "ubuntu-ports",
+      "Suite": "jammy-security",
+      "Url": "http://ftp.kaist.ac.kr/ubuntu-ports/dists/jammy-security/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Length": 128927,
+      "Utc": "2026-11-11T16:49:01.5835908Z"
+    },
+    {
+      "Tree": "ubuntu-ports",
+      "Suite": "jammy",
+      "Url": "http://ftp.kaist.ac.kr/ubuntu-ports/dists/jammy/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Length": 270087,
+      "Utc": "2026-11-11T16:49:01.5887028Z"
+    },
+    {
+      "Tree": "ubuntu-ports",
+      "Suite": "jammy-updates",
+      "Url": "http://ftp.kaist.ac.kr/ubuntu-ports/dists/jammy-updates/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Length": 128049,
+      "Utc": "2026-11-11T16:49:01.589683Z"
+    },
+    {
+      "Tree": "ubuntu-ports",
+      "Suite": "jammy-backports",
+      "Url": "http://ftp.kaist.ac.kr/ubuntu-ports/dists/jammy-backports/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Length": 127185,
+      "Utc": "2026-11-11T16:49:01.6088226Z"
+    }
+  ],
+  "HttpsMetadataObservations": [
+    {
+      "Tree": "ubuntu-ports",
+      "Suite": "jammy-backports",
+      "Url": "https://ftp.kaist.ac.kr/ubuntu-ports/dists/jammy-backports/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Bytes": 127185,
+      "Sha256": "466DD2F059088ACE3E21D6298A2CBB63535E5DC4B1BD08715FB22A124A90449B",
+      "Date": "Tue, 10 Nov 2026  7:42:48 UTC",
+      "HasValidUntil": false,
+      "SignatureVerified": false,
+      "Utc": "2026-11-11T16:58:32.0105153Z"
+    },
+    {
+      "Tree": "ubuntu-ports",
+      "Suite": "jammy-security",
+      "Url": "https://ftp.kaist.ac.kr/ubuntu-ports/dists/jammy-security/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Bytes": 128927,
+      "Sha256": "181A1BE07913B5FA9680D7C664431792BF1C079A7DF06C2CB436117FC9618704",
+      "Date": "Wed, 11 Nov 2026  5:16:30 UTC",
+      "HasValidUntil": false,
+      "SignatureVerified": false,
+      "Utc": "2026-11-11T16:58:32.0105154Z"
+    },
+    {
+      "Tree": "ubuntu",
+      "Suite": "jammy-backports",
+      "Url": "https://ftp.kaist.ac.kr/ubuntu/dists/jammy-backports/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Bytes": 127185,
+      "Sha256": "466DD2F059088ACE3E21D6298A2CBB63535E5DC4B1BD08715FB22A124A90449B",
+      "Date": "Tue, 10 Nov 2026  7:42:48 UTC",
+      "HasValidUntil": false,
+      "SignatureVerified": false,
+      "Utc": "2026-11-11T16:58:32.0106937Z"
+    },
+    {
+      "Tree": "ubuntu-ports",
+      "Suite": "jammy-updates",
+      "Url": "https://ftp.kaist.ac.kr/ubuntu-ports/dists/jammy-updates/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Bytes": 128049,
+      "Sha256": "A43202EB43C540E45242ADA90B5E58A3A8F755FEC73A077E55DC07F59B195DE5",
+      "Date": "Wed, 11 Nov 2026  6:32:56 UTC",
+      "HasValidUntil": false,
+      "SignatureVerified": false,
+      "Utc": "2026-11-11T16:58:32.0102446Z"
+    },
+    {
+      "Tree": "ubuntu",
+      "Suite": "jammy-security",
+      "Url": "https://ftp.kaist.ac.kr/ubuntu/dists/jammy-security/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Bytes": 128927,
+      "Sha256": "181A1BE07913B5FA9680D7C664431792BF1C079A7DF06C2CB436117FC9618704",
+      "Date": "Wed, 11 Nov 2026  5:16:30 UTC",
+      "HasValidUntil": false,
+      "SignatureVerified": false,
+      "Utc": "2026-11-11T16:58:32.0150159Z"
+    },
+    {
+      "Tree": "ubuntu",
+      "Suite": "jammy-updates",
+      "Url": "https://ftp.kaist.ac.kr/ubuntu/dists/jammy-updates/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Bytes": 128049,
+      "Sha256": "A43202EB43C540E45242ADA90B5E58A3A8F755FEC73A077E55DC07F59B195DE5",
+      "Date": "Wed, 11 Nov 2026  6:32:56 UTC",
+      "HasValidUntil": false,
+      "SignatureVerified": false,
+      "Utc": "2026-11-11T16:58:32.0174213Z"
+    },
+    {
+      "Tree": "ubuntu-ports",
+      "Suite": "jammy",
+      "Url": "https://ftp.kaist.ac.kr/ubuntu-ports/dists/jammy/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Bytes": 270087,
+      "Sha256": "C14060CD8C6D625874DFCB9523A35A395BF4865C28B6B6A82569EF326FE92DC6",
+      "Date": "Thu, 21 Apr 2022 17:16:08 UTC",
+      "HasValidUntil": false,
+      "SignatureVerified": false,
+      "Utc": "2026-11-11T16:58:32.1755439Z"
+    },
+    {
+      "Tree": "ubuntu",
+      "Suite": "jammy",
+      "Url": "https://ftp.kaist.ac.kr/ubuntu/dists/jammy/InRelease",
+      "Status": 200,
+      "Redirect": "",
+      "Bytes": 270087,
+      "Sha256": "C14060CD8C6D625874DFCB9523A35A395BF4865C28B6B6A82569EF326FE92DC6",
+      "Date": "Thu, 21 Apr 2022 17:16:08 UTC",
+      "HasValidUntil": false,
+      "SignatureVerified": false,
+      "Utc": "2026-11-11T16:58:32.1914242Z"
+    }
+  ],
+  "HermeticValidation": [
+    {
+      "Utc": "2026-11-11T16:55:40.5703795Z",
+      "ExitCode": 127,
+      "TimedOut": false,
+      "ElapsedMilliseconds": 75,
+      "TestCases": 0,
+      "Result": "runner PATH setup failure: mktemp not found, before tests",
+      "FixtureDirectoryRemoved": true,
+      "Sources": [
+        {
+          "Path": "build/ubuntu-native-dependencies.sh",
+          "Sha256": "8381D593900F23E0A728394855507CC21A2E70838712C0016A8F21FB36F5688D"
+        },
+        {
+          "Path": "build/tests/ubuntu-native-dependencies.sh",
+          "Sha256": "02E9AC62A02B70E1C5F5686F6D471114C0E0759FBC203AFA2E8CDD295E03A941"
+        }
+      ]
+    },
+    {
+      "Utc": "2026-11-11T16:56:57.8440277Z",
+      "ExitCode": 0,
+      "TimedOut": false,
+      "ElapsedMilliseconds": 8194,
+      "TestCases": 26,
+      "Result": "passed",
+      "FixtureDirectoryRemoved": true,
+      "Sources": [
+        {
+          "Path": "build/ubuntu-native-dependencies.sh",
+          "Sha256": "8381D593900F23E0A728394855507CC21A2E70838712C0016A8F21FB36F5688D"
+        },
+        {
+          "Path": "build/tests/ubuntu-native-dependencies.sh",
+          "Sha256": "02E9AC62A02B70E1C5F5686F6D471114C0E0759FBC203AFA2E8CDD295E03A941"
+        }
+      ]
+    }
+  ],
+  "Limits": [
+    "Windows endpoint observations are reachability evidence, not APT authentication or Linux qualification.",
+    "No real apt-get, Docker, .NET, AOT publish or native executable ran locally.",
+    "The updated branch requires hosted exact-head Linux x64 and ARM64 validation; earlier CI success cannot qualify it.",
+    "Metadata lacked Valid-Until. Existing APT date/expiry defaults remain; no new freshness guarantee is claimed."
+  ]
+}

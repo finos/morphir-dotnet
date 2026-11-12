@@ -5,8 +5,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Nuke.Common;
-using Nuke.Common.IO;
+using Fallout.Common;
+using Fallout.Common.IO;
 
 /// <summary>
 /// Build targets for Morphir.Myriad.SystemTextJson.
@@ -32,6 +32,12 @@ partial class Build
             TestsDirectory / "Morphir.Mep.AotProbe" / "Morphir.Mep.AotProbe.csproj", "mep-aot"));
 
     AbsolutePath MorphirupProbeDirectory => TestsDirectory / "Morphir.Toolchain.Tests" / "AotProbe";
+
+    // Manual lane only. Official qualification belongs to finos/morphir; this adds no CI job.
+    Target TestExtensionInstallationAot => _ => _
+        .Description("Publish the installer C# consumer with Native AOT and compare it with JIT")
+        .Executes(() => VerifyAotProbe(
+            TestsDirectory / "Morphir.Extensions.Installation.AotProbe" / "Morphir.Extensions.Installation.AotProbe.csproj", "extension-installation-aot"));
 
     /// <summary>
     /// Publish the morphirup manager with Native AOT and run a plan-only setup under JIT and native. The probe recipe
@@ -117,6 +123,7 @@ partial class Build
         var start = new ProcessStartInfo(command)
         {
             UseShellExecute = false,
+            CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };

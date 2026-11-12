@@ -177,37 +177,383 @@ type HostSession
     (
         connect: (unit -> SessionState) -> ConcurrentQueue<ProgressParams> -> IHostChannel,
         host: PeerInfo,
-        offer: ModelTransportSupport option
+        offer: ModelTransportSupport option,
+        conformanceOptions: (ConformanceEvidenceLimits * CancellationToken) option
     ) =
     let mutable state = SessionState.Created
+    let mutable initializing: NegotiatedSession option = None
     let progress = ConcurrentQueue<ProgressParams>()
-    let channel = connect (fun () -> state) progress
+    let channel = connect (fun () -> initializing |> Option.map SessionState.Initialized |> Option.defaultValue state) progress
+    let operationGate = new SemaphoreSlim(1, 1)
+    let receiptGate = obj ()
+    let receiptOwner = obj ()
+    let mutable originalReceipt: ConformanceDescribeReceipt option = None
+    let mutable advertised: ModelTransportSupport option = None
+    let mutable boundOffer: ModelTransportSupport option = None
+    let mutable initializeAttempted = false
+    let mutable unknownReserved = false
+    let mutable afterShutdownReserved = false
+    let mutable terminal: ConformanceOperationFailure option = None
+    let conformanceLifetime = conformanceOptions |> Option.map snd |> Option.defaultValue CancellationToken.None
+    let canonicalParameters =
+        conformanceOptions |> Option.map (fun _ ->
+            use document = JsonDocument.Parse "{}"
+            document.RootElement.Clone())
+
+    let rpcFailure = function
+        | ConformanceOperationFailure.LocalLifecycleRefusal cause -> cause
+        | ConformanceOperationFailure.Cancelled _ -> RpcErrors.create ErrorCode.RequestCancelled
+        | ConformanceOperationFailure.ChannelFailed cause -> RpcErrors.withMessage ErrorCode.InternalError $"The session failed: {cause}"
+        | ConformanceOperationFailure.ConnectionEnded cause -> RpcErrors.withMessage ErrorCode.InternalError $"The connection ended: {cause}"
+        | ConformanceOperationFailure.ProbeAlreadyReserved -> RpcErrors.withMessage ErrorCode.InvalidRequest "This conformance probe was already reserved."
+        | ConformanceOperationFailure.TransportFailed cause -> RpcErrors.withMessage ErrorCode.InternalError cause.Message
+        | ConformanceOperationFailure.CaptureFailed _ -> RpcErrors.withMessage ErrorCode.InternalError "Conformance capture is incomplete."
+        | ConformanceOperationFailure.ImplementationUnavailable -> RpcErrors.withMessage ErrorCode.InternalError "Conformance observation is unavailable."
+
+    let health () =
+        match terminal, channel.Failure with
+        | Some cause, _ -> Some cause
+        | _, Some cause -> Some(ConformanceOperationFailure.ChannelFailed cause)
+        | _ ->
+            match channel.ConformanceSnapshot with
+            | Some snapshot ->
+                match snapshot.Status with
+                | ConformanceCaptureStatus.Incomplete cause -> Some(ConformanceOperationFailure.CaptureFailed cause)
+                | ConformanceCaptureStatus.Complete ->
+                    match channel.ConformanceEnd with
+                    | Some ConformanceTransportEnd.EndOfStream -> Some(ConformanceOperationFailure.ConnectionEnded ConnectionEnd.EndOfStream)
+                    | Some ConformanceTransportEnd.Stopped -> Some(ConformanceOperationFailure.ConnectionEnded ConnectionEnd.Stopped)
+                    | Some(ConformanceTransportEnd.FramingFailed cause) -> Some(ConformanceOperationFailure.ConnectionEnded(ConnectionEnd.FramingFailed cause))
+                    | None when conformanceLifetime.IsCancellationRequested -> Some(ConformanceOperationFailure.Cancelled(OperationCanceledException conformanceLifetime))
+                    | None -> None
+            | None -> Some ConformanceOperationFailure.ImplementationUnavailable
+
+    let lifecycle (method: string) (kind: MethodKind) () =
+        match Lifecycle.admit state method kind with
+        | Admission.Proceed -> Ok()
+        | Admission.Refuse cause -> Error(ConformanceOperationFailure.LocalLifecycleRefusal cause)
+
+    let refuse cause = channel.LocalRefused(rpcFailure cause)
+
+    // One owner covers admission, exchange and commit. Reading/correlation/cancel writes never take this gate.
+    let withAdmission
+        (cancellation: CancellationToken)
+        (guard: unit -> Result<unit, ConformanceOperationFailure>)
+        (reserve: unit -> unit)
+        (work: ConformanceOperationId -> Task<'T>)
+        (failed: ConformanceOperationId option -> ConformanceOperationFailure -> 'T) =
+        task {
+            use queued = CancellationTokenSource.CreateLinkedTokenSource([| cancellation; conformanceLifetime; channel.ConformanceToken |])
+            let mutable entered = false
+            let mutable admitted: ConformanceOperationId option = None
+            try
+                try
+                    do! operationGate.WaitAsync queued.Token
+                    entered <- true
+                    // A check performed before this acquisition grants no permission to send.
+                    let admission =
+                        match health () with
+                        | Some cause -> Error cause
+                        | None when cancellation.IsCancellationRequested -> Error(ConformanceOperationFailure.Cancelled(OperationCanceledException cancellation))
+                        | None -> guard ()
+                    match admission with
+                    | Error cause ->
+                        refuse cause
+                        return failed None cause
+                    | Ok() ->
+                        match channel.AdmitOperation() with
+                        | None ->
+                            let cause = health () |> Option.defaultValue ConformanceOperationFailure.ImplementationUnavailable
+                            refuse cause
+                            return failed None cause
+                        | Some key ->
+                            admitted <- Some key
+                            reserve ()
+                            let! result = work key
+                            if cancellation.IsCancellationRequested || conformanceLifetime.IsCancellationRequested then channel.OperationCancelled key
+                            return result
+                with error ->
+                    let cause =
+                        match health () with
+                        | Some failure -> failure
+                        | None ->
+                            match error with
+                            | :? OperationCanceledException as cancelled -> ConformanceOperationFailure.Cancelled cancelled
+                            | _ -> ConformanceOperationFailure.TransportFailed error
+                    match admitted with
+                    | Some key ->
+                        if error :? OperationCanceledException || cancellation.IsCancellationRequested || conformanceLifetime.IsCancellationRequested then channel.OperationCancelled key
+                    | None -> refuse cause
+                    return failed admitted cause
+            finally
+                if entered then operationGate.Release() |> ignore
+        }
+
+    let requestIn (operation: ConformanceOperationId option) (method: string) (parameters: JsonElement option) (cancellation: CancellationToken) =
+        match operation with
+        | Some key -> channel.RequestObservedAsync(key, method, parameters, cancellation)
+        | None ->
+            task {
+                let! result = channel.RequestAsync(method, parameters, cancellation)
+                return { Result = result; Exchange = None; Submitted = false }
+            }
+
+    let notifyIn (operation: ConformanceOperationId option) (method: string) (parameters: JsonElement option) (cancellation: CancellationToken) =
+        match operation with
+        | Some key -> channel.NotifyObservedAsync(key, method, parameters, cancellation)
+        | None ->
+            task {
+                let! result = channel.NotifyAsync(method, parameters, cancellation)
+                return { Result = result; Exchange = None; Submitted = false }
+            }
+
+    let copyOffer (offer: ModelTransportSupport) : ModelTransportSupport =
+        { Tuples = Array.AsReadOnly(Array.ofSeq offer.Tuples)
+          Limits = { MaxEncodedBytes = offer.Limits.MaxEncodedBytes; MaxDecodedBytes = offer.Limits.MaxDecodedBytes; MaxDepth = offer.Limits.MaxDepth; MaxNodes = offer.Limits.MaxNodes }
+          Guarantees = Array.AsReadOnly(Array.ofSeq offer.Guarantees) }
+
+    let bindSelectedOffer (describe: ConformanceDescribeReceipt, offer: ModelTransportSupport) =
+        // Copy before acquisition. The identical immutable candidate is validated, retained, encoded and verified.
+        let candidate = try Ok(copyOffer offer) with error -> Error(ConformanceOfferBindingFailure.InvalidOffer error)
+        match candidate with
+        | Error cause -> Error cause
+        | Ok _ when not (operationGate.Wait 0) -> Error ConformanceOfferBindingFailure.Busy
+        | Ok candidate ->
+            try
+                let rejected cause =
+                    channel.LocalRefused(RpcErrors.withMessage ErrorCode.InvalidRequest "Conformance offer binding was refused locally.")
+                    Error cause
+                match health () with
+                | Some(ConformanceOperationFailure.ChannelFailed cause) -> rejected (ConformanceOfferBindingFailure.ChannelFailed cause)
+                | Some(ConformanceOperationFailure.CaptureFailed cause) -> rejected (ConformanceOfferBindingFailure.CaptureFailed cause)
+                | Some _ -> rejected (ConformanceOfferBindingFailure.WrongState state)
+                | None ->
+                    let original = lock receiptGate (fun () -> originalReceipt)
+                    if isNull (box describe) || not (describe.BelongsTo receiptOwner) then rejected ConformanceOfferBindingFailure.ForeignReceipt
+                    elif original |> Option.forall (fun receipt -> not (obj.ReferenceEquals(receipt, describe))) then rejected ConformanceOfferBindingFailure.OriginalDescribeRequired
+                    elif initializeAttempted then rejected ConformanceOfferBindingFailure.InitializationAttempted
+                    elif boundOffer.IsSome then rejected ConformanceOfferBindingFailure.AlreadyBound
+                    elif state <> SessionState.Created then rejected (ConformanceOfferBindingFailure.WrongState state)
+                    else
+                        let tuples = advertised |> Option.map _.Tuples |> Option.defaultValue (Array.empty :> IReadOnlyList<ModelTransportTuple>)
+                        let unsupported = candidate.Tuples |> Seq.tryFind (fun selected -> not (Seq.contains selected tuples))
+                        let valid =
+                            match unsupported with
+                            | Some tuple -> Error(ModelTransportFailure.TupleNotOffered tuple)
+                            // Self-verification validates duplicates/positive limits without imposing guest limit/order on a host offer.
+                            | None -> ModelTransport.verifySelection candidate candidate |> Result.map ignore
+                        match valid with
+                        | Error cause -> rejected (ConformanceOfferBindingFailure.InvalidSelection cause)
+                        | Ok() ->
+                            match channel.AdmitOperation() with
+                            | None -> rejected (ConformanceOfferBindingFailure.CaptureFailed ConformanceCaptureFailure.ImplementationUnavailable)
+                            | Some _ ->
+                                boundOffer <- Some candidate
+                                Ok()
+            finally
+                operationGate.Release() |> ignore
+
+    let probeFailure operation cause =
+        match operation with
+        | None -> ConformanceProbeOutcome.notSubmitted cause
+        | Some key -> ConformanceProbeOutcome.incomplete key cause
+
+    let observedFailure (result: Result<'T, RpcError>) =
+        health () |> Option.defaultWith (fun () ->
+            match result with
+            | Error cause -> ConformanceOperationFailure.LocalLifecycleRefusal cause
+            | Ok _ -> ConformanceOperationFailure.CaptureFailed(ConformanceCaptureFailure.ObservationFailed(InvalidOperationException "No completed transport observation accompanies the result.")))
+
+    let sendUnknown cancellation =
+        let guard () =
+            match lifecycle "morphir.mck.unknown" MethodKind.Notification () with
+            | Error cause -> Error cause
+            | Ok() when unknownReserved -> Error ConformanceOperationFailure.ProbeAlreadyReserved
+            | Ok() -> Ok()
+        withAdmission cancellation guard (fun () -> unknownReserved <- true)
+            (fun key -> task {
+                let! observed = notifyIn (Some key) "morphir.mck.unknown" canonicalParameters cancellation
+                match observed.Result, health () with
+                | Ok(), None when observed.Submitted -> return ConformanceProbeOutcome.submitted key None
+                | _ -> return ConformanceProbeOutcome.incomplete key (observedFailure observed.Result) })
+            probeFailure
+
+    let probeAfterShutdown cancellation =
+        let guard () =
+            match state with
+            | SessionState.ShutDown _ when afterShutdownReserved -> Error ConformanceOperationFailure.ProbeAlreadyReserved
+            | SessionState.ShutDown _ -> Ok()
+            | _ -> Error(ConformanceOperationFailure.LocalLifecycleRefusal(RpcErrors.withMessage ErrorCode.InvalidRequest "The conformance ping requires a completed shutdown."))
+        withAdmission cancellation guard (fun () -> afterShutdownReserved <- true)
+            (fun key -> task {
+                let! observed = requestIn (Some key) Method.Ping.WireValue canonicalParameters cancellation
+                match observed.Exchange, health () with
+                | Some exchange, None when observed.Submitted -> return ConformanceProbeOutcome.submitted key (Some exchange.Reply)
+                | _ -> return ConformanceProbeOutcome.incomplete key (observedFailure observed.Result) })
+            probeFailure
+
+    let conformance =
+        conformanceOptions |> Option.map (fun (limits, lifetime) ->
+            ConformanceControl.Attach(channel, limits, lifetime, (fun () -> lock receiptGate (fun () -> originalReceipt)), bindSelectedOffer, sendUnknown, probeAfterShutdown))
 
     let send (method: Method) (parameters: JsonElement option) (cancellation: CancellationToken) =
-        match Lifecycle.admit state method.WireValue MethodKind.Request with
-        | Admission.Refuse error -> Task.FromResult(Error error)
-        | Admission.Proceed -> channel.RequestAsync(method.WireValue, parameters, cancellation)
+        match conformanceOptions with
+        | None ->
+            match Lifecycle.admit state method.WireValue MethodKind.Request with
+            | Admission.Refuse error -> Task.FromResult(Error error)
+            | Admission.Proceed -> channel.RequestAsync(method.WireValue, parameters, cancellation)
+        | Some _ ->
+            // A caller may dispose its source JsonDocument while this operation is queued.
+            let ownedParameters = try Ok(parameters |> Option.map _.Clone()) with error -> Error error
+            match ownedParameters with
+            | Error error ->
+                let cause = ConformanceOperationFailure.TransportFailed error
+                refuse cause
+                Task.FromResult(Error(rpcFailure cause))
+            | Ok ownedParameters ->
+                let guard () =
+                    match method with
+                    | Method.Initialize
+                    | Method.Shutdown ->
+                        Error(ConformanceOperationFailure.LocalLifecycleRefusal(RpcErrors.withMessage ErrorCode.InvalidRequest "Use the dedicated session operation for this lifecycle request."))
+                    | _ when method.Kind <> MethodKind.Request ->
+                        Error(ConformanceOperationFailure.LocalLifecycleRefusal(RpcErrors.withMessage ErrorCode.InvalidRequest "A notification cannot be submitted as a raw request."))
+                    | _ -> lifecycle method.WireValue MethodKind.Request ()
+                withAdmission cancellation guard ignore
+                    (fun key -> task { let! observed = requestIn (Some key) method.WireValue ownedParameters cancellation
+                                       return observed.Result })
+                    (fun _ cause -> Error(rpcFailure cause))
+
+    let sendTyped (info: JsonTypeInfo<'T>) (method: Method) cancellation =
+        match conformanceOptions with
+        | None -> Results.typed info (send method None cancellation)
+        | Some _ ->
+            withAdmission cancellation (lifecycle method.WireValue MethodKind.Request) ignore
+                (fun key -> task {
+                    let! observed = requestIn (Some key) method.WireValue None cancellation
+                    return! Results.typed info (Task.FromResult observed.Result) })
+                (fun _ cause -> Error(rpcFailure cause))
+
+    // Encoding and selection verification use this same effective offer on both construction policies.
+    let initializeCore (operation: ConformanceOperationId option) (effectiveOffer: ModelTransportSupport option) (cancellation: CancellationToken) =
+        let parameters =
+            JsonSerializer.SerializeToElement(
+                { ProtocolVersions = Lifecycle.protocolVersions
+                  Host = host
+                  ModelTransport = effectiveOffer },
+                MepJson.Default.InitializeParams
+            )
+        task {
+            let! observed = requestIn operation Method.Initialize.WireValue (Some parameters) cancellation
+            match observed.Result with
+            | Error error -> return Error(InitializeFailure.Refused error)
+            | Ok element ->
+                match Results.decode MepJson.Default.InitializeResult element with
+                | None -> return Error InitializeFailure.InvalidResult
+                | Some result when result.ProtocolVersion <> Lifecycle.protocolVersion ->
+                    return Error(InitializeFailure.UnexpectedVersion result.ProtocolVersion)
+                | Some result ->
+                    let selection =
+                        match effectiveOffer, result.Capabilities.ModelTransport with
+                        | _, None -> Ok None
+                        | Some offered, Some selected ->
+                            ModelTransport.verifySelection offered selected
+                            |> Result.map Some
+                            |> Result.mapError _.ToString()
+                        | None, Some _ ->
+                            Error $"The extension {result.Extension} selected model transport, which the host did not offer."
+                    match selection with
+                    | Error reason -> return Error(InitializeFailure.SelectionRefused reason)
+                    | Ok transport ->
+                        let session =
+                            { ProtocolVersion = result.ProtocolVersion
+                              Host = host
+                              Extension = result.Extension
+                              Capabilities = { result.Capabilities with ModelTransport = transport } }
+                        match operation with
+                        | None -> state <- SessionState.Initialized session
+                        | Some _ -> initializing <- Some session
+                        try
+                            let parameters = if operation.IsSome then canonicalParameters else None
+                            let! notification = notifyIn operation Method.Initialized.WireValue parameters cancellation
+                            match notification.Result with
+                            | Ok() ->
+                                match operation with
+                                | Some _ ->
+                                    match health () with
+                                    | Some cause ->
+                                        terminal <- Some cause
+                                        return Error(InitializeFailure.Refused(rpcFailure cause))
+                                    | None ->
+                                        state <- SessionState.Initialized session
+                                        return Ok session
+                                | None -> return Ok session
+                            | Error error ->
+                                if operation.IsSome then terminal <- Some(observedFailure notification.Result)
+                                return Error(InitializeFailure.Refused error)
+                        finally
+                            initializing <- None
+        }
+
+    let shutdownCore (operation: ConformanceOperationId option) (cancellation: CancellationToken) =
+        task {
+            let parameters = if operation.IsSome then canonicalParameters else None
+            let! observed = requestIn operation Method.Shutdown.WireValue parameters cancellation
+            match observed.Result, state with
+            | Ok _, SessionState.Initialized session -> state <- SessionState.ShutDown session
+            | _ -> ()
+            return observed.Result
+        }
 
     /// A host session on a framed stream pair: input carries the guest's frames and output the host's. offer is the
     /// model-transport support the host offers, or null for none.
     new(input: Stream, output: Stream, host: PeerInfo, offer: ModelTransportSupport | null) =
-        HostSession(HostChannels.ofStreams input output, host, Option.ofObj offer)
+        HostSession(HostChannels.ofStreams input output, host, Option.ofObj offer, None)
 
     /// A legacy-only host session on a framed stream pair: it offers no model transport.
     new(input: Stream, output: Stream, host: PeerInfo) =
-        HostSession(HostChannels.ofStreams input output, host, None)
+        HostSession(HostChannels.ofStreams input output, host, None, None)
 
     /// A host session on a channel to a guest that takes one message per call, such as a WASM guest. offer is the
     /// model-transport support the host offers, or null for none. The session passes one message per call, accepts
     /// at most one message back, never sends $/cancelRequest, and ends at the first violation or cancellation
     /// (see Failure).
     new(channel: ISingleMessageChannel, host: PeerInfo, offer: ModelTransportSupport | null) =
-        HostSession(HostChannels.ofSingleMessage channel, host, Option.ofObj offer)
+        HostSession(HostChannels.ofSingleMessage channel, host, Option.ofObj offer, None)
 
     /// A legacy-only host session on a channel to a guest that takes one message per call: it offers no model
     /// transport.
     new(channel: ISingleMessageChannel, host: PeerInfo) =
-        HostSession(HostChannels.ofSingleMessage channel, host, None)
+        HostSession(HostChannels.ofSingleMessage channel, host, None, None)
+
+    /// Internal opt-in on the same framed channel, with requests starting at ID1.
+    /// Owns bounded actual capture, operation admission and one-shot selected-offer binding on this session only.
+    static member internal CreateConformance
+        (input: Stream, output: Stream, host: PeerInfo, limits: ConformanceEvidenceLimits, lifetime: CancellationToken) =
+        ArgumentNullException.ThrowIfNull input
+        ArgumentNullException.ThrowIfNull output
+        ArgumentNullException.ThrowIfNull host
+        HostSession(
+            HostChannels.ofConformanceStreams limits lifetime input output,
+            host,
+            None,
+            Some(limits, lifetime)
+        )
+
+    /// Internal opt-in on the caller's same actual single-message adapter, with requests starting at ID1.
+    static member internal CreateConformance
+        (channel: ISingleMessageChannel, host: PeerInfo, limits: ConformanceEvidenceLimits, lifetime: CancellationToken) =
+        ArgumentNullException.ThrowIfNull channel
+        ArgumentNullException.ThrowIfNull host
+        HostSession(
+            HostChannels.ofConformanceSingleMessage limits lifetime channel,
+            host,
+            None,
+            Some(limits, lifetime)
+        )
+
+    /// None on ordinary constructors; attached observations and fixed conformance controls on opted-in sessions.
+    member internal _.Conformance = conformance
 
     /// Starts reading the guest's messages. The task ends when the connection ends. On a single-message channel
     /// there is nothing to read: the task ends with Stopped at exit or when the session fails, and requests do not
@@ -238,57 +584,63 @@ type HostSession
                 MepJson.Default.DescribeParams
             )
 
-        Results.typed MepJson.Default.CapabilityClaimSet (send Method.Describe (Some parameters) cancellation)
+        match conformanceOptions with
+        | None -> Results.typed MepJson.Default.CapabilityClaimSet (send Method.Describe (Some parameters) cancellation)
+        | Some _ ->
+            withAdmission cancellation (lifecycle Method.Describe.WireValue MethodKind.Request) ignore
+                (fun key -> task {
+                    let! observed = requestIn (Some key) Method.Describe.WireValue (Some parameters) cancellation
+                    match observed.Result with
+                    | Error cause -> return Error cause
+                    | Ok element ->
+                        match Results.decode MepJson.Default.CapabilityClaimSet element with
+                        | None -> return Error Results.invalidResult
+                        | Some claims ->
+                            match observed.Exchange with
+                            | Some exchange ->
+                                // The exchange accompanies the winning pending completion. No snapshot lookup or
+                                // reserialization can substitute duplicate/unsolicited bodies for this response.
+                                let support =
+                                    match claims.Capabilities.TryGetValue "modelTransport" with
+                                    | false, _ -> Ok None
+                                    | true, element ->
+                                        Results.decode MepJson.Default.ModelTransportSupport element
+                                        |> Option.map (copyOffer >> Some >> Ok)
+                                        |> Option.defaultValue (Error Results.invalidResult)
+                                match support with
+                                | Error cause -> return Error cause
+                                | Ok support ->
+                                    lock receiptGate (fun () ->
+                                        if originalReceipt.IsNone then
+                                            advertised <- support
+                                            originalReceipt <- Some(exchange.Receipt receiptOwner))
+                                    return Ok claims
+                            | _ -> return Error(rpcFailure (observedFailure observed.Result)) })
+                (fun _ cause -> Error(rpcFailure cause))
 
     /// Initializes the session: offers only 0.2.0-draft.1, checks the guest's choice and selection, and then sends
     /// morphir.initialized. When the session fails during either message, the result is Refused with the error that
     /// the session gives, and Failure says why.
     member _.InitializeAsync(cancellation: CancellationToken) : Task<Result<NegotiatedSession, InitializeFailure>> =
-        let parameters =
-            JsonSerializer.SerializeToElement(
-                { ProtocolVersions = Lifecycle.protocolVersions
-                  Host = host
-                  ModelTransport = offer },
-                MepJson.Default.InitializeParams
-            )
-
-        task {
-            match! send Method.Initialize (Some parameters) cancellation with
-            | Error error -> return Error(InitializeFailure.Refused error)
-            | Ok element ->
-                match Results.decode MepJson.Default.InitializeResult element with
-                | None -> return Error InitializeFailure.InvalidResult
-                | Some result when result.ProtocolVersion <> Lifecycle.protocolVersion ->
-                    return Error(InitializeFailure.UnexpectedVersion result.ProtocolVersion)
-                | Some result ->
-                    let selection =
-                        match offer, result.Capabilities.ModelTransport with
-                        | _, None -> Ok None
-                        | Some offer, Some selection ->
-                            ModelTransport.verifySelection offer selection
-                            |> Result.map Some
-                            |> Result.mapError _.ToString()
-                        | None, Some _ ->
-                            Error
-                                $"The extension {result.Extension} selected model transport, which the host did not offer."
-
-                    match selection with
-                    | Error reason -> return Error(InitializeFailure.SelectionRefused reason)
-                    | Ok transport ->
-                        let session =
-                            { ProtocolVersion = result.ProtocolVersion
-                              Host = host
-                              Extension = result.Extension
-                              Capabilities =
-                                { result.Capabilities with
-                                    ModelTransport = transport } }
-
-                        state <- SessionState.Initialized session
-
-                        match! channel.NotifyAsync(Method.Initialized.WireValue, None, cancellation) with
-                        | Ok() -> return Ok session
-                        | Error error -> return Error(InitializeFailure.Refused error)
-        }
+        match conformanceOptions with
+        | None ->
+            match Lifecycle.admit state Method.Initialize.WireValue MethodKind.Request with
+            | Admission.Refuse error -> Task.FromResult(Error(InitializeFailure.Refused error))
+            | Admission.Proceed -> initializeCore None offer cancellation
+        | Some _ ->
+            let guard () =
+                match lifecycle Method.Initialize.WireValue MethodKind.Request () with
+                | Error cause -> Error cause
+                | Ok() when initializeAttempted ->
+                    Error(ConformanceOperationFailure.LocalLifecycleRefusal(RpcErrors.withMessage ErrorCode.InvalidRequest "Initialize has already been attempted."))
+                | Ok() when boundOffer.IsNone ->
+                    Error(ConformanceOperationFailure.LocalLifecycleRefusal(RpcErrors.withMessage ErrorCode.InvalidRequest "A selected offer must be bound before initialize."))
+                | Ok() -> Ok()
+            withAdmission cancellation guard (fun () -> initializeAttempted <- true)
+                (fun key ->
+                    let effectiveOffer = boundOffer
+                    initializeCore (Some key) effectiveOffer cancellation)
+                (fun _ cause -> Error(InitializeFailure.Refused(rpcFailure cause)))
 
     /// Sends morphir.ping. The result is the guest's reply object.
     member _.PingAsync(cancellation: CancellationToken) : Task<Result<JsonElement, RpcError>> =
@@ -296,11 +648,11 @@ type HostSession
 
     /// Asks for the extension info.
     member _.InfoAsync(cancellation: CancellationToken) =
-        Results.typed MepJson.Default.ExtensionInfo (send Method.Info None cancellation)
+        sendTyped MepJson.Default.ExtensionInfo Method.Info cancellation
 
     /// Asks for the session capabilities.
     member _.CapabilitiesAsync(cancellation: CancellationToken) =
-        Results.typed MepJson.Default.ExtensionCapabilities (send Method.Capabilities None cancellation)
+        sendTyped MepJson.Default.ExtensionCapabilities Method.Capabilities cancellation
 
     /// Sends an extension method request, such as morphir.validator.validate, with raw params or none.
     member _.RequestAsync(method: Method, parameters: Nullable<JsonElement>, cancellation: CancellationToken) =
@@ -308,22 +660,31 @@ type HostSession
 
     /// Sends morphir.shutdown. After it, only exit is allowed. The result is the guest's reply object.
     member _.ShutdownAsync(cancellation: CancellationToken) : Task<Result<JsonElement, RpcError>> =
-        task {
-            let! reply = send Method.Shutdown None cancellation
-
-            match reply, state with
-            | Ok _, SessionState.Initialized session -> state <- SessionState.ShutDown session
-            | _ -> ()
-
-            return reply
-        }
+        match conformanceOptions with
+        | None ->
+            match Lifecycle.admit state Method.Shutdown.WireValue MethodKind.Request with
+            | Admission.Refuse error -> Task.FromResult(Error error)
+            | Admission.Proceed -> shutdownCore None cancellation
+        | Some _ ->
+            withAdmission cancellation (lifecycle Method.Shutdown.WireValue MethodKind.Request) ignore
+                (fun key -> shutdownCore (Some key) cancellation)
+                (fun _ cause -> Error(rpcFailure cause))
 
     /// Sends morphir.exit and ends the session. A session that failed passes nothing to the guest.
     member _.ExitAsync() : Task =
-        task {
-            let! _ = channel.NotifyAsync(Method.Exit.WireValue, None, CancellationToken.None)
-            state <- SessionState.Exited
-        }
+        match conformanceOptions with
+        | None ->
+            task {
+                let! _ = channel.NotifyAsync(Method.Exit.WireValue, None, CancellationToken.None)
+                state <- SessionState.Exited
+            }
+        | Some _ ->
+            withAdmission CancellationToken.None (lifecycle Method.Exit.WireValue MethodKind.Notification)
+                (fun () -> terminal <- Some(ConformanceOperationFailure.LocalLifecycleRefusal(RpcErrors.withMessage ErrorCode.InvalidRequest "Exit has been reserved.")))
+                (fun key -> task {
+                    let! _ = notifyIn (Some key) Method.Exit.WireValue canonicalParameters CancellationToken.None
+                    state <- SessionState.Exited })
+                (fun _ _ -> ())
 
 /// Lets C# callers handle an F# Result without branching on its cases.
 [<Extension; AbstractClass; Sealed>]

@@ -109,6 +109,17 @@ type SessionFailure =
 /// How a host session reaches its guest (design CHAN-1): send a request and get its reply, and send a notification.
 /// HostSession applies the lifecycle rules before it uses the channel, so both channels refuse the same requests.
 type internal IHostChannel =
+    /// Read-only projection of this transport's own recorder; absent on ordinary channels.
+    abstract ConformanceSnapshot: ConformanceSnapshot option
+    abstract ConformanceToken: CancellationToken
+    abstract ConformanceEnd: ConformanceTransportEnd option
+    abstract AdmitOperation: unit -> ConformanceOperationId option
+    abstract LocalRefused: RpcError -> unit
+    abstract OperationCancelled: ConformanceOperationId -> unit
+    abstract RequestObservedAsync:
+        operation: ConformanceOperationId * method: string * parameters: JsonElement option * cancellation: CancellationToken -> Task<ConformanceCallResult<JsonElement>>
+    abstract NotifyObservedAsync:
+        operation: ConformanceOperationId * method: string * parameters: JsonElement option * cancellation: CancellationToken -> Task<ConformanceCallResult<unit>>
     /// Runs the channel until it ends.
     abstract RunAsync: cancellation: CancellationToken -> Task<ConnectionEnd>
     /// The protocol diagnostics found so far.
@@ -130,6 +141,14 @@ type internal IHostChannel =
 [<Sealed>]
 type internal StreamChannel(connection: Connection) =
     interface IHostChannel with
+        member _.ConformanceSnapshot = connection.ConformanceSnapshot
+        member _.ConformanceToken = connection.ConformanceToken
+        member _.ConformanceEnd = connection.ConformanceEnd
+        member _.AdmitOperation() = connection.AdmitOperation()
+        member _.LocalRefused cause = connection.LocalRefused cause
+        member _.OperationCancelled operation = connection.OperationCancelled operation
+        member _.RequestObservedAsync(operation, method, parameters, cancellation) = connection.RequestObservedAsync(operation, method, parameters, cancellation)
+        member _.NotifyObservedAsync(operation, method, parameters, _) = connection.NotifyObservedAsync(operation, method, parameters)
         member _.RunAsync cancellation = connection.RunAsync cancellation
         member _.Diagnostics = connection.Diagnostics
         member _.Failure = None
@@ -148,12 +167,15 @@ type internal StreamChannel(connection: Connection) =
 /// with the request's id; for a notification, nothing. Anything else, and a cancelled call, ends the session, and
 /// after that no message reaches the guest.
 [<Sealed>]
-type internal SingleMessageChannel(guest: ISingleMessageChannel) =
+type internal SingleMessageChannel private
+    (guest: ISingleMessageChannel, idStart: RequestIdStartPolicy, capture: ConformanceCapture option) =
     let calls = new SemaphoreSlim(1, 1)
     let ended = TaskCompletionSource<ConnectionEnd>(TaskCreationOptions.RunContinuationsAsynchronously)
     let gate = obj ()
     let mutable failure: SessionFailure option = None
-    let mutable nextId = -1L
+    let mutable nextId = idStart.InitialCounter
+    let lifetimeRegistration =
+        capture |> Option.map (fun owned -> owned.Token.Register(fun () -> ended.TrySetResult ConnectionEnd.Stopped |> ignore))
 
     let fail (reason: SessionFailure) =
         lock gate (fun () ->
@@ -161,6 +183,8 @@ type internal SingleMessageChannel(guest: ISingleMessageChannel) =
                 failure <- Some reason)
 
         ended.TrySetResult ConnectionEnd.Stopped |> ignore
+        capture |> Option.iter (fun owned -> owned.End ConformanceTransportEnd.Stopped)
+        lifetimeRegistration |> Option.iter _.Dispose()
 
     /// The error of the request or notification that ended the session.
     let failedWith (reason: SessionFailure) =
@@ -193,29 +217,58 @@ type internal SingleMessageChannel(guest: ISingleMessageChannel) =
         }
 
     /// Makes one call. A cancelled token ends the call as cancelled, whatever the guest returned.
-    let invoke (method: string) (cancellation: CancellationToken) (call: unit -> Task<byte array | null>) =
+    let invoke
+        (method: string)
+        (operation: ConformanceFrameId option)
+        (cancellation: CancellationToken)
+        (transportCancellation: CancellationToken)
+        (call: CancellationToken -> Task<byte array | null>) =
+        let cancelled () =
+            cancellation.IsCancellationRequested || (capture |> Option.exists _.LifetimeIsCancelled)
         task {
             try
-                let! reply = call ()
-
-                if cancellation.IsCancellationRequested then
+                let! reply = call transportCancellation
+                let observed =
+                    match capture, operation with
+                    | Some owned, Some key ->
+                        match reply with
+                        | null ->
+                            match owned.AdapterReturned(key, null) with
+                            | Some observed -> Ok(observed |> Option.map _.Memory, observed)
+                            | None -> Error(SessionFailure.ChannelFailed(method, InvalidOperationException "Adapter observation is incomplete."))
+                        | bytes when bytes.Length > ContentLengthFraming.MaxBodyBytes ->
+                            // Retain the original channel-size failure below, without copying an invalid body.
+                            owned.Incomplete(ConformanceCaptureFailure.BodyTooLarge bytes.Length)
+                            Error(SessionFailure.ReplyTooLarge(method, bytes.Length))
+                        | bytes ->
+                            match owned.AdapterReturned(key, bytes) with
+                            | Some observed -> Ok(observed |> Option.map _.Memory, observed)
+                            | None -> Error(SessionFailure.ChannelFailed(method, InvalidOperationException "Adapter observation is incomplete."))
+                    | _ ->
+                        match reply with null -> Ok(None, None) | bytes -> Ok(Some(ReadOnlyMemory<byte> bytes), None)
+                if cancelled () then
+                    capture |> Option.iter (fun owned -> owned.Incomplete(ConformanceCaptureFailure.ObservationFailed(OperationCanceledException cancellation)))
                     return Error(SessionFailure.Cancelled method)
                 else
-                    return Ok reply
+                    return observed
             with
-            | _ when cancellation.IsCancellationRequested -> return Error(SessionFailure.Cancelled method)
-            | error -> return Error(SessionFailure.ChannelFailed(method, error))
+            | error when cancelled () ->
+                capture |> Option.iter (fun owned -> owned.Incomplete(ConformanceCaptureFailure.ObservationFailed error))
+                return Error(SessionFailure.Cancelled method)
+            | error ->
+                capture |> Option.iter (fun owned -> owned.Incomplete(ConformanceCaptureFailure.ObservationFailed error))
+                return Error(SessionFailure.ChannelFailed(method, error))
         }
 
     /// The reply to a request: the guest's response or error response for the same id.
-    let reply (method: string) (id: RequestId) (bytes: byte array | null) =
+    let reply (method: string) (id: RequestId) (bytes: ReadOnlyMemory<byte> option) =
         match bytes with
-        | null -> Error(SessionFailure.NoReply method)
-        | bytes when bytes.Length = 0 -> Error(SessionFailure.NoReply method)
-        | bytes when bytes.Length > ContentLengthFraming.MaxBodyBytes ->
+        | None -> Error(SessionFailure.NoReply method)
+        | Some bytes when bytes.Length = 0 -> Error(SessionFailure.NoReply method)
+        | Some bytes when bytes.Length > ContentLengthFraming.MaxBodyBytes ->
             Error(SessionFailure.ReplyTooLarge(method, bytes.Length))
-        | bytes ->
-            match JsonRpc.Read(ReadOnlyMemory bytes) with
+        | Some bytes ->
+            match JsonRpc.Read bytes with
             | Error refusal -> Error(SessionFailure.InvalidReply(method, refusal))
             | Ok(JsonRpcMessage.Response(replyId, result)) when replyId = id -> Ok(Ok result)
             | Ok(JsonRpcMessage.ErrorResponse(Some replyId, error)) when replyId = id -> Ok(Error error)
@@ -226,81 +279,118 @@ type internal SingleMessageChannel(guest: ISingleMessageChannel) =
 
     /// Runs one call while no other call is inside the guest, and ends the session when check refuses the result.
     let exchange
+        (admission: ConformanceOperationId option)
         (method: string)
+        (id: RequestId option)
+        (message: byte array)
         (cancellation: CancellationToken)
-        (call: unit -> Task<byte array | null>)
-        (check: byte array | null -> Result<Result<'T, RpcError>, SessionFailure>)
-        : Task<Result<'T, RpcError>> =
+        (call: CancellationToken -> Task<byte array | null>)
+        (check: ReadOnlyMemory<byte> option -> Result<Result<'T, RpcError>, SessionFailure>)
+        : Task<ConformanceCallResult<'T>> =
         task {
+            use bound =
+                CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellation,
+                    match capture with Some owned -> owned.Token | None -> CancellationToken.None
+                )
+            let effectiveCancellation = match capture with Some _ -> bound.Token | None -> cancellation
             match failure with
-            | Some reason -> return Error(endedWith reason)
+            | Some reason -> return { Result = Error(endedWith reason); Exchange = None; Submitted = false }
             | None ->
-                let! entered = enter cancellation
+                let! entered = enter effectiveCancellation
 
                 if not entered then
-                    return Error(RpcErrors.create ErrorCode.RequestCancelled)
+                    return { Result = Error(RpcErrors.create ErrorCode.RequestCancelled); Exchange = None; Submitted = false }
                 else
                     try
                         match failure with
-                        | Some reason -> return Error(endedWith reason)
+                        | Some reason -> return { Result = Error(endedWith reason); Exchange = None; Submitted = false }
                         | None ->
-                            let! outcome = invoke method cancellation call
-
-                            match outcome |> Result.bind check with
-                            | Ok result -> return result
-                            | Error reason ->
-                                fail reason
-                                return Error(failedWith reason)
+                            let prepared =
+                                match capture with
+                                | None -> Some None
+                                | Some owned ->
+                                    owned.Prepare(id, message, ConformanceSubmission.Adapter, admission)
+                                    |> Option.bind (fun key -> if owned.AdapterStarted key then Some(Some key) else None)
+                            match prepared with
+                            | None -> return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "Conformance capture cannot submit this adapter call."); Exchange = None; Submitted = false }
+                            | Some operation ->
+                                let! outcome = invoke method operation cancellation effectiveCancellation call
+                                let validatedOutcome = outcome |> Result.bind (fun (bytes, original) -> check bytes |> Result.map (fun result -> result, original))
+                                match validatedOutcome with
+                                | Ok(result, original) ->
+                                    let observed =
+                                        match capture, admission, id, original with
+                                        | Some owned, Some owner, Some requestId, Some body -> owned.CompleteExchange(owner, requestId, body)
+                                        | _ -> None
+                                    return { Result = result; Exchange = observed; Submitted = true }
+                                | Error reason ->
+                                    fail reason
+                                    return { Result = Error(failedWith reason); Exchange = None; Submitted = false }
                     finally
                         calls.Release() |> ignore
         }
 
+    let request admission method parameters cancellation =
+        let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
+        task {
+            let message = encode (JsonRpcMessage.Request(id, method, parameters))
+            return! exchange admission method (Some id) message cancellation
+                        (fun token -> guest.RequestAsync(method, ReadOnlyMemory message, token)) (reply method id)
+        }
+
+    let notify admission method parameters cancellation =
+        task {
+            let message = encode (JsonRpcMessage.Notification(method, parameters))
+            let! result =
+                exchange admission method None message cancellation
+                    (fun token -> guest.NotifyAsync(method, ReadOnlyMemory message, token))
+                    (fun bytes ->
+                        match bytes with
+                        | None -> Ok(Ok())
+                        | Some bytes when bytes.Length = 0 -> Ok(Ok())
+                        | _ -> Error(SessionFailure.AnsweredNotification method))
+            if result.Result.IsOk && method = Method.Exit.WireValue then
+                ended.TrySetResult ConnectionEnd.Stopped |> ignore
+                capture |> Option.iter (fun owned -> owned.End ConformanceTransportEnd.Stopped)
+                lifetimeRegistration |> Option.iter _.Dispose()
+            return result
+        }
+
+    /// Ordinary single-message requests start at ID0.
+    new(guest: ISingleMessageChannel) = SingleMessageChannel(guest, RequestIdStartPolicy.Product, None)
+
+    /// Uses the caller's same adapter with a per-channel conformance counter starting at ID1.
+    static member internal CreateConformance(guest: ISingleMessageChannel, limits: ConformanceEvidenceLimits, lifetime: CancellationToken) =
+        SingleMessageChannel(guest, RequestIdStartPolicy.Conformance, Some(ConformanceCapture.Create(limits, lifetime)))
+
     interface IHostChannel with
+        member _.ConformanceSnapshot = capture |> Option.map (fun owned -> owned.Snapshot())
+        member _.ConformanceToken = capture |> Option.map _.Token |> Option.defaultValue CancellationToken.None
+        member _.ConformanceEnd = capture |> Option.bind _.EndReason
+        member _.AdmitOperation() = capture |> Option.bind (fun owned -> owned.AdmitOperation())
+        member _.LocalRefused cause = capture |> Option.iter (fun owned -> owned.LocalRefused cause)
+        member _.OperationCancelled operation = capture |> Option.iter (fun owned -> owned.OperationCancelled operation)
+        member _.RequestObservedAsync(operation, method, parameters, cancellation) = request (Some operation) method parameters cancellation
+        member _.NotifyObservedAsync(operation, method, parameters, cancellation) = notify (Some operation) method parameters cancellation
         member _.RunAsync cancellation = ended.Task.WaitAsync cancellation
         member _.Diagnostics = Array.empty :> IReadOnlyList<_>
         member _.Failure = failure
 
         member _.RequestAsync(method, parameters, cancellation) =
-            let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
-
-            task {
-                let message = encode (JsonRpcMessage.Request(id, method, parameters))
-
-                return!
-                    exchange
-                        method
-                        cancellation
-                        (fun () -> guest.RequestAsync(method, ReadOnlyMemory message, cancellation))
-                        (reply method id)
-            }
+            task { let! result = request None method parameters cancellation
+                   return result.Result }
 
         member _.NotifyAsync(method, parameters, cancellation) =
-            task {
-                let message = encode (JsonRpcMessage.Notification(method, parameters))
-
-                let! result =
-                    exchange
-                        method
-                        cancellation
-                        (fun () -> guest.NotifyAsync(method, ReadOnlyMemory message, cancellation))
-                        (fun bytes ->
-                            match bytes with
-                            | null -> Ok(Ok())
-                            | bytes when bytes.Length = 0 -> Ok(Ok())
-                            | _ -> Error(SessionFailure.AnsweredNotification method))
-
-                if result.IsOk && method = Method.Exit.WireValue then
-                    ended.TrySetResult ConnectionEnd.Stopped |> ignore
-
-                return result
-            }
+            task { let! result = notify None method parameters cancellation
+                   return result.Result }
 
 /// The channels of a host session.
 [<RequireQualifiedAccess>]
 module internal HostChannels =
-    /// A channel on a framed stream pair. The guest's morphir.progress reports go to progress; state is the session's
-    /// lifecycle state, which gates the guest's messages as it gates the host's.
-    let ofStreams
+    let private ofStreamsWithPolicy
+        (idStart: RequestIdStartPolicy)
+        (conformance: (ConformanceEvidenceLimits * CancellationToken) option)
         (input: Stream)
         (output: Stream)
         (state: unit -> SessionState)
@@ -316,8 +406,40 @@ module internal HostChannels =
                 Func<string, MethodKind, Admission>(fun method kind -> Lifecycle.admit (state ()) method kind)
             )
 
-        StreamChannel(Connection(input, output, inbound, Func<bool>(fun () -> state () = SessionState.Exited)))
+        let isDone = Func<bool>(fun () -> state () = SessionState.Exited)
+
+        let connection =
+            match idStart, conformance with
+            | RequestIdStartPolicy.Product, None -> Connection(input, output, inbound, isDone)
+            | RequestIdStartPolicy.Conformance, Some(limits, lifetime) ->
+                Connection.CreateConformance(input, output, inbound, isDone, limits, lifetime)
+            | _ -> invalidOp "The internal channel policy and conformance options disagree."
+
+        StreamChannel connection
+
+    /// A channel on a framed stream pair. The guest's morphir.progress reports go to progress; state is the session's
+    /// lifecycle state, which gates the guest's messages as it gates the host's. Requests start at ID0.
+    let ofStreams input output = ofStreamsWithPolicy RequestIdStartPolicy.Product None input output
+
+    /// The same framed channel, with requests starting at ID1 for an opted-in conformance session only.
+    let ofConformanceStreams limits lifetime input output =
+        ofStreamsWithPolicy RequestIdStartPolicy.Conformance (Some(limits, lifetime)) input output
+
+    let private ofSingleMessageWithPolicy
+        (idStart: RequestIdStartPolicy)
+        (conformance: (ConformanceEvidenceLimits * CancellationToken) option)
+        (guest: ISingleMessageChannel)
+        (_: unit -> SessionState)
+        (_: ConcurrentQueue<ProgressParams>)
+        : IHostChannel =
+        match idStart, conformance with
+        | RequestIdStartPolicy.Product, None -> SingleMessageChannel guest :> IHostChannel
+        | RequestIdStartPolicy.Conformance, Some(limits, lifetime) -> SingleMessageChannel.CreateConformance(guest, limits, lifetime) :> IHostChannel
+        | _ -> invalidOp "The internal channel policy and conformance options disagree."
 
     /// A channel to a guest that takes one message per call. Such a guest cannot send a message of its own.
-    let ofSingleMessage (guest: ISingleMessageChannel) (_: unit -> SessionState) (_: ConcurrentQueue<ProgressParams>) =
-        SingleMessageChannel guest :> IHostChannel
+    let ofSingleMessage guest = ofSingleMessageWithPolicy RequestIdStartPolicy.Product None guest
+
+    /// The same single-message channel, with requests starting at ID1 for an opted-in conformance session only.
+    let ofConformanceSingleMessage limits lifetime guest =
+        ofSingleMessageWithPolicy RequestIdStartPolicy.Conformance (Some(limits, lifetime)) guest

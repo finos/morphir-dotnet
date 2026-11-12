@@ -1,0 +1,261 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "definitions": {
+    "Host": {
+      "type": "string",
+      "enum": [
+        "AppVeyor",
+        "AzurePipelines",
+        "Bamboo",
+        "Bitbucket",
+        "Bitrise",
+        "GitHubActions",
+        "GitLab",
+        "Jenkins",
+        "Rider",
+        "SpaceAutomation",
+        "TeamCity",
+        "Terminal",
+        "TravisCI",
+        "VisualStudio",
+        "VSCode"
+      ]
+    },
+    "ExecutableTarget": {
+      "type": "string",
+      "enum": [
+        "BuildE2ETests",
+        "BuildProtoPlugin",
+        "Check",
+        "CheckMorphirup",
+        "CI",
+        "CILint",
+        "CITest",
+        "Clean",
+        "CleanProtoPlugin",
+        "Compile",
+        "CreateGitHubRelease",
+        "DevWorkflow",
+        "Format",
+        "Lint",
+        "MorphirupChecksums",
+        "PackageProtoPlugin",
+        "PackAll",
+        "PackLibs",
+        "PackMorphirup",
+        "PackPlatformTarballs",
+        "PackRelease",
+        "PackTool",
+        "Precommit",
+        "PrepareRelease",
+        "ProbeMorphirNative",
+        "PublishAll",
+        "PublishCliTool",
+        "PublishExecutable",
+        "PublishExtensionTools",
+        "PublishFSharpFrontendProcess",
+        "PublishLibs",
+        "PublishLocalAll",
+        "PublishLocalLibs",
+        "PublishLocalTool",
+        "PublishRelease",
+        "PublishSingleFile",
+        "PublishSingleFileUntrimmed",
+        "PublishTool",
+        "Restore",
+        "Test",
+        "TestAll",
+        "TestBuild",
+        "TestE2E",
+        "TestExtensionInstallationAot",
+        "TestMepAot",
+        "TestMorphirupAot",
+        "TestMyriadJsonAot",
+        "TestMyriadPackages",
+        "TestProtoPlugin"
+      ]
+    },
+    "Verbosity": {
+      "type": "string",
+      "description": "",
+      "enum": [
+        "Verbose",
+        "Normal",
+        "Minimal",
+        "Quiet",
+        "Information"
+      ]
+    },
+    "FalloutBuild": {
+      "properties": {
+        "Continue": {
+          "type": "boolean",
+          "description": "Indicates to continue a previously failed build attempt"
+        },
+        "Help": {
+          "type": "boolean",
+          "description": "Shows the help text for this build assembly"
+        },
+        "Host": {
+          "description": "Host for execution. Default is 'automatic'",
+          "$ref": "#/definitions/Host"
+        },
+        "NoLogo": {
+          "type": "boolean",
+          "description": "Disables displaying the Fallout logo"
+        },
+        "Partition": {
+          "type": "string",
+          "description": "Partition to use on CI"
+        },
+        "Plan": {
+          "type": "boolean",
+          "description": "Shows the execution plan (HTML)"
+        },
+        "Profile": {
+          "type": "array",
+          "description": "Defines the profiles to load",
+          "items": {
+            "type": "string"
+          }
+        },
+        "Root": {
+          "type": "string",
+          "description": "Root directory during build execution"
+        },
+        "Skip": {
+          "type": "array",
+          "description": "List of targets to be skipped. Empty list skips all dependencies",
+          "items": {
+            "$ref": "#/definitions/ExecutableTarget"
+          }
+        },
+        "Target": {
+          "type": "array",
+          "description": "List of targets to be invoked. Default is '{default_target}'",
+          "items": {
+            "$ref": "#/definitions/ExecutableTarget"
+          }
+        },
+        "Verbosity": {
+          "description": "Logging verbosity during build execution. Default is 'Normal'",
+          "$ref": "#/definitions/Verbosity"
+        },
+        "BuildProjectFile": {
+          "type": [
+            "null",
+            "string"
+          ],
+          "description": "Path to the build project (.csproj) relative to the repository root. Defaults to 'build/_build.csproj' when unset. Read by the Fallout global tool's in-tool runner."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "properties": {
+        "ApiKey": {
+          "type": "string",
+          "description": "NuGet API key for publishing"
+        },
+        "Configuration": {
+          "type": "string",
+          "description": "Configuration to build - Default is 'Release'"
+        },
+        "deployment": {
+          "type": "string",
+          "description": "Deployment offering for PublishRelease and PackRelease: native-aot, self-contained, framework-dependent or dotnet-tool"
+        },
+        "ExecutablesDir": {
+          "type": "string",
+          "description": "Output directory for executables"
+        },
+        "ExecutableType": {
+          "type": "string",
+          "description": "Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)"
+        },
+        "ExtensionProcessesDir": {
+          "type": "string",
+          "description": "Output directory for self-contained extension process folders and archives"
+        },
+        "Global": {
+          "type": "boolean",
+          "description": "Install tool globally (true) or locally (false)"
+        },
+        "LocalSource": {
+          "type": "string",
+          "description": "Local NuGet feed directory"
+        },
+        "MorphirupBuildImage": {
+          "type": "string",
+          "description": "Linux only: publish morphirup inside this image, with this machine's .NET SDK mounted, so the executable needs that image's glibc and no newer"
+        },
+        "MorphirupContainers": {
+          "type": "array",
+          "description": "Linux only: container images with glibc and neither .NET nor libicu, in which CheckMorphirup also runs the executable",
+          "items": {
+            "type": "string"
+          }
+        },
+        "MorphirupPlatforms": {
+          "type": "array",
+          "description": "The platforms whose morphirup assets MorphirupChecksums requires (default: every platform releases build)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "NuGetSource": {
+          "type": "string",
+          "description": "NuGet source URL"
+        },
+        "OutputDir": {
+          "type": "string",
+          "description": "Output directory for packages"
+        },
+        "PluginVersion": {
+          "type": "string",
+          "description": "Version for the proto plugin release (e.g., 0.1.0)"
+        },
+        "ProtoPluginDir": {
+          "type": "string",
+          "description": "Output directory for proto plugin WASM"
+        },
+        "ReleaseAssetsDir": {
+          "type": "string",
+          "description": "Folder for the morphirup release assets and their checksum file"
+        },
+        "ReleaseDir": {
+          "type": "string",
+          "description": "Output directory for release profile artifacts"
+        },
+        "ReleaseVersion": {
+          "type": "string",
+          "description": "Version string for the new release (e.g., 0.3.0 or 0.3.0-beta.1)"
+        },
+        "Rid": {
+          "type": "string",
+          "description": "Runtime Identifier (e.g., linux-x64, win-x64, osx-arm64)"
+        },
+        "SingleFileDir": {
+          "type": "string",
+          "description": "Output directory for single-file executables"
+        },
+        "SingleFileUntrimmedDir": {
+          "type": "string",
+          "description": "Output directory for untrimmed single-file executables"
+        },
+        "TestHangTimeout": {
+          "type": "string",
+          "description": "Time with no test progress after which a Microsoft.Testing.Platform test run takes a hang dump and stops - Default is '10m'"
+        },
+        "ToolDllDir": {
+          "type": "string",
+          "description": "Output directory for tool DLLs"
+        }
+      }
+    },
+    {
+      "$ref": "#/definitions/FalloutBuild"
+    }
+  ]
+}

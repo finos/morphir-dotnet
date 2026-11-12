@@ -6,26 +6,25 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Morphir.Build.Helpers;
-using Nuke.Common;
-using Nuke.Common.IO;
-using Nuke.Common.ProjectModel;
-using Nuke.Common.Tooling;
-using Nuke.Common.Tools.DotNet;
-using Nuke.Common.Utilities.Collections;
+using Fallout.Common;
+using Fallout.Common.IO;
+using Fallout.Common.Tooling;
+using Fallout.Common.Tools.DotNet;
+using Fallout.Common.Utilities.Collections;
 using SemVersion;
-using static Nuke.Common.Tools.DotNet.DotNetTasks;
+using static Fallout.Common.Tools.DotNet.DotNetTasks;
 
 /// <summary>
-/// Morphir .NET build orchestration using Nuke
-/// Migrated from justfile + C# scripts to provide strongly-typed, cross-platform build automation
+/// Morphir .NET build orchestration using Fallout (https://fallout.build/).
+/// Migrated from Nuke, which replaced the justfile and C# scripts.
 /// </summary>
-partial class Build : NukeBuild
+partial class Build : FalloutBuild
 {
     /// Support plugins are available for:
-    ///   - JetBrains ReSharper        https://nuke.build/resharper
-    ///   - JetBrains Rider            https://nuke.build/rider
-    ///   - Microsoft VisualStudio     https://nuke.build/visualstudio
-    ///   - Microsoft VSCode           https://nuke.build/vscode
+    ///   - JetBrains ReSharper        https://fallout.build/resharper
+    ///   - JetBrains Rider            https://fallout.build/rider
+    ///   - Microsoft VisualStudio     https://fallout.build/visualstudio
+    ///   - Microsoft VSCode           https://fallout.build/vscode
 
     public static int Main() => Execute<Build>(x => x.Compile);
 
@@ -128,10 +127,11 @@ partial class Build : NukeBuild
         ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
         ("Morphir.Extensions", SourceDirectory / "Morphir.Extensions" / "Morphir.Extensions.fsproj", true),
         ("Morphir.Analyzers", SourceDirectory / "Morphir.Analyzers" / "Morphir.Analyzers.fsproj", true),
-        // The WASM extension runtime (Wasmtime and the embedded Extism kernel) and the compatibility kit runner;
-        // Morphir.Tooling depends on both, so both are published before it.
+        // Product tooling depends on the WASM runtime. Kit runners belong to the separate development entry point.
         ("Morphir.Extensions.Wasm", SourceDirectory / "Morphir.Extensions.Wasm" / "Morphir.Extensions.Wasm.csproj", true),
-        ("Morphir.Conformance", SourceDirectory / "Morphir.Conformance" / "Morphir.Conformance.fsproj", true),
+        // Tooling shares the Windows launch owner in IO, which depends on the pure contracts.
+        ("Morphir.Toolchain", SourceDirectory / "Morphir.Toolchain" / "Morphir.Toolchain.fsproj", true),
+        ("Morphir.Toolchain.IO", SourceDirectory / "Morphir.Toolchain.IO" / "Morphir.Toolchain.IO.fsproj", true),
         ("Morphir.Tooling", MorphirToolingProject, true),
         ("Morphir", MorphirProject, true),
         ("Morphir.SDK.FSharp", MorphirSDKFSharpProject, true),

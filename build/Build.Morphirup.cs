@@ -8,8 +8,8 @@ using System.IO.Compression;
 using System.Linq;
 using System.Formats.Tar;
 using Morphir.Build.Helpers;
-using Nuke.Common;
-using Nuke.Common.IO;
+using Fallout.Common;
+using Fallout.Common.IO;
 
 /// <summary>
 /// The release artifacts of the morphirup manager, and a check on them. The release workflow and the pull request
@@ -82,7 +82,8 @@ partial class Build
             string[] arguments =
             [
                 "publish", RootDirectory / "src" / "Morphirup" / "Morphirup.fsproj",
-                "-c", Configuration.ToString(), "-r", Rid!, "-o", publish, "-nologo", "-nodeReuse:false",
+                "-c", Configuration.ToString(), "-r", Rid!, "-o", publish, "-nologo", "-m:1", "-nodeReuse:false",
+                "-p:BuildInParallel=false", "-p:UseSharedCompilation=false",
                 "-p:PublishAot=true", "-p:CopyOutputSymbolsToPublishDirectory=false",
                 $"-p:{TargetSettings.RidSpecificPublishProperty}=true",
             ];

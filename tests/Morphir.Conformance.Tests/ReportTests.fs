@@ -122,17 +122,26 @@ let tests =
                     "module digest"
         }
 
-        test "The report holds no qualification verdict and says so" {
+        test "The report starts with the pinned schema and records the normative verdict" {
             let node = JsonNode.Parse(Encoding.UTF8.GetString(bytes.Force()))
-            let all = names node
 
-            for forbidden in [ "verdict"; "qualified"; "qualification" ] do
-                Expect.isFalse (List.contains forbidden all) $"no {forbidden} member"
+            Expect.equal
+                (node.AsObject()
+                 |> Seq.head
+                 |> fun pair -> pair.Key)
+                "$schema"
+                "schema is the first member"
 
-            Expect.stringContains
-                (node["qualificationNotice"].GetValue<string>())
-                "no qualification verdict"
-                "the notice"
+            Expect.equal
+                (node["$schema"].GetValue<string>())
+                "https://morphir.finos.org/schemas/mep-wasm-host-kit/0.1.0-draft.1/report.schema.json"
+                "pinned schema"
+
+            Expect.isFalse
+                (node["verdict"].["qualified"].GetValue<bool>())
+                "failed case and missing guest evidence"
+
+            Expect.isNull node["qualificationNotice"] "obsolete notice removed"
         }
 
         test "The same observations give the same bytes" {
@@ -146,6 +155,78 @@ let tests =
                     "read and written again"
             | Error problems -> failtest (String.concat "\n" problems)
         }
+
+        test "deadline margin uses the schema's positive numeric wire shape" {
+            use document =
+                System.Text.Json.JsonDocument.Parse(System.ReadOnlyMemory(bytes.Force()))
+
+            let margin =
+                document.RootElement.GetProperty("suite").GetProperty("deadlineMarginSeconds")
+
+            Expect.equal
+                margin.ValueKind
+                System.Text.Json.JsonValueKind.Number
+                "a JSON number, not decimal text"
+
+            Expect.equal
+                (margin.GetDecimal())
+                (subset.Force()).Kit.DeadlineMarginSeconds
+                "exact decimal value"
+
+            match HostReport.parse (subset.Force()) (bytes.Force()) with
+            | Ok _ -> ()
+            | Error errors -> failtest (String.concat "\n" errors)
+
+            let legacyText =
+                edit (fun node -> node["suite"].["deadlineMarginSeconds"] <- JsonValue.Create("1"))
+
+            match HostReport.parse (subset.Force()) legacyText with
+            | Error errors ->
+                Expect.exists
+                    errors
+                    (fun error -> error.Contains "positive JSON number")
+                    "text is refused at the reader boundary"
+            | Ok _ -> failtest "A textual deadline margin is not the advertised schema"
+        }
+
+        for citationExists in [ false; true ] do
+            testCase
+                $"public report check refuses unchecked citation even with matching digests exists={citationExists}"
+                (fun () ->
+                    let fake = host []
+                    use _ = fake.Sandbox
+                    let citationPath = fake.Sandbox.PathOf "guest-report.json"
+
+                    if citationExists then
+                        System.IO.File.WriteAllText(
+                            citationPath,
+                            "{\"verdict\":{\"qualified\":true,\"reasons\":[]}}"
+                        )
+
+                    let citation: GuestKitCitation = {
+                        Profile = Profile.ExtismKernelV1
+                        Report = citationPath
+                        ReportSha256 =
+                            if citationExists then
+                                HostRunner.fileSha256 citationPath
+                            else
+                                String.replicate 64 "2"
+                        HostSha256 = (report.Force()).Host.Sha256
+                        GuestModuleSha256 = String.replicate 64 "4"
+                    }
+
+                    let withCitation =
+                        { report.Force() with
+                            GuestKitCitations = [ citation ]
+                        }
+
+                    Expect.exists
+                        (problems (check (HostReport.toUtf8 withCitation)))
+                        (fun error ->
+                            error.Contains "generic guest kit report checker is unavailable"
+                        )
+                        "matching file and caller digests cannot replace the missing checker"
+                )
 
         // Spec "Known deviations are recorded, not hidden".
         test "A known deviation explains a failure and does not turn it into a pass" {
@@ -219,7 +300,7 @@ let tests =
                 "named"
         }
 
-        test "report-check refuses a report with a verdict added" {
+        test "report-check retains its stricter refusal of an unrecorded extra member" {
             let edited = edit (fun node -> node["qualified"] <- true)
 
             Expect.exists
@@ -366,27 +447,34 @@ let tests =
         }
 
         // Spec "A host does not qualify on crafted cases alone": Guest evidence from another executable.
-        test "report-check refuses a guest kit citation of another executable" {
-            let edited =
-                edit (fun node ->
-                    let citation = JsonObject()
-                    citation["report"] <- "guest-run.json"
-                    citation["reportSha256"] <- String.replicate 64 "2"
-                    citation["hostSha256"] <- String.replicate 64 "3"
-                    citation["guestModuleSha256"] <- String.replicate 64 "4"
-                    node["guestKitCitation"] <- citation
-                )
+        test "another executable citation is a verdict reason rather than a checker problem" {
+            let citation: GuestKitCitation = {
+                Profile = Profile.ExtismKernelV1
+                Report = "guest-run.json"
+                ReportSha256 = String.replicate 64 "2"
+                HostSha256 = String.replicate 64 "3"
+                GuestModuleSha256 = String.replicate 64 "4"
+            }
 
-            Expect.exists
-                (problems (check edited))
-                (fun problem -> problem.Contains "records the host executable digest")
-                "named"
+            let withCitation =
+                { report.Force() with
+                    GuestKitCitations = [ citation ]
+                }
+
+            match HostReport.checkContract (subset.Force()) (HostReport.toUtf8 withCitation) with
+            | Error errors -> failtest (String.concat "\n" errors)
+            | Ok verdict ->
+                Expect.stringContains
+                    (Json.compact verdict)
+                    "guest_kit_host_mismatch"
+                    "normative verdict reason in synthetic policy data"
         }
 
         // Spec "A host does not qualify on crafted cases alone": Refusals pass but compile fails.
-        test "A report never records a host as qualified, with or without a guest kit citation" {
+        test "A report records the verdict and a per-profile citation list" {
             let all = names (JsonNode.Parse(Encoding.UTF8.GetString(bytes.Force())))
-            Expect.isFalse (List.contains "qualified" all) "no qualified member"
-            Expect.contains all "guestKitCitation" "the citation member is always written"
+            Expect.contains all "qualified" "computed verdict"
+            Expect.contains all "guestKitCitations" "the citation list is always written"
+            Expect.isFalse (List.contains "guestKitCitation" all) "singular citation removed"
         }
     ]

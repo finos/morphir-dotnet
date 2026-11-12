@@ -37,6 +37,8 @@ type Deviation = {
 /// A passing run of the generic guest kit through the same host executable, cited by the report (spec "A
 /// host does not qualify on crafted cases alone").
 type GuestKitCitation = {
+    /// The execution profile covered by this guest run.
+    Profile: Profile
     /// The path of the cited report.
     Report: string
     /// The SHA-256 of the cited report's bytes.
@@ -89,7 +91,7 @@ type WasmHostReport = {
     Limits: RunLimits
     /// What the started events declared about each bound.
     Bounds: Map<Bound, BoundDeclaration>
-    GuestKit: GuestKitCitation option
+    GuestKitCitations: GuestKitCitation list
     Cases: HostCaseResult list
 }
 
@@ -269,7 +271,7 @@ module HostRunner =
                             }
                             Limits = options.Limits
                             Bounds = bounds
-                            GuestKit = options.GuestKit
+                            GuestKitCitations = Option.toList options.GuestKit
                             Cases = cases
                         }
         }

@@ -231,9 +231,9 @@ You can set the build configuration using the `--configuration` parameter:
 
 By default, commands use `Release` configuration.
 
-### Migration from Just
+### Build system
 
-This project was recently migrated from Just to Nuke. See [NUKE_MIGRATION.md](NUKE_MIGRATION.md) for the complete migration guide and command mappings. The old `justfile` is preserved for reference.
+The build runs on [Fallout](https://github.com/Fallout-build/Fallout) 10.5.0, the successor to Nuke. `./build.sh`, `build.ps1`, and `build.cmd` are the entry points. Target names are unchanged from the earlier Just-to-Nuke move, which is recorded in [NUKE_MIGRATION.md](NUKE_MIGRATION.md).
 
 ## Developing
 
@@ -512,6 +512,11 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 SDK runtime delivery and archival evidence is recorded in the [runtime delivery record](docs/design/dotnet-csharp-generation/sdk-runtime-delivery.md). The canonical [C# runtime spec](openspec/specs/csharp-sdk-runtime/spec.md), [F# package spec](openspec/specs/fsharp-sdk-packaging/spec.md), and stable [C# API handoff](openspec/changes/archive/2026-11-03-add-immutable-csharp-sdk/api-handoff.md) describe the landed runtimes. SDK archive #472 landed; source SDK worktrees and their owned artifacts were removed. Empty shared archive directory cleanup remains pending with the recorded permission/policy limitations.
 
 ## OpenSpec change proposals
+
+The [extension installation library](src/Morphir.Extensions.Installation/README.md)
+documents the implemented distribution parsers, platform mappings and MEP
+eligibility checks, along with the remaining installer work tracked by #558.
+Extension installation commands are not implemented yet.
 
 The [Morphir Compatibility Kit seed](conformance/README.md) contains portable
 F# frontend cases, a closed step vocabulary and the deterministic library runner.
