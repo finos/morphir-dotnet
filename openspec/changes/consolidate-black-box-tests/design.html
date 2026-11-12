@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>consolidate-black-box-tests: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .edge { stroke: var(--muted); fill: none; }
+svg .note { fill: var(--muted); font-size: 12px; }
+svg .head { fill: var(--muted); }
+svg .life { stroke: var(--line); stroke-dasharray: 4 4; fill: none; }
+svg .ret { stroke-dasharray: 6 4; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>consolidate-black-box-tests: design</h1>
+<p class="meta">OpenSpec change | 2026-11-12 | approved for implementation on 2026-11-12 (revision 8; the seventh independent review gave VERDICT: APPROVED)</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#shape">Shape of the design</a></li>
+<li><a href="#flow">Flow of a test run</a></li>
+<li><a href="#sequence">Sequence of one scenario</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the motivation. The facts below shape the approach. The times are
+from a macOS arm64 machine, summed for each test (each assembly runs its tests in parallel).</p>
+
+<table>
+<thead><tr><th>Where</th><th>What is there now</th><th>Consequence</th></tr></thead>
+<tbody>
+<tr><td><code>tests/Morphir.Tooling.Tests</code></td>
+<td>1,269 tests, 1,059 s. <code>Features/Generate</code> 381 s, <code>Features/Compile</code> 270 s,
+<code>Features/Configuration</code> 178 s, migrations 109 s, <code>Integration/CLI</code> 57 s. The other 486
+tests take 35 s. 16 feature files.</td>
+<td>The slow tests start the CLI as a process. They are beside unit tests in one assembly.</td></tr>
+<tr><td><code>CliTestHelper</code></td>
+<td>Starts the CLI with <code>dotnet run --project ... --no-build</code>. One start takes 0.35 s. The built
+assembly (<code>dotnet morphir.dll</code>) takes 0.02 s for the same command.</td>
+<td>Each CLI test pays for an MSBuild evaluation.</td></tr>
+<tr><td><code>tests/Morphir.E2E.Tests</code></td>
+<td>11 feature files. <code>ExecutableLocator</code> and <code>ExecutableRunner</code> select the executable from
+<code>MORPHIR_EXECUTABLE_TYPE</code> (<code>aot</code>, <code>trimmed</code>, <code>untrimmed</code>,
+<code>tool</code>, and four packaged offerings) or from <code>MORPHIR_EXECUTABLE_PATH</code>. When a form is
+missing, the locator can use another published form. The type <code>tool</code> is the build output of
+<code>src/Morphir.Tool</code>, not a published folder. The project also has 58 framework test methods in 13
+classes: 17 in <code>Features/</code> and <code>Infrastructure/</code>, and 41 in the nine classes of
+<code>InfrastructureTests/</code>, which test the helpers. Not in pull request CI.</td>
+<td>A second set of helpers that do the work of <code>CliTestHelper</code>. A move of the feature files alone
+loses the framework tests.</td></tr>
+<tr><td><code>tests/Morphir.TestSupport</code> (C#)</td>
+<td><code>TestSandbox</code> (contained home, machine locations, work area), <code>ChildProcess</code> (time
+limit, process tree stop), <code>ProcessGate</code> (a limit on child processes inside one test process,
+<code>MORPHIR_TEST_MAX_PROCESSES</code>; each test process has its own gate), <code>PhysicalTempDirectory</code>, <code>MachineTripwire</code>.</td>
+<td>The parts of a driver exist. No interface joins them.</td></tr>
+<tr><td><code>src/Morphir.Conformance</code></td>
+<td>The compatibility kit: an <code>Adapter</code> type with <code>library</code> and <code>cli</code> adapters,
+Gherkin suites in <code>conformance/suites/</code> with a closed step vocabulary.</td>
+<td>The driver pattern exists for the kit. The kit belongs to finos/morphir, so its vocabulary stays apart. The
+library references <code>Morphir.Compilation</code> and <code>Morphir.Mep</code>, so a project that references
+it sees product assemblies.</td></tr>
+<tr><td><code>MorphirApplication.Run(args, host)</code></td>
+<td>Returns the exit code. It writes to the process console and uses the process working directory and
+environment.</td>
+<td>An in-process run of the CLI is not safe in parallel. See <a href="#drv-3">DRV-3</a>.</td></tr>
+<tr><td><code>build/Helpers/TestPlan.cs</code></td>
+<td>The suites of the <code>Test</code> target, the scopes <code>all</code> and <code>platform</code>, and the
+rules <code>WithSourceProjects()</code> and <code>Alone()</code>.</td>
+<td>A suite is one assembly. A group of one assembly must become a suite.</td></tr>
+<tr><td>Other projects</td>
+<td>A source scan finds 128 test files in 25 projects that start a process, run a build or read a built
+artifact (<a href="evidence/inventory.md">evidence/inventory.md</a>). Examples outside the two large projects:
+<code>Morphir.Tests/Hosts/MckRoutingTests.cs</code> and
+<code>Morphir.Managed.Tests/ManagedMckRoutingTests.cs</code> start a built host and use no product type; five
+files of <code>Morphir.Build.Tests</code> (package structure, metadata, dependencies, assembly versions, local
+installation) test the packed packages and use no product type; <code>Morphir.Toolchain.Tests/GlobalizationTests.fs</code>
+reads built assemblies and a runtime configuration file and uses no product type.</td>
+<td>The migration needs an inventory of the repository, not a list of two projects.</td></tr>
+<tr><td>Agent skills</td>
+<td>Canonical copies in <code>.agents/skills/</code>; <code>scripts/sync-agent-skills.fsx</code> copies the
+owned skills to <code>.claude/skills</code> and <code>.grok/skills</code> and checks them in CI. Reviewer agents
+exist in four formats for <code>fsharp-csharp-interop</code>.</td>
+<td>The <code>test-manager</code> skill uses the same structure.</td></tr>
+</tbody>
+</table>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong></p>
+<ul>
+<li>One place and one form for a black-box test, so that a person or an agent knows where a new one goes.</li>
+<li>One way to start, contain and stop the product in a test, used by the new project and by the tests that have
+not moved yet.</li>
+<li>The build runs a purpose group as a unit, in parallel with other units, with its own time in the report.</li>
+<li>The same scenario runs against the development build and against each published form.</li>
+<li>Rules that a program can check are guard tests, so the skill is not the only enforcement.</li>
+</ul>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>No single large pull request. The change is the complete migration, in six pull requests
+(<a href="#migration">migration plan</a>).</li>
+<li>No change to the compatibility kit, its suites or its step vocabulary.</li>
+<li>No in-process run of the CLI (<a href="#drv-3">DRV-3</a>).</li>
+<li>No change of a unit test, a property test or a time-budget test into Gherkin.</li>
+<li>No new CI job. The groups run in the existing <code>test</code> jobs, and the Native AOT checks keep their
+step in the Linux job.</li>
+</ul>
+
+<h2 id="shape">Shape of the design</h2>
+<svg viewBox="0 0 920 420" role="img" aria-labelledby="shape-title shape-desc">
+<title id="shape-title">Layers of the black-box test design</title>
+<desc id="shape-desc">Feature files call step classes. Step classes call driver interfaces. Drivers use the
+workspace and the process runner to run a target, which is a built artifact of the product.</desc>
+<rect class="box" x="20" y="20" width="880" height="70" rx="6"/>
+<text x="36" y="46" font-weight="600">tests/Morphir.BlackBox.Tests (Gherkin, Reqnroll on TUnit)</text>
+<text class="note" x="36" y="70">Integration/ @integration   EndToEnd/ @e2e   Smoke/ @smoke   Journeys/ @journey   +   Steps/ (one class for each capability)</text>
+<path class="edge" d="M460 90 V118"/>
+<rect class="box" x="20" y="118" width="880" height="118" rx="6"/>
+<text x="36" y="144" font-weight="600">tests/Morphir.TestSupport: Drivers (no reference to a product assembly)</text>
+<rect class="box" x="36" y="158" width="200" height="62" rx="4"/>
+<text x="48" y="182">Capability interfaces</text>
+<text class="note" x="48" y="202">ICliDriver, IGenerationDriver, ...</text>
+<rect class="box" x="250" y="158" width="200" height="62" rx="4"/>
+<text x="262" y="182">IScenarioWorkspace</text>
+<text class="note" x="262" y="202">folders, fixtures, home, temp</text>
+<rect class="box" x="464" y="158" width="200" height="62" rx="4"/>
+<text x="476" y="182">TestTarget, MorphirHost</text>
+<text class="note" x="476" y="202">closed sets: 6 forms, 3 hosts</text>
+<rect class="box" x="678" y="158" width="206" height="62" rx="4"/>
+<text x="690" y="182">CommandResult + assertions</text>
+<text class="note" x="690" y="202">exit code, stdout, stderr, files</text>
+<path class="edge" d="M460 236 V264"/>
+<rect class="box" x="20" y="264" width="880" height="62" rx="6"/>
+<text x="36" y="290" font-weight="600">Existing parts, used by the drivers</text>
+<text class="note" x="36" y="312">TestSandbox   ChildProcess   ProcessGate   PhysicalTempDirectory   MachineTripwire</text>
+<path class="edge" d="M460 326 V354"/>
+<rect class="box" x="20" y="354" width="880" height="50" rx="6"/>
+<text x="36" y="384">Built artifacts only: build output, published executables, packaged offerings, packed packages, library hosts</text>
+</svg>
+
+<p>A scenario, its steps and a driver, for the first slice:</p>
+<pre><code class="language-console">@integration @generation
+Feature: Generate C# from a Morphir model
+
+  Scenario: A classic model generates a library that compiles
+    Given the model fixture "car-rental-v3.json"
+    When I generate "csharp" from the model
+    Then the command succeeds with one JSON report
+    And the generated files include "CarRental/Pricing.cs"</code></pre>
+<pre><code class="language-console">// Steps/GenerationSteps.cs: no process, no path of the machine, no environment variable.
+[When("I generate {string} from the model")]
+public async Task Generate(string target) =&gt;
+    run.Result = await generation.GenerateAsync(workspace.Model, target, workspace.Output);
+
+// Morphir.TestSupport.Drivers
+public interface IGenerationDriver
+{
+    Task&lt;CommandResult&gt; GenerateAsync(WorkspaceFile model, string target, WorkspaceDirectory output,
+        GenerationOptions? options = null, CancellationToken cancellation = default);
+}</code></pre>
+
+<h2 id="flow">Flow of a test run</h2>
+<p>How a test job gets from one compile to one report row for each suite. A group of the black-box project is a suite, as a unit test assembly is (<a href="#grp-1">GRP-1</a>). The flow is the same on a developer machine with <code>./build.sh --target Test</code>. The diagram shows three groups; the end-to-end group is a suite in the same way from the pull request that adds its first test with no lane. The packages lane and the Native AOT lane are separate runs after their steps (<a href="#grp-1">GRP-1</a>).</p>
+<svg viewBox="0 0 940 560" role="img" aria-labelledby="flow-title flow-desc"><title id="flow-title">Flow of a test run</title><desc id="flow-desc">The test job compiles once. The Test target asks the plan for the suites of the scope. Unit test assemblies and the groups of the black-box project are suites. The runner starts one process for each suite, in parallel, and writes one report row for each.</desc><defs><marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="head"/></marker></defs><rect class="box" x="330" y="14" width="280" height="48" rx="6"/><text x="342" y="36" font-weight="600">Test job (development.yml)</text><text class="note" x="342" y="55">one for each operating system</text><path class="edge" d="M470 62 L470 84" marker-end="url(#fa)"/><rect class="box" x="330" y="84" width="280" height="48" rx="6"/><text x="342" y="106" font-weight="600">Build step: Restore + Compile</text><text class="note" x="342" y="125">once; later steps skip both</text><path class="edge" d="M470 132 L470 154" marker-end="url(#fa)"/><rect class="box" x="330" y="154" width="280" height="48" rx="6"/><text x="342" y="176" font-weight="600">Test target</text><text class="note" x="342" y="195">--test-scope, --test-parallelism</text><path class="edge" d="M470 202 L470 224" marker-end="url(#fa)"/><rect class="box" x="250" y="224" width="440" height="64" rx="6"/><text x="262" y="246" font-weight="600">TestPlan.Select(scope, suites)</text><text class="note" x="262" y="265">all: every suite</text><text class="note" x="262" y="282">platform: marked unit suites + every black-box group</text><path class="edge" d="M360 288 L170 322" marker-end="url(#fa)"/><path class="edge" d="M430 288 L400 322" marker-end="url(#fa)"/><path class="edge" d="M510 288 L620 322" marker-end="url(#fa)"/><path class="edge" d="M580 288 L820 322" marker-end="url(#fa)"/><rect class="box" x="40" y="322" width="250" height="64" rx="6"/><text x="52" y="344" font-weight="600">Unit test assemblies</text><text class="note" x="52" y="363">Morphir.Models.Tests, ...</text><text class="note" x="52" y="380">one process each</text><rect class="box" x="310" y="322" width="190" height="64" rx="6"/><text x="322" y="344" font-weight="600">BlackBox: integration</text><text class="note" x="322" y="363">integration, no lane tests</text><rect class="box" x="520" y="322" width="190" height="64" rx="6"/><text x="532" y="344" font-weight="600">BlackBox: smoke</text><text class="note" x="532" y="363">smoke, no lane tests</text><rect class="box" x="730" y="322" width="190" height="64" rx="6"/><text x="742" y="344" font-weight="600">BlackBox: journey</text><text class="note" x="742" y="363">journey, no lane tests</text><path class="edge" d="M165 386 L363 424" marker-end="url(#fa)"/><path class="edge" d="M405 386 L447 424" marker-end="url(#fa)"/><path class="edge" d="M615 386 L521 424" marker-end="url(#fa)"/><path class="edge" d="M825 386 L594 424" marker-end="url(#fa)"/><rect class="box" x="190" y="424" width="560" height="64" rx="6"/><text x="202" y="446" font-weight="600">Runner: next suite that can start</text><text class="note" x="202" y="465">at most N at the same time; suites that build source projects one at a time;</text><text class="note" x="202" y="482">a suite with time budgets alone</text><path class="edge" d="M470 488 L470 508" marker-end="url(#fa)"/><rect class="box" x="190" y="508" width="560" height="40" rx="6"/><text x="202" y="530" font-weight="600">Report: one row for each suite (log and job summary); exit code 8 = no test selected</text></svg>
+
+<h2 id="sequence">Sequence of one scenario</h2>
+<p>The calls of one integration scenario, from the first hook to the clean-up. The target is resolved once, before the first test of the run (<a href="#drv-2">DRV-2</a>); a scenario only
+gets the drivers of that target. A step never reaches the process or the machine: messages 6 to 10 go through the driver interfaces (<a href="#drv-1">DRV-1</a>, <a href="#drv-4">DRV-4</a>). A dashed line is a return.</p>
+<svg viewBox="0 0 980 668" role="img" aria-labelledby="seq-title seq-desc"><title id="seq-title">Sequence of one black-box scenario</title><desc id="seq-desc">The target of the run is resolved once before the first test. A hook makes the workspace and gets the drivers of that target. A step calls a capability driver, which calls the CLI driver, which starts the product process with the workspace, a time limit and the process gate. The result returns as a CommandResult, an assertion checks it, and a hook stops the processes and removes the workspace.</desc><defs><marker id="sa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="head"/></marker></defs><rect class="box" x="22" y="10" width="96" height="30" rx="5"/><text x="70" y="30" text-anchor="middle">Reqnroll</text><path class="life" d="M70 40 V656"/><rect class="box" x="147" y="10" width="96" height="30" rx="5"/><text x="195" y="30" text-anchor="middle">Hooks</text><path class="life" d="M195 40 V656"/><rect class="box" x="272" y="10" width="96" height="30" rx="5"/><text x="320" y="30" text-anchor="middle">Workspace</text><path class="life" d="M320 40 V656"/><rect class="box" x="387" y="10" width="136" height="30" rx="5"/><text x="455" y="30" text-anchor="middle">GenerationSteps</text><path class="life" d="M455 40 V656"/><rect class="box" x="534" y="10" width="152" height="30" rx="5"/><text x="610" y="30" text-anchor="middle">IGenerationDriver</text><path class="life" d="M610 40 V656"/><rect class="box" x="712" y="10" width="96" height="30" rx="5"/><text x="760" y="30" text-anchor="middle">ICliDriver</text><path class="life" d="M760 40 V656"/><rect class="box" x="828" y="10" width="144" height="30" rx="5"/><text x="900" y="30" text-anchor="middle">morphir (target)</text><path class="life" d="M900 40 V656"/><path class="edge" d="M70 80 L193 80" marker-end="url(#sa)"/><text class="note" x="78" y="74">1. BeforeScenario</text><path class="edge" d="M195 118 L318 118" marker-end="url(#sa)"/><text class="note" x="203" y="112">2. create (work area, home, temp)</text><path class="edge" d="M195 156 L758 156" marker-end="url(#sa)"/><text class="note" x="203" y="150">3. get the drivers of the target (resolved once, before the first test)</text><path class="edge" d="M195 186 h34 v14 h-28" marker-end="url(#sa)"/><text class="note" x="237" y="197">4. one eligibility decision: lane, host, capabilities (one skip reason)</text><path class="edge" d="M70 232 L453 232" marker-end="url(#sa)"/><text class="note" x="78" y="226">5. When I generate "csharp" from the model</text><path class="edge" d="M455 270 L608 270" marker-end="url(#sa)"/><text class="note" x="463" y="264">6. GenerateAsync(model, target, output)</text><path class="edge" d="M610 308 L758 308" marker-end="url(#sa)"/><text class="note" x="618" y="302">7. RunAsync("generate --input ... --json")</text><path class="edge" d="M760 346 L898 346" marker-end="url(#sa)"/><text class="note" x="892" text-anchor="end" y="340">8. start process: workspace environment, time limit, process gate</text><path class="edge ret" d="M900 384 L762 384" marker-end="url(#sa)"/><text class="note" x="892" text-anchor="end" y="378">9. exit code, standard output, standard error</text><path class="edge ret" d="M760 422 L457 422" marker-end="url(#sa)"/><text class="note" x="463" y="416">10. CommandResult (and the files that the command wrote)</text><path class="edge" d="M70 460 L453 460" marker-end="url(#sa)"/><text class="note" x="78" y="454">11. Then the command succeeds with one JSON report</text><path class="edge" d="M455 490 h34 v14 h-28" marker-end="url(#sa)"/><text class="note" x="497" y="501">12. CommandResultAssertions</text><path class="edge" d="M70 536 L193 536" marker-end="url(#sa)"/><text class="note" x="78" y="530">13. AfterScenario</text><path class="edge" d="M195 574 L758 574" marker-end="url(#sa)"/><text class="note" x="203" y="568">14. stop the processes of the scenario</text><path class="edge" d="M195 612 L318 612" marker-end="url(#sa)"/><text class="note" x="203" y="606">15. remove (or keep, if the scenario failed and MORPHIR_TEST_KEEP=failed)</text></svg>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="proj-1">PROJ-1. One C# project, four folders</h3>
+<p><code>tests/Morphir.BlackBox.Tests</code> is one TUnit project with Reqnroll. The folders
+<code>Integration</code>, <code>EndToEnd</code>, <code>Smoke</code> and <code>Journeys</code> hold the feature
+files. <code>Steps</code> holds the step classes, one for each capability, shared by the four groups.</p>
+<p><em>Why:</em> the groups share steps and drivers. Four projects need a fifth for the shared steps, compile the
+Reqnroll generator four times, and give an agent four places to choose from. The cost of one assembly is that the
+build must split it; <a href="#grp-1">GRP-1</a> does that.</p>
+<p><em>Alternatives:</em> four projects (rejected: above). Folders in the existing projects (rejected: the build
+cannot select them, and the black-box rule cannot hold in a project that references product assemblies).</p>
+
+<h3 id="proj-2">PROJ-2. No assembly from <code>src/</code> is visible, also not through the kit</h3>
+<p>The project references <code>Morphir.TestSupport</code> only. It names <code>src/Morphir</code> and
+<code>src/Morphir.Tool</code> with <code>ReferenceOutputAssembly="false"</code>, so a build of the project builds
+the development target first, and no product type is visible to a step. It does not reference
+<code>Morphir.Conformance</code>: that library references <code>Morphir.Compilation</code> and
+<code>Morphir.Mep</code>, and they would be visible through it.</p>
+<p>A test that needs the kit library in the test process (it judges the output of an executable with kit types)
+is a conformance test. It stays in a project that can reference the kit, and it gets its executable from the
+target of the testing library (<a href="#drv-2">DRV-2</a>). A check of the kit through the CLI
+(<code>morphir mck ...</code>) needs only the artifact and can be a black-box test.</p>
+<p><em>Why:</em> a compile error is the strongest form of the black-box rule. Two guard checks keep it: the
+project file has no reference below <code>src/</code> that exposes an assembly, and the compile dependencies in
+<code>obj/project.assets.json</code> of the project have no project from <code>src/</code>, which also finds an
+assembly that comes through another reference.</p>
+<p><strong>The machine tripwire.</strong> <code>AGENTS.md</code> requires the <code>MachineTripwire</code>
+assembly hook for a project that starts many processes. The project has it from task 2.1: it captures the home
+and machine locations of the developer before the first test and fails the run if a Gherkin scenario or a
+framework test changed them.</p>
+
+<h3 id="grp-1">GRP-1. A group is a tag, and the build runs a tag as a suite</h3>
+<p>Each feature has one of <code>@integration</code>, <code>@e2e</code>, <code>@smoke</code>,
+<code>@journey</code>. Reqnroll.TUnit turns a tag into a TUnit category (verified in #612).
+<code>TestPlan</code> gets a suite form with a group:</p>
+<pre><code class="language-console">TestSuite.TUnit("Morphir.BlackBox.Tests").InGroup("integration"),   // --treenode-filter "/*/*/*/*[(Category=integration)&amp;(Category!=lane)]"
+TestSuite.TUnit("Morphir.BlackBox.Tests").InGroup("smoke"),
+TestSuite.TUnit("Morphir.BlackBox.Tests").InGroup("journey"),</code></pre>
+<p>The runner starts one process for each group. Each process has its own result directory, hang dump and row in
+the report. A TUnit run that selects no test exits with 8, so an empty group fails (the rule that #612 added).</p>
+<p><em>Why:</em> this is the smallest change to the runner that makes a group a unit of scheduling, and it reuses
+the rules <code>WithSourceProjects()</code> and <code>Alone()</code> for a group.</p>
+<p><strong>One filter for each process.</strong> A process gets exactly one <code>--treenode-filter</code>. A
+group suite uses its group filter in both scopes and never the <code>PlatformSpecific</code> filter, because the
+assembly-level category makes each of its tests platform-specific.</p>
+<p><strong>Lanes.</strong> A test that needs more than the development build has the tag <code>@lane</code> and
+exactly one of <code>@packages</code>, <code>@native-aot</code> or <code>@published</code>. The lane, not the
+group, decides where it runs:</p>
+<table>
+<thead><tr><th>Run</th><th>Filter</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td>A group on the development build</td><td><code>[(Category=e2e)&amp;(Category!=lane)]</code>, and the same
+for <code>integration</code>, <code>smoke</code>, <code>journey</code></td><td>The <code>Test</code> target: pull
+request, each operating system</td></tr>
+<tr><td>The packages lane</td><td><code>[Category=packages]</code></td><td><code>TestBuild</code>, after the
+build tests: pull request, each operating system, in the step <code>Run build tests</code> that follows
+<code>Pack packages for build testing</code></td></tr>
+<tr><td>The Native AOT lane</td><td><code>[Category=native-aot]</code></td><td><code>TestAot</code>: pull request,
+Linux, in the step that runs the probes now</td></tr>
+<tr><td>A published target</td><td>Each group, with no lane exclusion in the filter; the eligibility check
+below lets the tests with no lane and the tests of the published lane run</td><td><code>TestE2E</code>: release
+and manual workflows</td></tr>
+</tbody>
+</table>
+<p><strong>One eligibility decision.</strong> The runner gives each test process its lane in
+<code>MORPHIR_TEST_LANE</code>. Before the first step of a test, one function of the testing library,
+<code>TestEligibility.Decide</code>, makes one decision from the tags of the test and the run. The Gherkin hook
+and the hook of the framework tests both call it. It checks in this order and stops at the first that fails:</p>
+<table>
+<thead><tr><th>Order</th><th>Check</th><th>Skip reason</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Lane: the run executes the lane of the test (table below).</td><td><code>lane: test packages, run none</code></td></tr>
+<tr><td>2</td><td>Host: the target has the host that the test names, or its default host for a test with no host tag.</td><td><code>host: managed is not in target aot</code></td></tr>
+<tr><td>3</td><td>Capabilities: the driver set supports each capability that the test needs, for that host.</td><td><code>capability: SelfContainedFrontend on target dev, host native</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th><code>MORPHIR_TEST_LANE</code></th><th>Executes a test with</th><th>Run</th></tr></thead>
+<tbody>
+<tr><td><code>none</code> (default)</td><td>no lane</td><td>A group on the development build</td></tr>
+<tr><td><code>packages</code></td><td>the packages lane</td><td><code>TestBuild</code> after <code>PackAll</code></td></tr>
+<tr><td><code>native-aot</code></td><td>the Native AOT lane</td><td><code>TestAot</code></td></tr>
+<tr><td><code>published</code></td><td>no lane, or the published lane</td><td><code>TestE2E</code> on a published or packaged target</td></tr>
+</tbody>
+</table>
+<p>A test is eligible, or it is skipped with exactly one reason, the first in the order. So no run executes a
+test of another lane, with or without the exclusion in the filter, and a test with no lane runs in the
+development run and in a published run. The report counts the skips by the kind of reason (lane, host,
+capability). The filter only keeps tests of another lane out of the report; task 2.3 proves the two filter forms
+(one category; a category and not <code>lane</code>) on the pinned TUnit before a suite uses them. If the engine
+does not accept the exclusion, a group run selects the lane tests and the lane check skips them.</p>
+<p><strong>The packed packages.</strong> <code>TestBuild</code> gives the packages lane the output folder of
+<code>PackAll</code> in <code>MORPHIR_TEST_PACKAGES</code>. The driver reads only that folder. A packages run with
+no package there stops before the first test with the pack command; it does not pack and does not search.</p>
+<p><strong>Developer option.</strong> <code>./build.sh --target Test --test-group integration</code> runs only
+the suites of that group: no other suite, and not the Myriad package-consumer scripts, which the
+<code>Test</code> target runs after the suites until pull request 4 moves them. A suite is registered in the plan
+in the pull request task that adds its first test, so no registered suite is empty.</p>
+<p><em>Alternative:</em> one process with all groups (rejected: it is the slowest-assembly problem again).</p>
+
+<h3 id="grp-2">GRP-2. The group is the purpose; the target is where it runs</h3>
+<table>
+<thead><tr><th>Group</th><th>Proves</th><th>Pull request (each operating system)</th><th>Release and manual workflows</th></tr></thead>
+<tbody>
+<tr><td>integration</td><td>The components behind one capability work together. A command can run more than
+once.</td><td>Development build</td><td>Also each published target that supports the capabilities of the test</td></tr>
+<tr><td>journey</td><td>One user goal that needs two or more capabilities.</td><td>Development build</td><td>Also
+each published target</td></tr>
+<tr><td>smoke</td><td>An artifact starts and does one basic function. For a library host: publish, run, compare.</td>
+<td>Development build and managed library hosts. The Native AOT lane (hosts and probes): Linux only, in the step
+that runs them now.</td><td>Also trimmed and Native AOT on each platform</td></tr>
+<tr><td>e2e</td><td>The delivered form itself: installation, layout, start, and a property that the delivered
+form must have.</td><td>Development build, for a test with no lane (for example the checks of built assemblies
+of <code>morphirup</code>). The packages lane after the pack step. The published lane: no, because the publish
+takes minutes.</td><td>Each published and packaged target</td></tr>
+</tbody>
+</table>
+<p>The target never changes the group: a journey on the Native AOT executable is a journey. So the tests of
+<code>Morphir.E2E.Tests</code> do not all become <code>e2e</code>. Pull request 2 classifies each discovered case
+by purpose: <code>--version</code> and <code>--help</code> on an executable are smoke, <code>ir verify</code> is
+integration, the worker corpus is a framework test in the group of what it proves, and the package layout,
+trimming and installation checks are end-to-end. The release and manual workflows keep today's coverage because
+they run every group against the published targets, as <code>TestE2E</code> runs one project against them now.</p>
+<p>The project has an assembly-level <code>PlatformSpecific</code> category, so the scope <code>platform</code>
+selects all its tests. The marker on a unit test stays until a slice moves that test
+(<a href="#mark-1">MARK-1</a>).</p>
+<p><strong>Native AOT in a pull request.</strong> The workflow step <code>Check generated JSON, MEP and morphirup
+under Native AOT</code> stays in the Linux job. Slice 5 adds the tests of the Native AOT lane and a
+<code>TestAot</code> target that runs them; the step runs the old targets and the new target together for one
+merged pull request, and the pull request after it removes the old targets
+(<a href="#migration">migration plan</a>).</p>
+
+<h3 id="drv-1">DRV-1. Small driver interfaces by capability, over one CLI driver</h3>
+<p>The interfaces are in <code>Morphir.TestSupport.Drivers</code>:</p>
+<table>
+<thead><tr><th>Interface</th><th>Owns</th><th>Slice</th></tr></thead>
+<tbody>
+<tr><td><code>IScenarioWorkspace</code></td><td>The contained folder of one scenario: work area, home, machine
+locations, temporary directory, fixtures, the files that a command wrote. Wraps <code>TestSandbox</code>.</td><td>1</td></tr>
+<tr><td><code>ICliDriver</code></td><td>Runs one command line of the product on a host of the selected target
+(<a href="#drv-2">DRV-2</a>) and returns a <code>CommandResult</code>. Applies the workspace, the time limit and the process gate.</td><td>1</td></tr>
+<tr><td><code>IModelVerificationDriver</code>, <code>IGenerationDriver</code></td><td>The <code>ir verify</code>
+and <code>generate</code> commands as intents, each with its report type.</td><td>1</td></tr>
+<tr><td><code>IProcessSessionDriver</code></td><td>A product process that stays alive: start it, write framed
+input, read output as it comes, send an interrupt (Ctrl+Break on Windows), and get the exit and the time from the
+interrupt to the exit. On <code>ChildProcess.ConverseAsync</code>. The worker tests of
+<code>Morphir.E2E.Tests</code> need it.</td><td>2</td></tr>
+<tr><td><code>ICompilationDriver</code>, <code>IConfigurationDriver</code>, <code>IMigrationDriver</code>,
+<code>IExtensionDriver</code></td><td>The other command families.</td><td>3</td></tr>
+<tr><td><code>IPackageDriver</code></td><td>Pack, install and consume a package in the workspace, with
+<code>--no-build</code> or <code>--artifacts-path</code>. For the packages lane: read the packed packages from the
+folder that the build gives.</td><td>4</td></tr>
+<tr><td><code>IArtifactInspectionDriver</code></td><td>Give a built file of the selected target (an assembly, a
+runtime configuration file) and its metadata, so a test checks it with no path of the machine.</td><td>5</td></tr>
+<tr><td><code>ILibraryHostDriver</code></td><td>Publish a library host as managed, trimmed or Native AOT, run it,
+and compare with the managed run.</td><td>5</td></tr>
+</tbody>
+</table>
+<p>A capability driver builds its command line and calls <code>ICliDriver</code>. Only <code>ICliDriver</code>
+and <code>IScenarioWorkspace</code> know the target and the machine.</p>
+<p><em>Why:</em> a step states an intent, and one class knows how a command line is written. Small interfaces let
+a driver say which capability it does not support. An interface is added in the slice that has its first two
+scenarios, not before.</p>
+<p><em>Alternative:</em> one <code>IMorphirDriver</code> with all commands (rejected: each target must then
+implement or refuse every command, and the interface changes in every slice).</p>
+
+<h3 id="drv-2">DRV-2. The target and the host are closed types, parsed once, with no fallback</h3>
+<p>The product has three entry points, and a test must be able to name the one that it needs:</p>
+<table>
+<thead><tr><th>Host (<code>MorphirHost</code>)</th><th>Project</th><th>Executable</th><th>F# frontend</th></tr></thead>
+<tbody>
+<tr><td><code>Native</code> (default)</td><td><code>src/Morphir</code></td><td><code>morphir</code></td><td>Through the extension process; not in the host</td></tr>
+<tr><td><code>Managed</code></td><td><code>src/Morphir.Managed</code></td><td><code>morphir</code></td><td>In the host</td></tr>
+<tr><td><code>DotnetTool</code></td><td><code>src/Morphir.Tool</code></td><td><code>dotnet-morphir</code></td><td>In the host</td></tr>
+</tbody>
+</table>
+<p>The target is the form of the product (<code>TestTarget</code>); the host is the entry point. A target states
+the hosts that it has. One function parses <code>MORPHIR_TEST_TARGET</code> and <code>MORPHIR_TEST_HOST</code>
+into the two types, or stops the run with the list of values.</p>
+<table>
+<thead><tr><th><code>MORPHIR_TEST_TARGET</code></th><th>Case</th><th>Hosts that it has</th><th>Default host</th><th>Artifact</th></tr></thead>
+<tbody>
+<tr><td><code>dev</code> (default)</td><td><code>DevelopmentBuild</code></td><td>Native, Managed, DotnetTool</td>
+<td>Native</td><td>Build output of the three projects (metadata)</td></tr>
+<tr><td><code>trimmed</code></td><td><code>Trimmed</code></td><td>Native</td><td>Native</td><td><code>artifacts/single-file</code></td></tr>
+<tr><td><code>untrimmed</code></td><td><code>Untrimmed</code></td><td>Native</td><td>Native</td><td><code>artifacts/single-file-untrimmed</code></td></tr>
+<tr><td><code>aot</code></td><td><code>NativeAot</code></td><td>Native</td><td>Native</td><td><code>artifacts/executables</code></td></tr>
+<tr><td><code>native-aot</code></td><td><code>Packaged(NativeAot)</code></td><td>Native</td><td>Native</td>
+<td rowspan="4"><code>artifacts/release</code> or <code>MORPHIR_RELEASE_DIR</code></td></tr>
+<tr><td><code>self-contained</code></td><td><code>Packaged(SelfContained)</code></td><td>Managed</td><td>Managed</td></tr>
+<tr><td><code>framework-dependent</code></td><td><code>Packaged(FrameworkDependent)</code></td><td>Managed</td><td>Managed</td></tr>
+<tr><td><code>dotnet-tool</code></td><td><code>Packaged(DotnetTool)</code></td><td>DotnetTool</td><td>DotnetTool</td></tr>
+<tr><td><code>executable</code>, with <code>MORPHIR_TEST_EXECUTABLE=&lt;path&gt;</code></td>
+<td><code>Executable(path)</code></td><td>The one host that <code>MORPHIR_TEST_HOST</code> names</td>
+<td>That host; a run with no <code>MORPHIR_TEST_HOST</code> stops</td><td>The file at the path</td></tr>
+</tbody>
+</table>
+<p><strong>Which host a test runs.</strong> A test that needs one host has a tag: <code>@host-managed</code> or
+<code>@host-tool</code> (<code>@host-native</code> is permitted). A test with no host tag runs on the default
+host of the run. The default host is the one of the target in the table; a target with one host has that host
+as its default, so a run on <code>self-contained</code> or <code>dotnet-tool</code> with no other setting runs
+the tests with no host tag on its own host. <code>MORPHIR_TEST_HOST</code> changes the default only to a host
+that the target has; another value stops the run before the first test. A pull request run uses the development
+build, which has the three hosts, so a test with <code>@host-managed</code> runs the managed executable of
+<code>src/Morphir.Managed</code> in the same run as the other tests. The capability
+<code>InProcessFSharpFrontend</code> belongs to the Managed and DotnetTool hosts.</p>
+<table>
+<thead><tr><th>Old selection</th><th>New selection</th></tr></thead>
+<tbody>
+<tr><td><code>CliTestHelper</code> with <code>CliHost.Morphir</code> (<code>dotnet run</code> on
+<code>src/Morphir</code>)</td><td><code>dev</code>, host Native</td></tr>
+<tr><td><code>CliHost.DotnetTool</code>; <code>MORPHIR_EXECUTABLE_TYPE=tool</code>
+(<code>ExecutableLocator.GetToolPath</code>: the build output of <code>src/Morphir.Tool</code>)</td>
+<td><code>dev</code> with <code>MORPHIR_TEST_HOST=dotnet-morphir</code></td></tr>
+<tr><td><code>RunManaged</code> in <code>Morphir.Managed.Tests</code> (the build output of
+<code>src/Morphir.Managed</code>)</td><td><code>dev</code>, tests with <code>@host-managed</code></td></tr>
+<tr><td><code>MORPHIR_EXECUTABLE_TYPE=aot</code>, <code>trimmed</code>, <code>untrimmed</code>;
+<code>MORPHIR_AOT_CLI</code></td><td><code>aot</code>, <code>trimmed</code>, <code>untrimmed</code></td></tr>
+<tr><td>The four packaged types</td><td>The same four values</td></tr>
+<tr><td><code>MORPHIR_EXECUTABLE_PATH</code>, <code>MORPHIR_GENERATION_CLI</code>,
+<code>MORPHIR_DOTNET_TOOL_CLI</code>: one given file</td><td><code>executable</code> with
+<code>MORPHIR_TEST_EXECUTABLE</code> and <code>MORPHIR_TEST_HOST</code></td></tr>
+</tbody>
+</table>
+<p><strong>Resolution.</strong> Each target resolves its artifacts once, before the first test. A missing artifact
+stops the run with the build command that makes it. A target never uses another form: the locator of today can
+test the untrimmed executable when the trimmed one is missing, and the new one cannot.</p>
+<p><strong>The development build.</strong> One MSBuild file,
+<code>tests/Morphir.TestSupport/build/Morphir.CliArtifacts.targets</code>, adds the build-order references to
+<code>src/Morphir</code>, <code>src/Morphir.Managed</code> and <code>src/Morphir.Tool</code>, asks each for its
+<code>GetTargetPath</code> with the configuration and framework of this build, and writes the three paths into
+the test assembly as assembly metadata. Each project that uses the CLI driver imports it:
+<code>Morphir.BlackBox.Tests</code>, <code>Morphir.TestSupport.Tests</code> (for the real-process tests of the
+driver), <code>Morphir.Tooling.Tests</code> (which references the tooling library but no entry point, and
+depends on the solution build for them now), and in pull request 2 <code>Morphir.Frontend.FSharp.Tests</code>,
+whose kit test uses the DotnetTool host by default because its cases need the F# frontend in the host.
+<code>Morphir.TestSupport</code> reads the metadata of the test assembly; no path is computed from the
+repository root. So a Debug test build runs the Debug hosts, and a missing file is an error, not a search.
+The driver starts an assembly with <code>dotnet</code>, not <code>dotnet run</code>: 0.02 s against 0.35 s for
+one start.</p>
+<p><em>Why:</em> the repository rule is to parse into a closed type, not to pass a string and check it later. Two
+variables replace five when their tests move. The managed host has its own tests now
+(<code>Morphir.Managed.Tests</code>), and a model with one default host would run them on another entry point or
+not at all. A kit test that stays (<code>Morphir.Frontend.FSharp.Tests/CliAdapterTests.fs</code>) uses the same
+parser and resolution, so <code>MORPHIR_DOTNET_TOOL_CLI</code> and <code>MORPHIR_AOT_CLI</code> get no reader
+that stays.</p>
+
+<h3 id="drv-3">DRV-3. No in-process CLI driver in this change</h3>
+<p><code>MorphirApplication.Run</code> writes to the process console and reads the process working directory and
+environment. A driver that calls it must redirect global state, so two scenarios cannot run at the same time, and
+it does not check argument parsing through the real entry point, exit codes or the two output streams.</p>
+<p><em>Why not now:</em> it needs a product change (the composition takes its output writers and its environment)
+that is not a test change. The direct start in <a href="#drv-2">DRV-2</a> gives most of the gain with no product
+change. Tests of a handler in the same process stay unit tests in their project.</p>
+
+<h3 id="drv-4">DRV-4. One workspace and one driver set for each scenario</h3>
+<p>Reqnroll makes one context for each scenario. A <code>[BeforeScenario]</code> hook makes the
+<code>IScenarioWorkspace</code> and registers the drivers for the selected target; step classes get them through
+their constructors. An <code>[AfterScenario]</code> hook stops the processes of the scenario and removes the
+workspace. <code>MORPHIR_TEST_KEEP=failed</code> keeps the workspace of a failed scenario and prints its path.
+The session factory in <code>Morphir.TestSupport</code> reads the environment and makes the resources, so a
+hook and a step need no call to the machine.</p>
+<p><strong>The process limit.</strong> <code>ProcessGate.Shared</code> is one semaphore in one test process. The
+build runner starts several test processes at the same time, so each would have its own full limit. The runner
+therefore gives each test process a fixed share, computed once before the first suite starts:</p>
+<pre><code class="language-console">machine = MORPHIR_TEST_MAX_PROCESSES of the caller, or the default of the gate
+lanes   = min(--test-parallelism, machine)        // never more test processes than the limit
+share   = machine / lanes, rounded down           // at least 1, because lanes &lt;= machine
+a suite in a lane gets MORPHIR_TEST_MAX_PROCESSES = share
+a suite that runs alone gets MORPHIR_TEST_MAX_PROCESSES = machine   // no other test process runs then</code></pre>
+<p>The share does not depend on how many suites run at the moment a suite starts, so a suite that starts first
+does not keep a larger limit than the next. At each moment at most <code>lanes</code> test processes run, so the
+sum is at most <code>lanes * share</code>, which is at most <code>machine</code>. The pure function is in
+<code>TestPlan</code>, with tests for 8 and 2 lanes (4 each), 8 and 3 lanes (2 each), a limit of 1 with 2 lanes
+(1 lane), a suite that runs alone, and a suite that starts in a lane that another suite left. A coordination
+between processes (lock files) was considered and rejected: the runner already knows the lanes.</p>
+<p><em>Why:</em> no scenario shares a folder with another, so the scenarios of a group run in parallel with no
+lock. This is the rule that #612 wrote in <code>docs/contributing/ci-os-matrix.md</code>, in one place in code.</p>
+
+<h3 id="drv-5">DRV-5. Capabilities and the skipped result</h3>
+<p><code>DriverCapability</code> is a closed set (for example <code>Generation</code>,
+<code>SelfContainedFrontend</code>, <code>NativeEngine</code>). A scenario states a need with a tag
+(<code>@needs-self-contained-frontend</code>). The capability check is the third check of the one eligibility
+decision (<a href="#grp-1">GRP-1</a>): an unsupported capability ends the test as skipped with the capability,
+the target and the host in the reason. A guard test checks,
+for each test that a pull request must run (a test with no lane, with the packages lane or with the Native AOT
+lane, in any group), that the pull request run of its lane selects the test and supports the complete set of its
+capabilities on an operating system of that run: the development build on each operating system, the packages
+run on each operating system, the Native AOT step on Linux. The check includes the host: the run must have the host that the test names. A test
+of the published lane is run by the release and manual workflows. The check is for each test, not for each capability: a test that needs
+two capabilities fails the guard when one run supports only the first and another only the second. So a skip
+cannot hide a test in pull request CI. The report shows the count of skipped tests with their reasons.</p>
+
+<h3 id="asrt-1">ASRT-1. One result type; general assertions apart from report checks</h3>
+<p><code>CommandResult</code> has the command line, the exit code, standard output, standard error, the duration
+and the files that the command wrote in the workspace. Two layers check it:</p>
+<table>
+<thead><tr><th>Layer</th><th>Where</th><th>Checks</th></tr></thead>
+<tbody>
+<tr><td>General</td><td><code>CommandResultAssertions</code></td><td>The exit code; standard output is exactly one
+JSON document and nothing else (the CLI logging rule of <code>AGENTS.md</code>); a file was written; text on
+standard error. It knows no field of a report.</td></tr>
+<tr><td>Report of one command</td><td>The capability, for example <code>GenerationReport</code> and
+<code>VerificationReport</code></td><td>The status field of that report and its diagnostics. The verification
+report states validity in <code>IsValid</code>; the generation report has <code>success</code> and
+<code>diagnostics</code>, and <code>success</code> must agree with the exit code. <code>extension list</code> has
+its own form.</td></tr>
+</tbody>
+</table>
+<p>Each failure message has the command line, the exit code and both streams. Task 1.3 tests the general layer,
+and task 1.7 tests each report type against a real report of its command.</p>
+<p><em>Why:</em> <code>CliExecutionResult</code>, <code>ExecutableExecutionResult</code> and
+<code>CliRun.ShouldExitWithOneJsonReport</code> are three forms of this, and the last one assumes a field that not
+every command has.</p>
+
+<h3 id="step-1">STEP-1. A small step vocabulary, recorded and checked</h3>
+<p>A step is reused before a new one is written. <code>tests/Morphir.BlackBox.Tests/README.md</code> has a table
+of the step patterns, by capability. A guard test reads the step attributes from the step sources and fails when
+the table and the sources differ, and when two steps have the same pattern.</p>
+<p>The kit suites in <code>conformance/suites/</code> keep their own vocabulary and their own runner.</p>
+
+<h3 id="form-1">FORM-1. Framework tests in the black-box project for three exceptions</h3>
+<p>Gherkin is the default. A loop over a corpus, a property test and a test with a time budget are framework
+tests (TUnit). When such a test reaches the product through an artifact, it is in the black-box project, in the
+folder of its group, with <code>[Category("e2e")]</code> (or its group) and with the drivers. Examples that move
+in slice 2: the worker corpus of <code>ExecutableExtensionWorkerTests</code>, and the one test of
+<code>ExecutableRunnerTests</code> that runs the built tool. The other eight tests of
+<code>ExecutableRunnerTests</code> test the log filter of the helper and go to
+<code>Morphir.TestSupport.Tests</code> with the driver that replaces it. A test that also needs a product assembly is split: the
+comparison stays in the unit test project (for example the wire-form rows of
+<code>CSharpCliGenerationTests</code>, which call <code>CSharpGenerator.Generate</code>).</p>
+<p><em>Why:</em> the owner agreed that these forms do not fit Gherkin. Without this rule the removal of
+<code>Morphir.E2E.Tests</code> loses its 58 framework test methods. The 41 of them that test a helper
+(<code>InfrastructureTests/</code>) move to <code>Morphir.TestSupport.Tests</code> with the driver that replaces
+the helper, or are removed with a helper that has no successor, and the move table says which.</p>
+
+<h3 id="guard-1">GUARD-1. Guard tests in <code>Morphir.Build.Tests</code></h3>
+<p>The checks read files of the repository, so they are in <code>tests/Morphir.Build.Tests/Helpers/</code> with
+the other structure tests, and their pure logic is in <code>build/Helpers/BlackBoxRules.cs</code>:</p>
+<table>
+<thead><tr><th>Rule</th><th>Check</th></tr></thead>
+<tbody>
+<tr><td>One group tag, and the folder agrees</td><td>Parse the tags of each feature file below the project.</td></tr>
+<tr><td>No assembly from <code>src/</code> is visible</td><td>The project file: a reference below
+<code>src/</code> has <code>ReferenceOutputAssembly="false"</code>. The compile dependencies in
+<code>obj/project.assets.json</code>: no project from <code>src/</code>, also not through another reference
+(<a href="#proj-2">PROJ-2</a>).</td></tr>
+<tr><td>Steps and tests use drivers (partial check)</td><td>The sources of the black-box project, with comments
+and string literals removed, have none of: <code>System.Diagnostics</code>, <code>Process</code>,
+<code>ChildProcess</code>, <code>TestSandbox</code>, <code>File.</code>, <code>Directory.</code>,
+<code>Path.GetTempPath</code>, <code>Environment.</code>. The project has no exception list: the session factory
+of <code>Morphir.TestSupport</code> reads the environment and makes the resources.</td></tr>
+<tr><td>Step table is current</td><td><a href="#step-1">STEP-1</a>.</td></tr>
+<tr><td>Each pull request test has one run that supports it</td><td><a href="#drv-5">DRV-5</a>, for each test:
+its host and its complete set of capabilities, by its lane.</td></tr>
+<tr><td>Each group with a test is a suite of the plan</td><td>A pull request group that has a test in the project
+has a suite in <code>TestPlan.Suites</code>, and a suite has a test.</td></tr>
+<tr><td>Framework tests have one group</td><td><a href="#form-1">FORM-1</a>.</td></tr>
+<tr><td>At most one lane</td><td>A test with <code>@lane</code> has exactly one of the three lane tags, and a test
+with a lane tag has <code>@lane</code> (<a href="#grp-1">GRP-1</a>).</td></tr>
+</tbody>
+</table>
+<p>The check for drivers is partial: it finds the listed names, and a call through another type can pass it. Its
+fixtures include a bypass that it finds, a name in a comment that it ignores, and a name in a string that it
+ignores. The <code>test-manager</code> skill says that this guard is partial, and the review check list has the
+rule.</p>
+
+<h3 id="comp-1">COMP-1. The tests that have not moved use the same CLI driver</h3>
+<p><code>CliTestHelper</code> keeps its public members and calls the development build target of
+<code>ICliDriver</code>. The about 500 CLI tests of <code>Morphir.Tooling.Tests</code> then start the built
+assembly directly from the first slice, before they move.</p>
+<p><em>Why:</em> the gain of <a href="#drv-2">DRV-2</a> does not wait for the migration, and the driver gets real
+use from the start.</p>
+
+<h3 id="skill-1">SKILL-1. The <code>test-manager</code> skill and its reviewer</h3>
+<table>
+<thead><tr><th>File</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td><code>.agents/skills/test-manager/SKILL.md</code></td><td>When to use it; the classification procedure;
+one table with class, location, form, tags and parallel rule; the review mode check list; the guard test for
+each rule.</td></tr>
+<tr><td><code>references/classification.md</code></td><td>The questions with examples from this repository, and
+the cases that are hard (a compiler test in memory, a test that reads a fixture).</td></tr>
+<tr><td><code>references/black-box-patterns.md</code></td><td>Feature, step and driver examples; how to add a
+capability; how to add a target.</td></tr>
+<tr><td>Reviewer agent <code>test-manager-reviewer</code></td><td><code>.claude/agents/*.md</code>,
+<code>.codex/agents/*.toml</code>, <code>.github/agents/*.agent.md</code>, <code>.grok/agents/*.md</code>.
+Read-only. Findings as <code>path:line: rule N: problem. fix.</code></td></tr>
+</tbody>
+</table>
+<p><code>scripts/sync-agent-skills.fsx</code> gets <code>test-manager</code> in <code>ownedSkills</code>, so CI
+checks the copies. <code>AGENTS.md</code> section 9 says: use the skill before you add, move, rename or delete a
+test, a feature file, a step, a driver or a test project. <code>CLAUDE.md</code> and
+<code>.agents/skills-reference.md</code> list it.</p>
+<p>The classification asks first for the kit and the build, then for the form, then if the test is black-box, then
+for its purpose. The target of a run is never a question:</p>
+<svg viewBox="0 0 920 564" role="img" aria-labelledby="cls-title cls-desc"><title id="cls-title">Flow of the classification of a test</title><desc id="cls-desc">The questions are asked in order. A kit feature or a test that needs the kit library is a conformance test. A test of the build of the repository is a build test. A corpus loop, a property test or a time-budget test is a framework test, and the flow continues to find its class. A test that does not reach the product only through a built artifact is a unit or property test. For a black-box test, the purpose gives the group: end-to-end, journey, smoke, and otherwise integration.</desc><defs><marker id="ca" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="head"/></marker></defs><rect class="box" x="20" y="10" width="400" height="34" rx="17"/><text x="220" y="32" text-anchor="middle">A new or changed test</text><path class="edge" d="M220 44 V62" marker-end="url(#ca)"/><rect class="box" x="20" y="62" width="400" height="40" rx="6"/><text x="32" y="87">1. A kit feature, or needs the kit library?</text><path class="edge" d="M420 82 H500" marker-end="url(#ca)"/><text class="note" x="446" y="76">yes</text><rect class="box" x="500" y="62" width="400" height="40" rx="6"/><text x="512" y="87"><tspan font-weight="600">conformance</tspan>   kit suites or a kit test project</text><path class="edge" d="M220 106 V124" marker-end="url(#ca)"/><text class="note" x="228" y="118">no</text><rect class="box" x="20" y="124" width="400" height="40" rx="6"/><text x="32" y="149">2. Is its subject the build of the repository?</text><path class="edge" d="M420 144 H500" marker-end="url(#ca)"/><text class="note" x="446" y="138">yes</text><rect class="box" x="500" y="124" width="400" height="40" rx="6"/><text x="512" y="149"><tspan font-weight="600">build</tspan>   tests/Morphir.Build.Tests</text><path class="edge" d="M220 168 V186" marker-end="url(#ca)"/><text class="note" x="228" y="180">no</text><rect class="box" x="20" y="186" width="400" height="40" rx="6"/><text x="32" y="211">3. A corpus loop, a property test or a time budget?</text><path class="edge" d="M420 206 H500" marker-end="url(#ca)"/><text class="note" x="446" y="200">yes</text><rect class="box" x="500" y="186" width="400" height="40" rx="6"/><text x="512" y="211"><tspan font-weight="600">form: framework test</tspan>   then continue for the class and place</text><path class="edge" d="M220 230 V248" marker-end="url(#ca)"/><text class="note" x="228" y="242">both</text><rect class="box" x="20" y="248" width="400" height="40" rx="6"/><text x="32" y="273">4. Does it reach the product only through a built artifact?</text><path class="edge" d="M420 268 H500" marker-end="url(#ca)"/><text class="note" x="446" y="262">no</text><rect class="box" x="500" y="248" width="400" height="40" rx="6"/><text x="512" y="273"><tspan font-weight="600">no: unit or property</tspan>   test project of the library</text><path class="edge" d="M220 292 V310" marker-end="url(#ca)"/><text class="note" x="228" y="304">yes</text><rect class="box" x="20" y="310" width="400" height="40" rx="6"/><text x="32" y="335">5. Does it prove the delivered form itself?</text><path class="edge" d="M420 330 H500" marker-end="url(#ca)"/><text class="note" x="446" y="324">yes</text><rect class="box" x="500" y="310" width="400" height="40" rx="6"/><text x="512" y="335"><tspan font-weight="600">end-to-end</tspan>   EndToEnd/  @e2e</text><path class="edge" d="M220 354 V372" marker-end="url(#ca)"/><text class="note" x="228" y="366">no</text><rect class="box" x="20" y="372" width="400" height="40" rx="6"/><text x="32" y="397">6. One user goal, two or more capabilities?</text><path class="edge" d="M420 392 H500" marker-end="url(#ca)"/><text class="note" x="446" y="386">yes</text><rect class="box" x="500" y="372" width="400" height="40" rx="6"/><text x="512" y="397"><tspan font-weight="600">journey</tspan>   Journeys/  @journey</text><path class="edge" d="M220 416 V434" marker-end="url(#ca)"/><text class="note" x="228" y="428">no</text><rect class="box" x="20" y="434" width="400" height="40" rx="6"/><text x="32" y="459">7. Only that an artifact starts and does one function?</text><path class="edge" d="M420 454 H500" marker-end="url(#ca)"/><text class="note" x="446" y="448">yes</text><rect class="box" x="500" y="434" width="400" height="40" rx="6"/><text x="512" y="459"><tspan font-weight="600">smoke</tspan>   Smoke/  @smoke</text><path class="edge" d="M220 474 V496" marker-end="url(#ca)"/><text class="note" x="228" y="488">no</text><rect class="box" x="20" y="496" width="880" height="40" rx="6"/><text x="32" y="521"><tspan font-weight="600">integration</tspan>   Integration/  @integration: the components behind one capability work together</text></svg>
+<table>
+<thead><tr><th>Step</th><th>Question</th><th>Answer</th><th>Class, location and form</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Is it a feature of a kit suite, or does it need the kit library in the test process?</td><td>yes</td><td>conformance: <code>conformance/suites/</code> with kit steps, or a test project that can reference the kit. Not the black-box project. Stop.</td></tr>
+<tr><td>2</td><td>Is its subject the build of the repository: a project file, a build target, a workflow or a helper of the build?</td><td>yes</td><td>build: <code>tests/Morphir.Build.Tests</code>. A test of a packed package or an installed tool is not a build test: continue. Stop.</td></tr>
+<tr><td>3</td><td>Is it a loop over a corpus, a property test or a test with a time budget?</td><td>yes</td><td>The form is a framework test, not Gherkin. Continue with step 4 for the class and the place.</td></tr>
+<tr><td>4</td><td>Does it reach the product only through a built artifact?</td><td>no</td><td>unit, or property if it states a law over generated inputs: the test project of the library; <code>PlatformSpecific</code> if it uses the operating system. Stop.</td></tr>
+<tr><td>5</td><td>Does it prove the delivered form itself (installation, layout, start, a property that the delivered form must have)?</td><td>yes</td><td>end-to-end: <code>EndToEnd/</code>, <code>@e2e</code></td></tr>
+<tr><td>6</td><td>Does it prove one user goal that needs two or more capabilities?</td><td>yes</td><td>journey: <code>Journeys/</code>, <code>@journey</code></td></tr>
+<tr><td>7</td><td>Does it prove only that an artifact starts and does one basic function?</td><td>yes</td><td>smoke: <code>Smoke/</code>, <code>@smoke</code></td></tr>
+<tr><td>8</td><td>Otherwise</td><td></td><td>integration: <code>Integration/</code>, <code>@integration</code></td></tr>
+</tbody>
+</table>
+<p>After the class, a black-box test gets a lane only if it needs more than the development build: the packed
+packages, a Native AOT publish, or a published executable (<a href="#grp-1">GRP-1</a>). A test that needs both a
+product assembly and an artifact is two tests (<a href="#form-1">FORM-1</a>).</p>
+
+<h3 id="mark-1">MARK-1. The <code>PlatformSpecific</code> marker shrinks with each slice</h3>
+<p>A slice removes the marker from the tests that it moves, because they leave the unit project. A unit test that
+uses the operating system keeps the marker. The mechanism of #612 stays. When the last slice is done, the count
+of marked unit tests is the measure of what is still platform-sensitive outside the black-box project.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>A moved test loses a check.</td><td>Each slice lists old test to new scenario in its pull request, runs
+both before it removes the old one, and compares the counts. A dropped check is stated with its reason.</td></tr>
+<tr><td>One assembly rebuilds and reruns when any scenario changes.</td><td>Groups are separate suites, and step
+classes are small. The project has no product reference, so a product change does not recompile it.</td></tr>
+<tr><td>The step vocabulary grows to one step for each test.</td><td><a href="#step-1">STEP-1</a>: the table and
+its guard test; the skill says to reuse a step first; the reviewer reports a new step that repeats an old one.</td></tr>
+<tr><td>Gherkin hides detail that a code test shows (exact JSON, many rows).</td><td>Scenario outlines and doc
+strings for data; a test that needs code stays a framework test and the skill says so.</td></tr>
+<tr><td>A direct start of the assembly differs from <code>dotnet run</code>.</td><td>Task 3.4 runs the complete
+<code>Morphir.Tooling.Tests</code> with both and compares pass and fail counts before the change.</td></tr>
+<tr><td>Several test processes at the same time exceed the process limit of the machine.</td><td>The runner gives each a
+fixed share of one limit (<a href="#drv-4">DRV-4</a>); task 2.5 tests the share and task 2.6 checks a run.</td></tr>
+<tr><td>A group filter and another filter both reach one process, or the engine rejects the exclusion.</td>
+<td>One filter for each process, proved in task 2.3 before a suite uses it; the fallback is the capability skip
+(<a href="#grp-1">GRP-1</a>).</td></tr>
+<tr><td>A moved project had tests that are not feature files.</td><td>The move table is made from the tests that
+the runner discovers, not from the file list (<a href="#form-1">FORM-1</a>, tasks 6.1 and 6.4).</td></tr>
+<tr><td>A new target has no artifact and the run tests another form without notice.</td><td>No fallback
+(<a href="#drv-2">DRV-2</a>).</td></tr>
+<tr><td>A capability skip hides a scenario.</td><td>The guard of <a href="#drv-5">DRV-5</a>, and the report
+shows the count of skipped scenarios with their reasons.</td></tr>
+<tr><td>The source scan for calls that go past a driver is a partial check.</td><td>It covers the complete project
+with comments and strings removed, and it has no exception list (<a href="#guard-1">GUARD-1</a>). It finds the
+listed names only, so the skill says that it is partial and the reviewer agent has the rule.</td></tr>
+<tr><td>A black-box test in a project that the plan did not name is not moved.</td><td>The inventory of the
+repository (<a href="evidence/inventory.md">evidence/inventory.md</a>) has each file that starts a process or a
+build with its destination; the first task of each pull request confirms its rows, and the last pull request
+checks that each row is done.</td></tr>
+<tr><td>The skill and the documents drift.</td><td>The skill names the guard tests; the specification requires
+that the skill and <code>docs/contributing/ci-os-matrix.md</code> change together.</td></tr>
+<tr><td>Agents do not load the skill.</td><td><code>AGENTS.md</code> names it in the testing section; the guard
+tests fail for the rules that matter most; the reviewer agent runs on the diff.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>This change is the complete migration: each file of
+<a href="evidence/inventory.md">evidence/inventory.md</a> gets its destination. The inventory has the 128 test
+files that start a process, run a build or read a built artifact, each with the pull request that moves it or the
+reason that it stays (61 have a pull request; 67 stay: tests of a library in the test process, tests of the build,
+and false results of the scan). A test of a packed package or an installed tool is a black-box test and moves,
+also from <code>Morphir.Build.Tests</code>; a test of a build target, a workflow or a build helper is a build test
+and stays there. The destinations are provisional: the first task of each pull request confirms its rows from the
+tests that the runner discovers.</p>
+<p>The change lands in six pull requests. Each passes CI on the three operating systems and can be reverted
+alone. The change is archived after the sixth. Pull request 1 is the foundation and the first slice together, so
+that no registered suite is empty and the skill names guard tests that exist.</p>
+<table>
+<thead><tr><th>Pull request</th><th>Slice</th><th>Content</th><th>Tests that move</th><th>Task groups</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0 and 1</td><td>Driver contract in <code>Morphir.TestSupport</code> and the shared targets file
+for the CLI artifacts. The project, its hooks, its session and the machine tripwire. <code>TestPlan</code>
+groups, <code>--test-group</code>, the fixed share of the process limit. Guard tests.
+<code>CliTestHelper</code> on the CLI driver (<a href="#comp-1">COMP-1</a>). The <code>Integration/CLI</code>
+features and the artifact-only cases of <code>CSharpCliGenerationTests</code>. One smoke and one journey
+scenario. The <code>test-manager</code> skill and its reviewer.</td>
+<td>The 2 files of the inventory for pull request 1: 27 scenarios, and of the 6 test methods of
+<code>CSharpCliGenerationTests</code> each case that needs only the artifact. The wire-form rows that call
+<code>CSharpGenerator.Generate</code> stay.</td><td>1 to 5</td></tr>
+<tr><td>2</td><td>2</td><td>The published, packaged and path targets, and <code>IProcessSessionDriver</code>.
+<code>Morphir.E2E.Tests</code> is removed: its 11 feature files and 58 framework test methods are classified by
+purpose and moved, or moved to <code>Morphir.TestSupport.Tests</code> with their helper.
+<code>scripts/run-e2e-tests.cs</code> and three workflows select <code>MORPHIR_TEST_TARGET</code> and run every
+group. The kit test <code>CliAdapterTests.fs</code> stays and uses the target of the testing library.</td>
+<td>17 files of the inventory, and each other discovered test of the project</td><td>6</td></tr>
+<tr><td>3</td><td>3</td><td>The CLI features and CLI tests of <code>Morphir.Tooling.Tests</code>, and the host
+tests of <code>Morphir.Tests</code> and <code>Morphir.Managed.Tests</code> (the <code>mck</code> routing, the
+version of the hosts, the managed entry point with <code>@host-managed</code>).</td><td>30 files of the inventory</td><td>7</td></tr>
+<tr><td>4</td><td>4</td><td><code>Morphir.Myriad.Integration.Tests</code>, the Myriad fixture builds, the two
+<code>package-tests.fsx</code> scripts, the SDK package tests and script, the package and self-contained tests
+of the two extensions, with <code>IPackageDriver</code>. The five package and installation test files of
+<code>Morphir.Build.Tests</code>, in the packages lane that <code>TestBuild</code> runs.</td>
+<td>11 files of the inventory and 3 scripts</td><td>8</td></tr>
+<tr><td>5</td><td>5</td><td>Library hosts through <code>ILibraryHostDriver</code>, with the allowed-warning list of
+each host. The Native AOT lane and the <code>TestAot</code> target; the Linux step runs the old probe targets
+and the new target. Every case of the <code>morphirup</code> globalization tests, with
+<code>IArtifactInspectionDriver</code>.</td>
+<td>1 file of the inventory, the checks of 5 smoke hosts and of the 3 probe targets that a pull request runs</td><td>9</td></tr>
+<tr><td>6</td><td>6</td><td>Remove the old probe targets after their replacements passed in CI. Remove the
+helpers and environment variables that have no reader. Check that each row of the inventory is done. Count the
+<code>PlatformSpecific</code> marks that stay.</td><td>None</td><td>10</td></tr>
+</tbody>
+</table>
+<p><strong>Rollback:</strong> revert the pull request. Pull request 1 keeps the public members of
+<code>CliTestHelper</code>, so its revert restores <code>dotnet run</code>. The old environment variables keep
+their meaning until the pull request that moves their readers.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>How much of <code>Morphir.Compilation</code>, <code>Morphir.Configuration</code> and
+<code>Morphir.Configuration.IO</code> does the CLI reach? Slice 5 needs the answer to decide which smoke hosts
+stay. It does not change slices 0 to 4.</li>
+<li>Should a scheduled workflow run the journey and smoke groups against each published target? It is a new
+schedule, so it needs an owner and a decision. The groups and targets do not depend on it.</li>
+</ul>
+
+</main>
+</body>
+</html>
