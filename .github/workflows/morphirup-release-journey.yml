@@ -1,0 +1,79 @@
+name: Windows released morphirup journey
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: Published release version without the v prefix
+                required: true
+                type: string
+
+permissions:
+    contents: read
+
+jobs:
+    released-windows-journey:
+        runs-on: windows-latest
+        timeout-minutes: 15
+        env:
+            RELEASE_VERSION: ${{ inputs.version }}
+        steps:
+            - uses: actions/checkout@v6.1.0
+            - name: Download the published manager and run setup
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference='Stop'
+                  if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw 'Invalid release version.' }
+                  $work=Join-Path $env:RUNNER_TEMP 'morphirup-release-journey'
+                  New-Item -ItemType Directory $work | Out-Null
+                  $base="https://github.com/finos/morphir-dotnet/releases/download/v$env:RELEASE_VERSION"
+                  Invoke-WebRequest "$base/morphirup-win-x64.exe" -OutFile "$work/morphirup.exe"
+                  Invoke-WebRequest "$base/SHA256SUMS" -OutFile "$work/SHA256SUMS"
+                  $line=@(Get-Content "$work/SHA256SUMS" | Where-Object { $_ -match '^[0-9a-f]{64}  morphirup-win-x64.exe$' })
+                  if ($line.Count -ne 1 -or (Get-FileHash "$work/morphirup.exe" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $line[0].Substring(0,64)) { throw 'Manager checksum mismatch.' }
+                  Copy-Item examples/morphirup-fsharp "$work/project" -Recurse
+                  $env:MORPHIR_HOME="$work/home"
+                  $env:DOTNET_MULTILEVEL_LOOKUP='0'
+                  $env:DOTNET_ROOT="$work/no-system-runtime"
+                  $env:DOTNET_ROOT_X64=$env:DOTNET_ROOT
+                  $env:PATH="$env:SystemRoot/System32"
+                  Set-Location "$work/project"
+                  & "$work/morphirup.exe" setup --yes 1> "$work/setup.json" 2> "$work/setup.stderr"
+                  if ($LASTEXITCODE) { throw 'Released setup failed.' }
+            - name: Compile, generate, withdraw acquisition inputs, and repeat with outbound networking blocked
+              shell: pwsh
+              run: |
+                  $ErrorActionPreference='Stop'
+                  $work=Join-Path $env:RUNNER_TEMP 'morphirup-release-journey'
+                  $env:MORPHIR_HOME="$work/home"
+                  $env:DOTNET_MULTILEVEL_LOOKUP='0'
+                  $env:DOTNET_ROOT="$work/no-system-runtime"
+                  $env:DOTNET_ROOT_X64=$env:DOTNET_ROOT
+                  $env:PATH="$env:SystemRoot/System32"
+                  $env:DOTNET_HOST_TRACE='1'
+                  $env:DOTNET_HOST_TRACEFILE="$work/host.trace"
+                  Set-Location "$work/project"
+                  & "$work/morphirup.exe" run -- compile
+                  if ($LASTEXITCODE) { throw 'Compile failed.' }
+                  & "$work/morphirup.exe" run -- generate --target fsharp --output generated --option format=false
+                  if ($LASTEXITCODE) { throw 'Generate failed.' }
+                  if ((Get-FileHash generated/Pricing.fs).Hash.ToLowerInvariant() -ne '64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0') { throw 'Generated F# mismatch.' }
+                  $expected=[System.Text.Json.Nodes.JsonNode]::Parse([IO.File]::ReadAllText("$env:GITHUB_WORKSPACE/tests/Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/ir-4.0.0.json"))
+                  $ir=@(Get-ChildItem .morphir -Filter morphir-ir.json -Recurse)
+                  if (!$ir.Count -or !(@($ir | Where-Object { [System.Text.Json.Nodes.JsonNode]::DeepEquals([System.Text.Json.Nodes.JsonNode]::Parse([IO.File]::ReadAllText($_.FullName)),$expected) }).Count)) { throw 'Compiled IR mismatch.' }
+                  $pointer=[IO.File]::ReadAllBytes("$work/home/toolchains/default.json")
+                  if (Test-Path "$work/home/tmp") { Move-Item "$work/home/tmp" "$work/withdrawn-inputs" }
+                  $programs=@("$work/morphirup.exe")+@(Get-ChildItem "$work/home/store" -Filter *.exe -Recurse | ForEach-Object FullName)
+                  foreach($program in $programs) { New-NetFirewallRule -DisplayName "Morphir offline $program" -Direction Outbound -Action Block -Program $program | Out-Null }
+                  & "$work/morphirup.exe" run -- compile
+                  if ($LASTEXITCODE) { throw 'Offline compile failed.' }
+                  & "$work/morphirup.exe" run -- generate --target fsharp --output generated --option format=false
+                  if ($LASTEXITCODE) { throw 'Offline generate failed.' }
+                  if ((Get-FileHash generated/Pricing.fs).Hash.ToLowerInvariant() -ne '64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0') { throw 'Offline F# mismatch.' }
+                  if ([Convert]::ToHexString($pointer) -ne [Convert]::ToHexString([IO.File]::ReadAllBytes("$work/home/toolchains/default.json"))) { throw 'Offline selection changed.' }
+                  if (!(Select-String "$work/host.trace" -SimpleMatch ([IO.Path]::Combine($work,"home","store","tools")) -Quiet)) { throw 'No installed app-local runtime trace.' }
+            - uses: actions/upload-artifact@v6
+              if: always()
+              with:
+                  name: released-windows-journey
+                  path: ${{ runner.temp }}/morphirup-release-journey/*.json

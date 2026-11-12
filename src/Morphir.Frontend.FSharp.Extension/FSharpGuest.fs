@@ -93,13 +93,16 @@ module FSharpGuest =
 
     /// The claim set that morphir.extension.describe returns.
     let claims: CapabilityClaimSet =
+        let session = JsonSerializer.SerializeToElement(capabilities, MepJson.Default.ExtensionCapabilities)
         { ClaimsVersion = SemanticVersion.Create "0.1.0-draft.2"
           ProtocolVersions = Lifecycle.protocolVersions
           Extension = extension
           Capabilities =
             readOnlyDict
                 [ "frontend", JsonSerializer.SerializeToElement(frontend, MepJson.Default.FrontendCapability)
-                  "modelTransport", JsonSerializer.SerializeToElement(support, MepJson.Default.ModelTransportSupport) ]
+                  "modelTransport", JsonSerializer.SerializeToElement(support, MepJson.Default.ModelTransportSupport)
+                  for name in [ "streaming"; "incremental"; "cancellation"; "progress" ] do
+                      name, session.GetProperty(name).Clone() ]
           Requires = None
           Critical = [||] }
 

@@ -228,3 +228,165 @@ finally
     catch (IOException) { }
     catch (UnauthorizedAccessException) { }
 }
+
+// Public package/state consumer. This fixture is never launched and claims no readiness.
+var packageProbeRoot = Directory.CreateTempSubdirectory("morphir-package-state-probe-").FullName;
+Exception? packageProbeFailure = null;
+try
+{
+    var contractCasesPath = Path.Combine(Environment.CurrentDirectory, "tests", "Fixtures",
+        "ExtensionAcquisition", "parent-0439c4c0", "package-cases.json");
+    using var contractCases = System.Text.Json.JsonDocument.Parse(await File.ReadAllBytesAsync(contractCasesPath));
+    var descriptor = System.Text.Json.Nodes.JsonNode.Parse(contractCases.RootElement.GetProperty("cases")[0]
+        .GetProperty("schemaDocuments")[0].GetProperty("document").GetRawText())
+        ?? throw new InvalidOperationException("Missing fixed package descriptor.");
+    var packagePlatform = InstallationPlatform.Create(System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
+    var packageEntry = OperatingSystem.IsWindows() ? "run.exe" : "run";
+    var packagePayload = System.Text.Encoding.UTF8.GetBytes("guest");
+    var packagePayloadDigest = Morphir.Toolchain.Digest.ofBytes(packagePayload);
+    var packageManifestBytes = System.Text.Encoding.UTF8.GetBytes(
+        $"morphir-package-tree 0.1.0-preview.1\nx 5 {packagePayloadDigest} {packageEntry}\n");
+    var packageManifestDigest = Sha256Digest.Create(Morphir.Toolchain.Digest.ofBytes(packageManifestBytes));
+    var packageArchive = Path.Combine(packageProbeRoot, "consumer.ZIP");
+    using (var zip = System.IO.Compression.ZipFile.Open(packageArchive, System.IO.Compression.ZipArchiveMode.Create))
+    {
+        await using var entryOutput = zip.CreateEntry(packageEntry).Open();
+        await entryOutput.WriteAsync(packagePayload);
+    }
+    var packageArchiveDigest = Sha256Digest.Create(Morphir.Toolchain.Digest.ofBytes(await File.ReadAllBytesAsync(packageArchive)));
+    var artifactNode = descriptor["artifacts"]?[0]
+        ?? throw new InvalidOperationException("Missing fixed artifact.");
+    artifactNode["filename"] = "consumer.ZIP";
+    artifactNode["platform"] = packagePlatform.DescriptorTriple;
+    artifactNode["sha256"] = packageArchiveDigest.Value;
+    var packageNode = artifactNode["package"]?.AsObject()
+        ?? throw new InvalidOperationException("Missing fixed package declaration.");
+    packageNode.Remove("root");
+    packageNode.Remove("executables");
+    packageNode["entryPoint"] = packageEntry;
+    packageNode["treeSha256"] = packageManifestDigest.Value;
+    var packagePlan = PackagePlan.Read(System.Text.Encoding.UTF8.GetBytes(descriptor.ToJsonString()), packagePlatform)
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    var packageHome = Path.Combine(packageProbeRoot, "home");
+    var installedPackage = (await PackageInstaller.InstallAsync(packageHome, packagePlan, packageArchive, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    if (!installedPackage.Manifest.ToBytes().AsSpan().SequenceEqual(packageManifestBytes)
+        || installedPackage.Manifest.Files.Count != 1
+        || installedPackage.Manifest.Files[0].Path.Text != packageEntry
+        || installedPackage.Manifest.Files[0].Length != packagePayload.Length
+        || !installedPackage.Manifest.Files[0].Executable
+        || !installedPackage.TreeDigest.Equals(packageManifestDigest))
+        throw new InvalidOperationException("Installed package observations differ from the fixed fixture.");
+    Console.WriteLine("package publication:manifest-and-identity-verified");
+
+    await using (var packageLease = (await PackageInstaller.AcquireAsync(packageHome, packagePlan, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString())))
+    {
+        if (!(await File.ReadAllBytesAsync(packageLease.EntryPointPath)).AsSpan().SequenceEqual(packagePayload)
+            || packageLease.Package.ArchiveDigest.Value != packageArchiveDigest.Value)
+            throw new InvalidOperationException("Owned package activation differs from publication.");
+        foreach (var diagnostic in new[] { packagePlan.ToString(), installedPackage.ToString(),
+            installedPackage.Manifest.ToString(), installedPackage.Manifest.Files[0].ToString(), packageLease.ToString() })
+            if (string.IsNullOrWhiteSpace(diagnostic)) throw new InvalidOperationException("Empty package diagnostic.");
+    }
+    var verifiedPackage = (await PackageInstaller.VerifyAsync(packageHome, packagePlan, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    if (!verifiedPackage.TreeDigest.Equals(packageManifestDigest)) throw new InvalidOperationException("Full verification changed tree identity.");
+    Console.WriteLine("package activation:owned-and-full-verification-passed");
+
+    if (!DistributionSelection.TryParse(null, "0.4.0-alpha.4", out var hostVersionSelection, out var hostVersionFailure))
+        throw new InvalidOperationException(hostVersionFailure.ToString());
+    var packageHostVersion = hostVersionSelection.Match<Morphir.Toolchain.SemVer>(
+        _ => throw new InvalidOperationException("Expected exact host version."), version => version);
+    await using var capturedPackage = (await InstalledExtensions.InstallLocalUncheckedAsync(packageHome, packagePlan,
+        packageArchive, Path.Combine(packageProbeRoot, "repository-a"), Array.AsReadOnly(new[] { "--consumer-A" }),
+        packageHostVersion, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    var activationRecord = capturedPackage.Record;
+    var catalogSnapshot = activationRecord.CatalogSnapshotBytes;
+    var lockSnapshot = activationRecord.LockBytes;
+    var changedSnapshot = activationRecord.CatalogSnapshotBytes;
+    changedSnapshot[0] ^= 1;
+    if (!activationRecord.CatalogSnapshotBytes.AsSpan().SequenceEqual(catalogSnapshot)
+        || !activationRecord.LockBytes.AsSpan().SequenceEqual(lockSnapshot)
+        || activationRecord.Arguments.Count != 1 || activationRecord.Arguments[0] != "--consumer-A"
+        || !activationRecord.IsLocalDeveloper)
+        throw new InvalidOperationException("Activation record is mutable or loses local provenance.");
+    using var capturedLock = System.Text.Json.JsonDocument.Parse(lockSnapshot);
+    Console.WriteLine("package registration:local-unchecked-defensive-record");
+
+    await using (var expectedCapture = (await InstalledExtensions.CaptureExpectedAsync(packageHome,
+        catalogSnapshot, lockSnapshot, packageHostVersion, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString())))
+    {
+        if (!expectedCapture.Record.LockBytes.AsSpan().SequenceEqual(lockSnapshot))
+            throw new InvalidOperationException("Expected-current capture changed exact lock bytes.");
+    }
+    await using (var currentCapture = (await InstalledExtensions.CaptureAsync(packageHome,
+        activationRecord.ExtensionId, packageHostVersion, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString())))
+    {
+        if (!currentCapture.Record.CatalogSnapshotBytes.AsSpan().SequenceEqual(catalogSnapshot))
+            throw new InvalidOperationException("Current capture changed the selected record.");
+    }
+    Console.WriteLine("package capture:current-and-expected-export-agree");
+
+    using (var packageCancellation = new CancellationTokenSource())
+    {
+        packageCancellation.Cancel();
+        var cancelledCapture = InstalledExtensions.CaptureAsync(packageHome, activationRecord.ExtensionId,
+            packageHostVersion, packageCancellation.Token);
+        var cancelledResult = (await cancelledCapture)
+            .Match<(CapturedExtension? Value, string Code)>(value => (value, string.Empty), error => (null, error.Code));
+        if (cancelledResult.Value is { } unexpectedCapture)
+        {
+            await ((IAsyncDisposable)unexpectedCapture).DisposeAsync();
+            throw new InvalidOperationException("Precancelled package capture returned ownership.");
+        }
+        if (cancelledResult.Code != "extension.cancelled") throw new InvalidOperationException(cancelledResult.Code);
+    }
+    Console.WriteLine("package cancellation:task-returned-structured-refusal");
+
+    await using var replacementCapture = (await InstalledExtensions.InstallLocalUncheckedAsync(packageHome, packagePlan,
+        packageArchive, Path.Combine(packageProbeRoot, "repository-b"), Array.AsReadOnly(new[] { "--consumer-B" }),
+        packageHostVersion, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    var replacementResult = (await InstalledExtensions.AcquireCurrentAsync(packageHome, activationRecord,
+        packageHostVersion, CancellationToken.None))
+        .Match<(PackageActivation? Lease, string Code)>(value => (value, string.Empty), error => (null, error.Code));
+    if (replacementResult.Lease is { } unexpectedLease)
+    {
+        await ((IAsyncDisposable)unexpectedLease).DisposeAsync();
+        throw new InvalidOperationException("Unpublished old record reacquired after replacement.");
+    }
+    if (replacementResult.Code != "extension.current_record_changed") throw new InvalidOperationException(replacementResult.Code);
+    if (!(await File.ReadAllBytesAsync(capturedPackage.Activation.EntryPointPath)).AsSpan().SequenceEqual(packagePayload))
+        throw new InvalidOperationException("Already held package lifetime changed after record replacement.");
+    Console.WriteLine("package replacement:old-current-refused-held-owner-valid");
+
+    var compatible = (await InstalledState.CheckCompatibilityAsync(packageHome, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    var recovery = (await InstalledState.RecoverAsync(packageHome, false, CancellationToken.None))
+        .Match(value => value, error => throw new InvalidOperationException(error.ToString()));
+    if (!compatible || recovery.Recovered) throw new InvalidOperationException("Unexpected recovery in settled current state.");
+    Console.WriteLine("package state:compatible-no-recovery-required");
+}
+catch (Exception error)
+{
+    packageProbeFailure = error;
+    throw;
+}
+finally
+{
+    try
+    {
+        foreach (var ownedFile in Directory.EnumerateFiles(packageProbeRoot, "*",
+            new EnumerationOptions { RecurseSubdirectories = true, AttributesToSkip = FileAttributes.ReparsePoint }))
+            File.SetAttributes(ownedFile, File.GetAttributes(ownedFile) & ~FileAttributes.ReadOnly);
+        Directory.Delete(packageProbeRoot, recursive: true);
+    }
+    catch (Exception cleanupError) when (packageProbeFailure is not null)
+    {
+        packageProbeFailure.Data["packageProbeCleanup"] = cleanupError;
+    }
+}

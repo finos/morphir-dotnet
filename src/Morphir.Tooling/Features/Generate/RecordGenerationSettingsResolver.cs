@@ -44,8 +44,8 @@ public sealed class RecordGenerationSettingsResolver(
         if (!string.IsNullOrWhiteSpace(overrides.Input))
         {
             var explicitSettings = await inner.ResolveAsync(overrides, context, ct);
-            // --extension wins; without it, the project configuration may select a backend extension.
-            if (explicitSettings is not Outcome<GenerationSettings>.Success { Value: var settings })
+            // Installed identity is exclusive. A legacy --extension may name a configured WASM alias.
+            if (explicitSettings is not Outcome<GenerationSettings>.Success { Value: var settings } || settings.InstalledExtensionId is not null)
                 return explicitSettings;
             var configuration = Load(overrides, compileContext);
             if (configuration is Outcome<LoadedCompileConfiguration>.Failure loadFailure)
@@ -128,6 +128,7 @@ public sealed class RecordGenerationSettingsResolver(
     /// </summary>
     private static Outcome<GenerationSettings> WithConfiguredExtension(GenerationSettings settings, LoadedCompileConfiguration loaded, string workingDirectory)
     {
+        if (settings.InstalledExtensionId is not null) return new Outcome<GenerationSettings>.Success(settings);
         if (settings.Target is not RequestedTarget.Valid target) return new Outcome<GenerationSettings>.Success(settings);
         var config = new ProjectCompileSettingsResolver.ConfigurationView(loaded);
         var configured = settings.Extension ?? config.String("codegen", target.Id.Value, "extension");

@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
-    <IsPackable>false</IsPackable>
+    <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+    <IsPackable>true</IsPackable>
+    <Description>Local extension package installation, inventory, selection and activation for Morphir tooling.</Description>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -29,5 +30,9 @@
     <Compile Include="Store.fs" />
     <Compile Include="Archives.fs" />
     <Compile Include="RunCopies.fs" />
+    <Compile Include="StateDocuments.fs" />
+    <Compile Include="InstalledState.fs" />
+    <Compile Include="Packages.fs" />
+    <Compile Include="ActivationRecords.fs" />
   </ItemGroup>
 </Project>

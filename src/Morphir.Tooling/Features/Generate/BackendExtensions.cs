@@ -26,6 +26,10 @@ public interface IExternalGenerationBackend : IGenerationBackend, IAsyncDisposab
 /// <param name="WorkingDirectory">The invocation directory, for relative extension paths.</param>
 public sealed record BackendExtensionRequest(Setting<string> Extension, TargetId Target, string WorkingDirectory)
 {
+    /// <summary>Explicit installed identity; null preserves the path/command connector.</summary>
+    public ExtensionId? InstalledId { get; init; }
+    /// <summary>The exact invocation environment.</summary>
+    public IReadOnlyDictionary<string, string>? Environment { get; init; }
     /// <summary>The module parsed by the settings resolver, or null for a process guest.</summary>
     public Features.Extensions.WasmModuleSource? WasmModule { get; init; }
 }
@@ -55,6 +59,7 @@ public sealed class MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) 
     /// <inheritdoc />
     public async Task<Outcome<IExternalGenerationBackend>> ConnectAsync(BackendExtensionRequest request, CancellationToken ct)
     {
+        if (request.InstalledId is not null) return await InstalledExtensionConnector.BackendAsync(request, ct);
         Morphir.Mep.ISingleMessageChannel? channel = null;
         string executable;
         string[] arguments;

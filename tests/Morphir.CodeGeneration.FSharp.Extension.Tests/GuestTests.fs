@@ -49,8 +49,11 @@ let tests =
 
               Expect.equal
                   (capabilities |> Seq.map _.Key |> Set.ofSeq)
-                  (set [ "backend"; "modelTransport" ])
-                  "Only the backend and model-transport claims"
+                  (set [ "backend"; "modelTransport"; "streaming"; "incremental"; "cancellation"; "progress" ])
+                  "Backend, model transport and the explicit session flags"
+
+              for flag in [ "streaming"; "incremental"; "cancellation"; "progress" ] do
+                  Expect.equal (text capabilities[flag]) "false" $"describe declares the actual initialized {flag} value"
 
               let backend = capabilities["backend"]
 

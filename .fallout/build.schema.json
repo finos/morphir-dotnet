@@ -27,6 +27,7 @@
         "BuildE2ETests",
         "BuildProtoPlugin",
         "Check",
+        "CheckBuildMachine",
         "CheckMorphirup",
         "CI",
         "CIGate",
@@ -39,6 +40,7 @@
         "Compile",
         "CreateGitHubRelease",
         "DevWorkflow",
+        "FlattenReleaseAssets",
         "Format",
         "Lint",
         "MorphirupChecksums",
@@ -49,13 +51,16 @@
         "PackPlatformTarballs",
         "PackRelease",
         "PackTool",
+        "PackWindowsToolchain",
         "Precommit",
+        "PrepareExtensionProcessPackage",
         "PrepareRelease",
         "ProbeMorphirNative",
         "PublishAll",
         "PublishCliTool",
         "PublishExecutable",
         "PublishExtensionTools",
+        "PublishFSharpBackendProcess",
         "PublishFSharpFrontendProcess",
         "PublishLibs",
         "PublishLocalAll",
@@ -75,7 +80,8 @@
         "TestMorphirupAot",
         "TestMyriadJsonAot",
         "TestMyriadPackages",
-        "TestProtoPlugin"
+        "TestProtoPlugin",
+        "WindowsToolchainChecksums"
       ]
     },
     "Verbosity": {
@@ -186,9 +192,29 @@
           "type": "string",
           "description": "Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)"
         },
+        "ExtensionArchive": {
+          "type": "string",
+          "description": "Existing whole-folder archive for package metadata preparation"
+        },
+        "ExtensionEntryPoint": {
+          "type": "string",
+          "description": "Portable entry-point path in the published process folder"
+        },
+        "ExtensionPackageOutput": {
+          "type": "string",
+          "description": "New directory for release.json and the canonical package manifest"
+        },
         "ExtensionProcessesDir": {
           "type": "string",
           "description": "Output directory for self-contained extension process folders and archives"
+        },
+        "ExtensionPublishedFolder": {
+          "type": "string",
+          "description": "Complete published process folder for package metadata preparation"
+        },
+        "ExtensionReleaseTemplate": {
+          "type": "string",
+          "description": "Existing release descriptor with actual provider identity and claims"
         },
         "Global": {
           "type": "boolean",
@@ -236,6 +262,13 @@
           "type": "string",
           "description": "Folder for the morphirup release assets and their checksum file"
         },
+        "ReleaseAssetSources": {
+          "type": "array",
+          "description": "Folders of downloaded platform outputs that FlattenReleaseAssets copies into the release assets folder",
+          "items": {
+            "type": "string"
+          }
+        },
         "ReleaseDir": {
           "type": "string",
           "description": "Output directory for release profile artifacts"
@@ -272,9 +305,20 @@
           "type": "string",
           "description": "Test: 'all' runs every test; 'platform' runs only the tests with the PlatformSpecific marker - Default is 'all'"
         },
+        "ToolchainLocalDeveloper": {
+          "type": "boolean",
+          "description": "Produce an explicit local-developer candidate instead of release-checksum release input"
+        },
         "ToolDllDir": {
           "type": "string",
           "description": "Output directory for tool DLLs"
+        },
+        "WindowsToolchainSources": {
+          "type": "array",
+          "description": "Folders of the downloaded Windows toolchain outputs that WindowsToolchainChecksums lists, one per Windows RID",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

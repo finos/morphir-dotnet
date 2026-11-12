@@ -2,6 +2,14 @@ using FluentValidation;
 
 namespace Morphir.Tooling.Features.Management;
 
+/// <summary>Explicit registration of a named local developer repository.</summary>
+public sealed record ExtensionRepositoryAddLocal(string Name, string Directory, string Home, bool LocalDeveloper, bool DryRun);
+/// <summary>Local declaration mode within an already registered repository. It never downloads or probes.</summary>
+public sealed record ExtensionLocalDeclarationInstall(string Name, string Repository, string Release, string Archive,
+    string Home, bool LocalDeveloper, bool NoProbe, bool DryRun);
+/// <summary>A command outcome, not an installation receipt or authentication statement.</summary>
+public sealed record ExtensionLocalOutcome(bool Success, string Code, string Message);
+
 // ===== Extension Install Command =====
 
 public record ExtensionInstall(

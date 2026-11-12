@@ -108,6 +108,9 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
 
     /// <summary>The agreed generateModel tuples, in host order.</summary>
     public IReadOnlyList<ModelTransportTuple> AgreedTuples => _agreed;
+    /// <summary>The actual initialized session, for installed-record agreement validation.</summary>
+    internal NegotiatedSession Session => _guest.Session;
+    internal ModelTransportTuple? LastModelTuple { get; private set; }
 
     /// <summary>True when the owned guest session has ended.</summary>
     public bool HasExited => _guest.IsClosed;
@@ -246,6 +249,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     /// </summary>
     public async ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct)
     {
+        LastModelTuple = null;
         var source = request.Model.Original.SourcePath;
         Outcome<GenerationArtifacts> Fail(GenerationFailureKind kind, string code, string message) =>
             new Outcome<GenerationArtifacts>.Failure(GenerationFailure.One(kind, code, message, source));
@@ -296,7 +300,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         var parameters = document.RootElement;
 
         var reply = await _guest.SendAsync(Method.GenerateModel, parameters, ct);
-        return reply.Match(
+        var outcome = reply.Match(
             result => FromResult(result, source),
             error => error.Code switch
             {
@@ -307,6 +311,8 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 _ => Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity}: generateModel failed with {error.Code}: {error.Message}")
             },
             failed => Fail(GenerationFailureKind.Operational, failed.Code, failed.Message));
+        if (outcome is Outcome<GenerationArtifacts>.Success) LastModelTuple = tuple;
+        return outcome;
     }
 
     /// <summary>Maps a generate result: a failure with its diagnostics, or the artifacts after the path check.</summary>

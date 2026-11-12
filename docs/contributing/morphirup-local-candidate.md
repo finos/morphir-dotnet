@@ -1,6 +1,6 @@
 # Local developer toolchain candidate
 
-The local command path installs an explicitly supplied, source-built Windows
+The preview.1 local command path installs an explicitly supplied, source-built Windows
 x64 self-contained Morphir folder. It requires the candidate manifest, its exact
 ZIP and explicit `--local-developer` consent. A checksum establishes integrity
 against that manifest. It does not authenticate a publisher or qualify a
@@ -11,7 +11,43 @@ The manifest and state documents use the separate local-toolchains family from
 planning, historical toolchain documents and the pure TUF client retain their
 existing behavior. TUF is unused and unqualified for production authority.
 
-For initial setup, use an absolute, empty, isolated Home. Supply the complete official managed
+## Preview.3 composed inputs
+
+The preview.3 platform and origin contract is the parent merge
+`7586a0a4b10195b0af3461639a5003026d0eaaa1`,
+[published in the parent repository](https://github.com/finos/morphir/blob/7586a0a4b10195b0af3461639a5003026d0eaaa1/docs/spec/toolchain/local-platforms-and-release-bundle.md).
+It supports `win-x64` and `win-arm64`. The candidate, receipt and bundle carry
+the platform; selection and generation bind it through their existing hashes.
+The installation path stays `store/tools/sha256/<archive-sha256>`.
+Preview.1 and preview.2 retain their existing readers and behavior.
+
+Default setup acquires the official release bundle and its checksums. Its origin
+is `release-checksum`, not publisher-authenticated. Its completed generation
+retains the exact bundle and checksum bodies and binds both digests.
+
+For an explicitly supplied preview.3 local candidate, the producer's
+`--toolchain-local-developer` option declares `local-developer` instead. Supply
+its existing nine-role bundle and local sibling assets:
+
+```powershell
+morphirup setup --candidate candidate.json --local-archive host.zip --local-bundle bundle.json --home C:\morphir-local --local-developer --dry-run
+morphirup setup --candidate candidate.json --local-archive host.zip --local-bundle bundle.json --home C:\morphir-local --local-developer --yes
+morphirup select --generation <generation-sha256-from-setup> --home C:\morphir-local
+morphirup run --home C:\morphir-local -- --version
+```
+
+This route reads local files without network acquisition. It uses the same
+bounded transfer, complete-folder installation, installed provider session
+checks and fixed compile/generate readiness path as release setup. It publishes
+the completed generation without selecting it. The candidate, receipt, pointer
+and result retain local-developer origin, and the generation has no acquisition
+member or files. Neither a bundle URL nor a matching checksum upgrades that
+origin. These command paths still require actual native artifact testing before
+any claim of platform delivery.
+
+## Preview.1 host-only inputs
+
+For initial preview.1 setup, use an absolute, empty, isolated Home. Supply the complete official managed
 folder inventory, including the bundled runtime, compiler, backend and reference
 files. Setup checks the archive and every declared file before publication.
 Setup admission stays strict: it refuses foreign or legacy state before any
