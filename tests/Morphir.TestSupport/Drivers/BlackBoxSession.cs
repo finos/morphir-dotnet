@@ -22,6 +22,11 @@ public sealed class DriverSet : IAsyncDisposable
         Cli = new CliDriver(target, host, artifact, workspace);
         Verification = new ModelVerificationDriver(Cli);
         Generation = new GenerationDriver(Cli);
+        Compilation = new CompilationDriver(Cli);
+        Configuration = new ConfigurationDriver(Cli);
+        Migration = new MigrationDriver(Cli);
+        Extensions = new ExtensionDriver(Cli);
+        Validation = new ModelValidationDriver(Cli);
         Capabilities = DriverCapabilities.Of(target, host);
     }
 
@@ -36,6 +41,16 @@ public sealed class DriverSet : IAsyncDisposable
     public IModelVerificationDriver Verification { get; }
 
     public IGenerationDriver Generation { get; }
+
+    public ICompilationDriver Compilation { get; }
+
+    public IConfigurationDriver Configuration { get; }
+
+    public IMigrationDriver Migration { get; }
+
+    public IExtensionDriver Extensions { get; }
+
+    public IModelValidationDriver Validation { get; }
 
     /// <summary>The capabilities that these drivers support.</summary>
     public IReadOnlySet<DriverCapability> Capabilities { get; }

@@ -129,6 +129,11 @@ public class BlackBoxSessionTests
         first.Workspace.CopyFixture("Cli/valid-ir-v3.json");
         (await first.Verification.VerifyAsync(first.Workspace.File("Cli", "valid-ir-v3.json"))).ShouldExitWith(0);
         first.Generation.Should().NotBeNull();
+        first.Compilation.Should().NotBeNull();
+        first.Configuration.Should().NotBeNull();
+        first.Migration.Should().NotBeNull();
+        first.Extensions.Should().NotBeNull();
+        (await first.Validation.ValidateAsync(first.Workspace.File("Cli", "valid-ir-v3.json"))).ShouldExitWith(0);
     }
 
     [Test]

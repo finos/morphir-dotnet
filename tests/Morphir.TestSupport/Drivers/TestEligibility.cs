@@ -22,6 +22,21 @@ public enum DriverCapability
 
     /// <summary>The self-contained F# frontend process, which the native host starts as an extension.</summary>
     SelfContainedFrontend,
+
+    /// <summary>The <c>compile</c> command.</summary>
+    Compilation,
+
+    /// <summary>The <c>config</c> command.</summary>
+    Configuration,
+
+    /// <summary>The <c>project migrate</c> and <c>workspace migrate</c> commands.</summary>
+    Migration,
+
+    /// <summary>The <c>extension list</c> and <c>extension runtimes</c> commands.</summary>
+    Extensions,
+
+    /// <summary>The <c>validate</c> command.</summary>
+    ModelValidation,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -59,7 +74,11 @@ public static class DriverCapabilities
 
         // Each host has the commands. The F# frontend is in the managed host and in the tool host. No target gives
         // the self-contained frontend process yet.
-        ImmutableHashSet<DriverCapability> commands = [DriverCapability.ModelVerification, DriverCapability.Generation];
+        ImmutableHashSet<DriverCapability> commands =
+        [
+            DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Compilation, DriverCapability.Configuration,
+            DriverCapability.Migration, DriverCapability.Extensions, DriverCapability.ModelValidation,
+        ];
         return host is MorphirHost.Managed or MorphirHost.DotnetTool
             ? commands.Add(DriverCapability.InProcessFSharpFrontend)
             : commands;

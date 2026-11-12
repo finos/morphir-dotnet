@@ -184,6 +184,19 @@ public class TestEligibilityTests
     }
 
     [Test]
+    public void TheDevelopmentBuildSupportsTheCommandFamiliesOnEachHost()
+    {
+        foreach (var host in MorphirHosts.All)
+            DriverCapabilities.Of(Development, host).Should().Contain(
+            [
+                DriverCapability.Compilation, DriverCapability.Configuration, DriverCapability.Migration,
+                DriverCapability.Extensions, DriverCapability.ModelValidation,
+            ]);
+        DriverCapabilities.TagOf(DriverCapability.ModelValidation).Should().Be("needs-model-validation");
+        DriverCapabilities.TagOf(DriverCapability.Extensions).Should().Be("needs-extensions");
+    }
+
+    [Test]
     public void TheFSharpFrontendIsInTheManagedHostAndInTheToolHost()
     {
         DriverCapabilities.Of(Development, MorphirHost.Native).Should().NotContain(DriverCapability.InProcessFSharpFrontend);

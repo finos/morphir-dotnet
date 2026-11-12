@@ -1,0 +1,123 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+using System.Text.Json;
+
+namespace Morphir.TestSupport.Drivers;
+
+/// <summary>The options of <c>extension list</c>.</summary>
+public sealed record ExtensionListOptions
+{
+    /// <summary>Write one JSON report to standard output. Default true.</summary>
+    public bool Json { get; init; } = true;
+
+    /// <summary>List only the extensions of this machine (<c>--local</c>).</summary>
+    public bool Local { get; init; }
+
+    /// <summary>The platform of the list (<c>--platform</c>), for example <c>linux-x64</c>.</summary>
+    public string? Platform { get; init; }
+}
+
+/// <summary>The <c>extension</c> commands as intents: list the extensions of the host, and report its runtimes.</summary>
+public interface IExtensionDriver
+{
+    Task<CommandResult> ListAsync(ExtensionListOptions? options = null, CancellationToken cancellation = default);
+
+    /// <summary>Runs <c>extension runtimes</c>, with <c>--json</c> when <paramref name="json"/> is true.</summary>
+    Task<CommandResult> RuntimesAsync(bool json = true, CancellationToken cancellation = default);
+}
+
+/// <summary>Builds the command lines of <c>extension</c> and gives them to the CLI driver.</summary>
+public sealed class ExtensionDriver(ICliDriver cli) : IExtensionDriver
+{
+    public Task<CommandResult> ListAsync(ExtensionListOptions? options = null, CancellationToken cancellation = default)
+    {
+        options ??= new ExtensionListOptions();
+        var arguments = new List<string> { "extension", "list" };
+        if (options.Local) arguments.Add("--local");
+        if (options.Platform is { } platform)
+        {
+            arguments.Add("--platform");
+            arguments.Add(platform);
+        }
+
+        if (options.Json) arguments.Add("--json");
+        return cli.RunAsync(arguments, cancellation: cancellation);
+    }
+
+    public Task<CommandResult> RuntimesAsync(bool json = true, CancellationToken cancellation = default) =>
+        cli.RunAsync(json ? ["extension", "runtimes", "--json"] : ["extension", "runtimes"], cancellation: cancellation);
+}
+
+/// <summary>One extension of an extension list report.</summary>
+public sealed record ListedExtension(string Id, bool Available, string? Reason);
+
+/// <summary>
+/// The JSON report of <c>extension list --json</c>: the host and the extensions that it has. It has its own form:
+/// no field <c>success</c>, because a list does not fail.
+/// </summary>
+public sealed class ExtensionListReport : JsonCommandReport
+{
+    private ExtensionListReport(CommandResult result) : base(result, "extension list")
+    {
+        Extensions = Required("extensions") is { ValueKind: JsonValueKind.Array } list
+            ? [.. list.EnumerateArray().Select(item => new ListedExtension(
+                item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString()! : "",
+                item.TryGetProperty("available", out var available) && available.ValueKind == JsonValueKind.True,
+                item.TryGetProperty("reason", out var reason) && reason.ValueKind == JsonValueKind.String ? reason.GetString() : null))]
+            : throw new CommandAssertionException("The extension list report has no list extensions.", result);
+    }
+
+    /// <summary>The command name of the host, for example <c>morphir</c>.</summary>
+    public string? Host => Text("host");
+
+    /// <summary>How the host runs: <c>jit</c> or <c>aot</c>.</summary>
+    public string? Execution => Text("execution");
+
+    /// <summary>True when the report states a deployment. A development build states none.</summary>
+    public bool HasDeployment => Member("deployment") is not null;
+
+    public IReadOnlyList<ListedExtension> Extensions { get; }
+
+    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    public static ExtensionListReport Of(CommandResult result) => new(result);
+}
+
+/// <summary>One runtime of an extension runtimes report.</summary>
+public sealed record ExtensionRuntime(string Kind, bool Available, string? Reason, string? EngineName, string? EngineVersion);
+
+/// <summary>The JSON report of <c>extension runtimes --json</c>: the host, its platform, and its extension runtimes.</summary>
+public sealed class ExtensionRuntimesReport : JsonCommandReport
+{
+    private ExtensionRuntimesReport(CommandResult result) : base(result, "extension runtimes")
+    {
+        Runtimes = Required("runtimes") is { ValueKind: JsonValueKind.Array } list
+            ? [.. list.EnumerateArray().Select(Runtime)]
+            : throw new CommandAssertionException("The extension runtimes report has no list runtimes.", result);
+    }
+
+    public string? Host => Text("host");
+
+    /// <summary>The runtime identifier of the host process, for example <c>osx-arm64</c>.</summary>
+    public string? Platform => Text("platform");
+
+    public IReadOnlyList<ExtensionRuntime> Runtimes { get; }
+
+    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    public static ExtensionRuntimesReport Of(CommandResult result) => new(result);
+
+    private static ExtensionRuntime Runtime(JsonElement item)
+    {
+        static string? Field(JsonElement element, string name) =>
+            element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
+
+        var engine = item.TryGetProperty("engine", out var value) ? value : default;
+        return new ExtensionRuntime(
+            Field(item, "kind") ?? "",
+            item.TryGetProperty("available", out var available) && available.ValueKind == JsonValueKind.True,
+            Field(item, "reason"),
+            Field(engine, "name"),
+            Field(engine, "version"));
+    }
+}
