@@ -43,7 +43,7 @@ public sealed class ConfiguredWasmCommandTests
         {
             Project = workspace.Root, Language = "python", Inputs = ["add.py"], IrVersion = "4",
         }, workspace.Context());
-        var settings = result.Match(value => value, failure => throw new InvalidOperationException(string.Join("; ", failure)));
+        var settings = result.Match((value, _) => value, failure => throw new InvalidOperationException(string.Join("; ", failure)));
         settings.Extension.Should().NotBeNull();
         settings.Extension!.Value.Should().Be("python");
     }
