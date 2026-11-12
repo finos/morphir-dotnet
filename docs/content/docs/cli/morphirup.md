@@ -36,6 +36,8 @@ runtime-bundled Morphir host and independent F# frontend and backend from that s
 counts and SHA-256 values, installs their complete folders, executes the fixed readiness workflow, and selects the
 completed generation last. `--home` is optional and defaults to `MORPHIR_HOME`, then `~/.morphir`. A dry run creates
 no Home, locks, staging, receipts or selection and runs no guest.
+Setup refuses before those effects if the final host or provider executable path would exceed the Windows launch
+limit of 259 characters. Choose a shorter `--home` when the diagnostic names this limit.
 
 This is **release-checksum delivery, not publisher-authenticated**. HTTPS and a matching release checksum do not
 authenticate the publisher. The release transport starts only at the exact `finos/morphir-dotnet` repository and

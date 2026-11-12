@@ -190,6 +190,11 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
             refuse "acquisition.binding_mismatch" "The release descriptor differs from its independently selected archive or canonical manifest."
         descriptors.Add(role,raw,plan)
     if pins.Length <> descriptors.Count then refuse "acquisition.selection_mismatch" "This release setup supports the two selected F# processes only."
+    LocalInstallation.checkExecutablePaths candidate.Host.Platform home [
+        path home (LocalCandidateDocument.installationPath candidate.Host+"/"+candidate.Host.EntryPoint.Target.Text)
+        for _,_,plan in descriptors do
+            path home $"store/extensions/packages/sha256/{plan.TreeDigest.Value}/tree/{plan.EntryPoint.Text}"
+    ]
     if dryRun then return candidate.Host.ManifestSha256,None
     else
         use root = SafeDirectory.Open(home,true)

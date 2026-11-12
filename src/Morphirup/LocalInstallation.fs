@@ -57,6 +57,16 @@ let withPrivateStageAsync (root: SafeDirectory) (stage: SafeDirectory) (owner: F
     }
     Morphir.Toolchain.IO.AsyncOwnership.runAsync cleanup operation
 
+let checkExecutablePaths platform home (paths: string seq) =
+    match platform with
+    | Platform.WinX64 | Platform.WinArm64 ->
+        for path in paths do
+            // CreateProcessW's application path includes a terminating null within MAX_PATH.
+            if path.Length >= 260 then
+                refuse "local.executable_path_too_long"
+                    $"Home '{home}' produces an installed executable path of {path.Length} characters: '{path}'. The Windows launch limit is 259 characters, excluding the terminating null. Choose a shorter --home."
+    | _ -> ()
+
 let maximumArchive = 1UL <<< 30
 let documentBound = 8L <<< 20
 
@@ -634,7 +644,8 @@ let writeFile (root: SafeDirectory) path bytes =
 
 type private HostPreparation = | HostOnly | Composed
 
-let private setupCoreAsync mode home raw candidate archive dryRun (ct: CancellationToken) = task {
+let private setupCoreAsync mode home raw (candidate: LocalHostCandidate) archive dryRun (ct: CancellationToken) = task {
+    checkExecutablePaths candidate.Platform home [relative home (LocalCandidateDocument.installationPath candidate+"/"+candidate.EntryPoint.Target.Text)]
     let admission root = if mode = HostOnly then validateSetupAdmission root else validateOwnedState root
     use source = FileSafety.openInput archive
     validateArchive source candidate (fun () -> if mode = HostOnly then existingHome home ct elif Directory.Exists home then use root = SafeDirectory.Open(home,false) in validateOwnedState root) ct

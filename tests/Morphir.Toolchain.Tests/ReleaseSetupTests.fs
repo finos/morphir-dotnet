@@ -162,6 +162,61 @@ let providerRouting =
     ]
 
 [<Tests>]
+let launchPathAdmission = testList "WindowsLaunchPathAdmission" [
+    for platform in [Platform.WinX64;Platform.WinArm64] do
+        testCase (Platform.name platform + " accepts a 259-character executable path") (fun () ->
+            let home = Path.Combine(Path.GetTempPath(),"example-home")
+            let executable = Path.Combine(home,String('a',259-home.Length-5)+".exe")
+            Expect.equal executable.Length 259 "boundary fixture"
+            LocalInstallation.checkExecutablePaths platform home [executable])
+        testCase (Platform.name platform + " refuses a 260-character executable path with the Home and limit") (fun () ->
+            let home = Path.Combine(Path.GetTempPath(),"example-home")
+            let executable = Path.Combine(home,String('a',260-home.Length-5)+".exe")
+            let refused =
+                try LocalInstallation.checkExecutablePaths platform home [executable]; false
+                with LocalCandidate.Refused(code,message) ->
+                    Expect.equal code "local.executable_path_too_long" "specific up-front refusal"
+                    Expect.stringContains message home "name the Home to shorten"
+                    Expect.stringContains message "259" "usable launch path limit"
+                    true
+            Expect.isTrue refused "path is refused before launch")
+]
+
+[<Tests>]
+let longHomeSetup = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
+    testCaseTask "provider path length refuses dry-run and apply before Home or archive transfer" (fun () -> task {
+        let folder = Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_ASSETS" |> Option.ofObj |> Option.defaultWith (fun () -> skiptest "The official produced Windows archives are required.")
+        let platform = match OperatingSystem.IsWindows(),RuntimeInformation.ProcessArchitecture with
+                       | true,Architecture.Arm64 -> Platform.WinArm64
+                       | true,Architecture.X64 -> Platform.WinX64
+                       | _ -> skiptest "The installed Windows setup is a Windows product path."
+        use sandbox = TestSandbox.Create("long-home-")
+        let raw = File.ReadAllBytes(Path.Combine(folder,ReleaseBundleDocument.fileName platform))
+        let bundle = ReleaseBundleDocument.read raw |> function Ok value -> value | Error _ -> failtest "Invalid produced bundle."
+        let candidateName = bundle.Assets |> List.find(fun asset -> asset.Role="host-candidate") |> fun asset -> asset.Name.Text
+        let candidate = File.ReadAllBytes(Path.Combine(folder,candidateName)) |> LocalComposedDocument.readReleaseCandidate |> function Ok value -> value | Error _ -> failtest "Invalid produced candidate."
+        let hostRelative = LocalCandidateDocument.installationPath candidate.Host + "/" + candidate.Host.EntryPoint.Target.Text
+        let homeLength = 259-hostRelative.Length-1
+        let home = Path.Combine(sandbox.Work,String('h',homeLength-sandbox.Work.Length-1))
+        Expect.equal (Path.Combine(home,hostRelative.Replace('/',Path.DirectorySeparatorChar))).Length 259 "host itself fits; the longer provider path must be checked"
+        let files = Directory.GetFiles(folder) |> Array.filter(fun name -> not(name.EndsWith(".zip",StringComparison.OrdinalIgnoreCase))) |> Array.map(fun name -> Path.GetFileName name,File.ReadAllBytes name) |> Map.ofArray
+        for dryRun in [true;false] do
+            let transport = BytesTransport files
+            let! refused = task {
+                try
+                    let! _ = ComposedInstallation.setupWithTransportAsync platform home bundle.Version.Text transport dryRun CancellationToken.None
+                    return false
+                with LocalCandidate.Refused(code,message) ->
+                    Expect.equal code "local.executable_path_too_long" "provider admission runs before transfer or effects"
+                    Expect.stringContains message home "actionable Home diagnostic"
+                    return true
+            }
+            Expect.isTrue refused "no success with an unlaunchable provider"
+            Expect.isFalse (Directory.Exists home) "no Home or staging created"
+    })
+]
+
+[<Tests>]
 let publicationLocks = testLabel "PlatformSpecific" <| testList "ComposedPublicationLocks" [
     testCaseTask "running host captures state while publication waits for its mutation lease" (fun () -> task {
         use sandbox = TestSandbox.Create()
