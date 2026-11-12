@@ -45,7 +45,8 @@ type InstalledActivationRecord
     member _.ManifestBytes = Array.copy manifest
     /// Embedded claims as supplied; this grants no authentication or readiness.
     member _.ClaimsBytes = JsonText.toBytes entry.Claims.Json
-    /// Current published provenance is explicitly local developer provenance.
+    /// The underlying extension-state record uses local-directory installer provenance.
+    /// This does not describe a composed toolchain candidate's origin or grant publisher authentication.
     member _.IsLocalDeveloper = true
     /// Validates the actual negotiated session before an installed operation. This does not prove invocation.
     member _.CheckSession(session: NegotiatedSession) =

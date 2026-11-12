@@ -109,6 +109,15 @@ let private readiness (root: SafeDirectory) (stage: SafeDirectory) (candidate: L
     ]
 }
 
+// Both operations use the real installer leases; the parameters also let tests
+// coordinate contention without timing the guest or changing filesystem behavior.
+let publishGenerationAsync (acquireMutation: unit -> Task<FileStream>) (publishExpected: Func<Task> -> Task<unit>) (publish: unit -> Task<unit>) = task {
+    // Run retains mutation while its host captures installer state. Publication
+    // must use that same order, and release mutation before selection reacquires it.
+    use! lease = acquireMutation ()
+    do! publishExpected(Func<Task>(fun () -> publish () :> Task))
+}
+
 let private publishSelection (root: SafeDirectory) (snapshot: GenerationSnapshot) ct = task {
     let manifest = snapshot.Manifest |> Option.defaultWith(fun () -> refuse "setup.incomplete_generation" "An unpublished preparation cannot be selected.")
     let receipt = snapshot.Receipt |> Option.defaultWith(fun () -> refuse "setup.incomplete_generation" "A completed receipt is required.")
@@ -215,8 +224,11 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
             LocalInstallation.writeFile generation "receipt.json" receipt
             generation.Identity
         let expectedLocks = locks |> List.map(fun (id,bytes) -> id.Text,bytes) |> readOnlyDict
-        let! result = InstalledExtensions.PublishExpectedAsync(home,captures.CatalogBytes,expectedLocks,candidate.Host.Host.Version,Func<Task>(fun () -> task {
-            use! lease = FileSafety.mutationLeaseAsync root ct
+        let publishExpected callback = task {
+            let! result = InstalledExtensions.PublishExpectedAsync(home,captures.CatalogBytes,expectedLocks,candidate.Host.Host.Version,callback,ct)
+            successful result
+        }
+        do! publishGenerationAsync (fun () -> FileSafety.mutationLeaseAsync root ct) publishExpected (fun () -> task {
             stage.ValidateLocation()
             use prepared = stage.Child("generation",false)
             if prepared.Identity <> preparedIdentity then refuse "setup.generation_changed" "The prepared generation directory changed before publication."
@@ -229,8 +241,7 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
                 if published && final.Identity <> preparedIdentity then refuse "setup.generation_changed" "Published generation identity differs from the prepared directory."
                 let current = GenerationBinding.load root final.Path
                 if current.Receipt <> Some receipt then refuse "setup.generation_conflict" "Existing generation is not the verified publication.")
-        }),ct)
-        successful result
+        })
         let snapshot = GenerationBinding.load root (path home (LocalCandidateDocument.generationPath manifest.Identity))
         if Option.isSome acquisition then do! publishSelection root snapshot ct
         return candidate.Host.ManifestSha256,Some manifest.Identity

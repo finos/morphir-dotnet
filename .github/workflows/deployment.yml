@@ -172,6 +172,7 @@ jobs:
 
     build-windows-toolchain:
         needs: [validate-version]
+        if: ${{ !failure() && vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
         runs-on: windows-latest
         timeout-minutes: 60
         env:
@@ -333,6 +334,7 @@ jobs:
                   find ./artifacts/executables ./artifacts/release-assets -type f -ls
 
             - name: Download the Windows release setup closure
+              if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' }}
               uses: actions/download-artifact@v7
               with:
                   name: windows-release-toolchain

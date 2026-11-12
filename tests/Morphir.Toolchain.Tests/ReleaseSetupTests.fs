@@ -57,6 +57,53 @@ let private tinyBundle () =
         "assets",Value.Array(List.map asset ReleaseBundleDocument.roles)] |> JsonText.toBytes
 
 [<Tests>]
+let publicationLocks = testList "ComposedPublicationLocks" [
+    testCaseTask "running host captures state while publication waits for its mutation lease" (fun () -> task {
+        use sandbox = TestSandbox.Create()
+        use root = Morphir.Extensions.Installation.SafeDirectory.Open(Path.Combine(sandbox.Work,"home"),true)
+        use locks = root.Child("locks",true)
+        use deadline = new CancellationTokenSource(TimeSpan.FromSeconds 10.)
+        let ct = deadline.Token
+        let! runningHost = Morphir.Extensions.Installation.FileSafety.mutationLeaseAsync root ct
+        let requested = TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously)
+        let mutable published = false
+        let acquireMutation () =
+            requested.TrySetResult() |> ignore
+            Morphir.Extensions.Installation.FileSafety.mutationLeaseAsync root ct
+        let publishExpected (callback: Func<Task>) = task {
+            use! state = locks.NamedLeaseAsync("extensions.state.lock",true,true,ct)
+            do! callback.Invoke()
+        }
+        let publication = ComposedInstallation.publishGenerationAsync acquireMutation publishExpected (fun () -> task {
+            Expect.throwsT<Morphir.Extensions.Installation.FileLeaseBusyException>
+                (fun () -> use unexpected = Morphir.Extensions.Installation.FileSafety.mutationLease root in ())
+                "publication still protects host files"
+            Expect.throwsT<Morphir.Extensions.Installation.FileLeaseBusyException>
+                (fun () -> use unexpected = locks.NamedLease("extensions.state.lock",true,false) in ())
+                "publication still holds installer state"
+            published <- true
+        })
+        let mutable captured = false
+        try
+            do! requested.Task.WaitAsync(TimeSpan.FromSeconds 3.)
+            Expect.isFalse publication.IsCompleted "publication must wait for the running host"
+            use captureDeadline = new CancellationTokenSource(TimeSpan.FromSeconds 1.)
+            try
+                use! state = locks.NamedLeaseAsync("extensions.state.lock",true,true,captureDeadline.Token)
+                captured <- true
+            with :? OperationCanceledException -> ()
+        finally
+            runningHost.Dispose()
+        // Settle the publication before reporting failure, including on the RED path.
+        do! publication.WaitAsync(TimeSpan.FromSeconds 3.)
+        Expect.isTrue captured "host state capture must not wait for a publisher blocked on that host"
+        Expect.isTrue published "publication resumes after the host releases its lease"
+        use! selectionLease = Morphir.Extensions.Installation.FileSafety.mutationLeaseAsync root ct
+        Expect.isTrue selectionLease.CanRead "publication releases mutation before selection reacquires it"
+    })
+]
+
+[<Tests>]
 let tests = testList "WindowsReleaseSetup" [
     testCaseTask "wrong release checksum refuses before Home, staging or installation" (fun () -> task {
         use sandbox = TestSandbox.Create()
