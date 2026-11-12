@@ -159,3 +159,12 @@ the same.
 | --- | --- |
 | `CommandFamilyDriverTests` (25), `CliDriverTimeLimitTests` (1), `DotnetHostTests` (6), new cases of `BlackBoxSessionTests`, `ScenarioWorkspaceTests`, `TestEligibilityTests` | The drivers and capabilities of task 7.2. |
 | `ToolRouting.feature`, "The experimental wasm-host commands go to the separate runner" | One row for each command: the old test ran two commands in one case. |
+
+## Findings about the product (not in the scope of this change)
+
+- `morphir config get` and `morphir config set` with `--file` join an absolute Windows path with backslashes, such as
+  `D:\a\work\morphir.toml`, to the working directory: `ProjectPath.join` knows an absolute path only as `/...` or
+  `X:/...`. The report then reads `D:/a/work/D:/a/work/morphir.toml`, which is not there. A path with `/`, as a report
+  writes it, works. The check of "Supported primary outputs retain the project source directory" gives the path
+  relative to the work area, so it runs on Windows; the old test read the file with the configuration library and
+  gave no path to the CLI.

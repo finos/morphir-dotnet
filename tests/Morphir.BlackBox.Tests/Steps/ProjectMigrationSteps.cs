@@ -179,13 +179,15 @@ public sealed class ProjectMigrationSteps(IMigrationDriver migration, IConfigura
     public void NoTarget() => Check(!workspace.Exists(Target), "The migration made a target.");
 
     /// <summary>
-    /// Reads the written file back with <c>config get</c>. The same check with the configuration reader of the
-    /// product stays in Morphir.Tooling.Tests.
+    /// Reads the written file back with <c>config get</c>, with its path relative to the work area, in which the
+    /// command starts: the CLI joins an absolute Windows path with backslashes to its working directory
+    /// (<c>evidence/slice-3-moves.md</c>, the findings about the product). The same check with the configuration
+    /// reader of the product stays in Morphir.Tooling.Tests.
     /// </summary>
     [Then("migration writes {string} with the legacy defaults")]
     public async Task Persisted(string relative)
     {
-        var file = Root.File(relative).Path;
+        var file = relative;
         foreach (var (key, expected) in new[] { ("project.source_directory", "elm-src"), ("frontend.language", "elm"), ("pipeline.backend", "checkpoint"), ("pipeline.checkpoint_format", "morphir-json") })
         {
             var read = await Read(key, file);

@@ -28,8 +28,9 @@ public class DotnetHostTests
 
         result.ShouldExitWith(0);
         commandLine.ShouldExitWith(0);
-        result.CommandLine.Should().StartWith(DotnetHost.Path);
-        commandLine.CommandLine.Should().StartWith(DotnetHost.Path);
+        // The command line quotes a path with a space, as C:\Program Files\dotnet\dotnet.exe.
+        result.CommandLine.TrimStart('"').Should().StartWith(DotnetHost.Path);
+        commandLine.CommandLine.TrimStart('"').Should().StartWith(DotnetHost.Path);
         Path.IsPathRooted(DotnetHost.Path).Should().BeTrue("the test runs on a dotnet host whose path the process knows");
     }
 
