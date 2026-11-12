@@ -95,9 +95,9 @@
     <PackageVersion Include="bunit" Version="1.40.0" />
     <PackageVersion Include="bunit.web" Version="1.40.0" />
     <PackageVersion Include="BlazorMonaco" Version="3.5.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.5.2" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.5.3" />
     <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Serilog" Version="4.4.0" />
@@ -108,7 +108,7 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
-    <PackageVersion Include="TUnit" Version="1.81.10" />
+    <PackageVersion Include="TUnit" Version="1.83.8" />
     <PackageVersion Include="Eleven19.IonDotnet" Version="0.1.4" />
     <PackageVersion Include="Expecto" Version="10.2.3" />
     <PackageVersion Include="Expecto.FsCheck" Version="10.2.3" />
