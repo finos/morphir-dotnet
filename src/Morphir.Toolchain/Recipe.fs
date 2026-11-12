@@ -204,11 +204,11 @@ module RecipeDocument =
 
     let private operationObject (n: Node) = asObject n |> Result.bind operation
 
-    let private builtIn (n: Node) : Read<BuiltIn> =
+    let private builtIn readIdentity (n: Node) : Read<BuiltIn> =
         result {
             let! o = asObject n
             let! operation = operation o
-            let! extensionId = required "extensionId" extensionId o
+            let! extensionId = required "extensionId" readIdentity o
             let! version = required "version" version o
             let! model = builtInModel operation o
 
@@ -245,7 +245,7 @@ module RecipeDocument =
     let private nonEmptyPlatforms (n: Node) (platforms: (Platform * 'T) list) : Read<(Platform * 'T) list> =
         if List.isEmpty platforms then refuse ReaderCode.InconsistentDocument n.Path else Ok platforms
 
-    let private host (n: Node) : Read<HostOffering> =
+    let private host readIdentity (n: Node) : Read<HostOffering> =
         result {
             let! o = asObject n
             let! implementation = required "implementation" token o
@@ -256,7 +256,7 @@ module RecipeDocument =
             let! protocolVersions = required "protocolVersions" (distinctArray (validated ProtocolVersion.tryParse)) o
             let! wasmAbis = optional "wasmAbis" (distinctArray token) o
             let! prerequisites = optional "prerequisites" (array prerequisite) o
-            let! builtIns = optional "builtIns" (array builtIn) o
+            let! builtIns = optional "builtIns" (array (builtIn readIdentity)) o
 
             let platformEntry (platform: Platform) (entry: Node) =
                 match source with
@@ -293,7 +293,7 @@ module RecipeDocument =
                   DescriptorSha256 = descriptorSha256 }
         }
 
-    let private provider (n: Node) : Read<RecipeProvider> =
+    let private provider readIdentity (n: Node) : Read<RecipeProvider> =
         result {
             let! o = asObject n
             let! operation = operation o
@@ -312,7 +312,7 @@ module RecipeDocument =
             if delivery = Delivery.BuiltIn then
                 return! refuse ReaderCode.InconsistentDocument (n.Path.Child "delivery")
 
-            let! extensionId = required "extensionId" extensionId o
+            let! extensionId = required "extensionId" readIdentity o
             let! version = required "version" version o
             let! release = release o
 
@@ -595,13 +595,13 @@ module RecipeDocument =
             return recipe
         }
 
-    let private body (identity: Sha256) (o: ObjectNode) : Read<Recipe> =
+    let private body readIdentity (identity: Sha256) (o: ObjectNode) : Read<Recipe> =
         result {
             let! preset = required "preset" token o
             let! version = required "version" version o
             let! operations = required "operations" (array operationObject) o
-            let! hosts = required "hosts" (array host) o
-            let! providers = required "providers" (array provider) o
+            let! hosts = required "hosts" (array (host readIdentity)) o
+            let! providers = required "providers" (array (provider readIdentity)) o
 
             return!
                 consistency
@@ -616,4 +616,8 @@ module RecipeDocument =
 
     /// Reads the exact bytes of a recipe. Authenticating them is the caller's: this reader trusts nothing it reads.
     let read (bytes: byte array) : Result<Recipe, ReaderRefusal> =
-        document Syntax.parseJson understoodCriticalPaths (body (Sha256.ofBytes bytes)) bytes
+        document Syntax.parseJson understoodCriticalPaths (body extensionId (Sha256.ofBytes bytes)) bytes
+
+    /// Reads preview recipe bytes without authenticating them or retrying a historical codec.
+    let internal readPreview (bytes: byte array) : Result<Recipe, ReaderRefusal> =
+        previewDocument PreviewDocument.Recipe understoodCriticalPaths (body previewExtensionId (Sha256.ofBytes bytes)) bytes

@@ -30,6 +30,8 @@ let corpusTests () =
 
     testList "Toolchain contract corpus" [
         guarded "Unsigned document cases" (fun () -> DocumentCaseTests.tests)
+        guarded "Preview family existing document readers" PreviewDocumentCaseTests.tests
+        guarded "Preview family envelope and identity isolation" PreviewDocumentCaseTests.isolationTests
         guarded "Unsigned binding cases" (fun () -> BindingCaseTests.tests)
         guarded "Signed cases" (fun () -> SignedCaseTests.tests)
         guarded "JSON Schemas" (fun () -> SchemaTests.tests)

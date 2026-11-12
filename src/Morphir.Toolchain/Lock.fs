@@ -138,12 +138,12 @@ module LockedProviderDocument =
             return { Target = target; Sha256 = sha }
         }
 
-    let internal read (n: Node) : Read<LockedProvider> =
+    let internal readWithIdentity readIdentity (n: Node) : Read<LockedProvider> =
         result {
             let! o = asObject n
             let! operation = operation o
             let! delivery = required "delivery" (tag deliveries) o
-            let! extensionId = required "extensionId" extensionId o
+            let! extensionId = required "extensionId" readIdentity o
             let! version = required "version" version o
 
             let! locked =
@@ -188,6 +188,8 @@ module LockedProviderDocument =
                   Version = version
                   Delivery = locked }
         }
+
+    let internal read (n: Node) : Read<LockedProvider> = readWithIdentity extensionId n
 
     let internal operationMembers (operation: Operation) =
         match operation with
@@ -331,13 +333,13 @@ module LockDocument =
                   Deployment = deployment }
         }
 
-    let private closure (_: Platform) (n: Node) : Read<Closure> =
+    let private closure readIdentity (_: Platform) (n: Node) : Read<Closure> =
         result {
             let! o = asObject n
             let! hostTarget = required "hostTarget" targetPath o
             let! hostSha256 = required "hostSha256" sha256 o
             let providersPath = n.Path.Child "providers"
-            let! providers = required "providers" (array LockedProviderDocument.read) o
+            let! providers = required "providers" (array (LockedProviderDocument.readWithIdentity readIdentity)) o
 
             if List.isEmpty providers then
                 return! refuse ReaderCode.InconsistentDocument providersPath
@@ -351,13 +353,13 @@ module LockDocument =
                   Providers = providers }
         }
 
-    let private body (identity: Sha256) (o: ObjectNode) : Read<Lock> =
+    let private body readIdentity (identity: Sha256) (o: ObjectNode) : Read<Lock> =
         result {
             let! requestSha256 = required "requestSha256" sha256 o
             let! recipe = required "recipe" recipeReference o
             let! host = required "host" host o
             let platformsPath = o.Path.Child "platforms"
-            let! platforms = required "platforms" (platformMap closure) o
+            let! platforms = required "platforms" (platformMap (closure readIdentity)) o
 
             // Each closure was checked as it was read; what remains relates the closures to each other.
             let! platforms =
@@ -382,7 +384,11 @@ module LockDocument =
 
     /// Reads the exact bytes of a lock.
     let read (bytes: byte array) : Result<Lock, ReaderRefusal> =
-        document Syntax.parseJson understoodCriticalPaths (body (Sha256.ofBytes bytes)) bytes
+        document Syntax.parseJson understoodCriticalPaths (body extensionId (Sha256.ofBytes bytes)) bytes
+
+    /// Reads only the exact preview lock schema, with the same closure checks.
+    let internal readPreview (bytes: byte array) : Result<Lock, ReaderRefusal> =
+        previewDocument PreviewDocument.Lock understoodCriticalPaths (body previewExtensionId (Sha256.ofBytes bytes)) bytes
 
     let internal recipeReferenceValue (recipe: RecipeReference) =
         Value.Object
@@ -392,9 +398,9 @@ module LockDocument =
 
     /// The lock as a document value, in the member order of the approved example. It names <c>host</c> and
     /// <c>platforms</c> as critical, as that example does.
-    let value (lock: Lock) =
+    let private valueWith envelope (lock: Lock) =
         Value.Object
-            [ "schemaVersion", Value.String ContractVersion.current
+            [ envelope
               "critical", Value.Array [ Value.String "host"; Value.String "platforms" ]
               "requestSha256", Value.String lock.RequestSha256.Text
               "recipe", recipeReferenceValue lock.Recipe
@@ -412,6 +418,12 @@ module LockDocument =
                               "hostSha256", Value.String closure.Host.Sha256.Text
                               "providers", Value.Array(closure.Providers |> List.map LockedProviderDocument.value) ] ] ]
 
+    /// The historical lock representation. Preview reads do not change this writer.
+    let value (lock: Lock) = valueWith ("schemaVersion", Value.String ContractVersion.current) lock
+
+    let private previewValue (lock: Lock) =
+        valueWith ("$schema", Value.String(previewSchema PreviewDocument.Lock)) lock
+
     /// The bytes a manager writes for a lock.
     let write (lock: Lock) = JsonText.toBytes (value lock)
 
@@ -419,5 +431,10 @@ module LockDocument =
     /// its path. It has no bytes of its own, so its identity is that of the lock it would be written as.</summary>
     let internal readNested (n: Node) : Read<Lock> =
         envelopeAt understoodCriticalPaths n
-        |> Result.bind (body (Sha256.ofBytes [||]))
+        |> Result.bind (body extensionId (Sha256.ofBytes [||]))
         |> Result.map (fun lock -> { lock with Identity = Sha256.ofBytes (write lock) })
+
+    let internal readPreviewNested (n: Node) : Read<Lock> =
+        previewEnvelopeAt PreviewDocument.Lock understoodCriticalPaths n
+        |> Result.bind (body previewExtensionId (Sha256.ofBytes [||]))
+        |> Result.map (fun lock -> { lock with Identity = Sha256.ofBytes (JsonText.toBytes (previewValue lock)) })

@@ -22,7 +22,6 @@ let dotted (field: string) (limit: int) (text: string | null) : Result<string, P
     match text with
     | null -> Error(ParseFailure.Empty field)
     | value when value.Length = 0 -> Error(ParseFailure.Empty field)
-    | value when value.Length > limit -> Error(ParseFailure.TooLong(field, limit))
     | value ->
         match
             value.Split '.'
@@ -32,7 +31,30 @@ let dotted (field: string) (limit: int) (text: string | null) : Result<string, P
             )
         with
         | Some segment -> Error(ParseFailure.InvalidSegment(field, segment))
+        | None when value.Length > limit -> Error(ParseFailure.TooLong(field, limit))
         | None -> Ok value
+
+/// The extension contract checks grammar, then length, then the first segment's device name.
+let extensionId (text: string | null) =
+    dotted "extension id" 238 text
+    |> Result.bind (fun value ->
+        let first = value.Split('.')[0]
+
+        let device =
+            List.contains first [ "con"; "prn"; "aux"; "nul" ]
+            || (first.Length = 4
+                && (first.StartsWith("com", StringComparison.Ordinal)
+                    || first.StartsWith("lpt", StringComparison.Ordinal))
+                && first[3]
+                   >= '1'
+                && first[3]
+                   <= '9')
+
+        if device then
+            Error(ParseFailure.DeviceName "extension id")
+        else
+            Ok value
+    )
 
 /// Display text: not empty, within the limit, no white space at the ends and no control character.
 let display (field: string) (limit: int) (text: string | null) : Result<string, ParseFailure> =

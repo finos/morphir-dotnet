@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Decides which installed version of an extension a command uses, from the shared catalog, .NET level pins and a toolchain generation overlay, and checks the installed bytes again before they run, without contacting any repository. The level pins and the overlay serve a contract that belongs in finos/morphir's toolchain specifications; until that contract exists, the requirements that define them are provisional.
+Decides which installed version of an extension a command uses, from the shared catalog, portable level pins and a toolchain generation overlay, and checks bytes offline before running them. On 11 November 2026 the maintainer approved Q-LEVELS (b), Q-OVERLAY (a) above project pins and Q-CONFIGREF (a). Their behavior is settled; pin/overlay schemas, paths, member tables and cases still belong to finos/morphir's toolchain authority. The spellings and JSON examples below remain provisional until that authority publishes them. No unversioned .NET-only selection file is authorized.
 
 ## ADDED Requirements
 
 ### Requirement: Selection layers have a fixed precedence
-Provisional pending Q-LEVELS, Q-OVERLAY and the shared toolchain contract. For each id a host SHALL use the first layer that selects it: the generation overlay, the project pin, the workspace pin, the shared catalog, the system pin. Project and workspace SHALL be found with the project system's discovery boundary. A layer whose selection is broken SHALL stop resolution of that id.
+For each id a host SHALL use the first layer that selects it: the generation overlay, the project pin, the workspace pin, the shared catalog, the system pin. Project and workspace SHALL be found with the project system's discovery boundary. A layer whose selection is broken SHALL stop resolution of that id. Pin/overlay codecs SHALL wait for the parent toolchain contract.
 
 #### Scenario: Project pins a newer version
 - **WHEN** the shared catalog selects `acme-backend` 0.1.0 and the project pin selects 0.2.0
@@ -25,7 +25,7 @@ When discovery is isolated, the host SHALL omit the system pin and the shared ca
 - **THEN** that extension is not selected
 
 ### Requirement: A pin file is portable
-Provisional pending Q-LEVELS and the shared toolchain contract. A level pin file SHALL be `.morphir/extensions/selection.json` at its level, with a required `$schema` (Decision 15A, URL to be defined by that contract) and `extensions` sorted by id. Each entry SHALL have `extensionId`, `version`, `runtime`, and the digest per platform identifier, or one `portable` digest for WASM. It SHALL hold no absolute path and no credential.
+A level pin SHALL follow the parent toolchain contract's published schema and member table, with exact `$schema` matching. It SHALL bind id, version, runtime and per-platform digests, or one portable WASM digest, sorted by id, without absolute paths or credentials. `.morphir/extensions/selection.json` and the member spellings in the examples remain provisional to that authority.
 
 #### Scenario: Pin for two platforms
 - **WHEN** a project pins `acme-backend` 0.2.0 after installs on `win-x64` and `linux-x64`
@@ -55,7 +55,7 @@ A host SHALL resolve a pin through the .NET inventory by id and the digest for i
 - **THEN** the command fails with `extension.platform_not_pinned` naming `osx-arm64`
 
 ### Requirement: A generation overlay is supplied by its path
-Provisional pending Q-OVERLAY and the shared toolchain contract. A host SHALL read a generation overlay only when `MORPHIR_EXTENSION_OVERLAY` names an absolute directory below `toolchains/generations/` in Morphir Home that holds a pin file. Another path SHALL be refused with `extension.overlay_invalid`. The host and installer SHALL never write into an overlay.
+A host SHALL read a generation overlay from `MORPHIR_EXTENSION_OVERLAY`, above project pins. It SHALL require an absolute directory below `toolchains/generations/` in Morphir Home, following the parent toolchain contract's published layout and schema. Another path SHALL fail with `extension.overlay_invalid`. The host and installer SHALL never write into an overlay.
 
 #### Scenario: Overlay outside Morphir Home
 - **WHEN** `MORPHIR_EXTENSION_OVERLAY` names `/tmp/gen`
@@ -120,7 +120,7 @@ A host SHALL compare the guest's initialization result with the installed claim 
 - **THEN** the host refuses the session and calls no operation
 
 ### Requirement: Configuration names an installed extension by id
-Provisional pending Q-CONFIGREF. A frontend table SHALL name an installed extension with `[frontend.<language>] extension_id = "<id>"`, apart from the existing `extension` path. Setting both SHALL be a configuration error. A named id SHALL resolve through the selection layers, and an unresolved id SHALL fail with `extension.not_installed`.
+A frontend table SHALL name an installed extension with `extension_id`; an `extensions` table SHALL use `id`. Existing path-string members SHALL keep their meaning. Setting an id and a conflicting path/command source together SHALL be a configuration error. An id SHALL resolve through the selection layers, and an unresolved id SHALL fail with `extension.not_installed`.
 
 #### Scenario: Compile with an installed frontend
 - **WHEN** `morphir.toml` has `[frontend.fsharp] extension_id = "acme-frontend"` and that id is installed
@@ -130,15 +130,20 @@ Provisional pending Q-CONFIGREF. A frontend table SHALL name an installed extens
 - **WHEN** a frontend table sets both `extension` and `extension_id`
 - **THEN** configuration loading fails and names both members
 
+#### Scenario: Extension table names an installed id
+- **WHEN** an `extensions` table sets `id` to an installed extension id
+- **THEN** the host resolves it through the selection layers
+- **AND** an existing path-string configuration is not reinterpreted as an id
+
 ### Requirement: Use writes a pin for an installed version
-Provisional pending Q-LEVELS and Q-COMMANDS. `extension use <id> --version <semver> [--level project|workspace|global|system]` SHALL select an installed version at the level, default `project`. At the global level it SHALL replace the catalog entry and lock in one transaction. It SHALL refuse a version with no installed record for this platform.
+`extension use <id> --version <semver> [--level project|workspace|global|system]` SHALL select an installed version at the level, default `project`, following CMD-1 and the parent selection contract. At the global level it SHALL replace the catalog entry and lock in one transaction. It SHALL refuse a version with no installed record for this platform.
 
 #### Scenario: Use a version that is not installed
 - **WHEN** a user runs `morphir extension use acme-backend --version 9.9.9`
 - **THEN** the command fails with `extension.not_installed` and no pin changes
 
 ### Requirement: Which explains a selection
-Provisional pending Q-COMMANDS. `extension which <id>` SHALL report the layer that selects `<id>`, its version, digest, store path and claim check, and every lower layer that also selects it.
+`extension which <id>` SHALL report the layer that selects `<id>`, its version, digest, store path and claim check, and every lower layer that also selects it.
 
 #### Scenario: Which as JSON
 - **WHEN** a user runs `morphir extension which acme-backend --json` in a project with a pin

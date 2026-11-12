@@ -67,6 +67,7 @@
         "TestAll",
         "TestBuild",
         "TestE2E",
+        "TestExtensionInstallationAot",
         "TestMepAot",
         "TestMorphirupAot",
         "TestMyriadJsonAot",

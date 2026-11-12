@@ -33,6 +33,12 @@ partial class Build
 
     AbsolutePath MorphirupProbeDirectory => TestsDirectory / "Morphir.Toolchain.Tests" / "AotProbe";
 
+    // Manual lane only. Official qualification belongs to finos/morphir; this adds no CI job.
+    Target TestExtensionInstallationAot => _ => _
+        .Description("Publish the installer C# consumer with Native AOT and compare it with JIT")
+        .Executes(() => VerifyAotProbe(
+            TestsDirectory / "Morphir.Extensions.Installation.AotProbe" / "Morphir.Extensions.Installation.AotProbe.csproj", "extension-installation-aot"));
+
     /// <summary>
     /// Publish the morphirup manager with Native AOT and run a plan-only setup under JIT and native. The probe recipe
     /// holds a decomposed character and the run passes the digest the test suite records with --expect-plan, so a
@@ -117,6 +123,7 @@ partial class Build
         var start = new ProcessStartInfo(command)
         {
             UseShellExecute = false,
+            CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
