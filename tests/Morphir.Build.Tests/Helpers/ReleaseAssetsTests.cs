@@ -153,6 +153,28 @@ public class ReleaseAssetsTests
     }
 
     [Test]
+    public async Task TheReleaseShapeFlattensEachManagerOnceAndRefusesASecondBuildOfIt()
+    {
+        // The release downloads morphirup-<rid> and windows-release-toolchain-<rid> for each Windows RID. Both come from
+        // one job, so their manager and notices are the same bytes and are copied once. A manager built elsewhere fails
+        // instead of replacing the bytes that the toolchain's SHA256SUMS names.
+        await using var sandbox = TestSandbox.Create("release-assets-");
+        var toolchains = ReleaseAssets.WindowsToolchainPlatforms.Select(rid => Toolchain(sandbox, rid,
+            ("morphirup-v1.2.3-THIRD-PARTY-NOTICES.txt", "notices"))).ToList();
+        var managers = ReleaseAssets.WindowsToolchainPlatforms.Select(rid => Source(sandbox, $"morphirup-{rid}",
+            (MorphirupRelease.ExecutableName(rid), $"{rid} manager"), ("morphirup-v1.2.3-THIRD-PARTY-NOTICES.txt", "notices"))).ToList();
+        var assets = sandbox.PathOf("release-assets");
+
+        ReleaseAssets.Flatten([.. managers, .. toolchains], assets).Problems.Should().BeEmpty();
+        ReleaseAssets.WriteWindowsToolchainChecksums(toolchains, assets).Problems.Should().BeEmpty();
+
+        var other = sandbox.PathOf("release-assets-2");
+        await File.WriteAllTextAsync(Path.Combine(managers[0], "morphirup-win-x64.exe"), "another build");
+        ReleaseAssets.Flatten([.. managers, .. toolchains], other).Problems.Should().ContainSingle()
+            .Which.Should().Contain("morphirup-win-x64.exe");
+    }
+
+    [Test]
     public void TheWindowsToolchainPlatformsAreTheTwoWindowsRids()
     {
         ReleaseAssets.WindowsToolchainPlatforms.Should().Equal("win-x64", "win-arm64");

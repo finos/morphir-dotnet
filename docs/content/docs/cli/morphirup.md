@@ -15,11 +15,13 @@ the [local candidate instructions](../getting-started/local-morphirup-candidate.
 portable lock restore, proxy installation and shell setup remain unfinished. Matching a release checksum does not
 authenticate a publisher.
 
-## Install with morphirup (Windows x64, experimental)
+## Install with morphirup (Windows, experimental)
 
 The release setup path is being introduced by this change. Older published managers do not provide it. Once a
-release containing this change is published, download `morphirup-win-x64.exe` and `SHA256SUMS` from the same
-[morphir-dotnet release](https://github.com/finos/morphir-dotnet/releases). Compare the executable's SHA-256 with its
+release containing this change is published, download `morphirup-win-x64.exe`, or `morphirup-win-arm64.exe` on
+Windows ARM64, and `SHA256SUMS` from the same [morphir-dotnet release](https://github.com/finos/morphir-dotnet/releases).
+Setup downloads the toolchain of the manager's own platform from that release; one `SHA256SUMS` lists both platforms'
+files. Compare the executable's SHA-256 with its
 line in that file, then rename it to `morphirup.exe`. No .NET installation is required.
 
 In an existing F# project, or the supplied `examples/morphirup-fsharp` sample, run:

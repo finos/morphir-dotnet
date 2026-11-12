@@ -151,7 +151,8 @@ public class MorphirupReleaseTests
         foreach (var name in new[] { "deployment.yml", "morphirup.yml" })
         {
             var text = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", name));
-            text.Should().Contain("--target FlattenReleaseAssets MorphirupChecksums --release-asset-sources", name);
+            text.Should().Contain("--target FlattenReleaseAssets MorphirupChecksums WindowsToolchainChecksums", name);
+            text.Should().Contain("--release-asset-sources ./artifacts/downloads/morphirup/* ./artifacts/downloads/windows-toolchain/*", name);
             Regex.Matches(text, @"pattern: morphirup-\*\s*\n\s*merge-multiple: (\S+)").Select(match => match.Groups[1].Value)
                 .Should().Equal(new[] { "false" }, $"{name} downloads each morphirup output into a folder of its own");
         }
