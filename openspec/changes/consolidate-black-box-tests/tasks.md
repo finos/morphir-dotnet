@@ -45,10 +45,10 @@ the task that adds its first test, so no registered suite is empty.
 
 ## 3. `CliTestHelper` on the CLI driver (pull request 1)
 
-- [ ] 3.1 Record the baseline: run `Morphir.Tooling.Tests` in full with a TRX report, and keep the pass, fail and skip counts and the summed time of each class in `evidence/tooling-baseline.md`.
+- [x] 3.1 Record the baseline: run `Morphir.Tooling.Tests` in full with a TRX report, and keep the pass, fail and skip counts and the summed time of each class in `evidence/tooling-baseline.md`.
 - [ ] 3.2 Import `Morphir.CliArtifacts.targets` in `Morphir.Tooling.Tests`, which references the tooling library and neither entry point. Change `CliTestHelper` to call the development build target of `ICliDriver`, with the native host for `CliHost.Morphir` and the tool host for `CliHost.DotnetTool`, and keep its public members and its `CliExecutionResult`. Verify that a build of `Morphir.Tooling.Tests` alone, from a clean tree, builds the entry points, and that the project compiles with no change to a test.
-- [ ] 3.3 Do the same for the step classes of `Morphir.Tooling.Tests` that start the CLI itself (`ConfigurationSteps`, `ConfigurationEditingSteps`, `WorkspaceMigrationSteps`). Leave the starts of child worker processes as they are. Verify that those features pass.
-- [ ] 3.4 Run `Morphir.Tooling.Tests` in full again. Verify that the pass, fail and skip counts equal the baseline, and record the summed time of each class beside the baseline in `evidence/tooling-baseline.md`.
+- [x] 3.3 Do the same for the step classes of `Morphir.Tooling.Tests` that start the CLI itself (`ConfigurationSteps`, `ConfigurationEditingSteps`, `WorkspaceMigrationSteps`). Leave the starts of child worker processes as they are. Verify that those features pass.
+- [x] 3.4 Run `Morphir.Tooling.Tests` in full again. Verify that the pass, fail and skip counts equal the baseline, and record the summed time of each class beside the baseline in `evidence/tooling-baseline.md`.
 
 ## 4. First scenarios (pull request 1)
 
@@ -104,7 +104,7 @@ the task that adds its first test, so no registered suite is empty.
 ## 10. Clean-up and integration check (pull request 6)
 
 - [ ] 10.1 Remove the old probe targets from the build and from the Linux step, after the CI run of pull request 5 on `main` in which `TestAot` passed. Verify that the Linux test job still publishes with Native AOT, and record the run in `evidence/aot-lane.md`.
-- [ ] 10.2 Remove the helpers and the old environment variables (`MORPHIR_EXECUTABLE_TYPE`, `MORPHIR_EXECUTABLE_PATH`, `MORPHIR_GENERATION_CLI`, `MORPHIR_DOTNET_TOOL_CLI`, `MORPHIR_AOT_CLI`). Each reader that stays was changed in pull request 2 or 3 (`evidence/inventory.md`, the table of readers). Verify with a search that no code, script or workflow reads them and that no document tells a reader to set them. The mapping table in `tests/Morphir.TestSupport/README.md` and the evidence of this change can name them.
+- [ ] 10.2 Remove the helpers and the old environment variables (`MORPHIR_EXECUTABLE_TYPE`, `MORPHIR_EXECUTABLE_PATH`, `MORPHIR_GENERATION_CLI`, `MORPHIR_DOTNET_TOOL_CLI`, `MORPHIR_AOT_CLI`, and `MORPHIR_CONFIGURATION_CLI`, which task 3.3 found). Each reader that stays was changed in pull request 2 or 3 (`evidence/inventory.md`, the table of readers). Verify with a search that no code, script or workflow reads them and that no document tells a reader to set them. The mapping table in `tests/Morphir.TestSupport/README.md` and the evidence of this change can name them.
 - [ ] 10.3 Run the inventory script again. Verify that each row of `evidence/inventory.md` is done: the file moved, was split, or stays with its reason, and that a file that the script finds and the inventory does not have gets a row.
 - [ ] 10.4 Count the `PlatformSpecific` marks that stay in unit test projects and record the count and the classes in `evidence/marks-after.md`.
 - [ ] 10.5 Run a pull request CI run on the three operating systems and a manual full run. Verify that both pass, and record the job times against run 43215049975 in `evidence/ci-times.md`.

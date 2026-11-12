@@ -91,7 +91,7 @@ The new settings replace these names when the tests that read them move. Do not 
 | `CliTestHelper` with `CliHost.DotnetTool`; `MORPHIR_EXECUTABLE_TYPE=tool` | `dev` with `MORPHIR_TEST_HOST=tool` |
 | `MORPHIR_EXECUTABLE_TYPE=aot`, `trimmed`, `untrimmed`; `MORPHIR_AOT_CLI` | `MORPHIR_TEST_TARGET=aot`, `trimmed`, `untrimmed` |
 | `MORPHIR_EXECUTABLE_TYPE` with a packaged offering | `MORPHIR_TEST_TARGET` with the same value |
-| `MORPHIR_EXECUTABLE_PATH`, `MORPHIR_GENERATION_CLI`, `MORPHIR_DOTNET_TOOL_CLI` | `MORPHIR_TEST_TARGET=executable` with `MORPHIR_TEST_EXECUTABLE` and `MORPHIR_TEST_HOST` |
+| `MORPHIR_EXECUTABLE_PATH`, `MORPHIR_GENERATION_CLI`, `MORPHIR_DOTNET_TOOL_CLI`, `MORPHIR_CONFIGURATION_CLI` | `MORPHIR_TEST_TARGET=executable` with `MORPHIR_TEST_EXECUTABLE` and `MORPHIR_TEST_HOST` |
 
 ## The one decision that says if a test runs
 

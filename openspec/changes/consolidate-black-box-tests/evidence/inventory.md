@@ -184,6 +184,7 @@ discovered tests of the complete project, so such a file is in it.
 | `MORPHIR_EXECUTABLE_TYPE`, `MORPHIR_EXECUTABLE_PATH` | `Morphir.E2E.Tests`, `scripts/run-e2e-tests.cs`, `manual-aot-test.yml`, three documents | Pull request 2: `MORPHIR_TEST_TARGET`, `MORPHIR_TEST_HOST` and `MORPHIR_TEST_EXECUTABLE`. |
 | `MORPHIR_DOTNET_TOOL_CLI`, `MORPHIR_AOT_CLI` | `Morphir.Frontend.FSharp.Tests/CliAdapterTests.fs` (a kit test that stays), four files of `Morphir.Tooling.Tests`, one document | Pull request 2 for the kit test, which then uses the target of the testing library; pull request 3 for the others. |
 | `MORPHIR_GENERATION_CLI` | Six files of `Morphir.Tooling.Tests`, `src/Morphir.Testing/README.md`, one document | Pull requests 1 and 3. |
+| `MORPHIR_CONFIGURATION_CLI` | Found in pull request 1 (task 3.3), not in the first inventory: `ConfigurationSteps`, `ConfigurationEditingSteps`, `ProjectMigrationSteps` and `WorkspaceMigrationSteps` of `Morphir.Tooling.Tests`. From pull request 1 the one reader is `Integration/CLI/DevelopmentCli.cs`. | Pull request 3, with the configuration and migration features (task 7.4). Task 10.2 removes it with the other variables. |
 
 Task 10.2 removes a variable only when no code, script or workflow reads it and no document tells a reader to set
 it. The mapping table of the testing library and the evidence of this change can name an old variable.

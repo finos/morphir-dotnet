@@ -37,7 +37,7 @@ public class DriverDocumentationTests
             TestRunSettings.LaneVariable, TestRunSettings.KeepVariable, ProcessGate.LimitVariable,
         ];
         // The names that the new settings replace. The table "Old names" of the README is the only place for them.
-        string[] old = ["MORPHIR_EXECUTABLE_TYPE", "MORPHIR_EXECUTABLE_PATH", "MORPHIR_GENERATION_CLI", "MORPHIR_DOTNET_TOOL_CLI", "MORPHIR_AOT_CLI"];
+        string[] old = ["MORPHIR_EXECUTABLE_TYPE", "MORPHIR_EXECUTABLE_PATH", "MORPHIR_GENERATION_CLI", "MORPHIR_DOTNET_TOOL_CLI", "MORPHIR_AOT_CLI", "MORPHIR_CONFIGURATION_CLI"];
 
         var named = Regex.Matches(Readme, "MORPHIR_[A-Z_]+").Select(match => match.Value).Distinct().ToArray();
 

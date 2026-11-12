@@ -16,6 +16,12 @@ public sealed record CliRunOptions
 
     /// <summary>Variables for this command, added after the workspace contained the process. A null value removes a variable.</summary>
     public IReadOnlyDictionary<string, string?>? Environment { get; init; }
+
+    /// <summary>
+    /// The directory in which the command starts, as a full path. The default is the work area of the workspace.
+    /// For a test that has not moved to a workspace yet and has its own folder; a black-box test uses the default.
+    /// </summary>
+    public string? WorkingDirectory { get; init; }
 }
 
 /// <summary>
@@ -167,6 +173,8 @@ public sealed class CliDriver : ICliDriver
                 else info.Environment[name] = value;
             }
         }
+
+        if (options?.WorkingDirectory is { } directory) info.WorkingDirectory = directory;
 
         var mark = _workspace.Mark();
         // The runner holds a place of the gate, reads both streams, and stops the process tree at the time limit.
