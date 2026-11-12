@@ -159,12 +159,14 @@ let tests =
             for entry in SdkMapping.values do
                 expectTier entry.Target (Some entry.Arity) entry.Tier
         }
+        |> testLabel "PlatformSpecific"
 
         test
             "every union case entry is an inventory operation of the same arity, or names why it is outside" {
             for entry in SdkMapping.cases do
                 expectTier entry.Target (Some entry.Arity) entry.Tier
         }
+        |> testLabel "PlatformSpecific"
 
         test "every type entry is used by the inventory signatures, or names why it is outside" {
             for entry in SdkMapping.types do
@@ -182,6 +184,7 @@ let tests =
                         reason
                         $"{name entry.Target} names why it is outside the SDK contract"
         }
+        |> testLabel "PlatformSpecific"
 
         test "no F# symbol and operand type selects two value entries" {
             let operands = [
@@ -260,6 +263,7 @@ let tests =
                      |> Seq.exists (fun value -> value.CompiledName = compiledName))
                     $"FSharp.Core has the structural operator {key}"
         }
+        |> testLabel "PlatformSpecific"
 
         test "every value entry's F# type uses only types that lower to Morphir" {
             let core = fsharpCore.Force()
@@ -291,6 +295,7 @@ let tests =
                     (mapped value.FullType)
                     $"{entry.Symbol}: {value.FullType.Format FSharpDisplayContext.Empty} lowers to Morphir"
         }
+        |> testLabel "PlatformSpecific"
 
         test
             "the F# generator writes every value and case entry as F# that maps back to the same SDK name" {
@@ -350,6 +355,7 @@ let tests =
                 Expect.contains resolved target $"{label}: the generator's '{text}' maps back"
             )
         }
+        |> testLabel "PlatformSpecific"
 
         test
             "the F# generator writes every type entry as an F# type that maps back to the same SDK type" {
@@ -396,6 +402,7 @@ let tests =
                     | None -> failtestf "The generator's '%s' maps to no SDK type" text
             )
         }
+        |> testLabel "PlatformSpecific"
 
         test "operand shapes follow the SDK comparable profile" {
             Expect.isTrue

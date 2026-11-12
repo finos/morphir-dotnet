@@ -10,6 +10,7 @@ using Morphir.TestSupport;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
+[Category("PlatformSpecific")]
 public sealed class GenerationHandlerTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "morphir-handler-" + Guid.NewGuid().ToString("N"));

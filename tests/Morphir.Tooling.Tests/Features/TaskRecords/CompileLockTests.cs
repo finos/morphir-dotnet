@@ -9,6 +9,7 @@ namespace Morphir.Tooling.Tests.Features.TaskRecords;
 /// Spec: compile-task-records, "Runs of one task are serialized". Each test waits on a signal, never on a
 /// sleep, and every wait has a timeout, so the tests are deterministic and bounded.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class CompileLockTests : IDisposable
 {
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(30);

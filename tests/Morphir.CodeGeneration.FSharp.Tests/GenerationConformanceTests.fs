@@ -42,6 +42,7 @@ let tests =
             <| fun _ ->
                 let result = GenerationConformance.run generate rentalCase variant
                 Expect.equal result (GenerationConformance.Executed "15000") "independent behavior"
+            |> testLabel "PlatformSpecific"
 
         testCase "matrix rejects missing required representations"
         <| fun _ ->

@@ -653,3 +653,4 @@ let tests =
                 Expect.isSome (result.TryValue value.Symbol) "each value has a Morphir name"
         }
     ]
+    |> testLabel "PlatformSpecific"

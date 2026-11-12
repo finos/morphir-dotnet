@@ -10,6 +10,7 @@ namespace Morphir.Managed.Tests;
 /// The managed <c>morphir</c> routes <c>mck</c> as the other entry points do (cli-tool-dispatch). The produced managed
 /// apphost runs with a stub morphir-mck; Morphir.Tests covers the AOT-compatible morphir and dotnet-morphir.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ManagedMckRoutingTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);

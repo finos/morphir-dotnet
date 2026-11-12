@@ -42,7 +42,10 @@ let private editCase (caseId: string) (fragment: string) (replacement: string) (
 
 [<Tests>]
 let tests =
-    testList "WASM host feature reader (task 1.5)" [
+    // PlatformSpecific: these tests use the real file system, the checkout or worker processes, so the platform
+    // scope of the Test target runs them on every operating system (docs/contributing/ci-os-matrix.md).
+    testLabel "PlatformSpecific"
+    <| testList "WASM host feature reader (task 1.5)" [
         test "Validated report cases retain the pinned corpus order" {
             let suite = FeatureReader.read (corpus.Force()) (committed ()) |> requireOk "suite"
             Expect.equal

@@ -4,6 +4,7 @@ using Morphir.Configuration.IO;
 
 namespace Morphir.Configuration.IO.Tests;
 
+[Category("PlatformSpecific")]
 public sealed class ConfigurationRecoveryTests
 {
     [Test]
@@ -85,6 +86,7 @@ public sealed class ConfigurationRecoveryTests
         targets.Select(path => new ConfigurationFileChange(path, ConfigurationTransaction.Observe(path), Encoding.UTF8.GetBytes("candidate=true\n"))));
 }
 
+[Category("PlatformSpecific")]
 public sealed class ConfigurationRecoveryHostCapabilityTests
 {
     [Test]
@@ -120,6 +122,7 @@ public sealed class ConfigurationRecoveryHostCapabilityTests
     }
 }
 
+[Category("PlatformSpecific")]
 public sealed class ConfigurationRecoveryEvidenceTests
 {
     [Test]

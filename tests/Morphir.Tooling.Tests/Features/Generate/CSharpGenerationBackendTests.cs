@@ -17,6 +17,7 @@ public sealed class CSharpGenerationBackendTests
     private sealed record OtherOptions : ValidatedBackendOptions;
 
     [Test]
+    [Category("PlatformSpecific")]
     public void StaticRegistrationIsIdempotentAndRetainsFSharp()
     {
         using var app = MorphirCli.CreateBuilder([]).AddScenario<GenerationScenario>().AddScenario<GenerationScenario>().Build();
@@ -112,6 +113,7 @@ public sealed class CSharpGenerationBackendTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("target")]
     [Arguments("options")]
     [Arguments("requirements")]
@@ -152,6 +154,7 @@ public sealed class CSharpGenerationBackendTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("3", "json")]
     [Arguments("4", "json")]
     [Arguments("3.0.0", "text")]
@@ -177,6 +180,7 @@ public sealed class CSharpGenerationBackendTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task LocatedCoreRefusalsRemainSemanticAndContainNoArtifacts()
     {
         var root = Path.Combine(Path.GetTempPath(), "morphir-csharp-refusal-" + Guid.NewGuid().ToString("N"));

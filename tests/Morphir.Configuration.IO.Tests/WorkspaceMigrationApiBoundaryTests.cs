@@ -8,6 +8,7 @@ namespace Morphir.Configuration.IO.Tests;
 public sealed class WorkspaceMigrationNoopFormatTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("morphir.yaml", "workspace:\n  members: [app]\ncustom:\n  enabled: false\n")]
     [Arguments("morphir.yml", "workspace:\n  members: [app]\n")]
     [Arguments("morphir.json", "{workspace:{members:['app']}}")]
@@ -76,6 +77,7 @@ public sealed class WorkspaceMigrationApiBoundaryTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(false)]
     [Arguments(true)]
     public void StorageDriftOrReadFailureIsStructuredBeforeAnyWrite(bool drift)
@@ -90,6 +92,7 @@ public sealed class WorkspaceMigrationApiBoundaryTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void BatchRetainsFullJson5EscapesAndOpaqueArrayReferences()
     {
         using var fixture = new WorkspaceFixture();
@@ -105,6 +108,7 @@ public sealed class WorkspaceMigrationApiBoundaryTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("utf8")]
     [Arguments("utf16le")]
     [Arguments("utf16be")]

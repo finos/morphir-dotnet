@@ -362,3 +362,4 @@ let tests =
               | Ok element -> failtest $"A model over the depth limit is not served: {element}"
 
               Expect.equal run.ExitCode 0 $"exit code: {run.StandardError}" ]
+    |> testLabel "PlatformSpecific"

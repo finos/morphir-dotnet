@@ -84,6 +84,7 @@ public sealed class ProjectLoadingBoundaryTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void NativeLocationCaptureCanReadTheAmbientEnvironmentWithoutLoadingFiles()
     {
         ProjectPath.isAbsolute(ProjectSystem.CaptureMachineLocations().HomeDirectory).Should().BeTrue();

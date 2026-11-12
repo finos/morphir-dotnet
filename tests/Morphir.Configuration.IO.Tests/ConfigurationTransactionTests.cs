@@ -8,6 +8,7 @@ namespace Morphir.Configuration.IO.Tests;
 public sealed class ConfigurationTransactionTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     public void InstallsOneFileAndCleansAllOwnedArtifacts()
     {
         using var directory = new TestDirectory();
@@ -23,6 +24,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void FailureAfterReplacementRestoresOriginalAndCleansArtifacts()
     {
         using var directory = new TestDirectory();
@@ -41,6 +43,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("source")]
     [Arguments("alternate")]
     public void RechecksEveryObservationAfterStagingBeforeInstallation(string changedInput)
@@ -66,6 +69,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void NativeObservationNeverReadsThroughLinkedAncestors()
     {
         if (OperatingSystem.IsWindows()) return;
@@ -79,6 +83,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void NewlyCreatedParentAndStagesDoNotInvalidateDirectoryEvidence()
     {
         using var directory = new TestDirectory();
@@ -94,6 +99,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task OverlappingNativeWritersAreSerializedAndTheStaleWriterConflicts()
     {
         using var directory = new TestDirectory();
@@ -133,6 +139,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task SeparateNativeProcessesUseTheSameCoordinator()
     {
         using var directory = new TestDirectory();
@@ -208,6 +215,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void IncompleteRollbackRetainsTypedOwnedBackupAndRecoveryJournal()
     {
         using var directory = new TestDirectory();
@@ -236,6 +244,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void CleanupFailureReturnsTypedRecoveryAndRetainsEvidence()
     {
         using var directory = new TestDirectory();
@@ -254,6 +263,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void ALinkedTargetAncestorCannotAuthorizeAWrite()
     {
         if (OperatingSystem.IsWindows()) return;
@@ -271,6 +281,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("target")]
     [Arguments("backup")]
     public void RecoveryRechecksTheTargetAndBackupBeforeRestoring(string tampered)
@@ -292,6 +303,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(false)]
     [Arguments(true)]
     public void PartialStagingFailureHasExplicitArtifactOwnership(bool blockCleanup)
@@ -320,6 +332,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(ConfigurationTransactionPhase.BeforeStage, ConfigurationTransactionStatus.IoFailure)]
     [Arguments(ConfigurationTransactionPhase.BeforeInstall, ConfigurationTransactionStatus.IoFailure)]
     [Arguments(ConfigurationTransactionPhase.AfterInstall, ConfigurationTransactionStatus.RolledBack)]
@@ -343,6 +356,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void NativeReplacementPreservesExistingUnixPermissions()
     {
         if (OperatingSystem.IsWindows()) return;
@@ -358,6 +372,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TargetEvidenceCannotReferToAnotherFile()
     {
         using var directory = new TestDirectory();
@@ -373,6 +388,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void IdenticalBytesDoNotStageOrRewriteTheTarget()
     {
         using var directory = new TestDirectory();
@@ -412,6 +428,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void LaterFileFailureRollsBackEarlierFileWithoutClaimingGroupAtomicity()
     {
         using var directory = new TestDirectory();
@@ -437,6 +454,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("stage")]
     [Arguments("backup")]
     public void StagingIntegrityIsCheckedBeforeInstallation(string tampered)
@@ -466,6 +484,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void NativeInventoryIdentityUsesUnambiguousEntryEncoding()
     {
         if (OperatingSystem.IsWindows()) return;
@@ -480,6 +499,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(false)]
     [Arguments(true)]
     public void PartialParentCreationReportsOwnedDirectories(bool blockCleanup)
@@ -539,6 +559,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void NewTargetRollbackRemovesOnlyItsOwnedFileAndDirectories()
     {
         using var directory = new TestDirectory();
@@ -561,6 +582,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void AHostCannotTransferOwnershipOfAnotherTransactionsArtifact()
     {
         using var directory = new TestDirectory();
@@ -591,6 +613,7 @@ public sealed class ConfigurationTransactionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void AFileAtTheParentLocationReturnsIoFailureWithoutChangingIt()
     {
         using var directory = new TestDirectory();

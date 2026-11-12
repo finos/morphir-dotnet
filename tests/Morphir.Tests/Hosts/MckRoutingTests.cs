@@ -11,6 +11,7 @@ namespace Morphir.Tests.Hosts;
 /// tests start the produced executables of the Native AOT-compatible <c>morphir</c> and of <c>dotnet-morphir</c>, with a
 /// stub morphir-mck, and compare what the stub received and wrote with a standalone run of the stub.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class MckRoutingTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);

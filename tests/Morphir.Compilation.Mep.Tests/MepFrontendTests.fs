@@ -473,3 +473,4 @@ let tests =
               | Ok frontend ->
                   dispose frontend
                   failtest "A missing executable cannot connect" ]
+    |> testLabel "PlatformSpecific"

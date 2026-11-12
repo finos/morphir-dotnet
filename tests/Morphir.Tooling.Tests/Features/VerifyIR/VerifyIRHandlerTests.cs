@@ -4,6 +4,7 @@ using Morphir.Tooling.Infrastructure.JsonSchema;
 
 namespace Morphir.Tooling.Tests.Features.VerifyIR;
 
+[Category("PlatformSpecific")]
 public class VerifyIRHandlerTests
 {
     private readonly SchemaLoader _schemaLoader;

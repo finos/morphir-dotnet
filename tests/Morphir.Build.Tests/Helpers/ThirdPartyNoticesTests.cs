@@ -13,6 +13,7 @@ namespace Morphir.Build.Tests.Helpers;
 /// response file, each traced to the restored package that holds it, with that package's license and notice files, or a
 /// committed fallback text where the package ships none.
 /// </summary>
+[Category("PlatformSpecific")]
 public class ThirdPartyNoticesTests
 {
     private const string Mit = "Permission is hereby granted, free of charge, to any person obtaining a copy";

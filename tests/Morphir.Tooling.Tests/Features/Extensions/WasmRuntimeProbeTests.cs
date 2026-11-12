@@ -12,6 +12,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// The probe of the WASM runtime (task 4.2 of <c>add-wasm-extension-host</c>, design RPT-1): each unavailable reason,
 /// decided from what starting the engine did, and the process value that probes at most once, on first need.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class WasmRuntimeProbeTests
 {
     private const string Supported = "win-arm64";

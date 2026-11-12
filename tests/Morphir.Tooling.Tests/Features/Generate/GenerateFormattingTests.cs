@@ -50,6 +50,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task FormatFalseWritesLfTextWithOneFinalLfAndTheReportSaysOff()
     {
         using var sandbox = TestSandbox.Create("morphir-format-");
@@ -68,6 +69,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheDefaultFormatsUnderJitAndTheReportSaysApplied()
     {
         using var sandbox = TestSandbox.Create("morphir-format-");
@@ -76,6 +78,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheFormattingWarningIsForAHostThatCannotFormatOnly()
     {
         GenerateCommand.Warnings(Report("unavailable")).Should().ContainSingle()
@@ -152,6 +155,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task WithFormatFalseThePublisherWritesTheFrozenBytesOfTheToolchainCaseForTheBuiltInAndTheGuest()
     {
         using var sandbox = TestSandbox.Create("morphir-format-case-");
@@ -174,6 +178,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task OnAHostThatCannotFormatTheDefaultWarnsOnStderrOnlyAndTheJsonReportSaysUnavailable()
     {
         using var sandbox = TestSandbox.Create("morphir-format-host-");
@@ -186,6 +191,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task OnAHostThatCannotFormatTheDefaultWritesTheBytesOfFormatFalse()
     {
         using var sandbox = TestSandbox.Create("morphir-format-host-");
@@ -207,6 +213,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task OnAHostThatCannotFormatHumanModeKeepsStdoutToTheArtifactPaths()
     {
         using var sandbox = TestSandbox.Create("morphir-format-host-");
@@ -219,6 +226,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task WithFormatFalseAHostThatCannotFormatWritesTheSameBytesAsJitAndDoesNotWarn()
     {
         using var sandbox = TestSandbox.Create("morphir-format-host-");

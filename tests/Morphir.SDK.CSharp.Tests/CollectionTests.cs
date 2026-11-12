@@ -18,6 +18,7 @@ public sealed class CollectionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void SortedCollectionsUseExplicitMorphirOrderingAndFirstUnionWins()
     {
         var oldCulture = CultureInfo.CurrentCulture;

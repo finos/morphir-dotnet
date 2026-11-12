@@ -9,6 +9,7 @@ namespace Morphir.Build.Tests;
 /// <summary>
 /// Tests for validating local NuGet package installation (requires dotnet CLI)
 /// </summary>
+[Category("PlatformSpecific")]
 public class LocalInstallationTests
 {
     [Test]

@@ -66,6 +66,7 @@ let tests =
                   (block readme "```fsharp" "```")
                   (block source "// README example start" "// README example end")
                   "Same code"
+          |> testLabel "PlatformSpecific"
 
           testCase "the README example runs a session"
           <| fun _ ->

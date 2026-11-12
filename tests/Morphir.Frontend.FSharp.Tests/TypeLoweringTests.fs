@@ -247,3 +247,4 @@ let tests =
                     $"{family.Family} {version}"
         }
     ]
+    |> testLabel "PlatformSpecific"

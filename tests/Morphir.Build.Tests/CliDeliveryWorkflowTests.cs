@@ -11,6 +11,7 @@ namespace Morphir.Build.Tests;
 /// repository. This repository publishes its libraries and extension tools, and publishes the CLI (the morphir-&lt;rid&gt;
 /// executables, morphirup and Morphir.Tool) only when MORPHIR_DOTNET_CLI_PUBLICATION is enabled, as a rollback.
 /// </summary>
+[Category("PlatformSpecific")]
 public class CliDeliveryWorkflowTests
 {
     private const string Enabled = "vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled'";

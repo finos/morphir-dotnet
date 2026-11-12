@@ -86,6 +86,7 @@ let tests =
             for rule in Admission.rules do
                 ruleTest rule
         ]
+        |> testLabel "PlatformSpecific"
 
         testList "other forms of refused families" [
             for name, lines, expected in
@@ -155,6 +156,7 @@ let tests =
                     Expect.equal (codes diagnostics) expected "codes"
                 }
         ]
+        |> testLabel "PlatformSpecific"
 
         test "every catalog code is a valid diagnostic code" {
             for rule in Admission.rules do
@@ -184,6 +186,7 @@ let tests =
                     (File.ReadAllText(Path.Combine(source, file)).Contains "Morphir.Compilation")
                     $"{file} does not use Morphir.Compilation"
         }
+        |> testLabel "PlatformSpecific"
 
         test "catalog codes are unique and in the ecosystem form" {
             let all =
@@ -266,6 +269,7 @@ let tests =
             Expect.isNonEmpty used "the corpus has refusals"
             Expect.isEmpty (Set.difference used all) "every corpus code is in the catalog"
         }
+        |> testLabel "PlatformSpecific"
 
         test "several problems in one document are reported together, each at its own range" {
             let text =
@@ -281,6 +285,7 @@ let tests =
                 [ "fsharp.unsupported_mutable", 2; "fsharp.unsupported_class", 3 ]
                 "mutable, then class"
         }
+        |> testLabel "PlatformSpecific"
 
         test "conditional compilation is refused at the directive" {
             let text =
@@ -291,6 +296,7 @@ let tests =
             Expect.equal (codeOf refusal) "fsharp.unsupported_conditional_compilation" "code"
             Expect.equal (flagged [ pricing text ] refusal) "#if DEBUG" "at the directive"
         }
+        |> testLabel "PlatformSpecific"
 
         test "a refusal inside a refused construct is not reported again" {
             let text =
@@ -308,6 +314,7 @@ let tests =
                 [ "fsharp.unsupported_class"; "fsharp.unsupported_computation_expression" ]
                 "one refusal per construct"
         }
+        |> testLabel "PlatformSpecific"
 
         test "refusals in several documents are in document order" {
             let first =
@@ -326,6 +333,7 @@ let tests =
                 [ "A.fs", "fsharp.unsupported_inline"; "B.fs", "fsharp.unsupported_mutable" ]
                 "document order"
         }
+        |> testLabel "PlatformSpecific"
 
         test "a compiler error stops before admission" {
             let text = program [ "let mutable total: int = \"a\"" ]
@@ -336,6 +344,7 @@ let tests =
                 [ "fsharp.compiler" ]
                 "no refusal for code the compiler rejected"
         }
+        |> testLabel "PlatformSpecific"
 
         test "the supported subset passes admission" {
             let text =
@@ -389,4 +398,5 @@ let tests =
                  |> List.filter (fun diagnostic -> diagnostic.IsError))
                 "no refusal"
         }
+        |> testLabel "PlatformSpecific"
     ]

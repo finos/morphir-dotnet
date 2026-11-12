@@ -1,7 +1,9 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 // Package-consumer checks for Morphir.Myriad.SystemTextJson and its annotations package.
-// Run: dotnet fsi tests/Morphir.Myriad.SystemTextJson.Tests/package-tests.fsx
+// Run: dotnet fsi tests/Morphir.Myriad.SystemTextJson.Tests/package-tests.fsx [--no-build]
+// --no-build packs the Release assemblies that a build already made. The Test target uses it: see
+// tests/Morphir.Myriad.Tests/package-tests.fsx.
 open System
 open System.Diagnostics
 open System.IO
@@ -19,6 +21,7 @@ let workspace =
 
 let feed = Path.Combine(workspace, "feed")
 let version = "0.1.0-package." + Guid.NewGuid().ToString("N")
+let noBuild = fsi.CommandLineArgs |> Array.contains "--no-build"
 
 let run directory expectedSuccess (arguments: string list) =
     let start = ProcessStartInfo(dotnet)
@@ -233,7 +236,19 @@ try
         [ "src/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj"
           "src/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj"
           "src/Morphir.Myriad/Morphir.Myriad.fsproj" ] do
-        run root true [ "pack"; Path.Combine(root, project); "-c"; "Release"; "-o"; feed; "-p:PackageVersion=" + version; "--nologo" ]
+        run
+            root
+            true
+            [ "pack"
+              Path.Combine(root, project)
+              "-c"
+              "Release"
+              "-o"
+              feed
+              "-p:PackageVersion=" + version
+              "--nologo"
+              if noBuild then
+                  "--no-build" ]
         |> ignore
 
     let mutable failures = []

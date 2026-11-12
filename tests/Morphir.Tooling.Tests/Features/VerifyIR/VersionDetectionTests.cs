@@ -82,6 +82,7 @@ public class VersionDetectionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task DetectVersion_ShouldWorkWithRealV1File()
     {
         // Arrange
@@ -95,6 +96,7 @@ public class VersionDetectionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task DetectVersion_ShouldWorkWithRealV2File()
     {
         // Arrange
@@ -108,6 +110,7 @@ public class VersionDetectionTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task DetectVersion_ShouldWorkWithRealV3File()
     {
         // Arrange

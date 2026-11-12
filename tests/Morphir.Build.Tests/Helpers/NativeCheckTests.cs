@@ -159,6 +159,7 @@ public class NativeCheckTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheMorphirProbeIsManualOnEverySupportedPlatformAndReportsInfrastructureFailures()
     {
         string Workflow(string name) => File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", name));

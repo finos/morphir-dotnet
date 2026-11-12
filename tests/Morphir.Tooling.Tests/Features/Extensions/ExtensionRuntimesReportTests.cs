@@ -12,6 +12,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// <c>morphir extension runtimes</c> (task 4.2 of <c>add-wasm-extension-host</c>, design RPT-1): the report of the
 /// WASM runtime, as one JSON document and as text, for an available runtime and for each unavailable reason.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ExtensionRuntimesReportTests
 {
     private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));

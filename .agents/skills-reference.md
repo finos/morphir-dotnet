@@ -257,6 +257,53 @@ Muse Code skips project skills until the workspace is trusted (`muse skills list
 | Grok Build | `/agents`, then select `fsharp-csharp-interop-reviewer`. |
 | Muse Code | Start a subagent with the prompt in the skill's "Review mode" section. |
 
+### External skills: dotnet/skills
+
+The .NET team publishes skills in [dotnet/skills](https://github.com/dotnet/skills) as a plugin marketplace named `dotnet-agent-skills`. This repository uses the marketplace. It does not keep a copy of the skills, so `.agents/skills/` and the sync script do not change.
+
+| Plugin | Use it for |
+| --- | --- |
+| `dotnet-msbuild` | Build failures, build performance, incremental builds, `Directory.Build.*` organization, MSBuild antipatterns and modernization. Includes the `binlog` MCP server. |
+| `dotnet11` | New .NET 11 APIs (`System.Diagnostics.Process`, `System.Text.Json`). |
+| `dotnet-upgrade` | Framework upgrades (`migrate-dotnet10-to-dotnet11`), AOT compatibility, nullable reference types. |
+| `dotnet-nuget` | Central Package Management (`convert-to-cpm`). |
+| `dotnet-diag` | Performance analysis, `dotnet-trace`, dumps, microbenchmarks. |
+
+[.claude/settings.json](../.claude/settings.json) is the one list of plugins. It declares the marketplace and enables the five plugins. In each tool, the skill names have the plugin name as a prefix, for example `dotnet-msbuild:build-perf-diagnostics`.
+
+**Claude Code and Codex:** run the setup script once on each computer. It installs the plugins that `.claude/settings.json` enables and skips a tool that is not on the PATH.
+
+```bash
+dotnet fsi scripts/setup-dotnet-skills.fsx          # install what is missing
+dotnet fsi scripts/setup-dotnet-skills.fsx --check  # exit 1 if a plugin is missing
+```
+
+| Tool | What the script does | How to update |
+| --- | --- | --- |
+| Claude Code | Installs the plugins at project scope. Claude Code also asks you to install them when you trust the folder. | `/plugin marketplace update dotnet-agent-skills` |
+| Codex CLI 0.121.0 or later | Adds the marketplace and the plugins to `~/.codex/config.toml`. Codex has no project-level plugin list. | `codex plugin marketplace upgrade dotnet-agent-skills` |
+
+Start a new session after the installation. To add or remove a plugin, change `enabledPlugins` in `.claude/settings.json` and run the script again. The script does not remove a plugin from Codex: use `codex plugin remove <plugin>@dotnet-agent-skills`.
+
+Do not declare the marketplace in a project `.codex/config.toml`. Codex then fails with `marketplace root does not contain a supported manifest` for each developer who does not have a local copy of the marketplace.
+
+**Other tools:** each developer installs the plugins once.
+
+| Tool | How to install |
+| --- | --- |
+| GitHub Copilot CLI | `/plugin marketplace add dotnet/skills`, then `/plugin install <plugin>@dotnet-agent-skills`. |
+| VS Code (Copilot Chat, preview) | [.vscode/settings.json](../.vscode/settings.json) declares the marketplace. Type `/plugins` in Copilot Chat and install the plugins. |
+| Cursor | Open the marketplace panel, search for `.NET`, and install the plugins. |
+
+Notes:
+
+- For Codex, the script adds the marketplace with `--sparse .agents/plugins --sparse plugins`. A full clone of `dotnet/skills` is approximately 600 MB and does not complete in the 30 seconds that Codex permits. The sparse copy is approximately 11 MB.
+- Start the tools from the repository folder. The `binlog` MCP server uses the `dotnet` command, and the repository selects the .NET SDK version.
+- The `binlog` MCP server starts with `dotnet dnx Microsoft.AITools.BinlogMcp --yes --prerelease`. It downloads a prerelease tool from nuget.org and sends usage data to Microsoft. Set `DOTNET_CLI_TELEMETRY_OPTOUT=1` to stop the usage data.
+- The `.agent.md` agents in the plugins are GitHub Copilot custom agents. Claude Code and Codex do not load them.
+- The `dotnet-skills` tool on nuget.org is a different, community project ([managedcode/dotnet-skills](https://github.com/managedcode/dotnet-skills)). The .NET team does not publish it.
+- When an external skill and a project rule disagree, the project rule in [AGENTS.md](../AGENTS.md) applies.
+
 ## Available Skills
 
 ### 1. QA Tester Guru

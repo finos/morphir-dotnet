@@ -18,7 +18,7 @@ sha256 = "10acafa0c79d7f0d3a1c43f2f3b3c4b2f8c25c20c1a2a5f8e3c2b1a0f9e8d7c6"
 
 | Key | Type | Read today by |
 | --- | --- | --- |
-| `path` | string | The WASM module loader. No command reaches it yet. |
+| `path` | string | The WASM module used by experimental Python compile/generate commands. |
 | `abi` | `"extism-kernel-v1"` or `"morphir-bytes-v1"` | The WASM module loader. |
 | `sha256` | 64 lowercase hexadecimal digits | The WASM module loader. |
 | `url` | string | Nothing. |
@@ -36,12 +36,12 @@ configuration schema, proposed upstream. `tests/Fixtures/Configuration/PROVENANC
 `path` names a WASM module. The host reads the file and decides from its bytes what it is. The file name and
 its extension play no part: a module called `binding.txt` loads, and a text file called `binding.wasm` does not.
 
-No command loads a configured module in this release. The loader exists for the commands that will:
-`morphir extension worker` and the first commands that run configured analyzers, frontends or generators.
+Experimental `morphir compile --language python` and `morphir generate --target python`
+use the configured Python module. See the [pinned Python walkthrough](../getting-started/python-wasm.md).
 `morphir extension list` does not list configured modules yet ([#565](https://github.com/finos/morphir-dotnet/issues/565)).
 
-Give `path` as an absolute path. The loader does not resolve a relative path, because the base it should use
-is not decided yet.
+Give `path` as an absolute path or relative to the configuration file that supplies it.
+The settings resolver resolves it before passing the module to the loader.
 
 [WASM extensions](wasm-extensions.md) says how the host runs a module once it loads: one instance for each
 session, and the memory, instruction and time bounds of each call. A session can hold twice the memory ceiling,

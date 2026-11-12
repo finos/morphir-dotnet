@@ -131,11 +131,13 @@ let tests =
             Expect.equal info.Description (Some "Generates C#.") "description"
             Expect.equal (List.ofSeq info.Types) [ Morphir.Mep.ExtensionType.Backend ] "types"
         }
+        |> testLabel "PlatformSpecific"
 
         test "an entry with no description has no description member" {
             contractValid validator
             Expect.isFalse ((objectOf (infoJson validator)).ContainsKey "description") "no description"
         }
+        |> testLabel "PlatformSpecific"
 
         test "a validator entry has validator in types and no validator claim" {
             let types = (objectOf (infoJson validator))["types"] |> nonNull
@@ -163,6 +165,7 @@ let tests =
             for name in capabilities |> Seq.map _.Key do
                 Expect.isTrue (pinned.Contains name) $"{name} is a contract member"
         }
+        |> testLabel "PlatformSpecific"
 
         test "C# callers read the MEP extension record without options" {
             let info = backend.ToMep()

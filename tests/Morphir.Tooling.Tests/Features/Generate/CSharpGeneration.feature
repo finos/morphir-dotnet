@@ -1,3 +1,4 @@
+@PlatformSpecific
 Feature: Generate C# through the existing command
   As a Morphir developer
   I want to generate immutable C# libraries

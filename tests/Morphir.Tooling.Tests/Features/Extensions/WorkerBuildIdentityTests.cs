@@ -16,6 +16,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// started with another identity refuses. The pinned contract fixes its form only; the parts it covers are the MoonBit
 /// worker's, in this host's terms. Also the engine identity, which task 4.2's runtime report reuses.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class WorkerBuildIdentityTests
 {
     private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0-alpha.3+9af11f835eac40e338ee0d7232f8959ffbef1be4"));
@@ -90,6 +91,7 @@ public sealed class WorkerBuildIdentityTests
 
 /// <summary>The crafted guests of the worker tests are the conversion of their WebAssembly text, so a reader can
 /// trust the text beside each module.</summary>
+[Category("PlatformSpecific")]
 public sealed class WorkerTestGuestTests
 {
     [Test]

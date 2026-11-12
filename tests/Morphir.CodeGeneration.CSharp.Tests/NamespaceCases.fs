@@ -417,6 +417,7 @@ let tests =
                         (compile (generate (make ()) 14 naming) (typeConsumer naming))
                         62
                         "independent type observation"
+                |> testLabel "PlatformSpecific"
 
         for label, make in
             [
@@ -434,6 +435,7 @@ let tests =
                         (carConsumer "Pricing.Generated"))
                     15000
                     "independent invoice"
+            |> testLabel "PlatformSpecific"
 
         testCase "Concurrent namespace calls cannot share naming state"
         <| fun _ ->

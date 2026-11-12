@@ -80,4 +80,5 @@ let tests =
             for word in [ "Activator"; "GetConstructor"; "CreateInstance"; "MakeGenericType" ] do
                 Expect.isFalse (text.Contains word) $"no {word}"
         }
+        |> testLabel "PlatformSpecific"
     ]

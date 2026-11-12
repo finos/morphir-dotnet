@@ -1,4 +1,4 @@
-@WorkspaceMigration @CLI @Containment
+@WorkspaceMigration @CLI @Containment @PlatformSpecific
 Feature: Contain workspace migration
   The migrated directory must lie inside the discovery boundary from a flag or the environment.
   Spec: openspec discovery-containment.

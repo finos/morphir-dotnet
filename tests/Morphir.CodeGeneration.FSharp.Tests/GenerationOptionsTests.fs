@@ -119,6 +119,7 @@ let tests =    testList "Generation options" [
             <| fun () ->
                 GenerationConformance.run generate case row
                 |> ignore
+            |> testLabel "PlatformSpecific"
 
         testCase "defaults retain constant folding"
         <| fun () -> Expect.isTrue GenerationOptions.Default.Optimize "existing behavior"
@@ -177,6 +178,7 @@ let tests =    testList "Generation options" [
 
             Expect.equal (List.map fst files) (List.map fst formatted) "the same files in the same order"
             Expect.notEqual (List.map snd files) (List.map snd formatted) "the text is not the formatter's"
+        |> testLabel "PlatformSpecific"
 
         testCase "FSharpGeneration.TryGetFormatting, for C# callers, gives the recorded formatting, or false when nothing is recorded"
         <| fun () ->
@@ -239,6 +241,7 @@ let tests =    testList "Generation options" [
                       Morphir.CodeGeneration.FSharp.Transpiler.generateWithOptions off (VFile.ofText "model.json" json) ] do
                     expectUnformattedRule (filesOf tree)
                     Expect.equal (formattingOf tree) (Some FSharpFormatting.Off) $"classic {version}: formatting is off"
+        |> testLabel "PlatformSpecific"
 
         testCase "Format false gives the same bytes under any current culture"
         <| fun () ->
@@ -256,4 +259,5 @@ let tests =    testList "Generation options" [
 
             for culture in [ "de-DE"; "tr-TR"; "ar-SA"; "fr-CH" ] do
                 Expect.equal (generateIn culture) invariant $"{culture} gives the same text"
+        |> testLabel "PlatformSpecific"
     ]

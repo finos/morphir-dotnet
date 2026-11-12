@@ -6,6 +6,7 @@ using Morphir.Tooling.Tests.Integration.CLI;
 namespace Morphir.Tooling.Tests.Features.Validate;
 
 /// <summary>Runs <c>morphir validate</c> through the real CLI process of each host.</summary>
+[Category("PlatformSpecific")]
 public sealed class ValidateCliTests
 {
     private static Task<CliExecutionResult> Cli(string arguments, CliHost host = CliHost.Morphir) =>

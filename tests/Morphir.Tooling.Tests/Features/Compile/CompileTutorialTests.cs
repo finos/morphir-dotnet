@@ -15,6 +15,7 @@ namespace Morphir.Tooling.Tests.Features.Compile;
 /// <c>dotnet-morphir</c>.
 /// </summary>
 [NotInParallel(nameof(CompileTutorialTests))]
+[Category("PlatformSpecific")]
 public sealed partial class CompileTutorialTests
 {
     private static string Root => CompileDocumentationTests.RepositoryRoot();

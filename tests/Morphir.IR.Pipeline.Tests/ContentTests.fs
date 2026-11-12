@@ -75,6 +75,7 @@ let contentConstructionTests =
             finally
                 File.Delete temp
         }
+        |> testLabel "PlatformSpecific"
 
         test "fromDisk should not open the file" {
             let file = VFile.fromDisk "does/not/exist.txt"
@@ -147,6 +148,7 @@ let contentReadingTests =
                 Expect.isTrue (cause :? IOException) "should keep the I/O exception"
             | other -> failtestf "expected a read failure, got %A" other
         }
+        |> testLabel "PlatformSpecific"
 
         test "openRead should encode text as UTF-8 without a byte order mark" {
             match VFileContent.openRead (VFileContent.Text "é") with

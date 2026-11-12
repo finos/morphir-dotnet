@@ -48,6 +48,9 @@
     <!-- Test data files -->
     <!-- Keep direct adapter tests compiling while the dedicated morphir-mck entry point adopts this donor. -->
     <Compile Include="../../src/Morphir.Tooling/Features/Mck/MckCommands.cs" Link="Features/Mck/Donor/MckCommands.cs" />
+    <!-- Reuse the exact runtime-test bundle pin and bounded fetcher for product-command tests. -->
+    <Compile Include="../Morphir.Extensions.Wasm.Tests/PublishedGuest.cs" Link="Fixtures/PublishedGuest.cs" />
+    <Compile Include="../Morphir.Extensions.Wasm.Tests/MepWasmFixtures.cs" Link="Fixtures/MepWasmFixtures.cs" />
     <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
     <!--
       The pinned WASM profile contract, crafted corpus and modules, for the configured-module loader; see

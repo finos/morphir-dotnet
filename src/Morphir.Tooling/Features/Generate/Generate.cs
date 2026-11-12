@@ -71,7 +71,7 @@ public static class GenerateHandler
         IGenerationPublisher publisher, CancellationToken ct, ILogger? logger, IBackendExtensionConnector connector,
         IEnumerable<IGenerationBackend> registered)
     {
-        var connected = await connector.ConnectAsync(new BackendExtensionRequest(extension, target, context.WorkingDirectory), ct);
+        var connected = await connector.ConnectAsync(new BackendExtensionRequest(extension, target, context.WorkingDirectory) { WasmModule = settings.WasmModule }, ct);
         if (connected is Outcome<IExternalGenerationBackend>.Failure connectFailure) return GenerationStages.Failed(connectFailure.Error, null);
         await using var backend = ((Outcome<IExternalGenerationBackend>.Success)connected).Value;
         var id = backend.Descriptor.Id;

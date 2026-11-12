@@ -239,6 +239,7 @@ public class ReleaseProfilesTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void TheLegacyAliasDescribesWhatTheReleaseWorkflowShips()
     {
         var workflow = File.ReadAllText(Path.Combine(PathHelper.GetRepositoryRoot(), ".github", "workflows", "deployment.yml"));

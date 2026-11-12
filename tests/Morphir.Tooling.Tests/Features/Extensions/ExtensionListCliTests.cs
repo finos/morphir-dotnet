@@ -5,6 +5,7 @@ using Morphir.Tooling.Tests.Integration.CLI;
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
 /// <summary>Runs <c>morphir extension list</c> through the real CLI process.</summary>
+[Category("PlatformSpecific")]
 public sealed class ExtensionListCliTests
 {
     private static Task<CliExecutionResult> Cli(string arguments) =>

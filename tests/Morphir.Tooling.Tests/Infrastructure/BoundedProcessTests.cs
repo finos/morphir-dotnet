@@ -6,6 +6,7 @@ using Morphir.Tooling.Infrastructure;
 namespace Morphir.Tooling.Tests.Infrastructure;
 
 /// <summary>The bounded child-process runner. Every run holds a slot of the shared process gate.</summary>
+[Category("PlatformSpecific")]
 public sealed class BoundedProcessTests
 {
     private static readonly string Dotnet = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet";

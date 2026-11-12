@@ -21,6 +21,7 @@ namespace Morphir.Tooling.Tests.Features.Compile;
 /// generation stages as the <see cref="LoadedModel"/> of the exact bytes that the compile wrote.
 /// </summary>
 [NotInParallel(nameof(CompileTargetTests))]
+[Category("PlatformSpecific")]
 public sealed class CompileTargetTests
 {
     private static CompileWorkspace Project()

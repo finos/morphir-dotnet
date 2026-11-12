@@ -100,6 +100,7 @@ let tests =
                     [ "Rates"; "Pricing" ]
                     $"modules in compilation order for {output}"
         }
+        |> testLabel "PlatformSpecific"
 
         test "A source problem completes with a failed result and no model" {
             let result =
@@ -119,6 +120,7 @@ let tests =
                 [ "fsharp.unsupported_mutable" ]
                 "the refusal"
         }
+        |> testLabel "PlatformSpecific"
 
         test "An F# warning travels with a successful result" {
             let result =
@@ -139,6 +141,7 @@ let tests =
                     "FS0025 stays beside the model"
             | Failed diagnostics -> failtest (describeAll diagnostics)
         }
+        |> testLabel "PlatformSpecific"
 
         test "Another language is an operational failure that names the language" {
             let failure = operational (compile (request "elm" every[3] [ rates ]))

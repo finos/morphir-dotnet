@@ -1,4 +1,4 @@
-@ConfigurationInspection @CLI @Containment
+@ConfigurationInspection @CLI @Containment @PlatformSpecific
 Feature: Contain configuration discovery
   The discovery boundary and isolation come from a flag or the environment, and a flag wins.
   Spec: openspec discovery-containment.

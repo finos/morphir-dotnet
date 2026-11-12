@@ -125,6 +125,7 @@ module Program =
                 ]
 
                 Expect.isTrue (File.Exists output) "the host accepts the scaffold's AST output"
+            |> testLabel "PlatformSpecific"
             testCase "a missing module selector fails explicitly"
             <| fun _ ->
                 let generator = MorphirFSharpGenerator() :> IMyriadGenerator
@@ -150,6 +151,7 @@ module Program =
                     | Output.Source source ->
                         Expect.stringContains source "dailyRate" "emitted declaration"
                     | _ -> failtest "formatted source was expected"
+            |> testLabel "PlatformSpecific"
             testCase "an unknown module selector fails explicitly"
             <| fun _ ->
                 withModel
@@ -162,6 +164,7 @@ module Program =
                             |> ignore
                         )
                         "module must exist"
+            |> testLabel "PlatformSpecific"
             testCase "the real Myriad host loads the JSON plugin"
             <| fun _ ->
                 withModel
@@ -212,6 +215,7 @@ module Program =
                         (File.ReadAllText output)
                         "dailyRate"
                         "host-produced module"
+            |> testLabel "PlatformSpecific"
         ]
 
     [<EntryPoint>]

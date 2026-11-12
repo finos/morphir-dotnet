@@ -192,3 +192,4 @@ let tests =
             Expect.equal result.ExitCode 0 $"The project load targets pass: {result.CombinedOutput}"
         }
     ]
+    |> testLabel "PlatformSpecific"

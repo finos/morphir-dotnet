@@ -52,12 +52,14 @@ public sealed class GenerationReportingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task OperationalCliFailureReturnsTwoAndOneJsonDocument() =>
         await AssertOperationalFailureAsync(new CliTestHelper(), TimeSpan.FromSeconds(30));
 
     // Test runners run many CLI children through the shared process gate, so a command can wait for a slot
     // longer than its own budget. The budget is for the command, so the wait must not use it.
     [Test]
+    [Category("PlatformSpecific")]
     public async Task OperationalCliFailureBudgetStartsAfterTheProcessSlotIsGranted()
     {
         var gate = new ProcessGate(1);
@@ -86,6 +88,7 @@ public sealed class GenerationReportingTests
             : ChildProcess.StartInfo("/bin/sh", "-c", $"sleep {(int)duration.TotalSeconds}");
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task HostCancellationReachesTheHandlerAndReturns130BeforePublication()
     {
         var root = Path.Combine(Path.GetTempPath(), "morphir-cancel-" + Guid.NewGuid().ToString("N"));

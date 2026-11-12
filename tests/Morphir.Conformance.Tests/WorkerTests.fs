@@ -41,7 +41,10 @@ let private runOne (modules: (string * Text.Json.Nodes.JsonNode list) list) (cas
 
 [<Tests>]
 let tests =
-    testList "WASM host worker adapter and runner (task 1.5)" [
+    // PlatformSpecific: these tests use the real file system, the checkout or worker processes, so the platform
+    // scope of the Test target runs them on every operating system (docs/contributing/ci-os-matrix.md).
+    testLabel "PlatformSpecific"
+    <| testList "WASM host worker adapter and runner (task 1.5)" [
         test "The worker arguments follow the corpus's worker convention" {
             let case = (suiteCase "limits/request-over-limit").Case
 

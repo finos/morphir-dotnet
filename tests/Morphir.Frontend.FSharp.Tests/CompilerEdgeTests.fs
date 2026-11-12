@@ -555,3 +555,4 @@ let tests =
             Expect.isFalse (left.Contains "morphir-virtual") "no virtual path"
         }
     ]
+    |> testLabel "PlatformSpecific"

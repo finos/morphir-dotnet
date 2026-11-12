@@ -1,4 +1,4 @@
-@Generation @CLI
+@Generation @CLI @PlatformSpecific
 Feature: Select an external generation backend
   generate --extension and [codegen.<target>].extension select a backend that runs as a MEP guest process, as
   compile --extension and [frontend.<language>].extension select a frontend. Without a selection the built-in

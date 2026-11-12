@@ -7,6 +7,7 @@ using Morphir.Tooling.Features.TaskRecords;
 namespace Morphir.Tooling.Tests.Features.TaskRecords;
 
 /// <summary>Spec: compile-task-records, "Compile output uses the workspace out root".</summary>
+[Category("PlatformSpecific")]
 public sealed class TaskPathsTests
 {
     private static readonly string Workspace = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "morphir-out-root", "workspace"));

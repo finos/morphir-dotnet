@@ -290,4 +290,5 @@ let tests =
               let input = decode MepJson.Default.ModelTransportTuple (at [ "params"; "input" ] generate.Node)
               let input = expectOk (ModelTransport.checkTuple (Some agreed) input) "Agreed input"
               let model = decode MepJson.Default.MorphirModel (at [ "params"; "model" ] generate.Node)
-              expectOk (ModelTransport.admit input agreed.Limits model) "The retained model is admitted" |> ignore ]
+              expectOk (ModelTransport.admit input agreed.Limits model) "The retained model is admitted" |> ignore
+          |> testLabel "PlatformSpecific" ]

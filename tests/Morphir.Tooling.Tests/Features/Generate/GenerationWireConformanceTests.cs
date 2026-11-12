@@ -15,6 +15,7 @@ using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
+[Category("PlatformSpecific")]
 public sealed class GenerationWireConformanceTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "morphir-wire-" + Guid.NewGuid().ToString("N"));

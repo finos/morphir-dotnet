@@ -1,3 +1,4 @@
+@PlatformSpecific
 Feature: Loss-checked classic project migration
   A host previews one project and applies only independently verified plans.
 

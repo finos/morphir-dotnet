@@ -12,6 +12,7 @@ namespace Morphir.Build.Tests;
 /// A mismatch (for example a reference to Morphir.Models 1.0.0.0 when the shipped file
 /// is 0.3.0.0) makes the runtime refuse to load the assembly.
 /// </summary>
+[Category("PlatformSpecific")]
 public class AssemblyVersionTests
 {
     [Test]

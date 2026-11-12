@@ -405,12 +405,15 @@ type FrontendTransport =
     | InProcess
     /// <summary>The frontend is a MEP 0.2.0-draft.1 guest process that the host starts.</summary>
     | Mep
+    /// <summary>The frontend runs in an owned WASM session over MEP.</summary>
+    | Wasm
 
     /// <summary>The text of the transport in reports and JSON output.</summary>
     member this.WireValue =
         match this with
         | InProcess -> "in-process"
         | Mep -> "mep"
+        | Wasm -> "wasm"
 
     override this.ToString() = this.WireValue
 

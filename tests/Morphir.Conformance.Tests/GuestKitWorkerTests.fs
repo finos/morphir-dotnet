@@ -133,7 +133,9 @@ let private workerInvocations (fake: FakeHost) =
 
 [<Tests>]
 let tests =
-    testSequenced
+    // PlatformSpecific: these tests start worker processes, so the platform scope of the Test target runs them on
+    // every operating system (docs/contributing/ci-os-matrix.md).
+    testSequenced >> testLabel "PlatformSpecific"
     <| testList "GuestKit worker sessions" [
         test "The model tier runs through two worker sessions over stdio, each started with the corpus's worker arguments" {
             let inProcess, opened = run faithful
