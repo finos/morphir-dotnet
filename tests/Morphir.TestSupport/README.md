@@ -23,6 +23,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `IGenerationDriver` (`GenerationDriver`) | The `generate` command as an intent, with `GenerationOptions`. Its report is `GenerationReport`. |
 | `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. It records the Morphir locations of the machine at the start (`MachineTripwire`), and at the end of the run it prints the skip counts and fails if a test changed those locations. |
 | `DriverSet` | The workspace and the drivers of one test on one host. |
+| `IPackageDriver` (`PackageDriver`) | Packs, installs and consumes packages in the workspace. It packs a project of the development build with no build and no restore (`IPackageDriver.PackAsync`), or builds and packs it with `--artifacts-path` in the workspace (`IPackageDriver.BuildAndPackAsync`), into the feed of the workspace. So no file of the solution build changes. A consumer restores into the packages folder of the workspace. In the packages lane it reads the packed packages (`PackedPackages`) only from the folder that the build gives. A package is a `PackedPackage`: its `PackageManifest`, its entries and the `AssemblyIdentity` of each assembly. |
 
 A capability driver builds its command line and calls `ICliDriver`. Only `ICliDriver` and `IScenarioWorkspace` know
 the target and the machine.
@@ -70,6 +71,19 @@ references to the three entry point projects and writes their target paths into 
 metadata. So a build of the test project builds the hosts first, a Debug test build runs the Debug hosts, and no
 assembly of an entry point is visible to the test code.
 
+### The packages
+
+A test project that uses the package driver imports `build/Morphir.PackageSources.targets`. That file adds
+build-order references to the projects that the driver packs with no build (`Morphir.Myriad`,
+`Morphir.Myriad.SystemTextJson`, `Morphir.Myriad.SystemTextJson.Annotations` and the two F# extensions), and writes
+the path of each project file, of each built assembly and the configuration into the test assembly as assembly
+metadata. The SDK projects (`Morphir.SDK.FSharp`, `Morphir.SDK`) are not built first: the driver builds and packs
+them in the workspace.
+
+A command of the package driver for a consumer gets `NUGET_PACKAGES` set to the packages folder of the workspace, so
+no package of a test goes into the NuGet folder of the machine, and `NUGET_HTTP_CACHE_PATH` set to the HTTP cache of
+NuGet of the machine, so a restore does not download a package from nuget.org again.
+
 ### Environment variables
 
 | Variable | Values |
@@ -80,6 +94,7 @@ assembly of an entry point is visible to the test code.
 | `MORPHIR_TEST_LANE` | The lane of the run: `none` (default), `packages`, `native-aot` or `published`. The build sets it. |
 | `MORPHIR_TEST_KEEP` | `failed` keeps the workspace of a failed test and prints its path. |
 | `MORPHIR_TEST_MAX_PROCESSES` | The limit of product processes at the same time in one test process (`ProcessGate`). The build gives each test process its share. |
+| `MORPHIR_TEST_PACKAGES` | The folder of the packed packages, for the packages lane. `./build.sh --target TestBuild` gives the output folder of `./build.sh --target PackAll`. A packages run with no package there stops before the first test with the pack command. |
 
 ### Old names
 
@@ -105,6 +120,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build (`TestLane`). |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend` | The test needs that `DriverCapability`. |
+| `@needs-development-packages` | The test packs a project of the development build (`IPackageDriver`). Only the target `dev` has it. |
 
 ## How to add a capability
 

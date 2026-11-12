@@ -1,0 +1,74 @@
+<Project>
+
+  <!--
+    The projects of this repository whose packages a test packs through the package driver of Morphir.TestSupport
+    (IPackageDriver, design DRV-1 of the change consolidate-black-box-tests).
+
+    Import this file in the test project. It does two things:
+
+    1. It makes the build of the test project build the projects that the driver packs with no build (pack
+       no-build), in the configuration of the test project. The references only order the build: no assembly of
+       these projects is visible to the code of the test project, and none is copied to its output.
+    2. It writes the path of each project file, the target path of each built project and the configuration into
+       the test assembly as assembly metadata. The driver reads the metadata, so it computes no path from the
+       repository root.
+
+    The SDK projects are not built first: the driver builds and packs them in the workspace (artifacts-path), at a
+    version that the development build does not have.
+  -->
+
+  <PropertyGroup>
+    <_MorphirPackageSources>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../../src'))</_MorphirPackageSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.Myriad/Morphir.Myriad.fsproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirPackageSourceArtifact" />
+    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.Myriad.SystemTextJson/Morphir.Myriad.SystemTextJson.fsproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirPackageSourceArtifact" />
+    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirPackageSourceArtifact" />
+    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirPackageSourceArtifact" />
+    <ProjectReference Include="$(_MorphirPackageSources)/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirPackageSourceArtifact" />
+  </ItemGroup>
+
+  <!-- ResolveProjectReferences gives the target path of each reference in the item that OutputItemType names. -->
+  <Target Name="AddMorphirPackageSourceMetadata"
+          DependsOnTargets="ResolveProjectReferences"
+          BeforeTargets="GetAssemblyAttributes;CoreGenerateAssemblyInfo">
+    <Error Condition="'@(MorphirPackageSourceArtifact->Count())' != '5'"
+           Text="Morphir.PackageSources.targets needs one target path for each project that the package driver packs with no build. It has: '@(MorphirPackageSourceArtifact)'." />
+    <!-- The name of each project file is the id of its package. -->
+    <ItemGroup>
+      <_MorphirPackageSource Include="@(MorphirPackageSourceArtifact->'%(MSBuildSourceProjectFile)')" TargetPath="%(FullPath)" />
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Package.%(_MorphirPackageSource.Filename).Project</_Parameter1>
+        <_Parameter2>%(_MorphirPackageSource.FullPath)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Package.%(_MorphirPackageSource.Filename).TargetPath</_Parameter1>
+        <_Parameter2>%(_MorphirPackageSource.TargetPath)</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Package.Morphir.SDK.FSharp.Project</_Parameter1>
+        <_Parameter2>$(_MorphirPackageSources)/Morphir.SDK.FSharp/Morphir.SDK.FSharp.fsproj</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Package.Morphir.SDK.Project</_Parameter1>
+        <_Parameter2>$(_MorphirPackageSources)/Morphir.SDK/Morphir.SDK.fsproj</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Package.Configuration</_Parameter1>
+        <_Parameter2>$(Configuration)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+
+</Project>

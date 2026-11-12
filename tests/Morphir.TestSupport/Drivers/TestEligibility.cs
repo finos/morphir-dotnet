@@ -22,6 +22,12 @@ public enum DriverCapability
 
     /// <summary>The self-contained F# frontend process, which the native host starts as an extension.</summary>
     SelfContainedFrontend,
+
+    /// <summary>
+    /// The package driver packs the projects of the development build in the test (<see cref="IPackageDriver.PackAsync"/>,
+    /// <see cref="IPackageDriver.BuildAndPackAsync"/>). Only the target dev has them.
+    /// </summary>
+    DevelopmentPackages,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -60,9 +66,12 @@ public static class DriverCapabilities
         // Each host has the commands. The F# frontend is in the managed host and in the tool host. No target gives
         // the self-contained frontend process yet.
         ImmutableHashSet<DriverCapability> commands = [DriverCapability.ModelVerification, DriverCapability.Generation];
-        return host is MorphirHost.Managed or MorphirHost.DotnetTool
+        var supported = host is MorphirHost.Managed or MorphirHost.DotnetTool
             ? commands.Add(DriverCapability.InProcessFSharpFrontend)
             : commands;
+
+        // The projects of the repository are packed from the development build, so only that target has them.
+        return target is TestTarget.DevelopmentBuild ? supported.Add(DriverCapability.DevelopmentPackages) : supported;
     }
 }
 
