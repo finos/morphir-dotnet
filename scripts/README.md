@@ -58,6 +58,18 @@ dotnet fsi scripts/validate-changelog.fsx --file CHANGELOG.md
 dotnet fsi scripts/validate-changelog.fsx --verbose
 ```
 
+#### `setup-dotnet-skills.fsx`
+
+Installs the [dotnet/skills](https://github.com/dotnet/skills) plugins that `.claude/settings.json` enables, for Claude Code and Codex. It skips a tool that is not on the PATH.
+
+**Usage:**
+```bash
+dotnet fsi scripts/setup-dotnet-skills.fsx          # install what is missing
+dotnet fsi scripts/setup-dotnet-skills.fsx --check  # exit 1 if a plugin is missing
+```
+
+See: [External skills: dotnet/skills](../.agents/skills-reference.md#external-skills-dotnetskills)
+
 ### C# Scripts
 
 #### `generate-wolverine-code.cs`
