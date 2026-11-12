@@ -1,0 +1,55 @@
+<Project>
+
+  <!--
+    The CLI entry points of the development build, for a test project that starts them through the CLI driver of
+    Morphir.TestSupport (design DRV-2 of the change consolidate-black-box-tests).
+
+    Import this file in the test project. It does two things:
+
+    1. It makes the build of the test project build the three entry points first, in the configuration and the
+       framework of the test project. The references only order the build: no assembly of an entry point is visible
+       to the code of the test project, and none is copied to its output.
+    2. It writes the path of each built entry point into the test assembly as assembly metadata. The driver reads
+       the metadata, so it computes no path from the repository root, a Debug test build runs the Debug hosts, and a
+       missing file is an error and not a search.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir/Morphir.csproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirNativeCliArtifact" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.Managed/Morphir.Managed.csproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirManagedCliArtifact" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../../src/Morphir.Tool/Morphir.Tool.csproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirToolCliArtifact" />
+  </ItemGroup>
+
+  <!-- ResolveProjectReferences gives the target path of each reference in the item that OutputItemType names. -->
+  <Target Name="AddMorphirCliArtifactMetadata"
+          DependsOnTargets="ResolveProjectReferences"
+          BeforeTargets="GetAssemblyAttributes;CoreGenerateAssemblyInfo">
+    <Error Condition="'@(MorphirNativeCliArtifact->Count())' != '1' Or '@(MorphirManagedCliArtifact->Count())' != '1' Or '@(MorphirToolCliArtifact->Count())' != '1'"
+           Text="Morphir.CliArtifacts.targets needs one target path for each CLI entry point. Native: '@(MorphirNativeCliArtifact)'. Managed: '@(MorphirManagedCliArtifact)'. Tool: '@(MorphirToolCliArtifact)'." />
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Cli.Native</_Parameter1>
+        <_Parameter2>@(MorphirNativeCliArtifact->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Cli.Managed</_Parameter1>
+        <_Parameter2>@(MorphirManagedCliArtifact->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Cli.Tool</_Parameter1>
+        <_Parameter2>@(MorphirToolCliArtifact->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Cli.Configuration</_Parameter1>
+        <_Parameter2>$(Configuration)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+
+</Project>
