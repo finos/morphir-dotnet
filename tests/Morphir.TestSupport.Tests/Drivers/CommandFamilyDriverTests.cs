@@ -141,6 +141,25 @@ public class CommandFamilyDriverTests
             options => options.WithStrictOrdering());
     }
 
+    [Test]
+    public async Task GenerateLeavesOutEachPartThatTheRequestDoesNotHave()
+    {
+        await using var workspace = Workspace();
+        var cli = new RecordingCli();
+        var project = workspace.Directory("my project");
+        var output = workspace.Directory("generated code");
+
+        await new GenerationDriver(cli).GenerateAsync(new GenerationRequest
+        {
+            Target = "fsharp", Output = output, Options = new GenerationOptions { Project = project, Extension = "a guest.dll", Options = ["format=false"] },
+        });
+        await new GenerationDriver(cli).GenerateAsync(GenerationRequest.Of(workspace.File("model.json")) with { Options = new GenerationOptions { Arguments = ["--unavailable"] } });
+
+        cli.Commands[0].Arguments.Should().Equal(
+            "generate", "--target", "fsharp", "--output", output.Path, "--json", "--option", "format=false", "--project", project.Path, "--extension", "a guest.dll");
+        cli.Commands[1].Arguments.Should().Equal("generate", "--input", workspace.File("model.json").Path, "--json", "--unavailable");
+    }
+
     // --- The reports of the real commands -------------------------------------------------------------------------
 
     [Test]

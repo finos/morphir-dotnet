@@ -238,6 +238,33 @@ two steps have the same pattern.
 | Workspace migration | `Then workspace migration streams redact secret values` |
 | Workspace migration | `Then workspace migration human output reports verified preview` |
 | Workspace migration | `Then configuration migration remains unavailable` |
+| Compilation | `Given an F# project whose morphir.toml names its project file` |
+| Compilation | `Given an F# project without a configured project file` |
+| Compilation | `Given the source {string} uses a mutable binding` |
+| Compilation | `When I compile the project at the IR version {string}` |
+| Compilation | `When I compile its input files at the IR version {string}` |
+| Compilation | `When I compile the project with the project file {string}` |
+| Compilation | `When I compile the project` |
+| Compilation | `When I compile the project and install the IR to {string}` |
+| Compilation | `When I generate F# for the project from its last compile` |
+| Compilation | `When I compile the project from its {word} {word} with the target {string}` |
+| Compilation | `When I compile the project from its {word} {word} and then generate {string} from the compiled IR` |
+| Compilation | `When I compile its input files with the options {string}` |
+| Compilation | `Given the F# source file {string} of the package {string}` |
+| Compilation | `When I compile the F# source file` |
+| Compilation | `Then the compilation report says that the compile succeeded with the frontend {string}` |
+| Compilation | `Then compilation exits with {int} and one JSON report` |
+| Compilation | `Then the compilation report has the IR version {string}` |
+| Compilation | `Then the published IR declares format version {int}` |
+| Compilation | `Then the command report has the diagnostic {string}` |
+| Compilation | `Then the compilation report has the diagnostic {string} in {string}` |
+| Compilation | `Then no IR is published` |
+| Compilation | `Then the compilation report lists the source documents {string} in that order` |
+| Compilation | `Then the generation input is the IR named by the compile record` |
+| Compilation | `Then both reports name the same backend` |
+| Compilation | `Then both generated outputs have the same paths and bytes` |
+| Compilation | `Then the compile record is a tombstone that keeps the earlier install ledger` |
+| Generation | `Then generation exits with {int} and one JSON report` |
 
 The suites of the compatibility kit in `conformance/suites/` have their own step vocabulary and their own runner.
 A kit feature does not use a step of this project.

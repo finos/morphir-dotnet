@@ -33,6 +33,10 @@ public sealed class GenerationSteps(IGenerationDriver generation, IScenarioWorks
     public Task GenerateWithTheOptions(string target, Table options) =>
         Generate(target, new GenerationOptions { Options = [.. options.Rows.Select(row => row["option"])] });
 
+    /// <summary>The exit code, and one generation report on standard output that agrees with it.</summary>
+    [Then("generation exits with {int} and one JSON report")]
+    public void GenerationExitsWithOneReport(int exitCode) => GenerationReport.Of(run.Result.ShouldExitWith(exitCode));
+
     [Then("the generation report says that the generation succeeded")]
     public void TheGenerationSucceeded() => Report.ShouldSucceed();
 

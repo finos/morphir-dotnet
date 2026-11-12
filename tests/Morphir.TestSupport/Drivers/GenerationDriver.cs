@@ -15,6 +15,37 @@ public sealed record GenerationOptions
 
     /// <summary>The backend options, each as <c>KEY=VALUE</c>, in the order of the command line.</summary>
     public IReadOnlyList<string> Options { get; init; } = [];
+
+    /// <summary>The project directory (<c>--project</c>): its configuration, and the input of its last compile when no model is given.</summary>
+    public WorkspaceDirectory? Project { get; init; }
+
+    /// <summary>The backend extension (<c>--extension</c>): an extension id, or the path of a built extension.</summary>
+    public string? Extension { get; init; }
+
+    /// <summary>More arguments, after the others. For a scenario whose subject is an option that the command refuses.</summary>
+    public IReadOnlyList<string> Arguments { get; init; } = [];
+}
+
+/// <summary>
+/// The parts of one <c>generate</c> command. A null part is not on the command line: a scenario of a missing
+/// setting leaves it out.
+/// </summary>
+public sealed record GenerationRequest
+{
+    /// <summary>The model as one file or as a tree of files in a directory (<c>--input</c>).</summary>
+    public string? Input { get; init; }
+
+    /// <summary>The target (<c>--target</c>), for example <c>csharp</c>.</summary>
+    public string? Target { get; init; }
+
+    /// <summary>The output directory (<c>--output</c>).</summary>
+    public WorkspaceDirectory? Output { get; init; }
+
+    public GenerationOptions Options { get; init; } = new();
+
+    public static GenerationRequest Of(WorkspaceFile model) => new() { Input = model.Path };
+
+    public static GenerationRequest Of(WorkspaceDirectory modelTree) => new() { Input = modelTree.Path };
 }
 
 /// <summary>The <c>generate</c> command as an intent: generate the artifacts of a target from a Morphir model.</summary>
@@ -27,6 +58,9 @@ public interface IGenerationDriver
     /// <summary>Generates from a model that is a tree of files in a directory.</summary>
     Task<CommandResult> GenerateAsync(
         WorkspaceDirectory modelTree, string target, WorkspaceDirectory output, GenerationOptions? options = null, CancellationToken cancellation = default);
+
+    /// <summary>Runs <c>generate</c> with the parts of <paramref name="request"/>, also with a part left out.</summary>
+    Task<CommandResult> GenerateAsync(GenerationRequest request, CancellationToken cancellation = default);
 }
 
 /// <summary>Builds the command line of <c>generate</c> and gives it to the CLI driver.</summary>
@@ -34,17 +68,19 @@ public sealed class GenerationDriver(ICliDriver cli) : IGenerationDriver
 {
     public Task<CommandResult> GenerateAsync(
         WorkspaceFile model, string target, WorkspaceDirectory output, GenerationOptions? options = null, CancellationToken cancellation = default) =>
-        GenerateAsync(model.Path, target, output, options, cancellation);
+        GenerateAsync(new GenerationRequest { Input = model.Path, Target = target, Output = output, Options = options ?? new() }, cancellation);
 
     public Task<CommandResult> GenerateAsync(
         WorkspaceDirectory modelTree, string target, WorkspaceDirectory output, GenerationOptions? options = null, CancellationToken cancellation = default) =>
-        GenerateAsync(modelTree.Path, target, output, options, cancellation);
+        GenerateAsync(new GenerationRequest { Input = modelTree.Path, Target = target, Output = output, Options = options ?? new() }, cancellation);
 
-    private Task<CommandResult> GenerateAsync(
-        string input, string target, WorkspaceDirectory output, GenerationOptions? options, CancellationToken cancellation)
+    public Task<CommandResult> GenerateAsync(GenerationRequest request, CancellationToken cancellation = default)
     {
-        options ??= new GenerationOptions();
-        var arguments = new List<string> { "generate", "--input", input, "--target", target, "--output", output.Path };
+        var options = request.Options;
+        var arguments = new List<string> { "generate" };
+        Add(arguments, "--input", request.Input);
+        Add(arguments, "--target", request.Target);
+        Add(arguments, "--output", request.Output?.Path);
         if (options.Json) arguments.Add("--json");
         if (options.InputFormat is { } format)
         {
@@ -58,7 +94,17 @@ public sealed class GenerationDriver(ICliDriver cli) : IGenerationDriver
             arguments.Add(option);
         }
 
+        Add(arguments, "--project", options.Project?.Path);
+        Add(arguments, "--extension", options.Extension);
+        arguments.AddRange(options.Arguments);
         return cli.RunAsync(arguments, cancellation: cancellation);
+    }
+
+    private static void Add(List<string> arguments, string option, string? value)
+    {
+        if (value is null) return;
+        arguments.Add(option);
+        arguments.Add(value);
     }
 }
 
@@ -102,6 +148,15 @@ public sealed class GenerationReport
 
     public string? SourceVersion { get; }
 
+    /// <summary>The path of the model that the generation read (<c>input</c>).</summary>
+    public string? Input { get; private init; }
+
+    /// <summary>The transport of an external backend, for example <c>mep</c> or <c>wasm</c>; null for a built-in backend.</summary>
+    public string? BackendTransport { get; private init; }
+
+    /// <summary>The report as one JSON object, for a check of a field that this type does not name.</summary>
+    public JsonElement Document { get; private init; }
+
     /// <summary>The files of the generation, relative to the output directory.</summary>
     public IReadOnlyList<string> Artifacts { get; }
 
@@ -135,7 +190,12 @@ public sealed class GenerationReport
         if (document.TryGetProperty("exitCode", out var code) && code.ValueKind == JsonValueKind.Number && code.GetInt32() != result.ExitCode)
             throw new CommandAssertionException($"The generation report disagrees with the command: exitCode is {code.GetInt32()}, but the exit code is {result.ExitCode}.", result);
 
-        return new GenerationReport(result, document, success);
+        return new GenerationReport(result, document, success)
+        {
+            Input = Text(document, "input"),
+            BackendTransport = Text(document, "backendTransport"),
+            Document = document,
+        };
     }
 
     public GenerationReport ShouldSucceed() =>

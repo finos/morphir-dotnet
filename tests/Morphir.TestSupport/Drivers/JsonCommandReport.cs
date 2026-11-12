@@ -98,3 +98,17 @@ public abstract class JsonCommandReport
         return new ReportDiagnostic(Field(item, "code") ?? "", Field(item, "message") ?? "", Field(item, "severity"), location);
     }
 }
+
+/// <summary>
+/// A JSON report of any command family, read for the parts that they share: for example the diagnostics of the
+/// last command of a scenario that ran two commands of two families.
+/// </summary>
+public sealed class CommandReport : JsonCommandReport
+{
+    private CommandReport(CommandResult result) : base(result, "command")
+    {
+    }
+
+    /// <summary>Reads the report from standard output, which must be exactly one JSON object.</summary>
+    public static CommandReport Of(CommandResult result) => new(result);
+}
