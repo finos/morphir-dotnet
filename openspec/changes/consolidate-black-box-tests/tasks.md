@@ -86,7 +86,8 @@ the task that adds its first test, so no registered suite is empty.
   - Open: the check in the log of the pull request run on each operating system waits for the CI of the pull request. On macOS the `@host-managed` scenarios ran the executable of `src/Morphir.Managed` (each such scenario checks the host of its command).
   - Open: 13 tests stay for now, each for a driver that does not exist yet: the 8 CLI cases of `ConfiguredWasmCommandTests` need a pinned published guest module (`PublishedGuest` downloads and caches it); `InstalledProviderJourneyTests` needs five external inputs; the 4 signal tests of `MckRoutingTests` and the kill test of `ManagedMckRoutingTests` need a driver that sends a signal to the CLI (`IProcessSessionDriver` of pull request 2).
 - [x] 7.4 Move the configuration and the two migration features. Verify with the move table and equal counts, and that the containment scenarios leave the developer's machine unchanged (`MachineTripwire`).
-- [ ] 7.5 Change the readers of `MORPHIR_GENERATION_CLI` and `MORPHIR_DOTNET_TOOL_CLI` that stay in `Morphir.Tooling.Tests` to the target of the testing library. Remove `CliTestHelper` when it has no user, and the marks of the removed tests. Record the time of `Morphir.Tooling.Tests` and of each group against the baseline of task 3.1.
+- [x] 7.5 Change the readers of `MORPHIR_GENERATION_CLI` and `MORPHIR_DOTNET_TOOL_CLI` that stay in `Morphir.Tooling.Tests` to the target of the testing library. Remove `CliTestHelper` when it has no user, and the marks of the removed tests. Record the time of `Morphir.Tooling.Tests` and of each group against the baseline of task 3.1.
+  - Done: no file of `Morphir.Tooling.Tests` reads the three old variables. `CliTestHelper` and `DevelopmentCli` keep users (the splits), so they stay, on the target of the testing library. The times are in `evidence/slice-3-times.md`.
 
 ## 8. Packages and journeys (pull request 4)
 
