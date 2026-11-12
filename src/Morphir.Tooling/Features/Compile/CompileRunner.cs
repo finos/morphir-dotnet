@@ -162,7 +162,7 @@ public sealed class CompileRunner(
         if (value.Extension is { } extension)
         {
             var connection = await extensions.ConnectAsync(
-                new FrontendExtensionRequest(extension, value.Language?.Value, value.WorkingDirectory), ct);
+                new FrontendExtensionRequest(extension, value.Language?.Value, value.WorkingDirectory) { WasmModule = value.WasmModule }, ct);
             diagnostics.AddRange(connection.Diagnostics);
             if (!connection.TryGetValue(out var frontend)) return Checked<ResolvedRun>.Fail(diagnostics);
             ICompilePublication? started = null;
