@@ -422,6 +422,28 @@ module internal ConformanceFixture =
         let receipt = (control session).DescribeReceipt |> Option.defaultWith (fun () -> failtest "No original describe receipt")
         (control session).BindSelectedOffer(receipt, offer ()) |> expectOk
         receipt
+    /// JIT-test inspection of existing copied-body getters only. No receipt is constructed or changed here.
+    /// Resolve and validate the shape before opening a transport, so missing metadata is fixture setup failure.
+    let receiptBodyReader () =
+        let flags = System.Reflection.BindingFlags.Instance ||| System.Reflection.BindingFlags.NonPublic ||| System.Reflection.BindingFlags.DeclaredOnly
+        let getter name =
+            let property =
+                typeof<ConformanceDescribeReceipt>.GetProperty(name, flags)
+                |> Option.ofObj
+                |> Option.defaultWith (fun () -> invalidOp $"Fixture setup: missing private receipt getter {name}.")
+            let read =
+                property.GetGetMethod true
+                |> Option.ofObj
+                |> Option.defaultWith (fun () -> invalidOp $"Fixture setup: missing read method for {name}.")
+            if read.IsStatic || read.IsPublic || property.PropertyType <> typeof<byte array>
+               || property.GetIndexParameters().Length <> 0 || not (isNull (property.GetSetMethod true)) then
+                invalidOp $"Fixture setup: receipt getter {name} is not the expected private read-only byte-array view."
+            fun (receipt: ConformanceDescribeReceipt) ->
+                match property.GetValue receipt with
+                | :? (byte array) as bytes -> bytes
+                | _ -> invalidOp $"Fixture setup: receipt getter {name} did not return copied bytes."
+        let request, response = getter "RequestBody", getter "ResponseBody"
+        fun receipt -> request receipt, response receipt
     let initialize (session: HostSession) =
         describeAndBind session |> ignore
         wait (session.InitializeAsync CancellationToken.None) |> expectOk |> ignore
@@ -439,9 +461,11 @@ module internal ConformanceFixture =
         let barrier = new Barrier()
         let mutable armed = initiallyBlocked
         let mutable afterFlush: unit -> unit = ignore
+        let mutable afterFlushAsync: CancellationToken -> Task = fun _ -> Task.CompletedTask
         member _.Barrier = barrier
         member _.Arm() = armed <- true
         member _.AfterFlush with set value = afterFlush <- value
+        member _.AfterFlushAsync with set value = afterFlushAsync <- value
         override _.CanRead = false
         override _.CanWrite = true
         override _.CanSeek = false
@@ -456,6 +480,7 @@ module internal ConformanceFixture =
             task {
                 do! inner.FlushAsync token
                 afterFlush ()
+                do! afterFlushAsync token
             } :> Task
         override _.WriteAsync(buffer: ReadOnlyMemory<byte>, token) =
             ValueTask(
@@ -465,22 +490,66 @@ module internal ConformanceFixture =
                 }
             )
 
+    /// Signals the next real read after a known byte boundary. The preceding frame has then been parsed by RunAsync.
+    type ObservedRead(inner: Stream) =
+        inherit Stream()
+        let gate = obj ()
+        let mutable consumed = 0L
+        let mutable boundary: (int64 * TaskCompletionSource<unit>) option = None
+        member _.AfterBytes(count: int64) =
+            lock gate (fun () ->
+                if count <= 0L || boundary.IsSome then invalidOp "Fixture setup: invalid or already armed read boundary."
+                let completion = signal ()
+                boundary <- Some(count, completion)
+                completion.Task)
+        override _.CanRead = true
+        override _.CanWrite = false
+        override _.CanSeek = false
+        override _.Length = raise (NotSupportedException())
+        override _.Position with get () = raise (NotSupportedException()) and set _ = raise (NotSupportedException())
+        override _.Read(_, _, _) = raise (NotSupportedException())
+        override _.Seek(_, _) = raise (NotSupportedException())
+        override _.SetLength _ = raise (NotSupportedException())
+        override _.Write(_, _, _) = raise (NotSupportedException())
+        override _.Flush() = raise (NotSupportedException())
+        override _.ReadAsync(buffer: Memory<byte>, token) =
+            ValueTask<int>(task {
+                lock gate (fun () ->
+                    match boundary with
+                    | Some(count, completion) when consumed >= count ->
+                        boundary <- None
+                        completion.TrySetResult() |> ignore
+                    | _ -> ())
+                let! count = inner.ReadAsync(buffer, token)
+                lock gate (fun () -> consumed <- consumed + int64 count)
+                return count
+            })
+
+    let framedBytes (body: byte array) =
+        let length = body.Length.ToString(Globalization.CultureInfo.InvariantCulture)
+        int64 (Encoding.ASCII.GetByteCount $"Content-Length: {length}\r\n\r\n") + int64 body.Length
+
     type StreamEdge(?blocked: bool, ?budget: ConformanceEvidenceLimits) =
         let fromPeer = Pipe()
         let toPeer = Pipe()
         let lifetime = new CancellationTokenSource()
+        let owned = System.Collections.Concurrent.ConcurrentBag<Task>()
         let input = fromPeer.Reader.AsStream()
         let output = toPeer.Writer.AsStream()
         let peerInput = toPeer.Reader.AsStream()
         let peerOutput = fromPeer.Writer.AsStream()
         let blockedOutput = new BlockedWrite(output, defaultArg blocked false)
-        let session = HostSession.CreateConformance(input, blockedOutput, host, defaultArg budget (limits ()), lifetime.Token)
+        let observedInput = new ObservedRead(input)
+        let session = HostSession.CreateConformance(observedInput, blockedOutput, host, defaultArg budget (limits ()), lifetime.Token)
         let run = session.RunAsync lifetime.Token
         member _.Session = session
         member _.Lifetime = lifetime
+        member _.Track(work: Task) = owned.Add work
         member _.WriteBarrier = blockedOutput.Barrier
         member _.ArmWrites() = blockedOutput.Arm()
         member _.AfterFlush with set value = blockedOutput.AfterFlush <- value
+        member _.AfterFlushAsync with set value = blockedOutput.AfterFlushAsync <- value
+        member _.ReadAfterBytes(count) = observedInput.AfterBytes count
         member _.Run = run
         member _.Read() =
             match wait (ContentLengthFraming.ReadAsync(peerInput, lifetime.Token)) with
@@ -492,8 +561,9 @@ module internal ConformanceFixture =
             member _.Dispose() =
                 lifetime.Cancel()
                 try wait run |> ignore with :? OperationCanceledException -> ()
+                finish (Task.WhenAll(owned.ToArray()))
                 input.Dispose(); output.Dispose(); peerInput.Dispose(); peerOutput.Dispose()
-                blockedOutput.Dispose(); lifetime.Dispose()
+                observedInput.Dispose(); blockedOutput.Dispose(); lifetime.Dispose()
 
 [<Tests>]
 let conformanceStreamTests =
@@ -511,6 +581,42 @@ let conformanceStreamTests =
             Expect.equal (ConformanceFixture.prepared edge.Session) [sent] "Bytes before framing, without reserialization"
             Expect.equal (ConformanceFixture.inbound edge.Session) [reply] "Observed bytes retain whitespace"
             Expect.isTrue (ConformanceFixture.events edge.Session |> List.exists (function ConformanceEvent.FramedWriteCompleted _ -> true | _ -> false)) "Completed framing is separately recorded"
+
+        testCase "original describe receipt retains winning raw body after same-ID duplicates" <| fun _ ->
+            let readReceipt = ConformanceFixture.receiptBodyReader ()
+            use edge = new ConformanceFixture.StreamEdge()
+            use flush = new ConformanceFixture.Barrier()
+            edge.AfterFlushAsync <- fun token -> flush.Pause token :> Task
+            let pending = edge.Session.DescribeAsync CancellationToken.None
+            edge.Track(pending :> Task)
+            let sent = edge.Read()
+            wait flush.Entered |> ignore
+            let winner = ConformanceFixture.utf8 (" \n{ \"jsonrpc\": \"2.0\", \"id\": 1, \"result\": " + ConformanceFixture.claims + " }\r\n")
+            let duplicate = ConformanceFixture.response "1" (ConformanceFixture.claims.Replace("4.0.0", "3.0.0"))
+            let unsolicited = ConformanceFixture.utf8 ("\t{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":" + ConformanceFixture.claims.Replace("4.0.0", "2.0.0") + "} ")
+            let bodies = [winner; duplicate; unsolicited]
+            let nextRead = edge.ReadAfterBytes(bodies |> List.sumBy ConformanceFixture.framedBytes)
+            for body in bodies do edge.Send body
+            wait nextRead |> ignore
+            Expect.isFalse pending.IsCompleted "The actual request write continuation is still held, after all three inbound bodies were processed"
+            Expect.isNone (ConformanceFixture.control edge.Session).DescribeReceipt "The host continuation has not issued a receipt yet"
+            Expect.equal (ConformanceFixture.inbound edge.Session) bodies "Actual winning and same-ID unsolicited bodies are retained in wire order"
+            let duplicates = edge.Session.Diagnostics |> Seq.filter (function ConnectionDiagnostic.UnsolicitedResponse(Some(RequestId.Number 1UL)) -> true | _ -> false) |> Seq.length
+            Expect.equal duplicates 2 "Only the first matching reply completed the pending registration"
+            flush.Release()
+            wait pending |> ConformanceFixture.expectOk |> ignore
+            let control = ConformanceFixture.control edge.Session
+            let receipt = control.DescribeReceipt |> Option.defaultWith (fun () -> failtest "No original receipt after completed describe")
+            let requestBytes, responseBytes = readReceipt receipt
+            Expect.equal requestBytes sent "Receipt retains the actual original request bytes"
+            Expect.equal responseBytes winner "Receipt retains winning raw whitespace and payload, never a later matching-ID snapshot or typed-result serialization"
+            let offered = ConformanceFixture.offer ()
+            let duplicateOffer = { offered with Tuples = offered.Tuples |> Seq.map (fun tuple -> { tuple with IrVersion = SemanticVersion.Create "3.0.0" }) |> Array.ofSeq }
+            Expect.isError (control.BindSelectedOffer(receipt, duplicateOffer)) "The duplicate advertisement did not replace the winning claims"
+            control.BindSelectedOffer(receipt, offered) |> ConformanceFixture.expectOk
+            let _, retained = readReceipt receipt
+            Expect.equal retained winner "Binding keeps the original copied body"
+            Expect.equal (ConformanceFixture.ids (ConformanceFixture.prepared edge.Session)) [1UL] "Local offer binding consumed no wire ID"
 
         testCase "independent conformance sessions each start at one" <| fun _ ->
             for _ in 1..2 do
