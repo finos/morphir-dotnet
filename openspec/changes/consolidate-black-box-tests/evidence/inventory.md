@@ -133,7 +133,7 @@ discovered tests of the complete project, so such a file is in it.
 | stays | `Morphir.TestSupport.Tests` | `DocumentationExampleTests.cs` | yes | no | no | no | Stays. It tests the testing library. |
 | stays | `Morphir.TestSupport.Tests` | `TestSandboxTests.cs` | yes | no | no | no | Stays. It tests the testing library. |
 | stays | `Morphir.TestSupport.Tests` | `Drivers/BlackBoxSessionTests.cs`, `Drivers/CapabilityDriverTests.cs`, `Drivers/CliDriverTests.cs`, `Drivers/CommandResultAssertionsTests.cs`, `Drivers/DriverDocumentationTests.cs`, `Drivers/ScenarioWorkspaceTests.cs` | yes | no | no | no | New in pull request 1. Stay. They test the drivers of the testing library, some of them against the hosts of the development build. |
-| stays | `Morphir.Build.Tests` | `Helpers/BlackBoxRulesTests.cs` | no | no | no | no | New in pull request 1. Stays: a build test (the guard tests of the black-box project). The scan finds the names in its fixture texts. |
+| stays | `Morphir.Build.Tests` | `Helpers/BlackBoxRulesTests.cs`, `Helpers/TestManagerSkillTests.cs` | no | no | no | no | New in pull request 1. Stay: build tests (the guard tests of the black-box project and of the `test-manager` skill). The scan finds the names in their fixture texts and patterns. |
 | stays | `Morphir.Toolchain.IO.Tests` | `AcquisitionTests.fs` | no | no | yes | yes | Stays. The scan matched a path or a name in test data; the test starts no process and reads no built artifact of the product. |
 | stays | `Morphir.Toolchain.Tests` | `BindingReviewTests.fs` | no | no | yes | yes | Stays. The scan matched a path or a name in test data; the test starts no process and reads no built artifact of the product. |
 | stays | `Morphir.Toolchain.Tests` | `CliTests.fs` | yes | no | yes | yes | Stays. It tests a library in the test process; the library or the test starts a helper process or MSBuild. It keeps the `PlatformSpecific` marker. |
@@ -159,11 +159,12 @@ discovered tests of the complete project, so such a file is in it.
 Task 0.2: the script gives `# 128 files in 25 projects` on the base commit `4d9e10a0`, which is the count of this
 inventory.
 
-On the branch of pull request 1 the script gives `# 133 files in 25 projects`: the 128 files of the base, less one,
-plus six. The differences from the base:
+On the branch of pull request 1 the script gives `# 134 files in 25 projects`: the 128 files of the base, less one,
+plus seven. The differences from the base:
 
 - `Integration/CLI/CliVerifyIRIntegrationSteps.cs` is not there: its scenarios moved.
-- Six of the new files of the two rows above are there (the scan does not find `Drivers/BlackBoxSessionTests.cs`).
+- Seven of the eight new files of the two rows above are there (the scan does not find
+  `Drivers/BlackBoxSessionTests.cs`).
 - `ConfigurationSteps`, `ConfigurationEditingSteps`, `ProjectMigrationSteps` and `WorkspaceMigrationSteps` now start
   the CLI through `Integration/CLI/DevelopmentCli.cs`, a helper on the CLI driver. The script knows `DevelopmentCli`
   and `CliDriver` as process runners from pull request 1, so these files stay in the scan. Their rows and their
