@@ -49,9 +49,10 @@ The `Test` target has the parameter `--test-scope` (`build/Build.Testing.cs`, `b
 | `all` (default) | Every test of every test assembly | Linux in a pull request; every operating system in a manual run and in a call from another workflow |
 | `platform` | Only the tests with the marker | Windows and macOS in a pull request |
 
-The scope `platform` finds the test assemblies with a text search for `PlatformSpecific` in the sources below
-`tests/<project>/`. A TUnit assembly that has the word but selects no test fails the run. The Myriad
-package-consumer checks run in both scopes. To run every test on every operating system for a branch, use a manual
+The scope `platform` finds the test assemblies with a search for the three marker forms in the sources below
+`tests/<project>/`. The word `PlatformSpecific` alone is not the marker, because a Morphir IR type has a case with
+that name. An assembly that has a marker but selects no test fails the run. The Myriad package-consumer checks run
+in both scopes. To run every test on every operating system for a branch, use a manual
 run with `os=full`.
 
 ```bash

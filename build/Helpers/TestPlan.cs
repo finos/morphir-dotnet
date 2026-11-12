@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 
 namespace Morphir.Build.Helpers;
 
@@ -177,9 +178,23 @@ public static class TestPlan
             !(run.Suite.RunsAlone && running.Count > 0) && !(run.Suite.UsesSourceProjects && sourceProjectsInUse));
     }
 
-    /// <summary>True when a test source file or feature file has the platform marker.</summary>
-    public static bool MentionsPlatformMarker(string sourceText) =>
-        sourceText.Contains(PlatformMarker, StringComparison.Ordinal);
+    // PlatformSpecific is also a case of a Morphir IR type, so the word alone is not the marker.
+    static readonly Regex PlatformMarkerUse = new(
+        $@"Category\(\s*""{PlatformMarker}""\s*\)|@{PlatformMarker}\b|test(Label|List)\s+""{PlatformMarker}""",
+        RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// True when a test source file or feature file has the platform marker in one of its forms: a TUnit category,
+    /// a Reqnroll tag, or an Expecto label or list name.
+    /// </summary>
+    public static bool MentionsPlatformMarker(string sourceText) => PlatformMarkerUse.IsMatch(sourceText);
+
+    /// <summary>
+    /// True when an output line of an Expecto run says that the run selected no test. Expecto exits with 0 then, so
+    /// the scope <see cref="TestScope.Platform"/> uses this to fail a suite whose marker selects nothing.
+    /// </summary>
+    public static bool ReportsNoTests(string outputLine) =>
+        outputLine.Contains("EXPECTO! 0 tests run", StringComparison.Ordinal);
 
     /// <summary>
     /// The suites that <paramref name="scope"/> runs, in the order of <paramref name="suites"/>. The scope
@@ -204,6 +219,7 @@ public static class TestPlan
     {
         // A TUnit run that selects no test exits with code 8, so a marker that selects nothing fails the run.
         TestFramework.TUnit => ["--treenode-filter", $"/*/*/*/*[Category={PlatformMarker}]"],
+        // An Expecto run that selects no test exits with 0: see ReportsNoTests.
         TestFramework.Expecto => ["--filter-test-list", PlatformMarker],
         _ => [],
     };

@@ -319,9 +319,11 @@ partial class Build
 
         // (isError, line) in the order of arrival, when the output is one block.
         var lines = new List<(bool IsError, string Text)>();
+        var ranNoTests = false;
         void Write(bool isError, string? line)
         {
             if (line is null) return;
+            if (TestPlan.ReportsNoTests(line)) ranNoTests = true;
             if (buffered) lock (lines) lines.Add((isError, line));
             else if (isError) Serilog.Log.Error(line);
             else Serilog.Log.Information(line);
@@ -341,7 +343,10 @@ partial class Build
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         process.WaitForExit();
-        var result = new SuiteResult(run.Suite, process.ExitCode, watch.Elapsed);
+        // A suite runs because it has tests, or in the platform scope because it has the marker. A run that selects
+        // no test means that the marker or its filter is wrong. TUnit exits with 8 then; Expecto exits with 0.
+        var exitCode = process.ExitCode == 0 && ranNoTests ? NoTestsExitCode : process.ExitCode;
+        var result = new SuiteResult(run.Suite, exitCode, watch.Elapsed);
 
         lock (SuiteOutputLock)
         {
@@ -353,6 +358,8 @@ partial class Build
 
             if (result.ExitCode == 0)
                 Serilog.Log.Information("{Project}: passed in {Seconds:0}s", project, result.Duration.TotalSeconds);
+            else if (result.ExitCode == NoTestsExitCode)
+                Serilog.Log.Error("{Project}: the run selected no test (exit code {ExitCode})", project, result.ExitCode);
             else
                 Serilog.Log.Error("{Project}: exit code {ExitCode} after {Seconds:0}s", project, result.ExitCode, result.Duration.TotalSeconds);
         }
@@ -376,6 +383,9 @@ partial class Build
 
         return current;
     }
+
+    /// <summary>The exit code of a test assembly that ran no test. Microsoft.Testing.Platform uses the same number.</summary>
+    const int NoTestsExitCode = 8;
 
     /// <summary>One assembly writes its buffered output at a time.</summary>
     static readonly object SuiteOutputLock = new();

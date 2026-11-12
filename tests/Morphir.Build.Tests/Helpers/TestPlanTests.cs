@@ -183,9 +183,21 @@ public class TestPlanTests
     [Arguments("[Category(\"PlatformSpecific\")]", true)]
     [Arguments("|> testLabel \"PlatformSpecific\"", true)]
     [Arguments("@PlatformSpecific @CLI", true)]
+    [Arguments("[assembly: TUnit.Core.Category(\"PlatformSpecific\")]", true)]
+    [Arguments("testList \"PlatformSpecific\" [", true)]
     [Arguments("[Category(\"CLI\")]", false)]
+    // PlatformSpecific is also a case of a Morphir IR type, so the word alone is not the marker.
+    [Arguments("Hint = PlatformSpecific \"jvm\"", false)]
+    [Arguments("{ \"PlatformSpecific\": { \"platform\": \"wasm\" } }", false)]
     public void ASourceTextWithTheMarkerHasPlatformTests(string text, bool expected) =>
         TestPlan.MentionsPlatformMarker(text).Should().Be(expected);
+
+    [Test]
+    [Arguments("[04:49:13 INF] EXPECTO! 0 tests run in 00:00:00.0047448 for miscellaneous – 0 passed, 0 ignored", true)]
+    [Arguments("[04:49:13 INF] EXPECTO! 10 tests run in 00:00:00.0910861 for miscellaneous – 10 passed", false)]
+    [Arguments("[04:49:13 INF] EXPECTO! 143 tests run in 00:00:35.9465402 for PlatformSpecific – 143 passed", false)]
+    public void AnExpectoRunThatSelectsNoTestIsFound(string line, bool expected) =>
+        TestPlan.ReportsNoTests(line).Should().Be(expected);
 
     private static IEnumerable<string> ArgumentsOf(string project) =>
         TestPlan.Suites.Single(suite => suite.Project == project).Arguments;
