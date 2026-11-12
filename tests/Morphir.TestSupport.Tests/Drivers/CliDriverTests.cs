@@ -81,6 +81,19 @@ public class CliDriverTests
         driver.Target.Should().Be(Development);
     }
 
+    // The product writes UTF-8 (MorphirCli sets the console encoding). On Windows the default encoding of a
+    // redirected stream is the code page of the console, so a driver that does not read UTF-8 gets other characters.
+    [Test]
+    public async Task TheOutputOfTheProductIsReadAsUtf8()
+    {
+        await using var workspace = Workspace();
+        var model = workspace.CopyFixture("Cli/valid-ir-v3.json");
+
+        var result = await Driver(workspace, MorphirHost.Native).RunAsync(["ir", "verify", model.Path]);
+
+        result.ShouldExitWith(0).OutputShouldContain("✓ VALID");
+    }
+
     [Test]
     public async Task ACommandLineAsOneStringRunsTheSameCommand()
     {

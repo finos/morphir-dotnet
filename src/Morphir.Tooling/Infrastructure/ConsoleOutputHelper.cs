@@ -15,6 +15,9 @@ public static class ConsoleOutputHelper
     public static void RedirectConsoleToStderr()
     {
         if (_isRedirected) return;
+        // The kept stdout writer and the stderr writer must be made after this line: a writer that exists before it
+        // writes the console code page on Windows, not UTF-8.
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
         _originalStdout = Console.Out;
         Console.SetOut(Console.Error);
         _isRedirected = true;
