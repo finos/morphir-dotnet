@@ -17,6 +17,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// (task 4.2 of <c>add-wasm-extension-host</c>; the <c>extension-registry</c> requirement "A WASM entry is available
 /// only where the WASM runtime is"), and only a reader that needs it asks.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class WasmRuntimeAgreementTests
 {
     private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));

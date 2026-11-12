@@ -555,6 +555,7 @@ static class BadFailure { static void Check(HostSession session) { Console.Write
                   Expect.isTrue
                       (Regex.IsMatch(result.CombinedOutput, file + @"\.cs\([^\r\n]*" + diagnostic))
                       $"The compiler reports {diagnostic} for {file}: {result.CombinedOutput}"
+          |> testLabel "PlatformSpecific"
 
           testCase "C# implements the channel and runs a session on it"
           <| fun _ ->
