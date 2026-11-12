@@ -6,6 +6,19 @@ on:
             - opened
             - synchronize
             - reopened
+            - ready_for_review
+    # Manual runs, and the runs that ci-request.yml starts when a ci:* label changes.
+    workflow_dispatch:
+        inputs:
+            os:
+                description: "Operating systems: auto (pull request state and labels), linux or full"
+                type: choice
+                options: [auto, linux, full]
+                default: auto
+            pr:
+                description: "Pull request number. The run tests its merge commit and uses its draft state and labels."
+                type: string
+                default: ""
     workflow_call:
         inputs:
             configuration:
@@ -18,24 +31,59 @@ on:
                 required: true
                 type: string
 
-# A new push to a pull request supersedes its earlier run, so cancel the earlier run.
-# Calls from other workflows, such as a release, run to completion.
+# A new push or label change on a pull request supersedes its earlier run, so cancel the earlier run. The plan job of
+# the new run reuses the jobs that already passed for the same head commit. Calls from other workflows, such as a
+# release, and manual runs without a pull request run to completion.
 concurrency:
-    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr || github.run_id }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.pr != '') }}
 
 env:
-    CONFIGURATION: ${{ github.event.inputs.configuration || 'Release' }}
-    RELEASE_VERSION: ${{ github.event.inputs.release-version }}
+    CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+    RELEASE_VERSION: ${{ inputs.release-version }}
 
 jobs:
+    # The Fallout target CIPlan (build/Build.CI.cs, build/Helpers/CiPlan.cs) selects the checks of this run. A draft
+    # runs Linux only; a pull request that is ready for review runs Linux, Windows and macOS. The ci:full and
+    # ci:linux-only labels and the os input change the selection. Jobs that passed in an earlier run for the same
+    # head commit do not run again.
+    plan:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            actions: read
+            pull-requests: read
+        outputs:
+            lint: ${{ steps.plan.outputs.lint }}
+            openspec: ${{ steps.plan.outputs.openspec }}
+            test: ${{ steps.plan.outputs.test }}
+            matrix: ${{ steps.plan.outputs.matrix }}
+            plan: ${{ steps.plan.outputs.plan }}
+        steps:
+            - uses: actions/checkout@v6.1.0
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+            - name: Plan the checks
+              id: plan
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  CI_OS: ${{ inputs.os }}
+                  CI_PR: ${{ inputs.pr }}
+              run: ./build.sh --target CIPlan ${CI_OS:+--ci-os "$CI_OS"} ${CI_PR:+--ci-pull-request "$CI_PR"}
+
     lint:
+        needs: plan
+        if: needs.plan.outputs.lint == 'true'
         runs-on: ubuntu-latest
 
         steps:
             - uses: actions/checkout@v6.1.0
               with:
                   fetch-depth: 0
+                  ref: ${{ inputs.pr && format('refs/pull/{0}/merge', inputs.pr) || '' }}
             - name: Setup .NET SDK
               id: setup-dotnet
               uses: actions/setup-dotnet@v5
@@ -60,13 +108,17 @@ jobs:
               run: dotnet fsi scripts/sync-agent-skills.fsx --check
 
     test:
+        needs: plan
+        if: needs.plan.outputs.test == 'true'
         strategy:
             matrix:
-                os: [ubuntu-latest, windows-latest, macOS-latest]
+                os: ${{ fromJSON(needs.plan.outputs.matrix) }}
         runs-on: ${{ matrix.os }}
 
         steps:
             - uses: actions/checkout@v6.1.0
+              with:
+                  ref: ${{ inputs.pr && format('refs/pull/{0}/merge', inputs.pr) || '' }}
             - name: Configure physical test temporary directory
               shell: pwsh
               run: |
@@ -156,22 +208,38 @@ jobs:
 
     openspec:
         name: OpenSpec workflow
+        needs: plan
+        if: needs.plan.outputs.openspec == 'true'
         runs-on: ubuntu-latest
         timeout-minutes: 10
         permissions:
             contents: read
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ inputs.pr && format('refs/pull/{0}/merge', inputs.pr) || '' }}
             - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
             - name: Check the shared OpenSpec bundle
               run: mise exec -- mission-control-tools openspec check --bundle
             - name: Validate the OpenSpec schema and changes
               run: mise run openspec:validate
 
+    # The Fallout target CIGate fails when a planned job did not succeed, or when a pull request that is ready for
+    # review has no passing Windows and macOS tests for its head commit. On a draft it passes with a warning.
     ci:
         runs-on: ubuntu-latest
-        needs: [lint, test, openspec]
+        needs: [plan, lint, test, openspec]
+        if: ${{ !cancelled() }}
+        timeout-minutes: 10
+        permissions:
+            contents: read
         steps:
             - uses: actions/checkout@v6.1.0
-            - name: Aggregate of lint, and all tests
-              run: echo "ci passed"
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+            - name: Evaluate the planned checks
+              env:
+                  CI_NEEDS: ${{ toJSON(needs) }}
+              run: ./build.sh --target CIGate

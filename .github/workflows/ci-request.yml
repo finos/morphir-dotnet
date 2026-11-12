@@ -1,0 +1,37 @@
+name: "CI request"
+
+# A ci:* label change on a pull request starts a Development run for it. The plan job of that run reads the labels
+# and runs only the checks that have not passed for the head commit, for example Windows and macOS after ci:full.
+#
+# Other labels, such as Renovate's "dependencies", start nothing here. A labeled trigger in development.yml would
+# cancel the running build and replace its ci check with a skipped one.
+#
+# pull_request_target runs this file from the base branch with a token that can dispatch workflows. It does not check
+# out or run code from the pull request. Pull requests from forks have no branch in this repository to dispatch, so a
+# label change does not start a run for them; their next push does.
+on:
+    pull_request_target:
+        types:
+            - labeled
+            - unlabeled
+
+permissions: {}
+
+jobs:
+    dispatch:
+        if: >-
+            startsWith(github.event.label.name, 'ci:')
+            && github.event.pull_request.state == 'open'
+            && github.event.pull_request.head.repo.full_name == github.repository
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            actions: write
+        steps:
+            - name: Start Development for the pull request
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  GH_REPO: ${{ github.repository }}
+                  HEAD_REF: ${{ github.event.pull_request.head.ref }}
+                  PR: ${{ github.event.pull_request.number }}
+              run: gh workflow run development.yml --ref "$HEAD_REF" -f os=auto -f pr="$PR"
