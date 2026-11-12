@@ -79,10 +79,8 @@ public class ReleaseAssetsTests
     public async Task TheWindowsChecksumFileCoversBothPlatformsOutputsSortedAndNotItself()
     {
         await using var sandbox = TestSandbox.Create("release-assets-");
-        var x64 = Source(sandbox, "windows-release-toolchain-win-x64",
-            ("morphir-toolchain-win-x64.json", "x64 bundle"), ("morphirup-win-x64.exe", "x64"), ("SHA256SUMS", "x64 sums"));
-        var arm64 = Source(sandbox, "windows-release-toolchain-win-arm64",
-            ("morphir-toolchain-win-arm64.json", "arm64 bundle"), ("morphirup-win-arm64.exe", "arm64"), ("SHA256SUMS", "arm64 sums"));
+        var x64 = Toolchain(sandbox, "win-x64", ("SHA256SUMS", "x64 sums"));
+        var arm64 = Toolchain(sandbox, "win-arm64", ("SHA256SUMS", "arm64 sums"));
         var assets = sandbox.PathOf("release-assets");
         ReleaseAssets.Flatten([x64, arm64], assets).Problems.Should().BeEmpty();
         // A file in the folder that no Windows toolchain output uploaded is not listed.
@@ -93,8 +91,9 @@ public class ReleaseAssetsTests
         result.Problems.Should().BeEmpty();
         var lines = (await File.ReadAllTextAsync(Path.Combine(assets, ReleaseAssets.WindowsToolchainChecksumFileName))).Split('\n', StringSplitOptions.RemoveEmptyEntries);
         lines.Select(line => line[66..]).Should().Equal(
+            "morphir-dotnet-1.2.3-self-contained-win-arm64.zip", "morphir-dotnet-1.2.3-self-contained-win-x64.zip",
             "morphir-toolchain-win-arm64.json", "morphir-toolchain-win-x64.json", "morphirup-win-arm64.exe", "morphirup-win-x64.exe");
-        lines[0].Should().Be($"{ReleaseArchive.Sha256(Path.Combine(assets, "morphir-toolchain-win-arm64.json"))}  morphir-toolchain-win-arm64.json");
+        lines[2].Should().Be($"{ReleaseArchive.Sha256(Path.Combine(assets, "morphir-toolchain-win-arm64.json"))}  morphir-toolchain-win-arm64.json");
     }
 
     [Test]
@@ -105,8 +104,7 @@ public class ReleaseAssetsTests
         await using var sandbox = TestSandbox.Create("release-assets-");
         var sources = ReleaseAssets.WindowsToolchainPlatforms
             .Where(rid => rid != missing)
-            .Select(rid => Source(sandbox, $"windows-release-toolchain-{rid}",
-                ($"morphir-toolchain-{rid}.json", "bundle"), (MorphirupRelease.ExecutableName(rid), "manager")))
+            .Select(rid => Toolchain(sandbox, rid))
             .ToList();
         var assets = sandbox.PathOf("release-assets");
         ReleaseAssets.Flatten(sources, assets).Problems.Should().BeEmpty();
@@ -115,6 +113,41 @@ public class ReleaseAssetsTests
 
         result.Problems.Should().HaveCount(2).And.OnlyContain(problem => problem.Contains(missing));
         File.Exists(Path.Combine(assets, ReleaseAssets.WindowsToolchainChecksumFileName)).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task TheWindowsChecksumFileIsNotWrittenWhenABundleAssetIsMissingOrDiffers()
+    {
+        // The release SHA256SUMS lists each bundle and every asset it names, with the bundle's digests
+        // (finos/morphir local-toolchains 0.1.0-preview.3, release-bindings).
+        await using var sandbox = TestSandbox.Create("release-assets-");
+        var x64 = Toolchain(sandbox, "win-x64");
+        var arm64 = Toolchain(sandbox, "win-arm64");
+        File.Delete(Path.Combine(x64, "morphir-dotnet-1.2.3-self-contained-win-x64.zip"));
+        await File.WriteAllTextAsync(Path.Combine(arm64, "morphir-dotnet-1.2.3-self-contained-win-arm64.zip"), "other bytes");
+        var assets = sandbox.PathOf("release-assets");
+        ReleaseAssets.Flatten([x64, arm64], assets).Problems.Should().BeEmpty();
+
+        var result = ReleaseAssets.WriteWindowsToolchainChecksums([x64, arm64], assets);
+
+        result.Problems.Should().HaveCount(2);
+        result.Problems.Should().Contain(problem => problem.Contains("morphir-dotnet-1.2.3-self-contained-win-x64.zip") && problem.Contains("missing"));
+        result.Problems.Should().Contain(problem => problem.Contains("morphir-dotnet-1.2.3-self-contained-win-arm64.zip") && problem.Contains("SHA-256"));
+        File.Exists(Path.Combine(assets, ReleaseAssets.WindowsToolchainChecksumFileName)).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task TheWindowsChecksumFileIsNotWrittenWhenABundleNamesAnotherPlatform()
+    {
+        await using var sandbox = TestSandbox.Create("release-assets-");
+        var x64 = Toolchain(sandbox, "win-x64");
+        var arm64 = Toolchain(sandbox, "win-arm64", bundlePlatform: "win-x64");
+        var assets = sandbox.PathOf("release-assets");
+        ReleaseAssets.Flatten([x64, arm64], assets).Problems.Should().BeEmpty();
+
+        var result = ReleaseAssets.WriteWindowsToolchainChecksums([x64, arm64], assets);
+
+        result.Problems.Should().ContainSingle().Which.Should().Contain("morphir-toolchain-win-arm64.json").And.Contain("win-x64");
     }
 
     [Test]
@@ -134,6 +167,26 @@ public class ReleaseAssetsTests
 
         ReleaseAssets.Sha256Lines(assets, ["b", "a"]).Should().Be(
             $"{ReleaseArchive.Sha256(Path.Combine(assets, "a"))}  a\n{ReleaseArchive.Sha256(Path.Combine(assets, "b"))}  b\n");
+    }
+
+    /// <summary>
+    /// A Windows toolchain output with a manager, one host archive and a bundle naming that archive by its bytes and
+    /// SHA-256. A real bundle names nine assets; the check reads whatever assets the bundle names.
+    /// </summary>
+    private static string Toolchain(TestSandbox sandbox, string rid, params (string Name, string Content)[] extra) =>
+        Toolchain(sandbox, rid, rid, extra);
+
+    private static string Toolchain(TestSandbox sandbox, string rid, string bundlePlatform, params (string Name, string Content)[] extra)
+    {
+        var archive = $"morphir-dotnet-1.2.3-self-contained-{rid}.zip";
+        var folder = Source(sandbox, $"windows-release-toolchain-{rid}",
+            [(archive, $"{rid} archive"), (MorphirupRelease.ExecutableName(rid), $"{rid} manager"), .. extra]);
+        var bytes = new FileInfo(Path.Combine(folder, archive)).Length;
+        var bundle = $$"""
+            {"$schema":"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/bundle.schema.json","version":"1.2.3","sourceCommit":"{{new string('a', 40)}}","platform":"{{bundlePlatform}}","assets":[{"name":"{{archive}}","url":"https://github.com/finos/morphir-dotnet/releases/download/v1.2.3/{{archive}}","bytes":{{bytes}},"sha256":"{{ReleaseArchive.Sha256(Path.Combine(folder, archive))}}","role":"host-archive"}]}
+            """;
+        File.WriteAllText(Path.Combine(folder, $"morphir-toolchain-{rid}.json"), bundle);
+        return folder;
     }
 
     private static string Source(TestSandbox sandbox, string artifact, params (string Name, string Content)[] files)

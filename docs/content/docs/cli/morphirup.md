@@ -42,7 +42,8 @@ journey ([Local morphirup candidate]({{< relref "/docs/getting-started/local-mor
 --local-developer`, `select`, `use` and `run`) on Windows ARM64 uses the local-toolchains `0.1.0-preview.3`
 documents, whose `platform` is `win-x64` or `win-arm64`. The published `0.1.0-preview.1` and `0.1.0-preview.2`
 documents admit only `win-x64` and do not change. <!-- Draft #611: this journey is not yet implemented or proven on
-win-arm64; it depends on the preview.3 support of #608. Remove this note when the native proof is recorded. -->
+win-arm64; it depends on the preview.3 support of #608 and the unmerged finos/morphir#1163. Remove this note when the native proof is
+recorded. -->
 
 Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`, with the repository's
 `LICENSE` and `NOTICE` and the executable's `THIRD-PARTY-NOTICES.txt` beside it. The release also carries that file as

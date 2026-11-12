@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Immutable;
 using System.Text;
+using System.Text.Json;
 
 namespace Morphir.Build.Helpers;
 
@@ -99,13 +100,71 @@ public static class ReleaseAssets
         }
 
         foreach (var rid in WindowsToolchainPlatforms)
+        {
             foreach (var required in WindowsToolchainRequiredFiles(rid).Where(required => !names.Contains(required)))
                 problems.Add($"The Windows toolchain output of {rid} has no {required}.");
+            var bundle = WindowsToolchainRequiredFiles(rid)[0];
+            if (names.Contains(bundle))
+                problems.AddRange(BundleProblems(rid, bundle, assets, names));
+        }
 
         if (problems.Count > 0) return new ChecksumResult(null, problems);
         var checksums = Path.Combine(assets, WindowsToolchainChecksumFileName);
         File.WriteAllText(checksums, Sha256Lines(assets, names), new UTF8Encoding(false));
         return new ChecksumResult(checksums, []);
+    }
+
+    /// <summary>
+    /// What a bundle says that the outputs contradict. The release SHA256SUMS lists the bundle and every asset it
+    /// names with the bundle's digests (finos/morphir local-toolchains <c>0.1.0-preview.3</c>, rule
+    /// <c>release-bindings</c>), so each named asset must be among the outputs with the bundle's bytes and SHA-256, and
+    /// the bundle's <c>platform</c> must be its RID. Only those members are read; the bundle's own schema and the
+    /// other rules are the reader's.
+    /// </summary>
+    private static IEnumerable<string> BundleProblems(string rid, string bundle, string assets, IReadOnlySet<string> names)
+    {
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(assets, bundle)));
+        }
+        catch (JsonException error)
+        {
+            return [$"{bundle} is not JSON: {error.Message}"];
+        }
+
+        using (document)
+        {
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("platform", out var platform) || platform.ValueKind != JsonValueKind.String
+                || !root.TryGetProperty("assets", out var listed) || listed.ValueKind != JsonValueKind.Array)
+                return [$"{bundle} has no platform string or assets array."];
+
+            var problems = new List<string>();
+            if (platform.GetString() != rid)
+                problems.Add($"{bundle} names the platform {platform.GetString()}, not {rid}.");
+            foreach (var asset in listed.EnumerateArray())
+            {
+                if (asset.ValueKind != JsonValueKind.Object
+                    || !asset.TryGetProperty("name", out var nameElement) || nameElement.ValueKind != JsonValueKind.String
+                    || !asset.TryGetProperty("bytes", out var bytesElement) || !bytesElement.TryGetInt64(out var bytes)
+                    || !asset.TryGetProperty("sha256", out var shaElement) || shaElement.ValueKind != JsonValueKind.String)
+                {
+                    problems.Add($"{bundle} has an asset without a name, bytes and sha256.");
+                    continue;
+                }
+
+                var name = nameElement.GetString()!;
+                var path = Path.Combine(assets, name);
+                if (!names.Contains(name) || !File.Exists(path))
+                    problems.Add($"{name}, named by {bundle}, is missing from the Windows toolchain outputs.");
+                else if (new FileInfo(path).Length != bytes || ReleaseArchive.Sha256(path) != shaElement.GetString())
+                    problems.Add($"{name} has {new FileInfo(path).Length} bytes and SHA-256 {ReleaseArchive.Sha256(path)}; {bundle} says {bytes} bytes and {shaElement.GetString()}.");
+            }
+
+            return problems;
+        }
     }
 
     /// <summary>
