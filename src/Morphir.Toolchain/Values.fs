@@ -324,16 +324,36 @@ module Canonical =
 /// <c>Sha256Digest</c>, used directly: .NET's SHA256 calls the platform's cryptography library, which on Linux is the
 /// machine's OpenSSL, and morphirup must run where there is none.</summary>
 module Digest =
+    /// Incremental use of the same managed SHA-256, for callers whose chunks arrive asynchronously.
+    [<Sealed>]
+    type Incremental() =
+        let digest = Org.BouncyCastle.Crypto.Digests.Sha256Digest()
+        let mutable finished = false
+
+        /// Consume a segment before the caller reuses its buffer.
+        member _.Append(bytes: byte array, offset: int, count: int) : unit =
+            if finished then invalidOp "The SHA-256 digest has already been finalized."
+            ArgumentNullException.ThrowIfNull bytes
+            if offset < 0 || offset > bytes.Length then invalidArg (nameof offset) "Offset is outside the buffer."
+            if count < 0 || count > bytes.Length - offset then invalidArg (nameof count) "Count is outside the buffer."
+            digest.BlockUpdate(bytes, offset, count)
+
+        /// Finish exactly once, returning the existing lowercase SHA-256 spelling.
+        member _.Finish() : string =
+            if finished then invalidOp "The SHA-256 digest has already been finalized."
+            finished <- true
+            let output = Array.zeroCreate<byte> (digest.GetDigestSize())
+            digest.DoFinal(output, 0) |> ignore
+            Convert.ToHexStringLower output
+
     /// The digest of several byte arrays one after another, as of their concatenation.
     let ofParts (parts: byte array seq) =
-        let digest = Org.BouncyCastle.Crypto.Digests.Sha256Digest()
+        let digest = Incremental()
 
         for part in parts do
-            digest.BlockUpdate(part, 0, part.Length)
+            digest.Append(part, 0, part.Length)
 
-        let output = Array.zeroCreate<byte> (digest.GetDigestSize())
-        digest.DoFinal(output, 0) |> ignore
-        Convert.ToHexStringLower output
+        digest.Finish()
 
     let ofBytes (bytes: byte array) = ofParts [ bytes ]
 

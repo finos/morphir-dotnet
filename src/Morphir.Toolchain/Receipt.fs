@@ -432,10 +432,10 @@ module ReceiptDocument =
                   Checks = checks }
         }
 
-    let private provider (platform: Platform) (recipe: RecipeReference) (host: InstalledHost) (n: Node) : Read<InstalledProvider> =
+    let private provider readIdentity (platform: Platform) (recipe: RecipeReference) (host: InstalledHost) (n: Node) : Read<InstalledProvider> =
         result {
             let! o = asObject n
-            let! identity = required "identity" LockedProviderDocument.read o
+            let! identity = required "identity" (LockedProviderDocument.readWithIdentity readIdentity) o
             let installationPath = n.Path.Child "installation"
 
             let! installation =
@@ -500,14 +500,14 @@ module ReceiptDocument =
             | _ -> return! refuse ReaderCode.InconsistentDocument n.Path
         }
 
-    let private body (o: ObjectNode) : Read<Receipt> =
+    let private body readIdentity (o: ObjectNode) : Read<Receipt> =
         result {
             let! generationId = required "generationId" token o
             let! platform = required "platform" platform o
             let! lockSha256 = required "lockSha256" sha256 o
             let! recipe = required "recipe" LockDocument.recipeReference o
             let! host = required "host" (host platform recipe) o
-            let! providers = required "providers" (array (provider platform recipe host)) o
+            let! providers = required "providers" (array (provider readIdentity platform recipe host)) o
             let! workflow = required "checks" workflowChecks o
 
             let readiness =
@@ -536,7 +536,11 @@ module ReceiptDocument =
 
     /// Reads the exact bytes of a receipt.
     let read (bytes: byte array) : Result<Receipt, ReaderRefusal> =
-        document Syntax.parseJson understoodCriticalPaths body bytes
+        document Syntax.parseJson understoodCriticalPaths (body extensionId) bytes
+
+    /// Reads a preview receipt; readiness still follows the recorded checks.
+    let internal readPreview (bytes: byte array) : Result<Receipt, ReaderRefusal> =
+        previewDocument PreviewDocument.Receipt understoodCriticalPaths (body previewExtensionId) bytes
 
     // ---- writing ------------------------------------------------------------------------------------------------
 

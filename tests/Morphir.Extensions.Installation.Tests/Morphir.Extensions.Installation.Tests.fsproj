@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    <ProjectReference Include="../../src/Morphir.Extensions.Installation/Morphir.Extensions.Installation.fsproj" />
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="IdentifiersTests.fs" />
+    <Compile Include="PlatformsTests.fs" />
+    <Compile Include="MepLineTests.fs" />
+    <Compile Include="SharedReaderTests.fs" />
+    <Compile Include="IoTestSupport.fs" />
+    <Compile Include="PrivateStagingTests.fs" />
+    <Compile Include="StoreTests.fs" />
+    <Compile Include="ArchiveTests.fs" />
+    <Compile Include="RunCopyTests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../Fixtures/ExtensionAcquisition/parent-0439c4c0/**" Link="ParentContracts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

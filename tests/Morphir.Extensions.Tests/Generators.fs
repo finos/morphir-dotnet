@@ -38,7 +38,13 @@ let token: Gen<string> = gen {
 let dottedId: Gen<string> = gen {
     let! count = Gen.choose (1, 4)
     let! parts = Gen.listOfLength count token
-    return String.concat "." parts
+    // Prefix the first token so generated ids cannot be Windows device names.
+    return
+        String.concat
+            "."
+            (("test-"
+              + List.head parts)
+             :: List.tail parts)
 }
 
 /// A canonical SemVer 2.0.0 version with optional pre-release and build metadata.

@@ -5,7 +5,7 @@
         <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
         <AssemblyName>morphirup</AssemblyName>
         <RootNamespace>Morphirup</RootNamespace>
-        <Description>morphirup, the standalone Morphir toolchain manager. This slice reads and checks toolchain documents and makes plan-only setups over local files; it acquires, installs and activates nothing.</Description>
+        <Description>morphirup, the standalone Morphir toolchain manager. Explicit local developer setup, selection and installed execution, alongside toolchain document checks and recipe planning. Production authenticated acquisition remains unqualified.</Description>
         <IsPackable>false</IsPackable>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -37,14 +37,21 @@
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
+        <InternalsVisibleTo Include="Morphir.Toolchain.Tests" />
+        <InternalsVisibleTo Include="Morphir.Toolchain.ProcessFixture" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Morphir.Toolchain\Morphir.Toolchain.fsproj" />
+        <ProjectReference Include="..\Morphir.Toolchain.IO\Morphir.Toolchain.IO.fsproj" />
+        <ProjectReference Include="..\Morphir.Extensions.Installation\Morphir.Extensions.Installation.fsproj" />
     </ItemGroup>
 
     <ItemGroup>
         <Compile Include="$(IntermediateOutputPath)VersionInfo.g.fs" />
+        <Compile Include="LocalCandidate.fs" />
+        <Compile Include="LocalProcess.fs" />
+        <Compile Include="LocalInstallation.fs" />
         <Compile Include="Cli.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

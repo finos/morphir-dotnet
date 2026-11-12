@@ -134,6 +134,9 @@ partial class Build : FalloutBuild
         ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
         ("Morphir.Extensions", SourceDirectory / "Morphir.Extensions" / "Morphir.Extensions.fsproj", true),
         ("Morphir.Analyzers", SourceDirectory / "Morphir.Analyzers" / "Morphir.Analyzers.fsproj", true),
+        // Tooling shares the Windows launch owner in IO, which depends on the pure contracts.
+        ("Morphir.Toolchain", SourceDirectory / "Morphir.Toolchain" / "Morphir.Toolchain.fsproj", true),
+        ("Morphir.Toolchain.IO", SourceDirectory / "Morphir.Toolchain.IO" / "Morphir.Toolchain.IO.fsproj", true),
         ("Morphir.Tooling", MorphirToolingProject, true),
         ("Morphir", MorphirProject, true),
         ("Morphir.SDK.FSharp", MorphirSDKFSharpProject, true),

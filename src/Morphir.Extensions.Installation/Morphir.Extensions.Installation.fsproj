@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="Semver" />
+    <ProjectReference Include="../Morphir.Extensions/Morphir.Extensions.fsproj" />
+    <ProjectReference Include="../Morphir.Mep/Morphir.Mep.fsproj" />
+    <ProjectReference Include="../Morphir.Toolchain/Morphir.Toolchain.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="Identifiers.fs" />
+    <Compile Include="Platforms.fs" />
+    <Compile Include="MepSupport.fs" />
+    <Compile Include="SharedJson.fs" />
+    <Compile Include="Claims.fs" />
+    <Compile Include="Descriptors.fs" />
+    <Compile Include="FileSafety.fs" />
+    <Compile Include="PrivateStaging.fs" />
+    <Compile Include="Store.fs" />
+    <Compile Include="Archives.fs" />
+    <Compile Include="RunCopies.fs" />
+  </ItemGroup>
+</Project>

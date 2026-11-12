@@ -209,6 +209,14 @@ morphir tool which <name> [options]
 
 ## Extension Commands
 
+`extension list` is available. Installation, selection and removal commands are
+still stubs. The installation library provides portable-value parsers,
+platform mappings, MEP eligibility checks, a verified single-file store, bounded
+archive inspection and temporary run-directory ownership. The complete install
+pipeline is unfinished. See [extension installation status](extension-installation.md).
+The full installer is tracked by
+[#558](https://github.com/finos/morphir-dotnet/issues/558).
+
 An extension adds a capability to Morphir, such as a code generator. The plan is in the
 [Morphir extension model PRD](../../contributing/design/prds/morphir-extension-model.md).
 

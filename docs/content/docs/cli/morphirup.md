@@ -11,6 +11,12 @@ description: "The standalone toolchain manager: plan-only setup and project chec
 
 **This build does not acquire, install or activate anything.** It reads the toolchain documents, resolves a request against a recipe file you give it, prints the plan, and checks a project's request and lock. Bootstrap, authenticated downloads, generations, activation, `restore`, `show`, `run`, the `morphir` proxy and shell setup are later work.
 
+Bounded acquisition I/O is implemented separately from the commands, with 58 isolated tests passing for streamed
+downloads, byte limits, cancellation and private publication. This work does not enable `setup` to apply a plan.
+Publisher authentication still requires security review; matching a checksum does not
+authenticate a publisher. Contributor status and the remaining integration boundaries are tracked in
+[`docs/contributing/morphirup-acquisition.md`](../../../contributing/morphirup-acquisition.md).
+
 ## Download and verify
 
 Releases of morphir-dotnet attach `morphirup` for four platforms, beside the `morphir` assets on the
