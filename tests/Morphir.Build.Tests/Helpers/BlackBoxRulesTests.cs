@@ -500,10 +500,14 @@ public class BlackBoxRulesTests
     {
         var project = File.ReadAllText(Path.Combine(ProjectDirectory, "Morphir.BlackBox.Tests.csproj"));
         var targets = File.ReadAllText(Path.Combine(Root, "tests", "Morphir.TestSupport", "build", "Morphir.CliArtifacts.targets"));
+        var programs = File.ReadAllText(Path.Combine(Root, "tests", "Morphir.TestSupport", "build", "Morphir.TestPrograms.targets"));
 
         project.Should().Contain("Morphir.CliArtifacts.targets", "the build of the project builds the CLI entry points first");
         BlackBoxRules.ReferenceViolations($"{Project}/Morphir.BlackBox.Tests.csproj", project).Should().BeEmpty();
         BlackBoxRules.ReferenceViolations("tests/Morphir.TestSupport/build/Morphir.CliArtifacts.targets", targets).Should().BeEmpty();
+        // The programs of a test (hosts, probes, morphirup) are build-order references too.
+        BlackBoxRules.ProjectReferences("tests/Morphir.TestSupport/build/Morphir.TestPrograms.targets", programs)
+            .Should().ContainSingle().Which.ExposesAssembly.Should().BeFalse();
         BlackBoxRules.ProjectReferences($"{Project}/Morphir.BlackBox.Tests.csproj", project).Select(reference => reference.Path)
             .Should().Equal("tests/Morphir.TestSupport/Morphir.TestSupport.csproj");
     }
