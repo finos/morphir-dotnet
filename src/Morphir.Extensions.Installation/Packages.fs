@@ -1287,7 +1287,10 @@ type PackageInstaller private () =
                     try
                         try
                             do
-                                use stage = packages.Child(name, true)
+                                // Unix cannot move a sealed directory to another parent
+                                // without write permission to update its '..' entry.
+                                // Stage beside the destination so publication stays sealed.
+                                use stage = store.Child(name, true)
                                 stageIdentity <- Some stage.Identity
                                 use tree = stage.Child("tree", true)
                                 created[tree.Path] <- tree.Identity
@@ -1335,7 +1338,7 @@ type PackageInstaller private () =
                                 |> Array.contains plan.TreeDigest.Value
 
                             if not exists then
-                                use stage = packages.Child(name, false)
+                                use stage = store.Child(name, false)
 
                                 if
                                     Some stage.Identity
@@ -1351,7 +1354,7 @@ type PackageInstaller private () =
                                 (stage :> IDisposable).Dispose()
 
                                 published <-
-                                    store.PublishDirectory(packages, name, plan.TreeDigest.Value)
+                                    store.PublishDirectory(store, name, plan.TreeDigest.Value)
 
                             use final = store.Child(plan.TreeDigest.Value, false)
                             // Actual destination verification is required even when a winner already existed.
@@ -1366,7 +1369,7 @@ type PackageInstaller private () =
                             if not published then
                                 match stageIdentity with
                                 | Some identity ->
-                                    PackageTreeIO.removeStage packages name identity created
+                                    PackageTreeIO.removeStage store name identity created
                                 | None -> ()
                         with error ->
                             cleanupFailure <- Some error
@@ -1396,7 +1399,7 @@ type PackageInstaller private () =
 
                             Operations.fail
                                 code
-                                $"{message} Private cleanup deferred at {Path.Combine(packages.Path, name)}; ownership released: {cleanup.Message}"
+                                $"{message} Private cleanup deferred at {Path.Combine(store.Path, name)}; ownership released: {cleanup.Message}"
                 finally
                     PackageTreeIO.close owned
             })

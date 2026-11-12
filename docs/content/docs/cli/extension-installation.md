@@ -5,11 +5,17 @@ description: What the extension installer currently implements and what remains
 
 # Extension installation status
 
-External extension installation is under implementation in
-[#558](https://github.com/finos/morphir-dotnet/issues/558). The `extension install`,
-selection and removal commands remain stubs. The
-[management reference](management.md#extension-commands) describes the current
-command status. These library changes are not a released installer.
+`extension install` supports an explicit local-developer release declaration and
+archive from a registered repository name, with `--no-probe` consent and a
+mutation-free `--dry-run`. The obsolete positional URL/version form is a usage
+error. Selection and removal commands remain stubs. The
+[management reference](management.md#extension-commands) gives the command syntax.
+This does not grant publisher authentication or claim published-release acquisition.
+
+## Historical implementation evidence
+
+The following snapshots retain their original source identities and limitations;
+they do not describe the current command surface.
 
 The current library increment on `ad24ce68` can install a release-bound local ZIP
 into its canonical package tree, register it through the published catalog/lock

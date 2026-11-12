@@ -209,11 +209,11 @@ morphir tool which <name> [options]
 
 ## Extension Commands
 
-`extension list` is available. Installation, selection and removal commands are
-still stubs. The installation library provides portable-value parsers,
-platform mappings, MEP eligibility checks, a verified single-file store, bounded
-archive inspection and temporary run-directory ownership. The complete install
-pipeline is unfinished. See [extension installation status](extension-installation.md).
+`extension list` and explicit local-developer installation are available.
+Installation uses a registered repository name, a release declaration and a local
+archive, with explicit unchecked/no-probe consent. A positional archive URL is not
+accepted. Selection and removal commands remain stubs. See
+[extension installation status](extension-installation.md).
 The full installer is tracked by
 [#558](https://github.com/finos/morphir-dotnet/issues/558).
 
@@ -223,13 +223,14 @@ An extension adds a capability to Morphir, such as a code generator. The plan is
 ```bash
 morphir extension list [--json] [--platform <rid>] [--local]
 morphir extension runtimes [--json]
-morphir extension install <name> <url> <version> [--platform <rid>] [--local]   # not implemented yet
+morphir extension repository add <name> --directory <absolute-path> --home <absolute-home> --local-developer [--dry-run]
+morphir extension install <name> --repository <registered-name> --local-release <json> --local-archive <zip> --home <absolute-home> --local-developer --no-probe [--dry-run]
 morphir extension use <name> <version> [--platform <rid>] [--local]             # not implemented yet
 morphir extension remove <name> <version> [--platform <rid>] [--local]          # not implemented yet
 morphir extension which <name> [--platform <rid>]                               # not implemented yet
 ```
 
-`install`, `use`, `remove` and `which` fail with exit code 1 and a link to
+`use`, `remove` and `which` fail with exit code 1 and a link to
 [issue #492](https://github.com/finos/morphir-dotnet/issues/492). They arrive with step 3 of the PRD.
 
 `morphir extension runtimes` reports whether this host can run WASM extensions, with its engine, profiles and bounds,
