@@ -28,7 +28,7 @@ let rec private captureStageEntries (created: Dictionary<string,StageIdentity>) 
             created[path] <- directory.FileIdentity input
 
 // Only this live invocation owns the stage. Published objects have already moved out before cleanup.
-let withPrivateStageAsync (root: SafeDirectory) (stage: SafeDirectory) (owner: FileStream) operation =
+let withPrivateStageAsync (root: SafeDirectory) (stage: SafeDirectory) (owner: FileStream) (errors: TextWriter) operation =
     let name = Path.GetFileName stage.Path
     let identity = stage.Identity
     let ownerIdentity = stage.FileIdentity owner
@@ -43,16 +43,31 @@ let withPrivateStageAsync (root: SafeDirectory) (stage: SafeDirectory) (owner: F
                 owner.Dispose()
                 (stage :> IDisposable).Dispose()
                 use deadline = new CancellationTokenSource(TimeSpan.FromSeconds 5.)
-                use! lease = FileSafety.mutationLeaseAsync root deadline.Token
-                use parent = root.Child("tmp",false)
-                if parent.Identity <> parentIdentity then refuse "local.path_escape" "The private staging parent changed identity."
-                let created = Dictionary<string,StageIdentity>(StringComparer.Ordinal)
-                do
-                    use current = parent.Child(name,false)
-                    if current.Identity <> identity || not(current.HasFileIdentity(".owner",ownerIdentity)) then
-                        refuse "local.path_escape" "The private setup stage changed identity; cleanup was refused."
-                    captureStageEntries created current
-                PackageTreeIO.removeStage parent name identity created
+                let! acquired = task {
+                    try
+                        let! lease = FileSafety.mutationLeaseAsync root deadline.Token
+                        return Some lease
+                    with :? OperationCanceledException when deadline.IsCancellationRequested ->
+                        return None
+                }
+                match acquired with
+                | None ->
+                    let folder = stage.Path.Replace("\r","\\r").Replace("\n","\\n")
+                    try
+                        errors.WriteLine($"morphirup: cleanup deferred; staging folder retained because the mutation lease is busy: '{folder}'")
+                    with
+                    | :? IOException | :? ObjectDisposedException -> ()
+                | Some lease ->
+                    use lease = lease
+                    use parent = root.Child("tmp",false)
+                    if parent.Identity <> parentIdentity then refuse "local.path_escape" "The private staging parent changed identity."
+                    let created = Dictionary<string,StageIdentity>(StringComparer.Ordinal)
+                    do
+                        use current = parent.Child(name,false)
+                        if current.Identity <> identity || not(current.HasFileIdentity(".owner",ownerIdentity)) then
+                            refuse "local.path_escape" "The private setup stage changed identity; cleanup was refused."
+                        captureStageEntries created current
+                    PackageTreeIO.removeStage parent name identity created
             })
     }
     Morphir.Toolchain.IO.AsyncOwnership.runAsync cleanup operation
@@ -670,7 +685,7 @@ let private setupCoreAsync mode home raw (candidate: LocalHostCandidate) archive
         use stage = SafeDirectory.Open(relative home stagePath, false)
         use owner = stage.File(".owner", true, true)
 
-        do! withPrivateStageAsync root stage owner (fun () -> task {
+        do! withPrivateStageAsync root stage owner Console.Error (fun () -> task {
             FileSafety.withDirectories
                 stage
                 [ "host" ]

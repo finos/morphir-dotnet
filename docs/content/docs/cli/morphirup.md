@@ -39,6 +39,11 @@ no Home, locks, staging, receipts or selection and runs no guest.
 Setup refuses before those effects if the final host or provider executable path would exceed the Windows launch
 limit of 259 characters. Choose a shorter `--home` when the diagnostic names this limit.
 
+Setup normally removes its own private staging folders. If the mutation lease stays busy for five seconds,
+cleanup leaves that folder and writes one warning on stderr without changing setup's achieved result.
+A later setup does not sweep deferred or interrupted stages; that follow-up is tracked in
+[#617](https://github.com/finos/morphir-dotnet/issues/617).
+
 This is **release-checksum delivery, not publisher-authenticated**. HTTPS and a matching release checksum do not
 authenticate the publisher. The release transport starts only at the exact `finos/morphir-dotnet` repository and
 version tag. It permits at most three HTTPS redirects to `github.com`, `release-assets.githubusercontent.com` or

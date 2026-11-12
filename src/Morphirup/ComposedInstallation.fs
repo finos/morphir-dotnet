@@ -202,7 +202,7 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
         FileSafety.withDirectories root ["tmp";stageName] true ignore
         use stage = SafeDirectory.Open(path home ("tmp/"+stageName),false)
         use owner = stage.File(".owner",true,true)
-        return! LocalInstallation.withPrivateStageAsync root stage owner (fun () -> task {
+        return! LocalInstallation.withPrivateStageAsync root stage owner Console.Error (fun () -> task {
             FileSafety.withDirectories stage ["downloads"] true ignore
             let downloads = Path.Combine(stage.Path,"downloads")
             for asset in bundle.Assets do

@@ -89,6 +89,28 @@ let readinessReports = testList "ReadinessReports" [
 
 [<Tests>]
 let stageCleanup = testLabel "PlatformSpecific" <| testList "SetupStageCleanup" [
+    testCaseTask "cleanup contention preserves completed setup result and writes one stderr warning" (fun () -> task {
+        use sandbox = TestSandbox.Create()
+        use root = Morphir.Extensions.Installation.SafeDirectory.Open(Path.Combine(sandbox.Work,"home"),true)
+        use parent = root.Child("tmp",true)
+        use stage = parent.Child("local-toolchain-contention",true)
+        use owner = stage.File(".owner",true,true)
+        use errors = new StringWriter()
+        use runningHost = Morphir.Extensions.Installation.FileSafety.mutationLease root
+        let folder = stage.Path
+        let elapsed = System.Diagnostics.Stopwatch.StartNew()
+        let! achieved = LocalInstallation.withPrivateStageAsync root stage owner errors (fun () -> task {
+            return "installed",0
+        })
+        Expect.equal achieved ("installed",0) "cleanup must not rewrite an achieved setup result or exit code"
+        Expect.isTrue (elapsed.Elapsed >= TimeSpan.FromSeconds 4.5) "the real five-second lease deadline was exercised"
+        Expect.isTrue runningHost.CanRead "the host still holds its lease when setup completes"
+        Expect.isTrue (Directory.Exists folder) "deferred private stage is retained"
+        let lines = errors.ToString().Split([|'\r';'\n'|],StringSplitOptions.RemoveEmptyEntries)
+        Expect.equal lines.Length 1 "one stderr line, no additional result output"
+        Expect.stringContains lines[0] folder "warning identifies the retained stage"
+        Expect.stringContains lines[0] "cleanup deferred" "warning explains why bytes remain"
+    })
     testCaseTask "successful setup removes its readonly private stage and preserves shared tmp siblings" (fun () -> task {
         use sandbox = TestSandbox.Create()
         use root = Morphir.Extensions.Installation.SafeDirectory.Open(Path.Combine(sandbox.Work,"home"),true)
@@ -97,7 +119,7 @@ let stageCleanup = testLabel "PlatformSpecific" <| testList "SetupStageCleanup" 
         use owner = stage.File(".owner",true,true)
         File.WriteAllText(Path.Combine(parent.Path,"unrelated.txt"),"shared tmp state")
         let stagePath = stage.Path
-        let! result = LocalInstallation.withPrivateStageAsync root stage owner (fun () -> task {
+        let! result = LocalInstallation.withPrivateStageAsync root stage owner TextWriter.Null (fun () -> task {
             use child = stage.Child("work",true)
             LocalInstallation.writeFile child "readonly.txt" [|1uy|]
             File.SetAttributes(Path.Combine(child.Path,"readonly.txt"),FileAttributes.ReadOnly)
@@ -116,7 +138,7 @@ let stageCleanup = testLabel "PlatformSpecific" <| testList "SetupStageCleanup" 
         let stagePath = stage.Path
         let! refused = task {
             try
-                do! LocalInstallation.withPrivateStageAsync root stage owner (fun () -> task {
+                do! LocalInstallation.withPrivateStageAsync root stage owner TextWriter.Null (fun () -> task {
                     LocalInstallation.writeFile stage "partial.zip" [|1uy;2uy|]
                     return LocalCandidate.refuse "setup.readiness_failed" "original host refusal"
                 })
