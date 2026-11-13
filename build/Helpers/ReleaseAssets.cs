@@ -10,16 +10,17 @@ namespace Morphir.Build.Helpers;
 /// The release-assets folder that the release job attaches, assembled from the outputs that each platform's job
 /// uploaded. Each output is downloaded into a folder of its own and flattened once into the assets folder: a name that
 /// two outputs share must hold the same bytes, so nothing is overwritten unseen, and a per-platform
-/// <see cref="WindowsToolchainChecksumFileName"/> is never copied. One checksum file is then written over the Windows
-/// toolchain outputs of both Windows platforms.
+/// <see cref="WindowsToolchainChecksumFileName"/> is never copied. One checksum file is then written over the
+/// toolchain outputs of every platform in <see cref="WindowsToolchainPlatforms"/>. The names keep "Windows" from the
+/// first two platforms; osx-arm64 uses the same producer (PackWindowsToolchain) and the same outputs.
 /// </summary>
 public static class ReleaseAssets
 {
     /// <summary>The checksum file of the Windows toolchain outputs, per platform and for the release.</summary>
     public const string WindowsToolchainChecksumFileName = "SHA256SUMS";
 
-    /// <summary>The platforms whose Windows toolchain outputs a release needs.</summary>
-    public static ImmutableArray<string> WindowsToolchainPlatforms { get; } = ["win-x64", "win-arm64"];
+    /// <summary>The platforms whose toolchain outputs a release needs: the two Windows RIDs and macOS ARM64.</summary>
+    public static ImmutableArray<string> WindowsToolchainPlatforms { get; } = ["win-x64", "win-arm64", "osx-arm64"];
 
     /// <summary>
     /// The files that a platform's Windows toolchain output must hold for the release checksum file to be written: its
@@ -80,10 +81,16 @@ public static class ReleaseAssets
     /// Windows toolchain outputs in <paramref name="sources"/> (apart from their own checksum files) as it is in
     /// <paramref name="assets"/>, after <see cref="Flatten"/>. Writes nothing when a platform of
     /// <see cref="WindowsToolchainPlatforms"/> lacks a file of <see cref="WindowsToolchainRequiredFiles"/>, or a listed
-    /// file is not in <paramref name="assets"/> with the bytes of its output.
+    /// file is not in <paramref name="assets"/> with the bytes of its output. <paramref name="platforms"/> narrows the
+    /// required platforms for a run that does not produce them all, such as a pull request run; the release names none,
+    /// so it requires every one. A platform outside <see cref="WindowsToolchainPlatforms"/> is an argument error.
     /// </summary>
-    public static ChecksumResult WriteWindowsToolchainChecksums(IEnumerable<string> sources, string assets)
+    public static ChecksumResult WriteWindowsToolchainChecksums(IEnumerable<string> sources, string assets, IReadOnlyCollection<string>? platforms = null)
     {
+        var unknown = (platforms ?? []).Where(rid => !WindowsToolchainPlatforms.Contains(rid)).ToList();
+        if (unknown.Count > 0)
+            throw new ArgumentException($"{string.Join(", ", unknown)} is not a toolchain platform; the platforms are {string.Join(", ", WindowsToolchainPlatforms)}.", nameof(platforms));
+        var required = platforms is { Count: > 0 } ? WindowsToolchainPlatforms.Where(platforms.Contains).ToList() : [.. WindowsToolchainPlatforms];
         var problems = new List<string>();
         var names = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var source in sources)
@@ -99,10 +106,10 @@ public static class ReleaseAssets
             }
         }
 
-        foreach (var rid in WindowsToolchainPlatforms)
+        foreach (var rid in required)
         {
-            foreach (var required in WindowsToolchainRequiredFiles(rid).Where(required => !names.Contains(required)))
-                problems.Add($"The Windows toolchain output of {rid} has no {required}.");
+            foreach (var file in WindowsToolchainRequiredFiles(rid).Where(file => !names.Contains(file)))
+                problems.Add($"The toolchain output of {rid} has no {file}.");
             var bundle = WindowsToolchainRequiredFiles(rid)[0];
             if (names.Contains(bundle))
                 problems.AddRange(BundleProblems(rid, bundle, assets, names));
@@ -116,7 +123,7 @@ public static class ReleaseAssets
 
     /// <summary>
     /// What a bundle says that the outputs contradict. The release SHA256SUMS lists the bundle and every asset it
-    /// names with the bundle's digests (finos/morphir local-toolchains <c>0.1.0-preview.3</c>, rule
+    /// names with the bundle's digests (finos/morphir local-toolchains <c>0.1.0-preview.4</c>, rule
     /// <c>release-bindings</c>), so each named asset must be among the outputs with the bundle's bytes and SHA-256, and
     /// the bundle's <c>platform</c> must be its RID. Only those members are read; the bundle's own schema and the
     /// other rules are the reader's.

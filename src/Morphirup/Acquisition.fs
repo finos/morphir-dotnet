@@ -114,7 +114,7 @@ let downloadAsync home directory (transport: IAcquisitionTransport) (asset: Rele
 type Inputs = {Bundle: ReleaseBundle; RawBundle: byte array; Checksums: byte array; Directory: string}
 
 let inspectAsync transport platform version ct = task {
-    if not(Platform.isWindows platform) then refuse "acquisition.platform_mismatch" "Release acquisition supports only win-x64 and win-arm64."
+    if not(Platform.isLocalToolchain platform) then refuse "acquisition.platform_mismatch" "Release acquisition supports only win-x64, win-arm64 and osx-arm64."
     let bundleName = ReleaseBundleDocument.fileName platform
     let prefix = $"{repository}/releases/download/v{version}/"
     let! checksums = metadataAsync transport (Uri(prefix+checksumName)) (1UL <<< 20) None ct

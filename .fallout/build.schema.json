@@ -310,6 +310,13 @@
           "type": "boolean",
           "description": "Produce an explicit local-developer candidate instead of release-checksum release input"
         },
+        "ToolchainPlatforms": {
+          "type": "array",
+          "description": "The toolchain platforms that WindowsToolchainChecksums requires, for a run that produces only some; by default every one (win-x64, win-arm64, osx-arm64)",
+          "items": {
+            "type": "string"
+          }
+        },
         "ToolDllDir": {
           "type": "string",
           "description": "Output directory for tool DLLs"

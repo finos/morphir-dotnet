@@ -393,6 +393,14 @@ module Platform =
         | Platform.WinArm64 -> true
         | _ -> false
 
+    /// The platforms of a preview.4 local toolchain: the two Windows platforms and macOS ARM64.
+    let isLocalToolchain (platform: Platform) =
+        match platform with
+        | Platform.WinX64
+        | Platform.WinArm64
+        | Platform.OsxArm64 -> true
+        | _ -> false
+
     /// The platform of the running process, if it is one of the eight.
     let current () =
         let architecture = Runtime.InteropServices.RuntimeInformation.OSArchitecture
