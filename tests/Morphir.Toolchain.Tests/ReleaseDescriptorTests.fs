@@ -440,6 +440,8 @@ let linearTests =
             match withinBudget 5.0 "reading 6,000 artifacts" (fun () -> ToolReleaseDocument.read bytes) with
             | Ok release -> Expect.equal release.Artifacts.Length 6_000 "every artifact"
             | Error refusal -> failtestf "refused: %A" refusal)
+        // Under the budget of withinBudget: after the parallel tests, one at a time.
+        |> testSequenced
 
         testCase "two artifacts equal as parsed values, with their members in another order, are refused" (fun () ->
             let release = valueOf "releases/morphir-dotnet-native-aot/1.2.3.json"
@@ -468,4 +470,5 @@ let linearTests =
             match resolved with
             | Ok selection -> Expect.equal selection.Version.Text "1.0.60000" "the greatest"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testSequenced
     ]
