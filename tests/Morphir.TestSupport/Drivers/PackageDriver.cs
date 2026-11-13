@@ -245,12 +245,15 @@ public sealed class PackageDriver : IPackageDriver
 
         var version = options?.PackageVersion ?? "0.1.0-test." + Guid.NewGuid().ToString("N");
         // --no-build packs the assemblies of the solution build, and --no-restore keeps the restore files of the
-        // project. The manifest goes into the workspace, not into the obj folder of the project.
+        // project. The manifest goes into the workspace, not into the obj folder of the project. The pack still runs
+        // ResolvePackageAssets, which rewrites obj/<configuration>/<framework>/<project>.assets.cache when a restore of
+        // the project (another suite's build or publish that references it) is newer than that cache. With
+        // DisablePackageAssetsCache it reads project.assets.json and writes no cache.
         string[] arguments =
         [
             "pack", Sources.ProjectOf(project), "-c", Sources.Configuration, "--no-build", "--no-restore",
             "-o", Feed.Path, $"-p:NuspecOutputPath={Path.Combine(_workspace.Root, "nuspec", id)}{Path.DirectorySeparatorChar}",
-            $"-p:PackageVersion={version}", "-nologo",
+            $"-p:PackageVersion={version}", "-p:DisablePackageAssetsCache=true", "-nologo",
         ];
 
         var gate = ProjectLocks[project];
