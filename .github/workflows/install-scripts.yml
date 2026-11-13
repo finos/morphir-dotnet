@@ -1,19 +1,21 @@
 name: Install scripts
 
 # Smoke tests for scripts/install-morphirup.sh and scripts/install-morphirup.ps1. Each job runs the
-# scripts from the chosen ref (not from main) against the published GitHub release: once pinned, once
-# with no version (the newest release that has morphirup for the runner), and twice with a checksum
-# file that must make the script refuse and install nothing. The mise job runs the documented mise
-# command.
+# scripts from the chosen ref (not from main) against the published finos/morphir releases: once pinned,
+# once with no version (the newest release that has morphirup for the runner, which skips the releases of
+# the earlier Rust CLI), and twice with a checksum file that must make the script refuse and install
+# nothing. Each run must download from https://github.com/finos/morphir/releases/download/. The mise job
+# runs the documented mise command. The skipping of releases without morphirup is also checked with no
+# network by tests/Morphir.BlackBox.Tests/EndToEnd/InstallScripts.feature.
 #
 # Manual only, so ordinary pull requests pay nothing for it. Run it after changing the scripts:
-#   gh workflow run install-scripts.yml --ref <branch> [-f version=0.4.0-alpha.5] [-f platforms=windows]
+#   gh workflow run install-scripts.yml --ref <branch> [-f version=0.5.0-alpha.1] [-f platforms=windows]
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release for the pinned runs, without a leading v. Empty means 0.4.0-alpha.5.'
+        description: 'finos/morphir release for the pinned runs, without a leading v. Empty means 0.5.0-alpha.1.'
         required: false
         default: ''
         type: string
@@ -32,7 +34,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PINNED: ${{ inputs.version || '0.4.0-alpha.5' }}
+  PINNED: ${{ inputs.version || '0.5.0-alpha.1' }}
+  # Each download of the scripts comes from here.
+  SOURCE: https://github.com/finos/morphir/releases/download/
   # Sent to api.github.com only, for the release list the unpinned runs read.
   GITHUB_TOKEN: ${{ github.token }}
 
@@ -69,13 +73,15 @@ jobs:
         run: |
           sh scripts/install-morphirup.sh --version "$PINNED" --install-dir "$RUNNER_TEMP/pinned" 2> "$RUNNER_TEMP/pinned.log"
           cat "$RUNNER_TEMP/pinned.log"
-          grep -q "downloading morphirup-${{ matrix.rid }} $PINNED" "$RUNNER_TEMP/pinned.log"
+          grep -q "downloading morphirup-${{ matrix.rid }} $PINNED from ${SOURCE}v$PINNED/morphirup-${{ matrix.rid }}" "$RUNNER_TEMP/pinned.log"
           "$RUNNER_TEMP/pinned/morphirup" --version | tee "$RUNNER_TEMP/pinned.version"
           grep -q "^$PINNED" "$RUNNER_TEMP/pinned.version"
 
       - name: No version, piped into sh, default install folder
         run: |
-          cat scripts/install-morphirup.sh | sh
+          cat scripts/install-morphirup.sh | sh 2> "$RUNNER_TEMP/latest.log"
+          cat "$RUNNER_TEMP/latest.log"
+          grep -q "from ${SOURCE}v[^/]*/morphirup-${{ matrix.rid }}$" "$RUNNER_TEMP/latest.log"
           "$HOME/.local/bin/morphirup" --version
 
       - name: Pinned with sh -s -- and wget, under dash
@@ -131,20 +137,21 @@ jobs:
         with:
           install: false
           cache: false
-      # version_prefix=v leaves out the proto plugin's plugin-v* releases; prerelease=true lets mise
-      # pick the v* prereleases. mise may hold back a release published in the last day or so.
+      # version_prefix=v keeps the v* tags; prerelease=true lets mise pick the v* prereleases. mise lists
+      # the releases of the earlier Rust CLI too, which have no morphirup, and may hold back a release
+      # published in the last day or so; matching=morphirup makes such a pick fail, never install another file.
       - name: mise use -g, no version (the documented command)
         shell: bash
         working-directory: ${{ runner.temp }}
         run: |
-          mise use -g 'github:finos/morphir-dotnet[matching=morphirup,version_prefix=v,prerelease=true]'
+          mise use -g 'github:finos/morphir[matching=morphirup,version_prefix=v,prerelease=true]'
           mise exec -- morphirup --version | tee version.txt
           grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' version.txt
       - name: mise use -g, with @<version>
         shell: bash
         working-directory: ${{ runner.temp }}
         run: |
-          mise use -g "github:finos/morphir-dotnet[matching=morphirup,version_prefix=v,prerelease=true]@$PINNED"
+          mise use -g "github:finos/morphir[matching=morphirup,version_prefix=v,prerelease=true]@$PINNED"
           mise exec -- morphirup --version | tee version.txt
           grep -q "^$PINNED" version.txt
 
@@ -170,7 +177,7 @@ jobs:
           $log = pwsh -NoProfile -File scripts/install-morphirup.ps1 -Version $env:PINNED -InstallDir "$env:RUNNER_TEMP\pinned" -NoModifyPath 2>&1 | Out-String
           $log
           if ($LASTEXITCODE -ne 0) { throw "install failed with $LASTEXITCODE" }
-          if ($log -notmatch "downloading morphirup-${{ matrix.rid }}\.exe $([regex]::Escape($env:PINNED))") { throw 'wrong asset' }
+          if ($log -notmatch "downloading morphirup-${{ matrix.rid }}\.exe $([regex]::Escape($env:PINNED)) from $([regex]::Escape("$($env:SOURCE)v$($env:PINNED)/morphirup-${{ matrix.rid }}.exe"))") { throw 'wrong asset or source' }
           $v = & "$env:RUNNER_TEMP\pinned\morphirup.exe" --version
           $v
           if (-not $v.StartsWith($env:PINNED)) { throw "unexpected version $v" }
@@ -198,6 +205,16 @@ jobs:
         run: |
           & ([scriptblock]::Create((Get-Content -Raw scripts/install-morphirup.ps1))) -InstallDir "$env:RUNNER_TEMP\latest" -NoModifyPath
           & "$env:RUNNER_TEMP\latest\morphirup.exe" --version
+
+      # The script writes its progress to the standard error of the process, so a child process shows it.
+      - name: No version, the newest release comes from finos/morphir (PowerShell 7)
+        shell: pwsh
+        run: |
+          $log = pwsh -NoProfile -File scripts/install-morphirup.ps1 -InstallDir "$env:RUNNER_TEMP\newest" -NoModifyPath 2>&1 | Out-String
+          $log
+          if ($LASTEXITCODE -ne 0) { throw "install failed with $LASTEXITCODE" }
+          if ($log -notmatch "from $([regex]::Escape($env:SOURCE))v[^/]+/morphirup-${{ matrix.rid }}\.exe") { throw 'the newest release did not come from finos/morphir' }
+          & "$env:RUNNER_TEMP\newest\morphirup.exe" --version
 
       - name: Through an HTTPS proxy, and with api.github.com unreachable (both shells)
         shell: pwsh
