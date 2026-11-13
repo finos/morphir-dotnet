@@ -11,11 +11,15 @@ The manifest and state documents use the separate local-toolchains family from
 planning, historical toolchain documents and the pure TUF client retain their
 existing behavior. TUF is unused and unqualified for production authority.
 
-## Preview.4 composed inputs
+## Preview.5 composed inputs
 
-The composed family is local-toolchains `0.1.0-preview.4`, specified in the parent page
+The composed family is local-toolchains `0.1.0-preview.5`, specified in the parent page
 [local toolchain platforms and release bundles](https://github.com/finos/morphir/blob/main/docs/spec/toolchain/local-platforms-and-release-bundle.md)
-([finos/morphir#1164](https://github.com/finos/morphir/pull/1164), merged as `648ae374`).
+(preview.4 in [finos/morphir#1164](https://github.com/finos/morphir/pull/1164), merged as `648ae374`; preview.5 in
+[finos/morphir#1171](https://github.com/finos/morphir/pull/1171), at `0fc5cde5`). Preview.5 differs from preview.4 only
+in the release repository: a bundle's asset URLs are `https://github.com/finos/morphir/releases/download/v<version>/<name>`,
+and a generation's `acquisition.repository` is `https://github.com/finos/morphir`. The candidate's `sourceRepository`
+stays `https://github.com/finos/morphir-dotnet`, the repository the code is built from.
 It supports `win-x64`, `win-arm64` and `osx-arm64`. The candidate, receipt and bundle
 carry the platform; selection and generation bind it through their existing hashes.
 A Windows candidate declares `"archive": {"format": "zip"}` and the entry point
@@ -23,23 +27,24 @@ A Windows candidate declares `"archive": {"format": "zip"}` and the entry point
 and the entry point `morphir`.
 The installation path stays `store/tools/sha256/<archive-sha256>`.
 
-The readers match each `$schema` URL as exact text. They read preview.4 only and do not
-convert from preview.3, so preview.3 candidates, bundles, receipts, selections and
-generations (written by 0.4.0-alpha.5 and earlier) are refused. `select`, `show` and `run`
-read only the preview.4 selection pointer. In a Home set up with preview.2 or preview.3
+The readers match each `$schema` URL as exact text. They read preview.5 only and do not
+convert from preview.4, so preview.4 candidates, bundles, receipts, selections and
+generations (written by 0.5.0-alpha.1) are refused, as are preview.3 ones. `select`, `show` and `run`
+read only the preview.5 selection pointer. In a Home set up with preview.2, preview.3 or preview.4
 they refuse with `local.setup_required`, which says to run `morphirup setup --yes` again
 in that Home, and on the local-candidate route to select the new generation then.
 Setup in such a Home does not read or convert the earlier files. It checks only the
-location and the SHA-256 name of each earlier generation, installs preview.4 beside it,
+location and the SHA-256 name of each earlier generation, installs preview.5 beside it,
 and replaces the selection pointer (release setup selects; local setup leaves the
 selection to `select`). The historical preview.1 local route keeps its separate reader
 and behavior.
 
-Default setup acquires the official release bundle and its checksums. Its origin
+Default setup acquires the official release bundle and its checksums from the finos/morphir release
+`v<version>`. Its origin
 is `release-checksum`, not publisher-authenticated. Its completed generation
 retains the exact bundle and checksum bodies and binds both digests.
 
-For an explicitly supplied preview.4 local candidate, the producer's
+For an explicitly supplied preview.5 local candidate, the producer's
 `--toolchain-local-developer` option declares `local-developer` instead. Supply
 its existing nine-role bundle and local sibling assets:
 
@@ -59,10 +64,10 @@ member or files. Neither a bundle URL nor a matching checksum upgrades that
 origin. These command paths still require actual native artifact testing before
 any claim of platform delivery.
 
-A refused `setup`, `select` or `show` writes one local-toolchains `0.1.0-preview.4`
+A refused `setup`, `select` or `show` writes one local-toolchains `0.1.0-preview.5`
 result, on the preview.1 route too, with `status: refused` and a `diagnostic`. The
 schema requires `origin`. It is the origin of the generation that `select` names,
-or of the selection that `show` reads, when that is a preview.4 document its reader
+or of the selection that `show` reads, when that is a preview.5 document its reader
 accepts. Otherwise it is `local-developer`, because every setup on these routes is
 explicit local-developer setup. `run` writes its refusals to stderr only. A completed
 preview.1 step still writes the preview.1 result, beside its preview.1 receipt and

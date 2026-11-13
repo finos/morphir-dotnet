@@ -30,7 +30,8 @@ Intel Macs are not supported.
    ```
 
    The dry run checks the release and installs nothing. `setup --yes` downloads the Morphir CLI, the F# frontend and
-   the F# backend from the release of the same version as `morphirup`, checks them against the release's checksums,
+   the F# backend from the [Morphir release](https://github.com/finos/morphir/releases) of the same version as
+   `morphirup`, checks them against the release's checksums,
    tries them out, and selects them. This is the only step that needs the network.
 3. See what is installed:
 
@@ -71,8 +72,8 @@ Historical recipe setup remains plan-only. Explicit local host installation, sel
 available through the [local candidate instructions]({{< relref "/docs/contributing/local-morphirup-candidate" >}}).
 Publisher authentication, portable lock restore, proxy installation and shell setup remain unfinished.
 
-Setup uses its own release version unless `.morphir/toolchain.toml` requests an exact version. It downloads the
-release's `SHA256SUMS` and the bundle file of its own platform (`morphir-toolchain-<rid>.json`), then the
+Setup uses its own release version unless `.morphir/toolchain.toml` requests an exact version. It downloads from the
+finos/morphir release with the tag `v<version>`: first the release's `SHA256SUMS` and the bundle file of its own platform (`morphir-toolchain-<rid>.json`), then the
 runtime-bundled Morphir host and independent F# frontend and backend that the bundle names. It checks their byte
 counts and SHA-256 values, installs their complete folders, executes the fixed readiness workflow, and selects the
 completed generation last. `--home` is optional and defaults to `MORPHIR_HOME`, then `~/.morphir`. A dry run reads
@@ -86,8 +87,8 @@ A later setup does not sweep deferred or interrupted stages; that follow-up is t
 [#617](https://github.com/finos/morphir-dotnet/issues/617).
 
 This is **release-checksum delivery, not publisher-authenticated**. HTTPS and a matching release checksum do not
-authenticate the publisher. The release transport starts only at the exact `finos/morphir-dotnet` repository and
-version tag. It permits at most three HTTPS redirects to `github.com`, `release-assets.githubusercontent.com` or
+authenticate the publisher. The release transport starts only at the exact `finos/morphir` repository and
+version tag, `https://github.com/finos/morphir/releases/download/v<version>/`. It permits at most three HTTPS redirects to `github.com`, `release-assets.githubusercontent.com` or
 `objects.githubusercontent.com`, without credentials or a downgrade. The generic acquisition transport keeps its
 existing no-redirect policy.
 
@@ -103,10 +104,12 @@ restore. The manual `Windows released morphirup journey` workflow validates the 
 assets are available.
 
 Each generation's receipt, `toolchains/generations/<generation-sha256>/receipt.json` in the Home, names the host's
-implementation, deployment, platform, version and entry point. `toolchains/default.json` records the selected
+implementation, deployment, platform, version and entry point. A generation set up from a release records its
+repository, `https://github.com/finos/morphir`, and its tag in `generation.json`. `toolchains/default.json` records the selected
 generation, and `catalog/extensions.json` lists the installed providers. `select`, `show` and `run` read only the
-current local-toolchains family; in a Home set up by an earlier family they refuse with `local.setup_required`, and
-`setup --yes` installs the current family beside the earlier generations.
+current local-toolchains family, `0.1.0-preview.5`; in a Home set up by an earlier family, such as the
+`0.1.0-preview.4` of `morphirup` 0.5.0-alpha.1, they refuse with `local.setup_required`, and `setup --yes` installs the
+current family beside the earlier generations.
 
 ### On macOS {#set-up-on-macos-arm64-experimental}
 
@@ -136,8 +139,9 @@ To build and install the macOS ARM64 inputs from a checkout, see
 
 ## Download and verify
 
-Releases of morphir-dotnet attach `morphirup` for five platforms, beside the `morphir` assets on the
-[releases page](https://github.com/finos/morphir-dotnet/releases):
+The Morphir releases attach `morphirup` for five platforms, beside the `morphir` assets on the
+[releases page](https://github.com/finos/morphir/releases), from `0.5.0-alpha.1` on. The earlier releases there
+(`0.4.0-beta` and older) are releases of the earlier Rust CLI and have no `morphirup`:
 
 | Platform | Executable | Archive |
 | --- | --- | --- |
@@ -168,8 +172,8 @@ verifying signed release metadata is later work.
 On Linux:
 
 ```bash
-version=0.4.0-alpha.5   # the release you want
-base=https://github.com/finos/morphir-dotnet/releases/download/v$version
+version=0.5.0-alpha.1   # the release you want
+base=https://github.com/finos/morphir/releases/download/v$version
 curl -fLO "$base/morphirup-linux-x64"
 curl -fLO "$base/morphirup-v$version.sha256"
 sha256sum -c --ignore-missing "morphirup-v$version.sha256"

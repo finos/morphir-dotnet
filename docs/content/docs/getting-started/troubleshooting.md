@@ -58,26 +58,27 @@ that runs under Rosetta on an Apple silicon Mac is fine: the script installs the
 
 ### mise installs an older release, or the wrong one
 
-**What you see.** Without a version, mise can pick a release that isn't the newest, or one that has no `morphirup`
-for your machine. With the command from [Installation]({{< relref "/docs/getting-started/installation#with-mise" >}}),
-mise picked an older release that has no Windows ARM64 file:
+**What you see.** Without a version, mise can pick a release that has no `morphirup`. With the command from
+[Installation]({{< relref "/docs/getting-started/installation#with-mise" >}}), mise picked a release of the earlier
+Rust CLI:
 
 ```text
-mise ✗ github:finos/morphir-dotnet@0.4.0-alpha.4  943ms · failed: No matching asset found for platform windows-arm64
+mise ✗ github:finos/morphir@0.4.0-beta.12  194ms · failed: No matching asset found for platform windows-arm64
+mise ERROR Failed to install github:finos/morphir@0.4.0-beta.12: No matching asset found for platform windows-arm64
+Note: filtered by matching="morphirup"
 ```
 
-Without `version_prefix=v,prerelease=true`, it picks the plugin release `plugin-v0.1.1`, which has no `morphirup`:
+mise installed nothing: it never takes another file in place of `morphirup`.
 
-```text
-mise ✗ github:finos/morphir-dotnet@plugin-v0.1.1  36ms · failed: No matching asset found for platform windows-arm64
-```
-
-**Why.** mise doesn't always see the newest release: its list can leave out one published recently. Without those
-options, it takes the release that GitHub marks as latest, which in this repository is a plugin release.
+**Why.** The [Morphir releases](https://github.com/finos/morphir/releases) also hold the releases of the earlier Rust
+CLI, `0.4.0-beta` and older, and those have no `morphirup`. mise lists them all, and it doesn't always see the newest
+release: its list can leave out one published in the last day. It then takes the newest release it sees. Without
+`version_prefix=v,prerelease=true`, it takes the release that GitHub marks as latest, which is an older Rust release.
 
 **What to do.** Give mise the version. Add `@<version>` at the end, inside the quotes, as
-[With mise]({{< relref "/docs/getting-started/installation#with-mise" >}}) shows. The versions are on the
-[releases page](https://github.com/finos/morphir-dotnet/releases), written without the `v`.
+[With mise]({{< relref "/docs/getting-started/installation#with-mise" >}}) shows, for example `@0.5.0-alpha.1`. The
+versions are on the [releases page](https://github.com/finos/morphir/releases), written without the `v`; `morphirup`
+is in `0.5.0-alpha.1` and later.
 ## Setting up a toolchain
 
 ### Linux: setup says the platform isn't supported
@@ -103,7 +104,7 @@ for it to set up.
 **What you see.** One of these, from `morphirup run` or `morphirup show`:
 
 ```text
-morphirup: local.setup_required: This Home was set up with local-toolchains 0.1.0-preview.3, and this morphirup reads only 0.1.0-preview.4. Run morphirup setup --yes again in this Home. ...
+morphirup: local.setup_required: This Home was set up with local-toolchains 0.1.0-preview.4, and this morphirup reads only 0.1.0-preview.5. Run morphirup setup --yes again in this Home. ...
 ```
 
 ```text
@@ -137,11 +138,14 @@ If you set `MORPHIR_HOME`, check that it names the same folder for `setup` and `
     "message": "The bounded release transfer was refused by transport or byte-integrity checks."
 ```
 
-**Why.** Setup downloads the toolchain from GitHub, so it needs the network. A proxy that is set but doesn't work
-causes the same error.
+**Why.** Setup downloads the toolchain from the Morphir release on GitHub,
+`https://github.com/finos/morphir/releases/download/v<version>/`, so it needs the network. GitHub then sends the
+download to `release-assets.githubusercontent.com` or `objects.githubusercontent.com`. A proxy that is set but doesn't
+work, or a firewall that blocks one of those three hosts, causes the same error.
 
-**What to do.** Run setup once while you are online, and check `HTTPS_PROXY` and `HTTP_PROXY`. Behind a company
-proxy or firewall, see [Behind a proxy or firewall]({{< relref "/docs/getting-started/installation#behind-a-proxy-or-firewall" >}}). After that,
+**What to do.** Run setup once while you are online, and check `HTTPS_PROXY` and `HTTP_PROXY`. Ask for `github.com`,
+`release-assets.githubusercontent.com` and `objects.githubusercontent.com` to be allowed. Behind a company proxy or
+firewall, see [Behind a proxy or firewall]({{< relref "/docs/getting-started/installation#behind-a-proxy-or-firewall" >}}). After that,
 `morphirup run -- compile` and `morphirup run -- generate` need no network.
 
 ### Setup says a path is too long (Windows)
