@@ -108,6 +108,37 @@ public class InstallScriptDriverTests
         run.Messages.Should().Contain("no release of finos/morphir has morphirup-win-x64.exe; pass -Version <version>");
     }
 
+    // Standard error of the pinned-tag refusal on the windows-latest runner (run 43525718486): PowerShell 7 colors the
+    // error record and starts each wrapped line with escape sequences before its "|" frame.
+    private const string ColoredRefusal =
+        "morphirup-install: downloading morphirup-win-x64.exe 0.4.0-beta.12 from http://127.0.0.1:59000/v0.4.0-beta.12/morphirup-win-x64.exe\r\n" +
+        "\u001b[31;1mException: \u001b[0mD:\\a\\_temp\\w\\install-morphirup.ps1:240\u001b[0m\r\n" +
+        "\u001b[31;1m\u001b[0m\u001b[36;1mLine |\u001b[0m\r\n" +
+        "\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m 240 | \u001b[0m .             \u001b[36;1mthrow \"finos/morphir release v$Version has no $asset ($ba\u001b[0m .\u001b[0m\r\n" +
+        "\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m     | \u001b[31;1m               ~~~~~~~~~~~~~~~~\u001b[0m\r\n" +
+        "\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[31;1m\u001b[31;1m\u001b[36;1m     | \u001b[31;1mfinos/morphir release v0.4.0-beta.12 has no morphirup-win-x64.exe\u001b[0m\r\n" +
+        "\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[31;1m\u001b[31;1m\u001b[36;1m\u001b[31;1m\u001b[36;1m     | \u001b[31;1m(http://127.0.0.1:59000/v0.4.0-beta.12/morphirup-win-x64.exe: HTTP 404); morphirup releases before 0.5.0-alpha.2\u001b[0m\r\n" +
+        "\u001b[31;1m\u001b[0m\u001b[36;1m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[0m\u001b[36;1m\u001b[31;1m\u001b[31;1m\u001b[36;1m\u001b[31;1m\u001b[36;1m\u001b[31;1m\u001b[36;1m     | \u001b[31;1mare on finos/morphir-dotnet: https://github.com/finos/morphir-dotnet/releases\u001b[0m\r\n";
+
+    [Test]
+    public void TheMessagesJoinAColoredErrorThatPowerShellWrapped()
+    {
+        var messages = RunWith(ColoredRefusal).Messages;
+
+        messages.Should().NotContain("\u001b", "no escape sequence is left");
+        messages.Should().Contain("finos/morphir release v0.4.0-beta.12 has no morphirup-win-x64.exe");
+        messages.Should().Contain("morphirup releases before 0.5.0-alpha.2 are on finos/morphir-dotnet: https://github.com/finos/morphir-dotnet/releases");
+    }
+
+    [Test]
+    public void TheMessagesKeepAShScriptRefusalAsItIs()
+    {
+        const string refusal =
+            "morphirup-install: error: finos/morphir release v0.4.0-beta.12 has no morphirup-linux-x64 (https://127.0.0.1:5000/v0.4.0-beta.12/morphirup-linux-x64: HTTP 404); morphirup releases before 0.5.0-alpha.2 are on finos/morphir-dotnet: https://github.com/finos/morphir-dotnet/releases\n";
+
+        InstallScriptRun.Normalize(refusal).Should().Be(refusal.TrimEnd('\n') + " ");
+    }
+
     [Test]
     public void AMorphirupReleaseHasEachPlatformAndAChecksumFileThatMatchesIt()
     {

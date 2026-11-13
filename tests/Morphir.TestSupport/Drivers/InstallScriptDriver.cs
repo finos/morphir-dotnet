@@ -27,6 +27,9 @@ public sealed record InstallScriptRun(CommandResult Result, IReadOnlyList<string
     // PowerShell 7 wraps the message of an error in lines that start with "|".
     private static readonly Regex ErrorFrame = new(@"^\s*\|", RegexOptions.CultureInvariant | RegexOptions.Multiline);
 
+    // An ANSI escape sequence (CSI): PowerShell 7 colors an error record, also when standard error is redirected.
+    private static readonly Regex Escape = new(@"\x1B\[[0-?]*[ -/]*[@-~]", RegexOptions.CultureInvariant);
+
     private Match Download => Downloading.Match(Result.StandardError.Replace("\r\n", "\n"));
 
     /// <summary>The release that the script chose, without a leading <c>v</c>, or null when it started no download.</summary>
@@ -36,10 +39,16 @@ public sealed record InstallScriptRun(CommandResult Result, IReadOnlyList<string
     public string? DownloadUrl => Download is { Success: true } match ? match.Groups["url"].Value : null;
 
     /// <summary>
-    /// Standard error with the frame of a wrapped PowerShell error removed and each run of white space as one space.
-    /// PowerShell wraps the message of an error that a script throws, so a check of a message reads this text.
+    /// Standard error as one line of text: with no ANSI escape sequence, no frame of a wrapped PowerShell error, and
+    /// each run of white space as one space. PowerShell 7 renders a thrown refusal as a colored error record and wraps
+    /// its message in lines that start with <c>|</c>, so a check of a message reads this text. The <c>sh</c> script
+    /// prints its refusals itself, so its text is unchanged here.
     /// </summary>
-    public string Messages => Space.Replace(ErrorFrame.Replace(Result.StandardError.Replace("\r\n", "\n"), " "), " ");
+    public string Messages => Normalize(Result.StandardError);
+
+    /// <summary>The text of <see cref="Messages"/> for <paramref name="standardError"/>.</summary>
+    public static string Normalize(string standardError) =>
+        Space.Replace(ErrorFrame.Replace(Escape.Replace(standardError, "").Replace("\r\n", "\n"), " "), " ");
 }
 
 /// <summary>

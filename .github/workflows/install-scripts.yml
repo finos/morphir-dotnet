@@ -262,7 +262,8 @@ jobs:
           $out = pwsh -NoProfile -File scripts/install-morphirup.ps1 -Version 0.4.0-beta.12 -InstallDir "$env:RUNNER_TEMP\rust" -NoModifyPath 2>&1 | Out-String
           $code = $LASTEXITCODE
           $out
-          $flat = ($out -replace '(?m)^\s*\|', ' ') -replace '\s+', ' '
+          # PowerShell 7 colors the thrown refusal and wraps it in lines that start with '|': read it as one line.
+          $flat = (($out -replace '\x1B\[[0-?]*[ -/]*[@-~]', '') -replace '(?m)^\s*\|', ' ') -replace '\s+', ' '
           if ($code -eq 0) { throw 'the Rust release was accepted' }
           if ($flat -notmatch 'finos/morphir release v0\.4\.0-beta\.12 has no morphirup-${{ matrix.rid }}\.exe') { throw 'no refusal by name' }
           if ($flat -notmatch 'morphirup releases before 0\.5\.0-alpha\.2 are on finos/morphir-dotnet') { throw 'no pointer to finos/morphir-dotnet' }
