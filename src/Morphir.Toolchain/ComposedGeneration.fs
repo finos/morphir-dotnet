@@ -304,10 +304,11 @@ module internal ComposedDocuments =
             "generationSha256",Value.String ((identity: Sha256).Text)
             "receiptSha256",Value.String ((Sha256.ofBytes receiptBytes).Text)
             "receiptPath",Value.String(LocalCandidateDocument.receiptPath identity)] |> JsonText.toBytes
-    let readPointer family bytes = result {
-        let! o = envelope family "selection" ["origin";"generationSha256";"receiptSha256";"receiptPath"] bytes
-        do! if family="0.1.0-preview.4" then Ok () else constant "origin" "local-developer" o
-        let! origin = required "origin" (tag (if family="0.1.0-preview.4" then ["local-developer",ComposedOrigin.LocalDeveloper;"release-checksum",ComposedOrigin.ReleaseChecksum] else ["local-developer",ComposedOrigin.LocalDeveloper])) o
+    /// Reads the selection pointer of the one current family, local-toolchains 0.1.0-preview.4, by its exact $schema.
+    /// A preview.2 or preview.3 pointer is refused; nothing converts it.
+    let readPointer bytes = result {
+        let! o = envelope "0.1.0-preview.4" "selection" ["origin";"generationSha256";"receiptSha256";"receiptPath"] bytes
+        let! origin = required "origin" (tag ["local-developer",ComposedOrigin.LocalDeveloper;"release-checksum",ComposedOrigin.ReleaseChecksum]) o
         let! id = required "generationSha256" sha256 o
         let! receipt = required "receiptSha256" sha256 o
         do! constant "receiptPath" (LocalCandidateDocument.receiptPath id) o

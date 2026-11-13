@@ -1656,7 +1656,7 @@ let releaseChecksumReaderTests =
             let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
             let receipt = ComposedDocuments.receipt "0.1.0-preview.4" candidate digest
             let pointer = ComposedDocuments.pointer "0.1.0-preview.4" candidate digest receipt
-            let _,_,origin = ComposedDocuments.readPointer "0.1.0-preview.4" pointer |> parsed
+            let _,_,origin = ComposedDocuments.readPointer pointer |> parsed
             Expect.equal origin candidate.Origin "pointer binds the validated origin"
             use document = System.Text.Json.JsonDocument.Parse receipt
             Expect.equal (document.RootElement.GetProperty("origin").GetString() |> Option.ofObj) (Some "local-developer") "receipt is not relabelled"

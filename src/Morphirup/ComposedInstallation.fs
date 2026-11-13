@@ -316,12 +316,28 @@ let setupLocalAsync platform home candidatePath archivePath bundlePath dryRun ct
     return! setupCoreAsync platform home bundle rawCandidate transport None dryRun ct
 }
 
+/// The one composed family that select, show and run read.
+let private family = "0.1.0-preview.4"
+
+// Earlier composed families. A document of one is refused by name, so the user knows to set up again.
+let private earlierFamilies = ["0.1.0-preview.2";"0.1.0-preview.3"]
+
+let private schemaOf name (raw: byte array) =
+    Syntax.parseJson raw |> reader |> SharedJson.members name |> SharedJson.required name "$schema" |> SharedJson.text "$schema"
+
+// Refuses a document of an earlier composed family. Nothing converts it, and setup admission does not adopt it.
+let private refuseEarlier kind (schema: string) =
+    match earlierFamilies |> List.tryFind(fun earlier -> schema = ComposedDocuments.schemaFor earlier kind) with
+    | Some earlier ->
+        refuse "local.setup_required"
+            $"This Home was set up with local-toolchains {earlier}, and this morphirup reads only {family}. Run morphirup setup again with a new --home."
+    | None -> ()
+
 let selected home ct = task {
     use root = SafeDirectory.Open(home,false)
     let raw = read root LocalCandidateDocument.selectionPath
-    let schema = Syntax.parseJson raw |> reader |> SharedJson.members "selection" |> SharedJson.required "selection" "$schema" |> SharedJson.text "$schema"
-    let family = if schema=ComposedDocuments.schemaFor "0.1.0-preview.4" "selection" then "0.1.0-preview.4" else "0.1.0-preview.2"
-    let identity,receiptHash,origin = ComposedDocuments.readPointer family raw |> reader
+    refuseEarlier "selection" (schemaOf "selection" raw)
+    let identity,receiptHash,origin = ComposedDocuments.readPointer raw |> reader
     let! snapshot = currentSnapshot home (path home (LocalCandidateDocument.generationPath identity)) ct
     if snapshot.Family <> family || snapshot.Candidate.Origin <> origin then refuse "setup.origin_mismatch" "The selected origin or family differs from its bound candidate."
     if (snapshot.Receipt |> Option.map Sha256.ofBytes) <> Some receiptHash then refuse "setup.receipt_changed" "Selected receipt bytes differ."
@@ -329,15 +345,15 @@ let selected home ct = task {
     return snapshot
 }
 
+/// True for a preview.4 selection pointer. An earlier composed pointer is refused. Any other pointer, such as the
+/// historical preview.1 local one, is left to the historical local route and its own reader.
 let isSelected home =
     let pointer = path home LocalCandidateDocument.selectionPath
     if not(File.Exists pointer) then false
     else
-        let raw = LocalCandidate.readBytes LocalInstallation.documentBound pointer
-        let document = Syntax.parseJson raw |> reader
-        let fields = SharedJson.members "selection" document
-        let schema = SharedJson.required "selection" "$schema" fields |> SharedJson.text "$schema"
-        schema = ComposedDocuments.schemaFor "0.1.0-preview.4" "selection" || schema = ComposedDocuments.schemaFor "0.1.0-preview.2" "selection"
+        let schema = schemaOf "selection" (LocalCandidate.readBytes LocalInstallation.documentBound pointer)
+        refuseEarlier "selection" schema
+        schema = ComposedDocuments.schemaFor family "selection"
 
 let defaultHome () =
     match Environment.GetEnvironmentVariable "MORPHIR_HOME" with
@@ -372,7 +388,11 @@ let private executionPlatform platform (snapshot: GenerationSnapshot) =
         refuse "local.platform_mismatch" "The selected host platform differs from the actual manager process."
 
 let selectAsync platform home identity dryRun ct = task {
-    let! snapshot = currentSnapshot home (path home (LocalCandidateDocument.generationPath identity)) ct
+    let directory = path home (LocalCandidateDocument.generationPath identity)
+    refuseEarlier "generation" (schemaOf "generation" (LocalCandidate.readBytes LocalInstallation.documentBound (Path.Combine(directory,"generation.json"))))
+    let! snapshot = currentSnapshot home directory ct
+    if snapshot.Family <> family then
+        refuse "local.setup_required" $"This generation is local-toolchains {snapshot.Family}, and this morphirup reads only {family}. Run morphirup setup again with a new --home."
     executionPlatform platform snapshot
     if not dryRun then
         use root = SafeDirectory.Open(home,false)

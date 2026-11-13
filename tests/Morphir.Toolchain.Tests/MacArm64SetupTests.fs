@@ -573,3 +573,79 @@ let unixDescendants =
         })
     ]
     |> testLabel "PlatformSpecific"
+
+// A Home whose manager-owned documents name an earlier local-toolchains family. Only the $schema matters: the
+// manager must refuse at the family, before it reads any other member.
+let private earlierHome (sandbox: TestSandbox) (family: string) =
+    let home = Directory.CreateDirectory(Path.Combine(sandbox.Work, "home-" + family)).FullName
+    let generation = String('e', 64)
+    Directory.CreateDirectory(Path.Combine(home, "toolchains", "generations", generation)) |> ignore
+    File.WriteAllText(
+        Path.Combine(home, "toolchains", "default.json"),
+        $"""{{"$schema":"https://morphir.finos.org/schemas/local-toolchains/{family}/selection.schema.json","origin":"local-developer","generationSha256":"{generation}","receiptSha256":"{String('f', 64)}","receiptPath":"toolchains/generations/{generation}/receipt.json"}}""")
+    File.WriteAllText(
+        Path.Combine(home, "toolchains", "generations", generation, "generation.json"),
+        $"""{{"$schema":"https://morphir.finos.org/schemas/local-toolchains/{family}/generation.schema.json"}}""")
+    LocalCandidate.homePath home, generation
+
+let private runCli (sandbox: TestSandbox) args = task {
+    use input = new MemoryStream()
+    use output = new MemoryStream()
+    use errors = new StringWriter()
+    let! exit =
+        Cli.runAsync
+            { Out = output; Error = errors; CurrentDirectory = sandbox.Work; Platform = Some Platform.OsxArm64 }
+            input args CancellationToken.None
+    return exit, Encoding.UTF8.GetString(output.ToArray()), errors.ToString()
+}
+
+[<Tests>]
+let earlierFamilies =
+    testList "morphirup earlier local-toolchains Homes" [
+        for family in [ "0.1.0-preview.2"; "0.1.0-preview.3" ] do
+            testCaseTask $"show refuses a {family} selection and says to run setup again" (fun () -> task {
+                use sandbox = TestSandbox.Create()
+                let home, _ = earlierHome sandbox family
+                let! exit, output, _ = runCli sandbox [ "show"; "--home"; home ]
+                Expect.equal exit 1 output
+                Expect.stringContains output "local.setup_required" "the earlier family is named"
+                Expect.stringContains output "setup again" "the user is told what to do"
+                Expect.stringContains output family "the family of the Home"
+            })
+            testCaseTask $"run refuses a {family} selection before it starts a host" (fun () -> task {
+                use sandbox = TestSandbox.Create()
+                let home, _ = earlierHome sandbox family
+                let! exit, _, errors = runCli sandbox [ "run"; "--home"; home; "--"; "--version" ]
+                Expect.equal exit 1 errors
+                Expect.stringContains errors "local.setup_required" "the earlier family is named"
+                Expect.stringContains errors "setup again" "the user is told what to do"
+            })
+            testCaseTask $"select refuses a {family} generation" (fun () -> task {
+                use sandbox = TestSandbox.Create()
+                let home, generation = earlierHome sandbox family
+                let pointer = File.ReadAllBytes(Path.Combine(home, "toolchains", "default.json"))
+                let! exit, output, _ = runCli sandbox [ "select"; "--generation"; generation; "--home"; home ]
+                Expect.equal exit 1 output
+                Expect.stringContains output "local.setup_required" "the earlier family is named"
+                Expect.equal (File.ReadAllBytes(Path.Combine(home, "toolchains", "default.json"))) pointer "the pointer is unchanged"
+            })
+    ]
+    |> testLabel "PlatformSpecific"
+
+// Pure: the pointer reader over bytes in memory, so no PlatformSpecific marker.
+[<Tests>]
+let pointerFamilies =
+    testList "morphirup selection pointer family" [
+        test "the selection pointer reader reads preview.4 and refuses preview.2 and preview.3" {
+            let generation = String('e', 64)
+            let pointer (family: string) =
+                Encoding.UTF8.GetBytes
+                    $"""{{"$schema":"https://morphir.finos.org/schemas/local-toolchains/{family}/selection.schema.json","origin":"local-developer","generationSha256":"{generation}","receiptSha256":"{String('f', 64)}","receiptPath":"toolchains/generations/{generation}/receipt.json"}}"""
+            let id, _, _ = ComposedDocuments.readPointer (pointer "0.1.0-preview.4") |> parsed
+            Expect.equal id.Text generation "preview.4 is read"
+            for family in [ "0.1.0-preview.2"; "0.1.0-preview.3" ] do
+                match ComposedDocuments.readPointer (pointer family) with
+                | Ok _ -> failtest $"A {family} pointer was read."
+                | Error error -> Expect.equal error.Path (DocumentPath.root.Child "$schema") $"{family} is refused at $schema"
+        }
+    ]
