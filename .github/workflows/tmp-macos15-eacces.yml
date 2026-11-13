@@ -45,4 +45,7 @@ jobs:
               run: |
                   dotnet build tests/Morphir.Extensions.Installation.Tests/Morphir.Extensions.Installation.Tests.fsproj -c Release -m:1 -p:UseSharedCompilation=false -nodeReuse:false
                   dll=$(ls tests/Morphir.Extensions.Installation.Tests/bin/Release/net11.0/Morphir.Extensions.Installation.Tests.dll)
-                  dotnet "$dll" --filter-test-list PackageTrees --sequenced --colours 0
+                  status=0
+                  dotnet "$dll" --filter-test-list PackageTrees --sequenced --colours 0 || status=1
+                  dotnet "$dll" --filter-test-list PackageTarTrees --sequenced --colours 0 || status=1
+                  exit $status
