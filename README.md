@@ -15,39 +15,6 @@ Morphir is a library of tools that works to capture business logic as data.
 
 For the first time, business logic can be shared, stored, translated and visualised, all with the reliability of standardisation ensured in the Morphir framework.
 
-## Get started
-
-Install `morphirup`, the Morphir toolchain manager. It is one file that needs neither .NET nor ICU.
-
-```sh
-# Linux (x64, ARM64) and macOS (Apple silicon)
-curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
-```
-
-```powershell
-# Windows (x64, ARM64), PowerShell 7 or Windows PowerShell 5.1
-irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
-```
-
-```sh
-# Or with mise (give the version)
-mise use -g 'github:finos/morphir-dotnet[matching=morphirup]@0.4.0-alpha.5'
-```
-
-Then open a new terminal and run `morphirup --version`. The scripts install the newest release, prereleases
-included, and refuse to install a file whose SHA-256 does not match the release's checksum file.
-
-| Platform | Install and `morphirup --version` | `morphirup setup` and `run` |
-| --- | --- | --- |
-| Windows x64 and ARM64 | Yes | Yes, experimental |
-| Linux x64 and ARM64 (glibc 2.35 or later) | Yes | Not yet: `setup` refuses, releases carry no Linux toolchain |
-| macOS on Apple silicon | Yes | Not yet: the macOS toolchain is in progress |
-| macOS on Intel, Alpine and other musl Linux | No | No |
-
-Next, build [your first model](docs/content/docs/getting-started/first-model.md). The
-[installation guide](docs/content/docs/getting-started/installation.md) covers a pinned version, other folders,
-manual download with checksum verification, and the standalone `morphir` CLI.
-
 ## What is it?
 
 A set of tools for integrating technologies. Morphir is composed of a library of tools that facilitate the digitisation of business logic into multiple different languages & platforms. The Morphir framework is unique too in that facilities elements of automation and conversion that were previously unavailable in the field of finance-tech.
@@ -107,6 +74,39 @@ adoption while retaining classic bytes. Shared [workspace migration](docs/conten
 adds bounded inventory, verified membership and recoverable batch application through
 `morphir workspace migrate [directory]`. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
+
+## Get started
+
+Install `morphirup`, the Morphir toolchain manager. It is one file that needs neither .NET nor ICU.
+
+```sh
+# Linux (x64, ARM64) and macOS (Apple silicon)
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
+```
+
+```powershell
+# Windows (x64, ARM64), PowerShell 7 or Windows PowerShell 5.1
+irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
+```
+
+```sh
+# Or with mise (give the version)
+mise use -g 'github:finos/morphir-dotnet[matching=morphirup]@0.4.0-alpha.5'
+```
+
+Then open a new terminal and run `morphirup --version`. The scripts install the newest release, prereleases
+included, and refuse to install a file whose SHA-256 does not match the release's checksum file.
+
+| Platform | Install and `morphirup --version` | `morphirup setup` and `run` |
+| --- | --- | --- |
+| Windows x64 and ARM64 | Yes | Yes, experimental |
+| Linux x64 and ARM64 (glibc 2.35 or later) | Yes | Not yet: `setup` refuses, releases carry no Linux toolchain |
+| macOS on Apple silicon | Yes | Not yet: the macOS toolchain is in progress |
+| macOS on Intel, Alpine and other musl Linux | No | No |
+
+Next, build [your first model](docs/content/docs/getting-started/first-model.md). The
+[installation guide](docs/content/docs/getting-started/installation.md) covers a pinned version, other folders,
+manual download with checksum verification, and the standalone `morphir` CLI.
 
 ## SDK libraries
 
