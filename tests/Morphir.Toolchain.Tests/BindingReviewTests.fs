@@ -163,6 +163,8 @@ let private sharedDescriptor (n: int) (artifactCount: int) =
 
             Expect.isOk outcome "every provider binds"
             Expect.equal fetches 1 "the shared descriptor is fetched once")
+        // Under the budget of withinBudget: after the parallel tests, one at a time.
+        |> testSequenced
 
 [<Tests>]
 let costTests =

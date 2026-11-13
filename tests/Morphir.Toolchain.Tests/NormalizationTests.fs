@@ -125,6 +125,8 @@ let tests =
             watch.Stop()
             Expect.equal result ("x" + String.replicate n graveBelow + String.replicate n acute) "class 220 before class 230"
             Expect.isLessThan watch.Elapsed.TotalSeconds 10.0 $"took {watch.Elapsed.TotalSeconds:F1} s")
+        // A time budget: after the parallel tests of the suite, one at a time, so they do not take its processor time.
+        |> testSequenced
 
         testCase "canonical ordering keeps the order of marks of the same class" (fun () ->
             // U+0301 and U+0300 are both class 230, U+0316 and U+0317 both class 220; a stable sort keeps each pair's
