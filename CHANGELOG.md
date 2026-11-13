@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - `morphir` (and so `morphirup run -- compile` and `run -- generate`) no longer writes `[INF] Foundatio.Mediator registered 3 handler(s) and 0 middleware.` to stderr. The CLI logger caps the `Foundatio.Mediator` category at Warning, so the mediator's warnings and errors are still shown. Stdout is unchanged.
 - Build: restoring the solution no longer rewrites the committed `packages.lock.json` of the `Morphir.Configuration.IO.Smoke` and `Morphir.Configuration.Microsoft.Smoke` hosts with the host's RID, so release artifacts built on Linux or Windows no longer record a dirty origin. A trimmed publish of these hosts passes `-p:PublishTrimmed=true`, and CI fails when restore changes the working tree.
+- On Linux and macOS, an extension installation lock is free as soon as its owner releases it. Before, the lock stayed held while another thread of the same process was starting a child process, because that child shared the lock's file until it ran its program. A second extension operation in that window could fail with "Lease is busy".
 
 ## [0.4.0-alpha.5] - 2026-11-12
 
