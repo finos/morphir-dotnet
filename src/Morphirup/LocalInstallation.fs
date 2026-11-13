@@ -6,6 +6,7 @@ open System
 open System.Collections.Generic
 open System.IO
 open System.IO.Compression
+open System.Formats.Tar
 open System.Reflection.PortableExecutable
 open System.Text.Json
 open System.Threading
@@ -92,11 +93,6 @@ let private parts (path: string) =
 let private relative (root: string) (path: string) =
     Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar))
 
-let private entry (zip: ZipArchive) name =
-    match zip.GetEntry name with
-    | null -> refuse "local.closure_mismatch" "Missing archive entry."
-    | entry -> entry
-
 let private checkedPlan platform candidate =
     match
         LocalCandidatePlanning.plan
@@ -166,15 +162,19 @@ let private copyChecked
     then
         refuse "local.digest_mismatch" "Exact streamed SHA-256 differs from the candidate."
 
-let private structure (candidate: LocalHostCandidate) (read: string -> byte array) =
-    let expectedMachine =
-        match candidate.Platform with
-        | Platform.WinX64 -> Machine.Amd64
-        | Platform.WinArm64 -> Machine.Arm64
-        | _ -> refuse "local.platform_mismatch" "Only the two Windows executable platforms are supported."
+// The managed entry point and the native runtime files of one platform's runtime-bundled folder.
+let private launchNames platform =
+    match platform with
+    | Platform.WinX64
+    | Platform.WinArm64 -> "morphir.exe", [ "hostfxr.dll"; "hostpolicy.dll"; "coreclr.dll" ]
+    | Platform.OsxArm64 -> "morphir", [ "libhostfxr.dylib"; "libhostpolicy.dylib"; "libcoreclr.dylib" ]
+    | _ -> refuse "local.platform_mismatch" "Only the win-x64, win-arm64 and osx-arm64 executable platforms are supported."
+
+let private windowsExecutable (candidate: LocalHostCandidate) (image: byte array) =
+    let expectedMachine = if candidate.Platform = Platform.WinX64 then Machine.Amd64 else Machine.Arm64
     try
-        use image = new MemoryStream(read candidate.EntryPoint.Target.Text, false)
-        use pe = new PEReader(image)
+        use stream = new MemoryStream(image, false)
+        use pe = new PEReader(stream)
 
         if
             pe.PEHeaders.CoffHeader.Machine
@@ -187,6 +187,23 @@ let private structure (candidate: LocalHostCandidate) (read: string -> byte arra
     with :? BadImageFormatException ->
         refuse "local.platform_mismatch" "The actual entry point is not a Windows executable."
 
+// A thin 64-bit Mach-O header: MH_MAGIC_64, CPU_TYPE_ARM64 and MH_EXECUTE, little-endian. A universal image is refused.
+let private macExecutable (image: byte array) =
+    let word offset = BitConverter.ToUInt32(image, offset)
+    if
+        image.Length < 32
+        || word 0 <> 0xFEEDFACFu
+        || word 4 <> 0x0100000Cu
+        || word 12 <> 2u
+    then
+        refuse "local.platform_mismatch" "The actual entry point is not an ARM64 Mach-O executable."
+
+let private structure (candidate: LocalHostCandidate) (read: string -> byte array) =
+    let entryName, nativeNames = launchNames candidate.Platform
+    match candidate.Platform with
+    | Platform.OsxArm64 -> macExecutable (read candidate.EntryPoint.Target.Text)
+    | _ -> windowsExecutable candidate (read candidate.EntryPoint.Target.Text)
+
     let prefix =
         let p = candidate.EntryPoint.Target.Text
         let slash = p.LastIndexOf '/'
@@ -194,9 +211,9 @@ let private structure (candidate: LocalHostCandidate) (read: string -> byte arra
 
     if
         Path.GetFileName candidate.EntryPoint.Target.Text
-        <> "morphir.exe"
+        <> entryName
     then
-        refuse "local.launch_structure" "The official managed entry point must be morphir.exe."
+        refuse "local.launch_structure" $"The official managed entry point must be {entryName}."
 
     let names =
         HashSet<string>(
@@ -210,9 +227,7 @@ let private structure (candidate: LocalHostCandidate) (read: string -> byte arra
             "morphir.dll"
             "morphir.deps.json"
             "morphir.runtimeconfig.json"
-            "hostfxr.dll"
-            "hostpolicy.dll"
-            "coreclr.dll"
+            yield! nativeNames
             "System.Private.CoreLib.dll"
             "FSharp.Core.dll"
             "FSharp.Compiler.Service.dll"
@@ -354,6 +369,14 @@ let checkFolder (root: SafeDirectory) candidate hashFiles (ct: CancellationToken
                     then
                         refuse "local.length_mismatch" "An installed file has the wrong length."
 
+                    // The Unix entry point runs only with its executable mode, which the archive gave it.
+                    if
+                        not (OperatingSystem.IsWindows())
+                        && path = candidate.EntryPoint.Target.Text
+                        && not ((File.GetUnixFileMode input.SafeFileHandle).HasFlag UnixFileMode.UserExecute)
+                    then
+                        refuse "local.launch_structure" "The installed entry point is not executable."
+
                     if hashFiles then
                         copyChecked input None file.Bytes file.Artifact.Sha256 ct
 
@@ -455,6 +478,24 @@ let private optionalChild (parent: SafeDirectory) name action =
         use child = parent.Child(name, false)
         action child
 
+// The candidate.json $schema of an earlier composed family, preview.2 or preview.3. Only the $schema is read.
+let private earlierCandidates =
+    [ "0.1.0-preview.2"; "0.1.0-preview.3" ]
+    |> List.map (fun family -> $"https://morphir.finos.org/schemas/local-toolchains/{family}/candidate.schema.json")
+
+let private earlierComposed (folder: SafeDirectory) (entries: string array) =
+    folder.ValidateLocation()
+    entries |> Array.contains "candidate.json"
+    && (try
+            use document = JsonDocument.Parse(pinnedRead folder "candidate.json" documentBound)
+            match document.RootElement.ValueKind with
+            | JsonValueKind.Object ->
+                match document.RootElement.TryGetProperty "$schema" with
+                | true, schema when schema.ValueKind = JsonValueKind.String -> List.contains (schema.GetString()) earlierCandidates
+                | _ -> false
+            | _ -> false
+        with :? JsonException -> false)
+
 /// Later commands validate only local manager authority. Shared Home siblings are opaque and are never traversed.
 let validateOwnedState (root: SafeDirectory) =
 
@@ -517,8 +558,12 @@ let validateOwnedState (root: SafeDirectory) =
                                 | Error _ -> foreignHome ()
 
                         use folder = generations.Child(name, false)
-                        if folder.Entries() |> Array.contains "generation.json" then
-                            GenerationBinding.load root folder.Path |> ignore
+                        let entries = folder.Entries()
+                        if entries |> Array.contains "generation.json" then
+                            // A generation of an earlier composed family stays beside the current one, unread: setup
+                            // checks only its location and its SHA-256 name, and replaces the selection pointer.
+                            if not (earlierComposed folder entries) then
+                                GenerationBinding.load root folder.Path |> ignore
                         else
                             only folder [ "candidate.json"; "receipt.json" ]
                             loadGeneration root identity false CancellationToken.None |> ignore
@@ -560,8 +605,52 @@ let private existingHome home ct =
             loadSelection root true ct
             |> ignore
 
+/// One entry of a host archive: its name, whether it is a directory, its length, whether its mode is executable, and
+/// its content. The archive inspection already refused links, devices and unsafe names.
+type private HostEntry = { Name: string; Directory: bool; Length: int64; Executable: bool; Open: unit -> Stream }
+
+// Visits the entries of a ZIP or a tar.gz host archive in archive order, from the start of the source.
+let private forEachEntry (source: Stream) (candidate: LocalHostCandidate) (visit: HostEntry -> unit) =
+    source.Position <- 0L
+    match LocalCandidateDocument.archiveFormat candidate.Platform with
+    | "zip" ->
+        use zip = new ZipArchive(source, ZipArchiveMode.Read, true)
+        for entry in zip.Entries do
+            visit {
+                Name = entry.FullName
+                Directory = entry.FullName.EndsWith("/", StringComparison.Ordinal)
+                Length = entry.Length
+                Executable = ((entry.ExternalAttributes >>> 16) &&& 0o100) <> 0
+                Open = fun () -> entry.Open()
+            }
+    | _ ->
+        use gzip = new GZipStream(source, CompressionMode.Decompress, true)
+        use tar = new TarReader(gzip, true)
+        let mutable reading = true
+        while reading do
+            match tar.GetNextEntry(false) with
+            | null -> reading <- false
+            | entry when entry.EntryType = TarEntryType.GlobalExtendedAttributes -> ()
+            | entry ->
+                let directory = entry.EntryType = TarEntryType.Directory
+                if not directory && entry.EntryType <> TarEntryType.RegularFile && entry.EntryType <> TarEntryType.V7RegularFile then
+                    refuse "local.archive_format" "The archive contains an entry that is not a regular file or a directory."
+                visit {
+                    Name = if directory && not (entry.Name.EndsWith "/") then entry.Name + "/" else entry.Name
+                    Directory = directory
+                    Length = entry.Length
+                    Executable = entry.Mode.HasFlag UnixFileMode.UserExecute
+                    Open = fun () -> match entry.DataStream with null -> Stream.Null | stream -> stream
+                }
+
+// The launch documents that the structure check reads from an archive before anything is written.
+let private launchDocuments (candidate: LocalHostCandidate) =
+    let p = candidate.EntryPoint.Target.Text
+    let prefix = match p.LastIndexOf '/' with -1 -> "" | slash -> p.Substring(0, slash + 1)
+    set [ p; prefix + "morphir.runtimeconfig.json"; prefix + "morphir.deps.json" ]
+
 /// Same archive and state validation for dry-run and apply. No Home creation or process launch occurs here.
-let private validateArchive (source: Stream) candidate validateHome ct =
+let validateArchive (source: Stream) candidate validateHome ct =
     if
         uint64 source.Length
         <> candidate.ArchiveBytes
@@ -574,12 +663,9 @@ let private validateArchive (source: Stream) candidate validateHome ct =
 
     if
         inspection.Format
-        <> "zip"
+        <> LocalCandidateDocument.archiveFormat candidate.Platform
     then
-        refuse "local.archive_format" "Only an explicitly declared ZIP is supported."
-
-    source.Position <- 0L
-    use zip = new ZipArchive(source, ZipArchiveMode.Read, true)
+        refuse "local.archive_format" "The archive is not in the declared archive format of its platform."
 
     let expected =
         candidate.Files
@@ -587,10 +673,12 @@ let private validateArchive (source: Stream) candidate validateHome ct =
         |> dict
 
     let seen = HashSet<string>(StringComparer.Ordinal)
+    let launch = launchDocuments candidate
+    let documents = Dictionary<string, byte array>(StringComparer.Ordinal)
 
-    for entry in zip.Entries do
-        if entry.FullName.EndsWith("/", StringComparison.Ordinal) then
-            let prefix = entry.FullName
+    forEachEntry source candidate (fun entry ->
+        if entry.Directory then
+            let prefix = entry.Name
 
             if
                 not (
@@ -600,13 +688,13 @@ let private validateArchive (source: Stream) candidate validateHome ct =
             then
                 refuse "local.closure_mismatch" "Undeclared archive directory."
         else
-            match expected.TryGetValue entry.FullName with
+            match expected.TryGetValue entry.Name with
             | false, _ ->
                 refuse
                     "local.closure_mismatch"
                     "Archive contains a file absent from the complete candidate inventory."
             | true, file ->
-                if not (seen.Add entry.FullName) then
+                if not (seen.Add entry.Name) then
                     refuse "local.closure_mismatch" "Duplicate archive entry."
 
                 if
@@ -616,7 +704,16 @@ let private validateArchive (source: Stream) candidate validateHome ct =
                     refuse "local.length_mismatch" "Archive file length differs from the inventory."
 
                 use input = entry.Open()
-                copyChecked input None file.Bytes file.Artifact.Sha256 ct
+
+                if launch.Contains entry.Name then
+                    if entry.Length > documentBound then
+                        refuse "local.document_too_large" "Launch document exceeds its bound."
+
+                    use output = new MemoryStream()
+                    copyChecked input (Some(output :> Stream)) file.Bytes file.Artifact.Sha256 ct
+                    documents[entry.Name] <- output.ToArray()
+                else
+                    copyChecked input None file.Bytes file.Artifact.Sha256 ct)
 
     if
         seen.Count
@@ -627,18 +724,58 @@ let private validateArchive (source: Stream) candidate validateHome ct =
     structure
         candidate
         (fun name ->
-            let entry = entry zip name
-
-            if entry.Length > documentBound then
-                refuse "local.document_too_large" "Launch document exceeds its bound."
-
-            use input = entry.Open()
-            use output = new MemoryStream()
-            input.CopyTo output
-            output.ToArray()
-        )
+            match documents.TryGetValue name with
+            | true, bytes -> bytes
+            | false, _ -> refuse "local.closure_mismatch" "Missing archive entry.")
 
     validateHome ()
+
+/// Writes the checked archive's complete inventory into an empty private folder, then checks the folder.
+/// Off Windows, a file gets mode 0755 when its archive mode is executable and 0644 otherwise, so the modes that the
+/// producer packed survive. The bytes are copied unchanged, which keeps a macOS code signature valid.
+let extractHost (source: Stream) (candidate: LocalHostCandidate) (folder: SafeDirectory) ct =
+    let expected =
+        candidate.Files
+        |> Seq.map (fun file -> file.Artifact.Target.Text, file)
+        |> dict
+
+    let written = HashSet<string>(StringComparer.Ordinal)
+
+    forEachEntry source candidate (fun entry ->
+        if not entry.Directory then
+            let file =
+                match expected.TryGetValue entry.Name with
+                | true, file when written.Add entry.Name -> file
+                | _ -> refuse "local.closure_mismatch" "The archive changed after its inspection."
+
+            let names = parts file.Artifact.Target.Text
+
+            FileSafety.withDirectories
+                folder
+                (names
+                 |> List.take (
+                     names.Length
+                     - 1
+                 ))
+                true
+                (fun directory ->
+                    use output = directory.File(List.last names, true, false)
+                    use input = entry.Open()
+                    copyChecked input (Some(output :> Stream)) file.Bytes file.Artifact.Sha256 ct
+
+                    if not (OperatingSystem.IsWindows()) then
+                        File.SetUnixFileMode(
+                            output.SafeFileHandle,
+                            if entry.Executable then enum<UnixFileMode> 0o755 else enum<UnixFileMode> 0o644
+                        )
+
+                    output.Flush true
+                ))
+
+    if written.Count <> expected.Count then
+        refuse "local.closure_mismatch" "The archive changed after its inspection."
+
+    checkFolder folder candidate true ct
 
 let writeFile (root: SafeDirectory) path bytes =
     let names = parts path
@@ -690,30 +827,7 @@ let private setupCoreAsync mode home raw (candidate: LocalHostCandidate) archive
                 stage
                 [ "host" ]
                 true
-                (fun folder ->
-                    source.Position <- 0L
-                    use zip = new ZipArchive(source, ZipArchiveMode.Read, true)
-
-                    for file in candidate.Files do
-                        let names = parts file.Artifact.Target.Text
-
-                        FileSafety.withDirectories
-                            folder
-                            (names
-                             |> List.take (
-                                 names.Length
-                                 - 1
-                             ))
-                            true
-                            (fun directory ->
-                                use output = directory.File(List.last names, true, false)
-                                use input = (entry zip file.Artifact.Target.Text).Open()
-                                copyChecked input (Some output) file.Bytes file.Artifact.Sha256 ct
-                                output.Flush true
-                            )
-
-                    checkFolder folder candidate true ct
-                )
+                (fun folder -> extractHost source candidate folder ct)
 
             do! task {
                 use! lease = FileSafety.mutationLeaseAsync root ct

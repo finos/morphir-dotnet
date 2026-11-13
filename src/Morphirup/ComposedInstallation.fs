@@ -176,7 +176,7 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
        || candidate.Host.Host.Version.Text.Split('+')[0] <> bundle.Version.Text then
         refuse "acquisition.binding_mismatch" "The release host, selection and bundle identities disagree."
     match LocalCandidatePlanning.planRelease platform LocalInstallation.maximumArchive candidate.Host with
-    | Error _ -> refuse "acquisition.plan_refused" "The declared host closure is not a matching Windows runtime-bundled toolchain."
+    | Error _ -> refuse "acquisition.plan_refused" "The declared host closure is not a matching runtime-bundled toolchain for this platform."
     | Ok _ -> ()
     let descriptors = ResizeArray<string * byte array * PackagePlan>()
     for role,selected in ["frontend",candidate.FrontendId;"backend",candidate.BackendId] do
@@ -242,9 +242,9 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
                 "repository",value AcquisitionDelivery.repository;"tag",value("v"+bundle.Version.Text)
                 "bundle",Value.Object ["path",value "acquisition/bundle.json";"sha256",value (Sha256.ofBytes rawBundle).Text]
                 "checksums",Value.Object ["path",value "acquisition/SHA256SUMS";"sha256",value (Sha256.ofBytes checksums).Text]])
-            let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.3" candidate captures.CatalogBytes locks metadata workflow proof
-            let manifest = ComposedDocuments.readManifest "0.1.0-preview.3" candidate manifestBytes |> reader
-            let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate manifest.Identity
+            let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.4" candidate captures.CatalogBytes locks metadata workflow proof
+            let manifest = ComposedDocuments.readManifest "0.1.0-preview.4" candidate manifestBytes |> reader
+            let receipt = ComposedDocuments.receipt "0.1.0-preview.4" candidate manifest.Identity
             let preparedIdentity =
                 use generation = stage.Child("generation",false)
                 LocalInstallation.writeFile generation "generation.json" manifestBytes
@@ -316,12 +316,29 @@ let setupLocalAsync platform home candidatePath archivePath bundlePath dryRun ct
     return! setupCoreAsync platform home bundle rawCandidate transport None dryRun ct
 }
 
+/// The one composed family that select, show and run read.
+let private family = "0.1.0-preview.4"
+
+// Earlier composed families. A document of one is refused by name, so the user knows to set up again.
+let private earlierFamilies = ["0.1.0-preview.2";"0.1.0-preview.3"]
+
+let private schemaOf name (raw: byte array) =
+    Syntax.parseJson raw |> reader |> SharedJson.members name |> SharedJson.required name "$schema" |> SharedJson.text "$schema"
+
+// Refuses a document of an earlier composed family. Nothing converts it. Setup in the same Home installs the current
+// family beside it and replaces the selection pointer.
+let private refuseEarlier kind (schema: string) =
+    match earlierFamilies |> List.tryFind(fun earlier -> schema = ComposedDocuments.schemaFor earlier kind) with
+    | Some earlier ->
+        refuse "local.setup_required"
+            $"This Home was set up with local-toolchains {earlier}, and this morphirup reads only {family}. Run morphirup setup --yes again in this Home. For a local candidate, run morphirup setup --yes again with its --local-developer inputs, then select the generation it prints."
+    | None -> ()
+
 let selected home ct = task {
     use root = SafeDirectory.Open(home,false)
     let raw = read root LocalCandidateDocument.selectionPath
-    let schema = Syntax.parseJson raw |> reader |> SharedJson.members "selection" |> SharedJson.required "selection" "$schema" |> SharedJson.text "$schema"
-    let family = if schema=ComposedDocuments.schemaFor "0.1.0-preview.3" "selection" then "0.1.0-preview.3" else "0.1.0-preview.2"
-    let identity,receiptHash,origin = ComposedDocuments.readPointer family raw |> reader
+    refuseEarlier "selection" (schemaOf "selection" raw)
+    let identity,receiptHash,origin = ComposedDocuments.readPointer raw |> reader
     let! snapshot = currentSnapshot home (path home (LocalCandidateDocument.generationPath identity)) ct
     if snapshot.Family <> family || snapshot.Candidate.Origin <> origin then refuse "setup.origin_mismatch" "The selected origin or family differs from its bound candidate."
     if (snapshot.Receipt |> Option.map Sha256.ofBytes) <> Some receiptHash then refuse "setup.receipt_changed" "Selected receipt bytes differ."
@@ -329,15 +346,15 @@ let selected home ct = task {
     return snapshot
 }
 
+/// True for a preview.4 selection pointer. An earlier composed pointer is refused. Any other pointer, such as the
+/// historical preview.1 local one, is left to the historical local route and its own reader.
 let isSelected home =
     let pointer = path home LocalCandidateDocument.selectionPath
     if not(File.Exists pointer) then false
     else
-        let raw = LocalCandidate.readBytes LocalInstallation.documentBound pointer
-        let document = Syntax.parseJson raw |> reader
-        let fields = SharedJson.members "selection" document
-        let schema = SharedJson.required "selection" "$schema" fields |> SharedJson.text "$schema"
-        schema = ComposedDocuments.schemaFor "0.1.0-preview.3" "selection" || schema = ComposedDocuments.schemaFor "0.1.0-preview.2" "selection"
+        let schema = schemaOf "selection" (LocalCandidate.readBytes LocalInstallation.documentBound pointer)
+        refuseEarlier "selection" schema
+        schema = ComposedDocuments.schemaFor family "selection"
 
 let defaultHome () =
     match Environment.GetEnvironmentVariable "MORPHIR_HOME" with
@@ -362,7 +379,7 @@ let releaseVersion directory (ownVersion: string) =
             else RequestDocument.read raw |> reader
         if request.Host.Implementation.Text <> "dotnet" || request.Host.Deployment.Text <> "self-contained" || request.Toolset.Preset.Text <> "fsharp"
            || not request.Toolset.Providers.IsEmpty then
-            refuse "setup.unsupported_request" "This Windows release setup supports the .NET self-contained F# toolset with its two packaged process providers."
+            refuse "setup.unsupported_request" "This release setup supports the .NET self-contained F# toolset with its two packaged process providers."
         match request.Host.Release with
         | HostRelease.Exact version -> version.Text.Split('+')[0]
         | HostRelease.Channel _ -> refuse "setup.exact_version_required" "Release setup requires an exact project host version; moving channels are not selected."
@@ -372,7 +389,9 @@ let private executionPlatform platform (snapshot: GenerationSnapshot) =
         refuse "local.platform_mismatch" "The selected host platform differs from the actual manager process."
 
 let selectAsync platform home identity dryRun ct = task {
-    let! snapshot = currentSnapshot home (path home (LocalCandidateDocument.generationPath identity)) ct
+    let directory = path home (LocalCandidateDocument.generationPath identity)
+    refuseEarlier "generation" (schemaOf "generation" (LocalCandidate.readBytes LocalInstallation.documentBound (Path.Combine(directory,"generation.json"))))
+    let! snapshot = currentSnapshot home directory ct
     executionPlatform platform snapshot
     if not dryRun then
         use root = SafeDirectory.Open(home,false)

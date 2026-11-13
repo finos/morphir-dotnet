@@ -11,21 +11,35 @@ The manifest and state documents use the separate local-toolchains family from
 planning, historical toolchain documents and the pure TUF client retain their
 existing behavior. TUF is unused and unqualified for production authority.
 
-## Preview.3 composed inputs
+## Preview.4 composed inputs
 
-The preview.3 platform and origin contract is the parent merge
-`7586a0a4b10195b0af3461639a5003026d0eaaa1`,
-[published in the parent repository](https://github.com/finos/morphir/blob/7586a0a4b10195b0af3461639a5003026d0eaaa1/docs/spec/toolchain/local-platforms-and-release-bundle.md).
-It supports `win-x64` and `win-arm64`. The candidate, receipt and bundle carry
-the platform; selection and generation bind it through their existing hashes.
+The composed family is local-toolchains `0.1.0-preview.4`, specified in the parent page
+[local toolchain platforms and release bundles](https://github.com/finos/morphir/blob/main/docs/spec/toolchain/local-platforms-and-release-bundle.md)
+([finos/morphir#1164](https://github.com/finos/morphir/pull/1164), merged as `648ae374`).
+It supports `win-x64`, `win-arm64` and `osx-arm64`. The candidate, receipt and bundle
+carry the platform; selection and generation bind it through their existing hashes.
+A Windows candidate declares `"archive": {"format": "zip"}` and the entry point
+`morphir.exe`. An `osx-arm64` candidate declares `"archive": {"format": "tar-gzip"}`
+and the entry point `morphir`.
 The installation path stays `store/tools/sha256/<archive-sha256>`.
-Preview.1 and preview.2 retain their existing readers and behavior.
+
+The readers match each `$schema` URL as exact text. They read preview.4 only and do not
+convert from preview.3, so preview.3 candidates, bundles, receipts, selections and
+generations (written by 0.4.0-alpha.5 and earlier) are refused. `select`, `show` and `run`
+read only the preview.4 selection pointer. In a Home set up with preview.2 or preview.3
+they refuse with `local.setup_required`, which says to run `morphirup setup --yes` again
+in that Home, and on the local-candidate route to select the new generation then.
+Setup in such a Home does not read or convert the earlier files. It checks only the
+location and the SHA-256 name of each earlier generation, installs preview.4 beside it,
+and replaces the selection pointer (release setup selects; local setup leaves the
+selection to `select`). The historical preview.1 local route keeps its separate reader
+and behavior.
 
 Default setup acquires the official release bundle and its checksums. Its origin
 is `release-checksum`, not publisher-authenticated. Its completed generation
 retains the exact bundle and checksum bodies and binds both digests.
 
-For an explicitly supplied preview.3 local candidate, the producer's
+For an explicitly supplied preview.4 local candidate, the producer's
 `--toolchain-local-developer` option declares `local-developer` instead. Supply
 its existing nine-role bundle and local sibling assets:
 
