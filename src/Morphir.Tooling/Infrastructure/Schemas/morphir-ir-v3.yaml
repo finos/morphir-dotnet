@@ -40,11 +40,12 @@ definitions:
     type: array
     items:
       type: string
-      pattern: "^[a-z][a-z0-9]*$"
+      pattern: "^([a-z][a-z0-9]*|[0-9]+)$"
     minItems: 1
     description: |
       A Name is a list of lowercase words that represents a human-readable identifier.
-      Example: ["value", "in", "u", "s", "d"] can be rendered as valueInUSD or value_in_USD.
+      Each word is either a lowercase letter followed by lowercase letters/digits,
+      or a standalone numeric sequence.
   
   Path:
     type: array
@@ -78,10 +79,13 @@ definitions:
   # ===== Attributes =====
   
   Attributes:
-    type: object
+    oneOf:
+      - type: object
+      - $ref: "#/definitions/Type"
     description: |
       Attributes can be attached to various nodes in the IR for extensibility.
-      When no additional information is needed, an empty object {} is used.
+      In many distributions (like those from morphir-elm), expressions are annotated
+      with their inferred types in the attributes field.
   
   # ===== Access Control =====
   

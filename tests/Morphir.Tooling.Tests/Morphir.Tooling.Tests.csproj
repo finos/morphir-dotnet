@@ -52,6 +52,8 @@
     <Compile Include="../Morphir.Extensions.Wasm.Tests/PublishedGuest.cs" Link="Fixtures/PublishedGuest.cs" />
     <Compile Include="../Morphir.Extensions.Wasm.Tests/MepWasmFixtures.cs" Link="Fixtures/MepWasmFixtures.cs" />
     <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The greeting example of finos/morphir; see ../Fixtures/MorphirIR/PROVENANCE.md. -->
+    <None Include="../Fixtures/MorphirIR/greeting-example-v3.json" Link="TestData/greeting-example-v3.json" CopyToOutputDirectory="PreserveNewest" />
     <!--
       The pinned WASM profile contract, crafted corpus and modules, for the configured-module loader; see
       ../Fixtures/MepWasm/PROVENANCE.md. IfDifferent, as in Morphir.Extensions.Wasm.Tests, so restored bytes replace a stale copy.

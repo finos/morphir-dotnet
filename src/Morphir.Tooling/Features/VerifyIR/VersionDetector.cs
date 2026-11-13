@@ -15,7 +15,7 @@ public static class VersionDetector
     {
         try
         {
-            using var document = JsonDocument.Parse(jsonContent);
+            using var document = JsonDocument.Parse(jsonContent, Infrastructure.JsonSchema.SchemaValidator.ModelDocumentOptions);
             var root = document.RootElement;
 
             // Try to get the formatVersion field

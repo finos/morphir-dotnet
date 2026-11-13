@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A refused `morphirup setup`, `select` or `show` writes a local-toolchains `0.1.0-preview.4` result, on the preview.1 local route too. Before, every refusal except the composed local setup's wrote the preview.1 result with `origin: local-developer`. The `origin` is now the origin of the preview.4 generation that `select` names or of the selection that `show` reads, and `local-developer` when there is none. A completed preview.1 step still writes the preview.1 result.
 
 ### Fixed
+- `morphir ir verify` no longer runs without end on a typical IR file. Each union branch of the schema checked its whole subtree even when the tag was another branch's, so the time grew exponentially with nesting. The `greeting-example.json` IR v3 example of finos/morphir (29 KB) ran for more than ten minutes and now takes under a second. The 3.5 MB LCR example takes about 20 seconds. A value with an unknown tag still lists the tags that were expected, and the errors of a value with a known tag now come only from that tag's branch.
+- `morphir ir verify` accepts IR v3 whose values carry their inferred types as attributes, as morphir-elm writes them, and names with a word that is a number. Both come from the current finos/morphir v3 schema. Before, the greeting example was not valid.
+- `morphir ir verify` reads IR nested up to 512 levels. Before, a file deeper than 64 levels, such as the LCR example of finos/morphir, was reported as malformed JSON.
 - `morphir` (and so `morphirup run -- compile` and `run -- generate`) no longer writes `[INF] Foundatio.Mediator registered 3 handler(s) and 0 middleware.` to stderr. The CLI logger caps the `Foundatio.Mediator` category at Warning, so the mediator's warnings and errors are still shown. Stdout is unchanged.
 
 ## [0.4.0-alpha.5] - 2026-11-12
