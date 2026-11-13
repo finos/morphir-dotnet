@@ -541,11 +541,16 @@ static class BadFailure { static void Check(HostSession session) { Console.Write
 
               start.WorkingDirectory <- sandbox.Work
               sandbox.Apply start
-              Transcripts.consumerBuild.Wait()
+
+              // A restore and compile, not a session call: its time depends on the machine, so the 10-second budget of
+              // `wait` does not apply. ChildProcess ends the build and its tree after 2 minutes and reports what it
+              // wrote. The other consumer build holds the gate for at most its own 2 minutes.
+              if not (Transcripts.consumerBuild.Wait(TimeSpan.FromMinutes 3.0)) then
+                  failtest "The other C# consumer build did not release the build gate within 3 minutes"
 
               let result =
                   try
-                      wait (ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0))
+                      ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0).GetAwaiter().GetResult()
                   finally
                       Transcripts.consumerBuild.Release() |> ignore
 
