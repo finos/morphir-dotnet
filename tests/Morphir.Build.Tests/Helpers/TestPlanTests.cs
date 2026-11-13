@@ -131,7 +131,7 @@ public class TestPlanTests
     [Test]
     public void TheSuitesWithTimeBudgetsRunAlone() =>
         TestPlan.Suites.Where(suite => suite.RunsAlone).Select(suite => suite.Group is null ? suite.Project : $"{suite.Project} ({suite.Group})")
-            .Should().Equal("Morphir.Extensions.Wasm.Tests", "Morphir.Toolchain.Tests", "Morphir.BlackBox.Tests (integration)");
+            .Should().Equal("Morphir.Tooling.Tests", "Morphir.Extensions.Wasm.Tests", "Morphir.Toolchain.Tests", "Morphir.BlackBox.Tests (integration)");
 
     [Test]
     public void TheNextRunIsTheFirstThatWaits()

@@ -165,7 +165,9 @@ public static class TestPlan
     public static readonly ImmutableArray<TestSuite> Suites =
     [
         TestSuite.TUnit("Morphir.Core.Tests"),
-        TestSuite.TUnit("Morphir.Tooling.Tests"),
+        // SchemaEvaluationCostTests has tests with a time budget of 20 seconds, and ExtensionWorkerTests asserts that an
+        // interruption stops a guest within one second.
+        TestSuite.TUnit("Morphir.Tooling.Tests").Alone(),
         TestSuite.Expecto("Morphir.Configuration.Tests", "--sequenced"),
         TestSuite.TUnit("Morphir.Configuration.IO.Tests", "--maximum-parallel-tests", "1"),
         TestSuite.TUnit("Morphir.Configuration.Microsoft.Tests", "--maximum-parallel-tests", "1"),

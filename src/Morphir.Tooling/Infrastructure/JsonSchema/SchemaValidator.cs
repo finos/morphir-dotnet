@@ -5,6 +5,25 @@ namespace Morphir.Tooling.Infrastructure.JsonSchema;
 
 public class SchemaValidator
 {
+    /// <summary>
+    /// The deepest nesting of a model that is read. A Morphir IR tree nests deeply: the LCR example of finos/morphir
+    /// has depth 67, above the default limit of 64 of System.Text.Json.
+    /// </summary>
+    public const int MaxModelDepth = 512;
+
+    /// <summary>The options with which a model is parsed, here and in version detection.</summary>
+    public static readonly JsonDocumentOptions ModelDocumentOptions = new() { MaxDepth = MaxModelDepth };
+
+    /// <summary>
+    /// The stack of the evaluation thread. Evaluation recurses several frames deep for each level of the model.
+    /// Measured on win-arm64 with optimized JIT code (nested <c>Apply</c> values): a 4 MB stack held 300 levels and
+    /// overflowed at 400, and 8 MB held 700 and overflowed at 900, so a level takes about 10 to 13 KB, and the
+    /// default stack of 1 MB holds fewer than 100 levels. <see cref="MaxModelDepth"/> levels need about 7 MB; 64 MB
+    /// leaves about nine times that for other platforms and code generators. The tests at the depth limit run on each
+    /// operating system. The memory is reserved, and committed only as used.
+    /// </summary>
+    private const int EvaluationStackSize = 64 * 1024 * 1024;
+
     private readonly SchemaLoader _schemaLoader;
 
     public SchemaValidator(SchemaLoader schemaLoader)
@@ -21,15 +40,11 @@ public class SchemaValidator
         var schema = await _schemaLoader.LoadSchemaAsync(schemaVersion, ct);
 
         // Parse JSON
-        var jsonDocument = JsonDocument.Parse(jsonContent);
+        using var jsonDocument = JsonDocument.Parse(jsonContent, ModelDocumentOptions);
 
         // Validate using json-everything
         // Note: Morphir schemas contain recursive type definitions which are valid in JSON Schema
-        var evaluationResults = schema.Evaluate(jsonDocument.RootElement, new EvaluationOptions
-        {
-            OutputFormat = OutputFormat.List,
-            RequireFormatValidation = false  // Don't require format validation
-        });
+        var evaluationResults = await EvaluateOnLargeStack(schema, jsonDocument.RootElement, ct);
 
         // Convert to our error format
         var errors = ConvertToValidationErrors(evaluationResults);
@@ -38,6 +53,34 @@ public class SchemaValidator
             IsValid: evaluationResults.IsValid,
             Errors: errors
         );
+    }
+
+    private static Task<EvaluationResults> EvaluateOnLargeStack(
+        global::Json.Schema.JsonSchema schema, JsonElement model, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var completion = new TaskCompletionSource<EvaluationResults>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                completion.SetResult(schema.Evaluate(model, new EvaluationOptions
+                {
+                    OutputFormat = OutputFormat.List,
+                    RequireFormatValidation = false  // Don't require format validation
+                }));
+            }
+            catch (Exception error)
+            {
+                completion.SetException(error);
+            }
+        }, EvaluationStackSize)
+        {
+            IsBackground = true,
+            Name = "Morphir IR schema evaluation",
+        };
+        thread.Start();
+        return completion.Task;
     }
 
     private List<Features.VerifyIR.ValidationError> ConvertToValidationErrors(EvaluationResults results)
