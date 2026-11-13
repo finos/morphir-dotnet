@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0-alpha.2] - 2026-11-13
+
 ### Changed
 - `morphirup setup` sets up from the [finos/morphir releases](https://github.com/finos/morphir/releases), the official place for Morphir releases, from the next release, `0.5.0-alpha.2`, on. It downloads from `https://github.com/finos/morphir/releases/download/v<version>/`, with the same `v<version>` tag and the same three redirect hosts (`github.com`, `release-assets.githubusercontent.com`, `objects.githubusercontent.com`, at most three redirects), and keeps its `release-checksum` assurance. There is no fallback to the finos/morphir-dotnet releases: a bundle whose asset URLs name finos/morphir-dotnet is refused. A release generation records `https://github.com/finos/morphir` as its repository; the candidate's `sourceRepository` still names finos/morphir-dotnet, where the code is built from.
 - The composed local-toolchains family moves from `0.1.0-preview.4` to `0.1.0-preview.5` ([finos/morphir#1171](https://github.com/finos/morphir/pull/1171), merged as `00a48d4a`), which differs from preview.4 only in the release repository of the bundle's asset URLs and of the generation's `acquisition.repository`. The producer writes preview.5, and `morphirup` reads preview.5 only: candidates, bundles, receipts, selections and generations of preview.4 (written by 0.5.0-alpha.1) are not read and are not converted. `select`, `show` and `run` read only the preview.5 selection pointer: in a Home set up with preview.2, preview.3 or preview.4 they refuse with `local.setup_required`, which says to run `morphirup setup --yes` again (and then `select`, for a local candidate). Setup in that Home installs preview.5 beside the earlier generations without reading them, and replaces the selection pointer. A refused `setup`, `select` or `show` writes a preview.5 result. The historical preview.1 local route is unchanged.
@@ -403,7 +405,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.1...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.2...HEAD
+[0.5.0-alpha.2]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.1...v0.5.0-alpha.2
 [0.5.0-alpha.1]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.5...v0.5.0-alpha.1
 [0.4.0-alpha.5]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.4...v0.4.0-alpha.5
 [0.4.0-alpha.4]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.3...v0.4.0-alpha.4
