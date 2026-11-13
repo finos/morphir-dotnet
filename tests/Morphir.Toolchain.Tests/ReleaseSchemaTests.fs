@@ -81,6 +81,7 @@ let private generationFrom (repository: string) =
     ComposedDocuments.writeManifest ReleaseBundleDocument.family candidate [||]
         [ candidate.FrontendId, [||]; candidate.BackendId, [||] ] [] (LocalCandidateTests.releaseWorkflow candidate) (Some proof)
 
+// Reads the pinned schema files of tests/Fixtures/LocalToolchains, so it is PlatformSpecific (docs/contributing/ci-os-matrix.md).
 [<Tests>]
 let tests =
     testList "ReleaseSchema" [
@@ -114,3 +115,4 @@ let tests =
             Expect.isError (ComposedDocuments.readManifest ReleaseBundleDocument.family candidate raw) "the reader refuses the earlier source"
         }
     ]
+    |> testLabel "PlatformSpecific"
