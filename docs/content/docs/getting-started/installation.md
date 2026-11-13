@@ -25,11 +25,15 @@ On Windows (x64, ARM64), in PowerShell:
 irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
 ```
 
-The script installs the newest release for your machine and verifies the download first:
+The script installs `morphirup` from the newest [Morphir release](https://github.com/finos/morphir/releases) that has
+it for your machine, and verifies the download first. It skips a release without `morphirup`, such as `0.5.0-alpha.1`
+(the `morphir` CLI only) or a release of the earlier Rust CLI (`0.4.0-beta` and older).
 
 - On macOS and Linux it installs `~/.local/bin/morphirup`. If that folder is not on your `PATH`, the script prints
   the line to add to your shell profile.
 - On Windows it installs `%LOCALAPPDATA%\Programs\morphirup\morphirup.exe` and adds the folder to your user `PATH`.
+
+`morphirup` then sets up the toolchain from the same Morphir releases.
 
 Open a new terminal and check that it runs:
 
@@ -47,7 +51,10 @@ It prints the version you installed.
 | Install into another folder | `--install-dir <dir>` | `-InstallDir <dir>` |
 | Leave `PATH` alone | The script never changes it | `-NoModifyPath` |
 
-The versions are on the [releases page](https://github.com/finos/morphir-dotnet/releases). To pass an option:
+The versions are on the [Morphir releases page](https://github.com/finos/morphir/releases); `morphirup` is in
+`0.5.0-alpha.2` and later. A version whose release has no `morphirup` is refused, and nothing is installed. `morphirup`
+releases before `0.5.0-alpha.2` are on the [finos/morphir-dotnet releases page](https://github.com/finos/morphir-dotnet/releases),
+which these scripts do not read. To pass an option:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh -s -- --version <version>
@@ -63,7 +70,8 @@ The environment variables `MORPHIRUP_VERSION` and `MORPHIRUP_INSTALL_DIR` work t
 
 The scripts need to reach `raw.githubusercontent.com` (for the script itself), `github.com` and
 `release-assets.githubusercontent.com`. Without `--version`, they also ask `api.github.com` for the newest release,
-and read the release list on `github.com` if that host is blocked.
+and read the release list on `github.com` if that host is blocked. `morphirup setup` downloads from `github.com` and
+follows its redirects to `release-assets.githubusercontent.com` or `objects.githubusercontent.com`.
 
 - **Proxy.** On macOS and Linux, set `HTTPS_PROXY` (and `NO_PROXY` for internal hosts), for example
   `export HTTPS_PROXY=http://proxy.example.com:8080`. On Windows, the script uses the Windows proxy settings, or
@@ -72,21 +80,26 @@ and read the release list on `github.com` if that host is blocked.
   bundle. On Windows, the company's root certificate must be in the Windows certificate store, which IT usually
   manages.
 - **Mirror.** If your company mirrors GitHub release downloads, set `MORPHIRUP_DOWNLOAD_URL` to the mirror of
-  `https://github.com/finos/morphir-dotnet/releases/download`. The mirror must serve HTTPS and keep the same layout,
+  `https://github.com/finos/morphir/releases/download`. The mirror must serve HTTPS and keep the same layout,
   `<url>/v<version>/<file>`. Pass `--version` / `-Version` if the mirror is all you can reach.
 
 ### With mise
 
 ```sh
-mise use -g 'github:finos/morphir-dotnet[matching=morphirup,version_prefix=v,prerelease=true]'
+mise use -g 'github:finos/morphir[matching=morphirup,version_prefix=v,prerelease=true]'
 morphirup --version
 ```
 
-To install a given release, add `@<version>` at the end, inside the quotes.
+To install a given release, add `@<version>` at the end, inside the quotes, for example `@0.5.0-alpha.2`.
+
+mise takes the newest Morphir release, and it lists every release, also `0.5.0-alpha.1` and those of the earlier Rust
+CLI (`0.4.0-beta` and older), which have no `morphirup`. mise never installs another file instead: when the release it takes has no
+`morphirup`, it stops with an error that no file matches `morphirup`. mise can also hold back a release published in
+the last day. In either case, name a release that has `morphirup`, such as `@0.5.0-alpha.2`.
 
 ### Download it yourself
 
-From the [releases page](https://github.com/finos/morphir-dotnet/releases), download the file for your machine and
+From the [Morphir releases page](https://github.com/finos/morphir/releases), download the file for your machine and
 the release's checksum file `morphirup-v<version>.sha256`:
 
 | Machine | File |
@@ -167,7 +180,7 @@ dotnet tool install --global Morphir.Tool --prerelease
 The standalone `morphir` is one file that carries its .NET runtime, so it needs no .NET SDK or runtime. It is a
 managed, trimmed, self-contained single-file build without an F# frontend, not a Native AOT executable. Download
 `morphir-linux-x64`, `morphir-linux-arm64`, `morphir-osx-arm64`, `morphir-win-x64.exe` or `morphir-win-arm64.exe`
-from the [releases page](https://github.com/finos/morphir-dotnet/releases). The Windows ARM64 file is built on a native
+from the [Morphir releases page](https://github.com/finos/morphir/releases). The Windows ARM64 file is built on a native
 Windows 11 ARM64 runner; releases before the first one that lists it have no `win-arm64` file. To compile
 F# with it, also install the F# frontend extension:
 

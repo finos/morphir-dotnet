@@ -166,7 +166,7 @@ The plugin should only be updated when:
 
 The plugin downloads from GitHub Releases using this pattern:
 ```
-https://github.com/finos/morphir-dotnet/releases/download/v{version}/morphir-{rid}-v{version}.tar.gz
+https://github.com/finos/morphir/releases/download/v{version}/morphir-{rid}-v{version}.tar.gz
 ```
 
 Where `{rid}` is one of:
@@ -199,7 +199,7 @@ If you're on an unsupported platform, you can install Morphir using alternative 
 
 ### Version not found
 
-Ensure the version exists in the [Morphir releases](https://github.com/finos/morphir-dotnet/releases). The plugin downloads from GitHub Releases, so only released versions are available.
+Ensure the version exists in the [Morphir releases](https://github.com/finos/morphir/releases) and has the archive for your platform. The plugin downloads from GitHub Releases, so only released versions are available. The finos/morphir releases before 0.5.0 are releases of the earlier Rust CLI and have no such archive.
 
 ### Permission denied on Unix
 

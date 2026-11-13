@@ -4,7 +4,7 @@ on:
     workflow_dispatch:
         inputs:
             version:
-                description: Published release version without the v prefix
+                description: Published finos/morphir release version without the v prefix
                 required: true
                 type: string
 
@@ -26,7 +26,8 @@ jobs:
                   if ($env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') { throw 'Invalid release version.' }
                   $work=Join-Path $env:RUNNER_TEMP 'morphirup-release-journey'
                   New-Item -ItemType Directory $work | Out-Null
-                  $base="https://github.com/finos/morphir-dotnet/releases/download/v$env:RELEASE_VERSION"
+                  # morphirup and the toolchain it sets up both come from the finos/morphir release.
+                  $base="https://github.com/finos/morphir/releases/download/v$env:RELEASE_VERSION"
                   Invoke-WebRequest "$base/morphirup-win-x64.exe" -OutFile "$work/morphirup.exe"
                   Invoke-WebRequest "$base/SHA256SUMS" -OutFile "$work/SHA256SUMS"
                   $line=@(Get-Content "$work/SHA256SUMS" | Where-Object { $_ -match '^[0-9a-f]{64}  morphirup-win-x64.exe$' })
