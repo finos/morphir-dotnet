@@ -94,7 +94,7 @@ A comprehensive 16.3 KB guide for AI agents providing:
 
 The change `consolidate-black-box-tests` removed `tests/Morphir.E2E.Tests` and these two feature files. Their checks
 of the published executables are now end-to-end tests of the published lane in `tests/Morphir.BlackBox.Tests/EndToEnd/`;
-`openspec/changes/consolidate-black-box-tests/evidence/slice-2-moves.md` gives the destination of each scenario. The
+`openspec/changes/archive/2026-11-13-consolidate-black-box-tests/evidence/slice-2-moves.md` gives the destination of each scenario. The
 list below is the record of what they had:
 
 #### NativeAOTCompilation.feature (2.9 KB)
