@@ -24,7 +24,9 @@ let private resultWithPath (path: string) =
     )
 
 /// <summary>Runs a read under a time budget on its own task, so a quadratic check fails the test within the budget
-/// instead of hanging the suite. The budget is generous: a linear read takes well under a second.</summary>
+/// instead of hanging the suite. The budget is generous: a linear read takes well under a second. A test that uses it
+/// is <c>testSequenced</c>: Expecto runs it after the parallel tests of the suite, one at a time, so the other tests
+/// of the process do not take its processor time.</summary>
 let withinBudget (seconds: float) (what: string) (read: unit -> 'T) : 'T =
     let task = System.Threading.Tasks.Task.Run(fun () -> read ())
 
@@ -151,6 +153,7 @@ let tests =
             match withinBudget 10.0 "the candidate rule over 10,000 offerings and operations" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Operations.Length 10_000 "every operation"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testSequenced
         |> testLabel "PlatformSpecific"
 
         testCase "the candidate rule is linear in offerings times unfit providers (shape B)" (fun () ->
@@ -160,6 +163,7 @@ let tests =
             match withinBudget 10.0 "the candidate rule over 10,000 offerings and unfit providers" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Providers.Length 10_001 "every provider"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testSequenced
         |> testLabel "PlatformSpecific"
 
         testCase "an operation one offering cannot perform is still refused" (fun () ->
@@ -184,6 +188,7 @@ let tests =
                 // No offering performs l1, so the candidate rule refuses it, after the repetition check has run.
                 Expect.equal (refusal.Code, DocumentPath.render refusal.Path) (ReaderCode.InconsistentDocument, "operations[0]") "no candidate"
             | Ok _ -> failtest "an operation without a candidate was read")
+        |> testSequenced
         |> testLabel "PlatformSpecific"
 
         testCase "a recipe of 1,000 unfit providers and 100,000 MEP versions is read in linear time" (fun () ->
@@ -202,6 +207,7 @@ let tests =
             match withinBudget 20.0 "reading 1,000 unfit providers" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Providers.Length 1_003 "every provider"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testSequenced
         |> testLabel "PlatformSpecific"
 
         testCase "a request of 100,000 provider choices reads in linear time" (fun () ->
@@ -210,6 +216,7 @@ let tests =
             match withinBudget 20.0 "reading 100,000 choices" (fun () -> RequestDocument.read bytes) with
             | Ok request -> Expect.equal request.Toolset.Providers.Length 100_000 "every choice"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testSequenced
 
         testCase "50,000 built-in operations read, resolve, lock, bind and plan in linear time" (fun () ->
             // The candidate rule, resolution, the closure checks, the lock against its recipe and the plan against its
@@ -237,6 +244,7 @@ let tests =
                 let read = ResultDocument.read (JsonText.toBytes (ResultDocument.value result)) |> ok "the result reads"
                 Expect.isSome read.Plan "the plan reads back against its lock")
             |> ignore)
+        |> testSequenced
         |> testLabel "PlatformSpecific"
 
         testCase "a lock whose closure has 100,000 providers reads in linear time" (fun () ->
@@ -256,6 +264,7 @@ let tests =
             match withinBudget 20.0 "reading 100,000 locked providers" (fun () -> LockDocument.read bytes) with
             | Ok lock -> Expect.equal (lock.Platforms.Items.Head |> snd).Providers.Length 100_000 "every provider"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testSequenced
         |> testLabel "PlatformSpecific"
         testCase "a recipe offering with 100,000 MEP versions reads in linear time" (fun () ->
             // Review of #582, R1: the duplicate check compared each element with every earlier one.
@@ -265,6 +274,7 @@ let tests =
             match withinBudget 20.0 "reading 100,000 protocolVersions" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Hosts.Head.ProtocolVersions.Length 100_001 "every version"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testSequenced
         |> testLabel "PlatformSpecific"
 
         testCase "a recipe offering with 100,000 WASM ABIs reads in linear time" (fun () ->
@@ -273,6 +283,7 @@ let tests =
             match withinBudget 20.0 "reading 100,000 wasmAbis" (fun () -> RecipeDocument.read bytes) with
             | Ok recipe -> Expect.equal recipe.Hosts.Head.WasmAbis.Length 100_000 "every ABI"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testSequenced
         |> testLabel "PlatformSpecific"
 
         testCase "a repeated entry among 100,000 is still refused at the repetition" (fun () ->
@@ -285,6 +296,7 @@ let tests =
                     (ReaderCode.InconsistentDocument, "hosts[0].protocolVersions[99999]")
                     "the repetition"
             | Ok _ -> failtest "a repeated version was read")
+        |> testSequenced
         |> testLabel "PlatformSpecific"
         testList "a refused critical path is reported exactly as written" [
             for critical in [ ".host"; "..x"; "host."; "a..b"; "platforms.*.unknownMember" ] ->
@@ -600,4 +612,6 @@ let distinctClassTests =
                 let recipe = { signed with Hosts = hosts; Providers = providers }
                 Expect.equal (RecipeDocument.firstUnperformed recipe) (referenceUnperformed recipe) $"trial {trial}")
     ]
+    // Four of its tests read 10,000 distinct classes under the budget of withinBudget.
+    |> testSequenced
     |> testLabel "PlatformSpecific"
