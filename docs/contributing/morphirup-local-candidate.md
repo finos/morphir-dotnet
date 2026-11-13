@@ -16,7 +16,7 @@ existing behavior. TUF is unused and unqualified for production authority.
 The composed family is local-toolchains `0.1.0-preview.5`, specified in the parent page
 [local toolchain platforms and release bundles](https://github.com/finos/morphir/blob/main/docs/spec/toolchain/local-platforms-and-release-bundle.md)
 (preview.4 in [finos/morphir#1164](https://github.com/finos/morphir/pull/1164), merged as `648ae374`; preview.5 in
-[finos/morphir#1171](https://github.com/finos/morphir/pull/1171), at `0fc5cde5`). Preview.5 differs from preview.4 only
+[finos/morphir#1171](https://github.com/finos/morphir/pull/1171), merged as `00a48d4a`). Preview.5 differs from preview.4 only
 in the release repository: a bundle's asset URLs are `https://github.com/finos/morphir/releases/download/v<version>/<name>`,
 and a generation's `acquisition.repository` is `https://github.com/finos/morphir`. The candidate's `sourceRepository`
 stays `https://github.com/finos/morphir-dotnet`, the repository the code is built from.

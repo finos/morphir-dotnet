@@ -7,9 +7,8 @@ publishes it and update this table.
 
 Repository: https://github.com/finos/morphir
 
-Commit: `0fc5cde542ec980b2d67ce3ffed8b7b3619033c2`, the head of finos/morphir#1171, which publishes local-toolchains
-`0.1.0-preview.5` (the schemas were first committed at `042b69f65`). Pending: when #1171 merges, name the merge
-commit here.
+Commit: `00a48d4ad29320afa882e04ce4769efccb89b9f4`, the merge of finos/morphir#1171, which publishes local-toolchains
+`0.1.0-preview.5`.
 
 | Local file | Upstream path | SHA-256 |
 | --- | --- | --- |
