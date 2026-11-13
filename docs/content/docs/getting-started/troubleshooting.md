@@ -162,16 +162,6 @@ who published them.
 **What to do.** Nothing. It is a notice, not an error. The
 [morphirup reference]({{< relref "/docs/cli/morphirup#how-release-setup-works" >}}) describes the check in detail.
 
-## Compiling and generating
-
-### [INF] lines in the output
-
-**What you see.** A line such as `[01:53:58 INF] Foundatio.Mediator registered 3 handler(s) and 0 middleware.`
-
-**Why.** The Morphir CLI writes some log lines on stderr.
-
-**What to do.** Nothing. They don't affect the result. Results such as the IR path and JSON reports are on stdout.
-
 ## Validating IR
 
 ### ir verify rejects the IR that compile wrote

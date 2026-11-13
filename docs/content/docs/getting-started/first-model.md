@@ -191,13 +191,12 @@ morphirup run -- compile
 
 ```text
 morphirup: release-checksum delivery, NOT publisher-authenticated.
-[01:53:58 INF] Foundatio.Mediator registered 3 handler(s) and 0 middleware.
 compile succeeded: 1 module(s), IR version 4, ...\morphirup-fsharp\.morphir\out\compile.dest\morphir-ir.json; no diagnostics
 ...\morphirup-fsharp\.morphir\out\compile.dest\morphir-ir.json
 ```
 
 Everything after `--` goes to the Morphir CLI. It read `morphir.toml`, compiled `src/Pricing.fs`, and wrote the model
-as Morphir IR to `.morphir/out/compile.dest/morphir-ir.json`. You can ignore the `[INF]` line.
+as Morphir IR to `.morphir/out/compile.dest/morphir-ir.json`.
 
 Morphir IR is your model as data that any Morphir tool can read. Open the file and you'll find, among the details:
 
@@ -256,7 +255,6 @@ cat generated/Pricing.fs
 
 ```text
 morphirup: release-checksum delivery, NOT publisher-authenticated.
-[01:54:00 INF] Foundatio.Mediator registered 3 handler(s) and 0 middleware.
 Pricing.fs
 module Acme.Demo.Pricing
 

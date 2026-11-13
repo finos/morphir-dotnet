@@ -169,17 +169,36 @@ public class CliDeliveryWorkflowTests
         File.Exists(Path.Combine(folder, "morphirup-preview3-arm64-proof.yml")).Should().BeFalse("its proof lane is part of morphirup.yml");
 
         var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
-        var toolchain = steps.Single(step => Name(step) == "Upload the complete Windows toolchain proof inputs");
+        var toolchain = steps.Single(step => Name(step) == "Upload the complete toolchain proof inputs");
         toolchain["with"]["name"].ToString().Should().Be("windows-release-toolchain-${{ inputs.rid }}");
-        toolchain["if"].ToString().Should().Contain("win-x64").And.Contain("win-arm64");
+        toolchain["if"].ToString().Should().Contain("win-x64").And.Contain("win-arm64").And.Contain("osx-arm64").And.Contain("inputs.toolchain");
         steps.Single(step => Name(step) == "Upload the morphirup release assets")["with"]["name"].ToString()
             .Should().Be("morphirup-${{ inputs.rid }}");
     }
 
     [Test]
-    [Arguments("deployment.yml", "create-github-release")]
-    [Arguments("morphirup.yml", "checksums")]
-    public void TheChecksumJobsAssembleBothWindowsToolchainsUnderOneChecksumFile(string workflow, string job)
+    public void OnlyTheReleaseRunsPackTheMacOsToolchain()
+    {
+        // The macOS toolchain and its acquired journey add build work, so the per-PR macOS job does not run them: the
+        // release and its dry run pass toolchain: true to the one producer, and the pull request workflow passes nothing.
+        var input = ((YamlMappingNode)((YamlMappingNode)((YamlMappingNode)Read("morphirup-build.yml")["on"])["workflow_call"])["inputs"])["toolchain"];
+        input["type"].ToString().Should().Be("boolean");
+        input["default"].ToString().Should().Be("false");
+        Job(Deployment(), "build-morphirup")["with"]["toolchain"].ToString().Should().Be("true");
+        ((YamlMappingNode)Job(Read("morphirup.yml"), "build")["with"]).Children.Keys.Select(key => key.ToString())
+            .Should().NotContain("toolchain");
+
+        var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
+        var build = Run(steps.Single(step => Name(step) == "Build and check morphirup for ${{ inputs.rid }}"));
+        build.Should().Contain("osx-arm64").And.Contain("PackWindowsToolchain");
+        var journey = steps.Single(step => Name(step) == "Exercise the setup composition with actual produced archives");
+        journey["if"].ToString().Should().Contain("osx-arm64").And.Contain("inputs.toolchain");
+    }
+
+    [Test]
+    [Arguments("deployment.yml", "create-github-release", "win-x64 win-arm64 osx-arm64", "")]
+    [Arguments("morphirup.yml", "checksums", "win-x64 win-arm64", " --toolchain-platforms win-x64 win-arm64")]
+    public void TheChecksumJobsAssembleTheToolchainsUnderOneChecksumFile(string workflow, string job, string rids, string platforms)
     {
         var steps = Steps(Job(Read(workflow), job));
         var download = steps.Single(step => Uses(step).StartsWith("actions/download-artifact", StringComparison.Ordinal)
@@ -189,12 +208,13 @@ public class CliDeliveryWorkflowTests
 
         var run = Run(steps.Single(step => Run(step).Contains("WindowsToolchainChecksums", StringComparison.Ordinal)));
         // Each producer's own SHA256SUMS is checked against its own output before anything is copied.
-        run.Should().Contain("for rid in win-x64 win-arm64; do")
+        run.Should().Contain($"for rid in {rids}; do")
             .And.Contain("(cd \"./artifacts/downloads/windows-toolchain/windows-release-toolchain-$rid\" && sha256sum -c SHA256SUMS)");
         // Every output is flattened once: a manager or notices file that two downloads hold must be byte-identical.
         run.Should().Contain("--target FlattenReleaseAssets MorphirupChecksums WindowsToolchainChecksums")
             .And.Contain("--release-asset-sources ./artifacts/downloads/morphirup/* ./artifacts/downloads/windows-toolchain/*")
-            .And.Contain("--windows-toolchain-sources ./artifacts/downloads/windows-toolchain/*");
+            .And.Contain($"--windows-toolchain-sources ./artifacts/downloads/windows-toolchain/*{platforms}");
+        if (platforms.Length == 0) run.Should().NotContain("--toolchain-platforms", "the release requires every toolchain");
         run.IndexOf("sha256sum -c SHA256SUMS)", StringComparison.Ordinal).Should().BeLessThan(run.IndexOf("--target FlattenReleaseAssets", StringComparison.Ordinal));
         run.TrimEnd().Should().EndWith("sha256sum -c SHA256SUMS", "the one release checksum file is read back the way a user would");
     }

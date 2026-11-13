@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Foundatio.Mediator;
 using Serilog;
-using Serilog.Events;
 
 namespace Morphir.Tooling.Scenarios;
 
@@ -180,18 +179,7 @@ public class IrToolingScenario : IMorphirCliScenario
         // Configure logging
         builder.Logging.ClearProviders();
 
-        var loggerConfiguration = new Serilog.LoggerConfiguration()
-            .MinimumLevel.Information();
-
-        if (!quiet)
-        {
-            loggerConfiguration.WriteTo.Console(
-                standardErrorFromLevel: Serilog.Events.LogEventLevel.Verbose,
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
-            );
-        }
-
-        Serilog.Log.Logger = loggerConfiguration.CreateLogger();
+        Serilog.Log.Logger = Infrastructure.CliLogging.Create(writeToStandardError: !quiet);
 
         builder.Logging.AddSerilog(Serilog.Log.Logger, dispose: true);
 

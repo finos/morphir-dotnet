@@ -207,11 +207,11 @@ let launchPathAdmission = testList "WindowsLaunchPathAdmission" [
 [<Tests>]
 let longHomeSetup = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
     testCaseTask "provider path length refuses dry-run and apply before Home or archive transfer" (fun () -> task {
-        let folder = Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_ASSETS" |> Option.ofObj |> Option.defaultWith (fun () -> skiptest "The official produced Windows archives are required.")
-        let platform = match OperatingSystem.IsWindows(),RuntimeInformation.ProcessArchitecture with
-                       | true,Architecture.Arm64 -> Platform.WinArm64
-                       | true,Architecture.X64 -> Platform.WinX64
-                       | _ -> skiptest "The installed Windows setup is a Windows product path."
+        let folder = Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_ASSETS" |> Option.ofObj |> Option.defaultWith (fun () -> skiptest "The official produced toolchain archives are required.")
+        let platform =
+            match Platform.current () with
+            | Some platform when Platform.isLocalToolchain platform -> platform
+            | _ -> skiptest "The installed setup needs a win-x64, win-arm64 or osx-arm64 test process."
         use sandbox = TestSandbox.Create("long-home-")
         let raw = File.ReadAllBytes(Path.Combine(folder,ReleaseBundleDocument.fileName platform))
         let bundle = ReleaseBundleDocument.read raw |> function Ok value -> value | Error _ -> failtest "Invalid produced bundle."
@@ -221,20 +221,26 @@ let longHomeSetup = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetu
         let homeLength = 259-hostRelative.Length-1
         let home = Path.Combine(sandbox.Work,String('h',homeLength-sandbox.Work.Length-1))
         Expect.equal (Path.Combine(home,hostRelative.Replace('/',Path.DirectorySeparatorChar))).Length 259 "host itself fits; the longer provider path must be checked"
-        let files = Directory.GetFiles(folder) |> Array.filter(fun name -> not(name.EndsWith(".zip",StringComparison.OrdinalIgnoreCase))) |> Array.map(fun name -> Path.GetFileName name,File.ReadAllBytes name) |> Map.ofArray
-        for dryRun in [true;false] do
-            let transport = BytesTransport files
-            let! refused = task {
-                try
-                    let! _ = ComposedInstallation.setupWithTransportAsync platform home bundle.Version.Text transport dryRun CancellationToken.None
-                    return false
-                with LocalCandidate.Refused(code,message) ->
-                    Expect.equal code "local.executable_path_too_long" "provider admission runs before transfer or effects"
-                    Expect.stringContains message home "actionable Home diagnostic"
-                    return true
-            }
-            Expect.isTrue refused "no success with an unlaunchable provider"
+        let files = Directory.GetFiles(folder) |> Array.filter(fun name -> not(name.EndsWith(".zip",StringComparison.OrdinalIgnoreCase) || name.EndsWith(".tar.gz",StringComparison.OrdinalIgnoreCase))) |> Array.map(fun name -> Path.GetFileName name,File.ReadAllBytes name) |> Map.ofArray
+        if not (Platform.isWindows platform) then
+            // The launch limit is the Windows one. On macOS the same Home is planned, and the dry run creates nothing.
+            let! _,planned = ComposedInstallation.setupWithTransportAsync platform home bundle.Version.Text (BytesTransport files) true CancellationToken.None
+            Expect.isNone planned "a dry run publishes no generation"
             Expect.isFalse (Directory.Exists home) "no Home or staging created"
+        else
+            for dryRun in [true;false] do
+                let transport = BytesTransport files
+                let! refused = task {
+                    try
+                        let! _ = ComposedInstallation.setupWithTransportAsync platform home bundle.Version.Text transport dryRun CancellationToken.None
+                        return false
+                    with LocalCandidate.Refused(code,message) ->
+                        Expect.equal code "local.executable_path_too_long" "provider admission runs before transfer or effects"
+                        Expect.stringContains message home "actionable Home diagnostic"
+                        return true
+                }
+                Expect.isTrue refused "no success with an unlaunchable provider"
+                Expect.isFalse (Directory.Exists home) "no Home or staging created"
     })
 ]
 
@@ -437,10 +443,9 @@ let earlierHomeSetup = testLabel "PlatformSpecific" <| testList "WindowsReleaseS
 let acquiredJourney = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [testCaseTask "actual installed release setup and offline process workflow" (fun () -> task {
     let folder = Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_ASSETS" |> Option.ofObj |> Option.defaultWith(fun () -> skiptest "Actual PackWindowsToolchain assets were not supplied.")
     let platform =
-        match OperatingSystem.IsWindows(),RuntimeInformation.ProcessArchitecture with
-        | true,Architecture.X64 -> Platform.WinX64
-        | true,Architecture.Arm64 -> Platform.WinArm64
-        | _ -> skiptest "The actual Windows composition requires an x64 or ARM64 Windows test process."
+        match Platform.current () with
+        | Some platform when Platform.isLocalToolchain platform -> platform
+        | _ -> skiptest "The actual composition requires a win-x64, win-arm64 or osx-arm64 test process."
     match Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_RID" |> Option.ofObj with
     | Some rid -> Expect.equal rid (Platform.name platform) "the supplied producer RID must match the actual test process"
     | None -> ()

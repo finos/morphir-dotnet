@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Foundatio.Mediator;
 using Serilog;
-using Serilog.Events;
 
 namespace Morphir.Tooling;
 
@@ -87,13 +86,7 @@ public static class MorphirCliExtensions
         // Apply the same default configuration
         tempBuilder.Logging.ClearProviders();
 
-        Serilog.Log.Logger = new Serilog.LoggerConfiguration()
-            .MinimumLevel.Information()
-            .WriteTo.Console(
-                standardErrorFromLevel: Serilog.Events.LogEventLevel.Verbose,
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
-            )
-            .CreateLogger();
+        Serilog.Log.Logger = Infrastructure.CliLogging.Create();
 
         tempBuilder.Logging.AddSerilog(Serilog.Log.Logger, dispose: true);
         tempBuilder.Services.AddMediator();

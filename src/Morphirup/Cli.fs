@@ -978,24 +978,28 @@ let private runCoreAsync
             let command = if args.Head = "use" then "select" else args.Head
             let composedLocal = command="setup" && List.contains "--local-bundle" args
             let mutable localGeneration: Sha256 option = None
+            // Every setup on this route is explicit local-developer setup. Select and show replace it with the origin
+            // of the preview.4 generation or selection they read, when there is one.
+            let mutable refusalOrigin = "local-developer"
 
-            let emit status identity diagnostic =
-                let bytes =
-                    if not composedLocal then LocalCandidate.result command status identity diagnostic
+            let write (bytes: byte array) =
+                io.Out.Write(bytes, 0, bytes.Length)
+                io.Out.Flush()
+
+            let emit status (identity: Sha256) =
+                write (
+                    if not composedLocal then LocalCandidate.result command status identity
                     else Value.Object [
                         "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.4" "result")
                         "command",Value.String command;"status",Value.String status;"origin",Value.String "local-developer"
-                        match identity with Some(hash: Sha256) -> "candidateSha256",Value.String hash.Text | None -> ()
+                        "candidateSha256",Value.String identity.Text
                         match localGeneration with
                         | Some hash ->
                             "generationSha256",Value.String hash.Text
                             "receiptPath",Value.String(LocalCandidateDocument.receiptPath hash)
-                        | None -> ()
-                        match diagnostic with
-                        | Some(code,message) -> "diagnostic",Value.Object ["code",Value.String code;"message",Value.String message]
-                        | None -> ()] |> JsonText.toBytes
-                io.Out.Write(bytes, 0, bytes.Length)
-                io.Out.Flush()
+                        | None -> ()] |> JsonText.toBytes)
+
+            let refused code message = write (LocalCandidate.refusal command refusalOrigin code message)
 
             let options known flags rest =
                 match parse known flags rest with
@@ -1061,7 +1065,7 @@ let private runCoreAsync
                                 (options.Has "--dry-run")
                                 ct
                         localGeneration <- generation
-                        emit (if options.Has "--dry-run" then "planned" else "installed") (Some candidate) None
+                        emit (if options.Has "--dry-run" then "planned" else "installed") candidate
                         io.Error.WriteLine "morphirup: local-developer input, NOT publisher-authenticated. Select the completed generation explicitly."
                         return 0
                     else
@@ -1108,8 +1112,7 @@ let private runCoreAsync
 
                         emit
                             (if dryRun then "planned" else "installed")
-                            (Some candidate.ManifestSha256)
-                            None
+                            candidate.ManifestSha256
 
                         return 0
                 | "select" ->
@@ -1127,6 +1130,7 @@ let private runCoreAsync
                                 )
 
                     let selectedHome = home options
+                    refusalOrigin <- ComposedInstallation.recordedOrigin selectedHome (Some identity) |> Option.defaultValue refusalOrigin
                     let generationPath = Path.Combine(selectedHome,LocalCandidateDocument.generationPath identity,"generation.json")
                     if File.Exists generationPath then
                         let! installed = ComposedInstallation.selectAsync (Option.get io.Platform) selectedHome identity (options.Has "--dry-run") ct
@@ -1153,12 +1157,12 @@ let private runCoreAsync
 
                       emit
                         (if options.Has "--dry-run" then "planned" else "selected")
-                        (Some installed.Candidate.ManifestSha256)
-                        None
+                        installed.Candidate.ManifestSha256
 
                       return 0
                 | "show" ->
                     let options = options [ "--home" ] [ "--explain"; "--json" ] args.Tail
+                    refusalOrigin <- ComposedInstallation.recordedOrigin (home options) None |> Option.defaultValue refusalOrigin
                     if ComposedInstallation.isSelected(home options) then
                         let! snapshot = ComposedInstallation.selected (home options) ct
                         let manifest = snapshot.Manifest |> Option.defaultWith(fun () -> LocalCandidate.refuse "setup.incomplete_generation" "No completed generation.")
@@ -1188,7 +1192,7 @@ let private runCoreAsync
 
                         io.Error.WriteLine $"morphirup: absolute executable {executable}"
 
-                      emit "shown" (Some installed.Candidate.ManifestSha256) None
+                      emit "shown" installed.Candidate.ManifestSha256
                       return 0
                 | "run" ->
                     let before, after =
@@ -1249,7 +1253,7 @@ let private runCoreAsync
                 if command = "run" then
                     io.Error.WriteLine($"morphirup: {code}: {message}")
                 else
-                    emit "refused" None (Some(code, message))
+                    refused code message
 
                 return 1
     }
