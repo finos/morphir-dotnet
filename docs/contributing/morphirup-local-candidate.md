@@ -15,7 +15,7 @@ existing behavior. TUF is unused and unqualified for production authority.
 
 The composed family is local-toolchains `0.1.0-preview.4`, specified in the parent page
 [local toolchain platforms and release bundles](https://github.com/finos/morphir/blob/main/docs/spec/toolchain/local-platforms-and-release-bundle.md)
-([finos/morphir#1164](https://github.com/finos/morphir/pull/1164)).
+([finos/morphir#1164](https://github.com/finos/morphir/pull/1164), merged as `648ae374`).
 It supports `win-x64`, `win-arm64` and `osx-arm64`. The candidate, receipt and bundle
 carry the platform; selection and generation bind it through their existing hashes.
 A Windows candidate declares `"archive": {"format": "zip"}` and the entry point

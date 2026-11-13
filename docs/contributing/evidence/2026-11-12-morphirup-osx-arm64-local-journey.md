@@ -8,7 +8,8 @@ The inputs were built from the working tree of branch `feat/morphirup-osx-arm64`
 `working tree clean: False`. This is local evidence, not a release qualification.
 
 The documents of this journey were local-toolchains `0.1.0-preview.3`, as the branch first wrote them. The
-family is now `0.1.0-preview.4` ([finos/morphir#1164](https://github.com/finos/morphir/pull/1164)), which adds
+family is now `0.1.0-preview.4` ([finos/morphir#1164](https://github.com/finos/morphir/pull/1164), merged as `648ae374`;
+[spec](https://github.com/finos/morphir/blob/main/docs/spec/toolchain/local-platforms-and-release-bundle.md)), which adds
 `osx-arm64` with `tar-gzip`. The journey was repeated with preview.4 documents; see
 [the preview.4 repeat](#preview4-repeat).
 
