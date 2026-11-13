@@ -505,7 +505,7 @@ two steps have the same pattern.
 | Extension worker | `Then each output event line of the worker is at most {int} bytes` |
 | Extension worker | `Then the output events state that more than {int} MiB of guest output were dropped` |
 | Extension worker | `Then standard error of the worker holds less than {int} KiB` |
-| Extension worker | `Then the peak working set of the worker is less than {int} MiB above that of an echo session` |
+| Extension worker | `Then the peak working set of the worker grows by less than {int} MiB from its second call to its fifth` |
 | Extension worker | `Then the temporary directory of the worker is empty` |
 | Extension runtimes | `Given a copy of the host without its engine library` |
 | Extension runtimes | `When I ask for the runtimes of the host as JSON` |

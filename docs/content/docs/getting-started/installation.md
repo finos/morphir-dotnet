@@ -82,11 +82,14 @@ Releases also attach `morphirup`, the standalone toolchain manager, as `morphiru
 Native AOT file that needs neither .NET nor ICU. The Linux files need glibc 2.35 or later (Ubuntu 22.04, Debian 12 or
 later) and nothing else from the machine, and do not run on musl distributions such as Alpine. Each archive holds
 `LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES.txt` beside the executable, and the release carries the notices as
-`morphirup-v<version>-THIRD-PARTY-NOTICES.txt`. This first release reads toolchain documents and prints plans; it
-does not download, install, update or activate a toolchain, and it does not verify signed metadata. Later builds of
-`morphirup` set up and run a toolchain on Windows x64 and Windows ARM64, and on macOS ARM64 for local-developer setup.
-Release setup on macOS ARM64 needs a release that attaches the macOS ARM64 setup inputs; see
-[Set up on macOS ARM64]({{< relref "/docs/cli/morphirup#set-up-on-macos-arm64-experimental" >}}). The files are not
+`morphirup-v<version>-THIRD-PARTY-NOTICES.txt`. For `win-x64` and `win-arm64` the release also attaches the toolchain
+that `morphirup setup` downloads and installs on Windows: the self-contained host archive, the F# frontend and backend
+archives with their release and manifest files, `morphir-host-candidate-<rid>.json`, `morphir-extensions-<rid>.json`
+and the bundle `morphir-toolchain-<rid>.json`, with one `SHA256SUMS` over both platforms' files. On macOS ARM64,
+`morphirup` sets up and runs a toolchain for local-developer setup; release setup there needs a release that attaches
+the macOS ARM64 setup inputs; see
+[Set up on macOS ARM64]({{< relref "/docs/cli/morphirup#set-up-on-macos-arm64-experimental" >}}). On other platforms
+`morphirup` reads toolchain documents and prints plans. It does not verify signed metadata. The files are not
 code-signed, and the macOS file is not notarized. See
 [Download and verify]({{< relref "/docs/cli/morphirup#download-and-verify" >}}) for the commands and for what the
 release job checks.

@@ -400,7 +400,7 @@ let tests =
             | other -> failtestf "unexpected diagnostics %A" other)
 
         testCase "the AOT probe's plan normalizes its decomposed character and has the recorded digest" (fun () ->
-            // build/Build.MyriadJson.cs TestMorphirupAot runs this command under JIT and Native AOT with --expect-plan.
+            // The Native AOT lane of the black-box tests (TestAot) runs this command under JIT and Native AOT with --expect-plan.
             let probe = Path.Combine(__SOURCE_DIRECTORY__, "AotProbe")
             let recipe = File.ReadAllBytes(Path.Combine(probe, "recipe.json"))
             let decomposed = Encoding.UTF8.GetBytes "cafe\u0301"

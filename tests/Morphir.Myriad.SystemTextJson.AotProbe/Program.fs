@@ -1,7 +1,8 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 /// Serializes every supported shape through generated contexts, reads each one back, and prints one line for each.
-/// The TestMyriadJsonAot target runs this program under JIT and as a Native AOT binary and compares the output.
+/// The Native AOT lane of the black-box tests (TestAot) runs this program under JIT and as a Native AOT binary and
+/// compares the output.
 module Morphir.Myriad.SystemTextJson.AotProbe.Program
 
 open System
