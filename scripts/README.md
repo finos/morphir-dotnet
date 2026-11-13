@@ -105,9 +105,59 @@ Runs unit tests.
 
 ### Shell Scripts
 
+#### `install-morphirup.sh` / `install-morphirup.ps1`
+
+Install `morphirup`, the Morphir toolchain manager, from a `finos/morphir-dotnet` GitHub release. Each script picks
+the newest release, prereleases included, that has `morphirup` for the machine, or the one given. It downloads
+`morphirup-<rid>` and `morphirup-v<version>.sha256`, checks the SHA-256, and installs nothing on a mismatch or a
+missing checksum line.
+
+- `install-morphirup.sh`: POSIX `sh` for Linux (x64, ARM64, glibc) and macOS (Apple silicon). It needs `curl` or
+  `wget`, and `sha256sum` or `shasum`. Options `--version <version>` and `--install-dir <dir>` (default
+  `~/.local/bin`), or `MORPHIRUP_VERSION` and `MORPHIRUP_INSTALL_DIR`. `MORPHIRUP_DOWNLOADER` picks `curl` or `wget`.
+  It prints the `PATH` line to add when the folder is not on `PATH`.
+
+  ```sh
+  curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh -s -- --version <version>
+  ```
+
+- `install-morphirup.ps1`: Windows x64 and ARM64, in Windows PowerShell 5.1 or PowerShell 7. It reads the machine's
+  architecture, so an x86 or x64 PowerShell under emulation on ARM64 still installs `win-arm64`. Parameters
+  `-Version`, `-InstallDir` (default `%LOCALAPPDATA%\Programs\morphirup`) and `-NoModifyPath`, or
+  `MORPHIRUP_VERSION`, `MORPHIRUP_INSTALL_DIR` and `MORPHIRUP_NO_MODIFY_PATH=1`. It adds the folder to the user `PATH`.
+
+  ```powershell
+  irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
+  ```
+
+Both send `GITHUB_TOKEN`, when set, to `api.github.com` only. `MORPHIRUP_SHA256_FILE` is a testing hook that names a
+local checksum file to verify against.
+
+On restricted networks, both use `HTTPS_PROXY` and `NO_PROXY`. The `sh` script passes them to curl or wget, copying
+the uppercase names to the lowercase ones that wget reads. The PowerShell script also uses the Windows proxy settings
+and signs in to a proxy as the current Windows user; on Windows PowerShell 5.1 it passes `HTTPS_PROXY` to each request
+itself, since 5.1 does not read it, and honours `NO_PROXY`. `MORPHIRUP_DOWNLOAD_URL` names an HTTPS mirror of the
+release downloads (`<url>/v<version>/<file>`). `MORPHIRUP_API_URL` replaces the release list URL. When the release
+list cannot be read, both scripts fall back to the release feed `https://github.com/finos/morphir-dotnet/releases.atom`
+and try each `v*` tag. curl and wget stop connecting after 30 seconds, so a firewall that drops packets does not hang
+the script. The workflow tests the proxy and feed fallback with `.github/install-scripts/connect-proxy.py`.
+
+The workflow `.github/workflows/install-scripts.yml` runs both scripts and the documented mise command on Linux,
+macOS and Windows, including the refusal cases. It runs only when started by hand, so pull requests do not pay for
+it. Run it after you change either script:
+
+```sh
+gh workflow run install-scripts.yml --ref <branch>
+gh workflow run install-scripts.yml --ref <branch> -f version=0.4.0-alpha.5 -f platforms=windows
+```
+
+`version` is the release for the pinned runs, without a leading `v`; empty means `0.4.0-alpha.5`. `platforms` is
+`all` (the default), `linux`, `macos` or `windows`.
+
 #### `install-linux.sh` / `install-macos.sh` / `install-windows.ps1`
 
-Installation scripts for different platforms.
+Install the standalone `morphir` CLI (not `morphirup`) on each platform.
 
 ## Running Scripts
 

@@ -75,6 +75,39 @@ adds bounded inventory, verified membership and recoverable batch application th
 `morphir workspace migrate [directory]`. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
 
+## Get started
+
+Install `morphirup`, the Morphir toolchain manager. It is one file and needs nothing else installed.
+
+```sh
+# macOS (Apple silicon) and Linux (x64, ARM64)
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
+```
+
+```powershell
+# Windows (x64, ARM64), in PowerShell
+irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
+```
+
+```sh
+# Or with mise
+mise use -g 'github:finos/morphir-dotnet[matching=morphirup,version_prefix=v,prerelease=true]'
+```
+
+The script installs the newest release and verifies the download first. Open a new terminal and run
+`morphirup --version`; it prints the version you installed.
+
+| Platform | Install morphirup | Set up, compile and generate |
+| --- | --- | --- |
+| macOS on Apple silicon | Yes | Yes |
+| Windows x64 and ARM64 | Yes | Yes |
+| Linux x64 and ARM64 | Yes | Not yet: `morphirup setup` does not support Linux yet |
+| macOS on Intel | No | No |
+
+Next, build [your first model](docs/content/docs/getting-started/first-model.md). The
+[installation guide](docs/content/docs/getting-started/installation.md) covers script options, a given release,
+manual download and the standalone `morphir` CLI. If something goes wrong, see
+[Troubleshooting](docs/content/docs/getting-started/troubleshooting.md).
 ## SDK libraries
 
 `Morphir.SDK.CSharp` is an independent `net11.0` and `net10.0` runtime package with immutable
@@ -106,7 +139,7 @@ its [main specification](openspec/specs/cli-csharp-generation/spec.md) and
 [archived evidence](openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/validation.md) are synchronized
 in this follow-up. Archive PR landing and root-verified cleanup remain pending.
 
-## Getting Started
+## Build from source and other installs
 
 ### Building from source
 
@@ -135,9 +168,10 @@ major version requires an explicit baseline update.
 
 To compile classic Morphir model JSON into F#, see the [Myriad getting-started article](docs/content/docs/getting-started/morphir-to-fsharp.md), [plugin reference](docs/content/docs/guides/myriad-fsharp.md), and [car rental tutorial](docs/content/docs/guides/car-rental-tutorial.md). The [runnable example](examples/car-rental/README.md) covers inventory, reservation, pickup, return and billing with one generated F# file per module.
 
-### Quick Start
+### Other ways to install the standalone morphir CLI
 
-Install Morphir using one of the following methods:
+To install with `morphirup`, see [Get started](#get-started). These routes install the `morphir` command line
+itself:
 
 **Using proto (Recommended for multi-language toolchains):**
 
@@ -179,12 +213,12 @@ dotnet-morphir --version   # .NET tool
 
 **Compile F# to Morphir IR:** follow the five-minute [Compile F# guide](https://finos.github.io/morphir-dotnet/docs/getting-started/compile-fsharp/).
 
-For detailed installation instructions and troubleshooting, see the [Installation Guide](https://finos.github.io/morphir-dotnet/getting-started/installation/).
+For detailed installation instructions and troubleshooting, see the [Installation Guide](https://finos.github.io/morphir-dotnet/docs/getting-started/installation/).
 
 ### Documentation
 
-- [Installation Guide](https://finos.github.io/morphir-dotnet/getting-started/installation/)
-- [Getting Started](https://finos.github.io/morphir-dotnet/getting-started/)
+- [Installation Guide](https://finos.github.io/morphir-dotnet/docs/getting-started/installation/)
+- [Getting Started](https://finos.github.io/morphir-dotnet/docs/getting-started/)
 - [API Documentation](https://finos.github.io/morphir-dotnet/api/)
 - [Morphir Ecosystem](https://morphir.finos.org/)
 
