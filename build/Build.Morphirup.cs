@@ -40,6 +40,9 @@ partial class Build
     [Parameter("Folders of the downloaded Windows toolchain outputs that WindowsToolchainChecksums lists, one per Windows RID")]
     readonly string[] WindowsToolchainSources = [];
 
+    [Parameter("The toolchain platforms that WindowsToolchainChecksums requires, for a run that produces only some; by default every one (win-x64, win-arm64, osx-arm64)")]
+    readonly string[] ToolchainPlatforms = [];
+
     AbsolutePath MorphirupPublishDirectory => RootDirectory / "artifacts" / "morphirup" / "publish" / Rid!;
 
     AbsolutePath MorphirupProjectDirectory => RootDirectory / "src" / "Morphirup";
@@ -315,17 +318,18 @@ partial class Build
         });
 
     /// <summary>
-    /// Write the release's one SHA256SUMS over the Windows toolchain outputs of both Windows RIDs
+    /// Write the release's one SHA256SUMS over the toolchain outputs of win-x64, win-arm64 and osx-arm64
     /// (<c>--windows-toolchain-sources</c>), after FlattenReleaseAssets has copied them. Fails, writing nothing, when a
-    /// Windows RID's bundle or manager is missing or a listed file differs from its output; sha256sum checks it after.
+    /// required RID's bundle or manager is missing or a listed file differs from its output; sha256sum checks it after.
+    /// <c>--toolchain-platforms</c> narrows the required RIDs for a run that does not produce them all.
     /// </summary>
     Target WindowsToolchainChecksums => _ => _
-        .Description("Write the release SHA256SUMS over both Windows toolchain outputs")
+        .Description("Write the release SHA256SUMS over the win-x64, win-arm64 and osx-arm64 toolchain outputs")
         .After(FlattenReleaseAssets)
         .Executes(() =>
         {
             if (WindowsToolchainSources.Length == 0) throw new Exception("--windows-toolchain-sources names no folder.");
-            var result = ReleaseAssets.WriteWindowsToolchainChecksums(WindowsToolchainSources, ReleaseAssetsDir);
+            var result = ReleaseAssets.WriteWindowsToolchainChecksums(WindowsToolchainSources, ReleaseAssetsDir, ToolchainPlatforms);
             if (result.Problems.Count > 0)
                 throw new Exception($"No {ReleaseAssets.WindowsToolchainChecksumFileName} is written:{Environment.NewLine}{string.Join(Environment.NewLine, result.Problems)}");
             Serilog.Log.Information("✓ {File}:{NewLine}{Text}", result.Path, Environment.NewLine, File.ReadAllText(result.Path!));

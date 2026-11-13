@@ -16,9 +16,6 @@ partial class Build
     [Parameter("Produce an explicit local-developer candidate instead of release-checksum release input")]
     readonly bool ToolchainLocalDeveloper;
 
-    /// <summary>The runtime identifiers that PackWindowsToolchain packs a setup closure for.</summary>
-    static readonly string[] ToolchainPlatforms = ["win-x64", "win-arm64", "osx-arm64"];
-
     /// <summary>
     /// One release setup closure for win-x64, win-arm64 or osx-arm64, using the existing offering, process, archive and
     /// package producers. The name stays for the workflows that call it. Off Windows, the entry points have no
@@ -32,7 +29,7 @@ partial class Build
 
     async Task PackWindowsToolchainAsync()
     {
-        if (Rid is null || !ToolchainPlatforms.Contains(Rid) || DeploymentId != "self-contained")
+        if (Rid is null || !ReleaseAssets.WindowsToolchainPlatforms.Contains(Rid) || DeploymentId != "self-contained")
             throw new InvalidOperationException("PackWindowsToolchain requires --rid win-x64, win-arm64 or osx-arm64 --deployment self-contained.");
         var rid = Rid!;
         var windows = rid.StartsWith("win-", StringComparison.Ordinal);

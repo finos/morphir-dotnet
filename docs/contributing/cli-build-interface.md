@@ -149,10 +149,15 @@ with `rid: win-arm64` and `os: windows-11-arm` for each platform offering, and b
 `PackMorphirup` and `CheckMorphirup` on that runner. Published releases keep the assets they have.
 
 For `win-x64` and `win-arm64`, `morphirup-build.yml` runs `PackWindowsToolchain`, so the same job that builds the
-manager also builds the Windows toolchain that `morphirup setup` downloads, and uploads it as
-`windows-release-toolchain-<rid>`. A release built here verifies each toolchain's own `SHA256SUMS`, then flattens
+manager also builds the toolchain that `morphirup setup` downloads, and uploads it as
+`windows-release-toolchain-<rid>`. For `osx-arm64` it does the same, and runs the acquired setup journey on the macOS
+ARM64 runner, only when its caller passes `toolchain: true`. `deployment.yml` passes it; the pull request workflow
+`morphirup.yml` does not, so its macOS job builds and checks the manager only, and its checksum job passes
+`--toolchain-platforms win-x64 win-arm64`. The artifact keeps the name `windows-release-toolchain-osx-arm64`, so one
+download pattern takes every toolchain. A release built here verifies each toolchain's own `SHA256SUMS`, then flattens
 every output once with `FlattenReleaseAssets`, which fails rather than let a second build of a file replace it. It
-attaches one `SHA256SUMS` over both Windows toolchains, written by `WindowsToolchainChecksums`. A manual run of
+attaches one `SHA256SUMS` over the `win-x64`, `win-arm64` and `osx-arm64` toolchains, written by
+`WindowsToolchainChecksums`. A manual run of
 `deployment.yml` with `dry-run` builds every platform and assembles those assets and checksum files, whatever
 `MORPHIR_DOTNET_CLI_PUBLICATION` says. It uploads them as the `dry-run-release-assets` artifact and publishes nothing.
 

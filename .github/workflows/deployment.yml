@@ -184,6 +184,9 @@ jobs:
             rid: ${{ matrix.rid }}
             os: ${{ matrix.os }}
             configuration: ${{ github.event.inputs.configuration || 'Release' }}
+            # osx-arm64 also packs its setup toolchain and runs its acquired journey, as the Windows RIDs always do.
+            # The pull request workflow does not pass this, so its macOS job stays the manager build only.
+            toolchain: true
 
     release:
         runs-on: ubuntu-latest
@@ -308,9 +311,9 @@ jobs:
                   pattern: morphirup-*
                   merge-multiple: false
 
-            # The complete Windows toolchain of each Windows RID (its manager, the nine bundle roles and the producer's
-            # SHA256SUMS), uploaded by morphirup-build.yml in build-morphirup, the one producer per RID.
-            - name: Download the Windows toolchain of each Windows platform
+            # The complete toolchain of win-x64, win-arm64 and osx-arm64 (its manager, the nine bundle roles and the
+            # producer's SHA256SUMS), uploaded by morphirup-build.yml in build-morphirup, the one producer per RID.
+            - name: Download the toolchain of each toolchain platform
               if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' || inputs.dry-run }}
               uses: actions/download-artifact@v7
               with:
@@ -369,14 +372,14 @@ jobs:
             # Each Windows producer's SHA256SUMS is checked against its own output first. Then every output is flattened
             # once: the manager and notices that morphirup-<rid> and windows-release-toolchain-<rid> both hold come from
             # the same job and must be byte-identical, so a second build of a manager can never replace the bytes a
-            # toolchain names. The release then gets the morphirup checksum file and one SHA256SUMS over both Windows
+            # toolchain names. The release then gets the morphirup checksum file and one SHA256SUMS over the three
             # toolchains, and sha256sum reads both back the way a user would.
             - name: Write and verify the checksum files
               if: ${{ vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled' || inputs.dry-run }}
               shell: bash
               run: |
                   set -euo pipefail
-                  for rid in win-x64 win-arm64; do
+                  for rid in win-x64 win-arm64 osx-arm64; do
                       (cd "./artifacts/downloads/windows-toolchain/windows-release-toolchain-$rid" && sha256sum -c SHA256SUMS)
                   done
                   ./build.sh --target FlattenReleaseAssets MorphirupChecksums WindowsToolchainChecksums \
