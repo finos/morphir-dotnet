@@ -26,6 +26,11 @@ on:
                 required: false
                 default: 1
                 type: number
+            toolchain:
+                description: "For osx-arm64, also pack and check the setup toolchain. The release passes true; a pull request does not, to keep its macOS job short. Windows always packs it."
+                required: false
+                default: false
+                type: boolean
 
 permissions:
     contents: read
@@ -253,6 +258,7 @@ jobs:
               shell: bash
               env:
                   MORPHIRUP_LINUX: ${{ runner.os == 'Linux' && 'true' || '' }}
+                  MORPHIRUP_TOOLCHAIN: ${{ inputs.toolchain && 'true' || '' }}
               run: |
                   set -euo pipefail
                   linux=()
@@ -262,14 +268,15 @@ jobs:
                   fi
                   targets=(PackMorphirup CheckMorphirup)
                   profile=()
-                  if [ "${{ inputs.rid }}" = win-x64 ] || [ "${{ inputs.rid }}" = win-arm64 ]; then
+                  if [ "${{ inputs.rid }}" = win-x64 ] || [ "${{ inputs.rid }}" = win-arm64 ] \
+                      || { [ "${{ inputs.rid }}" = osx-arm64 ] && [ -n "$MORPHIRUP_TOOLCHAIN" ]; }; then
                       targets=(PackWindowsToolchain CheckMorphirup)
                       profile=(--deployment self-contained)
                   fi
                   ./build.sh --target "${targets[@]}" --rid "${{ inputs.rid }}" --configuration "${{ inputs.configuration }}" ${profile[@]+"${profile[@]}"} ${linux[@]+"${linux[@]}"}
 
-            - name: Exercise the Windows setup composition with actual produced archives
-              if: inputs.rid == 'win-x64' || inputs.rid == 'win-arm64'
+            - name: Exercise the setup composition with actual produced archives
+              if: inputs.rid == 'win-x64' || inputs.rid == 'win-arm64' || (inputs.rid == 'osx-arm64' && inputs.toolchain)
               shell: pwsh
               env:
                   MORPHIR_WINDOWS_TOOLCHAIN_ASSETS: ${{ github.workspace }}/artifacts/release-assets
@@ -288,8 +295,10 @@ jobs:
                   $summary = [regex]::Match($plain, '(\d+) tests run[^\r\n]* [-\u2013] (\d+) passed, (\d+) ignored, (\d+) failed, (\d+) errored')
                   if (!$summary.Success -or [int]$summary.Groups[1].Value -ne $expected -or [int]$summary.Groups[2].Value -ne $expected -or [int]$summary.Groups[3].Value -ne 0 -or [int]$summary.Groups[4].Value -ne 0 -or [int]$summary.Groups[5].Value -ne 0) { throw 'The complete discovered setup group did not pass with zero skips.' }
 
-            - name: Upload the complete Windows toolchain proof inputs
-              if: inputs.rid == 'win-x64' || inputs.rid == 'win-arm64'
+            # The artifact keeps the name windows-release-toolchain-<rid> for osx-arm64 too, so the release and its
+            # checksum jobs download every toolchain with one pattern.
+            - name: Upload the complete toolchain proof inputs
+              if: inputs.rid == 'win-x64' || inputs.rid == 'win-arm64' || (inputs.rid == 'osx-arm64' && inputs.toolchain)
               uses: actions/upload-artifact@v6
               with:
                   name: windows-release-toolchain-${{ inputs.rid }}
