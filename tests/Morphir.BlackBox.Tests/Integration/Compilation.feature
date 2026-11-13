@@ -59,6 +59,12 @@ Feature: Compile F# source to Morphir IR
     And the command report has the diagnostic "compile.unsupported_ir_version"
     And no IR is published
 
+  Scenario: A compile writes no start-up logging of the mediator to standard error
+    Given an F# project whose morphir.toml names its project file
+    When I compile the project at the IR version "4"
+    Then compilation exits with 0 and one JSON report
+    And standard error does not contain "Foundatio.Mediator"
+
   Scenario: A project file named on the command line supplies the ordered sources
     Given an F# project without a configured project file
     When I compile the project with the project file "src/Acme.CarRental.fsproj"
