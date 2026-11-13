@@ -1108,6 +1108,27 @@ and <code>obj/</code> from its feature files.</td>
 </tbody>
 </table>
 
+<h3 id="record-pr6">Pull request 6 (task group 10), 2026-11-12</h3>
+<table>
+<thead><tr><th>Decision</th><th>What happened</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>The run that permits the removal of the old probe targets</td>
+<td>The workflow <code>Development</code> runs only for a pull request, a dispatch and a workflow call, not for a push
+to <code>main</code>. So the evidence is the last pull request run of pull request 5, on a head with
+<code>origin/main</code> merged: <code>TestAot</code> ran the programs of the three old targets, and more.</td>
+<td><code>aot-lane.md</code></td></tr>
+<tr><td>The helpers</td>
+<td><code>CliTestHelper</code> and <code>DevelopmentCli</code> stay: they have users in <code>Morphir.Tooling.Tests</code>,
+and they read the target of the testing library. The six old variables have no reader.</td>
+<td><code>tasks.md</code>, task 10.2</td></tr>
+<tr><td>The scope of the change</td>
+<td>The change lands as an MVP slice. The parts that are not needed for it are deferred to #618, each with its
+reason in <code>tasks.md</code>: the Debug build (a defect from before this change), the 13 tests that wait for a
+driver, the memory bound of the flood scenario on Linux, and a Windows run of the manual workflows.</td>
+<td><code>tasks.md</code>, tasks 2.1, 6.4, 6.5, 7.3</td></tr>
+</tbody>
+</table>
+
 </main>
 </body>
 </html>

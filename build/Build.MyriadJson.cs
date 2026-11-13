@@ -13,24 +13,10 @@ using Fallout.Common.IO;
 /// </summary>
 partial class Build
 {
-    AbsolutePath MyriadJsonAotProbeProject =>
-        TestsDirectory / "Morphir.Myriad.SystemTextJson.AotProbe" / "Morphir.Myriad.SystemTextJson.AotProbe.fsproj";
+    // The Native AOT checks of the generated converters, of the MEP consumer and of morphirup are the Native AOT
+    // lane of the black-box tests (TestAot, tests/Morphir.BlackBox.Tests/Smoke/NativeAot.feature).
 
-    /// <summary>
-    /// Publish the generated-converter probe with Native AOT for this machine, check that the only IL warnings are the
-    /// two FSharp.Core summary warnings that every F# AOT application has, and check that the native output equals the
-    /// JIT output byte for byte. The F# compiler does not run the trim analyzers, so only a publish finds AOT problems
-    /// in generated F# code.
-    /// </summary>
-    Target TestMyriadJsonAot => _ => _
-        .Description("Publish the Morphir.Myriad.SystemTextJson probe with Native AOT and compare it with JIT")
-        .Executes(() => VerifyAotProbe(MyriadJsonAotProbeProject, "myriad-json-aot"));
-
-    Target TestMepAot => _ => _
-        .Description("Publish the MEP C# consumer with Native AOT and compare it with JIT")
-        .Executes(() => VerifyAotProbe(
-            TestsDirectory / "Morphir.Mep.AotProbe" / "Morphir.Mep.AotProbe.csproj", "mep-aot"));
-
+    /// <summary>The inputs of the plan-only morphirup setup that the probes and the release checks run.</summary>
     AbsolutePath MorphirupProbeDirectory => TestsDirectory / "Morphir.Toolchain.Tests" / "AotProbe";
 
     // Manual lane only. Official qualification belongs to finos/morphir; this adds no CI job.
@@ -38,22 +24,6 @@ partial class Build
         .Description("Publish the installer C# consumer with Native AOT and compare it with JIT")
         .Executes(() => VerifyAotProbe(
             TestsDirectory / "Morphir.Extensions.Installation.AotProbe" / "Morphir.Extensions.Installation.AotProbe.csproj", "extension-installation-aot"));
-
-    /// <summary>
-    /// Publish the morphirup manager with Native AOT and run a plan-only setup under JIT and native. The probe recipe
-    /// holds a decomposed character and the run passes the digest the test suite records with --expect-plan, so a
-    /// build that does not normalize to NFC (for example one in invariant globalization mode) fails here.
-    /// </summary>
-    Target TestMorphirupAot => _ => _
-        .Description("Publish morphirup with Native AOT, run a plan-only setup and compare it with JIT")
-        .Executes(() => VerifyAotProbe(
-            SourceDirectory / "Morphirup" / "Morphirup.fsproj", "morphirup-aot", "morphirup",
-            "setup", "--plan", "--platform", "linux-x64",
-            "--request", MorphirupProbeDirectory / "toolchain.toml",
-            "--recipe", MorphirupProbeDirectory / "recipe.json",
-            "--repository-id", new string('b', 64),
-            "--artifact-sizes", MorphirupProbeDirectory / "artifact-sizes.json",
-            "--expect-plan", File.ReadAllText(MorphirupProbeDirectory / "plan-sha256.txt").Trim()));
 
     void VerifyAotProbe(AbsolutePath project, string workName) =>
         VerifyAotProbe(project, workName, Path.GetFileNameWithoutExtension(project));

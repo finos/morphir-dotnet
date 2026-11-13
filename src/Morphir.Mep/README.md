@@ -154,11 +154,12 @@ the nullable-flow diagnostics.
 
 ```sh
 dotnet run --project tests/Morphir.Mep.Tests -- --summary
-./build.sh --target TestMepAot --configuration Release
+./build.sh --target TestAot --configuration Release
 ```
 
 The first command runs the wire, contract, JSON-RPC, connection, session, channel and
 model-transport tests in memory. The channel tests use a fake single-message guest built on
-`Dispatcher.DispatchAsync`. The second publishes the probe with Native
-AOT, refuses IL diagnostics other than the FSharp.Core summary baseline, and compares
-the native output with JIT byte for byte. Both run in PR CI.
+`Dispatcher.DispatchAsync`. The second is the Native AOT lane of the black-box tests: it publishes
+the probe (and the other probes and library hosts) with Native AOT, refuses IL diagnostics other
+than the FSharp.Core summary baseline, and compares the native output with the managed output.
+Both run in PR CI.
