@@ -2,263 +2,69 @@
 title: "Validating IR Files"
 linkTitle: "Validating IR"
 weight: 20
-description: "Quick start guide for validating Morphir IR JSON files"
+description: "Check a Morphir IR file with morphir validate"
 ---
 
-# Validating Morphir IR Files
+`morphir validate` reads a Morphir IR file and checks it. Use it on IR that `compile` wrote, or on IR from another
+tool. The commands below run the Morphir CLI through `morphirup`, as in
+[Your first model with morphirup]({{< relref "/docs/getting-started/first-model" >}}). With the .NET tool, write
+`dotnet-morphir` in place of `morphirup run --`.
 
-This guide will help you get started with validating Morphir IR JSON files using the `morphir ir verify` command.
+## Check a file
 
-## Prerequisites
+In the walkthrough's project, after `morphirup run -- compile`:
 
-- Morphir .NET CLI installed (see [Installation](./installation/))
-- A Morphir IR JSON file to validate
-
-## Quick Start
-
-### 1. Validate Your First IR File
-
-The simplest way to validate an IR file is to run:
-
-```bash
-morphir ir verify morphir-ir.json
+```shell
+morphirup run -- validate --input .morphir/out/compile.dest/morphir-ir.json
 ```
 
-If the IR is valid, you'll see:
-
-```
-Validation Result: ✓ VALID
-File: morphir-ir.json
-Schema Version: v3 (auto)
-Timestamp: 2025-12-15 10:30:00 UTC
-
-No validation errors found.
+```text
+0 errors, 0 warnings, 0 info, 0 hints. Analyzers: 1 ran, 0 not run, 0 failed.
 ```
 
-### 2. Understanding the Output
+The exit code is 0 when there are no errors, so you can use the command in a script or a CI job. The checks find
+type mismatches, such as a string where the model declares an int.
 
-The validation output includes:
+For a report that a script can read, add `--json`:
 
-- **Validation Result**: ✓ VALID or ✗ INVALID
-- **File**: The path to the validated file
-- **Schema Version**: Which schema version was used (and how it was detected)
-- **Timestamp**: When the validation was performed
-- **Errors**: Detailed error messages (if validation failed)
-
-### 3. Handling Validation Errors
-
-If validation fails, you'll see detailed error messages:
-
-```
-Validation Result: ✗ INVALID
-File: morphir-ir.json
-Schema Version: v3 (auto)
-Timestamp: 2025-12-15 10:30:00 UTC
-
-Found 1 validation error(s):
-
-  Path: $.distribution
-  Message: Required properties ["formatVersion"] are not present
-  Expected: required property
-  Found: undefined (missing)
+```shell
+morphirup run -- validate --input .morphir/out/compile.dest/morphir-ir.json --json
 ```
 
-Each error includes:
-- **Path**: JSON path to the error location
-- **Message**: Description of what's wrong
-- **Expected**: What the schema expects
-- **Found**: What was actually found
-
-## Common Scenarios
-
-### Validating Multiple Files
-
-To validate all IR files in a directory:
-
-```bash
-# Validate all JSON files
-for file in *.json; do
-  echo "Validating $file..."
-  morphir ir verify "$file" || exit 1
-done
-```
-
-Or in parallel:
-
-```bash
-find . -name "morphir-ir.json" -exec morphir ir verify {} \;
-```
-
-### CI/CD Integration
-
-Add validation to your CI/CD pipeline:
-
-**GitHub Actions:**
-
-```yaml
-steps:
-  - name: Install Morphir CLI
-    run: dotnet tool install -g Morphir.CLI
-
-  - name: Validate IR
-    run: morphir ir verify output/morphir-ir.json
-```
-
-**GitLab CI:**
-
-```yaml
-validate-ir:
-  stage: test
-  script:
-    - dotnet tool install -g Morphir.CLI
-    - morphir ir verify output/morphir-ir.json
-```
-
-### Using Different Output Formats
-
-**JSON Output (for parsing in scripts):**
-
-```bash
-morphir ir verify --json morphir-ir.json > validation-result.json
-
-# Check if valid
-cat validation-result.json | jq '.IsValid'
-```
-
-**Quiet Mode (for CI/CD):**
-
-```bash
-# Only shows output if validation fails
-morphir ir verify --quiet morphir-ir.json
-
-# Check exit code
-if morphir ir verify --quiet morphir-ir.json; then
-  echo "IR is valid"
-fi
-```
-
-### Specifying Schema Version
-
-If you need to validate against a specific schema version:
-
-```bash
-# Validate against v3 schema
-morphir ir verify --schema-version 3 morphir-ir.json
-
-# Test if v2 IR is compatible with v3
-morphir ir verify --schema-version 3 morphir-ir-v2.json
-```
-
-## Understanding Schema Versions
-
-Morphir IR has three schema versions:
-
-| Version | Format Version Field | Detection |
-|---------|---------------------|-----------|
-| v1 | None | Legacy format, no `formatVersion` field |
-| v2 | `"formatVersion": 2` | Explicit field in JSON |
-| v3 | `"formatVersion": 3` | Explicit field in JSON |
-
-The CLI automatically detects the version by examining the JSON structure.
-
-## Next Steps
-
-### Learn More
-
-- **[CLI Reference](../../cli/)** - Complete command documentation
-- **[morphir ir verify](../../cli/ir-verify/)** - Detailed command reference
-- **[Troubleshooting](../../cli/troubleshooting/)** - Solutions to common issues
-
-### Advanced Topics
-
-- **[Schema Specifications](../../spec/schemas/)** - Understand the IR schema structure
-- **[Error Messages](../../cli/ir-verify/#common-error-messages)** - Detailed error reference
-- **Batch Validation** _(Phase 2 - coming soon)_
-- **Custom Validation Rules** _(Phase 3 - planned)_
-
-## Common Pitfalls
-
-### 1. JSON Syntax Errors
-
-**Problem:** Malformed JSON will fail validation
-
-**Solution:** Validate JSON syntax first:
-```bash
-cat morphir-ir.json | jq . > /dev/null && echo "Valid JSON"
-```
-
-### 2. Wrong formatVersion Value
-
-**Problem:** File has `"formatVersion": "3"` (string) instead of `"formatVersion": 3` (number)
-
-**Solution:** Ensure `formatVersion` is a number:
 ```json
-// Incorrect
 {
-  "formatVersion": "3",
+  "host": "morphir",
+  "success": true,
+  "exitCode": 0,
   ...
-}
-
-// Correct
-{
-  "formatVersion": 3,
-  ...
+  "analyzers": [
+    {
+      "id": "morphir.type-validator",
+      "status": "ran"
+    }
+  ],
+  "diagnostics": []
 }
 ```
 
-### 3. Case Sensitivity in Tags
+## When the file can't be read
 
-**Problem:** Tags must use correct capitalization
+If the file is not IR that Morphir can read, `validate` stops with exit code 2 and says where the problem is. Here
+`formatVersion` is the string `"3"` instead of the number `3`:
 
-**Solution:** Use `"Public"` not `"public"`, `"Private"` not `"private"`
-
-```json
-// Incorrect
-"accessControl": "public"
-
-// Correct
-"accessControl": "Public"
+```text
+Error: unsupported-version: ...\bad-ir.json at $.formatVersion: Expected a classic IR version: integer 1, 2 or 3, or release 3.0.x or 3.1.x.
 ```
 
-## Example Workflow
+[Troubleshooting]({{< relref "/docs/getting-started/troubleshooting#validating-ir" >}}) lists the usual causes.
 
-Here's a complete workflow for validating IR in your project:
+## Check against the JSON schema
 
-```bash
-#!/bin/bash
-set -e
+`morphir ir verify <file>` checks a file against the JSON schema of IR formats 1, 2 and 3. Today it also reports
+errors for IR that `compile` writes, in format 4 and in format 3, so use `validate` for those files. See the
+[ir verify reference]({{< relref "/docs/cli/ir-verify" >}}).
 
-echo "=== Morphir IR Validation Workflow ==="
+## Next steps
 
-# 1. Generate IR (example using hypothetical compiler)
-echo "Step 1: Generating IR..."
-morphir-elm make --output output/morphir-ir.json
-
-# 2. Validate IR
-echo "Step 2: Validating IR..."
-if morphir ir verify output/morphir-ir.json; then
-  echo "✓ IR is valid"
-else
-  echo "✗ IR validation failed"
-  exit 1
-fi
-
-# 3. Generate detailed report
-echo "Step 3: Generating validation report..."
-morphir ir verify --json output/morphir-ir.json > validation-report.json
-
-# 4. Check for any warnings (future feature)
-echo "Step 4: Checking for warnings..."
-# (Future: morphir ir lint output/morphir-ir.json)
-
-echo "=== Workflow Complete ==="
-```
-
-## Getting Help
-
-If you run into issues:
-
-1. Check the **[Troubleshooting Guide](../../cli/troubleshooting/)**
-2. Review **[Common Error Messages](../../cli/ir-verify/#common-error-messages)**
-3. Ask in **[GitHub Discussions](https://github.com/finos/morphir-dotnet/discussions)**
-4. Report bugs in **[GitHub Issues](https://github.com/finos/morphir-dotnet/issues)**
+- [`validate` reference]({{< relref "/docs/cli/validate" >}}): options, analyzers and exit codes.
+- [Generate F# from a Morphir model]({{< relref "/docs/getting-started/generate-fsharp" >}}).

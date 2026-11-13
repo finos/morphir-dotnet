@@ -10,7 +10,7 @@ using Morphir.TestSupport.Packaging;
 namespace Morphir.TestSupport.Drivers;
 
 /// <summary>
-/// The explicit inputs of the local candidate journey (docs/content/docs/getting-started/local-morphirup-candidate.md):
+/// The explicit inputs of the local candidate journey (docs/content/docs/contributing/local-morphirup-candidate.md):
 /// the manager executable, the candidate manifest and archive, the declared SHA-256 of the archive, and an empty
 /// evidence directory.
 /// </summary>
