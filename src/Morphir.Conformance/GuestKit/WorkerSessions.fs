@@ -159,10 +159,15 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
     let ended (error: exn) =
         WorkerEndedException(purpose, processId, error)
 
+    // True once Dispose closed the stdin. CanWrite cannot say so: a pipe stream, the stdin on Linux and macOS, keeps
+    // CanWrite true after it is closed.
+    [<VolatileField>]
+    let mutable closed = false
+
     /// Throws WorkerEndedException when the worker has exited and its stdin is still open; a closed stdin throws its
     /// own ObjectDisposedException. Call it outside the catch of isEnded, which would wrap the exception again.
     let ensureRunning () =
-        if inner.CanWrite && hasExited () then
+        if not closed && hasExited () then
             raise (ended (IOException $"The worker process {processId} has exited."))
 
     override _.CanRead = false
@@ -225,6 +230,14 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
             :> Task
         )
 
+    /// Closes the worker's stdin. A later write throws WorkerEndedException with the stream's ObjectDisposedException.
+    override _.Dispose(disposing: bool) =
+        if disposing && not closed then
+            closed <- true
+            inner.Dispose()
+
+        base.Dispose disposing
+
     override _.Flush() =
         try
             inner.Flush()
@@ -285,7 +298,9 @@ module internal WorkerSessionCheck =
 
 /// One running worker process and what it wrote on stderr.
 [<Sealed>]
-type internal LiveWorker(purpose: KitSessionPurpose, proc: Process, arguments: IReadOnlyList<string>, limits: WorkerSessionLimits) =
+type internal LiveWorker
+    (purpose: KitSessionPurpose, proc: Process, input: WorkerInput, arguments: IReadOnlyList<string>, limits: WorkerSessionLimits)
+    =
     static let killWait = TimeSpan.FromSeconds 10.0
 
     /// How long the factory keeps reading stderr after the worker ended. A descendant that holds the pipe open is not
@@ -362,7 +377,7 @@ type internal LiveWorker(purpose: KitSessionPurpose, proc: Process, arguments: I
         let! _ = watchdog
 
         try
-            proc.StandardInput.Close()
+            input.Dispose()
         with
         | :? IOException
         | :? ObjectDisposedException
@@ -599,7 +614,7 @@ type WorkerSessions
 
                 let input =
                     new WorkerInput(proc.StandardInput.BaseStream, request.Purpose, proc.Id, hasExited)
-                let worker = LiveWorker(request.Purpose, proc, workerArguments, limits)
+                let worker = LiveWorker(request.Purpose, proc, input, workerArguments, limits)
 
                 let added =
                     lock gate (fun () ->

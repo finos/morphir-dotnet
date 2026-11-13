@@ -461,6 +461,27 @@ let tests =
             Expect.equal (line.ToString()) "12 ms: {\"event\":\"started\"}" "stable text"
         }
 
+        test "A write after the factory closed the stdin of an exited worker keeps the pipe's ObjectDisposedException" {
+            // On Linux and macOS a worker's stdin is a pipe stream, whose CanWrite stays true after it is closed.
+            let checkClosed (cause: string) (write: WorkerInput -> unit) =
+                use pipe = new Pipes.AnonymousPipeServerStream(Pipes.PipeDirection.Out)
+                let input = new WorkerInput(pipe, KitSessionPurpose.Describe, 42, (fun () -> true))
+                input.Dispose()
+
+                match failureOf (fun () -> write input) with
+                | Some(:? WorkerEndedException as ended) ->
+                    match ended.InnerException with
+                    | :? ObjectDisposedException -> ()
+                    | other -> failtest $"{cause}: expected the stdin to be closed, got {other}"
+                | other -> failtest $"{cause}: expected WorkerEndedException, got {other}"
+
+            checkClosed "Write" (fun input -> input.Write([| 0uy |], 0, 1))
+
+            checkClosed "WriteAsync" (fun input ->
+                input.WriteAsync(ReadOnlyMemory [| 0uy |], CancellationToken.None).AsTask().GetAwaiter().GetResult()
+            )
+        }
+
         test "A write to a worker that has ended throws WorkerEndedException, which names the session and the worker" {
             let fake = FakeWorker.host [ "describe", [ started []; exitWith 0 ] ]
             use _gate = ProcessGate.Shared.EnterAsync().GetAwaiter().GetResult()
