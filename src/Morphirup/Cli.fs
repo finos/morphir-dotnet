@@ -898,16 +898,17 @@ let private isReleaseSetup = function
     | "setup" :: rest -> not(rest |> List.exists(fun arg -> List.contains arg ["--recipe";"--candidate";"--local-archive";"--local-bundle";"--local-developer"]))
     | _ -> false
 
-/// Local executable composition uses the actual Windows process platform, including x64 emulation.
+/// Local executable composition uses the actual process platform of Windows and macOS, including x64 emulation.
 let executionPlatform os architecture platform args =
-    if
-        os = Runtime.InteropServices.OSPlatform.Windows
-        && (isLocalInvocation args || isReleaseSetup args)
-    then
+    let pick x64 arm64 =
         match architecture with
-        | Runtime.InteropServices.Architecture.X64 -> Some Platform.WinX64
-        | Runtime.InteropServices.Architecture.Arm64 -> Some Platform.WinArm64
+        | Runtime.InteropServices.Architecture.X64 -> Some x64
+        | Runtime.InteropServices.Architecture.Arm64 -> Some arm64
         | _ -> platform
+    if isLocalInvocation args || isReleaseSetup args then
+        if os = Runtime.InteropServices.OSPlatform.Windows then pick Platform.WinX64 Platform.WinArm64
+        elif os = Runtime.InteropServices.OSPlatform.OSX then pick Platform.OsxX64 Platform.OsxArm64
+        else platform
     else
         platform
 
@@ -925,7 +926,7 @@ let private runCoreAsync
         if isReleaseSetup args then
             let emit status candidate generation diagnostic =
                 let bytes = Value.Object [
-                    "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.3" "result")
+                    "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.4" "result")
                     "command",Value.String "setup"; "status",Value.String status; "origin",Value.String "release-checksum"
                     match candidate with Some(hash: Sha256) -> "candidateSha256",Value.String hash.Text | None -> ()
                     match generation with
@@ -943,8 +944,8 @@ let private runCoreAsync
                 if parsed.Has "--yes" && parsed.Has "--dry-run" then raise (ArgumentException "Choose --yes or --dry-run.")
                 let platform =
                     match io.Platform with
-                    | Some platform when Platform.isWindows platform -> platform
-                    | _ -> LocalCandidate.refuse "setup.platform_mismatch" "Release setup requires an actual Windows x64 or ARM64 manager process."
+                    | Some platform when Platform.isLocalToolchain platform -> platform
+                    | _ -> LocalCandidate.refuse "setup.platform_mismatch" "Release setup requires an actual Windows x64, Windows ARM64 or macOS ARM64 manager process."
                 let home = parsed.TryGet "--home" |> Option.defaultWith ComposedInstallation.defaultHome |> LocalCandidate.homePath
                 let version = ComposedInstallation.releaseVersion io.CurrentDirectory VersionInfo.Version
                 let execute transport = ComposedInstallation.setupWithTransportAsync platform home version transport (not(parsed.Has "--yes")) ct
@@ -982,7 +983,7 @@ let private runCoreAsync
                 let bytes =
                     if not composedLocal then LocalCandidate.result command status identity diagnostic
                     else Value.Object [
-                        "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.3" "result")
+                        "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.4" "result")
                         "command",Value.String command;"status",Value.String status;"origin",Value.String "local-developer"
                         match identity with Some(hash: Sha256) -> "candidateSha256",Value.String hash.Text | None -> ()
                         match localGeneration with
@@ -1025,11 +1026,11 @@ let private runCoreAsync
                 if
                     command
                     <> "show"
-                    && not(io.Platform |> Option.exists Platform.isWindows)
+                    && not(io.Platform |> Option.exists Platform.isLocalToolchain)
                 then
                     LocalCandidate.refuse
                         "local.platform_mismatch"
-                        "Local execution requires an actual Windows x64 or ARM64 manager process."
+                        "Local execution requires an actual Windows x64, Windows ARM64 or macOS ARM64 manager process."
 
                 match command with
                 | "setup" ->

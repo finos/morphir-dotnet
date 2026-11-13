@@ -30,6 +30,8 @@ let main args =
                 Cli.executionPlatform
                     (if OperatingSystem.IsWindows() then
                          Runtime.InteropServices.OSPlatform.Windows
+                     elif OperatingSystem.IsMacOS() then
+                         Runtime.InteropServices.OSPlatform.OSX
                      else
                          Runtime.InteropServices.OSPlatform.Linux)
                     Runtime.InteropServices.RuntimeInformation.ProcessArchitecture

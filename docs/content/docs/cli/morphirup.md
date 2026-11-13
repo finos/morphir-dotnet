@@ -2,7 +2,7 @@
 title: "morphirup"
 linkTitle: "morphirup"
 weight: 90
-description: "The standalone toolchain manager: experimental Windows release setup, installed execution and local planning"
+description: "The standalone toolchain manager: experimental Windows and macOS ARM64 setup, installed execution and local planning"
 ---
 
 # morphirup
@@ -62,6 +62,60 @@ access or the download cache. The existing explicit local candidate commands rem
 This scope does not implement publisher authentication, trust commands, moving release channels or portable lock
 restore. The manual `Windows released morphirup journey` workflow validates the actual published executable after
 assets are available; it is not a claim that an unpublished candidate has already been downloaded successfully.
+
+## Set up on macOS ARM64 (experimental)
+
+`morphirup` supports macOS ARM64 (`osx-arm64`) for local-developer setup now. Release setup with
+`morphirup setup --yes` works on macOS ARM64 when a release attaches the macOS ARM64 setup inputs. The current release
+does not attach them, so on macOS ARM64 use the local-developer route below. Intel macOS (`osx-x64`) is not supported:
+an x64 manager under Rosetta refuses setup and run.
+
+The build makes the macOS ARM64 inputs on a Mac with Apple silicon:
+
+```bash
+./build.sh --target PackWindowsToolchain --rid osx-arm64 --deployment self-contained \
+  --toolchain-local-developer --release-assets-dir artifacts/osx-toolchain
+```
+
+The target keeps its name for the workflows that call it. For `osx-arm64` it writes the host archive
+`morphir-dotnet-<version>-self-contained-osx-arm64.tar.gz`, the candidate `morphir-host-candidate-osx-arm64.json`,
+the F# frontend and backend archives, release descriptors and manifests, `morphir-extensions-osx-arm64.json`, the
+bundle `morphir-toolchain-osx-arm64.json`, `SHA256SUMS` and the manager `morphirup-osx-arm64`. The archives are tar.gz,
+and the entry points are `morphir`, `morphir-fsharp-frontend` and `morphir-fsharp-backend`, with no `.exe`. Then, with
+`A=artifacts/osx-toolchain` and an absolute Home `H`:
+
+```bash
+$A/morphirup-osx-arm64 setup --candidate $A/morphir-host-candidate-osx-arm64.json \
+  --local-archive $A/morphir-dotnet-<version>-self-contained-osx-arm64.tar.gz \
+  --local-bundle $A/morphir-toolchain-osx-arm64.json --local-developer --home "$H" --dry-run
+# The same command with --yes instead of --dry-run installs and prints generationSha256.
+$A/morphirup-osx-arm64 select --generation <generationSha256> --home "$H"
+cd examples/morphirup-fsharp
+$A/morphirup-osx-arm64 run --home "$H" -- compile --output compiled --out-dir out --json
+$A/morphirup-osx-arm64 run --home "$H" -- generate --target fsharp --input compiled/morphir-ir.json \
+  --output generated --option format=false --json
+```
+
+The installed commands need no .NET on `PATH` and no network. On macOS:
+
+- Setup keeps the bytes of each executable as the SDK published them. The SDK signs each apphost ad hoc, and
+  ARM64 macOS runs only a signed executable, so the signature stays valid.
+- A host file is installed with mode 0755 when its archive mode is executable, as for the entry point and
+  `createdump`, and 0644 otherwise. A provider file is installed read-only, 0555 or 0444. Setuid, setgid and
+  group or other write bits in an archive are never installed.
+- Setup uses the physical path of the parent folders of Home. On macOS, `$TMPDIR` is below the link `/var`, and the
+  installed host refuses a source file below a link. A Home that is itself a link is refused.
+- `run` starts the host with the same environment as on Windows: `MORPHIR_HOME`, `MORPHIR_ISOLATED=1`, the discovery
+  boundary and `DOTNET_MULTILEVEL_LOOKUP=0`, and no `DOTNET_ROOT`, `DOTNET_ROOT_X64`, `DOTNET_ROOT_ARM64`,
+  `DOTNET_SHARED_STORE`, `DOTNET_ADDITIONAL_DEPS` or `DOTNET_STARTUP_HOOKS`.
+- Process ownership is weaker than on Windows. On Windows the host runs in a kill-on-close job: when the host exits,
+  `morphirup` stops each process that is still in the job, and when `morphirup` dies, the job stops them all. On
+  macOS the host has no process group of its own. When you cancel `run` (Ctrl+C) or its output fails, `morphirup`
+  stops the host and the processes below it that are still its descendants at that time. It does not stop a
+  process that the host started and left running when the host exited normally, and it stops nothing when
+  `morphirup` itself is killed.
+
+The executables are not notarized. This is local-developer delivery: a checksum does not authenticate the publisher.
 
 ## Existing manager release downloads
 

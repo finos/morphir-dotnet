@@ -15,9 +15,9 @@ type internal ComposedOrigin =
         | ComposedOrigin.LocalDeveloper -> "local-developer"
         | ComposedOrigin.ReleaseChecksum -> "release-checksum"
 
-/// Exact local preview.2 host input and its independently selected process identities.
+/// Exact composed host input (preview.2 or preview.4) and its independently selected process identities.
 type LocalComposedCandidate internal (host: LocalHostCandidate, selection: Sha256, frontend: ExtensionId, backend: ExtensionId, origin: ComposedOrigin) =
-    /// The host closure with the exact preview.2 input digest.
+    /// The host closure with the exact input digest of its candidate.
     member _.Host = host
     /// Digest of the separately supplied portable selection.
     member _.SelectionSha256 = selection
@@ -49,9 +49,9 @@ module LocalComposedDocument =
 
     let readCandidate bytes = readCandidateFor "0.1.0-preview.2" bytes
 
-    /// Reads the isolated preview.3 family without converting earlier local families.
+    /// Reads the isolated preview.4 family without converting earlier local families.
     let readReleaseCandidate (bytes: byte array) : Result<LocalComposedCandidate,ReaderRefusal> =
-        readCandidateFor "0.1.0-preview.3" bytes
+        readCandidateFor "0.1.0-preview.4" bytes
 
 /// An exact release asset. Its digest is integrity input, not publisher authentication.
 type internal ReleaseAsset = { Name: TargetPath; Url: Uri; Bytes: uint64; Sha256: Sha256; Role: string }
@@ -62,7 +62,7 @@ type internal ComposedManifest = { Identity: Sha256; CandidateSha256: Sha256; Se
 module internal ReleaseBundleDocument =
     open Reading
     let repository = "https://github.com/finos/morphir-dotnet"
-    let family = "0.1.0-preview.3"
+    let family = "0.1.0-preview.4"
     let schema kind = $"https://morphir.finos.org/schemas/local-toolchains/{family}/{kind}.schema.json"
     let roles = ["host-candidate";"host-archive";"selection";"frontend-release";"frontend-manifest";"frontend-archive";"backend-release";"backend-manifest";"backend-archive"]
     let fileName platform = $"morphir-toolchain-{Platform.name platform}.json"
@@ -86,7 +86,7 @@ module internal ReleaseBundleDocument =
     let read bytes : Result<ReleaseBundle,ReaderRefusal> = result {
         let! o = envelope family "bundle" ["version";"sourceCommit";"platform";"assets"] bytes
         let! version = required "version" version o
-        let! platform = required "platform" (tag ["win-x64",Platform.WinX64;"win-arm64",Platform.WinArm64]) o
+        let! platform = required "platform" (tag ["win-x64",Platform.WinX64;"win-arm64",Platform.WinArm64;"osx-arm64",Platform.OsxArm64]) o
         let! commit = required "sourceCommit" text o
         if commit.Length <> 40 || commit |> Seq.exists(fun c -> not (Char.IsAsciiDigit c || c >= 'a' && c <= 'f')) then
             return! refuse ReaderCode.InvalidValue (o.Path.Child "sourceCommit")
@@ -190,7 +190,7 @@ module internal ComposedDocuments =
         return role
     }
     let readManifest family (candidate: LocalComposedCandidate) bytes : Result<ComposedManifest,ReaderRefusal> = result {
-        let! o = envelope family "generation" (["candidateSha256";"selectionSha256";"catalogSha256";"locks";"metadata";"workflow"] @ if family="0.1.0-preview.3" then ["acquisition"] else []) bytes
+        let! o = envelope family "generation" (["candidateSha256";"selectionSha256";"catalogSha256";"locks";"metadata";"workflow"] @ if family="0.1.0-preview.4" then ["acquisition"] else []) bytes
         let! candidateHash = required "candidateSha256" sha256 o
         let! selection = required "selectionSha256" sha256 o
         let! catalog = required "catalogSha256" sha256 o
@@ -273,11 +273,11 @@ module internal ComposedDocuments =
         let! url = required "$schema" text o
         match url with
         | "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.2/candidate.schema.json" -> return "0.1.0-preview.2"
-        | "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/candidate.schema.json" -> return "0.1.0-preview.3"
+        | "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/candidate.schema.json" -> return "0.1.0-preview.4"
         | _ -> return! refuse ReaderCode.UnsupportedContractVersion (o.Path.Child "$schema")
     }
     let candidateForFamily family bytes =
-        if family="0.1.0-preview.3" then LocalComposedDocument.readReleaseCandidate bytes
+        if family="0.1.0-preview.4" then LocalComposedDocument.readReleaseCandidate bytes
         else LocalComposedDocument.readCandidate bytes
     let schemaFor family kind = $"https://morphir.finos.org/schemas/local-toolchains/{family}/{kind}.schema.json"
     let receipt family (candidate: LocalComposedCandidate) identity =
@@ -304,10 +304,11 @@ module internal ComposedDocuments =
             "generationSha256",Value.String ((identity: Sha256).Text)
             "receiptSha256",Value.String ((Sha256.ofBytes receiptBytes).Text)
             "receiptPath",Value.String(LocalCandidateDocument.receiptPath identity)] |> JsonText.toBytes
-    let readPointer family bytes = result {
-        let! o = envelope family "selection" ["origin";"generationSha256";"receiptSha256";"receiptPath"] bytes
-        do! if family="0.1.0-preview.3" then Ok () else constant "origin" "local-developer" o
-        let! origin = required "origin" (tag (if family="0.1.0-preview.3" then ["local-developer",ComposedOrigin.LocalDeveloper;"release-checksum",ComposedOrigin.ReleaseChecksum] else ["local-developer",ComposedOrigin.LocalDeveloper])) o
+    /// Reads the selection pointer of the one current family, local-toolchains 0.1.0-preview.4, by its exact $schema.
+    /// A preview.2 or preview.3 pointer is refused; nothing converts it.
+    let readPointer bytes = result {
+        let! o = envelope "0.1.0-preview.4" "selection" ["origin";"generationSha256";"receiptSha256";"receiptPath"] bytes
+        let! origin = required "origin" (tag ["local-developer",ComposedOrigin.LocalDeveloper;"release-checksum",ComposedOrigin.ReleaseChecksum]) o
         let! id = required "generationSha256" sha256 o
         let! receipt = required "receiptSha256" sha256 o
         do! constant "receiptPath" (LocalCandidateDocument.receiptPath id) o
