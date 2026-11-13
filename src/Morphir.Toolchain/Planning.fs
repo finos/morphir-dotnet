@@ -265,10 +265,10 @@ module LocalCandidatePlanning =
             validate ((=) Platform.WinX64) currentPlatform maximumArchiveBytes candidate
             |> Result.map (fun () -> LocalCandidatePlan(LocalConsent.LocalDeveloper, candidate))
 
-    // Preview.3 accepts only the two Windows process platforms. Acquisition or
+    // Preview.4 accepts the two Windows process platforms and macOS ARM64. Acquisition or
     // explicit developer consent is checked by its caller, never granted by this plan.
     let internal planRelease currentPlatform maximumArchiveBytes candidate =
-        validate Platform.isWindows currentPlatform maximumArchiveBytes candidate
+        validate Platform.isLocalToolchain currentPlatform maximumArchiveBytes candidate
 
 /// The explicit local pointer binds immutable receipt bytes, not a repository or a recipe.
 type LocalCandidateSelection = {
@@ -283,6 +283,10 @@ module LocalCandidateDocument =
 
     let schema name =
         $"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.1/{name}.schema.json"
+
+    /// The archive format of a host archive: ZIP on Windows, tar with gzip elsewhere, as the release archives are.
+    let archiveFormat platform =
+        if Platform.isWindows platform then "zip" else "tar-gzip"
 
     let installationPath (candidate: LocalHostCandidate) =
         $"store/tools/sha256/{candidate.ArchiveSha256.Text}"
@@ -347,7 +351,7 @@ module LocalCandidateDocument =
         do! constant "implementation" "dotnet" o
         do! constant "deployment" "self-contained" o
         do! if releaseFamily then Ok () else constant "platform" "win-x64" o
-        let! platform = required "platform" (if releaseFamily then tag ["win-x64",Platform.WinX64;"win-arm64",Platform.WinArm64] else platform) o
+        let! platform = required "platform" (if releaseFamily then tag ["win-x64",Platform.WinX64;"win-arm64",Platform.WinArm64;"osx-arm64",Platform.OsxArm64] else platform) o
         let! version = required "version" version o
         let! source = required "sourceCommit" text o
 
@@ -425,14 +429,14 @@ module LocalCandidateDocument =
                 ] @ extraNames)
                 bytes
 
-        let! version, sourceCommit, buildIdentity, platform = identityFor (family = "0.1.0-preview.3") o
+        let! version, sourceCommit, buildIdentity, platform = identityFor (family = "0.1.0-preview.4") o
         do! constant "sourceRepository" "https://github.com/finos/morphir-dotnet" o
 
         let! archive =
             objectMember "archive" o
             |> Result.bind (closed [ "format"; "sha256"; "bytes" ])
 
-        do! constant "format" "zip" archive
+        do! constant "format" (archiveFormat platform) archive
         let! digest = required "sha256" sha256 archive
         let! length = required "bytes" integer archive
 

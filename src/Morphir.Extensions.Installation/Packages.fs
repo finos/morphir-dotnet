@@ -827,14 +827,10 @@ module internal PackageTreeIO =
                 value
             )
 
-    let extractZip
-        (source: FileStream)
-        (tree: SafeDirectory)
-        (plan: PackagePlan)
-        (created: Dictionary<string, StageIdentity>)
-        (ct: CancellationToken)
-        =
-        let records = ArchiveChecks.zipRecordsWithPolicy source true
+    /// The package-relative names of an archive's entries, in archive order, after the package root is removed: None for
+    /// an entry that is the root or "./". It refuses unportable, duplicate, case-colliding and conflicting paths, and a
+    /// missing or non-file entry point or executable.
+    let normalizeEntries (records: (string * bool) array) (plan: PackagePlan) =
         let names = Dictionary<string, bool>(StringComparer.Ordinal)
         let spellings = Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         let normalized = ResizeArray<string option>()
@@ -846,8 +842,8 @@ module internal PackageTreeIO =
                 + "/"
             )
 
-        for record in records do
-            let original = record.Name
+        for recordName, recordDirectory in records do
+            let original = recordName
 
             if original.Length > 240 then
                 Operations.fail "package.path" "Archive path exceeds 240 ASCII bytes."
@@ -860,7 +856,7 @@ module internal PackageTreeIO =
 
             let stripped =
                 if
-                    record.Directory
+                    recordDirectory
                     && stripped.EndsWith '/'
                 then
                     stripped.Substring(
@@ -885,7 +881,7 @@ module internal PackageTreeIO =
                     | Some prefix when
                         stripped
                         + "/" = prefix
-                        && record.Directory
+                        && recordDirectory
                         ->
                         None
                     | Some prefix when stripped.StartsWith(prefix, StringComparison.Ordinal) ->
@@ -926,7 +922,7 @@ module internal PackageTreeIO =
                         | _ -> ()
 
                     if
-                        not record.Directory
+                        not recordDirectory
                         && names.Keys
                            |> Seq.exists (fun name ->
                                name.StartsWith(
@@ -940,7 +936,7 @@ module internal PackageTreeIO =
                             "package.path_conflict"
                             "A file replaces a parent directory."
 
-                    names.Add(relative, record.Directory)
+                    names.Add(relative, recordDirectory)
                     normalized.Add(Some relative)
 
         if not (names.ContainsKey plan.EntryPoint.Text) then
@@ -956,6 +952,19 @@ module internal PackageTreeIO =
                 | true, false -> true
                 | _ -> false
             )
+
+        normalized.ToArray()
+
+    let extractZip
+        (source: FileStream)
+        (tree: SafeDirectory)
+        (plan: PackagePlan)
+        (created: Dictionary<string, StageIdentity>)
+        (ct: CancellationToken)
+        =
+        let records = ArchiveChecks.zipRecordsWithPolicy source true
+        let normalized =
+            normalizeEntries (records |> Array.map (fun record -> record.Name, record.Directory)) plan
 
         source.Position <- 0L
         use zip = new ZipArchive(source, ZipArchiveMode.Read, true)
@@ -1099,6 +1108,127 @@ module internal PackageTreeIO =
 
         manifest
 
+    /// Extracts a tar.gz package by the rules of a ZIP package: the package records first refuse links, devices and
+    /// the package bounds, the package reader checks the names, then one pass writes each regular file with its
+    /// canonical mode.
+    let extractTarGz
+        (source: FileStream)
+        (tree: SafeDirectory)
+        (plan: PackagePlan)
+        (created: Dictionary<string, StageIdentity>)
+        (ct: CancellationToken)
+        =
+        let records = ArchiveChecks.tarPackageRecords source ct
+        let normalized = normalizeEntries (records |> Array.map (fun record -> record.Name, record.IsDirectory)) plan
+        source.Position <- 0L
+        use gzip = new GZipStream(source, CompressionMode.Decompress, true)
+        use tar = new Formats.Tar.TarReader(gzip, true)
+        let files = ResizeArray<PackageFile>()
+        let mutable total = 0L
+        let mutable index = 0
+        let mutable reading = true
+
+        while reading do
+            ct.ThrowIfCancellationRequested()
+
+            match tar.GetNextEntry(false) with
+            | null -> reading <- false
+            | entry when entry.EntryType = Formats.Tar.TarEntryType.GlobalExtendedAttributes -> ()
+            | entry ->
+                if index >= records.Length then
+                    Operations.fail "package.tar_header_mismatch" "Archive reader and validated records differ."
+
+                let record = records[index]
+
+                if
+                    entry.Name <> record.Name
+                    || (entry.EntryType = Formats.Tar.TarEntryType.Directory) <> record.IsDirectory
+                then
+                    Operations.fail "package.tar_header_mismatch" "Tar effective name differs."
+
+                match normalized[index] with
+                | Some relative when not record.IsDirectory ->
+                    let owned = ResizeArray<IDisposable>()
+
+                    try
+                        let parts = relative.Split '/'
+
+                        let parent =
+                            stageDirectories
+                                owned
+                                created
+                                tree
+                                (parts[0 .. parts.Length - 2] |> Array.toList)
+
+                        let fileName = parts[parts.Length - 1]
+                        use output = parent.File(fileName, true, false)
+                        created[Path.Combine(parent.Path, fileName)] <- parent.FileIdentity output
+                        let input = match entry.DataStream with null -> Stream.Null | stream -> stream
+                        let hash = Digest.Incremental()
+                        let buffer = Array.zeroCreate<byte> 65536
+                        let mutable length = 0L
+                        let mutable copying = true
+
+                        while copying do
+                            ct.ThrowIfCancellationRequested()
+                            let count = input.Read(buffer, 0, buffer.Length)
+
+                            if count = 0 then
+                                copying <- false
+                            else
+                                length <- length + int64 count
+                                total <- total + int64 count
+
+                                if length > InstallationLimits.MaxArtifactBytes then
+                                    Operations.fail "package.file_too_large" "Package file exceeds 256 MiB."
+
+                                if total > InstallationLimits.MaxArchiveBytes then
+                                    Operations.fail "package.expanded_too_large" "Package expansion exceeds 1 GiB."
+
+                                hash.Append(buffer, 0, count)
+                                output.Write(buffer, 0, count)
+
+                        if length <> entry.Length || length <> record.Length then
+                            Operations.fail "package.tar_header_mismatch" "Tar actual file size differs."
+
+                        output.Flush true
+
+                        let executable =
+                            relative = plan.EntryPoint.Text
+                            || plan.Executables
+                               |> Seq.exists (fun path -> path.Text = relative)
+
+                        mode (Path.Combine(parent.Path, fileName)) executable
+
+                        files.Add(
+                            PackageFile(
+                                PackagePaths.read "package.path" relative,
+                                length,
+                                Sha256Digest.Create(hash.Finish()),
+                                executable
+                            )
+                        )
+                    finally
+                        close owned
+                | _ -> ()
+
+                index <- index + 1
+
+        if index <> records.Length then
+            Operations.fail "package.tar_header_mismatch" "Archive reader and validated records differ."
+
+        let manifest = PackageManifest.Create(files.ToArray())
+
+        if
+            Digest.ofBytes (manifest.ToBytes())
+            <> plan.TreeDigest.Value
+        then
+            Operations.fail
+                "package.tree_digest_mismatch"
+                "Extracted canonical tree differs from package.treeSha256."
+
+        manifest
+
     let sealDirectories (tree: SafeDirectory) =
         let rec seal (directory: SafeDirectory) =
             for name in directory.Entries() do
@@ -1202,7 +1332,7 @@ module internal PackageTreeIO =
 /// Package tree operations. Catalog/lock registration and selected-record capture are separate, unfinished work.
 [<AbstractClass; Sealed>]
 type PackageInstaller private () =
-    /// Validates, extracts and publishes a ZIP tree. This does not mark an extension ready or write selection metadata.
+    /// Validates, extracts and publishes a ZIP or tar.gz tree. This does not mark an extension ready or write selection metadata.
     static member InstallAsync
         (
             home: string,
@@ -1240,17 +1370,28 @@ type PackageInstaller private () =
                 input.Position <- 0L
 
                 if
-                    plan.Format
-                    <> "zip"
+                    plan.Format <> "zip"
+                    && plan.Format <> "tar.gz"
                 then
                     Operations.fail
-                        "package.format_not_implemented"
-                        "Package tar.gz extraction is not implemented yet."
+                        "package.archive_format"
+                        "The package format is neither zip nor tar.gz."
 
-                if not (ArchiveChecks.isZip signature count) then
+                if
+                    plan.Format = "zip"
+                    && not (ArchiveChecks.isZip signature count)
+                then
                     Operations.fail
                         "package.archive_format"
                         "Archive bytes do not match declared ZIP format."
+
+                if
+                    plan.Format = "tar.gz"
+                    && not (ArchiveChecks.isGzip signature count)
+                then
+                    Operations.fail
+                        "package.archive_format"
+                        "Archive bytes do not match declared tar.gz format."
 
                 use root = SafeDirectory.Open(home, true)
                 do! StateOwnership.checkRepositoriesAsync root ct
@@ -1297,7 +1438,10 @@ type PackageInstaller private () =
 
                                 let manifest =
                                     try
-                                        PackageTreeIO.extractZip input tree plan created ct
+                                        match plan.Format with
+                                        | "zip" -> PackageTreeIO.extractZip input tree plan created ct
+                                        | "tar.gz" -> PackageTreeIO.extractTarGz input tree plan created ct
+                                        | _ -> invalidOp "The package format was checked before staging."
                                     with
                                     | :? InvalidDataException as error ->
                                         ArchiveChecks.unsafe error.Message

@@ -41,6 +41,7 @@
     <Compile Include="CliTests.fs" />
     <Compile Include="LocalCandidateTests.fs" />
     <Compile Include="ReleaseSetupTests.fs" />
+    <Compile Include="MacArm64SetupTests.fs" />
     <Compile Include="LocalProcessOwnershipTests.fs" />
     <Compile Include="DryRunTests.fs" />
     <Compile Include="ConfigurationAdapterTests.fs" />

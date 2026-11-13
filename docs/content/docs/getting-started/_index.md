@@ -2,62 +2,31 @@
 title: "Getting Started"
 linkTitle: "Getting Started"
 weight: 10
-description: "Get up and running with Morphir .NET"
+description: "Install the Morphir toolchain, compile your first model and generate code from it"
 ---
 
-New here? Start with [Your first model with morphirup]({{< relref "/docs/getting-started/first-model" >}}). It installs `morphirup`, sets up the Morphir toolchain, compiles a small F# model, generates F# from it and changes a rule, with no .NET install. It works on Windows today.
+## Start here
 
-With the .NET tool instead, [Compile F# to Morphir IR]({{< relref "/docs/getting-started/compile-fsharp" >}}) takes five minutes: write a rule in F#, compile it, and generate C# from it.
+[Your first model with morphirup]({{< relref "/docs/getting-started/first-model" >}}) takes you from nothing to
+generated code: install `morphirup`, set up the toolchain, compile a small F# model and generate F# from it. It works
+on Windows and on Macs with Apple silicon, and needs no .NET.
 
-For executable F# from a model JSON file, start with [Generate F# from Morphir]({{< relref "/docs/getting-started/morphir-to-fsharp" >}}).
+[Installation]({{< relref "/docs/getting-started/installation" >}}) lists every way to install `morphirup` and the
+Morphir CLI.
 
-## Installation
+## Next
 
-### Prerequisites
+- [Compile F# to Morphir IR]({{< relref "/docs/getting-started/compile-fsharp" >}}): a larger rule, compiled with the
+  .NET tool `dotnet-morphir`, and C# generated from it.
+- [Generate F# from a Morphir model]({{< relref "/docs/getting-started/generate-fsharp" >}}): turn an IR file into F#.
+- [Generate and run C#]({{< relref "/docs/getting-started/morphir-to-csharp" >}}): generate C# and call it from a C#
+  program.
+- [Generate F# from Morphir]({{< relref "/docs/getting-started/morphir-to-fsharp" >}}): generate F# as part of an
+  ordinary build, with the Myriad plugin.
+- [Validating IR files]({{< relref "/docs/getting-started/validating-ir" >}}): check an IR file against its schema.
+- [Configure a workspace]({{< relref "/docs/getting-started/configuration" >}}): `morphir.toml`, settings and
+  migrating morphir-elm projects.
+- [Python WASM extension]({{< relref "/docs/getting-started/python-wasm" >}}) (experimental): compile and generate
+  Python.
 
-- [.NET SDK](https://dotnet.microsoft.com/download) 10.0 or higher
-- [Mono](http://www.mono-project.com/) if you're on Linux or macOS
-
-### Install Morphir CLI
-
-The dotnet tool `dotnet-morphir` has every command, including `compile` for F#:
-
-```bash
-dotnet tool install --global Morphir.Tool --prerelease
-dotnet-morphir --version
-```
-
-The native executable `morphir` needs no .NET SDK. Download it from the
-[releases page](https://github.com/finos/morphir-dotnet/releases). To compile F# with it, see
-[compile F# with the native executable]({{< relref "/docs/guides/compile-with-native-morphir" >}}).
-
-## Your First Project
-
-### 1. Create a New Project
-
-```bash
-dotnet new console -n MyMorphirProject
-cd MyMorphirProject
-```
-
-### 2. Add Morphir.Core Package
-
-```bash
-dotnet add package Morphir.Core
-```
-
-### 3. Build Your Project
-
-```bash
-dotnet build
-```
-
-## Next Steps
-
-- Read the [workspace configuration walkthrough]({{< relref "/docs/getting-started/configuration" >}}), including its implementation status
-- Learn about [Morphir IR modeling](/docs/guides/ir-modeling/)
-- Explore the [API Reference](/docs/api/)
-- Check out [examples and guides](/docs/guides/)
-
-
-For classic project adoption, follow the [configuration walkthrough]({{< relref "/docs/getting-started/configuration" >}}#migrate-the-classic-project).
+When something goes wrong, see [Troubleshooting]({{< relref "/docs/getting-started/troubleshooting" >}}).

@@ -16,17 +16,28 @@ partial class Build
     [Parameter("Produce an explicit local-developer candidate instead of release-checksum release input")]
     readonly bool ToolchainLocalDeveloper;
 
-    /// <summary>One Windows release setup closure, using the existing offering, process, archive and package producers.</summary>
+    /// <summary>The runtime identifiers that PackWindowsToolchain packs a setup closure for.</summary>
+    static readonly string[] ToolchainPlatforms = ["win-x64", "win-arm64", "osx-arm64"];
+
+    /// <summary>
+    /// One release setup closure for win-x64, win-arm64 or osx-arm64, using the existing offering, process, archive and
+    /// package producers. The name stays for the workflows that call it. Off Windows, the entry points have no
+    /// <c>.exe</c> and the archives are tar.gz, as <see cref="ReleaseArchive.FormatFor"/> gives. The archives keep the
+    /// published bytes unchanged, so the SDK's ad-hoc signature of a macOS apphost stays valid.
+    /// </summary>
     Target PackWindowsToolchain => _ => _
-        .Description("Pack the Windows x64 or ARM64 runtime-bundled F# toolchain, package metadata and release checksums")
+        .Description("Pack the win-x64, win-arm64 or osx-arm64 runtime-bundled F# toolchain, package metadata and release checksums")
         .DependsOn(PackRelease, PublishFSharpFrontendProcess, PublishFSharpBackendProcess, PackMorphirup)
         .Executes(() => PackWindowsToolchainAsync().GetAwaiter().GetResult());
 
     async Task PackWindowsToolchainAsync()
     {
-        if (Rid is not ("win-x64" or "win-arm64") || DeploymentId != "self-contained")
-            throw new InvalidOperationException("PackWindowsToolchain requires --rid win-x64 or win-arm64 --deployment self-contained.");
+        if (Rid is null || !ToolchainPlatforms.Contains(Rid) || DeploymentId != "self-contained")
+            throw new InvalidOperationException("PackWindowsToolchain requires --rid win-x64, win-arm64 or osx-arm64 --deployment self-contained.");
         var rid = Rid!;
+        var windows = rid.StartsWith("win-", StringComparison.Ordinal);
+        var format = ReleaseArchive.FormatFor(rid);
+        var hostEntryPoint = windows ? "morphir.exe" : "morphir";
         var platform = InstallationPlatform.Create(rid);
         ReleaseAssetsDir.CreateDirectory();
         var releaseVersion = Version.ToString();
@@ -35,7 +46,7 @@ partial class Build
         var hostFolder = ReleasePublishDirectory(artifact);
         var hostArchive = ReleaseDir / artifact.FileName;
         File.Copy(hostArchive, ReleaseAssetsDir / artifact.FileName, true);
-        var hostVersion = RunChecked(hostFolder / "morphir.exe", ["--version"], null, hostFolder,
+        var hostVersion = RunChecked(hostFolder / hostEntryPoint, ["--version"], null, hostFolder,
             "runtime-bundled host version", TimeSpan.FromSeconds(30)).Trim();
         if (!Morphir.Toolchain.SemVerModule.tryParse(hostVersion).Match(_ => true, _ => false))
             throw new InvalidOperationException("The actual published host did not report SemVer.");
@@ -46,8 +57,8 @@ partial class Build
         {
             var stem = $"morphir-fsharp-{role}";
             var folder = ExtensionProcessesDir / stem / rid;
-            var archive = ExtensionProcessesDir / $"{stem}-{releaseVersion}-{rid}.zip";
-            var exe = stem + ".exe";
+            var archive = ExtensionProcessesDir / $"{stem}-{releaseVersion}-{rid}{ReleaseArchive.ExtensionFor(format)}";
+            var exe = windows ? stem + ".exe" : stem;
             var tuples = new[] { ModelOperation.CompileModel, ModelOperation.GenerateModel }
                 .SelectMany(operation => new[] { "4.0.0", "3.0.0" }.Select(version => new ModelTransportTuple(operation,
                     "morphir-ir", ModelCodec.MorphirJson, SemanticVersion.Create("0.1.0-draft.1"), SemanticVersion.Create(version)))).ToArray();
@@ -104,7 +115,7 @@ partial class Build
         File.WriteAllText(ReleaseAssetsDir / selectionName, selection.ToJsonString(), new UTF8Encoding(false));
         var candidate = new JsonObject
         {
-            ["$schema"] = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/candidate.schema.json",
+            ["$schema"] = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/candidate.schema.json",
             ["origin"] = ToolchainLocalDeveloper ? "local-developer" : "release-checksum",
             ["implementation"] = "dotnet",
             ["deployment"] = "self-contained",
@@ -113,8 +124,8 @@ partial class Build
             ["sourceRepository"] = "https://github.com/finos/morphir-dotnet",
             ["sourceCommit"] = origin.Commit,
             ["buildIdentity"] = $"Source {origin.Commit}; working tree clean: {origin.WorkingTreeClean}; packed at {origin.PackedAt:O}",
-            ["archive"] = new JsonObject { ["format"] = "zip", ["sha256"] = ReleaseArchive.Sha256(hostArchive), ["bytes"] = new FileInfo(hostArchive).Length },
-            ["entryPoint"] = new JsonObject { ["path"] = "morphir.exe", ["sha256"] = ReleaseArchive.Sha256(hostFolder / "morphir.exe") },
+            ["archive"] = new JsonObject { ["format"] = format == ArchiveFormat.Zip ? "zip" : "tar-gzip", ["sha256"] = ReleaseArchive.Sha256(hostArchive), ["bytes"] = new FileInfo(hostArchive).Length },
+            ["entryPoint"] = new JsonObject { ["path"] = hostEntryPoint, ["sha256"] = ReleaseArchive.Sha256(hostFolder / hostEntryPoint) },
             ["files"] = new JsonArray(ReleaseArchive.Files(hostFolder).Select(relative => (JsonNode)new JsonObject
             { ["path"] = relative, ["bytes"] = new FileInfo(hostFolder / relative).Length, ["sha256"] = ReleaseArchive.Sha256(hostFolder / relative) }).ToArray()),
             ["extensions"] = new JsonObject
@@ -131,7 +142,7 @@ partial class Build
             assets.AddRange([(provider.Role + "-release", provider.Release), (provider.Role + "-manifest", provider.Manifest), (provider.Role + "-archive", provider.Archive)]);
         var bundle = new JsonObject
         {
-            ["$schema"] = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/bundle.schema.json",
+            ["$schema"] = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/bundle.schema.json",
             ["version"] = releaseVersion,
             ["sourceCommit"] = origin.Commit,
             ["platform"] = rid,
