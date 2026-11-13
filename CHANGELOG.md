@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- New getting-started walkthrough, [Your first model with morphirup](docs/content/docs/getting-started/first-model.md). It installs `morphirup`, runs `setup --dry-run` and `setup --yes`, inspects the Home with `show` and `select`, compiles the `examples/morphirup-fsharp` model, generates F#, changes a rule and compares the output, then compiles and generates again with the network cut off. Every command and output on the page comes from a run of the published `v0.4.0-alpha.5` on Windows ARM64. The page states that `setup` and `run` work only on Windows for now and refuse with `setup.platform_mismatch` on Linux and macOS. The getting-started index lists it first, `examples/morphirup-fsharp/README.md` repeats its commands, and the [morphirup](docs/content/docs/cli/morphirup.md) page starts with an "Acquire the Morphir CLI and set up a toolchain" section covering `setup`, `show`, `select` and `run` per platform.
+
 ## [0.4.0-alpha.5] - 2026-11-12
 
 ### Added

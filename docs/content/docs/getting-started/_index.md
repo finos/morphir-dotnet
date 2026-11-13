@@ -5,7 +5,9 @@ weight: 10
 description: "Get up and running with Morphir .NET"
 ---
 
-New here? [Compile F# to Morphir IR]({{< relref "/docs/getting-started/compile-fsharp" >}}) takes five minutes: write a rule in F#, compile it, and generate C# from it.
+New here? Start with [Your first model with morphirup]({{< relref "/docs/getting-started/first-model" >}}). It installs `morphirup`, sets up the Morphir toolchain, compiles a small F# model, generates F# from it and changes a rule, with no .NET install. It works on Windows today.
+
+With the .NET tool instead, [Compile F# to Morphir IR]({{< relref "/docs/getting-started/compile-fsharp" >}}) takes five minutes: write a rule in F#, compile it, and generate C# from it.
 
 For executable F# from a model JSON file, start with [Generate F# from Morphir]({{< relref "/docs/getting-started/morphir-to-fsharp" >}}).
 

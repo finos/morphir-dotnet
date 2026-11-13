@@ -9,29 +9,71 @@ description: "The standalone toolchain manager: experimental Windows release set
 
 `morphirup` is the standalone Morphir toolchain manager of the approved change `add-deployment-and-acquisition` (finos/morphir, decisions UP-1, UP-2 and LOCK-1). It is a Native AOT executable, so it runs on a machine with neither .NET nor Morphir installed.
 
-The Windows release setup below is experimental and requires a release containing this implementation. Historical
+The Windows release setup below is experimental. Releases from `v0.4.0-alpha.5` have it. Historical
 recipe setup remains plan-only. Explicit local host installation, selection and execution remain available through
 the [local candidate instructions](../getting-started/local-morphirup-candidate.md). Publisher authentication,
 portable lock restore, proxy installation and shell setup remain unfinished. Matching a release checksum does not
 authenticate a publisher.
 
-## Install with morphirup (Windows, experimental)
+## Acquire the Morphir CLI and set up a toolchain
 
-The release setup path is being introduced by this change. Older published managers do not provide it. Once a
-release containing this change is published, download `morphirup-win-x64.exe`, or `morphirup-win-arm64.exe` on
-Windows ARM64, and `SHA256SUMS` from the same [morphir-dotnet release](https://github.com/finos/morphir-dotnet/releases).
-Setup downloads the toolchain of the manager's own platform from that release; one `SHA256SUMS` lists both platforms'
-files. Compare the executable's SHA-256 with its
-line in that file, then rename it to `morphirup.exe`. No .NET installation is required.
+`morphirup` acquires the Morphir CLI and the providers it needs, an F# frontend and an F# backend, from a
+morphir-dotnet release. It installs them into one folder, the Home, and runs them. Nothing needs .NET on the machine.
+For a step-by-step walkthrough with real output, see
+[Your first model with morphirup]({{< relref "/docs/getting-started/first-model" >}}).
 
-In an existing F# project, or the supplied `examples/morphirup-fsharp` sample, run:
+| Platform | Install `morphirup` | `setup`, `show`, `select` and `run` |
+| --- | --- | --- |
+| Windows x64 and ARM64 | Yes | Yes, from `v0.4.0-alpha.5` |
+| Linux x64 and ARM64 (glibc) | Yes | No: `setup` refuses with `setup.platform_mismatch` |
+| macOS ARM64 | Yes | No: `setup` refuses with `setup.platform_mismatch` |
 
-```powershell
-C:\Tools\morphirup.exe setup --dry-run
-C:\Tools\morphirup.exe setup --yes
-C:\Tools\morphirup.exe run -- compile
-C:\Tools\morphirup.exe run -- generate --target fsharp --output generated --option format=false
-```
+Linux and macOS releases publish `morphirup` but no toolchain for it to install yet.
+
+1. Install `morphirup`. See [Installation]({{< relref "/docs/getting-started/installation" >}}), or download it and
+   check it as in [Download and verify](#download-and-verify).
+2. In your project folder, check the plan, then install and select the toolchain:
+
+   ```powershell
+   morphirup setup --dry-run
+   morphirup setup --yes
+   ```
+
+   The dry run downloads the release's `SHA256SUMS` and its bundle file for your platform, checks them and installs
+   nothing. `setup --yes` installs the toolchain as a new *generation*, the set of a CLI and its providers, and
+   selects it. Both write one JSON result on stdout and the line
+   `morphirup: release-checksum delivery, NOT publisher-authenticated.` on stderr.
+3. See what is selected:
+
+   ```powershell
+   morphirup show
+   ```
+
+   `show` gives the selected `generationSha256` and the path of its `receipt.json` in the Home, which names the CLI
+   version, platform and deployment.
+4. Switch generations when you need to:
+
+   ```powershell
+   morphirup select --generation <generation-sha256> --dry-run
+   morphirup select --generation <generation-sha256>
+   ```
+
+   Each `setup --yes` adds a generation and selects it; older ones stay in
+   `toolchains\generations` in the Home. `select` checks every installed file of the generation you name, then makes
+   it the default. Use it to go back to an earlier generation. `use` is the same command.
+5. Run the CLI. Everything after `--` goes to the installed `morphir`:
+
+   ```powershell
+   morphirup run -- compile
+   morphirup run -- generate --target fsharp --output generated
+   ```
+
+   `run` needs only the installed files, so it works with no network.
+
+The Home is `MORPHIR_HOME` if it is set, and `~/.morphir` otherwise. `setup` also takes `--home <dir>`; `show`,
+`select` and `run` take `--home <absolute>`.
+
+### How release setup works
 
 Setup uses its own release version unless `.morphir/toolchain.toml` requests an exact version. It downloads the
 runtime-bundled Morphir host and independent F# frontend and backend from that same release, checks their byte
@@ -63,7 +105,7 @@ This scope does not implement publisher authentication, trust commands, moving r
 restore. The manual `Windows released morphirup journey` workflow validates the actual published executable after
 assets are available; it is not a claim that an unpublished candidate has already been downloaded successfully.
 
-## Existing manager release downloads
+## Download and verify
 
 Releases of morphir-dotnet attach `morphirup` for five platforms, beside the `morphir` assets on the
 [releases page](https://github.com/finos/morphir-dotnet/releases):
@@ -97,7 +139,7 @@ verifying signed release metadata is later work.
 On Linux:
 
 ```bash
-version=0.4.0-alpha.4   # the release you want
+version=0.4.0-alpha.5   # the release you want
 base=https://github.com/finos/morphir-dotnet/releases/download/v$version
 curl -fLO "$base/morphirup-linux-x64"
 curl -fLO "$base/morphirup-v$version.sha256"
@@ -140,8 +182,9 @@ can remove the attribute with `xattr -d com.apple.quarantine morphirup-osx-arm64
 about an unsigned file that a browser downloads. Neither behavior has been checked for these files on a Mac or a
 Windows desktop.
 
-This first release reads documents and plans. It does not download, install, update or activate anything, and it does
-not verify signed metadata.
+Releases before `v0.4.0-alpha.5` only read documents and plan. From `v0.4.0-alpha.5`, the Windows executables also
+set up and run a toolchain, as [above](#acquire-the-morphir-cli-and-set-up-a-toolchain). No release verifies signed
+metadata yet.
 
 ## Implementation, deployment and toolset
 
