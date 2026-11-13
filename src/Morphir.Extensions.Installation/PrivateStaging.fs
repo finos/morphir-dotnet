@@ -156,6 +156,8 @@ type internal StageResources
     let dataHandle = output.SafeFileHandle
     member _.Output = output
     member _.Root = root
+    /// The full path of the staged bytes, for a reader that opens them by name inside this owned directory.
+    member _.DataPath = Path.Combine(directory.Path, "bytes")
 
     member _.Validate() =
         root.ValidateLocation()

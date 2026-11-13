@@ -504,13 +504,7 @@ module private ActivationState =
             let extension = value "extension" claims.Json
 
             let source =
-                Value.Object["kind", stringValue "local-file"
-
-                             "path",
-                             stringValue (
-                                 "artifacts/"
-                                 + plan.Artifact.Filename.Text
-                             )]
+                SourceDocuments.sourceValue (ArtifactSource.LocalFile("artifacts/" + plan.Artifact.Filename.Text))
 
             let platform =
                 InstallationPlatform.FromDescriptorTriple(plan.Artifact.Platform.Value)
@@ -563,9 +557,9 @@ module private ActivationState =
             let historyBytes = compact record
 
             let provenance =
-                Value.Object["kind", stringValue "local-directory"
-                             "identity", stringValue identity
-                             "revision", stringValue (Digest.ofBytes historyBytes)]
+                SourceDocuments.provenanceValue (
+                    IndexProvenance.LocalDirectory(identity, Sha256Digest.Create(Digest.ofBytes historyBytes))
+                )
 
             StateDocuments.readIndex historyBytes provenance
             |> StateOwnership.unwrap
@@ -855,6 +849,37 @@ type InstalledExtensions private () =
             afterPhase: Action<int>,
             ct: CancellationToken
         ) : Task<InstallationResult<CapturedExtension>> =
+        InstalledExtensions.InstallPreparedAsync(
+            home,
+            plan,
+            archivePath,
+            Func<string list, CancellationToken, Task<Value * Value>>(fun args ct ->
+                ActivationState.publishLocalAsync repositoryRoot plan archivePath args ct),
+            args,
+            hostVersion,
+            afterPhase,
+            ct
+        )
+
+    /// Publishes a local declaration into its registered repository: the artifact copy and the one-release history.
+    static member internal PublishLocalAsync
+        (repositoryRoot: string, plan: PackagePlan, archivePath: string, args: string list, ct: CancellationToken)
+        : Task<Value * Value> =
+        ActivationState.publishLocalAsync repositoryRoot plan archivePath args ct
+
+    /// The one install path for every source provider: preflight, package tree, then the catalog, lock and journal.
+    /// <paramref name="record"/> supplies the provider's provenance and source after the tree is published.
+    static member internal InstallPreparedAsync
+        (
+            home: string,
+            plan: PackagePlan,
+            archivePath: string,
+            record: Func<string list, CancellationToken, Task<Value * Value>>,
+            args: IReadOnlyList<string>,
+            hostVersion: SemVer,
+            afterPhase: Action<int>,
+            ct: CancellationToken
+        ) : Task<InstallationResult<CapturedExtension>> =
         task {
             let! preflight =
                 Operations.runAsync
@@ -916,13 +941,7 @@ type InstalledExtensions private () =
                             (fun () -> task {
                                 let args = Seq.toList args
 
-                                let! provenance, source =
-                                    ActivationState.publishLocalAsync
-                                        repositoryRoot
-                                        plan
-                                        archivePath
-                                        args
-                                        ct
+                                let! provenance, source = record.Invoke(args, ct)
 
                                 let selected, lockBytes =
                                     ActivationState.registerDocuments plan args provenance source

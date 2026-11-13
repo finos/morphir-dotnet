@@ -197,8 +197,9 @@ public class ManagementScenario : IMorphirCliScenario
         repositoryCommand.Subcommands.Add(addRepository);
         extensionCommand.Subcommands.Add(repositoryCommand);
 
-        var installCommand = new Command("install", "Install an explicit unchecked local declaration from a registered repository");
-        var installName = new Argument<string>("name");
+        var installCommand = new Command("install",
+            "Install an extension from a provider source (github:<owner>/<repo>[@<version-or-tag>]), or an explicit unchecked local declaration from a registered repository");
+        var installName = new Argument<string>("source") { Description = "A provider source such as github:finos/morphir-python@0.6.2, or the full extension id of a local declaration" };
         var repository = new Option<string?>("--repository");
         var release = new Option<string?>("--local-release");
         var archive = new Option<string?>("--local-archive");
@@ -211,6 +212,15 @@ public class ManagementScenario : IMorphirCliScenario
         installCommand.Options.Add(installHome); installCommand.Options.Add(consent); installCommand.Options.Add(noProbe); installCommand.Options.Add(dryRun);
         installCommand.SetAction(async (result, ct) =>
         {
+            var requested = result.GetValue(installName)!;
+            var home = result.GetValue(installHome) ?? Environment.GetEnvironmentVariable("MORPHIR_HOME") ?? "";
+            if (requested.Contains(':'))
+            {
+                if (result.GetValue(repository) is { Length: > 0 } || result.GetValue(release) is { Length: > 0 } || result.GetValue(archive) is { Length: > 0 })
+                    return RenderLocal(new(false, "extension.invalid_source", "A provider source takes no --repository, --local-release or --local-archive."));
+                using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+                return RenderLocal(await ExtensionHandlers.InstallFromSourceAsync(new(requested, home, result.GetValue(noProbe), result.GetValue(dryRun)), http, ct));
+            }
             if (result.GetValue(release) is not { Length: > 0 } declaration || result.GetValue(archive) is not { Length: > 0 } localArchive)
                 return RenderLocal(new(false, "extension.local_declaration_required", "This local-developer mode requires paired --local-release and --local-archive inside the registered directory; repository index resolution remains unimplemented."));
             return RenderLocal(await ExtensionHandlers.InstallLocalAsync(new(result.GetValue(installName)!, result.GetValue(repository) ?? "",

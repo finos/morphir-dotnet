@@ -93,16 +93,10 @@ type PackagePlan
 
         let lockItems = SharedJson.members "lock" locked.Json
 
-        let source =
-            SharedJson.required "lock" "source" lockItems
-            |> SharedJson.members "source"
-
         let filename =
-            SharedJson.required "source" "path" source
-            |> SharedJson.text "source.path"
-            |> fun path ->
-                (path.Split '/')[path.Split('/').Length
-                                 - 1]
+            SharedJson.required "lock" "source" lockItems
+            |> SourceDocuments.readSource "lock.source" true
+            |> SourceDocuments.filenameOf
 
         let filename =
             DistributionIdentifiers.ParseArtifactFileName filename
