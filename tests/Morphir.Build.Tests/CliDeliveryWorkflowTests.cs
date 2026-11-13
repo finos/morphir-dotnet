@@ -196,6 +196,77 @@ public class CliDeliveryWorkflowTests
     }
 
     [Test]
+    public void MorphirupBuildCanBeCalledAtAPinnedCommitOfThisRepository()
+    {
+        // finos/morphir calls morphirup-build.yml at the commit it pins, as it calls cli-offering.yml. With both inputs
+        // empty, the job builds the calling workflow's own commit, as the pull request and release workflows need.
+        var inputs = MorphirupBuildInputs();
+        foreach (var name in new[] { "repository", "ref" })
+        {
+            var input = (YamlMappingNode)inputs[name];
+            input["type"].ToString().Should().Be("string");
+            input["default"].ToString().Should().BeEmpty();
+            Value(input, "required").Should().NotBe("true");
+        }
+
+        var checkout = Steps(Job(Read("morphirup-build.yml"), "build")).Single(step => Uses(step).StartsWith("actions/checkout", StringComparison.Ordinal));
+        checkout["with"]["repository"].ToString().Should().Be("${{ inputs.repository || github.repository }}",
+            "a reusable workflow checks out the caller's repository otherwise");
+        checkout["with"]["ref"].ToString().Should().Be("${{ inputs.ref || github.sha }}");
+        checkout["with"]["fetch-depth"].ToString().Should().Be("0", "the version comes from the CHANGELOG and the history");
+        checkout["with"]["persist-credentials"].ToString().Should().Be("false");
+    }
+
+    [Test]
+    public void TheWindowsSourceCheckComparesTheCheckoutWithTheRequestedCommit()
+    {
+        var step = Steps(Job(Read("morphirup-build.yml"), "build")).Single(step => Name(step) == "Record Windows native toolchain and source");
+        step["env"]["PROOF_SOURCE_SHA"].ToString().Should().Be("${{ inputs.ref || github.sha }}");
+        var script = Run(step);
+        script.Should().Contain("$source = (git rev-parse HEAD).Trim()")
+            .And.Contain("if ($source -ne $env:PROOF_SOURCE_SHA)")
+            .And.NotContain("GITHUB_SHA", "a caller's run commit is not the commit it asks to build");
+        script.Should().NotContain("${{", "inputs reach the script through the environment only");
+    }
+
+    [Test]
+    public void TheToolchainJobUploadsItsSelfContainedHostAsAnOfferingOnlyWhenAsked()
+    {
+        var input = (YamlMappingNode)MorphirupBuildInputs()["upload-host-offering"];
+        input["type"].ToString().Should().Be("boolean");
+        input["default"].ToString().Should().Be("false", "the release downloads morphir-*, which the offering's name matches");
+
+        // The callers in this repository pass none of the new inputs, so their jobs are unchanged.
+        foreach (var (workflow, job) in new[] { ("morphirup.yml", "build"), ("deployment.yml", "build-morphirup") })
+            ((YamlMappingNode)Job(Read(workflow), job)["with"]).Children.Keys.Select(key => key.ToString())
+                .Should().NotContain(["repository", "ref", "upload-host-offering"], $"{workflow} {job} builds its own commit");
+
+        var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
+        var toolchain = steps.Single(step => Name(step) == "Upload the complete toolchain proof inputs")["if"].ToString();
+        var describe = steps.Single(step => Name(step) == "Describe the self-contained host offering");
+        describe["if"].ToString().Should().Be($"inputs.upload-host-offering && ({toolchain})", "only a job that packed a toolchain has the host");
+        var script = Run(describe);
+        // The metadata is the one PackRelease writes for the self-contained offering, as cli-offering.yml reads it.
+        script.Should().Contain("-Filter '*.build-launch.json'")
+            .And.Contain("$launch.deployment -ne 'self-contained'")
+            .And.Contain("$launch.platform -ne $env:RID")
+            .And.Contain(".build-contents.json")
+            .And.Contain("$sha256 -ne $launch.sha256")
+            .And.Contain("\"$artifact.sha256\"");
+        script.Should().NotContain("${{");
+
+        var upload = steps.Single(step => Name(step) == "Upload the self-contained host offering");
+        upload["if"].ToString().Should().Be("steps.host-offering.outcome == 'success'");
+        upload["with"]["name"].ToString().Should().Be("morphir-dotnet-self-contained-${{ inputs.rid }}",
+            "the name cli-offering.yml gives the self-contained offering of the RID");
+        var archive = "./artifacts/release/${{ steps.host-offering.outputs.artifact }}";
+        upload["with"]["path"].ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Should().Equal(archive, $"{archive}.build-launch.json", $"{archive}.build-contents.json", $"{archive}.sha256");
+        upload["with"]["if-no-files-found"].ToString().Should().Be("error");
+        steps.IndexOf(upload).Should().Be(steps.IndexOf(describe) + 1);
+    }
+
+    [Test]
     [Arguments("deployment.yml", "create-github-release", "win-x64 win-arm64 osx-arm64", "")]
     [Arguments("morphirup.yml", "checksums", "win-x64 win-arm64", " --toolchain-platforms win-x64 win-arm64")]
     public void TheChecksumJobsAssembleTheToolchainsUnderOneChecksumFile(string workflow, string job, string rids, string platforms)
@@ -268,6 +339,9 @@ public class CliDeliveryWorkflowTests
     private static YamlMappingNode Deployment() => Read("deployment.yml");
 
     private static YamlMappingNode Offering() => Read("cli-offering.yml");
+
+    private static YamlMappingNode MorphirupBuildInputs() =>
+        (YamlMappingNode)Read("morphirup-build.yml")["on"]["workflow_call"]["inputs"];
 
     private static YamlMappingNode Read(string name)
     {

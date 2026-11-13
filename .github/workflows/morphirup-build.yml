@@ -4,6 +4,19 @@ name: "morphirup build"
 # workflow deployment.yml both call it, so a pull request runs the exact release path. It publishes morphirup with
 # Native AOT (PackMorphirup), checks the produced release assets, not a source build (CheckMorphirup), and uploads them
 # as the artifact morphirup-<rid>.
+#
+# finos/morphir, which pins this repository as ecosystem/morphir-dotnet and owns official delivery, calls it at the
+# pinned commit, the way it calls cli-offering.yml:
+#
+#   uses: finos/morphir-dotnet/.github/workflows/morphirup-build.yml@<commit>
+#   with:
+#       repository: finos/morphir-dotnet
+#       ref: <the same commit>
+#       rid: win-x64
+#       os: windows-latest
+#       upload-host-offering: true
+#
+# With repository and ref empty, it builds the calling workflow's own commit, as morphirup.yml and deployment.yml need.
 
 on:
     workflow_call:
@@ -31,6 +44,21 @@ on:
                 required: false
                 default: false
                 type: boolean
+            repository:
+                description: "The repository to build; empty for the calling workflow's repository"
+                required: false
+                default: ""
+                type: string
+            ref:
+                description: "The commit to build, a full commit SHA; empty for the calling workflow's commit"
+                required: false
+                default: ""
+                type: string
+            upload-host-offering:
+                description: "When the job packs a toolchain, also upload its self-contained host as the offering artifact morphir-dotnet-self-contained-<rid>, the files cli-offering.yml uploads. Off by default: the release downloads morphir-*."
+                required: false
+                default: false
+                type: boolean
 
 permissions:
     contents: read
@@ -46,11 +74,15 @@ jobs:
             DOTNET_CLI_USE_MSBUILD_SERVER: '0'
             MSBUILDDISABLENODEREUSE: '1'
         steps:
+            # In a reusable workflow, actions/checkout checks out the caller's repository unless told otherwise.
             - name: Fetch Source Code
               uses: actions/checkout@v6.1.0
               with:
+                  repository: ${{ inputs.repository || github.repository }}
+                  ref: ${{ inputs.ref || github.sha }}
                   # The version comes from CHANGELOG.md and the commit; the build reads both.
                   fetch-depth: 0
+                  persist-credentials: false
 
             - name: Setup .NET SDK
               uses: actions/setup-dotnet@v5
@@ -90,6 +122,7 @@ jobs:
               env:
                   PROOF_RID: ${{ inputs.rid }}
                   PROOF_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  PROOF_SOURCE_SHA: ${{ inputs.ref || github.sha }}
               run: |
                   $ErrorActionPreference = 'Stop'
                   $os = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
@@ -99,7 +132,7 @@ jobs:
                   dotnet --info
                   if ($LASTEXITCODE) { throw 'SDK architecture inventory failed.' }
                   $source = (git rev-parse HEAD).Trim()
-                  if ($source -ne $env:GITHUB_SHA) { throw 'Checkout source differs from the recorded workflow source.' }
+                  if ($source -ne $env:PROOF_SOURCE_SHA) { throw 'Checkout source differs from the recorded workflow source.' }
                   "source=$source PR-head=$env:PROOF_HEAD_SHA run=$env:GITHUB_RUN_ID attempt=$env:GITHUB_RUN_ATTEMPT"
                   $vswhere = (Get-Command vswhere.exe -ErrorAction Stop).Source
                   & $vswhere -latest -products '*' -format json
@@ -305,6 +338,45 @@ jobs:
                   path: ./artifacts/release-assets/*
                   if-no-files-found: error
                   retention-days: ${{ inputs.retention-days < 7 && 7 || inputs.retention-days }}
+
+            # PackWindowsToolchain packs its host with PackRelease --deployment self-contained, the target cli-offering.yml
+            # runs, so artifacts/release holds the host archive with its build-launch.json and build-contents.json. This
+            # checks them and writes the .sha256 file as cli-offering.yml does, for finos/morphir to take the host as the
+            # self-contained offering of the RID. Off by default: deployment.yml downloads morphir-*, which this name matches.
+            - name: Describe the self-contained host offering
+              id: host-offering
+              if: inputs.upload-host-offering && (inputs.rid == 'win-x64' || inputs.rid == 'win-arm64' || (inputs.rid == 'osx-arm64' && inputs.toolchain))
+              shell: pwsh
+              env:
+                  RID: ${{ inputs.rid }}
+              run: |
+                  $ErrorActionPreference = 'Stop'
+                  $release = Join-Path (Get-Location) 'artifacts/release'
+                  $launchFiles = @(Get-ChildItem -LiteralPath $release -Filter '*.build-launch.json')
+                  if ($launchFiles.Count -ne 1) { throw "Expected one launch metadata file in $release, found $($launchFiles.Count)." }
+                  $launch = Get-Content -LiteralPath $launchFiles[0].FullName -Raw | ConvertFrom-Json
+                  if ($launch.deployment -ne 'self-contained') { throw "The launch metadata is for $($launch.deployment), not self-contained." }
+                  if ($launch.platform -ne $env:RID) { throw "The launch metadata is for $($launch.platform), not $env:RID." }
+                  $artifact = Join-Path $release $launch.artifact
+                  if (-not (Test-Path -LiteralPath "$artifact.build-contents.json")) { throw "$($launch.artifact).build-contents.json is missing." }
+                  $sha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant()
+                  if ($sha256 -ne $launch.sha256) { throw "$($launch.artifact) has SHA-256 $sha256, and its launch metadata says $($launch.sha256)." }
+                  "$sha256  $($launch.artifact)" | Set-Content -NoNewline -LiteralPath "$artifact.sha256"
+                  Add-Content -LiteralPath "$artifact.sha256" -Value ''
+                  "artifact=$($launch.artifact)" >> $env:GITHUB_OUTPUT
+
+            - name: Upload the self-contained host offering
+              if: steps.host-offering.outcome == 'success'
+              uses: actions/upload-artifact@v6
+              with:
+                  name: morphir-dotnet-self-contained-${{ inputs.rid }}
+                  path: |
+                      ./artifacts/release/${{ steps.host-offering.outputs.artifact }}
+                      ./artifacts/release/${{ steps.host-offering.outputs.artifact }}.build-launch.json
+                      ./artifacts/release/${{ steps.host-offering.outputs.artifact }}.build-contents.json
+                      ./artifacts/release/${{ steps.host-offering.outputs.artifact }}.sha256
+                  if-no-files-found: error
+                  retention-days: ${{ inputs.retention-days }}
 
             - name: Upload the morphirup release assets
               uses: actions/upload-artifact@v6
