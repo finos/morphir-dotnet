@@ -209,15 +209,13 @@ jobs:
                   if-no-files-found: ignore
                   retention-days: 7
             # The F# compiler does not run trim analyzers: publish the generated converters, the MEP C# consumer closure,
-            # the morphirup manager and the library hosts. One OS is enough: the generated code does not depend on the
-            # platform. TestAot is the Native AOT lane of the black-box tests; the three old probe targets run with it
-            # until a run on main shows that TestAot passed (change consolidate-black-box-tests, task 10.1).
+            # the morphirup manager and the library hosts with Native AOT, and compare each with its managed run (the
+            # Native AOT lane of the black-box tests). One OS is enough: the generated code does not depend on the
+            # platform.
             - name: Check generated JSON, MEP and morphirup under Native AOT
               if: matrix.os == 'ubuntu-latest'
               shell: bash
-              run: |
-                  ./build.sh --target TestMyriadJsonAot TestMepAot TestMorphirupAot --configuration ${{ env.CONFIGURATION }}
-                  ./build.sh --target TestAot --configuration ${{ env.CONFIGURATION }} --skip Restore Compile
+              run: ./build.sh --target TestAot --configuration ${{ env.CONFIGURATION }} --skip Restore Compile
             - name: Pack packages for build testing
               shell: bash
               run: ./build.sh --target PackAll --configuration ${{ env.CONFIGURATION }} --skip Restore Compile

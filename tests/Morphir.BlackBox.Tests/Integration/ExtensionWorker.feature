@@ -90,7 +90,7 @@ Feature: The experimental extension worker
     And each output event line of the worker is at most 4608 bytes
     And the output events state that more than 100 MiB of guest output were dropped
     And standard error of the worker holds less than 512 KiB
-    And the peak working set of the worker is less than 64 MiB above that of an echo session
+    And the peak working set of the worker grows by less than 16 MiB from its second call to its fifth
 
   @needs-wasm-guests
   Scenario: An interrupt stops a spinning guest within one second with status 130 and no fault

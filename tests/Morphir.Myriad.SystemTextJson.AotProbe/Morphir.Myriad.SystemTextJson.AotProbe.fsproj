@@ -6,10 +6,10 @@
         <IsPackable>false</IsPackable>
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-        <!-- The trim and AOT analyzers run in every build; the TestMyriadJsonAot target also publishes with Native AOT. -->
+        <!-- The trim and AOT analyzers run in every build; the Native AOT lane of the black-box tests (TestAot) also publishes with Native AOT. -->
         <IsAotCompatible>true</IsAotCompatible>
         <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
-        <!-- FSharp.Core gives these two summary warnings in every F# AOT app. The TestMyriadJsonAot target checks that they are the only ones. -->
+        <!-- FSharp.Core gives these two summary warnings in every F# AOT app. The Native AOT lane of the black-box tests checks that they are the only ones. -->
         <WarningsNotAsErrors>$(WarningsNotAsErrors);IL2104;IL3053</WarningsNotAsErrors>
         <InvariantGlobalization>true</InvariantGlobalization>
         <!-- Set only here: a global PublishAot would also reach the netstandard2.0 annotations project. -->
