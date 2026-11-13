@@ -325,12 +325,13 @@ let private earlierFamilies = ["0.1.0-preview.2";"0.1.0-preview.3"]
 let private schemaOf name (raw: byte array) =
     Syntax.parseJson raw |> reader |> SharedJson.members name |> SharedJson.required name "$schema" |> SharedJson.text "$schema"
 
-// Refuses a document of an earlier composed family. Nothing converts it, and setup admission does not adopt it.
+// Refuses a document of an earlier composed family. Nothing converts it. Setup in the same Home installs the current
+// family beside it and replaces the selection pointer.
 let private refuseEarlier kind (schema: string) =
     match earlierFamilies |> List.tryFind(fun earlier -> schema = ComposedDocuments.schemaFor earlier kind) with
     | Some earlier ->
         refuse "local.setup_required"
-            $"This Home was set up with local-toolchains {earlier}, and this morphirup reads only {family}. Run morphirup setup again with a new --home."
+            $"This Home was set up with local-toolchains {earlier}, and this morphirup reads only {family}. Run morphirup setup --yes again in this Home. For a local candidate, run morphirup setup --yes again with its --local-developer inputs, then select the generation it prints."
     | None -> ()
 
 let selected home ct = task {
@@ -391,8 +392,6 @@ let selectAsync platform home identity dryRun ct = task {
     let directory = path home (LocalCandidateDocument.generationPath identity)
     refuseEarlier "generation" (schemaOf "generation" (LocalCandidate.readBytes LocalInstallation.documentBound (Path.Combine(directory,"generation.json"))))
     let! snapshot = currentSnapshot home directory ct
-    if snapshot.Family <> family then
-        refuse "local.setup_required" $"This generation is local-toolchains {snapshot.Family}, and this morphirup reads only {family}. Run morphirup setup again with a new --home."
     executionPlatform platform snapshot
     if not dryRun then
         use root = SafeDirectory.Open(home,false)

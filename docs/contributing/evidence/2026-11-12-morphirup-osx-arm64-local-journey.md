@@ -89,5 +89,16 @@ Setup `--dry-run` (`planned`), setup `--yes` (`installed`, generation
 `64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0`. The two runs gave the same bytes, exit 0, with
 .NET hidden (`env -i HOME=$HOME TMPDIR=$TMPDIR PATH=/usr/bin:/bin`) and under `sandbox-exec` with network denied.
 
-The new manager refused `run` in a Home that the preview.3 build had set up (exit 1): it does not read a preview.3
-selection.
+On 2026-11-13, the manager built from the source after the change to setup in an earlier Home was run in the Home
+that the preview.3 build had set up (old generation `0d737ff89cf0312eaf35ccc2d53b20851e89530f92c839038dcbf94221b87f08`):
+
+| Command | Exit | Result |
+| --- | --- | --- |
+| `run --home $H -- compile …` | 1 | `local.setup_required`: run `morphirup setup --yes` again in this Home, and select on the local-candidate route |
+| `setup … --local-developer --home $H --yes` | 0 | `installed`, generation `04cee7809701a491a57cd0e12a24b3b638f864a683aec4c5f977353073a52085` |
+| `select --generation 04cee780… --home $H` | 0 | `selected`; `toolchains/default.json` names the preview.4 selection schema |
+| `run --home $H -- compile --output compiled --out-dir out --json` | 0 | `success: true` |
+| `run --home $H -- generate --target fsharp …` | 0 | `success: true`; `Pricing.fs` 112 bytes, SHA-256 `64e08313…6de0` |
+
+The preview.3 generation stays beside the new one, and the SHA-256 of each of its files is unchanged: setup did not
+read or convert it.

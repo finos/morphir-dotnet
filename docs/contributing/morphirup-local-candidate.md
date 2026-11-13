@@ -27,9 +27,13 @@ The readers match each `$schema` URL as exact text. They read preview.4 only and
 convert from preview.3, so preview.3 candidates, bundles, receipts, selections and
 generations (written by 0.4.0-alpha.5 and earlier) are refused. `select`, `show` and `run`
 read only the preview.4 selection pointer. In a Home set up with preview.2 or preview.3
-they refuse with `local.setup_required`, which says to run setup again with a new
-`--home`; setup admission does not adopt the earlier state. The historical preview.1
-local route keeps its separate reader and behavior.
+they refuse with `local.setup_required`, which says to run `morphirup setup --yes` again
+in that Home, and on the local-candidate route to select the new generation then.
+Setup in such a Home does not read or convert the earlier files. It checks only the
+location and the SHA-256 name of each earlier generation, installs preview.4 beside it,
+and replaces the selection pointer (release setup selects; local setup leaves the
+selection to `select`). The historical preview.1 local route keeps its separate reader
+and behavior.
 
 Default setup acquires the official release bundle and its checksums. Its origin
 is `release-checksum`, not publisher-authenticated. Its completed generation

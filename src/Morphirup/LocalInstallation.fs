@@ -478,6 +478,24 @@ let private optionalChild (parent: SafeDirectory) name action =
         use child = parent.Child(name, false)
         action child
 
+// The candidate.json $schema of an earlier composed family, preview.2 or preview.3. Only the $schema is read.
+let private earlierCandidates =
+    [ "0.1.0-preview.2"; "0.1.0-preview.3" ]
+    |> List.map (fun family -> $"https://morphir.finos.org/schemas/local-toolchains/{family}/candidate.schema.json")
+
+let private earlierComposed (folder: SafeDirectory) (entries: string array) =
+    folder.ValidateLocation()
+    entries |> Array.contains "candidate.json"
+    && (try
+            use document = JsonDocument.Parse(pinnedRead folder "candidate.json" documentBound)
+            match document.RootElement.ValueKind with
+            | JsonValueKind.Object ->
+                match document.RootElement.TryGetProperty "$schema" with
+                | true, schema when schema.ValueKind = JsonValueKind.String -> List.contains (schema.GetString()) earlierCandidates
+                | _ -> false
+            | _ -> false
+        with :? JsonException -> false)
+
 /// Later commands validate only local manager authority. Shared Home siblings are opaque and are never traversed.
 let validateOwnedState (root: SafeDirectory) =
 
@@ -540,8 +558,12 @@ let validateOwnedState (root: SafeDirectory) =
                                 | Error _ -> foreignHome ()
 
                         use folder = generations.Child(name, false)
-                        if folder.Entries() |> Array.contains "generation.json" then
-                            GenerationBinding.load root folder.Path |> ignore
+                        let entries = folder.Entries()
+                        if entries |> Array.contains "generation.json" then
+                            // A generation of an earlier composed family stays beside the current one, unread: setup
+                            // checks only its location and its SHA-256 name, and replaces the selection pointer.
+                            if not (earlierComposed folder entries) then
+                                GenerationBinding.load root folder.Path |> ignore
                         else
                             only folder [ "candidate.json"; "receipt.json" ]
                             loadGeneration root identity false CancellationToken.None |> ignore

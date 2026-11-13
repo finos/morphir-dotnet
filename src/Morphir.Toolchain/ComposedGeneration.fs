@@ -15,9 +15,9 @@ type internal ComposedOrigin =
         | ComposedOrigin.LocalDeveloper -> "local-developer"
         | ComposedOrigin.ReleaseChecksum -> "release-checksum"
 
-/// Exact local preview.2 host input and its independently selected process identities.
+/// Exact composed host input (preview.2 or preview.4) and its independently selected process identities.
 type LocalComposedCandidate internal (host: LocalHostCandidate, selection: Sha256, frontend: ExtensionId, backend: ExtensionId, origin: ComposedOrigin) =
-    /// The host closure with the exact preview.2 input digest.
+    /// The host closure with the exact input digest of its candidate.
     member _.Host = host
     /// Digest of the separately supplied portable selection.
     member _.SelectionSha256 = selection

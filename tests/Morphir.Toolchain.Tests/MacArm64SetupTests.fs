@@ -574,19 +574,8 @@ let unixDescendants =
     ]
     |> testLabel "PlatformSpecific"
 
-// A Home whose manager-owned documents name an earlier local-toolchains family. Only the $schema matters: the
-// manager must refuse at the family, before it reads any other member.
 let private earlierHome (sandbox: TestSandbox) (family: string) =
-    let home = Directory.CreateDirectory(Path.Combine(sandbox.Work, "home-" + family)).FullName
-    let generation = String('e', 64)
-    Directory.CreateDirectory(Path.Combine(home, "toolchains", "generations", generation)) |> ignore
-    File.WriteAllText(
-        Path.Combine(home, "toolchains", "default.json"),
-        $"""{{"$schema":"https://morphir.finos.org/schemas/local-toolchains/{family}/selection.schema.json","origin":"local-developer","generationSha256":"{generation}","receiptSha256":"{String('f', 64)}","receiptPath":"toolchains/generations/{generation}/receipt.json"}}""")
-    File.WriteAllText(
-        Path.Combine(home, "toolchains", "generations", generation, "generation.json"),
-        $"""{{"$schema":"https://morphir.finos.org/schemas/local-toolchains/{family}/generation.schema.json"}}""")
-    LocalCandidate.homePath home, generation
+    ReleaseSetupTests.earlierHomeAt (Path.Combine(sandbox.Work, "home-" + family)) family
 
 let private runCli (sandbox: TestSandbox) args = task {
     use input = new MemoryStream()
@@ -609,7 +598,9 @@ let earlierFamilies =
                 let! exit, output, _ = runCli sandbox [ "show"; "--home"; home ]
                 Expect.equal exit 1 output
                 Expect.stringContains output "local.setup_required" "the earlier family is named"
-                Expect.stringContains output "setup again" "the user is told what to do"
+                Expect.stringContains output "morphirup setup --yes again" "the user is told what to do"
+                Expect.stringContains output "then select" "the local-candidate route also selects"
+                Expect.isFalse (output.Contains "new --home") "the same Home is set up again"
                 Expect.stringContains output family "the family of the Home"
             })
             testCaseTask $"run refuses a {family} selection before it starts a host" (fun () -> task {
@@ -618,7 +609,18 @@ let earlierFamilies =
                 let! exit, _, errors = runCli sandbox [ "run"; "--home"; home; "--"; "--version" ]
                 Expect.equal exit 1 errors
                 Expect.stringContains errors "local.setup_required" "the earlier family is named"
-                Expect.stringContains errors "setup again" "the user is told what to do"
+                Expect.stringContains errors "morphirup setup --yes again" "the user is told what to do"
+            })
+            testCaseTask $"setup admits a {family} Home without reading its generation" (fun () -> task {
+                use sandbox = TestSandbox.Create()
+                let home, _ = earlierHome sandbox family
+                let! exit, output, _ =
+                    runCli sandbox [ "setup"; "--candidate"; Path.Combine(sandbox.Work, "absent.json"); "--local-archive"; "a.tar.gz"
+                                     "--local-bundle"; "b.json"; "--local-developer"; "--dry-run"; "--home"; home ]
+                Expect.equal exit 1 output
+                // The earlier generation is skipped, so setup reaches its own input, which is absent here.
+                Expect.stringContains output "local.io_refused" "the next check after Home admission"
+                Expect.isFalse (output.Contains "generation_invalid") "the earlier generation is not read"
             })
             testCaseTask $"select refuses a {family} generation" (fun () -> task {
                 use sandbox = TestSandbox.Create()

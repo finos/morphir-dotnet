@@ -1649,7 +1649,7 @@ let releaseChecksumReaderTests =
             Expect.isError (candidateJson ["morphir.exe"] |> arm |> LocalCandidateDocument.readCandidate) "preview1 unchanged"
             Expect.isError (composedInput "org.finos.frontend" "org.finos.backend" |> arm |> LocalComposedDocument.readCandidate) "preview2 unchanged"
             let linux = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","linux-arm64"))
-            Expect.isError (LocalComposedDocument.readReleaseCandidate linux) "only the two Windows RIDs"
+            Expect.isError (LocalComposedDocument.readReleaseCandidate linux) "only win-x64, win-arm64 and osx-arm64"
         }
         test "preview4 local receipts and pointers preserve origin rather than family defaults" {
             let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("release-checksum","local-developer"))

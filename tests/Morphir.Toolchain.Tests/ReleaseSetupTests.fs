@@ -374,6 +374,64 @@ let tests = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
     })
 ]
 
+/// A Home that an earlier composed family set up: its selection pointer and one generation with its candidate.
+/// Only the $schema of each document matters; the manager must not read any other member.
+let earlierHomeAt (home: string) (family: string) =
+    let generation = String('e', 64)
+    let folder = Path.Combine(home, "toolchains", "generations", generation)
+    Directory.CreateDirectory folder |> ignore
+    let schema kind = $"https://morphir.finos.org/schemas/local-toolchains/{family}/{kind}.schema.json"
+    File.WriteAllText(
+        Path.Combine(home, "toolchains", "default.json"),
+        $"""{{"$schema":"{schema "selection"}","origin":"local-developer","generationSha256":"{generation}","receiptSha256":"{String('f', 64)}","receiptPath":"toolchains/generations/{generation}/receipt.json"}}""")
+    File.WriteAllText(Path.Combine(folder, "generation.json"), $"""{{"$schema":"{schema "generation"}"}}""")
+    File.WriteAllText(Path.Combine(folder, "candidate.json"), $"""{{"$schema":"{schema "candidate"}"}}""")
+    File.WriteAllText(Path.Combine(folder, "receipt.json"), $"""{{"$schema":"{schema "receipt"}"}}""")
+    LocalCandidate.homePath home, generation
+
+/// The producer supplies actual full folders, archives and metadata. No test creates executable substitutes.
+[<Tests>]
+let earlierHomeSetup = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
+    for family in [ "0.1.0-preview.2"; "0.1.0-preview.3" ] do
+        testCaseTask $"release setup in a {family} Home installs preview.4 beside it and selects it" (fun () -> task {
+            let folder = Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_ASSETS" |> Option.ofObj |> Option.defaultWith(fun () -> skiptest "Actual PackWindowsToolchain assets were not supplied.")
+            let platform =
+                match Platform.current () with
+                | Some platform when Platform.isLocalToolchain platform && File.Exists(Path.Combine(folder, ReleaseBundleDocument.fileName platform)) -> platform
+                | _ -> skiptest "The supplied producer assets are not for this test process."
+            match Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_RID" |> Option.ofObj with
+            | Some rid -> Expect.equal rid (Platform.name platform) "the supplied producer RID must match the actual test process"
+            | None -> ()
+            use sandbox = TestSandbox.Create("earlier-home-")
+            let home, earlier = earlierHomeAt (Path.Combine(sandbox.Work, "home")) family
+            let generationFolder = Path.Combine(home, "toolchains", "generations", earlier)
+            let before = Directory.GetFiles generationFolder |> Array.sort |> Array.map (fun file -> Path.GetFileName file, File.ReadAllBytes file)
+            let transport = {
+                new IAcquisitionTransport with
+                    member _.OpenAsync(source,ct) = task {
+                        ct.ThrowIfCancellationRequested()
+                        let stream = File.OpenRead(Path.Combine(folder,Path.GetFileName source.AbsolutePath))
+                        return {
+                            new IAcquisitionResponse with
+                                member _.Content = stream
+                                member _.DeclaredLength = Some stream.Length
+                            interface IAsyncDisposable with member _.DisposeAsync() = stream.DisposeAsync()
+                        }
+                    }
+            }
+            let bundle = ReleaseBundleDocument.read (File.ReadAllBytes(Path.Combine(folder,ReleaseBundleDocument.fileName platform))) |> function Ok bundle -> bundle | Error _ -> failtest "Actual producer bundle is invalid."
+            let! _,installed = ComposedInstallation.setupWithTransportAsync platform home bundle.Version.Text transport false CancellationToken.None
+            let generation = installed |> Option.defaultWith (fun () -> failtest "setup --yes published no generation")
+            let pointer = Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(home, "toolchains", "default.json")))
+            Expect.equal (pointer.RootElement.GetProperty("$schema").GetString()) "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/selection.schema.json" "the pointer is preview.4"
+            Expect.equal (pointer.RootElement.GetProperty("generationSha256").GetString()) generation.Text "the pointer names the new generation"
+            let! snapshot = ComposedInstallation.selected home CancellationToken.None
+            Expect.equal snapshot.Family "0.1.0-preview.4" "the Home selects preview.4"
+            let after = Directory.GetFiles generationFolder |> Array.sort |> Array.map (fun file -> Path.GetFileName file, File.ReadAllBytes file)
+            Expect.equal after before "the earlier generation stays, unread and unchanged"
+        })
+]
+
 /// The producer supplies actual full folders, archives and metadata. No test creates executable substitutes.
 [<Tests>]
 let acquiredJourney = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [testCaseTask "actual installed release setup and offline process workflow" (fun () -> task {
