@@ -15,9 +15,12 @@ public class SchemaValidator
     public static readonly JsonDocumentOptions ModelDocumentOptions = new() { MaxDepth = MaxModelDepth };
 
     /// <summary>
-    /// The stack of the evaluation thread. Evaluation recurses once or more for each level of the model and takes
-    /// about 20 to 30 KB of stack per level, so the default stack of 1 MB overflows before depth 100. 64 MB holds
-    /// <see cref="MaxModelDepth"/> levels with room to spare; the memory is reserved, and committed only as used.
+    /// The stack of the evaluation thread. Evaluation recurses several frames deep for each level of the model.
+    /// Measured on win-arm64 with optimized JIT code (nested <c>Apply</c> values): a 4 MB stack held 300 levels and
+    /// overflowed at 400, and 8 MB held 700 and overflowed at 900, so a level takes about 10 to 13 KB, and the
+    /// default stack of 1 MB holds fewer than 100 levels. <see cref="MaxModelDepth"/> levels need about 7 MB; 64 MB
+    /// leaves about nine times that for other platforms and code generators. The tests at the depth limit run on each
+    /// operating system. The memory is reserved, and committed only as used.
     /// </summary>
     private const int EvaluationStackSize = 64 * 1024 * 1024;
 

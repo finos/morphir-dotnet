@@ -20,7 +20,8 @@ namespace Morphir.Tooling.Infrastructure.JsonSchema;
 /// <c>{ "items": [{ "const": t }] }</c>. The two are equivalent for every instance: when the instance is an array with
 /// the tag <c>t</c>, or not an array, or an empty array, <c>G</c> holds and the branch is <c>B</c>; when the instance
 /// is an array with another tag, <c>B</c> fails on its tag and so does the branch, with the error of <c>G</c>, which is
-/// the same error that <c>B</c> gives for its tag. The schema files stay exact copies of finos/morphir.
+/// the same error that <c>B</c> gives for its tag. Because the rewrite happens at load time, the schema files need no
+/// change for evaluation; what they take from finos/morphir is recorded in <c>Schemas/PROVENANCE.md</c>.
 /// </para>
 /// </remarks>
 internal static class TaggedUnionGuards

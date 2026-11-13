@@ -66,6 +66,61 @@ public class SchemaEvaluationCostTests
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(error => error.Path.EndsWith("/body/3/1", StringComparison.Ordinal));
+        // A branch whose tag differs reports only its tag: no other branch evaluates the function at /2 as a pattern,
+        // a name or a type. List output also keeps the failed alternatives of a oneOf that holds (the other tags of the
+        // valid function, the Type alternative of an object attribute), so those paths stay: the tag and the
+        // attributes of the value and of its function. Everything else is the wrong argument at /3.
+        var body = result.Errors.First(error => error.Path.EndsWith("/body/3/1", StringComparison.Ordinal)).Path[..^"/3/1".Length];
+        string[] tagsAndAttributes = ["/0", "/1", "/2/0", "/2/1"];
+        result.Errors.Where(error => error.Path.StartsWith(body + "/", StringComparison.Ordinal))
+            .Select(error => error.Path[body.Length..])
+            .Should().OnlyContain(path => tagsAndAttributes.Contains(path) || path.StartsWith("/3", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A model just within <see cref="SchemaValidator.MaxModelDepth"/> is evaluated on the large stack of the
+    /// evaluation thread. A stack overflow ends the test process, so this test shows that the stack holds the limit.
+    /// The frames depend on the operating system and the architecture, so it runs on each of them.
+    /// </summary>
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task A_model_just_within_the_depth_limit_is_valid()
+    {
+        var depth = SchemaValidator.MaxModelDepth - NestingOf(ModelWithBody(NestedApply(0))) - 2;
+        var json = ModelWithBody(NestedApply(depth));
+        NestingOf(json).Should().BeInRange(SchemaValidator.MaxModelDepth - 12, SchemaValidator.MaxModelDepth);
+
+        var result = await ValidateWithinBudget(json, "3");
+
+        result.Errors.Should().BeEmpty();
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task A_model_deeper_than_the_depth_limit_is_refused_when_it_is_read()
+    {
+        var depth = SchemaValidator.MaxModelDepth - NestingOf(ModelWithBody(NestedApply(0))) + 8;
+        var json = ModelWithBody(NestedApply(depth));
+        NestingOf(json).Should().BeGreaterThan(SchemaValidator.MaxModelDepth);
+
+        var act = () => ValidateWithinBudget(json, "3");
+
+        await act.Should().ThrowAsync<System.Text.Json.JsonException>().WithMessage("*depth*512*");
+    }
+
+    /// <summary>The deepest nesting of arrays and objects in <paramref name="json"/>.</summary>
+    private static int NestingOf(string json)
+    {
+        var reader = new System.Text.Json.Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(json), new System.Text.Json.JsonReaderOptions { MaxDepth = 100_000 });
+        var deepest = 0;
+        while (reader.Read())
+        {
+            if (reader.TokenType is System.Text.Json.JsonTokenType.StartArray or System.Text.Json.JsonTokenType.StartObject)
+                deepest = Math.Max(deepest, reader.CurrentDepth + 1);
+        }
+
+        return deepest;
     }
 
     private static JsonArray Unit() => new("Unit", new JsonObject());
