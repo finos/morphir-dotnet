@@ -14,10 +14,10 @@ Extension installer foundations, bounded I/O and tests (#558)
 Copyright 2026 FINOS contributors.
 Original Apache-2.0 contributions. Existing dependency notices remain applicable.
 The shared-reader follow-up copies unmodified FINOS/Morphir extension schemas
-and identity/package case data from finos/morphir commit
-0439c4c06d8ca6d4a46e41afb226ba0872f9bff8 under Apache-2.0. Existing FINOS and
+and identity/package case data (extension family 0.1.0-preview.2) from finos/morphir commit
+1f22f4919edc424ec20c115522d5a48f6f730df2 under Apache-2.0. Existing FINOS and
 Morgan Stanley notices remain applicable. Source paths and exact SHA-256 hashes
-are recorded in tests/Fixtures/ExtensionAcquisition/parent-0439c4c0/manifest.json.
+are recorded in tests/Fixtures/ExtensionAcquisition/parent-1f22f491/manifest.json.
 
 F# source frontend and compile steel thread (#499)
 Copyright 2026 FINOS contributors.

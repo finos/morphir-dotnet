@@ -26,7 +26,7 @@ module internal Descriptors =
     open SharedJson
 
     let private releaseSchema =
-        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/release.schema.json"
+        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json"
 
     let private version path value = parsed path SemVer.tryParse value
 

@@ -15,7 +15,7 @@ let private parentRoot = Path.Combine(AppContext.BaseDirectory, "ParentContracts
 let private parentCommit = "0439c4c06d8ca6d4a46e41afb226ba0872f9bff8"
 
 let private releaseSchema =
-    "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/release.schema.json"
+    "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json"
 
 let private bytes (text: string) = Encoding.UTF8.GetBytes text
 
@@ -110,7 +110,7 @@ let tests =
                      |> nonNull)
                     "source path"
 
-            Expect.equal (cases ()).Length 137 "identity corpus inventory, not executed-case count"
+            Expect.equal (cases ()).Length 139 "identity corpus inventory, not executed-case count"
 
             use packages =
                 JsonDocument.Parse(
@@ -215,8 +215,8 @@ let tests =
         }
         for schema in
             [
-                "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json"
-                "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/claims.schema.json"
+                "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/release.schema.json"
+                "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json"
                 ""
             ] do
             testCase
@@ -266,7 +266,7 @@ let tests =
 
                 claims["$schema"] <-
                     JsonValue.Create
-                        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/claims.schema.json"
+                        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json"
             )
             |> Descriptors.read
             |> refused "extension.unsupported_contract_version" "claims.$schema"
@@ -305,7 +305,7 @@ let tests =
     |> testLabel "PlatformSpecific"
 
 let private claimsSchema =
-    "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/claims.schema.json"
+    "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json"
 
 let private standaloneNode () =
     let release =
@@ -380,7 +380,7 @@ let claimTests =
                 )
         test "a different prerelease schema is refused exactly" {
             editClaims (fun node ->
-                node["$schema"] <- JsonValue.Create(claimsSchema.Replace("preview.1", "preview.2"))
+                node["$schema"] <- JsonValue.Create(claimsSchema.Replace("preview.2", "preview.1"))
             )
             |> Claims.readStandalone
             |> refused "extension.unsupported_contract_version" claimsSchema

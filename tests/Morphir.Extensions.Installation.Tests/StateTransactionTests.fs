@@ -48,7 +48,7 @@ let refuseResult code result =
 
 let emptyCatalog =
     utf8
-        "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/catalog.schema.json\",\"extensions\":[]}"
+        "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/catalog.schema.json\",\"extensions\":[]}"
 
 [<Tests>]
 let readers =
@@ -69,7 +69,7 @@ let readers =
         test "catalog matching schema without required semantic fields refuses" {
             StateDocuments.readCatalog (
                 utf8
-                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/catalog.schema.json\"}"
+                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/catalog.schema.json\"}"
             )
             |> refuseResult "extension.invalid_document"
         }
@@ -198,7 +198,7 @@ let readers =
         test "repository names are portable tokens rather than arbitrary display text" {
             let node =
                 utf8
-                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/repositories.schema.json\",\"repositories\":[{\"name\":\"bad/name\",\"endpoint\":{\"kind\":\"local-directory\",\"path\":\"/repo\"},\"state\":\"enabled\"}]}"
+                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/repositories.schema.json\",\"repositories\":[{\"name\":\"bad/name\",\"endpoint\":{\"kind\":\"local-directory\",\"path\":\"/repo\"},\"state\":\"enabled\"}]}"
 
             StateDocuments.readRepositories node
             |> refuseResult "extension.invalid_document"
@@ -311,7 +311,7 @@ let transactions =
 
             let invalidLock =
                 utf8
-                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/lock.schema.json\"}"
+                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/lock.schema.json\"}"
 
             let numbers =
                 String.Join(
@@ -322,7 +322,7 @@ let transactions =
 
             let original =
                 utf8
-                    $"{{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/journal.schema.json\",\"nextLock\":[{numbers}],\"nextCatalog\":null}}"
+                    $"{{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/journal.schema.json\",\"nextLock\":[{numbers}],\"nextCatalog\":null}}"
 
             File.WriteAllBytes(path, original)
 
@@ -344,7 +344,7 @@ let transactions =
 
             File.WriteAllText(
                 Path.Combine(root, "catalog", "extensions.json"),
-                "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/catalog.schema.json\"}"
+                "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/catalog.schema.json\"}"
             )
 
             InstalledState.CheckCompatibilityAsync(root, ct).GetAwaiter().GetResult()
@@ -443,7 +443,7 @@ let transactions =
 
             File.WriteAllText(
                 journal,
-                $"{{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":[{saved}]}}"
+                $"{{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":[{saved}]}}"
             )
 
             let! result = InstalledState.RecoverAsync(root, true, CancellationToken.None)
@@ -468,7 +468,7 @@ let transactions =
 
             let content =
                 utf8
-                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":null}"
+                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":null}"
 
             File.WriteAllBytes(journal, content)
             let! result = InstalledState.RecoverAsync(root, false, CancellationToken.None)

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/lock.schema.json",
+  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/lock.schema.json",
   "title": "Extension installation lock",
   "type": "object",
   "allOf": [
@@ -82,7 +82,7 @@
   ],
   "properties": {
     "$schema": {
-      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/lock.schema.json"
+      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/lock.schema.json"
     },
     "selection": {
       "type": "object",
@@ -115,43 +115,104 @@
       "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\\+[0-9a-zA-Z-]+(\\.[0-9a-zA-Z-]+)*)?$"
     },
     "index": {
-      "type": "object",
-      "required": [ "kind", "identity", "revision", "claims" ],
-      "properties": {
-        "kind": {
-          "const": "local-directory"
-        },
-        "identity": {
-          "type": "string",
-          "not": {
-            "pattern": "^\\\\\\\\\\?\\\\"
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [ "kind", "identity", "revision", "claims" ],
+          "properties": {
+            "kind": {
+              "const": "local-directory"
+            },
+            "identity": {
+              "type": "string",
+              "not": {
+                "pattern": "^\\\\\\\\\\?\\\\"
+              },
+              "pattern": "^(?:/|[A-Z]:\\\\|\\\\\\\\(?!\\?\\\\))"
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "claims": {
+              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json#/$defs/closedEmbedded"
+            }
           },
-          "pattern": "^(?:/|[A-Z]:\\\\|\\\\\\\\(?!\\?\\\\))"
+          "additionalProperties": false
         },
-        "revision": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "claims": {
-          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/claims.schema.json#/$defs/closedEmbedded"
+        {
+          "type": "object",
+          "required": [ "kind", "repository", "tag", "revision", "claims" ],
+          "properties": {
+            "kind": {
+              "const": "github-release"
+            },
+            "repository": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\\.\\.?$)[A-Za-z0-9._-]{1,100}$"
+            },
+            "tag": {
+              "type": "string",
+              "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\]+$",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "claims": {
+              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json#/$defs/closedEmbedded"
+            }
+          },
+          "additionalProperties": false
         }
-      },
-      "additionalProperties": false
+      ]
     },
     "source": {
-      "type": "object",
-      "required": [ "kind", "path" ],
-      "properties": {
-        "kind": {
-          "const": "local-file"
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [ "kind", "path" ],
+          "properties": {
+            "kind": {
+              "const": "local-file"
+            },
+            "path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
         },
-        "path": {
-          "type": "string",
-          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$",
-          "minLength": 1
+        {
+          "type": "object",
+          "required": [ "kind", "repository", "tag", "asset" ],
+          "properties": {
+            "kind": {
+              "const": "github-release-asset"
+            },
+            "repository": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\\.\\.?$)[A-Za-z0-9._-]{1,100}$"
+            },
+            "tag": {
+              "type": "string",
+              "pattern": "^[^\\x00-\\x20\\x7f~^:?*\\[\\\\]+$",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "asset": {
+              "type": "string",
+              "pattern": "^[^/\\\\]+$",
+              "maxLength": 255,
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
         }
-      },
-      "additionalProperties": false
+      ]
     },
     "runtime": {
       "enum": [ "process", "wasm" ]
@@ -268,7 +329,7 @@
       "type": "boolean"
     },
     "package": {
-      "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/release.schema.json#/$defs/closedPackage"
+      "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json#/$defs/closedPackage"
     }
   },
   "additionalProperties": false

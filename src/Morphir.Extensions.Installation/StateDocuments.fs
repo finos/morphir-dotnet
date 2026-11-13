@@ -104,7 +104,7 @@ module internal StateDocuments =
     open SharedJson
 
     let schemaUrl kind =
-        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/{kind}.schema.json"
+        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/{kind}.schema.json"
 
     let private stringValue path name items =
         required path name items
