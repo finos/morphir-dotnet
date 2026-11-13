@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0-alpha.2] - 2026-11-13
+
 ### Fixed
 - `morphirup setup --yes` and extension package installation work on macOS 15. Before, they failed with `extension.io_error: Cannot access '…/store/extensions/packages/sha256': native error 13.` macOS 15 refuses to rename a directory that is not writable, even when the directory stays in the same parent, and the installer sealed a package (mode 0555) before it published it with a rename. macOS 26 allows that rename, so the macos-latest jobs passed. The installer now seals the package's contents before publication and the package root after it, while it still holds the state lock. An installation of a package that is already in the store seals the root if a publication was interrupted before it did.
 - Build: the release and its dry run also run the osx-arm64 setup journey on macOS 15 (`build-morphirup`, `os: macos-15`), beside macos-latest (macOS 26). That leg uploads nothing: the new `morphirup-build.yml` input `upload` (default `true`) is `false` for it, and the macos-latest leg still produces the osx-arm64 assets. Pull requests do not run it.
-
-## [0.5.0-alpha.2] - 2026-11-13
 
 ### Changed
 - `morphirup setup` sets up from the [finos/morphir releases](https://github.com/finos/morphir/releases), the official place for Morphir releases, from the next release, `0.5.0-alpha.2`, on. It downloads from `https://github.com/finos/morphir/releases/download/v<version>/`, with the same `v<version>` tag and the same three redirect hosts (`github.com`, `release-assets.githubusercontent.com`, `objects.githubusercontent.com`, at most three redirects), and keeps its `release-checksum` assurance. There is no fallback to the finos/morphir-dotnet releases: a bundle whose asset URLs name finos/morphir-dotnet is refused. A release generation records `https://github.com/finos/morphir` as its repository; the candidate's `sourceRepository` still names finos/morphir-dotnet, where the code is built from.
