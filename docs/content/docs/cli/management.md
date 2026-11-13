@@ -209,11 +209,11 @@ morphir tool which <name> [options]
 
 ## Extension Commands
 
-`extension list` and explicit local-developer installation are available.
-Installation uses a registered repository name, a release declaration and a local
-archive, with explicit unchecked/no-probe consent. A positional archive URL is not
-accepted. Selection and removal commands remain stubs. See
-[extension installation status](extension-installation.md).
+`extension list` and `extension install` are available. `extension install` takes a
+provider source, such as `github:finos/morphir-python@0.6.2`, or an explicit
+local-developer declaration from a registered repository. Both need explicit
+`--no-probe` consent. A positional archive URL is not accepted. Selection and removal
+commands remain stubs. See [extension installation status](extension-installation.md).
 The full installer is tracked by
 [#558](https://github.com/finos/morphir-dotnet/issues/558).
 
@@ -224,6 +224,7 @@ An extension adds a capability to Morphir, such as a code generator. The plan is
 morphir extension list [--json] [--platform <rid>] [--local]
 morphir extension runtimes [--json]
 morphir extension repository add <name> --directory <absolute-path> --home <absolute-home> --local-developer [--dry-run]
+morphir extension install github:<owner>/<repo>[@<version-or-tag>] --home <absolute-home> --no-probe [--dry-run]
 morphir extension install <name> --repository <registered-name> --local-release <json> --local-archive <zip> --home <absolute-home> --local-developer --no-probe [--dry-run]
 morphir extension use <name> <version> [--platform <rid>] [--local]             # not implemented yet
 morphir extension remove <name> <version> [--platform <rid>] [--local]          # not implemented yet
@@ -239,6 +240,48 @@ or the reason it cannot. See [morphir extension runtimes](../extension-runtimes/
 `morphir extension worker` is internal and experimental, and is not in this list or in the help: it serves one
 WASM module over stdio for a conformance runner, and no product command uses it. See
 [morphir extension worker](../extension-worker/).
+
+### extension install
+
+Install an extension package from a provider source, then run it by its id:
+
+```bash
+morphir extension install github:finos/morphir-python@0.6.2 --home "$HOME/.morphir" --no-probe
+morphir compile --language python ... --extension-id <id>
+```
+
+The part before the colon names the provider. Each provider only finds the release and
+downloads the artifact. The installer that checks the digest, unpacks the package and
+writes the catalog and lock is the same for every provider.
+
+| Provider | Source | What it reads |
+| --- | --- | --- |
+| `github` | `github:<owner>/<repo>[@<version-or-tag>]` | The `release.json` asset of a GitHub release, then the artifact asset for this platform |
+| local developer | `<extension-id> --repository <name> --local-release <json> --local-archive <archive> --local-developer` | A release declaration and archive in a registered local repository |
+
+For `github:`:
+
+- `@<version>` (SemVer) selects the release tagged `v<version>`, else the release tagged `<version>`.
+  The descriptor `version` must equal `<version>`.
+- `@<tag>` that is not SemVer selects the release with that exact tag.
+- No `@` selects the latest release, as GitHub reports it: never a draft or a prerelease.
+- The release must follow the
+  [GitHub release convention](https://morphir.finos.org/docs/design/draft/extensions/distribution-and-acquisition#github-release-convention):
+  one `release.json` asset (extension family `0.1.0-preview.2`), and each artifact `filename` equal to the name of
+  an asset of the same release.
+- The artifact bytes stream into a private stage in the Home, and their SHA-256 must equal the descriptor `sha256`
+  before anything else reads them. A mismatch, a missing asset or no artifact for this platform installs nothing.
+- The command uses the anonymous GitHub API. Set `GITHUB_TOKEN` or `GH_TOKEN` to raise the rate limit or to read a
+  private repository. The token goes only to the API host. When the limit is reached, the command fails with
+  `extension.github_rate_limited` and says when the limit resets.
+- Naming a release is an explicit request, so `--local-developer` does not apply. `--no-probe` is required, as for
+  a local declaration: the extension is not started during installation, and its claims stay unchecked.
+- `--dry-run` reads the release metadata and `release.json`, and downloads no artifact.
+- Only `extension install` uses the network. `compile` and `generate` run the installed copy and never download.
+
+The catalog and lock record where the artifact came from as a provider-tagged source, for example
+`{"kind": "github-release-asset", "repository": "finos/morphir-python", "tag": "v0.6.2", "asset": "…"}`, and the
+release as `{"kind": "github-release", …, "revision": "<sha256 of release.json>"}`.
 
 ### extension list
 

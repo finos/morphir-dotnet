@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `morphir extension install github:<owner>/<repo>[@<version-or-tag>] --home <abs-home> --no-probe` installs an extension package from a GitHub release ([#493](https://github.com/finos/morphir-dotnet/issues/493)). The release carries the extensions-family `release.json` as an asset; the command picks the artifact for this platform, streams the asset into a private stage and checks its SHA-256 against the descriptor before the installer reads it. `@<version>` selects the tag `v<version>`, else `<version>`; no `@` selects the latest release. It uses the anonymous GitHub API, or `GITHUB_TOKEN` or `GH_TOKEN` when set, and reports a rate limit as `extension.github_rate_limited`. `--local-developer` does not apply to a named release; `--no-probe` is still required. The installed extension then runs with `--extension-id`, with no network.
+- Source providers in `Morphir.Extensions.Installation`: `IExtensionSourceProvider` (`Scheme`, `ResolveAsync`, `FetchAsync`), with `GitHubReleaseProvider` and `LocalRepositoryProvider`. A provider only resolves and fetches; validation, the package tree, and the catalog, lock and journal writes stay in one installer. A new source (a plain HTTPS URL, OCI, a registry index) is one more provider.
+
+### Changed
+- The extension installer writes and reads the extension family `0.1.0-preview.2` ([finos/morphir#1173](https://github.com/finos/morphir/pull/1173)), where an artifact `source` and an `index` provenance are provider-tagged unions (`local-file` or `github-release-asset`, `local-directory` or `github-release`). Catalogs, locks, journals, repositories and release descriptors of `0.1.0-preview.1` are refused and not converted: install again into a new Home, and publish `release.json` with the preview.2 `$schema`. The package tree manifest format is unchanged.
+
 ## [0.5.0-alpha.2] - 2026-11-13
 
 ### Fixed

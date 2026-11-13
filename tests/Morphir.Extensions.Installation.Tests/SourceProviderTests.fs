@@ -189,6 +189,51 @@ let tests =
             finally
                 cleanup.DisposeAsync().GetAwaiter().GetResult()
         }
+        test "a local declaration installs through the same installer and records local provenance" {
+            use sandbox = TestSandbox.Create()
+            let cleanup = PackageTests.packageCleanup sandbox
+
+            try
+                let plan, archivePath, _ = PackageTests.fixtureForHost sandbox
+                let repository = Path.Combine(sandbox.Root, "local-repository")
+                Directory.CreateDirectory repository |> ignore
+                let release = Path.Combine(repository, "release.json")
+                File.WriteAllBytes(release, JsonText.toBytes plan.Descriptor.Json)
+                let archive = Path.Combine(repository, plan.Artifact.Filename.Text)
+                File.Copy(archivePath, archive)
+
+                InstalledState.RegisterLocalRepositoryAsync(home sandbox, "local-one", repository, false, ct).GetAwaiter().GetResult()
+                |> get
+                |> ignore
+
+                let request = ExtensionSourceRequest.Local(home sandbox, "local-one", release, archive, plan.Descriptor.ExtensionId)
+                Expect.equal request.Scheme "local" "scheme"
+
+                use captured =
+                    ExtensionSources
+                        .InstallAsync(home sandbox, LocalRepositoryProvider(), request, Array.AsReadOnly [||], host, ct)
+                        .GetAwaiter()
+                        .GetResult()
+                    |> get
+
+                Expect.equal captured.Record.ArchiveDigest plan.ArchiveDigest "archive digest"
+                let lock = nonNull (JsonNode.Parse(File.ReadAllText(Path.Combine(home sandbox, "locks", "extensions", $"{plan.Descriptor.ExtensionId.Value}.json"))))
+                let index = nonNull lock["index"]
+                let source = nonNull lock["source"]
+                Expect.equal (string index["kind"]) "local-directory" "provenance kind"
+                Expect.equal (string source["kind"]) "local-file" "source kind"
+                Expect.equal (string source["path"]) $"artifacts/{plan.Artifact.Filename.Text}" "source path"
+            finally
+                cleanup.DisposeAsync().GetAwaiter().GetResult()
+        }
+        test "the GitHub provider refuses a local declaration and the local provider refuses a github source" {
+            withRelease "v1.0.0" "latest" (fun sandbox release ->
+                let local = ExtensionSourceRequest.Local(home sandbox, "x", "/r.json", "/a.zip", release.Plan.Descriptor.ExtensionId)
+                ExtensionSources.ResolveAsync(release.Provider, local, ct).GetAwaiter().GetResult()
+                |> refused "extension.provider_mismatch"
+                ExtensionSources.ResolveAsync(LocalRepositoryProvider(), request "github:finos/morphir-python", ct).GetAwaiter().GetResult()
+                |> refused "extension.provider_mismatch")
+        }
         test "a version without a v tag falls back to the bare version tag" {
             use sandbox = TestSandbox.Create()
             let cleanup = PackageTests.packageCleanup sandbox
