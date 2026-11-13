@@ -179,6 +179,10 @@ jobs:
                     - { rid: win-x64, os: windows-latest }
                     - { rid: win-arm64, os: windows-11-arm }
                     - { rid: osx-arm64, os: macos-latest }
+                    # macOS 15, which is supported, runs the osx-arm64 setup journey too: it refuses some
+                    # operations that macOS 26 allows (a rename of a directory without write permission). It uploads
+                    # nothing, so the macos-latest leg stays the one producer of the RID. Pull requests do not run it.
+                    - { rid: osx-arm64, os: macos-15, check-only: true }
         uses: ./.github/workflows/morphirup-build.yml
         with:
             rid: ${{ matrix.rid }}
@@ -187,6 +191,7 @@ jobs:
             # osx-arm64 also packs its setup toolchain and runs its acquired journey, as the Windows RIDs always do.
             # The pull request workflow does not pass this, so its macOS job stays the manager build only.
             toolchain: true
+            upload: ${{ !matrix.check-only }}
 
     release:
         runs-on: ubuntu-latest
