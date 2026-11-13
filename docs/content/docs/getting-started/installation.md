@@ -2,10 +2,146 @@
 title: "Installation"
 linkTitle: "Installation"
 weight: 1
-description: "Install Morphir .NET on your system"
+description: "Install morphirup, the Morphir toolchain manager, then the older routes to the morphir CLI"
+aliases:
+  - /getting-started/installation/
 ---
 
-## Requirements
+Start with `morphirup`, the Morphir toolchain manager. It is one file that needs neither .NET nor ICU. On Windows it
+installs the Morphir toolchain for a project from the release. Then follow
+[Your first model](../first-model/).
+
+## Install morphirup
+
+### With the install script
+
+Linux (x64, ARM64) and macOS (Apple silicon):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
+```
+
+Windows (x64, ARM64), in PowerShell 7 or Windows PowerShell 5.1:
+
+```powershell
+irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
+```
+
+Then open a new terminal and check it:
+
+```sh
+morphirup --version
+```
+
+The script finds the newest `finos/morphir-dotnet` release, prereleases included, that has `morphirup` for your
+machine. It downloads the file and the release's `morphirup-v<version>.sha256`, checks the SHA-256, and installs
+nothing if the checksum is wrong or missing. It needs only `curl` or `wget` (and `sha256sum` or `shasum`) on Linux and
+macOS, and nothing extra on Windows.
+
+| | Linux and macOS (`install-morphirup.sh`) | Windows (`install-morphirup.ps1`) |
+| --- | --- | --- |
+| Installs to | `~/.local/bin/morphirup` | `%LOCALAPPDATA%\Programs\morphirup\morphirup.exe` |
+| Choose the folder | `--install-dir <dir>` or `MORPHIRUP_INSTALL_DIR` | `-InstallDir <dir>` or `MORPHIRUP_INSTALL_DIR` |
+| Choose the version | `--version <version>` or `MORPHIRUP_VERSION` | `-Version <version>` or `MORPHIRUP_VERSION` |
+| `PATH` | Prints the `export PATH=...` line to add when the folder is not on `PATH` | Adds the folder to the user `PATH` (`-NoModifyPath` or `MORPHIRUP_NO_MODIFY_PATH=1` to skip) |
+
+To install a given release:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh -s -- --version 0.4.0-alpha.5
+```
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1))) -Version 0.4.0-alpha.5
+```
+
+To read a script before you run it, download it first, for example
+`curl -fsSLO https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh`, then run
+`sh install-morphirup.sh`.
+
+### With mise
+
+```sh
+mise use -g 'github:finos/morphir-dotnet[matching=morphirup]@0.4.0-alpha.5'
+morphirup --version
+```
+
+`matching=morphirup` makes [mise](https://mise.jdx.dev/) pick the `morphirup` archive for your platform from the
+release, which also carries `morphir` and toolchain files. Always give the version. Without one, mise picks the
+release that GitHub marks as latest, which is the proto plugin release `plugin-v0.1.1` and has no `morphirup`, and
+mise may also hide a release for a while after it is published.
+
+### Download it yourself
+
+Each release attaches `morphirup-<rid>` (`morphirup-<rid>.exe` on Windows) and the checksum file
+`morphirup-v<version>.sha256`. Download both from the
+[releases page](https://github.com/finos/morphir-dotnet/releases) and check the checksum before you run the file.
+
+On Linux (`rid` is `linux-x64` or `linux-arm64`):
+
+```sh
+v=0.4.0-alpha.5; rid=linux-x64
+base="https://github.com/finos/morphir-dotnet/releases/download/v$v"
+curl -fsSLO "$base/morphirup-$rid"
+curl -fsSLO "$base/morphirup-v$v.sha256"
+grep "  morphirup-$rid\$" "morphirup-v$v.sha256" | sha256sum -c -
+chmod +x "morphirup-$rid" && mkdir -p ~/.local/bin && mv "morphirup-$rid" ~/.local/bin/morphirup
+```
+
+On macOS, use `rid=osx-arm64` and `shasum -a 256 -c -` in place of `sha256sum -c -`. The check prints
+`morphirup-<rid>: OK`; stop if it prints anything else.
+
+On Windows (`$rid` is `win-x64` or `win-arm64`):
+
+```powershell
+$v = '0.4.0-alpha.5'; $rid = 'win-x64'
+$base = "https://github.com/finos/morphir-dotnet/releases/download/v$v"
+Invoke-WebRequest "$base/morphirup-$rid.exe" -OutFile morphirup.exe
+Invoke-WebRequest "$base/morphirup-v$v.sha256" -OutFile morphirup.sha256
+$expected = (Select-String -Path morphirup.sha256 -Pattern "  morphirup-$rid.exe$").Line.Split(' ')[0]
+(Get-FileHash morphirup.exe -Algorithm SHA256).Hash -eq $expected   # must print True
+```
+
+Then move `morphirup.exe` into a folder on your `PATH`.
+
+### What works on each platform
+
+| Platform | Release file | Install and `morphirup --version` | `morphirup setup` and `morphirup run` |
+| --- | --- | --- | --- |
+| Windows x64 | `morphirup-win-x64.exe` | Yes | Yes, experimental: `setup` installs the toolchain from the release |
+| Windows ARM64 | `morphirup-win-arm64.exe` | Yes | Yes, experimental, as for x64 |
+| Linux x64, glibc 2.35 or later | `morphirup-linux-x64` | Yes | Not yet: `setup` refuses with `setup.platform_mismatch`, because releases carry no Linux toolchain |
+| Linux ARM64, glibc 2.35 or later | `morphirup-linux-arm64` | Yes | Not yet, as for Linux x64 |
+| macOS on Apple silicon | `morphirup-osx-arm64` | Yes | Not yet, as for Linux; the macOS toolchain is in progress |
+| macOS on Intel | None | No: the script refuses | No |
+| Linux with musl, such as Alpine | None | No: the script refuses | No |
+
+The install script prints a note when the release it installed has no toolchain for your platform. Until your
+platform has one, use the standalone `morphir` CLI below to compile and generate.
+
+### What the release carries
+
+Releases attach `morphirup`, the standalone toolchain manager, as `morphirup-linux-x64`,
+`morphirup-linux-arm64`, `morphirup-osx-arm64`, `morphirup-win-x64.exe` and `morphirup-win-arm64.exe`, each also in a
+`morphirup-<rid>-v<version>.tar.gz` archive, with the checksum file `morphirup-v<version>.sha256`. It is one
+Native AOT file that needs neither .NET nor ICU. The Linux files need glibc 2.35 or later (Ubuntu 22.04, Debian 12 or
+later) and nothing else from the machine, and do not run on musl distributions such as Alpine. Each archive holds
+`LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES.txt` beside the executable, and the release carries the notices as
+`morphirup-v<version>-THIRD-PARTY-NOTICES.txt`. For `win-x64` and `win-arm64` the release also attaches the toolchain
+that `morphirup setup` downloads and installs on Windows: the self-contained host archive, the F# frontend and backend
+archives with their release and manifest files, `morphir-host-candidate-<rid>.json`, `morphir-extensions-<rid>.json`
+and the bundle `morphir-toolchain-<rid>.json`, with one `SHA256SUMS` over both platforms' files. On other platforms
+`morphirup` reads toolchain documents and prints plans. It does not verify signed metadata. The files are not
+code-signed, and the macOS file is not notarized. A SHA-256 from the same release checks that the download is intact;
+it does not authenticate the publisher. See
+[Download and verify]({{< relref "/docs/cli/morphirup#download-and-verify" >}}) for the commands and for what the
+release job checks.
+
+## Other ways to install the standalone morphir CLI
+
+These routes install the `morphir` command line itself, without `morphirup`.
+
+### Requirements
 
 What morphir-dotnet needs from the machine depends on the offering. A .NET runtime is what runs a managed program; a
 .NET SDK is the larger download that also builds and installs one. Each offering states its needs in
@@ -22,8 +158,6 @@ What morphir-dotnet needs from the machine depends on the offering. A .NET runti
 The `morphir-<rid>` executables that releases attach today are a trimmed single-file build that carries its runtime,
 so they need nothing from .NET either; no named release profile produces them, so they report no `deployment`. Building
 from source needs the .NET SDK that `global.json` names.
-
-## Installation Methods
 
 ### Global Tool Installation
 
@@ -74,22 +208,24 @@ backend extension, `Morphir.CodeGeneration.FSharp.Extension` (command
 `[codegen.fsharp].extension`. See
 [F# generation]({{< relref "/docs/backends/fsharp" >}}).
 
-### The morphirup toolchain manager
+### Standalone morphir install scripts
 
-Releases also attach `morphirup`, the standalone toolchain manager, as `morphirup-linux-x64`,
-`morphirup-linux-arm64`, `morphirup-osx-arm64`, `morphirup-win-x64.exe` and `morphirup-win-arm64.exe`, each also in a
-`morphirup-<rid>-v<version>.tar.gz` archive, with the checksum file `morphirup-v<version>.sha256`. It is one
-Native AOT file that needs neither .NET nor ICU. The Linux files need glibc 2.35 or later (Ubuntu 22.04, Debian 12 or
-later) and nothing else from the machine, and do not run on musl distributions such as Alpine. Each archive holds
-`LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES.txt` beside the executable, and the release carries the notices as
-`morphirup-v<version>-THIRD-PARTY-NOTICES.txt`. For `win-x64` and `win-arm64` the release also attaches the toolchain
-that `morphirup setup` downloads and installs on Windows: the self-contained host archive, the F# frontend and backend
-archives with their release and manifest files, `morphir-host-candidate-<rid>.json`, `morphir-extensions-<rid>.json`
-and the bundle `morphir-toolchain-<rid>.json`, with one `SHA256SUMS` over both platforms' files. On other platforms
-`morphirup` reads toolchain documents and prints plans. It does not verify signed metadata. The files are not
-code-signed, and the macOS file is not notarized. See
-[Download and verify]({{< relref "/docs/cli/morphirup#download-and-verify" >}}) for the commands and for what the
-release job checks.
+These scripts install the standalone `morphir` executable, not `morphirup`:
+
+```bash
+# Linux
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-linux.sh | bash
+
+# macOS
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-macos.sh | bash
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-windows.ps1 | iex
+```
+
+See [scripts/README.md](https://github.com/finos/morphir-dotnet/blob/main/scripts/README.md) for their options.
 
 ### Local Project Installation
 
@@ -107,9 +243,9 @@ cd morphir-dotnet
 dotnet build
 ```
 
-## Verify Installation
+### Verify the morphir CLI
 
-Check that Morphir is installed correctly:
+Check that the dotnet tool is installed correctly:
 
 ```bash
 dotnet-morphir --version
@@ -118,6 +254,12 @@ dotnet-morphir --version
 Then follow [Compile F# to Morphir IR]({{< relref "/docs/getting-started/compile-fsharp" >}}).
 
 ## Troubleshooting
+
+### morphirup Not Found
+
+On Windows, open a new terminal: the script changes the user `PATH`, which only new terminals read. On Linux and
+macOS, add the folder that the script named to your `PATH`, for example `export PATH="$HOME/.local/bin:$PATH"` in
+`~/.profile`, `~/.bashrc` or `~/.zshrc`, and open a new shell.
 
 ### Command Not Found
 

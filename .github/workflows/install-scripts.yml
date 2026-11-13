@@ -1,0 +1,177 @@
+name: Install scripts
+
+# Smoke tests for scripts/install-morphirup.sh and scripts/install-morphirup.ps1. Each job runs the
+# scripts from this checkout (not from main) against the published GitHub release: once pinned, once
+# with no version (the newest release that has morphirup for the runner), and twice with a checksum
+# file that must make the script refuse and install nothing.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/install-morphirup.sh'
+      - 'scripts/install-morphirup.ps1'
+      - '.github/workflows/install-scripts.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/install-morphirup.sh'
+      - 'scripts/install-morphirup.ps1'
+      - '.github/workflows/install-scripts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-scripts-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PINNED: 0.4.0-alpha.5
+  # Sent to api.github.com only, for the release list the unpinned runs read.
+  GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  posix:
+    name: sh (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+          - os: macos-latest
+            rid: osx-arm64
+    steps:
+      - uses: actions/checkout@v6.1.0
+
+      - name: ShellCheck (POSIX sh)
+        if: runner.os == 'Linux'
+        run: shellcheck -s sh scripts/install-morphirup.sh
+
+      - name: Pinned version
+        run: |
+          sh scripts/install-morphirup.sh --version "$PINNED" --install-dir "$RUNNER_TEMP/pinned" 2> "$RUNNER_TEMP/pinned.log"
+          cat "$RUNNER_TEMP/pinned.log"
+          grep -q "downloading morphirup-${{ matrix.rid }} $PINNED" "$RUNNER_TEMP/pinned.log"
+          "$RUNNER_TEMP/pinned/morphirup" --version | tee "$RUNNER_TEMP/pinned.version"
+          grep -q "^$PINNED" "$RUNNER_TEMP/pinned.version"
+
+      - name: No version, piped into sh, default install folder
+        run: |
+          cat scripts/install-morphirup.sh | sh
+          "$HOME/.local/bin/morphirup" --version
+
+      - name: Pinned with sh -s -- and wget, under dash
+        if: runner.os == 'Linux'
+        run: |
+          MORPHIRUP_DOWNLOADER=wget dash -s -- --version "v$PINNED" --install-dir "$RUNNER_TEMP/wget" < scripts/install-morphirup.sh
+          "$RUNNER_TEMP/wget/morphirup" --version
+
+      - name: Wrong checksum and missing checksum line are refused
+        run: |
+          printf '%064d  morphirup-%s\n' 0 "${{ matrix.rid }}" > "$RUNNER_TEMP/wrong.sha256"
+          printf '%064d  morphirup-some-other-rid\n' 0 > "$RUNNER_TEMP/missing.sha256"
+          for case in wrong missing; do
+            if MORPHIRUP_SHA256_FILE="$RUNNER_TEMP/$case.sha256" \
+                sh scripts/install-morphirup.sh --version "$PINNED" --install-dir "$RUNNER_TEMP/$case"; then
+              echo "::error::the $case checksum was accepted"; exit 1
+            fi
+            if [ -e "$RUNNER_TEMP/$case/morphirup" ]; then
+              echo "::error::the $case checksum installed a file"; exit 1
+            fi
+            echo "$case checksum refused, nothing installed"
+          done
+
+  # The documented mise command. No checkout, so mise does not read this repository's mise.toml, and
+  # install: false, so the action installs mise only.
+  mise:
+    name: mise (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          install: false
+          cache: false
+      - name: mise use -g github:finos/morphir-dotnet[matching=morphirup]
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          mise use -g "github:finos/morphir-dotnet[matching=morphirup]@$PINNED"
+          mise exec -- morphirup --version | tee version.txt
+          grep -q "^$PINNED" version.txt
+
+  windows:
+    name: PowerShell (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: windows-11-arm
+            rid: win-arm64
+    steps:
+      - uses: actions/checkout@v6.1.0
+
+      - name: Pinned version (PowerShell 7)
+        shell: pwsh
+        run: |
+          $log = pwsh -NoProfile -File scripts/install-morphirup.ps1 -Version $env:PINNED -InstallDir "$env:RUNNER_TEMP\pinned" -NoModifyPath 2>&1 | Out-String
+          $log
+          if ($LASTEXITCODE -ne 0) { throw "install failed with $LASTEXITCODE" }
+          if ($log -notmatch "downloading morphirup-${{ matrix.rid }}\.exe $([regex]::Escape($env:PINNED))") { throw 'wrong asset' }
+          $v = & "$env:RUNNER_TEMP\pinned\morphirup.exe" --version
+          $v
+          if (-not $v.StartsWith($env:PINNED)) { throw "unexpected version $v" }
+
+      - name: Pinned version (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          $PSVersionTable.PSVersion.ToString()
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-morphirup.ps1 -Version "v$env:PINNED" -InstallDir "$env:RUNNER_TEMP\pinned51" -NoModifyPath
+          if ($LASTEXITCODE -ne 0) { throw "install failed with $LASTEXITCODE" }
+          & "$env:RUNNER_TEMP\pinned51\morphirup.exe" --version
+
+      - name: No version, through iex, default folder and user PATH (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          Get-Content -Raw scripts/install-morphirup.ps1 | Invoke-Expression
+          $dir = Join-Path $env:LOCALAPPDATA 'Programs\morphirup'
+          $userPath = (Get-Item 'HKCU:\Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+          if (-not (($userPath -split ';') -contains $dir)) { throw "user PATH does not have $dir" }
+          (Get-Command morphirup).Source
+          morphirup --version
+
+      - name: No version, scriptblock form (PowerShell 7)
+        shell: pwsh
+        run: |
+          & ([scriptblock]::Create((Get-Content -Raw scripts/install-morphirup.ps1))) -InstallDir "$env:RUNNER_TEMP\latest" -NoModifyPath
+          & "$env:RUNNER_TEMP\latest\morphirup.exe" --version
+
+      - name: Wrong checksum and missing checksum line are refused
+        shell: pwsh
+        run: |
+          Set-Content "$env:RUNNER_TEMP\wrong.sha256" ('0' * 64 + '  morphirup-${{ matrix.rid }}.exe') -Encoding ascii
+          Set-Content "$env:RUNNER_TEMP\missing.sha256" ('0' * 64 + '  morphirup-some-other-rid.exe') -Encoding ascii
+          foreach ($case in 'wrong', 'missing') {
+            foreach ($shell in 'pwsh', 'powershell') {
+              $env:MORPHIRUP_SHA256_FILE = "$env:RUNNER_TEMP\$case.sha256"
+              & $shell -NoProfile -ExecutionPolicy Bypass -File scripts/install-morphirup.ps1 -Version $env:PINNED -InstallDir "$env:RUNNER_TEMP\$case-$shell" -NoModifyPath
+              if ($LASTEXITCODE -eq 0) { throw "$shell accepted the $case checksum" }
+              if (Test-Path "$env:RUNNER_TEMP\$case-$shell\morphirup.exe") { throw "$shell installed a file with the $case checksum" }
+              "$shell refused the $case checksum and installed nothing"
+            }
+          }
+          $global:LASTEXITCODE = 0

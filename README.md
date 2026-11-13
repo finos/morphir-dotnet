@@ -15,6 +15,39 @@ Morphir is a library of tools that works to capture business logic as data.
 
 For the first time, business logic can be shared, stored, translated and visualised, all with the reliability of standardisation ensured in the Morphir framework.
 
+## Get started
+
+Install `morphirup`, the Morphir toolchain manager. It is one file that needs neither .NET nor ICU.
+
+```sh
+# Linux (x64, ARM64) and macOS (Apple silicon)
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
+```
+
+```powershell
+# Windows (x64, ARM64), PowerShell 7 or Windows PowerShell 5.1
+irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
+```
+
+```sh
+# Or with mise (give the version)
+mise use -g 'github:finos/morphir-dotnet[matching=morphirup]@0.4.0-alpha.5'
+```
+
+Then open a new terminal and run `morphirup --version`. The scripts install the newest release, prereleases
+included, and refuse to install a file whose SHA-256 does not match the release's checksum file.
+
+| Platform | Install and `morphirup --version` | `morphirup setup` and `run` |
+| --- | --- | --- |
+| Windows x64 and ARM64 | Yes | Yes, experimental |
+| Linux x64 and ARM64 (glibc 2.35 or later) | Yes | Not yet: `setup` refuses, releases carry no Linux toolchain |
+| macOS on Apple silicon | Yes | Not yet: the macOS toolchain is in progress |
+| macOS on Intel, Alpine and other musl Linux | No | No |
+
+Next, build [your first model](docs/content/docs/getting-started/first-model.md). The
+[installation guide](docs/content/docs/getting-started/installation.md) covers a pinned version, other folders,
+manual download with checksum verification, and the standalone `morphir` CLI.
+
 ## What is it?
 
 A set of tools for integrating technologies. Morphir is composed of a library of tools that facilitate the digitisation of business logic into multiple different languages & platforms. The Morphir framework is unique too in that facilities elements of automation and conversion that were previously unavailable in the field of finance-tech.
@@ -106,7 +139,7 @@ its [main specification](openspec/specs/cli-csharp-generation/spec.md) and
 [archived evidence](openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/validation.md) are synchronized
 in this follow-up. Archive PR landing and root-verified cleanup remain pending.
 
-## Getting Started
+## Build from source and other installs
 
 ### Building from source
 
@@ -135,9 +168,10 @@ major version requires an explicit baseline update.
 
 To compile classic Morphir model JSON into F#, see the [Myriad getting-started article](docs/content/docs/getting-started/morphir-to-fsharp.md), [plugin reference](docs/content/docs/guides/myriad-fsharp.md), and [car rental tutorial](docs/content/docs/guides/car-rental-tutorial.md). The [runnable example](examples/car-rental/README.md) covers inventory, reservation, pickup, return and billing with one generated F# file per module.
 
-### Quick Start
+### Other ways to install the standalone morphir CLI
 
-Install Morphir using one of the following methods:
+To install with `morphirup`, see [Get started](#get-started). These routes install the `morphir` command line
+itself:
 
 **Using proto (Recommended for multi-language toolchains):**
 
@@ -179,12 +213,12 @@ dotnet-morphir --version   # .NET tool
 
 **Compile F# to Morphir IR:** follow the five-minute [Compile F# guide](https://finos.github.io/morphir-dotnet/docs/getting-started/compile-fsharp/).
 
-For detailed installation instructions and troubleshooting, see the [Installation Guide](https://finos.github.io/morphir-dotnet/getting-started/installation/).
+For detailed installation instructions and troubleshooting, see the [Installation Guide](https://finos.github.io/morphir-dotnet/docs/getting-started/installation/).
 
 ### Documentation
 
-- [Installation Guide](https://finos.github.io/morphir-dotnet/getting-started/installation/)
-- [Getting Started](https://finos.github.io/morphir-dotnet/getting-started/)
+- [Installation Guide](https://finos.github.io/morphir-dotnet/docs/getting-started/installation/)
+- [Getting Started](https://finos.github.io/morphir-dotnet/docs/getting-started/)
 - [API Documentation](https://finos.github.io/morphir-dotnet/api/)
 - [Morphir Ecosystem](https://morphir.finos.org/)
 

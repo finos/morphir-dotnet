@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Install `morphirup` with one command. `scripts/install-morphirup.sh` (POSIX `sh`, Linux x64 and ARM64, macOS on Apple silicon) and `scripts/install-morphirup.ps1` (Windows x64 and ARM64, Windows PowerShell 5.1 and PowerShell 7) install the newest `finos/morphir-dotnet` release that has `morphirup` for the machine, prereleases included, or the release given with `--version` / `-Version`. Each script checks the file against the release's `morphirup-v<version>.sha256` and installs nothing on a mismatch or a missing line. The `sh` script installs to `~/.local/bin` and prints the `PATH` line to add; the PowerShell script installs to `%LOCALAPPDATA%\Programs\morphirup` and adds it to the user `PATH`. Intel macOS and musl Linux are refused. The workflow `install-scripts.yml` runs both scripts and the mise command `mise use -g 'github:finos/morphir-dotnet[matching=morphirup]@<version>'` on Linux, macOS and Windows.
+
+### Changed
+- The README and the installation guide start with `morphirup`: the install scripts, mise, manual download with checksum verification, and what works on each platform (`morphirup setup` installs a toolchain on Windows only for now). The proto, `install-*.sh` and `dotnet tool install` routes to the standalone `morphir` CLI follow under "Other ways to install the standalone morphir CLI". The duplicate page `docs/content/getting-started/installation.md` is gone; its address redirects to the installation guide.
+
 ## [0.4.0-alpha.5] - 2026-11-12
 
 ### Added
