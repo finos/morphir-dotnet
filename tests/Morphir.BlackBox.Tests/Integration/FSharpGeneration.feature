@@ -88,6 +88,13 @@ Feature: Generate F# libraries from Morphir models
     When I generate "fsharp" from the model as text
     Then the exit code is 0
     And standard output is the text "Inventory.fs"
+    And standard error does not contain "Foundatio.Mediator"
+
+  Scenario: Generation writes no start-up logging of the mediator to standard error
+    Given the model fixture "WireForms/daily-rate-4.json"
+    When I generate "fsharp" from the model
+    Then generation exits with 0 and one JSON report
+    And standard error does not contain "Foundatio.Mediator"
 
   Scenario: Text output of an unknown target writes nothing to standard output
     Given the model fixture "WireForms/daily-rate-4.json"

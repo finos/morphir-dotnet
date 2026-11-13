@@ -46,6 +46,7 @@
     <Compile Include="DryRunTests.fs" />
     <Compile Include="ConfigurationAdapterTests.fs" />
     <Compile Include="SchemaTests.fs" />
+    <Compile Include="RefusalResultTests.fs" />
     <Compile Include="SignedCaseTests.fs" />
     <Compile Include="ReleaseDescriptorTests.fs" />
     <Compile Include="BindingReviewTests.fs" />

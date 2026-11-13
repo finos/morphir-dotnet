@@ -1566,6 +1566,11 @@ let private composedInput frontend backend =
         |> fun values -> values @ ["extensions",Value.Object ["selectionSha256",Value.String digest.Text;"frontendId",Value.String frontend;"backendId",Value.String backend]])
     |> JsonText.toBytes
 
+/// A preview.4 candidate that the composed reader accepts, with the given origin.
+let preview4Candidate (origin: string) =
+    let text = System.Text.Encoding.UTF8.GetString(composedInput "org.finos.frontend" "org.finos.backend")
+    System.Text.Encoding.UTF8.GetBytes(text.Replace("0.1.0-preview.2", "0.1.0-preview.4").Replace("local-developer", origin))
+
 [<Tests>]
 let composedReaderTests =
     testList "ComposedCandidate" [
