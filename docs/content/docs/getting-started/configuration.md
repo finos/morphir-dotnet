@@ -7,7 +7,7 @@ description: "Workspace discovery, inspection, safe TOML editing and .NET consum
 
 # Configure a workspace
 
-The shared libraries read configuration and expose bounded workspace/member discovery, source loading and pure inspection. The `morphir config get/list/show/path/explain` commands expose the same queries. `config set/unset` plan and apply one TOML edit. `project migrate` adopts one classic project through loss-checked shared services. `workspace migrate` adopts a bounded repository through aggregate verification and recoverable application. See the [workspace delivery journal]({{< relref "/docs/contributing/design/prds/workspace-migration-delivery" >}}) for local validation and parent delivery gates.
+`morphir.toml` declares a workspace, its member projects and their settings. This page shows how to declare a workspace, inspect the settings that apply, add a personal override, and move a morphir-elm project to `morphir.toml`.
 
 ## Declare the workspace
 
@@ -36,40 +36,9 @@ source_directory = "src"
 exposed_modules = ["Orders.Api"]
 ```
 
-Create its `src` directory. When invoked from `packages/orders/src`, discovery remembers the member and continues upward to the declared workspace. The root has no `project` section, so it is a virtual workspace rather than an extra project.
+Create its `src` folder. A command run in `packages/orders/src` finds both files: the member's own, and the workspace's at the root. The root has no `[project]` section, so it is only a workspace, not another project.
 
-## Discover through a host library
-
-For a native repository, supply an absolute boundary and start path:
-
-```csharp
-using Morphir.Configuration.IO;
-
-var tree = new FileSystemProjectTree("/repo");
-var result = ProjectSystem.Discover(tree, "/repo/packages/orders/src");
-// Discovery.Location: /repo
-// Selection.Projects: /repo/packages/orders
-```
-
-A mounted host can supply the same contents with `InMemoryProjectTree`. Both adapters use the same pure discovery and selection policy. The result retains the complete member inventory separately from the selected project. Pass `"packages/orders"` as the optional selector to choose that canonical member path, even if another member has the same display name.
-
-The boundary includes `/repo` and excludes its parents. An input file starts discovery in its containing directory. Only the nearest declared workspace participates; discovery does not merge configuration from every ancestor. If no workspace is found, the nearest primary location is a standalone project. With no primary, the start directory remains the location. Neither `.git` nor an empty `.morphir` directory declares a workspace through this API.
-
-Keep missing and invalid members visible in diagnostics. A nonexistent literal member produces a warning; a literal directory with no configuration or an invalid document requires attention. Excluded members are absent from the selected membership. Read source reports to distinguish an optional miss from a read failure.
-
-Resolve that member independently through the shared loader:
-
-```csharp
-var selected = result.Selection.Projects.Single();
-var effective = ProjectSystem.Load(tree, result.Discovery, selected,
-    new ProjectLoadOptions { Isolated = true });
-```
-
-Isolation retains declared primaries and supplied values while omitting machine and personal files. For active profiles, supply the desired profile selection through `ProjectLoadOptions.Input`. To load the root instead, omit the `ProjectInfo` argument. The owning workspace context carries an absolute output directory separately from the member settings; the member does not inherit the root's `project` or `workspace` document subtrees.
-
-Machine files require both explicit `MachineLocationInput` and a separately authorized `MachineTree`. No ambient machine access is implied by this example. A relative `SelectedPath` resolves from the invocation directory, while the project selector resolves from the effective workspace root.
-
-The `dist`, `tool` and `extension` commands are not implemented yet ([#490](https://github.com/finos/morphir-dotnet/issues/490), [#491](https://github.com/finos/morphir-dotnet/issues/491), [#492](https://github.com/finos/morphir-dotnet/issues/492)); when they are, they will use this same discovery.
+To discover a workspace from your own .NET code, see [Discover a workspace from a host library]({{< relref "/docs/configuration/discovery" >}}).
 
 ## Inspect the effective values
 
@@ -122,7 +91,7 @@ MORPHIR_UI__THEME=light morphir config set ui.theme dark --user --json
 morphir config set ui.color false --type bool --workspace --dry-run
 ```
 
-Repeat an identical set to receive `unchanged` without rewriting the file. A missing unset exits 1. Validation, access failures and conflicts exit 2. After a conflict, inspect the new source contents and replan. If a report names recovery artifacts, preserve its journal/backups and reconcile the target before retrying. The [shared editing API]({{< relref "/docs/configuration/editing" >}}) provides the same preview/apply boundary without the CLI.
+Running the same `set` again reports `unchanged` and doesn't rewrite the file. `unset` of a missing value exits 1. An invalid value, a file you can't write, or a file that changed while you edited it exits 2: look at the file and run the command again. The [config reference]({{< relref "/docs/cli/config" >}}) has the details.
 
 ## Retain an existing JSON project
 
@@ -210,11 +179,8 @@ morphir workspace migrate . --json > workspace-result.json
 morphir workspace migrate . --json # unchanged repeat
 ```
 
-Exit 2 means blocked, invalid, failed, or recovery required. A recovery-required
-result identifies the transaction artifacts and unresolved paths. Stop overlapping
-writes and use the shared explicit inspection/recovery APIs described in the
-[recovery guide]({{< relref "/docs/configuration/workspace-migration" >}}).
-Do not delete journals or backups to make a rerun pass.
+Exit code 2 means the migration was blocked or failed. If the result says recovery is required, don't run it again
+yet: follow the [recovery guide]({{< relref "/docs/configuration/workspace-migration" >}}).
 
 Read the [workspace migration reference]({{< relref "/docs/cli/workspace" >}}) for batch recovery and supported controls.
 

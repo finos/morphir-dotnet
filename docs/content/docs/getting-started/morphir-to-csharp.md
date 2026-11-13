@@ -36,23 +36,15 @@ dotnet build artifacts/csharp-pricing --configuration Release -p:LangVersion=14
 dotnet run --project artifacts/csharp-pricing --configuration Release --no-build
 ```
 
-The program prints `5000`. Generated records and variants use get-only payloads
-and the SDK's `IMorphirValue` equality/hash protocol. Keep the generated files
-unchanged and use their public API from your consumer code.
+The program prints `5000`. Don't edit the generated files: call their public API from your own code, and generate
+again when the model changes.
 
-Omitting `namespace` uses the model package, here `Car.Rental`. Use that namespace
-in the consumer when generating with default options. `language-version=15`
-requires a separately selected matching .NET 11 compiler for compilation; it
-does not install or invoke that compiler during generation. Keep toolchain
-selection separate from the numeric language option.
+Without the `namespace` option, the generated code uses the model's package name, here `Car.Rental`.
 
-Input and output must be separate. The output includes
-`.morphir-generated.json`. Preserve this manifest so reruns can retain unchanged
-sources and remove stale owned files while preserving your own files. Semantic
-failures and cancellation before publication preserve prior output. A filesystem
-failure during final commit can leave mixed output, as described in the
-[command reference]({{< relref "/docs/cli/generate" >}}).
+Keep the generated output in its own folder, apart from the input. Leave the `.morphir-generated.json` file in it:
+the next `generate` uses it to update only the files it owns and to keep yours. The
+[generate reference]({{< relref "/docs/cli/generate" >}}) covers the options, including `language-version`, and what
+happens when generation fails.
 
-See [C# troubleshooting]({{< relref "/docs/cli/troubleshooting#c-generation" >}}) for invalid options
-and located semantic refusals, and the [F# walkthrough]({{< relref "/docs/getting-started/morphir-to-fsharp" >}}) for
-the existing F# workflow.
+See [C# troubleshooting]({{< relref "/docs/cli/troubleshooting#c-generation" >}}) for invalid options and model
+errors, and [Generate F# from Morphir]({{< relref "/docs/getting-started/morphir-to-fsharp" >}}) for F#.

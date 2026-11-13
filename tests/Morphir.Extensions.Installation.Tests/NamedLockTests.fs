@@ -13,9 +13,68 @@ open Morphir.Extensions.Installation
 open Morphir.TestSupport
 open IoTestSupport
 
+[<DllImport("libc", EntryPoint = "dup", SetLastError = true)>]
+extern int private dup(int descriptor)
+
+[<DllImport("libc", EntryPoint = "close", SetLastError = true)>]
+extern int private close(int descriptor)
+
+// A child process between fork and exec holds a copy of each descriptor, as dup does: both share the open file
+// description that owns the flock, so close() alone leaves the lock held until the child execs.
+let private releasesWhileDescriptionIsShared
+    (root: SafeDirectory)
+    name
+    (acquire: unit -> FileStream)
+    (dispose: FileStream -> unit)
+    =
+    let lease = acquire ()
+    let copy = dup (lease.SafeFileHandle.DangerousGetHandle().ToInt32())
+
+    if copy < 0 then
+        failtest $"dup failed: {Marshal.GetLastPInvokeError()}"
+
+    try
+        dispose lease
+        use next = root.NamedLease(name, true, false)
+        Expect.isTrue next.CanRead $"{name}: disposal released the lock of the shared description"
+    finally
+        close copy |> ignore
+
 [<Tests>]
 let tests =
     testLabel "PlatformSpecific" <| testList "NamedLocks" [
+        test "lease disposal releases the lock while a starting child process shares its descriptor" {
+            if OperatingSystem.IsWindows() then
+                skiptest "Windows creates lease handles uninheritable; no child process shares them"
+
+            use sandbox = TestSandbox.Create()
+            use root = SafeDirectory.Open(home sandbox, false)
+
+            let dispose (lease: FileStream) = lease.Dispose()
+
+            let disposeAsync (lease: FileStream) =
+                lease.DisposeAsync().AsTask().GetAwaiter().GetResult()
+
+            let named name () = root.NamedLease(name, true, false)
+
+            let namedAsync name () =
+                root
+                    .NamedLeaseAsync(name, true, false, ct)
+                    .WaitAsync(TimeSpan.FromSeconds 3.)
+                    .GetAwaiter()
+                    .GetResult()
+
+            releasesWhileDescriptionIsShared root "sync.lock" (named "sync.lock") dispose
+            releasesWhileDescriptionIsShared root "async.lock" (namedAsync "async.lock") dispose
+            releasesWhileDescriptionIsShared root "sync-await.lock" (named "sync-await.lock") disposeAsync
+            releasesWhileDescriptionIsShared root "async-await.lock" (namedAsync "async-await.lock") disposeAsync
+
+            releasesWhileDescriptionIsShared
+                root
+                "private.lease"
+                (fun () -> root.File("private.lease", false, true))
+                dispose
+        }
         test "native async cancellation settles before returning and releases its open owner" {
             use sandbox = TestSandbox.Create()
             use root = SafeDirectory.Open(home sandbox, false)

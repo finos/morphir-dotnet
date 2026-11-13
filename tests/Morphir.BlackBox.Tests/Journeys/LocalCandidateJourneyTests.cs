@@ -3,7 +3,7 @@
 namespace Morphir.BlackBox.Tests.Journeys;
 
 /// <summary>
-/// The opt-in local candidate journey (docs/content/docs/getting-started/local-morphirup-candidate.md): morphirup
+/// The opt-in local candidate journey (docs/content/docs/contributing/local-morphirup-candidate.md): morphirup
 /// installs a self-contained candidate, selects it, and then compiles and generates with it, online and offline with
 /// no system .NET. It uses real executables and the frozen workflow, never a fake manager. A test with a time budget
 /// (each child must start within three minutes of the start of the journey), so a framework test (design FORM-1).

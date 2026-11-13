@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Text.Json.Nodes;
 
 namespace Morphir.Tooling.Infrastructure.JsonSchema;
 
@@ -22,6 +23,12 @@ public class SchemaLoader
         using var reader = new StreamReader(stream);
         var jsonContent = reader.ReadToEnd();
 
+        // Evaluate only the branch of a tagged union whose tag matches; without it the cost of evaluation grows
+        // exponentially with the nesting depth of the model. See TaggedUnionGuards.
+        var schemaNode = JsonNode.Parse(jsonContent)?.AsObject()
+            ?? throw new InvalidDataException($"Schema is not a JSON object: {resourceName}");
+        TaggedUnionGuards.Apply(schemaNode);
+
         // Use a local registry to avoid global state pollution and test conflicts
         // Each schema instance gets its own isolated registry for thread safety
         var options = new global::Json.Schema.BuildOptions
@@ -29,6 +36,6 @@ public class SchemaLoader
             SchemaRegistry = new global::Json.Schema.SchemaRegistry()
         };
 
-        return global::Json.Schema.JsonSchema.FromText(jsonContent, options);
+        return global::Json.Schema.JsonSchema.FromText(schemaNode.ToJsonString(), options);
     }
 }

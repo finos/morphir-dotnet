@@ -105,6 +105,68 @@ module internal Operations =
     let run (ct: CancellationToken) work =
         runAsync ct (fun () -> Task.FromResult(work ()))
 
+/// The open(2) and unlinkat(2) flags that safe directories pass to libc. Their values depend on the kernel ABI:
+/// x86-64 Linux uses the asm-generic values (include/uapi/asm-generic/fcntl.h), but arm64 Linux overrides
+/// O_DIRECTORY, O_NOFOLLOW, O_DIRECT and O_LARGEFILE (arch/arm64/include/uapi/asm/fcntl.h), and Darwin has its own
+/// (xnu bsd/sys/fcntl.h, bsd/sys/fcntl.h AT_REMOVEDIR). glibc and musl take them from the kernel headers.
+type internal UnixFlags = {
+    Directory: int
+    NoFollow: int
+    CloseOnExec: int
+    NonBlock: int
+    Create: int
+    Exclusive: int
+    RemoveDirectory: int
+}
+
+module internal UnixFlags =
+    let private linuxX64 = {
+        Directory = 0x10000
+        NoFollow = 0x20000
+        CloseOnExec = 0x80000
+        NonBlock = 0x800
+        Create = 0x40
+        Exclusive = 0x80
+        RemoveDirectory = 0x200
+    }
+
+    // On arm64 0x10000 is O_DIRECT, which a directory open refuses with EINVAL, and 0x20000 is O_LARGEFILE.
+    let private linuxArm64 = {
+        linuxX64 with
+            Directory = 0x4000
+            NoFollow = 0x8000
+    }
+
+    // Darwin's values are the same on x64 and arm64.
+    let private darwin = {
+        Directory = 0x100000
+        NoFollow = 0x100
+        CloseOnExec = 0x1000000
+        NonBlock = 0x4
+        Create = 0x200
+        Exclusive = 0x800
+        RemoveDirectory = 0x80
+    }
+
+    /// The flags of one Unix platform, by the architecture of the process: its libc is the one it calls.
+    /// None for a platform with no row (Windows, 32-bit or other architectures); the native open
+    /// wrappers refuse those before any call.
+    let forPlatform (platform: OSPlatform) (architecture: Architecture) =
+        match architecture with
+        | Architecture.X64 when platform = OSPlatform.Linux -> Some linuxX64
+        | Architecture.Arm64 when platform = OSPlatform.Linux -> Some linuxArm64
+        | Architecture.X64
+        | Architecture.Arm64 when platform = OSPlatform.OSX -> Some darwin
+        | _ -> None
+
+    let forProcess () =
+        if OperatingSystem.IsLinux() then
+            forPlatform OSPlatform.Linux RuntimeInformation.ProcessArchitecture
+        elif OperatingSystem.IsMacOS() then
+            forPlatform OSPlatform.OSX RuntimeInformation.ProcessArchitecture
+        else
+            None
+
 // Windows directories deny deletion while permitting child writes. Unix operations are
 // relative to open directory descriptors with O_NOFOLLOW. Descriptor identity is preserved through publication.
 // Directory ancestry checks detect rename-out, but advisory coordination is not same-UID OS isolation.
@@ -330,12 +392,17 @@ module private NativeFiles =
         | Architecture.Arm64 when OperatingSystem.IsLinux() -> fcntlFixed (descriptor, command, argument)
         | _ -> Operations.fail "extension.io_error" "Unsupported native fcntl ABI."
 
-    let directoryFlags = if OperatingSystem.IsMacOS() then 0x100000 else 0x10000
-    let noFollow = if OperatingSystem.IsMacOS() then 0x100 else 0x20000
-    let closeOnExec = if OperatingSystem.IsMacOS() then 0x1000000 else 0x80000
-    let nonBlock = if OperatingSystem.IsMacOS() then 0x4 else 0x800
-    let create = if OperatingSystem.IsMacOS() then 0x200 else 0x40
-    let exclusive = if OperatingSystem.IsMacOS() then 0x800 else 0x80
+    // Resolved on first use: Windows opens no Unix descriptor and has no row.
+    let private unixFlags =
+        lazy
+            (match UnixFlags.forProcess () with
+             | Some flags -> flags
+             | None ->
+                 Operations.fail
+                     "extension.io_error"
+                     $"Unsupported native open flags: {RuntimeInformation.RuntimeIdentifier}.")
+
+    let openFlags () = unixFlags.Value
     let fd (handle: SafeFileHandle) = handle.DangerousGetHandle().ToInt32()
 
     let windowsPath (path: string) =
@@ -375,6 +442,22 @@ module private NativeFiles =
 
         new SafeFileHandle(nativeint value, true)
 
+    // A flock belongs to the open file description, not to the descriptor. A child process that another
+    // thread is starting holds a copy of every descriptor until its exec closes the O_CLOEXEC ones, so close()
+    // alone can leave the lock held after the owner returned. LOCK_UN releases it on the shared description.
+    let unlock (handle: SafeFileHandle) =
+        if
+            not (OperatingSystem.IsWindows())
+            && not handle.IsClosed
+            && not handle.IsInvalid
+        then
+            flock (fd handle, 8 (* LOCK_UN *))
+            |> ignore
+
+    let release (handle: SafeFileHandle) =
+        unlock handle
+        handle.Dispose()
+
     // O_NONBLOCK lets the open of a planted FIFO return instead of blocking. A regular file needs no non-blocking
     // I/O, and from .NET 11 SafeFileHandle.IsAsync reads O_NONBLOCK from the descriptor: FileStream then reads and
     // writes at the descriptor offset and ignores its Position. Clear the flag before a FileStream wraps the handle,
@@ -386,8 +469,8 @@ module private NativeFiles =
             error path (Marshal.GetLastPInvokeError())
 
         if
-            flags &&& nonBlock <> 0
-            && fcntl (fd handle, 4 (* F_SETFL *), flags &&& ~~~nonBlock) < 0
+            flags &&& openFlags().NonBlock <> 0
+            && fcntl (fd handle, 4 (* F_SETFL *), flags &&& ~~~openFlags().NonBlock) < 0
         then
             error path (Marshal.GetLastPInvokeError())
 
@@ -506,6 +589,41 @@ module private NativeFiles =
             let kind = if directory then "directory" else "file"
             Operations.fail "extension.path_escape" $"Not a regular {kind}: {path}"
 
+/// The stream of a lease. Its disposal releases the lock before it closes the descriptor (NativeFiles.unlock),
+/// so the next owner can take the lock as soon as disposal returns.
+[<Sealed>]
+type internal LeaseStream(handle: SafeFileHandle, access: FileAccess, bufferSize: int, isAsync: bool) =
+    inherit FileStream(handle, access, bufferSize, isAsync)
+
+    override this.Dispose(disposing: bool) =
+        if
+            disposing
+            && not handle.IsClosed
+        then
+            // Unlock only after buffered writes reach the file, so no write lands outside the lock. When the
+            // flush fails, the base disposal reports it and close() releases the lock.
+            let flushed =
+                try
+                    if this.CanWrite then
+                        this.Flush()
+
+                    true
+                with _ ->
+                    false
+
+            if flushed then
+                NativeFiles.unlock handle
+
+        base.Dispose(disposing)
+
+    // FileStream.DisposeAsync does not call Dispose(bool); route it through the unlocking disposal.
+    override this.DisposeAsync() =
+        try
+            this.Dispose()
+            ValueTask.CompletedTask
+        with error ->
+            ValueTask(Task.FromException error)
+
 /// One trusted directory. Internal so callers cannot manufacture trusted filesystem state.
 type internal SafeDirectory private (path: string, handle: SafeFileHandle, ancestry: unit -> unit) =
     let identity = NativeFiles.identity handle
@@ -591,9 +709,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                 else
                     NativeFiles.unixOpen (
                         path,
-                        NativeFiles.directoryFlags
-                        ||| NativeFiles.noFollow
-                        ||| NativeFiles.closeOnExec,
+                        NativeFiles.openFlags().Directory
+                        ||| NativeFiles.openFlags().NoFollow
+                        ||| NativeFiles.openFlags().CloseOnExec,
                         0u
                     )
                     |> NativeFiles.unixHandle path
@@ -640,9 +758,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
             else
                 NativeFiles.unixOpen (
                     full,
-                    NativeFiles.directoryFlags
-                    ||| NativeFiles.noFollow
-                    ||| NativeFiles.closeOnExec,
+                    NativeFiles.openFlags().Directory
+                    ||| NativeFiles.openFlags().NoFollow
+                    ||| NativeFiles.openFlags().CloseOnExec,
                     0u
                 )
                 |> NativeFiles.unixHandle full
@@ -696,9 +814,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                 NativeFiles.openAt (
                     NativeFiles.fd handle,
                     name,
-                    NativeFiles.directoryFlags
-                    ||| NativeFiles.noFollow
-                    ||| NativeFiles.closeOnExec,
+                    NativeFiles.openFlags().Directory
+                    ||| NativeFiles.openFlags().NoFollow
+                    ||| NativeFiles.openFlags().CloseOnExec,
                     0u
                 )
                 |> NativeFiles.unixHandle full
@@ -762,18 +880,18 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                 NativeFiles.windowsHandle full opened
             else
                 let flags =
-                    NativeFiles.noFollow
-                    ||| NativeFiles.closeOnExec
-                    ||| NativeFiles.nonBlock
+                    NativeFiles.openFlags().NoFollow
+                    ||| NativeFiles.openFlags().CloseOnExec
+                    ||| NativeFiles.openFlags().NonBlock
 
                 let access =
                     if createNew then
                         2
-                        ||| NativeFiles.create
-                        ||| NativeFiles.exclusive
+                        ||| NativeFiles.openFlags().Create
+                        ||| NativeFiles.openFlags().Exclusive
                     elif lease then
                         2
-                        ||| NativeFiles.create
+                        ||| NativeFiles.openFlags().Create
                     else
                         0
 
@@ -816,19 +934,20 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                 asynchronous
                 && OperatingSystem.IsWindows()
 
+            let access =
+                if
+                    createNew
+                    || lease
+                then
+                    FileAccess.ReadWrite
+                else
+                    FileAccess.Read
+
             let stream =
-                new FileStream(
-                    file,
-                    (if
-                         createNew
-                         || lease
-                     then
-                         FileAccess.ReadWrite
-                     else
-                         FileAccess.Read),
-                    64 * 1024,
-                    asynchronousHandle
-                )
+                if lease then
+                    new LeaseStream(file, access, 64 * 1024, asynchronousHandle) :> FileStream
+                else
+                    new FileStream(file, access, 64 * 1024, asynchronousHandle)
 
             if not stream.CanSeek then
                 stream.Dispose()
@@ -836,7 +955,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
 
             stream
         with _ ->
-            file.Dispose()
+            NativeFiles.release file
             reraise ()
 
     member this.File(name: string, createNew: bool, lease: bool) =
@@ -941,9 +1060,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                     NativeFiles.fd handle,
                     name,
                     2
-                    ||| NativeFiles.create
-                    ||| NativeFiles.noFollow
-                    ||| NativeFiles.closeOnExec,
+                    ||| NativeFiles.openFlags().Create
+                    ||| NativeFiles.openFlags().NoFollow
+                    ||| NativeFiles.openFlags().CloseOnExec,
                     0o644u
                 )
                 |> NativeFiles.unixHandle full
@@ -996,9 +1115,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                     "Lock file was replaced while acquiring ownership."
 
             this.ValidateLocation()
-            new FileStream(file, FileAccess.ReadWrite, 1, false)
+            new LeaseStream(file, FileAccess.ReadWrite, 1, false) :> FileStream
         with _ ->
-            file.Dispose()
+            NativeFiles.release file
             reraise ()
 
     // Windows cancellation cancels the exact pending OVERLAPPED and waits for its
@@ -1045,9 +1164,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                             NativeFiles.fd handle,
                             name,
                             2
-                            ||| NativeFiles.create
-                            ||| NativeFiles.noFollow
-                            ||| NativeFiles.closeOnExec,
+                            ||| NativeFiles.openFlags().Create
+                            ||| NativeFiles.openFlags().NoFollow
+                            ||| NativeFiles.openFlags().CloseOnExec,
                             0o644u
                         )
                         |> NativeFiles.unixHandle full
@@ -1253,9 +1372,10 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                     this.ValidateLocation()
 
                     return
-                        new FileStream(file, FileAccess.ReadWrite, 1, OperatingSystem.IsWindows())
+                        new LeaseStream(file, FileAccess.ReadWrite, 1, OperatingSystem.IsWindows())
+                        :> FileStream
                 with error ->
-                    file.Dispose()
+                    NativeFiles.release file
                     return raise error
             })
         )
@@ -1295,7 +1415,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                     sourceName,
                     NativeFiles.fd handle,
                     targetName,
-                    1u
+                    1u (* RENAME_NOREPLACE *)
                 ) = 0
             elif OperatingSystem.IsMacOS() then
                 NativeFiles.renameAtDarwin (
@@ -1303,7 +1423,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                     sourceName,
                     NativeFiles.fd handle,
                     targetName,
-                    4u
+                    4u (* RENAME_EXCL *)
                 ) = 0
             else
                 Operations.fail "extension.io_error" "Unsupported directory publication platform."
@@ -1344,12 +1464,13 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                 NativeFiles.renameHandle source (NativeFiles.windowsPath (Path.Combine(path, name)))
             elif OperatingSystem.IsLinux() then
                 // /proc/self/fd is the kernel descriptor link, not the mutable staging name.
+                // AT_FDCWD and AT_SYMLINK_FOLLOW have these values on every Linux architecture.
                 NativeFiles.linkAt (
-                    -100,
+                    -100 (* AT_FDCWD *),
                     $"/proc/self/fd/{NativeFiles.fd source}",
                     NativeFiles.fd handle,
                     name,
-                    0x400
+                    0x400 (* AT_SYMLINK_FOLLOW *)
                 ) = 0
             elif OperatingSystem.IsMacOS() then
                 NativeFiles.cloneAt (NativeFiles.fd source, NativeFiles.fd handle, name, 0) = 0
@@ -1406,9 +1527,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                     NativeFiles.openAt (
                         NativeFiles.fd handle,
                         name,
-                        NativeFiles.noFollow
-                        ||| NativeFiles.closeOnExec
-                        ||| NativeFiles.nonBlock,
+                        NativeFiles.openFlags().NoFollow
+                        ||| NativeFiles.openFlags().CloseOnExec
+                        ||| NativeFiles.openFlags().NonBlock,
                         0u
                     )
                     |> NativeFiles.unixHandle full
@@ -1446,7 +1567,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
             NativeFiles.unlinkAt (
                 NativeFiles.fd handle,
                 name,
-                (if OperatingSystem.IsMacOS() then 0x80 else 0x200)
+                NativeFiles.openFlags().RemoveDirectory
             )
             <> 0
         then

@@ -2,42 +2,81 @@
 title: "morphirup"
 linkTitle: "morphirup"
 weight: 90
-description: "The standalone toolchain manager: experimental Windows and macOS ARM64 setup, installed execution and local planning"
+description: "Set up the Morphir toolchain with morphirup and run it, then the command reference"
 ---
 
 # morphirup
 
-`morphirup` is the standalone Morphir toolchain manager of the approved change `add-deployment-and-acquisition` (finos/morphir, decisions UP-1, UP-2 and LOCK-1). It is a Native AOT executable, so it runs on a machine with neither .NET nor Morphir installed.
+`morphirup` installs the Morphir command line, `morphir`, with the F# frontend and backend it uses, and runs them.
+It is one executable and needs no .NET. For a walkthrough with real output, see
+[Your first model with morphirup]({{< relref "/docs/getting-started/first-model" >}}).
 
-The Windows release setup below is experimental and requires a release containing this implementation. Historical
-recipe setup remains plan-only. Explicit local host installation, selection and execution remain available through
-the [local candidate instructions](../getting-started/local-morphirup-candidate.md). Publisher authentication,
-portable lock restore, proxy installation and shell setup remain unfinished. Matching a release checksum does not
-authenticate a publisher.
+## Acquire the Morphir CLI and set up a toolchain
 
-## Install with morphirup (Windows, experimental)
+| Platform | Install `morphirup` | `setup`, `show`, `select` and `run` |
+| --- | --- | --- |
+| Windows x64 and ARM64 | Yes | Yes |
+| macOS on Apple silicon | Yes | Yes |
+| Linux x64 and ARM64 | Yes | No: `setup` doesn't support Linux yet |
 
-The release setup path is being introduced by this change. Older published managers do not provide it. Once a
-release containing this change is published, download `morphirup-win-x64.exe`, or `morphirup-win-arm64.exe` on
-Windows ARM64, and `SHA256SUMS` from the same [morphir-dotnet release](https://github.com/finos/morphir-dotnet/releases).
-Setup downloads the toolchain of the manager's own platform from that release; one `SHA256SUMS` lists both platforms'
-files. Compare the executable's SHA-256 with its
-line in that file, then rename it to `morphirup.exe`. No .NET installation is required.
+Intel Macs are not supported.
 
-In an existing F# project, or the supplied `examples/morphirup-fsharp` sample, run:
+1. Install `morphirup`, as [Installation]({{< relref "/docs/getting-started/installation" >}}) shows.
+2. In your project folder, see what setup would install, then install it:
 
-```powershell
-C:\Tools\morphirup.exe setup --dry-run
-C:\Tools\morphirup.exe setup --yes
-C:\Tools\morphirup.exe run -- compile
-C:\Tools\morphirup.exe run -- generate --target fsharp --output generated --option format=false
-```
+   ```shell
+   morphirup setup --dry-run
+   morphirup setup --yes
+   ```
+
+   The dry run checks the release and installs nothing. `setup --yes` downloads the Morphir CLI, the F# frontend and
+   the F# backend from the release of the same version as `morphirup`, checks them against the release's checksums,
+   tries them out, and selects them. This is the only step that needs the network.
+3. See what is installed:
+
+   ```shell
+   morphirup show
+   ```
+
+   `"status": "shown"` means a toolchain is set up and selected.
+4. Switch to another installed toolchain when you need to:
+
+   ```shell
+   morphirup select --generation <generation-sha256> --dry-run
+   morphirup select --generation <generation-sha256>
+   ```
+
+   Each `setup --yes` installs a new copy, called a generation, and selects it. Older generations stay installed.
+   `setup` and `show` print the `generationSha256` of the one they set up or show. `select` checks every file of the
+   generation you name, then selects it, for example to go back after a newer setup. `use` is the same command.
+5. Run the CLI. Everything after `--` goes to `morphir`:
+
+   ```shell
+   morphirup run -- compile
+   morphirup run -- generate --target fsharp --output generated
+   ```
+
+   `run` uses only what is installed, so it works offline.
+
+`morphirup` keeps everything in one folder, the Home: `MORPHIR_HOME` if it is set, and `.morphir` in your user folder
+otherwise. `setup` also takes `--home <dir>`, and `show`, `select` and `run` take `--home <absolute path>`.
+
+When something goes wrong, see [Troubleshooting]({{< relref "/docs/getting-started/troubleshooting" >}}).
+
+## How release setup works
+
+`morphirup` is the standalone Morphir toolchain manager of the approved change `add-deployment-and-acquisition`
+(finos/morphir, decisions UP-1, UP-2 and LOCK-1). It is a Native AOT executable. Release setup is experimental.
+Historical recipe setup remains plan-only. Explicit local host installation, selection and execution remain
+available through the [local candidate instructions]({{< relref "/docs/contributing/local-morphirup-candidate" >}}).
+Publisher authentication, portable lock restore, proxy installation and shell setup remain unfinished.
 
 Setup uses its own release version unless `.morphir/toolchain.toml` requests an exact version. It downloads the
-runtime-bundled Morphir host and independent F# frontend and backend from that same release, checks their byte
+release's `SHA256SUMS` and the bundle file of its own platform (`morphir-toolchain-<rid>.json`), then the
+runtime-bundled Morphir host and independent F# frontend and backend that the bundle names. It checks their byte
 counts and SHA-256 values, installs their complete folders, executes the fixed readiness workflow, and selects the
-completed generation last. `--home` is optional and defaults to `MORPHIR_HOME`, then `~/.morphir`. A dry run creates
-no Home, locks, staging, receipts or selection and runs no guest.
+completed generation last. `--home` is optional and defaults to `MORPHIR_HOME`, then `~/.morphir`. A dry run reads
+only `SHA256SUMS` and the bundle, and creates no Home, locks, staging, receipts or selection and runs no guest.
 Setup refuses before those effects if the final host or provider executable path would exceed the Windows launch
 limit of 259 characters. Choose a shorter `--home` when the diagnostic names this limit.
 
@@ -61,42 +100,19 @@ After setup succeeds, the same `run` commands use installed folders and retained
 access or the download cache. The existing explicit local candidate commands remain diagnostic entry points.
 This scope does not implement publisher authentication, trust commands, moving release channels or portable lock
 restore. The manual `Windows released morphirup journey` workflow validates the actual published executable after
-assets are available; it is not a claim that an unpublished candidate has already been downloaded successfully.
+assets are available.
 
-## Set up on macOS ARM64 (experimental)
+Each generation's receipt, `toolchains/generations/<generation-sha256>/receipt.json` in the Home, names the host's
+implementation, deployment, platform, version and entry point. `toolchains/default.json` records the selected
+generation, and `catalog/extensions.json` lists the installed providers. `select`, `show` and `run` read only the
+current local-toolchains family; in a Home set up by an earlier family they refuse with `local.setup_required`, and
+`setup --yes` installs the current family beside the earlier generations.
 
-`morphirup` supports macOS ARM64 (`osx-arm64`) for local-developer setup now. Release setup with
-`morphirup setup --yes` works on macOS ARM64 when a release attaches the macOS ARM64 setup inputs. The current release
-does not attach them, so on macOS ARM64 use the local-developer route below. Intel macOS (`osx-x64`) is not supported:
-an x64 manager under Rosetta refuses setup and run.
+### On macOS {#set-up-on-macos-arm64-experimental}
 
-The build makes the macOS ARM64 inputs on a Mac with Apple silicon:
-
-```bash
-./build.sh --target PackWindowsToolchain --rid osx-arm64 --deployment self-contained \
-  --toolchain-local-developer --release-assets-dir artifacts/osx-toolchain
-```
-
-The target keeps its name for the workflows that call it. For `osx-arm64` it writes the host archive
-`morphir-dotnet-<version>-self-contained-osx-arm64.tar.gz`, the candidate `morphir-host-candidate-osx-arm64.json`,
-the F# frontend and backend archives, release descriptors and manifests, `morphir-extensions-osx-arm64.json`, the
-bundle `morphir-toolchain-osx-arm64.json`, `SHA256SUMS` and the manager `morphirup-osx-arm64`. The archives are tar.gz,
-and the entry points are `morphir`, `morphir-fsharp-frontend` and `morphir-fsharp-backend`, with no `.exe`. Then, with
-`A=artifacts/osx-toolchain` and an absolute Home `H`:
-
-```bash
-$A/morphirup-osx-arm64 setup --candidate $A/morphir-host-candidate-osx-arm64.json \
-  --local-archive $A/morphir-dotnet-<version>-self-contained-osx-arm64.tar.gz \
-  --local-bundle $A/morphir-toolchain-osx-arm64.json --local-developer --home "$H" --dry-run
-# The same command with --yes instead of --dry-run installs and prints generationSha256.
-$A/morphirup-osx-arm64 select --generation <generationSha256> --home "$H"
-cd examples/morphirup-fsharp
-$A/morphirup-osx-arm64 run --home "$H" -- compile --output compiled --out-dir out --json
-$A/morphirup-osx-arm64 run --home "$H" -- generate --target fsharp --input compiled/morphir-ir.json \
-  --output generated --option format=false --json
-```
-
-The installed commands need no .NET on `PATH` and no network. On macOS:
+On macOS on Apple silicon, the installed host and providers are the `osx-arm64` builds, with the entry points
+`morphir`, `morphir-fsharp-frontend` and `morphir-fsharp-backend`. Intel macOS (`osx-x64`) is not supported: an x64
+manager under Rosetta refuses setup and run. The executables are not notarized.
 
 - Setup keeps the bytes of each executable as the SDK published them. The SDK signs each apphost ad hoc, and
   ARM64 macOS runs only a signed executable, so the signature stays valid.
@@ -115,9 +131,10 @@ The installed commands need no .NET on `PATH` and no network. On macOS:
   process that the host started and left running when the host exited normally, and it stops nothing when
   `morphirup` itself is killed.
 
-The executables are not notarized. This is local-developer delivery: a checksum does not authenticate the publisher.
+To build and install the macOS ARM64 inputs from a checkout, see
+[macOS ARM64 local candidate]({{< relref "/docs/contributing/local-morphirup-candidate#macos-arm64-local-candidate" >}}).
 
-## Existing manager release downloads
+## Download and verify
 
 Releases of morphir-dotnet attach `morphirup` for five platforms, beside the `morphir` assets on the
 [releases page](https://github.com/finos/morphir-dotnet/releases):
@@ -151,7 +168,7 @@ verifying signed release metadata is later work.
 On Linux:
 
 ```bash
-version=0.4.0-alpha.4   # the release you want
+version=0.4.0-alpha.5   # the release you want
 base=https://github.com/finos/morphir-dotnet/releases/download/v$version
 curl -fLO "$base/morphirup-linux-x64"
 curl -fLO "$base/morphirup-v$version.sha256"
@@ -194,8 +211,8 @@ can remove the attribute with `xattr -d com.apple.quarantine morphirup-osx-arm64
 about an unsigned file that a browser downloads. Neither behavior has been checked for these files on a Mac or a
 Windows desktop.
 
-This first release reads documents and plans. It does not download, install, update or activate anything, and it does
-not verify signed metadata.
+The Windows and macOS ARM64 executables also set up and run a toolchain, as
+[above](#acquire-the-morphir-cli-and-set-up-a-toolchain). No release verifies signed metadata yet.
 
 ## Implementation, deployment and toolset
 
@@ -368,6 +385,10 @@ A provider's claims say what its publisher claims the artifact does. Checking th
 The executable needs no .NET runtime, no ICU and no OpenSSL: it is built in invariant globalization mode, it normalizes strings for the plan digest to NFC with its own Unicode 17.0.0 tables, and it computes SHA-256 with BouncyCastle's managed implementation. So it runs on a Linux machine without the `libicu` or `libssl` packages, and a plan digest is the same whatever Unicode version the machine has.
 
 ## Common errors
+
+For problems with installing, `setup`, `show` and `run`, see
+[Troubleshooting]({{< relref "/docs/getting-started/troubleshooting" >}}). The errors below come from recipe
+planning (`setup --plan`) and `doctor`.
 
 - `this build plans only`: pass `--plan` or `--dry-run`, without `--yes`. Installing is not implemented yet.
 - `document_unavailable`: the named request, lock or recipe does not exist, is over the bound in [Files](#files), or is not a regular file. Without `--request`, check where [discovery](#finding-the-project) looked.

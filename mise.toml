@@ -3,12 +3,12 @@
 
 [tools]
 dotnet = "11.0.100"
-powershell = "7.5.3"
-"npm:@fission-ai/openspec" = "1.16.1"
-node = "24.22.2"
+powershell = "7.7.0"
+"npm:@fission-ai/openspec" = "1.17.0"
+node = "24.22.3"
 
 [tools."github:moonrockz/mission-control"]
-version = "0.1.1"
+version = "0.1.2"
 version_prefix = "tools-v"
 
 [tools."github:moonrockz/mission-control".platforms]
