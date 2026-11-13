@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-alpha.6] - 2026-11-13
+
 ### Added
 - Release setup on macOS ARM64: the release attaches the `osx-arm64` toolchain (the self-contained host archive, the F# frontend and backend archives with their release and manifest files, `morphir-host-candidate-osx-arm64.json`, `morphir-extensions-osx-arm64.json` and the bundle `morphir-toolchain-osx-arm64.json`), and its one `SHA256SUMS` covers win-x64, win-arm64 and osx-arm64. On Apple silicon, `morphirup setup --yes`, then `run -- compile` and `run -- generate --target fsharp`, work from the published release. The release job packs the toolchain on the native macOS ARM64 runner of `build-morphirup` and runs the acquired setup journey there; the pull request workflow does not, so its macOS job is unchanged. `WindowsToolchainChecksums` takes `--toolchain-platforms` for a run that packs only some toolchains.
 - Experimental `morphirup` setup on macOS ARM64 (`osx-arm64`). `morphirup setup --local-developer` with a local candidate, host archive and bundle, then `select`, then `run -- compile` and `run -- generate --target fsharp`, works on Apple silicon with no .NET on `PATH` and no network. Release setup (`setup --yes`) accepts an `osx-arm64` manager and bundle too. Intel macOS stays unsupported.
@@ -387,7 +389,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.5...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.6...HEAD
+[0.4.0-alpha.6]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.5...v0.4.0-alpha.6
 [0.4.0-alpha.5]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.4...v0.4.0-alpha.5
 [0.4.0-alpha.4]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.3...v0.4.0-alpha.4
 [0.4.0-alpha.3]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.2...v0.4.0-alpha.3
