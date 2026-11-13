@@ -62,7 +62,8 @@ morphirup --version
 
 If the terminal says `morphirup` is not found, see
 [morphirup is not found]({{< relref "/docs/getting-started/troubleshooting#morphirup-is-not-found" >}}).
-[Installation]({{< relref "/docs/getting-started/installation" >}}) has the other ways to install it.
+[Installation]({{< relref "/docs/getting-started/installation#install-morphirup" >}}) says where the script puts
+`morphirup`, lists its options, and has the other ways to install it.
 
 ## 2. Get the example project
 

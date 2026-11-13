@@ -16,9 +16,9 @@ the [CLI troubleshooting reference]({{< relref "/docs/cli/troubleshooting" >}}).
 
 **Why.** The folder that holds `morphirup` is not on your `PATH`, or the terminal was open before the install.
 
-**What to do.** On Windows, the install script adds `%LOCALAPPDATA%\Programs\morphirup` to your user `PATH`. Open
-a new terminal; one that was already open doesn't see the change. On macOS and Linux, the script installs into
-`~/.local/bin`. When that folder isn't on your `PATH`, the script ends by printing the line to add:
+**What to do.** On Windows, the install script adds its folder to your user `PATH`, so open a new terminal; one that
+was already open doesn't see the change. On macOS and Linux, the script doesn't change `PATH`. When its folder isn't
+on your `PATH`, it ends by printing the line to add:
 
 ```text
 morphirup-install: .../bin is not on your PATH. Add this line to your shell profile
@@ -28,7 +28,8 @@ morphirup-install: (~/.profile, ~/.bashrc or ~/.zshrc), then open a new shell:
 ```
 
 The script prints the full folder where this shows `...`. Add its `export` line to your shell profile and open a
-new shell.
+new shell. [Installation]({{< relref "/docs/getting-started/installation#install-morphirup" >}}) says where each script
+installs `morphirup`.
 
 ### The install script reports a checksum mismatch
 
@@ -43,7 +44,7 @@ or changed on the way.
 
 **What to do.** Nothing was installed, so it is safe to run the script again. If the mismatch comes back, download
 `morphirup` and the release's checksum file yourself and compare them, as
-[Installation]({{< relref "/docs/getting-started/installation" >}}) shows. If they still don't match, don't run the
+[Download it yourself]({{< relref "/docs/getting-started/installation#download-it-yourself" >}}) shows. If they still don't match, don't run the
 file, and [open an issue](https://github.com/finos/morphir-dotnet/issues/new).
 
 ### The install script refuses on an Intel Mac
@@ -55,26 +56,28 @@ that runs under Rosetta on an Apple silicon Mac is fine: the script installs the
 
 **What to do.** Use a Mac with Apple silicon, or a Windows machine.
 
-### mise installs the wrong release
+### mise installs an older release, or the wrong one
 
-**What you see.** Without a version, mise picks the release `plugin-v0.1.1`, which has no `morphirup`:
+**What you see.** Without a version, mise can pick a release that isn't the newest, or one that has no `morphirup`
+for your machine. With the command from [Installation]({{< relref "/docs/getting-started/installation#with-mise" >}}),
+mise picked an older release that has no Windows ARM64 file:
+
+```text
+mise ✗ github:finos/morphir-dotnet@0.4.0-alpha.4  943ms · failed: No matching asset found for platform windows-arm64
+```
+
+Without `version_prefix=v,prerelease=true`, it picks the plugin release `plugin-v0.1.1`, which has no `morphirup`:
 
 ```text
 mise ✗ github:finos/morphir-dotnet@plugin-v0.1.1  36ms · failed: No matching asset found for platform windows-arm64
-mise ERROR Failed to install github:finos/morphir-dotnet@latest: No matching asset found for platform windows-arm64
-Note: filtered by matching="morphirup"
 ```
 
-**Why.** mise takes the release that GitHub marks as latest. In this repository that is a plugin release, not a
-morphir-dotnet release.
+**Why.** mise doesn't always see the newest release: its list can leave out one published recently. Without those
+options, it takes the release that GitHub marks as latest, which in this repository is a plugin release.
 
-**What to do.** Always give mise a version. Take the newest `v...` version from the
-[releases page](https://github.com/finos/morphir-dotnet/releases), without the `v`:
-
-```shell
-mise use -g 'github:finos/morphir-dotnet[matching=morphirup]@<version>'
-```
-
+**What to do.** Give mise the version. Add `@<version>` at the end, inside the quotes, as
+[With mise]({{< relref "/docs/getting-started/installation#with-mise" >}}) shows. The versions are on the
+[releases page](https://github.com/finos/morphir-dotnet/releases), written without the `v`.
 ## Setting up a toolchain
 
 ### Linux: setup says the platform isn't supported
@@ -137,7 +140,8 @@ If you set `MORPHIR_HOME`, check that it names the same folder for `setup` and `
 **Why.** Setup downloads the toolchain from GitHub, so it needs the network. A proxy that is set but doesn't work
 causes the same error.
 
-**What to do.** Run setup once while you are online, and check `HTTPS_PROXY` and `HTTP_PROXY`. After that,
+**What to do.** Run setup once while you are online, and check `HTTPS_PROXY` and `HTTP_PROXY`. Behind a company
+proxy or firewall, see [Behind a proxy or firewall]({{< relref "/docs/getting-started/installation#behind-a-proxy-or-firewall" >}}). After that,
 `morphirup run -- compile` and `morphirup run -- generate` need no network.
 
 ### Setup says a path is too long (Windows)

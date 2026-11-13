@@ -26,7 +26,8 @@ macOS:
 curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
 ```
 
-Open a new terminal and check it with `morphirup --version`.
+Open a new terminal and check it with `morphirup --version`. For the script's options and other ways to install,
+see [Installation](../../docs/content/docs/getting-started/installation.md).
 
 ## Set up, compile and generate
 
