@@ -91,7 +91,7 @@ And prepare download URL for version "1.0.0-rc.1"
 Given version "1.0.0" and platform "linux-x64"
 When proto requests the download URL
 Then the URL should be:
-  "https://github.com/finos/morphir/releases/download/v1.0.0/morphir-linux-x64-v1.0.0.tar.gz"
+  "https://github.com/finos/morphir-dotnet/releases/download/v1.0.0/morphir-linux-x64-v1.0.0.tar.gz"
 ```
 
 #### Scenario Outline: All platforms generate correct URLs

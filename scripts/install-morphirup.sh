@@ -6,10 +6,9 @@
 #   sh install-morphirup.sh [--version <version>] [--install-dir <dir>]
 #
 # Options:
-#   --version <version>    Release to install, such as 0.5.0-alpha.1 (a leading v is accepted).
-#                          Default: the newest finos/morphir release, prereleases included,
-#                          that has a morphirup file for this platform. A release without one,
-#                          such as a release of the earlier Rust CLI (v0.4.0-beta.*), is skipped.
+#   --version <version>    Release to install, such as 0.4.0-alpha.5 (a leading v is accepted).
+#                          Default: the newest finos/morphir-dotnet release, prereleases included,
+#                          that has a morphirup file for this platform.
 #   --install-dir <dir>    Folder to install morphirup into. Default: $HOME/.local/bin
 #   -h, --help             Show this help.
 #
@@ -17,15 +16,13 @@
 #   MORPHIRUP_VERSION      Same as --version.
 #   MORPHIRUP_INSTALL_DIR  Same as --install-dir.
 #   MORPHIRUP_DOWNLOADER   curl or wget, to choose the download tool. Default: curl if present.
-#   MORPHIRUP_DOWNLOAD_URL HTTPS mirror of https://github.com/finos/morphir/releases/download,
+#   MORPHIRUP_DOWNLOAD_URL HTTPS mirror of https://github.com/finos/morphir-dotnet/releases/download,
 #                          laid out the same way: <url>/v<version>/<file>.
 #   MORPHIRUP_API_URL      Release list to read when no version is given. Default:
-#                          https://api.github.com/repos/finos/morphir/releases?per_page=100
+#                          https://api.github.com/repos/finos/morphir-dotnet/releases?per_page=30
 #   GITHUB_TOKEN           Sent to api.github.com only, to avoid the unauthenticated rate limit.
 #   MORPHIRUP_SHA256_FILE  Testing hook: verify against this local checksum file instead of the
 #                          release's morphirup-v<version>.sha256.
-#   MORPHIRUP_RELEASES_FILE Testing hook: read the release list from this local file, in the form
-#                          of the GitHub API, instead of MORPHIRUP_API_URL.
 #
 # Behind a proxy: curl and wget read HTTPS_PROXY / https_proxy and NO_PROXY / no_proxy. If the
 # proxy inspects TLS, point CURL_CA_BUNDLE (curl) or SSL_CERT_FILE at your company's CA bundle.
@@ -41,8 +38,8 @@
 
 set -eu
 
-REPO="finos/morphir"
-GITHUB_API_URL="https://api.github.com/repos/${REPO}/releases?per_page=100"
+REPO="finos/morphir-dotnet"
+GITHUB_API_URL="https://api.github.com/repos/${REPO}/releases?per_page=30"
 API_URL="${MORPHIRUP_API_URL:-$GITHUB_API_URL}"
 FEED_URL="https://github.com/${REPO}/releases.atom"
 GITHUB_DOWNLOAD_URL="https://github.com/${REPO}/releases/download"
@@ -65,7 +62,7 @@ usage() {
     cat >&2 <<'EOF'
 usage: install-morphirup.sh [--version <version>] [--install-dir <dir>]
 
-  --version <version>    Release to install, such as 0.5.0-alpha.1. Default: the newest
+  --version <version>    Release to install, such as 0.4.0-alpha.5. Default: the newest
                          release, prereleases included, with morphirup for this platform.
   --install-dir <dir>    Folder to install into. Default: $HOME/.local/bin
   -h, --help             Show this help.
@@ -172,28 +169,17 @@ normalize_version() {
     v="$1"
     v="${v#v}"
     case "$v" in
-        ""|*[!0-9A-Za-z.+-]*) die "'$1' is not a version, such as 0.5.0-alpha.1" ;;
+        ""|*[!0-9A-Za-z.+-]*) die "'$1' is not a version, such as 0.4.0-alpha.5" ;;
     esac
     VERSION="$v"
 }
 
 # Find the newest release (prereleases included) that has morphirup-<rid>. The release list is
-# newest first. A release without that file is skipped: finos/morphir also has releases of the
-# earlier Rust CLI (v0.4.0-beta.* and older) and may have releases of other tools. Drafts are
-# visible only with write access, and their download URLs use an "untagged-" tag, so those are
-# skipped too.
+# newest first. Drafts are visible only with write access, and their download URLs use an
+# "untagged-" tag, so those are skipped.
 resolve_latest() {
     list="$WORK/releases.json"
-    if [ -n "${MORPHIRUP_RELEASES_FILE:-}" ]; then
-        say "reading the release list from ${MORPHIRUP_RELEASES_FILE} (testing hook)"
-        cp "$MORPHIRUP_RELEASES_FILE" "$list" || die "cannot read ${MORPHIRUP_RELEASES_FILE}"
-        listed=1
-    elif fetch_api "$API_URL" "$list"; then
-        listed=1
-    else
-        listed=0
-    fi
-    if [ "$listed" = 1 ]; then
+    if fetch_api "$API_URL" "$list"; then
         tag="$(grep -o '"browser_download_url": *"[^"]*"' "$list" \
             | sed 's/.*"\(https:[^"]*\)"$/\1/' \
             | grep "/releases/download/[^/]*/morphirup-${RID}\$" \
@@ -210,8 +196,7 @@ resolve_latest() {
 }
 
 # The Atom feed on github.com lists the newest releases first, prereleases included, but not
-# their files, so try each v* tag until one has morphirup-<rid>. A tag without the file, such as
-# a Rust CLI release, is skipped.
+# their files, so try each v* tag until one has morphirup-<rid>.
 resolve_from_feed() {
     feed="$WORK/releases.atom"
     fetch "$FEED_URL" "$feed" \
@@ -272,7 +257,7 @@ main() {
     sums="morphirup-v${VERSION}.sha256"
     base="${DOWNLOAD_URL}/v${VERSION}"
 
-    say "downloading ${asset} ${VERSION} from ${base}/${asset}"
+    say "downloading ${asset} ${VERSION}"
     fetch "${base}/${asset}" "$WORK/$asset" \
         || die_network "could not download ${base}/${asset}; check that release v${VERSION} exists and has ${asset}"
 

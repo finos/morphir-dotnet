@@ -91,12 +91,11 @@ irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-
 
 ```sh
 # Or with mise
-mise use -g 'github:finos/morphir[matching=morphirup,version_prefix=v,prerelease=true]'
+mise use -g 'github:finos/morphir-dotnet[matching=morphirup,version_prefix=v,prerelease=true]'
 ```
 
-The script installs `morphirup` from the newest [Morphir release](https://github.com/finos/morphir/releases) that has
-it, and verifies the download first. `morphirup` then sets up the toolchain from the same releases. Open a new
-terminal and run `morphirup --version`; it prints the version you installed.
+The script installs the newest release and verifies the download first. Open a new terminal and run
+`morphirup --version`; it prints the version you installed.
 
 | Platform | Install morphirup | Set up, compile and generate |
 | --- | --- | --- |

@@ -552,12 +552,6 @@ two steps have the same pattern.
 | Build output | `Then the assembly {string} references no member {string} of {string}` |
 | Build output | `Then the assembly {string} references no assembly {string} and no type of its namespace` |
 | Build output | `Then the assembly {string} uses no type of the namespace {string}` |
-| Install scripts | `Given the Morphir release list {string}` |
-| Install scripts | `When I run the install script of this machine with no version` |
-| Install scripts | `Then the install script chose the release {string}` |
-| Install scripts | `Then the install script downloads morphirup from {string}` |
-| Install scripts | `Then the install script says {string}` |
-| Install scripts | `Then the install script installed nothing` |
 
 The scenarios that pull request 3 of the change `consolidate-black-box-tests` moved keep the step texts of their old
 features, so that each moved scenario has its old steps and its old checks. Some of those steps say one thing in the

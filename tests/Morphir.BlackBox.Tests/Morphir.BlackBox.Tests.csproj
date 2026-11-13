@@ -94,9 +94,6 @@
           Link="Fixtures/Examples/car-rental-pricing/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/MorphirIR/daily-rate-mismatch-v3.json" Link="Fixtures/Models/daily-rate-mismatch-v3.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/MorphirIR/daily-rate-v4.json" Link="Fixtures/Models/daily-rate-v4.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- The install scripts of morphirup, which a scenario runs with a release list of Fixtures/InstallScripts. -->
-    <None Include="../../scripts/install-morphirup.sh" Link="Fixtures/InstallScripts/install-morphirup.sh" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../scripts/install-morphirup.ps1" Link="Fixtures/InstallScripts/install-morphirup.ps1" CopyToOutputDirectory="PreserveNewest" />
     <!-- The published JSON schemas of the configuration and migration reports. -->
     <None Include="../../docs/spec/schemas/config-inspection-result.schema.json" Link="Fixtures/Schemas/config-inspection-result.schema.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/spec/schemas/config-edit-result.schema.json" Link="Fixtures/Schemas/config-edit-result.schema.json" CopyToOutputDirectory="PreserveNewest" />

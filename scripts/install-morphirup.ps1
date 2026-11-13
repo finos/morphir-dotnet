@@ -3,7 +3,7 @@
 Install morphirup, the Morphir toolchain manager, on Windows x64 or ARM64.
 
 .DESCRIPTION
-Downloads morphirup-<rid>.exe and morphirup-v<version>.sha256 from a finos/morphir GitHub
+Downloads morphirup-<rid>.exe and morphirup-v<version>.sha256 from a finos/morphir-dotnet GitHub
 release, checks the SHA-256 with Get-FileHash, and installs nothing unless it matches. It installs
 morphirup.exe into %LOCALAPPDATA%\Programs\morphirup by default and adds that folder to the user
 PATH. Runs on Windows PowerShell 5.1 and PowerShell 7.
@@ -18,15 +18,13 @@ Environment variables (useful with irm | iex, which cannot pass parameters):
   MORPHIRUP_VERSION          Same as -Version.
   MORPHIRUP_INSTALL_DIR      Same as -InstallDir.
   MORPHIRUP_NO_MODIFY_PATH   Set to 1 for -NoModifyPath.
-  MORPHIRUP_DOWNLOAD_URL     HTTPS mirror of https://github.com/finos/morphir/releases/download,
+  MORPHIRUP_DOWNLOAD_URL     HTTPS mirror of https://github.com/finos/morphir-dotnet/releases/download,
                              laid out the same way: <url>/v<version>/<file>.
   MORPHIRUP_API_URL          Release list to read when no version is given. Default:
-                             https://api.github.com/repos/finos/morphir/releases?per_page=100
+                             https://api.github.com/repos/finos/morphir-dotnet/releases?per_page=30
   GITHUB_TOKEN               Sent to api.github.com only, to avoid the unauthenticated rate limit.
   MORPHIRUP_SHA256_FILE      Testing hook: verify against this local checksum file instead of the
                              release's morphirup-v<version>.sha256.
-  MORPHIRUP_RELEASES_FILE    Testing hook: read the release list from this local file, in the form of
-                             the GitHub API, instead of MORPHIRUP_API_URL.
 
 Behind a proxy: the script uses the Windows proxy settings, or HTTPS_PROXY (with NO_PROXY) when it is
 set, and signs in to the proxy as the current Windows user. If the proxy inspects TLS, your company's
@@ -35,9 +33,8 @@ release-assets.githubusercontent.com, plus api.github.com when no version is giv
 is blocked, the script reads the release feed on github.com instead.
 
 .PARAMETER Version
-Release to install, such as 0.5.0-alpha.1 (a leading v is accepted). Default: the newest finos/morphir
-release, prereleases included, that has morphirup for this machine's architecture. A release without
-it, such as a release of the earlier Rust CLI (v0.4.0-beta.*), is skipped.
+Release to install, such as 0.4.0-alpha.5 (a leading v is accepted). Default: the newest release,
+prereleases included, that has morphirup for this machine's architecture.
 
 .PARAMETER InstallDir
 Folder to install morphirup.exe into. Default: %LOCALAPPDATA%\Programs\morphirup
@@ -59,8 +56,8 @@ function Install-Morphirup {
     $ErrorActionPreference = 'Stop'
     $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is very slow on 5.1 with a progress bar.
 
-    $repo = 'finos/morphir'
-    $apiUrl = if ($env:MORPHIRUP_API_URL) { $env:MORPHIRUP_API_URL } else { "https://api.github.com/repos/$repo/releases?per_page=100" }
+    $repo = 'finos/morphir-dotnet'
+    $apiUrl = if ($env:MORPHIRUP_API_URL) { $env:MORPHIRUP_API_URL } else { "https://api.github.com/repos/$repo/releases?per_page=30" }
     $feedUrl = "https://github.com/$repo/releases.atom"
     $downloadUrl = if ($env:MORPHIRUP_DOWNLOAD_URL) { $env:MORPHIRUP_DOWNLOAD_URL.TrimEnd('/') } else { "https://github.com/$repo/releases/download" }
     $networkHint = 'If your network needs a proxy, set it in the Windows proxy settings or in HTTPS_PROXY. If it ' +
@@ -156,28 +153,20 @@ function Install-Morphirup {
     if ($Version) {
         $Version = $Version.Trim()
         if ($Version.StartsWith('v')) { $Version = $Version.Substring(1) }
-        if ($Version -notmatch '^[0-9A-Za-z.+-]+$') { throw "'$Version' is not a version, such as 0.5.0-alpha.1" }
+        if ($Version -notmatch '^[0-9A-Za-z.+-]+$') { throw "'$Version' is not a version, such as 0.4.0-alpha.5" }
     }
     else {
         Say "finding the newest release with $asset"
         $releases = $null
-        if ($env:MORPHIRUP_RELEASES_FILE) {
-            Say "reading the release list from $($env:MORPHIRUP_RELEASES_FILE) (testing hook)"
-            $releases = [IO.File]::ReadAllText($env:MORPHIRUP_RELEASES_FILE) | ConvertFrom-Json
+        try {
+            $webArgs = WebArgs $apiUrl
+            $releases = Invoke-RestMethod @webArgs -Headers $headers
         }
-        else {
-            try {
-                $webArgs = WebArgs $apiUrl
-                $releases = Invoke-RestMethod @webArgs -Headers $headers
-            }
-            catch {
-                Say "could not read ${apiUrl} ($($_.Exception.Message)); reading the release feed on github.com instead"
-            }
+        catch {
+            Say "could not read ${apiUrl} ($($_.Exception.Message)); reading the release feed on github.com instead"
         }
         if ($null -ne $releases) {
-            # The list is newest first. A release without the file is skipped: finos/morphir also has
-            # releases of the earlier Rust CLI (v0.4.0-beta.* and older) and may have releases of other
-            # tools. Drafts are skipped.
+            # The list is newest first; drafts are skipped.
             foreach ($r in $releases) {
                 if ($r.draft) { continue }
                 if (@($r.assets | Where-Object { $_.name -eq $asset }).Count -gt 0) { $release = $r; break }
@@ -187,7 +176,7 @@ function Install-Morphirup {
         }
         else {
             # The Atom feed lists the newest releases first, prereleases included, but not their files,
-            # so try each v* tag until one has the file. A tag without it, such as a Rust CLI release, is skipped.
+            # so try each v* tag until one has the file.
             try {
                 $webArgs = WebArgs $feedUrl
                 $feed = (Invoke-WebRequest @webArgs).Content
@@ -216,7 +205,7 @@ function Install-Morphirup {
     New-Item -ItemType Directory -Path $work | Out-Null
     try {
         $downloaded = Join-Path $work $asset
-        Say "downloading $asset $Version from $base/$asset"
+        Say "downloading $asset $Version"
         try {
             $webArgs = WebArgs "$base/$asset"
             Invoke-WebRequest @webArgs -OutFile $downloaded

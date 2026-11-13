@@ -78,7 +78,7 @@ else
         echo "✅ Plugin correctly generated download URL"
 
         # Extract and display the URL
-        GENERATED_URL=$(grep -o "https://github.com/finos/morphir/releases/download/v0.3.0-rc.2/morphir-.*-v0.3.0-rc.2.tar.gz" /tmp/morphir-test-output.txt || true)
+        GENERATED_URL=$(grep -o "https://github.com/finos/morphir-dotnet/releases/download/v0.3.0-rc.2/morphir-.*-v0.3.0-rc.2.tar.gz" /tmp/morphir-test-output.txt || true)
         if [ -n "$GENERATED_URL" ]; then
             echo "   Generated URL: $GENERATED_URL"
         fi

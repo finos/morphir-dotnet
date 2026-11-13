@@ -37,7 +37,6 @@ public sealed class DriverSet : IAsyncDisposable
         LibraryHosts = new LibraryHostDriver(programs, workspace);
         BuiltFiles = new ArtifactInspectionDriver(programs);
         Packages = new PackageDriver(workspace, packageSources, packedPackages);
-        InstallScripts = new InstallScriptDriver(workspace);
         Capabilities = DriverCapabilities.Of(target, host);
         _hostCopies = hostCopies;
         Sessions = new ProcessSessionDriver(target, host, artifact, workspace);
@@ -124,9 +123,6 @@ public sealed class DriverSet : IAsyncDisposable
     public IArtifactInspectionDriver BuiltFiles { get; }
 
     public IPackageDriver Packages { get; }
-
-    /// <summary>The install scripts of morphirup, run on the shell of this machine.</summary>
-    public IInstallScriptDriver InstallScripts { get; }
 
     /// <summary>The capabilities that these drivers support.</summary>
     public IReadOnlySet<DriverCapability> Capabilities { get; }
