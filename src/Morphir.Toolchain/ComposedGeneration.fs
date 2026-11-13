@@ -86,7 +86,7 @@ module internal ReleaseBundleDocument =
     let read bytes : Result<ReleaseBundle,ReaderRefusal> = result {
         let! o = envelope family "bundle" ["version";"sourceCommit";"platform";"assets"] bytes
         let! version = required "version" version o
-        let! platform = required "platform" (tag ["win-x64",Platform.WinX64;"win-arm64",Platform.WinArm64]) o
+        let! platform = required "platform" (tag ["win-x64",Platform.WinX64;"win-arm64",Platform.WinArm64;"osx-arm64",Platform.OsxArm64]) o
         let! commit = required "sourceCommit" text o
         if commit.Length <> 40 || commit |> Seq.exists(fun c -> not (Char.IsAsciiDigit c || c >= 'a' && c <= 'f')) then
             return! refuse ReaderCode.InvalidValue (o.Path.Child "sourceCommit")

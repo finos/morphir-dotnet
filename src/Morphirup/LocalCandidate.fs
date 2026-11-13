@@ -47,11 +47,38 @@ let readBytes maximum path =
 
     output.ToArray()
 
+// The path with each link among its existing parts replaced by its target. The parts that do not exist yet stay.
+let rec private physicalPath depth (path: string) =
+    if depth > 32 then
+        refuse "local.home_links" "--home has too many levels of links."
+
+    let root =
+        Path.GetPathRoot path
+        |> Option.ofObj
+        |> Option.defaultValue "/"
+
+    let rec walk (current: string) parts =
+        match parts with
+        | [] -> current
+        | (part: string) :: rest ->
+            let next = Path.Combine(current, part)
+
+            match (FileInfo next).LinkTarget with
+            | null -> walk next rest
+            | target -> walk (physicalPath (depth + 1) (Path.GetFullPath(target, current))) rest
+
+    walk root (path.Substring(root.Length).Split('/', StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
+
+/// An absolute Home. Off Windows it is the physical path: the installed host refuses a source document below a link,
+/// and setup reads its readiness sources below Home. On macOS, $TMPDIR is below the link /var.
 let homePath (home: string) =
     if not (Path.IsPathFullyQualified home) then
         refuse "local.home_not_absolute" "--home must be an absolute isolated Morphir Home."
 
-    Path.TrimEndingDirectorySeparator(Path.GetFullPath home)
+    let full = Path.TrimEndingDirectorySeparator(Path.GetFullPath home)
+
+    if OperatingSystem.IsWindows() then full
+    else Path.TrimEndingDirectorySeparator(physicalPath 0 full)
 
 let result command status (candidate: Sha256 option) diagnostic =
     Value.Object [

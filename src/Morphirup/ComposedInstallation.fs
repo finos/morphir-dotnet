@@ -176,7 +176,7 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
        || candidate.Host.Host.Version.Text.Split('+')[0] <> bundle.Version.Text then
         refuse "acquisition.binding_mismatch" "The release host, selection and bundle identities disagree."
     match LocalCandidatePlanning.planRelease platform LocalInstallation.maximumArchive candidate.Host with
-    | Error _ -> refuse "acquisition.plan_refused" "The declared host closure is not a matching Windows runtime-bundled toolchain."
+    | Error _ -> refuse "acquisition.plan_refused" "The declared host closure is not a matching runtime-bundled toolchain for this platform."
     | Ok _ -> ()
     let descriptors = ResizeArray<string * byte array * PackagePlan>()
     for role,selected in ["frontend",candidate.FrontendId;"backend",candidate.BackendId] do
@@ -362,7 +362,7 @@ let releaseVersion directory (ownVersion: string) =
             else RequestDocument.read raw |> reader
         if request.Host.Implementation.Text <> "dotnet" || request.Host.Deployment.Text <> "self-contained" || request.Toolset.Preset.Text <> "fsharp"
            || not request.Toolset.Providers.IsEmpty then
-            refuse "setup.unsupported_request" "This Windows release setup supports the .NET self-contained F# toolset with its two packaged process providers."
+            refuse "setup.unsupported_request" "This release setup supports the .NET self-contained F# toolset with its two packaged process providers."
         match request.Host.Release with
         | HostRelease.Exact version -> version.Text.Split('+')[0]
         | HostRelease.Channel _ -> refuse "setup.exact_version_required" "Release setup requires an exact project host version; moving channels are not selected."

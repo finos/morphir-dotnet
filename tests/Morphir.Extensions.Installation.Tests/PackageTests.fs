@@ -828,3 +828,106 @@ let producerTests =
             |> refused "package.entry_point_not_exe"
         }
     ]
+
+// A tar.gz package for this host: its entry point, one additional executable and one data file at the archive root.
+let private tarPackage (sandbox: TestSandbox) (extra: (Formats.Tar.TarEntry) list) =
+    let platform =
+        ActivationPlatforms.current ()
+        |> StateOwnership.unwrap
+
+    let original, _, _ = fixtureForPlatform platform sandbox
+    let files = [ "lib/data.json", utf8 "{}", false; "run", utf8 "guest", true; "tools/helper", utf8 "helper", true ]
+    use memory = new MemoryStream()
+
+    do
+        use gzip = new GZipStream(memory, CompressionLevel.Fastest, true)
+        use tar = new Formats.Tar.TarWriter(gzip, Formats.Tar.TarEntryFormat.Ustar, false)
+
+        for name, bytes, executable in files do
+            let entry = Formats.Tar.UstarTarEntry(Formats.Tar.TarEntryType.RegularFile, name)
+            entry.Mode <- enum<UnixFileMode> (if executable then 0o755 else 0o644)
+            entry.DataStream <- new MemoryStream(bytes)
+            tar.WriteEntry entry
+
+        for entry in extra do
+            tar.WriteEntry entry
+
+    let bytes = memory.ToArray()
+
+    let manifest =
+        files
+        |> List.map (fun (name, content, executable) ->
+            $"""{if executable then "x" else "f"} {content.Length} {Digest.ofBytes content} {name}""")
+        |> String.concat "\n"
+        |> fun lines -> utf8 $"morphir-package-tree 0.1.0-preview.1\n{lines}\n"
+
+    let plan =
+        editPlan
+            platform
+            original
+            (fun node ->
+                let item = artifact node
+                item["filename"] <- JsonValue.Create "guest.tar.gz"
+                item["sha256"] <- JsonValue.Create(Digest.ofBytes bytes)
+                let package = nonNull item["package"]
+                package["format"] <- JsonValue.Create "tar.gz"
+                package["entryPoint"] <- JsonValue.Create "run"
+                package["executables"] <- nonNull (JsonNode.Parse("[\"tools/helper\"]"))
+                package["treeSha256"] <- JsonValue.Create(Digest.ofBytes manifest)
+            )
+
+    plan, staged sandbox bytes
+
+[<Tests>]
+let tarPackageTests =
+    testLabel "PlatformSpecific" <| testList "PackageTarTrees" [
+        testTask "a tar.gz package installs with its canonical modes and verifies" {
+            if OperatingSystem.IsWindows() then
+                skiptest "A Windows entry point is a .exe in a ZIP package."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let plan, archive = tarPackage sandbox []
+            Expect.equal plan.Format "tar.gz" "the declared format"
+            let root = home sandbox
+            let! installed = PackageInstaller.InstallAsync(root, plan, archive, ct)
+            let installed: InstalledPackage = get installed
+            Expect.equal (File.ReadAllBytes installed.EntryPointPath) (utf8 "guest") "entry point bytes are unchanged"
+            let tree = Path.GetDirectoryName installed.EntryPointPath |> nonNull
+            Expect.equal (File.GetUnixFileMode installed.EntryPointPath) (enum<UnixFileMode> 0o555) "entry point is executable"
+            Expect.equal (File.GetUnixFileMode(Path.Combine(tree, "tools", "helper"))) (enum<UnixFileMode> 0o555) "declared executable"
+            Expect.equal (File.GetUnixFileMode(Path.Combine(tree, "lib", "data.json"))) (enum<UnixFileMode> 0o444) "data file"
+            let! verified = PackageInstaller.VerifyAsync(root, plan, ct)
+            get verified |> ignore
+        }
+        testTask "a tar.gz package with a symbolic link is refused before publication" {
+            if OperatingSystem.IsWindows() then
+                skiptest "A Windows entry point is a .exe in a ZIP package."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let link = Formats.Tar.UstarTarEntry(Formats.Tar.TarEntryType.SymbolicLink, "tools/link")
+            link.LinkName <- "../run"
+            let plan, archive = tarPackage sandbox [ link ]
+            let root = home sandbox
+            let! result = PackageInstaller.InstallAsync(root, plan, archive, ct)
+            refused "extension.unsafe_archive" result
+            Expect.isFalse (Directory.Exists(Path.Combine(root, "store", "extensions", "packages", "sha256", plan.TreeDigest.Value))) "nothing is published"
+        }
+        testTask "a tar.gz package whose bytes are a ZIP is refused" {
+            if OperatingSystem.IsWindows() then
+                skiptest "A Windows entry point is a .exe in a ZIP package."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let plan, _ = tarPackage sandbox []
+            let zipPlan, zipArchive, _ = fixtureForHost sandbox
+            let mismatched =
+                editPlan
+                    (ActivationPlatforms.current () |> StateOwnership.unwrap)
+                    plan
+                    (fun node -> (artifact node)["sha256"] <- JsonValue.Create zipPlan.ArchiveDigest.Value)
+            let! result = PackageInstaller.InstallAsync(home sandbox, mismatched, zipArchive, ct)
+            refused "package.archive_format" result
+        }
+    ]
