@@ -375,6 +375,22 @@ module private NativeFiles =
 
         new SafeFileHandle(nativeint value, true)
 
+    // A flock belongs to the open file description, not to the descriptor. A child process that another
+    // thread is starting holds a copy of every descriptor until its exec closes the O_CLOEXEC ones, so close()
+    // alone can leave the lock held after the owner returned. LOCK_UN releases it on the shared description.
+    let unlock (handle: SafeFileHandle) =
+        if
+            not (OperatingSystem.IsWindows())
+            && not handle.IsClosed
+            && not handle.IsInvalid
+        then
+            flock (fd handle, 8 (* LOCK_UN *))
+            |> ignore
+
+    let release (handle: SafeFileHandle) =
+        unlock handle
+        handle.Dispose()
+
     // O_NONBLOCK lets the open of a planted FIFO return instead of blocking. A regular file needs no non-blocking
     // I/O, and from .NET 11 SafeFileHandle.IsAsync reads O_NONBLOCK from the descriptor: FileStream then reads and
     // writes at the descriptor offset and ignores its Position. Clear the flag before a FileStream wraps the handle,
@@ -505,6 +521,41 @@ module private NativeFiles =
         then
             let kind = if directory then "directory" else "file"
             Operations.fail "extension.path_escape" $"Not a regular {kind}: {path}"
+
+/// The stream of a lease. Its disposal releases the lock before it closes the descriptor (NativeFiles.unlock),
+/// so the next owner can take the lock as soon as disposal returns.
+[<Sealed>]
+type internal LeaseStream(handle: SafeFileHandle, access: FileAccess, bufferSize: int, isAsync: bool) =
+    inherit FileStream(handle, access, bufferSize, isAsync)
+
+    override this.Dispose(disposing: bool) =
+        if
+            disposing
+            && not handle.IsClosed
+        then
+            // Unlock only after buffered writes reach the file, so no write lands outside the lock. When the
+            // flush fails, the base disposal reports it and close() releases the lock.
+            let flushed =
+                try
+                    if this.CanWrite then
+                        this.Flush()
+
+                    true
+                with _ ->
+                    false
+
+            if flushed then
+                NativeFiles.unlock handle
+
+        base.Dispose(disposing)
+
+    // FileStream.DisposeAsync does not call Dispose(bool); route it through the unlocking disposal.
+    override this.DisposeAsync() =
+        try
+            this.Dispose()
+            ValueTask.CompletedTask
+        with error ->
+            ValueTask(Task.FromException error)
 
 /// One trusted directory. Internal so callers cannot manufacture trusted filesystem state.
 type internal SafeDirectory private (path: string, handle: SafeFileHandle, ancestry: unit -> unit) =
@@ -816,19 +867,20 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                 asynchronous
                 && OperatingSystem.IsWindows()
 
+            let access =
+                if
+                    createNew
+                    || lease
+                then
+                    FileAccess.ReadWrite
+                else
+                    FileAccess.Read
+
             let stream =
-                new FileStream(
-                    file,
-                    (if
-                         createNew
-                         || lease
-                     then
-                         FileAccess.ReadWrite
-                     else
-                         FileAccess.Read),
-                    64 * 1024,
-                    asynchronousHandle
-                )
+                if lease then
+                    new LeaseStream(file, access, 64 * 1024, asynchronousHandle) :> FileStream
+                else
+                    new FileStream(file, access, 64 * 1024, asynchronousHandle)
 
             if not stream.CanSeek then
                 stream.Dispose()
@@ -836,7 +888,7 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
 
             stream
         with _ ->
-            file.Dispose()
+            NativeFiles.release file
             reraise ()
 
     member this.File(name: string, createNew: bool, lease: bool) =
@@ -996,9 +1048,9 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                     "Lock file was replaced while acquiring ownership."
 
             this.ValidateLocation()
-            new FileStream(file, FileAccess.ReadWrite, 1, false)
+            new LeaseStream(file, FileAccess.ReadWrite, 1, false) :> FileStream
         with _ ->
-            file.Dispose()
+            NativeFiles.release file
             reraise ()
 
     // Windows cancellation cancels the exact pending OVERLAPPED and waits for its
@@ -1253,9 +1305,10 @@ type internal SafeDirectory private (path: string, handle: SafeFileHandle, ances
                     this.ValidateLocation()
 
                     return
-                        new FileStream(file, FileAccess.ReadWrite, 1, OperatingSystem.IsWindows())
+                        new LeaseStream(file, FileAccess.ReadWrite, 1, OperatingSystem.IsWindows())
+                        :> FileStream
                 with error ->
-                    file.Dispose()
+                    NativeFiles.release file
                     return raise error
             })
         )
