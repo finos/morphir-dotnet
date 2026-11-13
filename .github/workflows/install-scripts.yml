@@ -1,23 +1,28 @@
 name: Install scripts
 
 # Smoke tests for scripts/install-morphirup.sh and scripts/install-morphirup.ps1. Each job runs the
-# scripts from this checkout (not from main) against the published GitHub release: once pinned, once
+# scripts from the chosen ref (not from main) against the published GitHub release: once pinned, once
 # with no version (the newest release that has morphirup for the runner), and twice with a checksum
-# file that must make the script refuse and install nothing.
+# file that must make the script refuse and install nothing. The mise job runs the documented mise
+# command.
+#
+# Manual only, so ordinary pull requests pay nothing for it. Run it after changing the scripts:
+#   gh workflow run install-scripts.yml --ref <branch> [-f version=0.4.0-alpha.5] [-f platforms=windows]
 
 on:
-  pull_request:
-    paths:
-      - 'scripts/install-morphirup.sh'
-      - 'scripts/install-morphirup.ps1'
-      - '.github/workflows/install-scripts.yml'
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/install-morphirup.sh'
-      - 'scripts/install-morphirup.ps1'
-      - '.github/workflows/install-scripts.yml'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release for the pinned runs, without a leading v. Empty means 0.4.0-alpha.5.'
+        required: false
+        default: ''
+        type: string
+      platforms:
+        description: 'Which runners to use'
+        required: false
+        default: all
+        type: choice
+        options: [all, linux, macos, windows]
 
 permissions:
   contents: read
@@ -27,18 +32,20 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PINNED: 0.4.0-alpha.5
+  PINNED: ${{ inputs.version || '0.4.0-alpha.5' }}
   # Sent to api.github.com only, for the release list the unpinned runs read.
   GITHUB_TOKEN: ${{ github.token }}
 
 jobs:
   posix:
     name: sh (${{ matrix.rid }})
+    if: inputs.platforms != 'windows'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
         include:
           - os: ubuntu-latest
             rid: linux-x64
@@ -46,6 +53,11 @@ jobs:
             rid: linux-arm64
           - os: macos-latest
             rid: osx-arm64
+        # 'none' matches no runner, so that entry excludes nothing.
+        exclude:
+          - os: ${{ inputs.platforms == 'macos' && 'ubuntu-latest' || 'none' }}
+          - os: ${{ inputs.platforms == 'macos' && 'ubuntu-24.04-arm' || 'none' }}
+          - os: ${{ inputs.platforms == 'linux' && 'macos-latest' || 'none' }}
     steps:
       - uses: actions/checkout@v6.1.0
 
@@ -97,6 +109,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        exclude:
+          - os: ${{ (inputs.platforms == 'macos' || inputs.platforms == 'windows') && 'ubuntu-latest' || 'none' }}
+          - os: ${{ (inputs.platforms == 'linux' || inputs.platforms == 'windows') && 'macos-latest' || 'none' }}
+          - os: ${{ (inputs.platforms == 'linux' || inputs.platforms == 'macos') && 'windows-latest' || 'none' }}
     steps:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
@@ -112,6 +128,7 @@ jobs:
 
   windows:
     name: PowerShell (${{ matrix.rid }})
+    if: inputs.platforms == 'all' || inputs.platforms == 'windows'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:

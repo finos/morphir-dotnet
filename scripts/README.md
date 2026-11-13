@@ -131,8 +131,19 @@ missing checksum line.
   ```
 
 Both send `GITHUB_TOKEN`, when set, to `api.github.com` only. `MORPHIRUP_SHA256_FILE` is a testing hook that names a
-local checksum file to verify against. The workflow `.github/workflows/install-scripts.yml` runs both scripts on
-Linux, macOS and Windows, including refusal cases.
+local checksum file to verify against.
+
+The workflow `.github/workflows/install-scripts.yml` runs both scripts and the documented mise command on Linux,
+macOS and Windows, including the refusal cases. It runs only when started by hand, so pull requests do not pay for
+it. Run it after you change either script:
+
+```sh
+gh workflow run install-scripts.yml --ref <branch>
+gh workflow run install-scripts.yml --ref <branch> -f version=0.4.0-alpha.5 -f platforms=windows
+```
+
+`version` is the release for the pinned runs, without a leading `v`; empty means `0.4.0-alpha.5`. `platforms` is
+`all` (the default), `linux`, `macos` or `windows`.
 
 #### `install-linux.sh` / `install-macos.sh` / `install-windows.ps1`
 
