@@ -11,12 +11,26 @@ namespace Morphir.Tooling.Tests.Infrastructure.JsonSchema;
 /// </summary>
 public class SchemaEvaluationCostTests
 {
+    /// <summary>
+    /// The budget of the guards of the cost: the greeting example and the small models. Each takes well under a second;
+    /// before the fix the greeting example and depth 20 did not finish.
+    /// </summary>
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// The budget of the deep models, which show that the stack holds the depth limit, not that evaluation is fast.
+    /// They take a few seconds (3.5 to 6 s at nesting 510), and more on a loaded shared runner, so the budget catches
+    /// only exponential growth.
+    /// </summary>
+    private static readonly TimeSpan DeepBudget = TimeSpan.FromSeconds(120);
 
     private readonly SchemaValidator _sut = new(new SchemaLoader());
 
     private Task<SchemaValidationResult> ValidateWithinBudget(string json, string version) =>
-        Task.Run(() => _sut.ValidateAsync(json, version, CancellationToken.None)).WaitAsync(Budget);
+        ValidateWithin(json, version, Budget);
+
+    private Task<SchemaValidationResult> ValidateWithin(string json, string version, TimeSpan budget) =>
+        Task.Run(() => _sut.ValidateAsync(json, version, CancellationToken.None)).WaitAsync(budget);
 
     [Test]
     [Category("PlatformSpecific")]
@@ -33,12 +47,23 @@ public class SchemaEvaluationCostTests
     [Test]
     [Arguments(3)]
     [Arguments(20)]
-    [Arguments(200)]
     public async Task A_value_with_deeply_nested_applications_is_valid_within_the_budget(int depth)
     {
         var json = ModelWithBody(NestedApply(depth));
 
         var result = await ValidateWithinBudget(json, "3");
+
+        result.Errors.Should().BeEmpty();
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Test]
+    [NotInParallel] // It keeps a processor busy for seconds, which would delay the timing of any test beside it.
+    public async Task A_value_with_two_hundred_nested_applications_is_valid()
+    {
+        var json = ModelWithBody(NestedApply(200));
+
+        var result = await ValidateWithin(json, "3", DeepBudget);
 
         result.Errors.Should().BeEmpty();
         result.IsValid.Should().BeTrue();
@@ -84,13 +109,14 @@ public class SchemaEvaluationCostTests
     /// </summary>
     [Test]
     [Category("PlatformSpecific")]
+    [NotInParallel] // It keeps a processor busy for seconds, which would delay the timing of any test beside it.
     public async Task A_model_just_within_the_depth_limit_is_valid()
     {
         var depth = SchemaValidator.MaxModelDepth - NestingOf(ModelWithBody(NestedApply(0))) - 2;
         var json = ModelWithBody(NestedApply(depth));
         NestingOf(json).Should().BeInRange(SchemaValidator.MaxModelDepth - 12, SchemaValidator.MaxModelDepth);
 
-        var result = await ValidateWithinBudget(json, "3");
+        var result = await ValidateWithin(json, "3", DeepBudget);
 
         result.Errors.Should().BeEmpty();
         result.IsValid.Should().BeTrue();
@@ -104,7 +130,7 @@ public class SchemaEvaluationCostTests
         var json = ModelWithBody(NestedApply(depth));
         NestingOf(json).Should().BeGreaterThan(SchemaValidator.MaxModelDepth);
 
-        var act = () => ValidateWithinBudget(json, "3");
+        var act = () => ValidateWithin(json, "3", DeepBudget);
 
         await act.Should().ThrowAsync<System.Text.Json.JsonException>().WithMessage("*depth*512*");
     }
