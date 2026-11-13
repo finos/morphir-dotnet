@@ -242,9 +242,9 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
                 "repository",value AcquisitionDelivery.repository;"tag",value("v"+bundle.Version.Text)
                 "bundle",Value.Object ["path",value "acquisition/bundle.json";"sha256",value (Sha256.ofBytes rawBundle).Text]
                 "checksums",Value.Object ["path",value "acquisition/SHA256SUMS";"sha256",value (Sha256.ofBytes checksums).Text]])
-            let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.4" candidate captures.CatalogBytes locks metadata workflow proof
-            let manifest = ComposedDocuments.readManifest "0.1.0-preview.4" candidate manifestBytes |> reader
-            let receipt = ComposedDocuments.receipt "0.1.0-preview.4" candidate manifest.Identity
+            let manifestBytes = ComposedDocuments.writeManifest ReleaseBundleDocument.family candidate captures.CatalogBytes locks metadata workflow proof
+            let manifest = ComposedDocuments.readManifest ReleaseBundleDocument.family candidate manifestBytes |> reader
+            let receipt = ComposedDocuments.receipt ReleaseBundleDocument.family candidate manifest.Identity
             let preparedIdentity =
                 use generation = stage.Child("generation",false)
                 LocalInstallation.writeFile generation "generation.json" manifestBytes
@@ -317,10 +317,10 @@ let setupLocalAsync platform home candidatePath archivePath bundlePath dryRun ct
 }
 
 /// The one composed family that select, show and run read.
-let private family = "0.1.0-preview.4"
+let private family = ReleaseBundleDocument.family
 
 // Earlier composed families. A document of one is refused by name, so the user knows to set up again.
-let private earlierFamilies = ["0.1.0-preview.2";"0.1.0-preview.3"]
+let private earlierFamilies = ["0.1.0-preview.2";"0.1.0-preview.3";"0.1.0-preview.4"]
 
 let private schemaOf name (raw: byte array) =
     Syntax.parseJson raw |> reader |> SharedJson.members name |> SharedJson.required name "$schema" |> SharedJson.text "$schema"
@@ -346,7 +346,7 @@ let selected home ct = task {
     return snapshot
 }
 
-/// True for a preview.4 selection pointer. An earlier composed pointer is refused. Any other pointer, such as the
+/// True for a preview.5 selection pointer. An earlier composed pointer is refused. Any other pointer, such as the
 /// historical preview.1 local one, is left to the historical local route and its own reader.
 let isSelected home =
     let pointer = path home LocalCandidateDocument.selectionPath
@@ -356,9 +356,9 @@ let isSelected home =
         refuseEarlier "selection" schema
         schema = ComposedDocuments.schemaFor family "selection"
 
-/// The origin that a refused select or show reports: the origin of the candidate of the preview.4 generation that
-/// select names, or of the preview.4 selection pointer that show reads. None when that document is absent or is not a
-/// preview.4 document that its reader accepts, as for a historical preview.1 generation. Never throws.
+/// The origin that a refused select or show reports: the origin of the candidate of the preview.5 generation that
+/// select names, or of the preview.5 selection pointer that show reads. None when that document is absent or is not a
+/// preview.5 document that its reader accepts, as for a historical preview.1 generation. Never throws.
 let recordedOrigin home (generation: Sha256 option) =
     try
         let file, origin =

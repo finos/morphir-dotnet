@@ -150,7 +150,7 @@ public class ReleaseAssetsTests
     public async Task TheWindowsChecksumFileIsNotWrittenWhenABundleAssetIsMissingOrDiffers()
     {
         // The release SHA256SUMS lists each bundle and every asset it names, with the bundle's digests
-        // (finos/morphir local-toolchains 0.1.0-preview.4, release-bindings).
+        // (finos/morphir local-toolchains 0.1.0-preview.5, release-bindings).
         await using var sandbox = TestSandbox.Create("release-assets-");
         var x64 = Toolchain(sandbox, "win-x64");
         var arm64 = Toolchain(sandbox, "win-arm64");
@@ -239,7 +239,7 @@ public class ReleaseAssetsTests
             [(archive, $"{rid} archive"), (MorphirupRelease.ExecutableName(rid), $"{rid} manager"), .. extra]);
         var bytes = new FileInfo(Path.Combine(folder, archive)).Length;
         var bundle = $$"""
-            {"$schema":"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/bundle.schema.json","version":"1.2.3","sourceCommit":"{{new string('a', 40)}}","platform":"{{bundlePlatform}}","assets":[{"name":"{{archive}}","url":"https://github.com/finos/morphir-dotnet/releases/download/v1.2.3/{{archive}}","bytes":{{bytes}},"sha256":"{{ReleaseArchive.Sha256(Path.Combine(folder, archive))}}","role":"host-archive"}]}
+            {"$schema":"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/bundle.schema.json","version":"1.2.3","sourceCommit":"{{new string('a', 40)}}","platform":"{{bundlePlatform}}","assets":[{"name":"{{archive}}","url":"https://github.com/finos/morphir/releases/download/v1.2.3/{{archive}}","bytes":{{bytes}},"sha256":"{{ReleaseArchive.Sha256(Path.Combine(folder, archive))}}","role":"host-archive"}]}
             """;
         File.WriteAllText(Path.Combine(folder, $"morphir-toolchain-{rid}.json"), bundle);
         return folder;

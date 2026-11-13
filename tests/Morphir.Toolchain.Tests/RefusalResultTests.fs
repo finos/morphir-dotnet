@@ -1,7 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 /// <summary>
-/// The refusals of morphirup setup, select and show are local-toolchains 0.1.0-preview.4 results, validated against
+/// The refusals of morphirup setup, select and show are local-toolchains 0.1.0-preview.5 results, validated against
 /// the published schema pinned in tests/Fixtures/LocalToolchains, with the origin of the route or of the generation
 /// the command acted on.
 /// </summary>
@@ -17,8 +17,8 @@ open Morphir.Toolchain
 open Morphir.TestSupport
 
 let private pinRoot = Path.GetFullPath(Path.Combine(__SOURCE_DIRECTORY__, "..", "Fixtures", "LocalToolchains"))
-let private schemaFile = Path.Combine(pinRoot, "0.1.0-preview.4", "result.schema.json")
-let private resultSchema = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/result.schema.json"
+let private schemaFile = Path.Combine(pinRoot, "0.1.0-preview.5", "result.schema.json")
+let private resultSchema = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/result.schema.json"
 
 let private schema =
     lazy (JsonSchema.FromText(SchemaTests.endAnchored (File.ReadAllText schemaFile), BuildOptions(SchemaRegistry = SchemaRegistry())))
@@ -33,7 +33,7 @@ let private validResult (stdout: string) =
             match detail.Errors with
             | NonNull errors when not detail.IsValid && errors.Count > 0 -> Some $"{detail.InstanceLocation}: {Seq.head errors.Values}"
             | _ -> None)
-    Expect.isTrue results.IsValid $"the refusal validates against the preview.4 result schema: {defaultArg failure String.Empty}\n{stdout}"
+    Expect.isTrue results.IsValid $"the refusal validates against the preview.5 result schema: {defaultArg failure String.Empty}\n{stdout}"
     document.RootElement
 
 let private run platform (sandbox: TestSandbox) args = task {
@@ -58,13 +58,13 @@ let private expectRefusal (command: string) (origin: string) (exit: int, stdout:
 let private generation = String('a', 64)
 
 let private pointer origin =
-    $"""{{"$schema":"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/selection.schema.json","origin":"{origin}","generationSha256":"{generation}","receiptSha256":"{String('b', 64)}","receiptPath":"toolchains/generations/{generation}/receipt.json"}}"""
+    $"""{{"$schema":"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/selection.schema.json","origin":"{origin}","generationSha256":"{generation}","receiptSha256":"{String('b', 64)}","receiptPath":"toolchains/generations/{generation}/receipt.json"}}"""
 
 [<Tests>]
 let tests =
     testList "RefusalResult" [
         test "the pinned result schema has the bytes of finos/morphir" {
-            Expect.equal (Sha256.ofBytes(File.ReadAllBytes schemaFile)).Text "9ace148b4273f50e1fc7ce6cf0b5d2f5013be2afdf7e17ca02981df6e71bbc02" "PROVENANCE.md"
+            Expect.equal (Sha256.ofBytes(File.ReadAllBytes schemaFile)).Text "6a49c582de9fc4609767356993e5d0276272a06a00584366433dfd2e1b99839f" "PROVENANCE.md"
         }
         testCaseTask "show with no selection refuses with the local-developer origin" (fun () -> task {
             use sandbox = TestSandbox.Create()
@@ -84,7 +84,7 @@ let tests =
             let home = Path.Combine(sandbox.Work, "home")
             let folder = Path.Combine(home, "toolchains", "generations", generation)
             Directory.CreateDirectory folder |> ignore
-            File.WriteAllBytes(Path.Combine(folder, "candidate.json"), LocalCandidateTests.preview4Candidate "release-checksum")
+            File.WriteAllBytes(Path.Combine(folder, "candidate.json"), LocalCandidateTests.preview5Candidate "release-checksum")
             let! result = run Platform.WinX64 sandbox [ "select"; "--generation"; generation; "--home"; home ]
             expectRefusal "select" "release-checksum" result |> ignore
         })
@@ -104,7 +104,7 @@ let tests =
         testCaseTask "composed local setup refuses with the local-developer origin" (fun () -> task {
             use sandbox = TestSandbox.Create()
             let candidate = Path.Combine(sandbox.Work, "candidate.json")
-            File.WriteAllBytes(candidate, LocalCandidateTests.preview4Candidate "release-checksum")
+            File.WriteAllBytes(candidate, LocalCandidateTests.preview5Candidate "release-checksum")
             let! result =
                 run Platform.WinArm64 sandbox
                     [ "setup"; "--candidate"; candidate; "--local-archive"; Path.Combine(sandbox.Work, "host.zip")

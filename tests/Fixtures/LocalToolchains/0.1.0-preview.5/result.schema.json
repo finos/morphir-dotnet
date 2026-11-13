@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/result.schema.json",
+  "$id": "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/result.schema.json",
   "title": "Local composed toolchain result",
   "description": "One morphirup setup, select or show command result written to stdout.",
   "type": "object",
   "properties": {
     "$schema": {
-      "const": "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/result.schema.json"
+      "const": "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/result.schema.json"
     },
     "command": {
       "enum": [

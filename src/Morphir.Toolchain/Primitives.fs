@@ -393,7 +393,7 @@ module Platform =
         | Platform.WinArm64 -> true
         | _ -> false
 
-    /// The platforms of a preview.4 local toolchain: the two Windows platforms and macOS ARM64.
+    /// The platforms of a preview.5 local toolchain: the two Windows platforms and macOS ARM64.
     let isLocalToolchain (platform: Platform) =
         match platform with
         | Platform.WinX64
