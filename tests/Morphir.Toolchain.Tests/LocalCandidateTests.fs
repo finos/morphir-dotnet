@@ -1733,6 +1733,10 @@ let releaseBundleTests =
             Expect.equal ReleaseBundleDocument.repository "https://github.com/finos/morphir" "the release source is finos/morphir"
             Expect.isError (bundle (official.Replace("finos/morphir/","finos/morphir-dotnet/")) |> ReleaseBundleDocument.read) "no fallback to the old source"
         }
+        test "an asset URL of a repository that only starts like finos/morphir is refused" {
+            for repository in [ "finos/morphirX"; "finos/morphir.evil"; "finos/Morphir" ] do
+                Expect.isError (bundle (official.Replace("finos/morphir/",repository+"/")) |> ReleaseBundleDocument.read) $"{repository} is not finos/morphir"
+        }
 
         test "checksum coverage must include the raw bundle" {
             let raw = bundle official

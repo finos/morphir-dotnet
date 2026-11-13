@@ -380,6 +380,20 @@ let tests = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
         Expect.isTrue refused "no fallback to the old source"
         Expect.isEmpty handler.Requests "no request was sent"
     })
+    for repository in [ "finos/morphirX"; "finos/morphir.evil"; "finos/Morphir"; "finos/morphir-dotnet" ] do
+        testCaseTask $"a repository that only starts like finos/morphir is refused before any request: {repository}" (fun () -> task {
+            let handler = new StorageHandler()
+            use transport = new AcquisitionDelivery.ReleaseTransport(handler)
+            let! refused = task {
+                try
+                    let! response = (transport :> IAcquisitionTransport).OpenAsync(Uri $"https://github.com/{repository}/releases/download/v0.5.0-alpha.2/SHA256SUMS",CancellationToken.None)
+                    do! response.DisposeAsync()
+                    return false
+                with :? HttpRequestException -> return true
+            }
+            Expect.isTrue refused "the exact repository, compared as ordinal text"
+            Expect.isEmpty handler.Requests "no request was sent"
+        })
     test "the default release is the manager version without build metadata" {
         use sandbox = TestSandbox.Create()
         Expect.equal (ComposedInstallation.releaseVersion sandbox.Work "0.4.0-alpha.5+actual-source") "0.4.0-alpha.5" "no discovery or moving channel"

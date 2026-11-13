@@ -50,7 +50,7 @@ module LocalComposedDocument =
     let readCandidate bytes = readCandidateFor "0.1.0-preview.2" bytes
 
     /// The one composed family that morphirup writes and reads.
-    let releaseFamily = "0.1.0-preview.5"
+    let releaseFamily = LocalCandidateDocument.releaseFamily
 
     /// Reads the isolated preview.5 family without converting earlier local families.
     let readReleaseCandidate (bytes: byte array) : Result<LocalComposedCandidate,ReaderRefusal> =
@@ -277,7 +277,7 @@ module internal ComposedDocuments =
         let! url = required "$schema" text o
         match url with
         | "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.2/candidate.schema.json" -> return "0.1.0-preview.2"
-        | "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/candidate.schema.json" -> return "0.1.0-preview.5"
+        | url when url = ReleaseBundleDocument.schema "candidate" -> return ReleaseBundleDocument.family
         | _ -> return! refuse ReaderCode.UnsupportedContractVersion (o.Path.Child "$schema")
     }
     let candidateForFamily family bytes =

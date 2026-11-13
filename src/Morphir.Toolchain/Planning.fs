@@ -284,6 +284,9 @@ module LocalCandidateDocument =
     let schema name =
         $"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.1/{name}.schema.json"
 
+    /// The one composed release family that morphirup writes and reads (LocalComposedDocument.releaseFamily).
+    let internal releaseFamily = "0.1.0-preview.5"
+
     /// The archive format of a host archive: ZIP on Windows, tar with gzip elsewhere, as the release archives are.
     let archiveFormat platform =
         if Platform.isWindows platform then "zip" else "tar-gzip"
@@ -429,7 +432,7 @@ module LocalCandidateDocument =
                 ] @ extraNames)
                 bytes
 
-        let! version, sourceCommit, buildIdentity, platform = identityFor (family = "0.1.0-preview.5") o
+        let! version, sourceCommit, buildIdentity, platform = identityFor (family = releaseFamily) o
         do! constant "sourceRepository" "https://github.com/finos/morphir-dotnet" o
 
         let! archive =
