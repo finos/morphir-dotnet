@@ -20,6 +20,11 @@ public class ChannelTests
 
     private static readonly PeerInfo Host = new(PeerKind.Cli, "morphir-dotnet-tests", "0.0.0");
 
+    /// <summary>How soon a cancelled call must stop. The engine stops it at the first epoch tick after the
+    /// cancellation (<see cref="WasmEngine.EpochInterval"/>, 10 ms); this is 200 ticks, for a runner whose processors
+    /// are busy, and still well under the call deadline at which a call that ignored its cancellation would end.</summary>
+    private static readonly TimeSpan StopLimit = TimeSpan.FromSeconds(2);
+
     private static ExtismModule Admit(string module) =>
         WasmEngine.Shared.Load(CraftedCorpus.ModuleBytes(module)).Match(
             compiled => WasmHost.Admit(compiled, WasmAbi.ExtismKernel).Match(
@@ -342,27 +347,39 @@ public class ChannelTests
         using var cancellation = new CancellationTokenSource();
         var clock = Stopwatch.StartNew();
         var cancelledAt = TimeSpan.Zero;
-        // The cancellation comes from a thread of its own and its moment is recorded. A timer on the thread pool
-        // fires late when other tests' spinning guests keep the processors busy, and the test would then measure
-        // the timer's delay, not how fast the call stops.
+        TimeSpan? stoppedAt = null;
+        // The cancellation comes from a thread of its own, which records its moment and then the moment the instance
+        // ended. The instance is discarded only after the call has returned, so that moment is when the call
+        // stopped. Neither moment waits for the thread pool: a timer on it fires late, and the awaiting test resumes
+        // late, when other tests' spinning guests and blocked threads keep it busy. Measured after the await, the
+        // test would time the thread pool, not how fast the call stops.
         var canceller = new Thread(() =>
         {
             Thread.Sleep(300);
             cancelledAt = clock.Elapsed;
             cancellation.Cancel();
+            while (clock.Elapsed - cancelledAt < StopLimit)
+            {
+                if (channel.InstanceEnded)
+                {
+                    stoppedAt = clock.Elapsed;
+                    return;
+                }
+
+                Thread.Sleep(1);
+            }
         })
         { IsBackground = true };
         canceller.Start();
 
         await Assert.That(async () => await channel.RequestAsync(Initialize, Request(1), cancellation.Token))
             .Throws<OperationCanceledException>();
-        clock.Stop();
         canceller.Join();
 
-        // The instance is discarded only after the call has returned, so an ended instance shows the call stopped.
         await Assert.That(channel.InstanceEnded).IsTrue();
         await Assert.That(channel.Failure?.Outcome).IsEqualTo("cancelled");
-        await Assert.That(clock.Elapsed - cancelledAt).IsLessThan(TimeSpan.FromSeconds(1));
+        await Assert.That(stoppedAt).IsNotNull();
+        await Assert.That(stoppedAt!.Value - cancelledAt).IsLessThan(StopLimit);
         await Assert.That(channel.HandleCalls).IsEqualTo(1);
     }
 
