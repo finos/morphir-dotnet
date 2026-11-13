@@ -2,7 +2,7 @@
 # Install morphirup, the Morphir toolchain manager, on Linux or macOS.
 #
 #   curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
-#   curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh -s -- --version 0.4.0-alpha.5
+#   curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh -s -- --version <version>
 #   sh install-morphirup.sh [--version <version>] [--install-dir <dir>]
 #
 # Options:
@@ -235,14 +235,14 @@ main() {
         say "warning: ${target} --version failed; on Linux, morphirup needs glibc 2.35 or later"
     fi
 
-    # Today only the Windows releases carry the toolchain that `morphirup setup` installs.
+    # Say so when the release has no toolchain for this platform, since `morphirup setup` then refuses.
     toolchain="morphir-toolchain-${RID}.json"
     if [ -n "$RELEASES_JSON" ]; then
         if grep -q "/releases/download/v${VERSION}/${toolchain}\"" "$RELEASES_JSON"; then has_toolchain=1; else has_toolchain=0; fi
     elif url_exists "${base}/${toolchain}"; then has_toolchain=1; else has_toolchain=0; fi
     if [ "$has_toolchain" = 0 ]; then
         say "note: release v${VERSION} has no toolchain for ${RID}, so 'morphirup setup' refuses with"
-        say "      setup.platform_mismatch on this platform for now, and 'morphirup run' has nothing to run"
+        say "      setup.platform_mismatch on this platform, and 'morphirup run' has nothing to run"
     fi
 
     case ":${PATH:-}:" in

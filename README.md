@@ -77,37 +77,37 @@ adds bounded inventory, verified membership and recoverable batch application th
 
 ## Get started
 
-Install `morphirup`, the Morphir toolchain manager. It is one file that needs neither .NET nor ICU.
+Install `morphirup`, the Morphir toolchain manager. It is one file and needs nothing else installed.
 
 ```sh
-# Linux (x64, ARM64) and macOS (Apple silicon)
+# macOS (Apple silicon) and Linux (x64, ARM64)
 curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
 ```
 
 ```powershell
-# Windows (x64, ARM64), PowerShell 7 or Windows PowerShell 5.1
+# Windows (x64, ARM64), in PowerShell
 irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
 ```
 
 ```sh
-# Or with mise (give the version)
-mise use -g 'github:finos/morphir-dotnet[matching=morphirup]@0.4.0-alpha.5'
+# Or with mise
+mise use -g 'github:finos/morphir-dotnet[matching=morphirup,version_prefix=v,prerelease=true]'
 ```
 
-Then open a new terminal and run `morphirup --version`. The scripts install the newest release, prereleases
-included, and refuse to install a file whose SHA-256 does not match the release's checksum file.
+The script installs the newest release and verifies the download first. Open a new terminal and run
+`morphirup --version`; it prints the version you installed.
 
-| Platform | Install and `morphirup --version` | `morphirup setup` and `run` |
+| Platform | Install morphirup | Set up, compile and generate |
 | --- | --- | --- |
-| Windows x64 and ARM64 | Yes | Yes, experimental |
-| Linux x64 and ARM64 (glibc 2.35 or later) | Yes | Not yet: `setup` refuses, releases carry no Linux toolchain |
-| macOS on Apple silicon | Yes | Not yet: the macOS toolchain is in progress |
-| macOS on Intel, Alpine and other musl Linux | No | No |
+| macOS on Apple silicon | Yes | Yes |
+| Windows x64 and ARM64 | Yes | Yes |
+| Linux x64 and ARM64 | Yes | Not yet: `morphirup setup` does not support Linux yet |
+| macOS on Intel | No | No |
 
 Next, build [your first model](docs/content/docs/getting-started/first-model.md). The
-[installation guide](docs/content/docs/getting-started/installation.md) covers a pinned version, other folders,
-manual download with checksum verification, and the standalone `morphir` CLI.
-
+[installation guide](docs/content/docs/getting-started/installation.md) covers script options, a given release,
+manual download and the standalone `morphir` CLI. If something goes wrong, see
+[Troubleshooting](docs/content/docs/getting-started/troubleshooting.md).
 ## SDK libraries
 
 `Morphir.SDK.CSharp` is an independent `net11.0` and `net10.0` runtime package with immutable

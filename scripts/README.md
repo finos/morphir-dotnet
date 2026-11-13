@@ -118,7 +118,8 @@ missing checksum line.
   It prints the `PATH` line to add when the folder is not on `PATH`.
 
   ```sh
-  curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh -s -- --version 0.4.0-alpha.5
+  curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh -s -- --version <version>
   ```
 
 - `install-morphirup.ps1`: Windows x64 and ARM64, in Windows PowerShell 5.1 or PowerShell 7. It reads the machine's

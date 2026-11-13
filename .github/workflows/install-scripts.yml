@@ -118,11 +118,20 @@ jobs:
         with:
           install: false
           cache: false
-      - name: mise use -g github:finos/morphir-dotnet[matching=morphirup]
+      # version_prefix=v leaves out the proto plugin's plugin-v* releases; prerelease=true lets mise
+      # pick the v* prereleases. mise may hold back a release published in the last day or so.
+      - name: mise use -g, no version (the documented command)
         shell: bash
         working-directory: ${{ runner.temp }}
         run: |
-          mise use -g "github:finos/morphir-dotnet[matching=morphirup]@$PINNED"
+          mise use -g 'github:finos/morphir-dotnet[matching=morphirup,version_prefix=v,prerelease=true]'
+          mise exec -- morphirup --version | tee version.txt
+          grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+' version.txt
+      - name: mise use -g, with @<version>
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          mise use -g "github:finos/morphir-dotnet[matching=morphirup,version_prefix=v,prerelease=true]@$PINNED"
           mise exec -- morphirup --version | tee version.txt
           grep -q "^$PINNED" version.txt
 

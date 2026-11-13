@@ -10,7 +10,7 @@ PATH. Runs on Windows PowerShell 5.1 and PowerShell 7.
 
   irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
 
-  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1))) -Version 0.4.0-alpha.5
+  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1))) -Version <version>
 
   .\install-morphirup.ps1 [-Version <version>] [-InstallDir <dir>] [-NoModifyPath]
 
@@ -173,7 +173,7 @@ function Install-Morphirup {
         Say "warning: $target --version failed: $($_.Exception.Message)"
     }
 
-    # Today a release carries the toolchain that morphirup setup installs for some platforms only.
+    # Say so when the release has no toolchain for this platform, since morphirup setup then refuses.
     $toolchain = "morphir-toolchain-$rid.json"
     $hasToolchain = $true
     if ($release) {
