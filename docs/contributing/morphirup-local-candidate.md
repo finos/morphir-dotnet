@@ -18,6 +18,13 @@ The preview.3 platform and origin contract is the parent merge
 [published in the parent repository](https://github.com/finos/morphir/blob/7586a0a4b10195b0af3461639a5003026d0eaaa1/docs/spec/toolchain/local-platforms-and-release-bundle.md).
 It supports `win-x64` and `win-arm64`. The candidate, receipt and bundle carry
 the platform; selection and generation bind it through their existing hashes.
+
+morphir-dotnet also reads `osx-arm64` in the preview.3 candidate and bundle, ahead of
+the parent contract, which names only the two Windows platforms. An `osx-arm64`
+candidate declares `"archive": {"format": "tar-gzip"}` and the entry point `morphir`;
+a Windows candidate keeps `zip` and `morphir.exe`. The family version and the
+document members are unchanged. The parent contract needs the same values before
+an `osx-arm64` release is published.
 The installation path stays `store/tools/sha256/<archive-sha256>`.
 Preview.1 and preview.2 retain their existing readers and behavior.
 

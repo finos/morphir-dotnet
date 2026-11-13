@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Experimental `morphirup` setup on macOS ARM64 (`osx-arm64`). `morphirup setup --local-developer` with a local candidate, host archive and bundle, then `select`, then `run -- compile` and `run -- generate --target fsharp`, works on Apple silicon with no .NET on `PATH` and no network. Release setup (`setup --yes`) accepts an `osx-arm64` manager and bundle too, but no release attaches the macOS ARM64 setup inputs yet. Intel macOS stays unsupported.
+- Build: `PackWindowsToolchain --rid osx-arm64` packs the macOS ARM64 setup inputs: tar.gz archives, the entry points `morphir`, `morphir-fsharp-frontend` and `morphir-fsharp-backend`, and the candidate, selection, release descriptors, manifests, bundle and `SHA256SUMS`. The target keeps its name, and the Windows outputs are unchanged.
+- `Morphir.Extensions.Installation` installs tar.gz extension packages with the same path, size and mode checks as ZIP packages. Before, it refused them with `package.format_not_implemented`.
+
+### Changed
+- `morphirup` reads `osx-arm64` in the preview.3 candidate and bundle. An `osx-arm64` candidate must declare the archive format `tar-gzip` and the entry point `morphir`; a Windows candidate must declare `zip`, as before. The parent preview.3 contract names only the Windows platforms; it needs the same change before a release publishes macOS ARM64 inputs.
+- `morphirup` off Windows uses the physical path of `--home`, with each link resolved. The installed host refuses a source file below a link, and on macOS `$TMPDIR` is below the link `/var`.
+- `morphirup run` and the setup probes also remove `DOTNET_ROOT_ARM64` from the host's environment.
+
 ## [0.4.0-alpha.5] - 2026-11-12
 
 ### Added
