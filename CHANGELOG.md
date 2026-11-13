@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `morphir` (and so `morphirup run -- compile` and `run -- generate`) no longer writes `[INF] Foundatio.Mediator registered 3 handler(s) and 0 middleware.` to stderr. The CLI logger caps the `Foundatio.Mediator` category at Warning, so the mediator's warnings and errors are still shown. Stdout is unchanged.
+- Build: restoring the solution no longer rewrites the committed `packages.lock.json` of the `Morphir.Configuration.IO.Smoke` and `Morphir.Configuration.Microsoft.Smoke` hosts with the host's RID, so release artifacts built on Linux or Windows no longer record a dirty origin. A trimmed publish of these hosts passes `-p:PublishTrimmed=true`, and CI fails when restore changes the working tree.
 
 ## [0.4.0-alpha.5] - 2026-11-12
 

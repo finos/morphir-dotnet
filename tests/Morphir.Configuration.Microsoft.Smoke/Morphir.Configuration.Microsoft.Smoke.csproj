@@ -5,8 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- The trim and AOT analyzers run in every build. A trimmed or Native AOT publish passes -p:PublishTrimmed or -p:PublishAot (README.md); set in the project, PublishTrimmed would add the host's RID to packages.lock.json. -->
     <IsAotCompatible>true</IsAotCompatible>
-    <PublishTrimmed>true</PublishTrimmed>
     <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
