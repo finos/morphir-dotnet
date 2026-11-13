@@ -1249,6 +1249,21 @@ module internal PackageTreeIO =
 
         seal tree
 
+    /// Seals a published package root. Before publication the root stays 0755: XNU authorizes the rename of a
+    /// directory with write access to that directory itself, even when its parent does not change, so macOS 15
+    /// refuses to publish a 0555 stage with EACCES (xnu bsd/vfs/vfs_subr.c, vn_authorize_renamex_with_paths).
+    /// Its contents are sealed before publication, and verification never reads the root's mode, so a root that a
+    /// crash left writable is sealed by the next installation of the same package.
+    let sealRoot (directory: SafeDirectory) =
+        directory.ValidateLocation()
+
+        if
+            not (OperatingSystem.IsWindows())
+            && File.GetUnixFileMode(directory.Path)
+               <> enum<UnixFileMode> 0o555
+        then
+            File.SetUnixFileMode(directory.Path, enum<UnixFileMode> 0o555)
+
     let removeStage
         (packages: SafeDirectory)
         name
@@ -1430,7 +1445,8 @@ type PackageInstaller private () =
                             do
                                 // Unix cannot move a sealed directory to another parent
                                 // without write permission to update its '..' entry.
-                                // Stage beside the destination so publication stays sealed.
+                                // Stage beside the destination, and keep the stage root
+                                // writable until publication (PackageTreeIO.sealRoot).
                                 use stage = store.Child(name, true)
                                 stageIdentity <- Some stage.Identity
                                 use tree = stage.Child("tree", true)
@@ -1458,7 +1474,7 @@ type PackageInstaller private () =
                                 manifestOutput.Write(manifest.ToBytes())
                                 manifestOutput.Flush true
                                 PackageTreeIO.mode (Path.Combine(stage.Path, "manifest")) false
-                                PackageTreeIO.sealDirectories stage
+                                PackageTreeIO.sealDirectories tree
 
                             ct.ThrowIfCancellationRequested()
                             use locks = root.Child("locks", true)
@@ -1501,6 +1517,8 @@ type PackageInstaller private () =
                                     store.PublishDirectory(store, name, plan.TreeDigest.Value)
 
                             use final = store.Child(plan.TreeDigest.Value, false)
+                            // Still under the state lock, so no reader sees the root writable.
+                            PackageTreeIO.sealRoot final
                             // Actual destination verification is required even when a winner already existed.
                             return PackageTreeIO.verify final plan true CancellationToken.None
                         with error ->

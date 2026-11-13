@@ -59,13 +59,18 @@ on:
                 required: false
                 default: false
                 type: boolean
+            upload:
+                description: "Upload the assets. The release's macOS 15 leg passes false: it builds and checks the osx-arm64 setup journey on macOS 15, and the macos-latest leg uploads the assets of the RID."
+                required: false
+                default: true
+                type: boolean
 
 permissions:
     contents: read
 
 jobs:
     build:
-        name: morphirup ${{ inputs.rid }}
+        name: morphirup ${{ inputs.rid }}${{ !inputs.upload && format(' on {0}', inputs.os) || '' }}
         runs-on: ${{ inputs.os }}
         timeout-minutes: 45
         env:
@@ -331,7 +336,7 @@ jobs:
             # The artifact keeps the name windows-release-toolchain-<rid> for osx-arm64 too, so the release and its
             # checksum jobs download every toolchain with one pattern.
             - name: Upload the complete toolchain proof inputs
-              if: inputs.rid == 'win-x64' || inputs.rid == 'win-arm64' || (inputs.rid == 'osx-arm64' && inputs.toolchain)
+              if: inputs.upload && (inputs.rid == 'win-x64' || inputs.rid == 'win-arm64' || (inputs.rid == 'osx-arm64' && inputs.toolchain))
               uses: actions/upload-artifact@v6
               with:
                   name: windows-release-toolchain-${{ inputs.rid }}
@@ -345,7 +350,7 @@ jobs:
             # self-contained offering of the RID. Off by default: deployment.yml downloads morphir-*, which this name matches.
             - name: Describe the self-contained host offering
               id: host-offering
-              if: inputs.upload-host-offering && (inputs.rid == 'win-x64' || inputs.rid == 'win-arm64' || (inputs.rid == 'osx-arm64' && inputs.toolchain))
+              if: inputs.upload && inputs.upload-host-offering && (inputs.rid == 'win-x64' || inputs.rid == 'win-arm64' || (inputs.rid == 'osx-arm64' && inputs.toolchain))
               shell: pwsh
               env:
                   RID: ${{ inputs.rid }}
@@ -379,6 +384,7 @@ jobs:
                   retention-days: ${{ inputs.retention-days }}
 
             - name: Upload the morphirup release assets
+              if: inputs.upload
               uses: actions/upload-artifact@v6
               with:
                   name: morphirup-${{ inputs.rid }}
