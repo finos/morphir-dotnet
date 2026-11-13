@@ -83,9 +83,8 @@ release job logged for `v0.4.0-alpha.4`. The job checks the executable only on t
 macOS 12.
 
 The Windows ARM64 executable is built and checked on the GitHub-hosted Windows 11 ARM64 runner, natively, not
-cross-built on x64. Releases before the first one that lists it have no `win-arm64` files. This release workflow
-publishes the complete release-setup bundle only for Windows x64. The ARM64 manager is published with its archive
-and checksum, but ARM64 release setup still needs the separate ARM64 toolchain publication change.
+cross-built on x64. Releases before the first one that lists it have no `win-arm64` files. The release workflow
+publishes the complete release-setup bundle for Windows x64 and Windows ARM64, with one `SHA256SUMS` over both.
 
 Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`, with the repository's
 `LICENSE` and `NOTICE` and the executable's `THIRD-PARTY-NOTICES.txt` beside it. The release also carries that file as
