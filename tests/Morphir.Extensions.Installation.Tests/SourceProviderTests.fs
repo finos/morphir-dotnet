@@ -83,7 +83,7 @@ let private publish (sandbox: TestSandbox) (tag: string) (path: string) (token: 
 
     github.Bytes("/api/repos/finos/morphir-python/releases/assets/1", descriptor)
     github.Bytes("/api/repos/finos/morphir-python/releases/assets/2", archive)
-    let provider = GitHubReleaseProvider(new HttpClient(github), apiBase, token) :> IExtensionSourceProvider
+    let provider = GitHubReleaseProvider(new HttpClient(github), apiBase, Option.toObj token) :> IExtensionSourceProvider
 
     {
         Github = github

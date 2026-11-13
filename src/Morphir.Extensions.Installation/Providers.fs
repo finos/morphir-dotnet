@@ -278,16 +278,18 @@ type LocalRepositoryProvider() =
 /// artifact <c>filename</c> names another asset of the same release. Uses the anonymous GitHub API, or
 /// <c>GITHUB_TOKEN</c> or <c>GH_TOKEN</c> when set.
 [<Sealed>]
-type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string option) =
+type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string | null) =
     static let maximumDocument = 8 * 1024 * 1024
+    let token = Option.ofObj token
 
-    static let environmentToken () =
+    static let environmentToken () : string | null =
         [ "GITHUB_TOKEN"; "GH_TOKEN" ]
         |> List.tryPick (fun name ->
             match Environment.GetEnvironmentVariable name with
             | null -> None
             | value when String.IsNullOrWhiteSpace value -> None
             | value -> Some value)
+        |> Option.toObj
 
     let request (uri: Uri) (accept: string) =
         if uri.Scheme <> Uri.UriSchemeHttps && not apiBase.IsLoopback then
