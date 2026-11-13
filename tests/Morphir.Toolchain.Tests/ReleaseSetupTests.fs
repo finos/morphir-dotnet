@@ -43,6 +43,20 @@ type private RedirectHandler() =
         response.Headers.Location <- Uri "https://unrelated.example/asset.zip"
         Task.FromResult response
 
+/// Answers the release asset with a redirect to GitHub release storage, then answers the storage request with bytes.
+type private StorageHandler() =
+    inherit HttpMessageHandler()
+    let requests = ResizeArray<Uri>()
+    member _.Requests = List.ofSeq requests
+    override _.SendAsync(request,_) =
+        let uri = request.RequestUri |> Option.ofObj |> Option.defaultWith(fun () -> failwith "A request without a URI.")
+        requests.Add uri
+        if uri.Host = "github.com" then
+            let response = new HttpResponseMessage(HttpStatusCode.Found)
+            response.Headers.Location <- Uri "https://release-assets.githubusercontent.com/github-production-release-asset/1/asset"
+            Task.FromResult response
+        else Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK, Content = new ByteArrayContent([|1uy;2uy;3uy|])))
+
 let private tinyBundle () =
     let hash = String('a',64)
     let asset role =
@@ -345,6 +359,41 @@ let tests = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
         Expect.isTrue refused "release redirect policy"
         Expect.equal handler.Calls 1 "the unapproved host received no request"
     })
+    testCaseTask "a finos/morphir release asset follows its redirect to GitHub release storage" (fun () -> task {
+        let handler = new StorageHandler()
+        use transport = new AcquisitionDelivery.ReleaseTransport(handler)
+        let source = Uri "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/SHA256SUMS"
+        let! response = (transport :> IAcquisitionTransport).OpenAsync(source,CancellationToken.None)
+        do! response.DisposeAsync()
+        Expect.equal handler.Requests [source;Uri "https://release-assets.githubusercontent.com/github-production-release-asset/1/asset"] "one redirect to release storage"
+    })
+    testCaseTask "the earlier finos/morphir-dotnet release source is refused before any request" (fun () -> task {
+        let handler = new StorageHandler()
+        use transport = new AcquisitionDelivery.ReleaseTransport(handler)
+        let! refused = task {
+            try
+                let! response = (transport :> IAcquisitionTransport).OpenAsync(Uri "https://github.com/finos/morphir-dotnet/releases/download/v0.5.0-alpha.1/SHA256SUMS",CancellationToken.None)
+                do! response.DisposeAsync()
+                return false
+            with :? HttpRequestException -> return true
+        }
+        Expect.isTrue refused "no fallback to the old source"
+        Expect.isEmpty handler.Requests "no request was sent"
+    })
+    for repository in [ "finos/morphirX"; "finos/morphir.evil"; "finos/Morphir"; "finos/morphir-dotnet" ] do
+        testCaseTask $"a repository that only starts like finos/morphir is refused before any request: {repository}" (fun () -> task {
+            let handler = new StorageHandler()
+            use transport = new AcquisitionDelivery.ReleaseTransport(handler)
+            let! refused = task {
+                try
+                    let! response = (transport :> IAcquisitionTransport).OpenAsync(Uri $"https://github.com/{repository}/releases/download/v0.5.0-alpha.2/SHA256SUMS",CancellationToken.None)
+                    do! response.DisposeAsync()
+                    return false
+                with :? HttpRequestException -> return true
+            }
+            Expect.isTrue refused "the exact repository, compared as ordinal text"
+            Expect.isEmpty handler.Requests "no request was sent"
+        })
     test "the default release is the manager version without build metadata" {
         use sandbox = TestSandbox.Create()
         Expect.equal (ComposedInstallation.releaseVersion sandbox.Work "0.4.0-alpha.5+actual-source") "0.4.0-alpha.5" "no discovery or moving channel"
@@ -369,7 +418,7 @@ let tests = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
     testCaseTask "explicit local setup cannot relabel a release-checksum candidate" (fun () -> task {
         use sandbox = TestSandbox.Create()
         let candidate = Path.Combine(sandbox.Work,"candidate.json")
-        let raw = Encoding.UTF8.GetBytes("{\"$schema\":\"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/candidate.schema.json\",\"origin\":\"release-checksum\"}")
+        let raw = Encoding.UTF8.GetBytes("{\"$schema\":\"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/candidate.schema.json\",\"origin\":\"release-checksum\"}")
         File.WriteAllBytes(candidate,raw)
         let home = Path.Combine(sandbox.Work,"absent-home")
         try
@@ -398,8 +447,8 @@ let earlierHomeAt (home: string) (family: string) =
 /// The producer supplies actual full folders, archives and metadata. No test creates executable substitutes.
 [<Tests>]
 let earlierHomeSetup = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
-    for family in [ "0.1.0-preview.2"; "0.1.0-preview.3" ] do
-        testCaseTask $"release setup in a {family} Home installs preview.4 beside it and selects it" (fun () -> task {
+    for family in [ "0.1.0-preview.2"; "0.1.0-preview.3"; "0.1.0-preview.4" ] do
+        testCaseTask $"release setup in a {family} Home installs preview.5 beside it and selects it" (fun () -> task {
             let folder = Environment.GetEnvironmentVariable "MORPHIR_WINDOWS_TOOLCHAIN_ASSETS" |> Option.ofObj |> Option.defaultWith(fun () -> skiptest "Actual PackWindowsToolchain assets were not supplied.")
             let platform =
                 match Platform.current () with
@@ -429,10 +478,10 @@ let earlierHomeSetup = testLabel "PlatformSpecific" <| testList "WindowsReleaseS
             let! _,installed = ComposedInstallation.setupWithTransportAsync platform home bundle.Version.Text transport false CancellationToken.None
             let generation = installed |> Option.defaultWith (fun () -> failtest "setup --yes published no generation")
             let pointer = Text.Json.JsonDocument.Parse(File.ReadAllBytes(Path.Combine(home, "toolchains", "default.json")))
-            Expect.equal (pointer.RootElement.GetProperty("$schema").GetString()) "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/selection.schema.json" "the pointer is preview.4"
+            Expect.equal (pointer.RootElement.GetProperty("$schema").GetString()) "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/selection.schema.json" "the pointer is preview.5"
             Expect.equal (pointer.RootElement.GetProperty("generationSha256").GetString()) generation.Text "the pointer names the new generation"
             let! snapshot = ComposedInstallation.selected home CancellationToken.None
-            Expect.equal snapshot.Family "0.1.0-preview.4" "the Home selects preview.4"
+            Expect.equal snapshot.Family "0.1.0-preview.5" "the Home selects preview.5"
             let after = Directory.GetFiles generationFolder |> Array.sort |> Array.map (fun file -> Path.GetFileName file, File.ReadAllBytes file)
             Expect.equal after before "the earlier generation stays, unread and unchanged"
         })

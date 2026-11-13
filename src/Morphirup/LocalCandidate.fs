@@ -124,11 +124,11 @@ let result command status (candidate: Sha256) =
     ]
     |> JsonText.toBytes
 
-/// A refused setup, select or show: a local-toolchains 0.1.0-preview.4 result. The origin is the origin of the route
+/// A refused setup, select or show: a local-toolchains 0.1.0-preview.5 result. The origin is the origin of the route
 /// or of the generation the command acted on, local-developer or release-checksum.
 let refusal command origin code message =
     Value.Object [
-        "$schema", Value.String(ComposedDocuments.schemaFor "0.1.0-preview.4" "result")
+        "$schema", Value.String(ComposedDocuments.schemaFor ReleaseBundleDocument.family "result")
         "command", Value.String command
         "status", Value.String "refused"
         "origin", Value.String origin

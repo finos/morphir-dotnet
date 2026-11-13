@@ -265,7 +265,7 @@ module LocalCandidatePlanning =
             validate ((=) Platform.WinX64) currentPlatform maximumArchiveBytes candidate
             |> Result.map (fun () -> LocalCandidatePlan(LocalConsent.LocalDeveloper, candidate))
 
-    // Preview.4 accepts the two Windows process platforms and macOS ARM64. Acquisition or
+    // Preview.5 accepts the two Windows process platforms and macOS ARM64. Acquisition or
     // explicit developer consent is checked by its caller, never granted by this plan.
     let internal planRelease currentPlatform maximumArchiveBytes candidate =
         validate Platform.isLocalToolchain currentPlatform maximumArchiveBytes candidate
@@ -283,6 +283,9 @@ module LocalCandidateDocument =
 
     let schema name =
         $"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.1/{name}.schema.json"
+
+    /// The one composed release family that morphirup writes and reads (LocalComposedDocument.releaseFamily).
+    let internal releaseFamily = "0.1.0-preview.5"
 
     /// The archive format of a host archive: ZIP on Windows, tar with gzip elsewhere, as the release archives are.
     let archiveFormat platform =
@@ -429,7 +432,7 @@ module LocalCandidateDocument =
                 ] @ extraNames)
                 bytes
 
-        let! version, sourceCommit, buildIdentity, platform = identityFor (family = "0.1.0-preview.4") o
+        let! version, sourceCommit, buildIdentity, platform = identityFor (family = releaseFamily) o
         do! constant "sourceRepository" "https://github.com/finos/morphir-dotnet" o
 
         let! archive =

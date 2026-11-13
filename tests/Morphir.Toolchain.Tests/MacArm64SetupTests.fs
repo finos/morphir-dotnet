@@ -1,6 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-/// Controls for morphirup on macOS ARM64: the preview.4 documents with the osx-arm64 platform and its tar.gz host
+/// Controls for morphirup on macOS ARM64: the preview.5 documents with the osx-arm64 platform and its tar.gz host
 /// archive, the platform gates, the Mach-O entry point, the executable modes of an installed host and the Unix launch.
 /// Synthetic inputs only. The real producer output is proven by the native journey, not by these tests.
 module Morphir.Toolchain.Tests.MacArm64SetupTests
@@ -47,7 +47,7 @@ let private candidateIn (family: string) (platform: string) (format: string) (en
     ]
     |> JsonText.toBytes
 
-let private candidateFor platform format entry = candidateIn "0.1.0-preview.4" platform format entry
+let private candidateFor platform format entry = candidateIn ReleaseBundleDocument.family platform format entry
 
 let private bundleFor (platform: string) (archiveExtension: string) =
     let asset role =
@@ -100,28 +100,30 @@ let private refusal (operation: unit -> 'T) =
 [<Tests>]
 let documents =
     testList "morphirup macOS ARM64 documents" [
-        test "a preview.4 osx-arm64 candidate with a tar-gzip archive and a morphir entry point is read" {
+        test "a preview.5 osx-arm64 candidate with a tar-gzip archive and a morphir entry point is read" {
             let candidate = LocalComposedDocument.readReleaseCandidate (candidateFor "osx-arm64" "tar-gzip" "morphir") |> parsed
             Expect.equal candidate.Host.Platform Platform.OsxArm64 "the platform is the manager platform to match"
             Expect.equal candidate.Host.EntryPoint.Target.Text "morphir" "the Unix entry point has no .exe"
         }
-        test "a preview.4 win-x64 candidate with a ZIP archive and a morphir.exe entry point is read" {
+        test "a preview.5 win-x64 candidate with a ZIP archive and a morphir.exe entry point is read" {
             let candidate = LocalComposedDocument.readReleaseCandidate (candidateFor "win-x64" "zip" "morphir.exe") |> parsed
-            Expect.equal candidate.Host.Platform Platform.WinX64 "Windows is in preview.4 too"
+            Expect.equal candidate.Host.Platform Platform.WinX64 "Windows is in preview.5 too"
         }
-        test "a preview.3 candidate is refused for every platform, with no conversion" {
-            for platform, format, entry in [ "win-x64", "zip", "morphir.exe"; "win-arm64", "zip", "morphir.exe"; "osx-arm64", "tar-gzip", "morphir" ] do
-                match LocalComposedDocument.readReleaseCandidate (candidateIn "0.1.0-preview.3" platform format entry) with
-                | Ok _ -> failtest $"A preview.3 {platform} candidate was read."
-                | Error error -> Expect.equal error.Code ReaderCode.UnsupportedContractVersion $"{platform}: the exact $schema text"
+        test "a preview.3 or preview.4 candidate is refused for every platform, with no conversion" {
+            for family in [ "0.1.0-preview.3"; "0.1.0-preview.4" ] do
+                for platform, format, entry in [ "win-x64", "zip", "morphir.exe"; "win-arm64", "zip", "morphir.exe"; "osx-arm64", "tar-gzip", "morphir" ] do
+                    match LocalComposedDocument.readReleaseCandidate (candidateIn family platform format entry) with
+                    | Ok _ -> failtest $"A {family} {platform} candidate was read."
+                    | Error error -> Expect.equal error.Code ReaderCode.UnsupportedContractVersion $"{family} {platform}: the exact $schema text"
         }
-        test "a preview.3 bundle is refused" {
+        test "a preview.3 or preview.4 bundle is refused" {
             let raw = bundleFor "win-x64" ".zip"
-            let old = Encoding.UTF8.GetBytes((Encoding.UTF8.GetString raw).Replace("0.1.0-preview.4", "0.1.0-preview.3"))
-            Expect.notEqual old raw "the scripted bundle names preview.4"
-            match ReleaseBundleDocument.read old with
-            | Ok _ -> failtest "A preview.3 bundle was read."
-            | Error error -> Expect.equal error.Path (DocumentPath.root.Child "$schema") "the exact $schema text"
+            for family in [ "0.1.0-preview.3"; "0.1.0-preview.4" ] do
+                let old = Encoding.UTF8.GetBytes((Encoding.UTF8.GetString raw).Replace("0.1.0-preview.5", family))
+                Expect.notEqual old raw "the scripted bundle names preview.5"
+                match ReleaseBundleDocument.read old with
+                | Ok _ -> failtest $"A {family} bundle was read."
+                | Error error -> Expect.equal error.Path (DocumentPath.root.Child "$schema") $"{family}: the exact $schema text"
         }
         test "an osx-arm64 candidate that declares a ZIP archive is refused" {
             match LocalComposedDocument.readReleaseCandidate (candidateFor "osx-arm64" "zip" "morphir") with
@@ -133,12 +135,12 @@ let documents =
             | Ok _ -> failtest "A tar-gzip archive was accepted for win-x64."
             | Error error -> Expect.equal error.Path (DocumentPath.root.Child("archive").Child "format") "Windows keeps ZIP"
         }
-        test "platforms without delivery stay invalid in preview.4 candidates and bundles" {
+        test "platforms without delivery stay invalid in preview.5 candidates and bundles" {
             for platform in [ "osx-x64"; "linux-x64"; "linux-arm64" ] do
                 Expect.isError (LocalComposedDocument.readReleaseCandidate (candidateFor platform "tar-gzip" "morphir")) $"{platform} candidate"
                 Expect.isError (ReleaseBundleDocument.read (bundleFor platform ".tar.gz")) $"{platform} bundle"
         }
-        test "a preview.4 osx-arm64 bundle with tar.gz assets is read" {
+        test "a preview.5 osx-arm64 bundle with tar.gz assets is read" {
             let bundle = ReleaseBundleDocument.read (bundleFor "osx-arm64" ".tar.gz") |> parsed
             Expect.equal bundle.Platform Platform.OsxArm64 "the bundle platform"
         }
@@ -204,7 +206,7 @@ let gates =
         testCaseTask "explicit local setup on an osx-arm64 manager passes the platform gate" (fun () -> task {
             use sandbox = TestSandbox.Create()
             let candidate = Path.Combine(sandbox.Work, "candidate.json")
-            File.WriteAllBytes(candidate, Encoding.UTF8.GetBytes "{\"$schema\":\"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/candidate.schema.json\",\"origin\":\"release-checksum\"}")
+            File.WriteAllBytes(candidate, Encoding.UTF8.GetBytes "{\"$schema\":\"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/candidate.schema.json\",\"origin\":\"release-checksum\"}")
             use input = new MemoryStream()
             use output = new MemoryStream()
             use errors = new StringWriter()
@@ -591,7 +593,7 @@ let private runCli (sandbox: TestSandbox) args = task {
 [<Tests>]
 let earlierFamilies =
     testList "morphirup earlier local-toolchains Homes" [
-        for family in [ "0.1.0-preview.2"; "0.1.0-preview.3" ] do
+        for family in [ "0.1.0-preview.2"; "0.1.0-preview.3"; "0.1.0-preview.4" ] do
             testCaseTask $"show refuses a {family} selection and says to run setup again" (fun () -> task {
                 use sandbox = TestSandbox.Create()
                 let home, _ = earlierHome sandbox family
@@ -638,14 +640,14 @@ let earlierFamilies =
 [<Tests>]
 let pointerFamilies =
     testList "morphirup selection pointer family" [
-        test "the selection pointer reader reads preview.4 and refuses preview.2 and preview.3" {
+        test "the selection pointer reader reads preview.5 and refuses preview.2, preview.3 and preview.4" {
             let generation = String('e', 64)
             let pointer (family: string) =
                 Encoding.UTF8.GetBytes
                     $"""{{"$schema":"https://morphir.finos.org/schemas/local-toolchains/{family}/selection.schema.json","origin":"local-developer","generationSha256":"{generation}","receiptSha256":"{String('f', 64)}","receiptPath":"toolchains/generations/{generation}/receipt.json"}}"""
-            let id, _, _ = ComposedDocuments.readPointer (pointer "0.1.0-preview.4") |> parsed
-            Expect.equal id.Text generation "preview.4 is read"
-            for family in [ "0.1.0-preview.2"; "0.1.0-preview.3" ] do
+            let id, _, _ = ComposedDocuments.readPointer (pointer "0.1.0-preview.5") |> parsed
+            Expect.equal id.Text generation "preview.5 is read"
+            for family in [ "0.1.0-preview.2"; "0.1.0-preview.3"; "0.1.0-preview.4" ] do
                 match ComposedDocuments.readPointer (pointer family) with
                 | Ok _ -> failtest $"A {family} pointer was read."
                 | Error error -> Expect.equal error.Path (DocumentPath.root.Child "$schema") $"{family} is refused at $schema"

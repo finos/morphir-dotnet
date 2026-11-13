@@ -926,7 +926,7 @@ let private runCoreAsync
         if isReleaseSetup args then
             let emit status candidate generation diagnostic =
                 let bytes = Value.Object [
-                    "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.4" "result")
+                    "$schema",Value.String(ComposedDocuments.schemaFor ReleaseBundleDocument.family "result")
                     "command",Value.String "setup"; "status",Value.String status; "origin",Value.String "release-checksum"
                     match candidate with Some(hash: Sha256) -> "candidateSha256",Value.String hash.Text | None -> ()
                     match generation with
@@ -979,7 +979,7 @@ let private runCoreAsync
             let composedLocal = command="setup" && List.contains "--local-bundle" args
             let mutable localGeneration: Sha256 option = None
             // Every setup on this route is explicit local-developer setup. Select and show replace it with the origin
-            // of the preview.4 generation or selection they read, when there is one.
+            // of the preview.5 generation or selection they read, when there is one.
             let mutable refusalOrigin = "local-developer"
 
             let write (bytes: byte array) =
@@ -990,7 +990,7 @@ let private runCoreAsync
                 write (
                     if not composedLocal then LocalCandidate.result command status identity
                     else Value.Object [
-                        "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.4" "result")
+                        "$schema",Value.String(ComposedDocuments.schemaFor ReleaseBundleDocument.family "result")
                         "command",Value.String command;"status",Value.String status;"origin",Value.String "local-developer"
                         "candidateSha256",Value.String identity.Text
                         match localGeneration with

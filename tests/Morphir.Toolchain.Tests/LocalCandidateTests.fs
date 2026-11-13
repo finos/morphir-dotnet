@@ -1566,10 +1566,10 @@ let private composedInput frontend backend =
         |> fun values -> values @ ["extensions",Value.Object ["selectionSha256",Value.String digest.Text;"frontendId",Value.String frontend;"backendId",Value.String backend]])
     |> JsonText.toBytes
 
-/// A preview.4 candidate that the composed reader accepts, with the given origin.
-let preview4Candidate (origin: string) =
+/// A preview.5 candidate that the composed reader accepts, with the given origin.
+let preview5Candidate (origin: string) =
     let text = System.Text.Encoding.UTF8.GetString(composedInput "org.finos.frontend" "org.finos.backend")
-    System.Text.Encoding.UTF8.GetBytes(text.Replace("0.1.0-preview.2", "0.1.0-preview.4").Replace("local-developer", origin))
+    System.Text.Encoding.UTF8.GetBytes(text.Replace("0.1.0-preview.2", "0.1.0-preview.5").Replace("local-developer", origin))
 
 [<Tests>]
 let composedReaderTests =
@@ -1598,13 +1598,8 @@ let composedReaderTests =
         }
     ]
 
-[<Tests>]
-let releaseChecksumReaderTests =
-    let releaseBytes () =
-        let raw = composedInput "org.finos.frontend" "org.finos.backend"
-        let text = System.Text.Encoding.UTF8.GetString raw
-        System.Text.Encoding.UTF8.GetBytes(text.Replace("0.1.0-preview.2", "0.1.0-preview.4").Replace("local-developer", "release-checksum"))
-    let workflow (candidate: LocalComposedCandidate) =
+/// The workflow of a generation that the release reader accepts, for the two providers of <paramref name="candidate"/>.
+let releaseWorkflow (candidate: LocalComposedCandidate) =
         let provider role id operation = Value.Object [
             "role",Value.String role;"extensionId",Value.String id;"version",Value.String "1.2.3"
             "mepVersion",Value.String "0.2.0-draft.1"
@@ -1616,6 +1611,14 @@ let releaseChecksumReaderTests =
             "generatedFiles",Value.Array [Value.Object ["path",Value.String "Pricing.fs";"bytes",Value.Number "112";"sha256",Value.String ComposedDocuments.fixedGeneratedSha256]]
             "providers",Value.Array [provider "frontend" candidate.FrontendId.Text ModelOperation.CompileModel;provider "backend" candidate.BackendId.Text ModelOperation.GenerateModel]
             "checks",Value.Array [Value.Object ["check",Value.String "workflow";"status",Value.String "passed";"workflow",Value.String "fsharp-compile-generate"]]]
+
+[<Tests>]
+let releaseChecksumReaderTests =
+    let releaseBytes () =
+        let raw = composedInput "org.finos.frontend" "org.finos.backend"
+        let text = System.Text.Encoding.UTF8.GetString raw
+        System.Text.Encoding.UTF8.GetBytes(text.Replace("0.1.0-preview.2", "0.1.0-preview.5").Replace("local-developer", "release-checksum"))
+    let workflow = releaseWorkflow
     let proof = Value.Object [
         "repository",Value.String ReleaseBundleDocument.repository;"tag",Value.String "v1.2.3"
         "bundle",Value.Object ["path",Value.String "acquisition/bundle.json";"sha256",Value.String digest.Text]
@@ -1627,22 +1630,22 @@ let releaseChecksumReaderTests =
             Expect.equal candidate.Host.ManifestSha256 (Sha256.ofBytes raw) "raw checksum identity"
             Expect.equal candidate.Host.Files.Length 1 "whole declared closure"
         }
-        test "preview4 local developer origin remains explicit and distinct" {
+        test "preview5 local developer origin remains explicit and distinct" {
             let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString
             let candidate = System.Text.Encoding.UTF8.GetBytes(raw.Replace("release-checksum","local-developer")) |> LocalComposedDocument.readReleaseCandidate |> parsed
             Expect.equal candidate.Origin.WireValue "local-developer" "no checksum authority from local input"
         }
-        test "preview4 ARM64 retains its exact platform and receipt binding" {
+        test "preview5 ARM64 retains its exact platform and receipt binding" {
             let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","win-arm64"))
             let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
             Expect.equal candidate.Host.Platform Platform.WinArm64 "declared platform"
             Expect.equal candidate.Host.ManifestSha256 (Sha256.ofBytes raw) "exact ARM64 input"
-            let receipt = ComposedDocuments.receipt "0.1.0-preview.4" candidate digest
+            let receipt = ComposedDocuments.receipt ReleaseBundleDocument.family candidate digest
             use document = System.Text.Json.JsonDocument.Parse receipt
             Expect.equal (document.RootElement.GetProperty("platform").GetString() |> Option.ofObj) (Some "win-arm64") "receipt platform"
-            ComposedDocuments.receiptMatches "0.1.0-preview.4" candidate digest receipt |> parsed
+            ComposedDocuments.receiptMatches ReleaseBundleDocument.family candidate digest receipt |> parsed
         }
-        test "preview4 planning accepts matching ARM64 and refuses cross-RID execution" {
+        test "preview5 planning accepts matching ARM64 and refuses cross-RID execution" {
             let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","win-arm64"))
             let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
             Expect.isOk (LocalCandidatePlanning.planRelease Platform.WinArm64 4096UL candidate.Host) "matching Windows ARM64"
@@ -1656,26 +1659,38 @@ let releaseChecksumReaderTests =
             let linux = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","linux-arm64"))
             Expect.isError (LocalComposedDocument.readReleaseCandidate linux) "only win-x64, win-arm64 and osx-arm64"
         }
-        test "preview4 local receipts and pointers preserve origin rather than family defaults" {
+        test "preview5 local receipts and pointers preserve origin rather than family defaults" {
             let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("release-checksum","local-developer"))
             let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
-            let receipt = ComposedDocuments.receipt "0.1.0-preview.4" candidate digest
-            let pointer = ComposedDocuments.pointer "0.1.0-preview.4" candidate digest receipt
+            let receipt = ComposedDocuments.receipt ReleaseBundleDocument.family candidate digest
+            let pointer = ComposedDocuments.pointer ReleaseBundleDocument.family candidate digest receipt
             let _,_,origin = ComposedDocuments.readPointer pointer |> parsed
             Expect.equal origin candidate.Origin "pointer binds the validated origin"
             use document = System.Text.Json.JsonDocument.Parse receipt
             Expect.equal (document.RootElement.GetProperty("origin").GetString() |> Option.ofObj) (Some "local-developer") "receipt is not relabelled"
         }
-        test "preview4 acquisition is required only for the bound release-checksum candidate" {
+        test "preview5 acquisition is required only for the bound release-checksum candidate" {
             let release = releaseBytes () |> LocalComposedDocument.readReleaseCandidate |> parsed
             let local = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("release-checksum","local-developer")) |> LocalComposedDocument.readReleaseCandidate |> parsed
             let manifest (candidate: LocalComposedCandidate) acquisition =
-                ComposedDocuments.writeManifest "0.1.0-preview.4" candidate [||] [candidate.FrontendId,[||];candidate.BackendId,[||]] [] (workflow candidate) acquisition
-                |> ComposedDocuments.readManifest "0.1.0-preview.4" candidate
+                ComposedDocuments.writeManifest ReleaseBundleDocument.family candidate [||] [candidate.FrontendId,[||];candidate.BackendId,[||]] [] (workflow candidate) acquisition
+                |> ComposedDocuments.readManifest ReleaseBundleDocument.family candidate
             Expect.isOk (manifest release (Some proof)) "release proof is required"
             Expect.isError (manifest release None) "a family string cannot bypass acquisition"
             Expect.isOk (manifest local None) "explicit local development does not claim acquisition"
             Expect.isError (manifest local (Some proof)) "local input cannot carry acquired-release authority"
+        }
+        test "preview5 acquisition names finos/morphir and refuses the earlier source" {
+            let release = releaseBytes () |> LocalComposedDocument.readReleaseCandidate |> parsed
+            let withRepository repository =
+                let proof = Value.Object [
+                    "repository",Value.String repository;"tag",Value.String "v1.2.3"
+                    "bundle",Value.Object ["path",Value.String "acquisition/bundle.json";"sha256",Value.String digest.Text]
+                    "checksums",Value.Object ["path",Value.String "acquisition/SHA256SUMS";"sha256",Value.String digest.Text]]
+                ComposedDocuments.writeManifest ReleaseBundleDocument.family release [||] [release.FrontendId,[||];release.BackendId,[||]] [] (workflow release) (Some proof)
+                |> ComposedDocuments.readManifest ReleaseBundleDocument.family release
+            Expect.isOk (withRepository "https://github.com/finos/morphir") "finos/morphir is the release source"
+            Expect.isError (withRepository "https://github.com/finos/morphir-dotnet") "no fallback to the old source"
         }
         test "published preview2 remains a separate local family" {
             let raw = releaseBytes ()
@@ -1695,11 +1710,11 @@ let releaseBundleTests =
         | _ -> role+"-win-x64.zip"
     let bundle source =
         Value.Object [
-            "$schema",Value.String "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/bundle.schema.json"
+            "$schema",Value.String "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.5/bundle.schema.json"
             "version",Value.String "0.4.0-alpha.5"; "sourceCommit",Value.String(String('b',40)); "platform",Value.String "win-x64"
             "assets",Value.Array [for role in roles -> Value.Object ["name",Value.String(name role);"url",Value.String(source+name role);"bytes",Value.Number "3";"sha256",Value.String hash;"role",Value.String role]]]
         |> JsonText.toBytes
-    let official = "https://github.com/finos/morphir-dotnet/releases/download/v0.4.0-alpha.5/"
+    let official = "https://github.com/finos/morphir/releases/download/v0.4.0-alpha.5/"
     testList "ReleaseBundle" [
         test "one release covers every required independently installed component" {
             let raw = bundle official
@@ -1712,8 +1727,17 @@ let releaseBundleTests =
             Expect.isError (bundle (official.Replace("https:","http:")) |> ReleaseBundleDocument.read) "HTTPS required"
         }
         test "a different repository cannot be hidden in an asset URL" {
-            Expect.isError (bundle (official.Replace("finos/morphir-dotnet/","other/project/")) |> ReleaseBundleDocument.read) "one approved release"
+            Expect.isError (bundle (official.Replace("finos/morphir/","other/project/")) |> ReleaseBundleDocument.read) "one approved release"
         }
+        test "the earlier finos/morphir-dotnet release source is refused" {
+            Expect.equal ReleaseBundleDocument.repository "https://github.com/finos/morphir" "the release source is finos/morphir"
+            Expect.isError (bundle (official.Replace("finos/morphir/","finos/morphir-dotnet/")) |> ReleaseBundleDocument.read) "no fallback to the old source"
+        }
+        test "an asset URL of a repository that only starts like finos/morphir is refused" {
+            for repository in [ "finos/morphirX"; "finos/morphir.evil"; "finos/Morphir" ] do
+                Expect.isError (bundle (official.Replace("finos/morphir/",repository+"/")) |> ReleaseBundleDocument.read) $"{repository} is not finos/morphir"
+        }
+
         test "checksum coverage must include the raw bundle" {
             let raw = bundle official
             let value = ReleaseBundleDocument.read raw |> parsed

@@ -132,7 +132,7 @@ module internal GenerationBinding =
             let entry = catalog.Entries |> List.tryFind(fun entry -> entry.Id = pin.Id.Text)
                         |> Option.defaultWith(fun () -> Operations.fail "extension.generation_mismatch" "A selected catalog identity is missing.")
             StateDocuments.bind entry locked |> StateOwnership.unwrap
-            if family="0.1.0-preview.4" then
+            if family=ReleaseBundleDocument.family then
                 let retained = PackagePlan.FromState(entry,locked)
                 if retained.Artifact.Platform <> Some (InstallationPlatform.Create(Platform.name candidate.Host.Platform).DescriptorTriple) then
                     Operations.fail "extension.generation_mismatch" "The retained process platform differs from the host candidate."
@@ -144,7 +144,7 @@ module internal GenerationBinding =
             Operations.fail "extension.generation_mismatch" "The selected catalog projection is not the complete portable selection."
         use folder = SafeDirectory.Open(directory,false)
         let names = folder.Entries()
-        if family="0.1.0-preview.4" && candidate.Origin=ComposedOrigin.LocalDeveloper && Array.contains "acquisition" names then
+        if family=ReleaseBundleDocument.family && candidate.Origin=ComposedOrigin.LocalDeveloper && Array.contains "acquisition" names then
             Operations.fail "extension.generation_mismatch" "Explicit local development cannot retain acquired-release proof files."
         let hasManifest = names |> Array.contains "generation.json"
         let hasReceipt = names |> Array.contains "receipt.json"

@@ -478,9 +478,9 @@ let private optionalChild (parent: SafeDirectory) name action =
         use child = parent.Child(name, false)
         action child
 
-// The candidate.json $schema of an earlier composed family, preview.2 or preview.3. Only the $schema is read.
+// The candidate.json $schema of an earlier composed family, preview.2, preview.3 or preview.4. Only the $schema is read.
 let private earlierCandidates =
-    [ "0.1.0-preview.2"; "0.1.0-preview.3" ]
+    [ "0.1.0-preview.2"; "0.1.0-preview.3"; "0.1.0-preview.4" ]
     |> List.map (fun family -> $"https://morphir.finos.org/schemas/local-toolchains/{family}/candidate.schema.json")
 
 let private earlierComposed (folder: SafeDirectory) (entries: string array) =
