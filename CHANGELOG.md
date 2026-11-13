@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Build: finos/morphir can call `morphirup-build.yml` at a pinned commit of this repository, as it calls `cli-offering.yml`. The new inputs `repository` and `ref` (a full commit SHA) choose what the job checks out and builds, and the Windows source check compares the checkout with `ref`. With the new input `upload-host-offering: true`, a job that packs a toolchain (win-x64, win-arm64, or osx-arm64 with `toolchain: true`) also uploads its self-contained host as the artifact `morphir-dotnet-self-contained-<rid>`: the archive with its `.build-launch.json`, `.build-contents.json` and `.sha256`, the files `cli-offering.yml` uploads for that offering. The inputs default to empty and `false`, so `morphirup.yml` and `deployment.yml` work as before. The checkout no longer keeps the workflow token in the Git configuration.
+
 ## [0.5.0-alpha.1] - 2026-11-13
 
 ### Added
