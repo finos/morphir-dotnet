@@ -88,6 +88,8 @@ let sleepMs (count: int) = action "sleepMs" (number count)
 let hang = action "hang" (JsonValue.Create true)
 let rawStdout (value: string) = action "stdout" (text value)
 let spawn (pidFile: string) = action "spawn" (text pidFile)
+/// A child that keeps the fake's stdin and stdout open for this long after the fake exits.
+let holdStdio (milliseconds: int) = action "holdStdio" (number milliseconds)
 
 /// A fake host in a sandbox: the script, the invocation log and the host command that runs it.
 type FakeHost = {

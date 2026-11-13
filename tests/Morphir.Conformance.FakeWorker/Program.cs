@@ -5,6 +5,7 @@
 //
 //   [--script <file>] [--log <file>] extension worker <worker arguments>
 //   --sleep                           (a child that would outlive its parent; it sleeps until stopped)
+//   --sleep <ms>                      (a child that sleeps this long, then exits)
 //
 // The script is a JSON object:
 //
@@ -25,6 +26,8 @@
 //   {"echo": <n>}             reads n frames and writes each back as a frame
 //   {"sleepMs": <n>}          sleeps
 //   {"spawn": "<pid file>"}   starts a child (`--sleep`) and writes "<own pid> <child pid>" to the file
+//   {"holdStdio": <ms>}       starts a child (`--sleep <ms>`) that keeps the fake's stdin and stdout open after the
+//                             fake exits, for this long
 //   {"hang": true}            sleeps until stopped
 //   {"exit": <n>}             exits with this status
 //
@@ -47,6 +50,12 @@ internal static class Program
         if (args is ["--sleep"])
         {
             Thread.Sleep(Timeout.Infinite);
+            return 0;
+        }
+
+        if (args is ["--sleep", var sleepMs])
+        {
+            Thread.Sleep(int.Parse(sleepMs, System.Globalization.CultureInfo.InvariantCulture));
             return 0;
         }
 
@@ -143,6 +152,9 @@ internal static class Program
                     break;
                 case "spawn":
                     Spawn(value!.GetValue<string>());
+                    break;
+                case "holdStdio":
+                    HoldStdio(value!.GetValue<int>());
                     break;
                 case "hang":
                     Thread.Sleep(Timeout.Infinite);
@@ -254,6 +266,23 @@ internal static class Program
         start.ArgumentList.Add("--sleep");
         var child = Process.Start(start)!;
         File.WriteAllText(pidFile, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Environment.ProcessId} {child.Id}"));
+    }
+
+    // The child gets this process's own stdin and stdout, so the pipes stay open after this process exits, until the
+    // child exits. Its stderr is a pipe of its own, which no one reads.
+    private static void HoldStdio(int milliseconds)
+    {
+        var start = new ProcessStartInfo(Environment.ProcessPath!)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardError = true,
+        };
+        start.ArgumentList.Add("exec");
+        start.ArgumentList.Add(typeof(Program).Assembly.Location);
+        start.ArgumentList.Add("--sleep");
+        start.ArgumentList.Add(milliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Process.Start(start);
     }
 
     private static void WriteStdout(byte[] bytes)
