@@ -158,6 +158,18 @@ jobs:
             - name: Restore dependencies (ignoring lock files due to FSharp.Core NU1403)
               shell: bash
               run: DOTNET_RESTORE_LOCKED_MODE=false ./build.sh --target Restore
+            # A committed file that restore rewrites on this OS (for example a packages.lock.json with a host RID
+            # target) makes every release artifact record a dirty origin, and the release binding check refuses it.
+            - name: Check that restore left the working tree clean
+              shell: bash
+              run: |
+                  changes="$(git status --porcelain --untracked-files=all)"
+                  if [ -n "$changes" ]; then
+                      echo "::error::Restore changed the working tree on ${{ matrix.os }}:"
+                      echo "$changes"
+                      git diff
+                      exit 1
+                  fi
             # The one restore and the one compile of this job. The steps after it skip the Restore and Compile
             # targets (--skip Restore Compile): they use these outputs.
             - name: Build
