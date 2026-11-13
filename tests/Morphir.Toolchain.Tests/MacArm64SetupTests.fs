@@ -94,6 +94,7 @@ let private refusal (operation: unit -> 'T) =
         None
     with LocalCandidate.Refused(code, _) -> Some code
 
+// Pure readers and plans over bytes in memory: the same result on each operating system, so no PlatformSpecific marker.
 [<Tests>]
 let documents =
     testList "morphirup macOS ARM64 documents" [
@@ -215,6 +216,7 @@ let gates =
             Expect.stringContains (Encoding.UTF8.GetString(output.ToArray())) "local.platform_mismatch" "platform refusal"
         })
     ]
+    |> testLabel "PlatformSpecific"
 
 // A Mach-O header: 64-bit magic, CPU type, CPU subtype, file type, and zero load commands.
 let private machO (cpu: uint32) (fileType: uint32) =
@@ -325,6 +327,7 @@ let hostArchives =
             Expect.equal (inspect archive (hostCandidate "morphir" files archive)) (Some "local.closure_mismatch") "complete inventory only"
         }
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let installedModes =
