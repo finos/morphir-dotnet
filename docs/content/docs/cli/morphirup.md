@@ -15,11 +15,13 @@ the [local candidate instructions](../getting-started/local-morphirup-candidate.
 portable lock restore, proxy installation and shell setup remain unfinished. Matching a release checksum does not
 authenticate a publisher.
 
-## Install with morphirup (Windows x64, experimental)
+## Install with morphirup (Windows, experimental)
 
 The release setup path is being introduced by this change. Older published managers do not provide it. Once a
-release containing this change is published, download `morphirup-win-x64.exe` and `SHA256SUMS` from the same
-[morphir-dotnet release](https://github.com/finos/morphir-dotnet/releases). Compare the executable's SHA-256 with its
+release containing this change is published, download `morphirup-win-x64.exe`, or `morphirup-win-arm64.exe` on
+Windows ARM64, and `SHA256SUMS` from the same [morphir-dotnet release](https://github.com/finos/morphir-dotnet/releases).
+Setup downloads the toolchain of the manager's own platform from that release; one `SHA256SUMS` lists both platforms'
+files. Compare the executable's SHA-256 with its
 line in that file, then rename it to `morphirup.exe`. No .NET installation is required.
 
 In an existing F# project, or the supplied `examples/morphirup-fsharp` sample, run:
@@ -81,9 +83,8 @@ release job logged for `v0.4.0-alpha.4`. The job checks the executable only on t
 macOS 12.
 
 The Windows ARM64 executable is built and checked on the GitHub-hosted Windows 11 ARM64 runner, natively, not
-cross-built on x64. Releases before the first one that lists it have no `win-arm64` files. This release workflow
-publishes the complete release-setup bundle only for Windows x64. The ARM64 manager is published with its archive
-and checksum, but ARM64 release setup still needs the separate ARM64 toolchain publication change.
+cross-built on x64. Releases before the first one that lists it have no `win-arm64` files. The release workflow
+publishes the complete release-setup bundle for Windows x64 and Windows ARM64, with one `SHA256SUMS` over both.
 
 Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`, with the repository's
 `LICENSE` and `NOTICE` and the executable's `THIRD-PARTY-NOTICES.txt` beside it. The release also carries that file as

@@ -157,36 +157,92 @@ public class CliDeliveryWorkflowTests
     }
 
     [Test]
-    public void TheReleaseKeepsTheX64ToolchainManagerAndChecksItsOriginalChecksumFile()
+    public void OneReusableJobProducesEachWindowsToolchainAndItsManager()
+    {
+        // One producer per Windows RID: morphirup-build.yml, which build-morphirup and the pull request workflow call.
+        // Its toolchain upload and its manager upload come from the same job, so the release never puts a second build
+        // of a manager over the bytes that its toolchain's SHA256SUMS names.
+        var folder = Path.Combine(TestFixture.GetRepositoryRoot(), ".github", "workflows");
+        Directory.GetFiles(folder, "*.yml").Where(path => File.ReadAllText(path).Contains("PackWindowsToolchain", StringComparison.Ordinal))
+            .Select(Path.GetFileName).Should().Equal("morphirup-build.yml");
+        ((YamlMappingNode)Deployment()["jobs"]).Children.Keys.Select(key => key.ToString()).Should().NotContain("build-windows-toolchain");
+        File.Exists(Path.Combine(folder, "morphirup-preview3-arm64-proof.yml")).Should().BeFalse("its proof lane is part of morphirup.yml");
+
+        var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
+        var toolchain = steps.Single(step => Name(step) == "Upload the complete Windows toolchain proof inputs");
+        toolchain["with"]["name"].ToString().Should().Be("windows-release-toolchain-${{ inputs.rid }}");
+        toolchain["if"].ToString().Should().Contain("win-x64").And.Contain("win-arm64");
+        steps.Single(step => Name(step) == "Upload the morphirup release assets")["with"]["name"].ToString()
+            .Should().Be("morphirup-${{ inputs.rid }}");
+    }
+
+    [Test]
+    [Arguments("deployment.yml", "create-github-release")]
+    [Arguments("morphirup.yml", "checksums")]
+    public void TheChecksumJobsAssembleBothWindowsToolchainsUnderOneChecksumFile(string workflow, string job)
+    {
+        var steps = Steps(Job(Read(workflow), job));
+        var download = steps.Single(step => Uses(step).StartsWith("actions/download-artifact", StringComparison.Ordinal)
+            && Value((YamlMappingNode)step["with"], "pattern") == "windows-release-toolchain-*");
+        download["with"]["merge-multiple"].ToString().Should().Be("false", "each Windows output lands in a folder of its own");
+        download["with"]["path"].ToString().Should().Be("./artifacts/downloads/windows-toolchain");
+
+        var run = Run(steps.Single(step => Run(step).Contains("WindowsToolchainChecksums", StringComparison.Ordinal)));
+        // Each producer's own SHA256SUMS is checked against its own output before anything is copied.
+        run.Should().Contain("for rid in win-x64 win-arm64; do")
+            .And.Contain("(cd \"./artifacts/downloads/windows-toolchain/windows-release-toolchain-$rid\" && sha256sum -c SHA256SUMS)");
+        // Every output is flattened once: a manager or notices file that two downloads hold must be byte-identical.
+        run.Should().Contain("--target FlattenReleaseAssets MorphirupChecksums WindowsToolchainChecksums")
+            .And.Contain("--release-asset-sources ./artifacts/downloads/morphirup/* ./artifacts/downloads/windows-toolchain/*")
+            .And.Contain("--windows-toolchain-sources ./artifacts/downloads/windows-toolchain/*");
+        run.IndexOf("sha256sum -c SHA256SUMS)", StringComparison.Ordinal).Should().BeLessThan(run.IndexOf("--target FlattenReleaseAssets", StringComparison.Ordinal));
+        run.TrimEnd().Should().EndWith("sha256sum -c SHA256SUMS", "the one release checksum file is read back the way a user would");
+    }
+
+    [Test]
+    public void TheReleaseAttachesTheOneWindowsChecksumFile() =>
+        Steps(Job(Deployment(), "create-github-release")).Single(step => Uses(step).StartsWith("softprops/action-gh-release", StringComparison.Ordinal))
+            ["with"]["files"].ToString().Should().Contain("./artifacts/release-assets/SHA256SUMS");
+
+    [Test]
+    public void APullRequestVerifiesTheWinArm64OutputOnANativeRunnerAndKeepsIt()
+    {
+        var verify = Job(Read("morphirup.yml"), "verify-win-arm64");
+        verify["runs-on"].ToString().Should().Be("windows-11-arm");
+        ((YamlSequenceNode)verify["needs"]).Children.Select(node => node.ToString()).Should().Equal("build");
+        var steps = Steps(verify);
+        steps.Should().Contain(step => Uses(step).StartsWith("actions/download-artifact", StringComparison.Ordinal)
+            && step["with"]["name"].ToString() == "windows-release-toolchain-win-arm64");
+        Run(steps.Single(step => Name(step) == "Verify retained checksums before running the manager"))
+            .Should().Contain("managerPeMachine").And.Contain("& $manager --version");
+        steps.Should().Contain(step => Uses(step).StartsWith("actions/upload-artifact", StringComparison.Ordinal)
+            && step["with"]["retention-days"].ToString() == "7");
+    }
+
+    [Test]
+    public void ADryRunBuildsAndAssemblesTheReleaseButPublishesNothing()
     {
         var deployment = Deployment();
-        var producer = Job(deployment, "build-windows-toolchain");
-        producer["if"].ToString().Should().Contain(Enabled);
-        var producerSteps = Steps(producer);
-        producerSteps.Single(step => Run(step).Contains("--target PackWindowsToolchain", StringComparison.Ordinal))
-            ["run"].ToString().Should().Contain("--rid win-x64").And.NotContain("--rid win-arm64");
-        var upload = producerSteps.Single(step => Uses(step).StartsWith("actions/upload-artifact", StringComparison.Ordinal));
-        upload["with"]["name"].ToString().Should().Be("windows-release-toolchain");
-        upload["with"]["path"].ToString().Should().Be("artifacts/windows-toolchain/*");
+        var dryRun = (YamlMappingNode)deployment["on"]["workflow_dispatch"]["inputs"]["dry-run"];
+        dryRun["type"].ToString().Should().Be("boolean");
+        dryRun["default"].ToString().Should().Be("false");
 
-        var release = Job(deployment, "create-github-release");
-        release["needs"].ToString().Should().Contain("build-windows-toolchain");
-        var steps = Steps(release);
-        var download = steps.Single(step => Name(step) == "Download the Windows release setup closure");
-        download["with"]["name"].ToString().Should().Be("windows-release-toolchain");
-        download["with"]["path"].ToString().Should().Be("./artifacts/release-assets");
-        var checksums = steps.Single(step => Run(step).Contains("--target FlattenReleaseAssets MorphirupChecksums", StringComparison.Ordinal));
-        var script = Run(checksums);
-        script.Should().Contain("for rid in linux-x64 linux-arm64 win-arm64 osx-arm64; do",
-            "the x64 manager and its original checksum file already came from the toolchain producer");
-        script.Should().Contain("sources+=(\"./artifacts/downloads/morphirup/morphirup-$rid\")")
-            .And.Contain("--release-asset-sources \"${sources[@]}\"")
-            .And.NotContain("--release-asset-sources ./artifacts/downloads/morphirup/*")
-            .And.Contain("sha256sum -c SHA256SUMS")
-            .And.NotContain("WindowsToolchainChecksums", "the two-RID aggregator belongs to the later ARM64 toolchain change");
-        steps.FindIndex(step => ReferenceEquals(step, download)).Should().BeLessThan(steps.FindIndex(step => ReferenceEquals(step, checksums)));
-        steps.Single(step => Uses(step).StartsWith("softprops/action-gh-release", StringComparison.Ordinal))
-            ["with"]["files"].ToString().Should().Contain("./artifacts/release-assets/SHA256SUMS");
+        // The CLI jobs run for a dry run whatever the publication variable says ...
+        foreach (var job in new[] { "build-executables", "build-morphirup" })
+            Job(deployment, job)["if"].ToString().Should().Contain(Enabled).And.Contain("inputs.dry-run");
+
+        // ... and nothing publishes: the job that holds every NuGet publish step does not run, and the GitHub release is
+        // not created.
+        Job(deployment, "release")["if"].ToString().Should().Contain("!inputs.dry-run");
+        Steps(Job(deployment, "create-github-release")).Should().NotContain(step => Run(step).Contains("--api-key", StringComparison.Ordinal));
+        var assemble = Job(deployment, "create-github-release");
+        assemble["if"].ToString().Should().Contain("inputs.dry-run");
+        var steps = Steps(assemble);
+        steps.Single(step => Uses(step).StartsWith("softprops/action-gh-release", StringComparison.Ordinal))["if"].ToString()
+            .Should().Contain("!inputs.dry-run");
+        var upload = steps.Single(step => Uses(step).StartsWith("actions/upload-artifact", StringComparison.Ordinal));
+        upload["if"].ToString().Should().Contain("inputs.dry-run").And.NotContain("!inputs.dry-run");
+        upload["with"]["path"].ToString().Should().Be("./artifacts/release-assets/*");
     }
 
     private static YamlMappingNode Deployment() => Read("deployment.yml");
