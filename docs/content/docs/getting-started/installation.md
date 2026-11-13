@@ -255,7 +255,7 @@ Then follow [Compile F# to Morphir IR]({{< relref "/docs/getting-started/compile
 
 ## Troubleshooting
 
-### morphirup Not Found
+### morphirup not found
 
 On Windows, open a new terminal: the script changes the user `PATH`, which only new terminals read. On Linux and
 macOS, add the folder that the script named to your `PATH`, for example `export PATH="$HOME/.local/bin:$PATH"` in

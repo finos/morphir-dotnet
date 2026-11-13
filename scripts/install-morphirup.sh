@@ -177,7 +177,9 @@ main() {
             *) usage; die "unknown argument '$1'" ;;
         esac
     done
-    [ -n "$INSTALL_DIR" ] && [ "$INSTALL_DIR" != "/.local/bin" ] || die "HOME is not set; pass --install-dir <dir>"
+    if [ -z "$INSTALL_DIR" ] || [ "$INSTALL_DIR" = "/.local/bin" ]; then
+        die "HOME is not set; pass --install-dir <dir>"
+    fi
 
     choose_downloader
     detect_rid
