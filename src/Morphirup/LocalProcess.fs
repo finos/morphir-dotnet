@@ -39,8 +39,9 @@ let isolate (environment: System.Collections.Generic.IDictionary<string, string 
         environment.Remove name
         |> ignore
 
-/// An owned child: on Windows in a kill-on-close job, elsewhere a process whose tree the manager terminates.
-/// Off Windows the manager's death does not end the child; that ownership is Windows-only.
+/// An owned child: on Windows in a kill-on-close job, elsewhere a process whose tree the manager terminates on
+/// cancellation or failure. Off Windows there is no process group: a descendant that outlives a normal exit of the
+/// host, and the whole tree when the manager itself dies, are not terminated.
 type private OwnedChild =
     | Windows of WindowsChild
     | Unix of Process * Task<int>
@@ -69,10 +70,16 @@ type private OwnedChild =
         match this with
         | Windows child -> child.RequestTermination()
         | Unix(child, _) ->
+            // This runs inside a cancellation callback too, so no failure may escape. The process has exited
+            // (InvalidOperationException), a member of its tree is gone or not ours (Win32Exception), or the tree walk
+            // failed for some members (AggregateException). The exit wait still settles the root.
             try
                 child.Kill true
-            with :? InvalidOperationException ->
-                ()
+            with
+            | :? InvalidOperationException
+            | :? System.ComponentModel.Win32Exception
+            | :? AggregateException
+            | :? NotSupportedException -> ()
 
     member this.SettleAsync() : Task =
         match this with

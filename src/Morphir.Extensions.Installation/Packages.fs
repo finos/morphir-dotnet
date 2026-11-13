@@ -1108,8 +1108,9 @@ module internal PackageTreeIO =
 
         manifest
 
-    /// Extracts a tar.gz package by the rules of a ZIP package: the bounded inspection first refuses links, devices and
-    /// unsafe names, then one pass writes each regular file with its canonical mode.
+    /// Extracts a tar.gz package by the rules of a ZIP package: the package records first refuse links, devices and
+    /// the package bounds, the package reader checks the names, then one pass writes each regular file with its
+    /// canonical mode.
     let extractTarGz
         (source: FileStream)
         (tree: SafeDirectory)
@@ -1117,18 +1118,7 @@ module internal PackageTreeIO =
         (created: Dictionary<string, StageIdentity>)
         (ct: CancellationToken)
         =
-        source.Position <- 0L
-        let inspection = ArchiveChecks.inspect source ct
-
-        if
-            inspection.Format
-            <> "tar-gzip"
-        then
-            Operations.fail
-                "package.archive_format"
-                "Archive bytes do not match declared tar.gz format."
-
-        let records = inspection.Entries |> Seq.toArray
+        let records = ArchiveChecks.tarPackageRecords source ct
         let normalized = normalizeEntries (records |> Array.map (fun record -> record.Name, record.IsDirectory)) plan
         source.Position <- 0L
         use gzip = new GZipStream(source, CompressionMode.Decompress, true)
@@ -1149,10 +1139,9 @@ module internal PackageTreeIO =
                     Operations.fail "package.tar_header_mismatch" "Archive reader and validated records differ."
 
                 let record = records[index]
-                let name = if record.IsDirectory then entry.Name.TrimEnd '/' else entry.Name
 
                 if
-                    name <> record.Name
+                    entry.Name <> record.Name
                     || (entry.EntryType = Formats.Tar.TarEntryType.Directory) <> record.IsDirectory
                 then
                     Operations.fail "package.tar_header_mismatch" "Tar effective name differs."
@@ -1381,6 +1370,14 @@ type PackageInstaller private () =
                 input.Position <- 0L
 
                 if
+                    plan.Format <> "zip"
+                    && plan.Format <> "tar.gz"
+                then
+                    Operations.fail
+                        "package.archive_format"
+                        "The package format is neither zip nor tar.gz."
+
+                if
                     plan.Format = "zip"
                     && not (ArchiveChecks.isZip signature count)
                 then
@@ -1441,10 +1438,10 @@ type PackageInstaller private () =
 
                                 let manifest =
                                     try
-                                        if plan.Format = "tar.gz" then
-                                            PackageTreeIO.extractTarGz input tree plan created ct
-                                        else
-                                            PackageTreeIO.extractZip input tree plan created ct
+                                        match plan.Format with
+                                        | "zip" -> PackageTreeIO.extractZip input tree plan created ct
+                                        | "tar.gz" -> PackageTreeIO.extractTarGz input tree plan created ct
+                                        | _ -> invalidOp "The package format was checked before staging."
                                     with
                                     | :? InvalidDataException as error ->
                                         ArchiveChecks.unsafe error.Message

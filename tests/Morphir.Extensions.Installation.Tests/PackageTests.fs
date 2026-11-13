@@ -829,35 +829,31 @@ let producerTests =
         }
     ]
 
-// A tar.gz package for this host: its entry point, one additional executable and one data file at the archive root.
-let private tarPackage (sandbox: TestSandbox) (extra: (Formats.Tar.TarEntry) list) =
+// A tar.gz package for this host from explicit archive entries. The manifest lists the regular files, with the
+// entry point "run" and the additional executable "tools/helper" executable.
+let private tarPackageOf (sandbox: TestSandbox) (entries: Formats.Tar.TarEntry list) (files: (string * byte array) list) =
     let platform =
         ActivationPlatforms.current ()
         |> StateOwnership.unwrap
 
     let original, _, _ = fixtureForPlatform platform sandbox
-    let files = [ "lib/data.json", utf8 "{}", false; "run", utf8 "guest", true; "tools/helper", utf8 "helper", true ]
     use memory = new MemoryStream()
 
     do
         use gzip = new GZipStream(memory, CompressionLevel.Fastest, true)
-        use tar = new Formats.Tar.TarWriter(gzip, Formats.Tar.TarEntryFormat.Ustar, false)
+        use tar = new Formats.Tar.TarWriter(gzip, Formats.Tar.TarEntryFormat.Pax, false)
 
-        for name, bytes, executable in files do
-            let entry = Formats.Tar.UstarTarEntry(Formats.Tar.TarEntryType.RegularFile, name)
-            entry.Mode <- enum<UnixFileMode> (if executable then 0o755 else 0o644)
-            entry.DataStream <- new MemoryStream(bytes)
-            tar.WriteEntry entry
-
-        for entry in extra do
+        for entry in entries do
             tar.WriteEntry entry
 
     let bytes = memory.ToArray()
+    let executable name = name = "run" || name = "tools/helper"
 
     let manifest =
         files
-        |> List.map (fun (name, content, executable) ->
-            $"""{if executable then "x" else "f"} {content.Length} {Digest.ofBytes content} {name}""")
+        |> List.sortWith (fun (a, _) (b, _) -> StringComparer.Ordinal.Compare(a, b))
+        |> List.map (fun (name, content) ->
+            $"""{if executable name then "x" else "f"} {content.Length} {Digest.ofBytes content} {name}""")
         |> String.concat "\n"
         |> fun lines -> utf8 $"morphir-package-tree 0.1.0-preview.1\n{lines}\n"
 
@@ -877,6 +873,33 @@ let private tarPackage (sandbox: TestSandbox) (extra: (Formats.Tar.TarEntry) lis
             )
 
     plan, staged sandbox bytes
+
+let private regular (name: string) (content: byte array) (mode: int) =
+    let entry = Formats.Tar.PaxTarEntry(Formats.Tar.TarEntryType.RegularFile, name)
+    entry.Mode <- enum<UnixFileMode> mode
+    entry.DataStream <- new MemoryStream(content)
+    entry :> Formats.Tar.TarEntry
+
+let private folder (name: string) =
+    let entry = Formats.Tar.PaxTarEntry(Formats.Tar.TarEntryType.Directory, name)
+    entry.Mode <- enum<UnixFileMode> 0o755
+    entry :> Formats.Tar.TarEntry
+
+let private packageFiles = [ "lib/data.json", utf8 "{}"; "run", utf8 "guest"; "tools/helper", utf8 "helper" ]
+
+// A tar.gz package for this host: its entry point, one additional executable and one data file at the archive root.
+let private tarPackage (sandbox: TestSandbox) (extra: Formats.Tar.TarEntry list) =
+    let entries =
+        packageFiles
+        |> List.map (fun (name, content) -> regular name content (if name = "lib/data.json" then 0o644 else 0o755))
+
+    tarPackageOf sandbox (entries @ extra) packageFiles
+
+let private installTar (sandbox: TestSandbox) plan archive = task {
+    let root = home sandbox
+    let! installed = PackageInstaller.InstallAsync(root, plan, archive, ct)
+    return root, (get installed: InstalledPackage)
+}
 
 [<Tests>]
 let tarPackageTests =
@@ -929,5 +952,111 @@ let tarPackageTests =
                     (fun node -> (artifact node)["sha256"] <- JsonValue.Create zipPlan.ArchiveDigest.Value)
             let! result = PackageInstaller.InstallAsync(home sandbox, mismatched, zipArchive, ct)
             refused "package.archive_format" result
+        }
+        testTask "a package made with tar -C dir -czf package.tar.gz . installs" {
+            if OperatingSystem.IsWindows() then
+                skiptest "A Windows entry point is a .exe in a ZIP package."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let entries =
+                [ folder "./"; folder "./lib/"; regular "./lib/data.json" (utf8 "{}") 0o644
+                  regular "./run" (utf8 "guest") 0o755; folder "./tools/"; regular "./tools/helper" (utf8 "helper") 0o755 ]
+            let plan, archive = tarPackageOf sandbox entries packageFiles
+            let! (root: string), (installed: InstalledPackage) = installTar sandbox plan archive
+            Expect.equal (File.ReadAllBytes installed.EntryPointPath) (utf8 "guest") "the ./ prefix is removed"
+            let! verified = PackageInstaller.VerifyAsync(root, plan, ct)
+            get verified |> ignore
+        }
+        testTask "a package from the system tar of a folder installs" {
+            if OperatingSystem.IsWindows() || not (File.Exists "/usr/bin/tar") then
+                skiptest "Needs the system tar of a Unix machine."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let source = Directory.CreateDirectory(Path.Combine(sandbox.Work, "package-source")).FullName
+            for name, content in packageFiles do
+                let path = Path.Combine(source, name)
+                Directory.CreateDirectory(nonNull (Path.GetDirectoryName path)) |> ignore
+                File.WriteAllBytes(path, content)
+            File.SetUnixFileMode(Path.Combine(source, "run"), enum<UnixFileMode> 0o755)
+            File.SetUnixFileMode(Path.Combine(source, "tools", "helper"), enum<UnixFileMode> 0o755)
+            let built = Path.Combine(sandbox.Work, "built.tar.gz")
+            let start = ChildProcess.StartInfo("/usr/bin/tar", "-C", source, "-czf", built, ".")
+            // macOS tar adds AppleDouble files for extended attributes unless COPYFILE_DISABLE is set.
+            start.Environment["COPYFILE_DISABLE"] <- "1"
+            let! (result: ChildProcessResult) = ChildProcess.RunAsync(start, TimeSpan.FromSeconds 30.)
+            Expect.equal result.ExitCode 0 result.CombinedOutput
+            let reference, _ = tarPackage sandbox []
+            let bytes = File.ReadAllBytes built
+            let plan =
+                editPlan
+                    (ActivationPlatforms.current () |> StateOwnership.unwrap)
+                    reference
+                    (fun node -> (artifact node)["sha256"] <- JsonValue.Create(Digest.ofBytes bytes))
+            let! (root: string), (installed: InstalledPackage) = installTar sandbox plan (staged sandbox bytes)
+            Expect.equal (File.ReadAllBytes installed.EntryPointPath) (utf8 "guest") "the entry point"
+            let! verified = PackageInstaller.VerifyAsync(root, plan, ct)
+            get verified |> ignore
+        }
+        testTask "a tar.gz package with more than 1024 and fewer than 4096 entries installs, as a ZIP package does" {
+            if OperatingSystem.IsWindows() then
+                skiptest "A Windows entry point is a .exe in a ZIP package."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let many = [ for index in 1..1100 -> $"lib/file{index:D4}.txt", utf8 (string index) ]
+            let files = packageFiles @ many
+            let entries = files |> List.map (fun (name, content) -> regular name content (if name = "run" || name = "tools/helper" then 0o755 else 0o644))
+            let plan, archive = tarPackageOf sandbox entries files
+            let! _, (installed: InstalledPackage) = installTar sandbox plan archive
+            Expect.equal installed.Manifest.Files.Count files.Length "every file"
+        }
+        testTask "a tar.gz package with more than 4096 entries is refused" {
+            if OperatingSystem.IsWindows() then
+                skiptest "A Windows entry point is a .exe in a ZIP package."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let many = [ for index in 1..4100 -> $"lib/file{index:D4}.txt", utf8 "x" ]
+            let files = packageFiles @ many
+            let entries = files |> List.map (fun (name, content) -> regular name content 0o644)
+            let plan, archive = tarPackageOf sandbox entries files
+            let! result = PackageInstaller.InstallAsync(home sandbox, plan, archive, ct)
+            refused "extension.archive_limit" result
+        }
+        testTask "a gzip resource in a tar.gz package is a file, not a nested archive" {
+            if OperatingSystem.IsWindows() then
+                skiptest "A Windows entry point is a .exe in a ZIP package."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let resource =
+                use memory = new MemoryStream()
+                do
+                    use gzip = new GZipStream(memory, CompressionLevel.Fastest, true)
+                    gzip.Write(utf8 "not a tar archive")
+                memory.ToArray()
+            let files = packageFiles @ [ "lib/resource.gz", resource ]
+            let entries = files |> List.map (fun (name, content) -> regular name content (if name = "run" || name = "tools/helper" then 0o755 else 0o644))
+            let plan, archive = tarPackageOf sandbox entries files
+            let! _, (installed: InstalledPackage) = installTar sandbox plan archive
+            let tree = nonNull (Path.GetDirectoryName installed.EntryPointPath)
+            Expect.equal (File.ReadAllBytes(Path.Combine(tree, "lib", "resource.gz"))) resource "the resource bytes"
+        }
+        testTask "setuid, setgid and world-writable package entry modes are installed as the canonical modes" {
+            if OperatingSystem.IsWindows() then
+                skiptest "Unix file modes."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let modes = Map.ofList [ "run", 0o4777; "tools/helper", 0o2755; "lib/data.json", 0o666 ]
+            let entries = packageFiles |> List.map (fun (name, content) -> regular name content modes[name])
+            let plan, archive = tarPackageOf sandbox entries packageFiles
+            let! _, (installed: InstalledPackage) = installTar sandbox plan archive
+            let tree = nonNull (Path.GetDirectoryName installed.EntryPointPath)
+            Expect.equal (File.GetUnixFileMode installed.EntryPointPath) (enum<UnixFileMode> 0o555) "no setuid or write"
+            Expect.equal (File.GetUnixFileMode(Path.Combine(tree, "tools", "helper"))) (enum<UnixFileMode> 0o555) "no setgid"
+            Expect.equal (File.GetUnixFileMode(Path.Combine(tree, "lib", "data.json"))) (enum<UnixFileMode> 0o444) "no write"
         }
     ]

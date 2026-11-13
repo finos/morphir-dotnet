@@ -432,5 +432,121 @@ let homePaths =
             Expect.isFalse (expected.Contains "/link/") "no link in the result"
             Expect.equal (LocalCandidate.homePath "/var/x") (if OperatingSystem.IsMacOS() then "/private/var/x" else "/var/x") "the system link of macOS"
         }
+        test "a Home that is itself a link keeps its last part, so the Home check sees the link" {
+            if OperatingSystem.IsWindows() then skiptest "Unix links."
+            use sandbox = TestSandbox.Create()
+            let physical = Directory.CreateDirectory(Path.Combine(sandbox.Work, "physical")).FullName
+            let link = Path.Combine(sandbox.Work, "home-link")
+            Directory.CreateSymbolicLink(link, physical) |> ignore
+            Expect.equal (LocalCandidate.homePath link) (Path.Combine(LocalCandidate.homePath sandbox.Work, "home-link")) "the last part is not followed"
+        }
+        testCaseTask "setup refuses a Home that is a link, before it reads an input" (fun () -> task {
+            if OperatingSystem.IsWindows() then skiptest "Unix links."
+            use sandbox = TestSandbox.Create()
+            let physical = Directory.CreateDirectory(Path.Combine(sandbox.Work, "physical")).FullName
+            let link = Path.Combine(sandbox.Work, "home-link")
+            Directory.CreateSymbolicLink(link, physical) |> ignore
+            use input = new MemoryStream()
+            use output = new MemoryStream()
+            use errors = new StringWriter()
+            let! exit =
+                Cli.runAsync
+                    { Out = output; Error = errors; CurrentDirectory = sandbox.Work; Platform = Some Platform.OsxArm64 }
+                    input
+                    [ "setup"; "--candidate"; Path.Combine(sandbox.Work, "absent.json"); "--local-archive"; "a.tar.gz"
+                      "--local-bundle"; "b.json"; "--local-developer"; "--dry-run"; "--home"; link ]
+                    CancellationToken.None
+            let text = Encoding.UTF8.GetString(output.ToArray())
+            let diagnostic =
+                match Syntax.parseJson (output.ToArray()) |> parsed with
+                | Value.Object fields ->
+                    match fields |> List.tryFind (fun (name, _) -> name = "diagnostic") with
+                    | Some(_, Value.Object diagnostic) -> diagnostic |> List.tryPick (function "code", Value.String code -> Some code | _ -> None)
+                    | _ -> None
+                | _ -> None
+            Expect.equal exit 1 text
+            Expect.equal diagnostic (Some "local.extension.path_escape") text
+            Expect.isEmpty (Directory.GetFileSystemEntries physical) "nothing is written into the link's target"
+        })
+        test "a Home below a cycle of links is refused" {
+            if OperatingSystem.IsWindows() then skiptest "Unix links."
+            use sandbox = TestSandbox.Create()
+            let a = Path.Combine(sandbox.Work, "a")
+            let b = Path.Combine(sandbox.Work, "b")
+            Directory.CreateSymbolicLink(a, b) |> ignore
+            Directory.CreateSymbolicLink(b, a) |> ignore
+            Expect.equal (refusal (fun () -> LocalCandidate.homePath (Path.Combine(a, "home")))) (Some "local.home_links") "bounded resolution"
+        }
+    ]
+    |> testLabel "PlatformSpecific"
+
+[<Tests>]
+let unsafeModes =
+    testList "morphirup host archive unsafe modes" [
+        test "setuid, setgid and world-writable archive modes are not installed" {
+            if OperatingSystem.IsWindows() then skiptest "Unix file modes."
+            use sandbox = TestSandbox.Create()
+            let files = runtimeFiles "morphir" (machO arm64 2u)
+            let modes = Map.ofList [ "morphir", 0o4777; "createdump", 0o2755; "morphir.dll", 0o666 ]
+            use memory = new MemoryStream()
+            do
+                use gzip = new GZipStream(memory, CompressionLevel.Fastest, true)
+                use tar = new TarWriter(gzip, TarEntryFormat.Ustar, false)
+                for name, bytes, executable in files do
+                    let entry = UstarTarEntry(TarEntryType.RegularFile, name)
+                    entry.Mode <- enum<UnixFileMode> (modes.TryFind name |> Option.defaultValue (if executable then 0o755 else 0o644))
+                    entry.DataStream <- new MemoryStream(bytes)
+                    tar.WriteEntry entry
+            let archive = memory.ToArray()
+            let candidate = hostCandidate "morphir" files archive
+            let folder = Directory.CreateDirectory(Path.Combine(sandbox.Work, "host")).FullName
+            do
+                use source = new MemoryStream(archive, false)
+                use root = Morphir.Extensions.Installation.SafeDirectory.Open(folder, false)
+                LocalInstallation.extractHost source candidate root CancellationToken.None
+            let mode name = File.GetUnixFileMode(Path.Combine(folder, name))
+            Expect.equal (mode "morphir") (enum<UnixFileMode> 0o755) "no setuid, no group or other write"
+            Expect.equal (mode "createdump") (enum<UnixFileMode> 0o755) "no setgid"
+            Expect.equal (mode "morphir.dll") (enum<UnixFileMode> 0o644) "no group or other write"
+        }
+    ]
+    |> testLabel "PlatformSpecific"
+
+[<Tests>]
+let unixDescendants =
+    testList "morphirup Unix launch descendants" [
+        testCaseTask "cancellation also ends a grandchild that the host started" (fun () -> task {
+            if OperatingSystem.IsWindows() then skiptest "Unix launch."
+            use sandbox = TestSandbox.Create()
+            use input = new MemoryStream()
+            use output = new MemoryStream()
+            use errors = new StringWriter()
+            use cancellation = new CancellationTokenSource()
+            let run = LocalProcess.runAsync "/bin/sh" [ "-c"; "/bin/sleep 300 & echo $!; wait" ] sandbox.Work sandbox.MorphirHome (LocalProcess.Input.Redirect input) output errors cancellation.Token
+            let started = Diagnostics.Stopwatch.StartNew()
+            while output.Length = 0L && started.Elapsed < TimeSpan.FromSeconds 10. do
+                do! Task.Delay 50
+            let grandchild = int (Encoding.ASCII.GetString(output.ToArray()).Trim())
+            cancellation.Cancel()
+            let! cancelled = task {
+                try
+                    let! _ = run
+                    return false
+                with :? OperationCanceledException -> return true
+            }
+            Expect.isTrue cancelled "cancellation is reported"
+            let alive () =
+                try
+                    use p = Diagnostics.Process.GetProcessById grandchild
+                    not p.HasExited
+                with :? ArgumentException -> false
+            let waited = Diagnostics.Stopwatch.StartNew()
+            while alive () && waited.Elapsed < TimeSpan.FromSeconds 5. do
+                do! Task.Delay 50
+            let survived = alive ()
+            if survived then
+                try (Diagnostics.Process.GetProcessById grandchild).Kill() with _ -> ()
+            Expect.isFalse survived "the grandchild was terminated with the host"
+        })
     ]
     |> testLabel "PlatformSpecific"

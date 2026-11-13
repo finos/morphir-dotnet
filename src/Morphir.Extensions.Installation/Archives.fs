@@ -288,7 +288,7 @@ module internal ArchiveChecks =
     // TarReader materializes PAX/GNU payloads internally. Inspect their 512-byte headers before returning bytes
     // to it, so a declared multi-megabyte extension header is refused before allocation. Effective names still
     // come from TarReader, after it has interpreted GNU long names and PAX overrides.
-    type TarHeaders(input: Stream) =
+    type TarHeaders(input: Stream, maxEntries: int) =
         inherit ReadProxy(input)
         let header = Array.zeroCreate<byte> 512
         let mutable headerOffset = 512
@@ -360,9 +360,9 @@ module internal ArchiveChecks =
                             entryCount
                             + 1
 
-                        if entryCount > InstallationLimits.MaxArchiveEntries then
+                        if entryCount > maxEntries then
                             limit
-                                "Archive exceeds 1024 entries, including PAX/GNU metadata headers."
+                                $"Archive exceeds {maxEntries} entries, including PAX/GNU metadata headers."
 
                         let size = tarNumber header
                         let extension = List.contains (char header[156]) [ 'x'; 'g'; 'L'; 'K' ]
@@ -1121,7 +1121,7 @@ module internal ArchiveChecks =
                         unsupported ()
                     // A seekless prefix reader keeps gzip byte/ratio accounting on the actual input stream.
                     use replay = new Prefix(first, expanded)
-                    use guarded = new TarHeaders(replay)
+                    use guarded = new TarHeaders(replay, InstallationLimits.MaxArchiveEntries)
                     use archive = new TarReader(guarded, true)
                     let names = Names()
                     let mutable reading = true
@@ -1203,6 +1203,99 @@ module internal ArchiveChecks =
         finally
             for snapshot in snapshots do
                 snapshot.Dispose()
+
+    /// The entries of a tar.gz package by the package policy of a ZIP package (zipRecordsWithPolicy with package):
+    /// at most 4096 entries, here including PAX/GNU metadata headers; only regular files and directories; ASCII names
+    /// as written, which the package reader checks, so "./" names are allowed; the same 1 GiB expansion, ratio and
+    /// 256 MiB entry bounds; and no inspection of a resource as a nested archive.
+    let tarPackageRecords (source: Stream) (ct: CancellationToken) =
+        source.Position <- 0L
+        let mutable total = 0L
+
+        let remaining () =
+            InstallationLimits.MaxArchiveBytes
+            - total
+
+        let charge count =
+            total <-
+                total
+                + int64 count
+
+            if total > InstallationLimits.MaxArchiveBytes then
+                limit "Package expansion, including metadata and padding, exceeds 1 GiB."
+
+        use counted = new Counted(source)
+        use gzip = new GZipStream(counted, CompressionMode.Decompress, true)
+        use expanded = new Expanded(gzip, counted, ct, remaining, charge)
+        let first = Array.zeroCreate<byte> 512
+        let mutable read = 0
+
+        while read < 512 do
+            let count = expanded.Read(first, read, 512 - read)
+
+            if count = 0 then
+                unsupported ()
+
+            read <-
+                read
+                + count
+
+        if not (tarHeaderIsValid first) then
+            unsupported ()
+
+        use replay = new Prefix(first, expanded)
+        use guarded = new TarHeaders(replay, 4096)
+        use archive = new TarReader(guarded, true)
+        let records = ResizeArray<ArchiveEntryInfo>()
+        let mutable reading = true
+
+        while reading do
+            ct.ThrowIfCancellationRequested()
+
+            match archive.GetNextEntry(false) with
+            | null -> reading <- false
+            | entry when entry.EntryType = TarEntryType.GlobalExtendedAttributes -> ()
+            | entry ->
+                let directory = entry.EntryType = TarEntryType.Directory
+
+                if
+                    not directory
+                    && entry.EntryType <> TarEntryType.RegularFile
+                    && entry.EntryType <> TarEntryType.V7RegularFile
+                then
+                    unsafe $"Not a regular tar entry: {entry.Name}"
+
+                if
+                    entry.Name
+                    |> Seq.exists (fun c -> c > '\u007F')
+                then
+                    unsafe "Non-ASCII tar entry."
+
+                if entry.Length > InstallationLimits.MaxArtifactBytes then
+                    limit $"Tar entry exceeds 256 MiB: {entry.Name}"
+
+                records.Add(ArchiveEntryInfo(entry.Name, entry.Length, directory))
+
+        let buffer = Array.zeroCreate<byte> (64 * 1024)
+
+        while guarded.Read(buffer, 0, buffer.Length)
+              <> 0 do
+            ()
+
+        let mutable draining = true
+
+        while draining do
+            let count = expanded.Read(buffer, 0, buffer.Length)
+
+            if count = 0 then
+                draining <- false
+            elif
+                buffer[0 .. count - 1]
+                |> Array.exists ((<>) 0uy)
+            then
+                unsafe "Data follows the end of the tar archive."
+
+        records.ToArray()
 
     let inspect (source: Stream) (ct: CancellationToken) =
         inspectWithExpansionLimit source ct InstallationLimits.MaxArchiveBytes
