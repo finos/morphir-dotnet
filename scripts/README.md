@@ -134,6 +134,15 @@ missing checksum line.
 Both send `GITHUB_TOKEN`, when set, to `api.github.com` only. `MORPHIRUP_SHA256_FILE` is a testing hook that names a
 local checksum file to verify against.
 
+On restricted networks, both use `HTTPS_PROXY` and `NO_PROXY`. The `sh` script passes them to curl or wget, copying
+the uppercase names to the lowercase ones that wget reads. The PowerShell script also uses the Windows proxy settings
+and signs in to a proxy as the current Windows user; on Windows PowerShell 5.1 it passes `HTTPS_PROXY` to each request
+itself, since 5.1 does not read it, and honours `NO_PROXY`. `MORPHIRUP_DOWNLOAD_URL` names an HTTPS mirror of the
+release downloads (`<url>/v<version>/<file>`). `MORPHIRUP_API_URL` replaces the release list URL. When the release
+list cannot be read, both scripts fall back to the release feed `https://github.com/finos/morphir-dotnet/releases.atom`
+and try each `v*` tag. curl and wget stop connecting after 30 seconds, so a firewall that drops packets does not hang
+the script. The workflow tests the proxy and feed fallback with `.github/install-scripts/connect-proxy.py`.
+
 The workflow `.github/workflows/install-scripts.yml` runs both scripts and the documented mise command on Linux,
 macOS and Windows, including the refusal cases. It runs only when started by hand, so pull requests do not pay for
 it. Run it after you change either script:

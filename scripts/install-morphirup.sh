@@ -16,9 +16,19 @@
 #   MORPHIRUP_VERSION      Same as --version.
 #   MORPHIRUP_INSTALL_DIR  Same as --install-dir.
 #   MORPHIRUP_DOWNLOADER   curl or wget, to choose the download tool. Default: curl if present.
+#   MORPHIRUP_DOWNLOAD_URL HTTPS mirror of https://github.com/finos/morphir-dotnet/releases/download,
+#                          laid out the same way: <url>/v<version>/<file>.
+#   MORPHIRUP_API_URL      Release list to read when no version is given. Default:
+#                          https://api.github.com/repos/finos/morphir-dotnet/releases?per_page=30
 #   GITHUB_TOKEN           Sent to api.github.com only, to avoid the unauthenticated rate limit.
 #   MORPHIRUP_SHA256_FILE  Testing hook: verify against this local checksum file instead of the
 #                          release's morphirup-v<version>.sha256.
+#
+# Behind a proxy: curl and wget read HTTPS_PROXY / https_proxy and NO_PROXY / no_proxy. If the
+# proxy inspects TLS, point CURL_CA_BUNDLE (curl) or SSL_CERT_FILE at your company's CA bundle.
+# The hosts used are github.com and release-assets.githubusercontent.com, plus api.github.com
+# when no version is given. If api.github.com is blocked, the script reads the release feed
+# on github.com instead.
 #
 # The script downloads morphirup-<rid> and morphirup-v<version>.sha256 from the GitHub release,
 # checks the SHA-256 and installs nothing unless it matches. It needs curl or wget, and
@@ -29,11 +39,24 @@
 set -eu
 
 REPO="finos/morphir-dotnet"
-API_URL="https://api.github.com/repos/${REPO}/releases?per_page=30"
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download"
+GITHUB_API_URL="https://api.github.com/repos/${REPO}/releases?per_page=30"
+API_URL="${MORPHIRUP_API_URL:-$GITHUB_API_URL}"
+FEED_URL="https://github.com/${REPO}/releases.atom"
+GITHUB_DOWNLOAD_URL="https://github.com/${REPO}/releases/download"
+DOWNLOAD_URL="${MORPHIRUP_DOWNLOAD_URL:-$GITHUB_DOWNLOAD_URL}"
+DOWNLOAD_URL="${DOWNLOAD_URL%/}"
 
 say() { printf 'morphirup-install: %s\n' "$*" >&2; }
 die() { say "error: $*"; exit 1; }
+
+# network_hint: what to check when a download fails on a restricted network.
+network_hint() {
+    say "if your network needs a proxy, set HTTPS_PROXY (and NO_PROXY for internal hosts);"
+    say "if it inspects TLS, set CURL_CA_BUNDLE or SSL_CERT_FILE to your company's CA bundle;"
+    say "the hosts needed are github.com and release-assets.githubusercontent.com, or set"
+    say "MORPHIRUP_DOWNLOAD_URL to an HTTPS mirror of the release downloads"
+}
+die_network() { say "error: $*"; network_hint; exit 1; }
 
 usage() {
     cat >&2 <<'EOF'
@@ -45,7 +68,8 @@ usage: install-morphirup.sh [--version <version>] [--install-dir <dir>]
   -h, --help             Show this help.
 
 Environment: MORPHIRUP_VERSION, MORPHIRUP_INSTALL_DIR, MORPHIRUP_DOWNLOADER (curl or wget),
-GITHUB_TOKEN (sent to api.github.com only).
+MORPHIRUP_DOWNLOAD_URL (HTTPS mirror of the release downloads), MORPHIRUP_API_URL,
+GITHUB_TOKEN (sent to api.github.com only), HTTPS_PROXY and NO_PROXY.
 EOF
 }
 
@@ -64,36 +88,49 @@ choose_downloader() {
     esac
 }
 
+# Both tools read HTTPS_PROXY / https_proxy and NO_PROXY from the environment. The connect
+# timeout keeps a firewall that drops packets from hanging the script; there is no overall time
+# limit, so a slow proxy can still finish a download.
+# wget reads only the lowercase names, so copy HTTPS_PROXY and NO_PROXY when only those are set.
+if [ -z "${https_proxy:-}" ] && [ -n "${HTTPS_PROXY:-}" ]; then https_proxy="$HTTPS_PROXY"; export https_proxy; fi
+if [ -z "${no_proxy:-}" ] && [ -n "${NO_PROXY:-}" ]; then no_proxy="$NO_PROXY"; export no_proxy; fi
+c_get() { curl --proto '=https' --tlsv1.2 --connect-timeout 30 --retry 3 -fsSL "$@"; }
+w_get() { wget --no-verbose --connect-timeout=30 --tries=3 "$@"; }
+
 # fetch <url> <output file>
 fetch() {
     case "$DOWNLOADER" in
-        curl) curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$2" "$1" ;;
-        wget) wget -q --tries=3 -O "$2" "$1" ;;
+        curl) c_get -o "$2" "$1" ;;
+        wget) w_get -O "$2" "$1" ;;
     esac
 }
 
-# fetch_api <url> <output file>: like fetch, with the GitHub API headers.
+# fetch_api <url> <output file>: like fetch, with the GitHub API headers. GITHUB_TOKEN goes to
+# api.github.com only, never to another host named by MORPHIRUP_API_URL.
 fetch_api() {
-    if [ -n "${GITHUB_TOKEN:-}" ]; then
+    token=""
+    case "$1" in
+        https://api.github.com/*) token="${GITHUB_TOKEN:-}" ;;
+    esac
+    if [ -n "$token" ]; then
         case "$DOWNLOADER" in
-            curl) curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -H "Accept: application/vnd.github+json" \
-                      -H "Authorization: Bearer ${GITHUB_TOKEN}" -o "$2" "$1" ;;
-            wget) wget -q --tries=3 --header="Accept: application/vnd.github+json" \
-                      --header="Authorization: Bearer ${GITHUB_TOKEN}" -O "$2" "$1" ;;
+            curl) c_get -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${token}" -o "$2" "$1" ;;
+            wget) w_get --header="Accept: application/vnd.github+json" --header="Authorization: Bearer ${token}" -O "$2" "$1" ;;
         esac
     else
         case "$DOWNLOADER" in
-            curl) curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -H "Accept: application/vnd.github+json" -o "$2" "$1" ;;
-            wget) wget -q --tries=3 --header="Accept: application/vnd.github+json" -O "$2" "$1" ;;
+            curl) c_get -H "Accept: application/vnd.github+json" -o "$2" "$1" ;;
+            wget) w_get --header="Accept: application/vnd.github+json" -O "$2" "$1" ;;
         esac
     fi
 }
 
-# url_exists <url>: true when the URL answers without an error.
+# url_exists <url>: true when the URL answers without an error. curl asks for one byte rather
+# than sending HEAD, which some proxies refuse.
 url_exists() {
     case "$DOWNLOADER" in
-        curl) curl --proto '=https' --tlsv1.2 -fsSLI -o /dev/null "$1" >/dev/null 2>&1 ;;
-        wget) wget -q --spider "$1" >/dev/null 2>&1 ;;
+        curl) c_get -r 0-0 -o /dev/null "$1" >/dev/null 2>&1 ;;
+        wget) wget -q --connect-timeout=30 --tries=1 --spider "$1" >/dev/null 2>&1 ;;
     esac
 }
 
@@ -142,16 +179,36 @@ normalize_version() {
 # "untagged-" tag, so those are skipped.
 resolve_latest() {
     list="$WORK/releases.json"
-    fetch_api "$API_URL" "$list" || die "could not list the releases of $REPO; pass --version <version>"
-    tag="$(grep -o '"browser_download_url": *"[^"]*"' "$list" \
-        | sed 's/.*"\(https:[^"]*\)"$/\1/' \
-        | grep "/releases/download/[^/]*/morphirup-${RID}\$" \
-        | grep -v '/releases/download/untagged-' \
-        | head -n 1 \
-        | sed 's#.*/releases/download/\([^/]*\)/.*#\1#')" || true
-    [ -n "$tag" ] || die "no release of $REPO has morphirup-${RID}; pass --version <version>"
-    RELEASES_JSON="$list"
-    normalize_version "$tag"
+    if fetch_api "$API_URL" "$list"; then
+        tag="$(grep -o '"browser_download_url": *"[^"]*"' "$list" \
+            | sed 's/.*"\(https:[^"]*\)"$/\1/' \
+            | grep "/releases/download/[^/]*/morphirup-${RID}\$" \
+            | grep -v '/releases/download/untagged-' \
+            | head -n 1 \
+            | sed 's#.*/releases/download/\([^/]*\)/.*#\1#')" || true
+        [ -n "$tag" ] || die "no release of $REPO has morphirup-${RID}; pass --version <version>"
+        RELEASES_JSON="$list"
+        normalize_version "$tag"
+        return
+    fi
+    say "could not read ${API_URL}; reading the release feed on github.com instead"
+    resolve_from_feed
+}
+
+# The Atom feed on github.com lists the newest releases first, prereleases included, but not
+# their files, so try each v* tag until one has morphirup-<rid>.
+resolve_from_feed() {
+    feed="$WORK/releases.atom"
+    fetch "$FEED_URL" "$feed" \
+        || die_network "could not read ${FEED_URL} either; pass --version <version>"
+    tags="$(grep -o "/${REPO}/releases/tag/v[^\"]*\"" "$feed" | sed 's#.*/releases/tag/\([^"]*\)"#\1#')" || true
+    for tag in $tags; do
+        if url_exists "${DOWNLOAD_URL}/${tag}/morphirup-${RID}"; then
+            normalize_version "$tag"
+            return
+        fi
+    done
+    die_network "found no release with morphirup-${RID} in ${FEED_URL}; pass --version <version>"
 }
 
 sha256_of() {
@@ -202,14 +259,14 @@ main() {
 
     say "downloading ${asset} ${VERSION}"
     fetch "${base}/${asset}" "$WORK/$asset" \
-        || die "could not download ${base}/${asset}; check that release v${VERSION} exists and has ${asset}"
+        || die_network "could not download ${base}/${asset}; check that release v${VERSION} exists and has ${asset}"
 
     if [ -n "${MORPHIRUP_SHA256_FILE:-}" ]; then
         say "verifying against the local checksum file ${MORPHIRUP_SHA256_FILE} (testing hook)"
         cp "$MORPHIRUP_SHA256_FILE" "$WORK/$sums" || die "cannot read ${MORPHIRUP_SHA256_FILE}"
     else
         fetch "${base}/${sums}" "$WORK/$sums" \
-            || die "could not download ${base}/${sums}; nothing was installed"
+            || die_network "could not download ${base}/${sums}; nothing was installed"
     fi
 
     # A line is "<sha256>  <name>" (sha256sum format, optionally "*<name>" for binary mode).

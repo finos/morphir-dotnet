@@ -18,9 +18,19 @@ Environment variables (useful with irm | iex, which cannot pass parameters):
   MORPHIRUP_VERSION          Same as -Version.
   MORPHIRUP_INSTALL_DIR      Same as -InstallDir.
   MORPHIRUP_NO_MODIFY_PATH   Set to 1 for -NoModifyPath.
+  MORPHIRUP_DOWNLOAD_URL     HTTPS mirror of https://github.com/finos/morphir-dotnet/releases/download,
+                             laid out the same way: <url>/v<version>/<file>.
+  MORPHIRUP_API_URL          Release list to read when no version is given. Default:
+                             https://api.github.com/repos/finos/morphir-dotnet/releases?per_page=30
   GITHUB_TOKEN               Sent to api.github.com only, to avoid the unauthenticated rate limit.
   MORPHIRUP_SHA256_FILE      Testing hook: verify against this local checksum file instead of the
                              release's morphirup-v<version>.sha256.
+
+Behind a proxy: the script uses the Windows proxy settings, or HTTPS_PROXY (with NO_PROXY) when it is
+set, and signs in to the proxy as the current Windows user. If the proxy inspects TLS, your company's
+root certificate must be in the Windows certificate store. The hosts used are github.com and
+release-assets.githubusercontent.com, plus api.github.com when no version is given. If api.github.com
+is blocked, the script reads the release feed on github.com instead.
 
 .PARAMETER Version
 Release to install, such as 0.4.0-alpha.5 (a leading v is accepted). Default: the newest release,
@@ -47,17 +57,76 @@ function Install-Morphirup {
     $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is very slow on 5.1 with a progress bar.
 
     $repo = 'finos/morphir-dotnet'
-    $apiUrl = "https://api.github.com/repos/$repo/releases?per_page=30"
-    $downloadUrl = "https://github.com/$repo/releases/download"
+    $apiUrl = if ($env:MORPHIRUP_API_URL) { $env:MORPHIRUP_API_URL } else { "https://api.github.com/repos/$repo/releases?per_page=30" }
+    $feedUrl = "https://github.com/$repo/releases.atom"
+    $downloadUrl = if ($env:MORPHIRUP_DOWNLOAD_URL) { $env:MORPHIRUP_DOWNLOAD_URL.TrimEnd('/') } else { "https://github.com/$repo/releases/download" }
+    $networkHint = 'If your network needs a proxy, set it in the Windows proxy settings or in HTTPS_PROXY. If it ' +
+        'inspects TLS, your company''s root certificate must be in the Windows certificate store. The hosts needed are ' +
+        'github.com and release-assets.githubusercontent.com, or set MORPHIRUP_DOWNLOAD_URL to an HTTPS mirror.'
 
     function Say([string] $message) { [Console]::Error.WriteLine("morphirup-install: $message") }
 
-    if ($PSVersionTable.PSVersion.Major -lt 6) {
+    $legacy = $PSVersionTable.PSVersion.Major -lt 6
+    if ($legacy) {
         # Windows PowerShell 5.1 may not offer TLS 1.2 by default.
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     }
     elseif (-not $IsWindows) {
         throw 'install-morphirup.ps1 is for Windows; on Linux and macOS use install-morphirup.sh'
+    }
+
+    # Proxies. Both shells use the Windows proxy settings. PowerShell 7 also reads HTTPS_PROXY and
+    # NO_PROXY itself; Windows PowerShell 5.1 does not, so the script passes HTTPS_PROXY to each request.
+    # A proxy that asks for sign-in gets the current Windows user's credentials (NTLM or Kerberos).
+    $proxyUrl = $null
+    foreach ($name in 'HTTPS_PROXY', 'ALL_PROXY') {
+        $value = [Environment]::GetEnvironmentVariable($name)
+        if ($value) { $proxyUrl = $value; break }
+    }
+    if ($proxyUrl -and $proxyUrl -notmatch '^[A-Za-z][A-Za-z0-9+.-]*://') { $proxyUrl = "http://$proxyUrl" }
+    $noProxy = @(([string] [Environment]::GetEnvironmentVariable('NO_PROXY')) -split '[,\s]+' | Where-Object { $_ } |
+        ForEach-Object { $_.Trim().TrimStart('*').TrimStart('.').ToLowerInvariant() })
+    if ($legacy) {
+        if ([Net.WebRequest]::DefaultWebProxy) {
+            [Net.WebRequest]::DefaultWebProxy.Credentials = [Net.CredentialCache]::DefaultNetworkCredentials
+        }
+    }
+    else {
+        $defaultProxy = [System.Net.Http.HttpClient]::DefaultProxy
+        if ($defaultProxy -and -not $defaultProxy.Credentials) {
+            $defaultProxy.Credentials = [Net.CredentialCache]::DefaultNetworkCredentials
+        }
+    }
+
+    # WebArgs <uri>: the common Invoke-WebRequest / Invoke-RestMethod arguments for one request.
+    function WebArgs([string] $uri) {
+        $webArgs = @{ Uri = $uri; UseBasicParsing = $true }
+        if ($legacy -and $proxyUrl) {
+            $targetHost = ([Uri] $uri).Host.ToLowerInvariant()
+            $bypass = @($noProxy | Where-Object { $_ -eq '*' -or $targetHost -eq $_ -or $targetHost.EndsWith(".$_") }).Count -gt 0
+            if (-not $bypass) {
+                $proxy = [Uri] $proxyUrl
+                if ($proxy.UserInfo) {
+                    $parts = $proxy.UserInfo.Split(':', 2)
+                    $password = if ($parts.Count -gt 1) { [Uri]::UnescapeDataString($parts[1]) } else { '' }
+                    $secure = New-Object Security.SecureString
+                    foreach ($ch in $password.ToCharArray()) { $secure.AppendChar($ch) }
+                    $webArgs['ProxyCredential'] = New-Object Management.Automation.PSCredential ([Uri]::UnescapeDataString($parts[0])), $secure
+                }
+                else {
+                    $webArgs['ProxyUseDefaultCredentials'] = $true
+                }
+                $webArgs['Proxy'] = $proxy.GetLeftPart([UriPartial]::Authority)
+            }
+        }
+        $webArgs
+    }
+
+    # UrlExists <uri>: true when a HEAD request succeeds. (Windows PowerShell 5.1 does not let a script
+    # set the Range header, so a one-byte GET is not an option there.)
+    function UrlExists([string] $uri) {
+        $webArgs = WebArgs $uri
+        try { Invoke-WebRequest @webArgs -Method Head | Out-Null; $true } catch { $false }
     }
 
     # The machine's architecture, not the process's: an x64 or x86 PowerShell under emulation on ARM64
@@ -75,8 +144,9 @@ function Install-Morphirup {
         default { throw "Windows on '$arch' is not supported; releases carry morphirup for x64 and ARM64 only" }
     }
 
+    # GITHUB_TOKEN goes to api.github.com only, never to another host named by MORPHIRUP_API_URL.
     $headers = @{ Accept = 'application/vnd.github+json' }
-    if ($env:GITHUB_TOKEN) { $headers['Authorization'] = "Bearer $($env:GITHUB_TOKEN)" }
+    if ($env:GITHUB_TOKEN -and $apiUrl.StartsWith('https://api.github.com/')) { $headers['Authorization'] = "Bearer $($env:GITHUB_TOKEN)" }
 
     $asset = "morphirup-$rid.exe"
     $release = $null
@@ -87,19 +157,40 @@ function Install-Morphirup {
     }
     else {
         Say "finding the newest release with $asset"
+        $releases = $null
         try {
-            $releases = Invoke-RestMethod -Uri $apiUrl -Headers $headers -UseBasicParsing
+            $webArgs = WebArgs $apiUrl
+            $releases = Invoke-RestMethod @webArgs -Headers $headers
         }
         catch {
-            throw "could not list the releases of ${repo}: $($_.Exception.Message); pass -Version <version>"
+            Say "could not read ${apiUrl} ($($_.Exception.Message)); reading the release feed on github.com instead"
         }
-        # The list is newest first; drafts are skipped.
-        foreach ($r in $releases) {
-            if ($r.draft) { continue }
-            if (@($r.assets | Where-Object { $_.name -eq $asset }).Count -gt 0) { $release = $r; break }
+        if ($null -ne $releases) {
+            # The list is newest first; drafts are skipped.
+            foreach ($r in $releases) {
+                if ($r.draft) { continue }
+                if (@($r.assets | Where-Object { $_.name -eq $asset }).Count -gt 0) { $release = $r; break }
+            }
+            if (-not $release) { throw "no release of $repo has $asset; pass -Version <version>" }
+            $Version = ([string] $release.tag_name).TrimStart('v')
         }
-        if (-not $release) { throw "no release of $repo has $asset; pass -Version <version>" }
-        $Version = ([string] $release.tag_name).TrimStart('v')
+        else {
+            # The Atom feed lists the newest releases first, prereleases included, but not their files,
+            # so try each v* tag until one has the file.
+            try {
+                $webArgs = WebArgs $feedUrl
+                $feed = (Invoke-WebRequest @webArgs).Content
+            }
+            catch {
+                throw "could not read $feedUrl either: $($_.Exception.Message); pass -Version <version>. $networkHint"
+            }
+            if ($feed -is [byte[]]) { $feed = [Text.Encoding]::UTF8.GetString($feed) }
+            $tags = [regex]::Matches($feed, "/$repo/releases/tag/(v[^`"]+)`"") | ForEach-Object { $_.Groups[1].Value }
+            foreach ($tag in $tags) {
+                if (UrlExists "$downloadUrl/$tag/$asset") { $Version = $tag.Substring(1); break }
+            }
+            if (-not $Version) { throw "found no release with $asset in $feedUrl; pass -Version <version>. $networkHint" }
+        }
     }
 
     if (-not $InstallDir) {
@@ -116,10 +207,11 @@ function Install-Morphirup {
         $downloaded = Join-Path $work $asset
         Say "downloading $asset $Version"
         try {
-            Invoke-WebRequest -Uri "$base/$asset" -OutFile $downloaded -UseBasicParsing
+            $webArgs = WebArgs "$base/$asset"
+            Invoke-WebRequest @webArgs -OutFile $downloaded
         }
         catch {
-            throw "could not download $base/${asset}: $($_.Exception.Message); check that release v$Version exists and has $asset"
+            throw "could not download $base/${asset}: $($_.Exception.Message); check that release v$Version exists and has $asset. $networkHint"
         }
 
         $sumsFile = Join-Path $work $sums
@@ -129,10 +221,11 @@ function Install-Morphirup {
         }
         else {
             try {
-                Invoke-WebRequest -Uri "$base/$sums" -OutFile $sumsFile -UseBasicParsing
+                $webArgs = WebArgs "$base/$sums"
+                Invoke-WebRequest @webArgs -OutFile $sumsFile
             }
             catch {
-                throw "could not download $base/${sums}: $($_.Exception.Message); nothing was installed"
+                throw "could not download $base/${sums}: $($_.Exception.Message); nothing was installed. $networkHint"
             }
         }
 
@@ -180,8 +273,7 @@ function Install-Morphirup {
         $hasToolchain = @($release.assets | Where-Object { $_.name -eq $toolchain }).Count -gt 0
     }
     else {
-        try { Invoke-WebRequest -Uri "$base/$toolchain" -Method Head -UseBasicParsing | Out-Null }
-        catch { $hasToolchain = $false }
+        $hasToolchain = UrlExists "$base/$toolchain"
     }
     if (-not $hasToolchain) {
         Say "note: release v$Version has no toolchain for $rid, so 'morphirup setup' refuses on this machine"

@@ -59,6 +59,22 @@ curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/i
 
 The environment variables `MORPHIRUP_VERSION` and `MORPHIRUP_INSTALL_DIR` work too, on every platform.
 
+### Behind a proxy or firewall
+
+The scripts need to reach `raw.githubusercontent.com` (for the script itself), `github.com` and
+`release-assets.githubusercontent.com`. Without `--version`, they also ask `api.github.com` for the newest release,
+and read the release list on `github.com` if that host is blocked.
+
+- **Proxy.** On macOS and Linux, set `HTTPS_PROXY` (and `NO_PROXY` for internal hosts), for example
+  `export HTTPS_PROXY=http://proxy.example.com:8080`. On Windows, the script uses the Windows proxy settings, or
+  `HTTPS_PROXY` when you set it, and signs in to the proxy as you.
+- **TLS inspection.** On macOS and Linux, point `CURL_CA_BUNDLE` (or `SSL_CERT_FILE` for wget) at your company's CA
+  bundle. On Windows, the company's root certificate must be in the Windows certificate store, which IT usually
+  manages.
+- **Mirror.** If your company mirrors GitHub release downloads, set `MORPHIRUP_DOWNLOAD_URL` to the mirror of
+  `https://github.com/finos/morphir-dotnet/releases/download`. The mirror must serve HTTPS and keep the same layout,
+  `<url>/v<version>/<file>`. Pass `--version` / `-Version` if the mirror is all you can reach.
+
 ### With mise
 
 ```sh

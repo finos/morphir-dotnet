@@ -84,6 +84,19 @@ jobs:
           MORPHIRUP_DOWNLOADER=wget dash -s -- --version "v$PINNED" --install-dir "$RUNNER_TEMP/wget" < scripts/install-morphirup.sh
           "$RUNNER_TEMP/wget/morphirup" --version
 
+      - name: Through an HTTPS proxy, and with api.github.com unreachable
+        run: |
+          python3 -I .github/install-scripts/connect-proxy.py 18080 "$RUNNER_TEMP/proxy.log" &
+          sleep 2
+          HTTPS_PROXY=http://127.0.0.1:18080 sh scripts/install-morphirup.sh --version "$PINNED" --install-dir "$RUNNER_TEMP/proxied"
+          "$RUNNER_TEMP/proxied/morphirup" --version
+          cat "$RUNNER_TEMP/proxy.log"
+          grep -q 'CONNECT github.com:443' "$RUNNER_TEMP/proxy.log"
+          MORPHIRUP_API_URL=https://127.0.0.1:9/releases sh scripts/install-morphirup.sh --install-dir "$RUNNER_TEMP/feed" 2> "$RUNNER_TEMP/feed.log"
+          cat "$RUNNER_TEMP/feed.log"
+          grep -q 'reading the release feed' "$RUNNER_TEMP/feed.log"
+          "$RUNNER_TEMP/feed/morphirup" --version
+
       - name: Wrong checksum and missing checksum line are refused
         run: |
           printf '%064d  morphirup-%s\n' 0 "${{ matrix.rid }}" > "$RUNNER_TEMP/wrong.sha256"
@@ -185,6 +198,36 @@ jobs:
         run: |
           & ([scriptblock]::Create((Get-Content -Raw scripts/install-morphirup.ps1))) -InstallDir "$env:RUNNER_TEMP\latest" -NoModifyPath
           & "$env:RUNNER_TEMP\latest\morphirup.exe" --version
+
+      - name: Through an HTTPS proxy, and with api.github.com unreachable (both shells)
+        shell: pwsh
+        run: |
+          $log = "$env:RUNNER_TEMP\proxy.log"
+          $proxy = Start-Process python -ArgumentList '-I', '.github/install-scripts/connect-proxy.py', '18080', $log -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 2
+          try {
+            foreach ($shell in 'pwsh', 'powershell') {
+              $before = @(Get-Content $log -ErrorAction SilentlyContinue | Select-String 'CONNECT github.com:443').Count
+              $env:HTTPS_PROXY = 'http://127.0.0.1:18080'
+              & $shell -NoProfile -ExecutionPolicy Bypass -File scripts/install-morphirup.ps1 -Version $env:PINNED -InstallDir "$env:RUNNER_TEMP\proxied-$shell" -NoModifyPath
+              if ($LASTEXITCODE -ne 0) { throw "$shell failed through the proxy" }
+              Remove-Item env:HTTPS_PROXY
+              $after = @(Get-Content $log | Select-String 'CONNECT github.com:443').Count
+              if ($after -le $before) { throw "$shell did not use HTTPS_PROXY" }
+              "$shell used the proxy"
+              $env:MORPHIRUP_API_URL = 'https://127.0.0.1:9/releases'
+              $out = & $shell -NoProfile -ExecutionPolicy Bypass -File scripts/install-morphirup.ps1 -InstallDir "$env:RUNNER_TEMP\feed-$shell" -NoModifyPath 2>&1 | Out-String
+              $code = $LASTEXITCODE
+              Remove-Item env:MORPHIRUP_API_URL
+              $out
+              if ($code -ne 0 -or $out -notmatch 'reading the release feed') { throw "$shell did not fall back to the release feed" }
+              & "$env:RUNNER_TEMP\feed-$shell\morphirup.exe" --version
+            }
+            Get-Content $log
+          }
+          finally {
+            Stop-Process -Id $proxy.Id -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Wrong checksum and missing checksum line are refused
         shell: pwsh
