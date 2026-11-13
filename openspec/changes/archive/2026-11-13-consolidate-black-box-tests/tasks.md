@@ -119,14 +119,16 @@ the task that adds its first test, so no registered suite is empty.
 
 ## 10. Clean-up and integration check (pull request 6)
 
-- [ ] 10.1 Remove the old probe targets from the build and from the Linux step, after the CI run of pull request 5 on `main` in which `TestAot` passed. Verify that the Linux test job still publishes with Native AOT, and record the run in `evidence/aot-lane.md`.
+- [x] 10.1 Remove the old probe targets from the build and from the Linux step, after the CI run of pull request 5 on `main` in which `TestAot` passed. Verify that the Linux test job still publishes with Native AOT, and record the run in `evidence/aot-lane.md`.
+  - Done: #627 removed the three targets. In its pull request run 43331723151 the Linux step ran only `TestAot`, and `Morphir.BlackBox.Tests` passed 8 of 8 with Native AOT (`evidence/aot-lane.md`).
 - [x] 10.2 Remove the helpers and the old environment variables (`MORPHIR_EXECUTABLE_TYPE`, `MORPHIR_EXECUTABLE_PATH`, `MORPHIR_GENERATION_CLI`, `MORPHIR_DOTNET_TOOL_CLI`, `MORPHIR_AOT_CLI`, and `MORPHIR_CONFIGURATION_CLI`, which task 3.3 found). Each reader that stays was changed in pull request 2 or 3 (`evidence/inventory.md`, the table of readers). Verify with a search that no code, script or workflow reads them and that no document tells a reader to set them. The mapping table in `tests/Morphir.TestSupport/README.md` and the evidence of this change can name them.
   - Done: no code, script or workflow reads the six variables (`git grep` on `main` at `9c9695ea` with pull request 6). The names stay only in the table "Old names" of `tests/Morphir.TestSupport/README.md`, in its guard `DriverDocumentationTests`, and in a dated execution record of 2026-11-02 in `docs/content/contributing/design/prds/cli-model-generation.md`, which tells no reader to set them. `CliTestHelper` and `DevelopmentCli` keep users, on the target of the testing library (task 7.5). The old `ExecutableLocator`, `ExecutableRunner` and `PackagedInstallation` left with `Morphir.E2E.Tests` (pull request 2).
 - [x] 10.3 Run the inventory script again. Verify that each row of `evidence/inventory.md` is done: the file moved, was split, or stays with its reason, and that a file that the script finds and the inventory does not have gets a row.
   - Done: the scan gives 118 files in 22 projects, and each file has a row in `evidence/inventory.md`. No row is open.
 - [x] 10.4 Count the `PlatformSpecific` marks that stay in unit test projects and record the count and the classes in `evidence/marks-after.md`.
   - Done: 709 marks in 294 files of 29 projects (695 on the base). `evidence/marks-after.md` has the count by project, and `evidence/count-marks.py` gives the classes.
-- [ ] 10.5 Run a pull request CI run on the three operating systems and a manual full run. Verify that both pass, and record the job times against run 43215049975 in `evidence/ci-times.md`.
+- [x] 10.5 Run a pull request CI run on the three operating systems and a manual full run. Verify that both pass, and record the job times against run 43215049975 in `evidence/ci-times.md`.
+  - Done: the pull request run 43331723151 of #627 passed (17 checks), and the manual full run 43331745026 is recorded with its job times against run 43215049975 in `evidence/ci-times.md`.
 
 ## Workflow follow-up
 
