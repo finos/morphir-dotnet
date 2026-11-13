@@ -356,6 +356,26 @@ let isSelected home =
         refuseEarlier "selection" schema
         schema = ComposedDocuments.schemaFor family "selection"
 
+/// The origin that a refused select or show reports: the origin of the candidate of the preview.4 generation that
+/// select names, or of the preview.4 selection pointer that show reads. None when that document is absent or is not a
+/// preview.4 document that its reader accepts, as for a historical preview.1 generation. Never throws.
+let recordedOrigin home (generation: Sha256 option) =
+    try
+        let file, origin =
+            match generation with
+            | Some identity ->
+                Path.Combine(path home (LocalCandidateDocument.generationPath identity), "candidate.json"),
+                fun raw -> ComposedDocuments.candidateForFamily family raw |> Result.map (fun candidate -> candidate.Origin)
+            | None ->
+                path home LocalCandidateDocument.selectionPath,
+                fun raw -> ComposedDocuments.readPointer raw |> Result.map (fun (_, _, origin) -> origin)
+        if not(File.Exists file) then None
+        else
+            match origin (LocalCandidate.readBytes LocalInstallation.documentBound file) with
+            | Ok origin -> Some origin.WireValue
+            | Error _ -> None
+    with _ -> None
+
 let defaultHome () =
     match Environment.GetEnvironmentVariable "MORPHIR_HOME" with
     | null | "" -> Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),".morphir")

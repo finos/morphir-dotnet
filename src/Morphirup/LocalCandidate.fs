@@ -103,34 +103,35 @@ let homePath (home: string) =
         | _, "" -> full
         | parent, name -> Path.Combine(physicalPath parent, name)
 
-let result command status (candidate: Sha256 option) diagnostic =
+/// The result of a completed step of the historical local route, whose candidate, receipt and selection are
+/// local-toolchains 0.1.0-preview.1 documents. A refusal is written by <see cref="refusal"/>.
+let result command status (candidate: Sha256) =
     Value.Object [
         "$schema", Value.String(LocalCandidateDocument.schema "result")
         "command", Value.String command
         "status", Value.String status
         "origin", Value.String "local-developer"
-        match candidate with
-        | Some identity ->
-            "candidateSha256", Value.String identity.Text
+        "candidateSha256", Value.String candidate.Text
 
-            if
-                status
-                <> "planned"
-                && status
-                   <> "refused"
-            then
-                "receiptPath", Value.String(LocalCandidateDocument.receiptPath identity)
+        if status <> "planned" then
+            "receiptPath", Value.String(LocalCandidateDocument.receiptPath candidate)
 
-            if
-                status = "selected"
-                || status = "shown"
-            then
-                "selectionPath", Value.String LocalCandidateDocument.selectionPath
-        | None -> ()
-        match diagnostic with
-        | Some(code, message) ->
-            "diagnostic",
-            Value.Object [ "code", Value.String code; "message", Value.String message ]
-        | None -> ()
+        if
+            status = "selected"
+            || status = "shown"
+        then
+            "selectionPath", Value.String LocalCandidateDocument.selectionPath
+    ]
+    |> JsonText.toBytes
+
+/// A refused setup, select or show: a local-toolchains 0.1.0-preview.4 result. The origin is the origin of the route
+/// or of the generation the command acted on, local-developer or release-checksum.
+let refusal command origin code message =
+    Value.Object [
+        "$schema", Value.String(ComposedDocuments.schemaFor "0.1.0-preview.4" "result")
+        "command", Value.String command
+        "status", Value.String "refused"
+        "origin", Value.String origin
+        "diagnostic", Value.Object [ "code", Value.String code; "message", Value.String message ]
     ]
     |> JsonText.toBytes

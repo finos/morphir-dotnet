@@ -59,6 +59,15 @@ member or files. Neither a bundle URL nor a matching checksum upgrades that
 origin. These command paths still require actual native artifact testing before
 any claim of platform delivery.
 
+A refused `setup`, `select` or `show` writes one local-toolchains `0.1.0-preview.4`
+result, on the preview.1 route too, with `status: refused` and a `diagnostic`. The
+schema requires `origin`. It is the origin of the generation that `select` names,
+or of the selection that `show` reads, when that is a preview.4 document its reader
+accepts. Otherwise it is `local-developer`, because every setup on these routes is
+explicit local-developer setup. `run` writes its refusals to stderr only. A completed
+preview.1 step still writes the preview.1 result, beside its preview.1 receipt and
+selection.
+
 ## Preview.1 host-only inputs
 
 For initial preview.1 setup, use an absolute, empty, isolated Home. Supply the complete official managed
