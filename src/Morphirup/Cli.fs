@@ -926,7 +926,7 @@ let private runCoreAsync
         if isReleaseSetup args then
             let emit status candidate generation diagnostic =
                 let bytes = Value.Object [
-                    "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.3" "result")
+                    "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.4" "result")
                     "command",Value.String "setup"; "status",Value.String status; "origin",Value.String "release-checksum"
                     match candidate with Some(hash: Sha256) -> "candidateSha256",Value.String hash.Text | None -> ()
                     match generation with
@@ -983,7 +983,7 @@ let private runCoreAsync
                 let bytes =
                     if not composedLocal then LocalCandidate.result command status identity diagnostic
                     else Value.Object [
-                        "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.3" "result")
+                        "$schema",Value.String(ComposedDocuments.schemaFor "0.1.0-preview.4" "result")
                         "command",Value.String command;"status",Value.String status;"origin",Value.String "local-developer"
                         match identity with Some(hash: Sha256) -> "candidateSha256",Value.String hash.Text | None -> ()
                         match localGeneration with

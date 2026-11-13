@@ -363,7 +363,7 @@ let tests = testLabel "PlatformSpecific" <| testList "WindowsReleaseSetup" [
     testCaseTask "explicit local setup cannot relabel a release-checksum candidate" (fun () -> task {
         use sandbox = TestSandbox.Create()
         let candidate = Path.Combine(sandbox.Work,"candidate.json")
-        let raw = Encoding.UTF8.GetBytes("{\"$schema\":\"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/candidate.schema.json\",\"origin\":\"release-checksum\"}")
+        let raw = Encoding.UTF8.GetBytes("{\"$schema\":\"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/candidate.schema.json\",\"origin\":\"release-checksum\"}")
         File.WriteAllBytes(candidate,raw)
         let home = Path.Combine(sandbox.Work,"absent-home")
         try

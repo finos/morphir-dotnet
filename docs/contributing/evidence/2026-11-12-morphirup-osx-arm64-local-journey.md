@@ -7,6 +7,11 @@ The inputs were built from the working tree of branch `feat/morphirup-osx-arm64`
 `9c9695ea9ddcdec725a1fec5118b6fc611b24ac7`, before its first commit, so the candidate records
 `working tree clean: False`. This is local evidence, not a release qualification.
 
+The documents of this journey were local-toolchains `0.1.0-preview.3`, as the branch first wrote them. The
+family is now `0.1.0-preview.4` ([finos/morphir#1164](https://github.com/finos/morphir/pull/1164)), which adds
+`osx-arm64` with `tar-gzip`. The journey was repeated with preview.4 documents; see
+[the preview.4 repeat](#preview4-repeat).
+
 ## Inputs
 
 | File | SHA-256 |
@@ -63,3 +68,25 @@ The published `morphir` apphost is ad-hoc and linker-signed (`flags=0x20002(adho
 1. The extension installer refused the tar.gz provider packages with `package.format_not_implemented`.
 2. Setup readiness failed with `sources.unsupported_entry`: the installed host refuses a source below a
    link, and `$TMPDIR` is below the link `/var`. morphirup now uses the physical path of Home off Windows.
+
+## Preview.4 repeat
+
+On 2026-11-12, after the move to local-toolchains `0.1.0-preview.4`, the producer was rebuilt and the journey was
+repeated with a new Home under `$TMPDIR`. The candidate, bundle, receipt, selection and generation all name
+`https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/<file>.schema.json`.
+
+| File | SHA-256 |
+| --- | --- |
+| `morphirup-osx-arm64` | `2fa8c551f93b97956b9c8ccac1175e364abf58234f415099d551d14cbd7e0dee` |
+| `morphir-host-candidate-osx-arm64.json` | `177889aeaf4e7dcd60decd177627cef5301cec959ec411b0e33e260044501984` |
+| `morphir-toolchain-osx-arm64.json` | `f37387c16a35f333c1341569bd22beb1c8b5f2a991d265e87272200a4c4289a3` |
+| `morphir-dotnet-0.4.0-alpha.5-self-contained-osx-arm64.tar.gz` | `ec737158f3f84c6c4d3bf4d9fd49ed534dab26d9ec628ed866e57a4932670407` |
+
+Setup `--dry-run` (`planned`), setup `--yes` (`installed`, generation
+`6d094e9f81e9ecaaf428472e1a9d8b9d9e96271b3f0aa106dfcfb047d7db3189`), select (`selected`), `run -- compile` and
+`run -- generate --target fsharp` each exited 0. `generated/Pricing.fs` was 112 bytes with SHA-256
+`64e08313f3e57be2c18995a2e8b275db9d921341958da2c8cd960c601c066de0`. The two runs gave the same bytes, exit 0, with
+.NET hidden (`env -i HOME=$HOME TMPDIR=$TMPDIR PATH=/usr/bin:/bin`) and under `sandbox-exec` with network denied.
+
+The new manager refused `run` in a Home that the preview.3 build had set up (exit 1): it does not read a preview.3
+selection.

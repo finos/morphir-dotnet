@@ -11,28 +11,28 @@ The manifest and state documents use the separate local-toolchains family from
 planning, historical toolchain documents and the pure TUF client retain their
 existing behavior. TUF is unused and unqualified for production authority.
 
-## Preview.3 composed inputs
+## Preview.4 composed inputs
 
-The preview.3 platform and origin contract is the parent merge
-`7586a0a4b10195b0af3461639a5003026d0eaaa1`,
-[published in the parent repository](https://github.com/finos/morphir/blob/7586a0a4b10195b0af3461639a5003026d0eaaa1/docs/spec/toolchain/local-platforms-and-release-bundle.md).
-It supports `win-x64` and `win-arm64`. The candidate, receipt and bundle carry
-the platform; selection and generation bind it through their existing hashes.
-
-morphir-dotnet also reads `osx-arm64` in the preview.3 candidate and bundle, ahead of
-the parent contract, which names only the two Windows platforms. An `osx-arm64`
-candidate declares `"archive": {"format": "tar-gzip"}` and the entry point `morphir`;
-a Windows candidate keeps `zip` and `morphir.exe`. The family version and the
-document members are unchanged. The parent contract needs the same values before
-an `osx-arm64` release is published.
+The composed family is local-toolchains `0.1.0-preview.4`, specified in the parent page
+[local toolchain platforms and release bundles](https://github.com/finos/morphir/blob/main/docs/spec/toolchain/local-platforms-and-release-bundle.md)
+([finos/morphir#1164](https://github.com/finos/morphir/pull/1164)).
+It supports `win-x64`, `win-arm64` and `osx-arm64`. The candidate, receipt and bundle
+carry the platform; selection and generation bind it through their existing hashes.
+A Windows candidate declares `"archive": {"format": "zip"}` and the entry point
+`morphir.exe`. An `osx-arm64` candidate declares `"archive": {"format": "tar-gzip"}`
+and the entry point `morphir`.
 The installation path stays `store/tools/sha256/<archive-sha256>`.
-Preview.1 and preview.2 retain their existing readers and behavior.
+
+The readers match each `$schema` URL as exact text. They read preview.4 only and do not
+convert from preview.3, so preview.3 candidates, bundles, receipts, selections and
+generations (written by 0.4.0-alpha.5 and earlier) are refused. Preview.1 and preview.2
+retain their existing readers and behavior.
 
 Default setup acquires the official release bundle and its checksums. Its origin
 is `release-checksum`, not publisher-authenticated. Its completed generation
 retains the exact bundle and checksum bodies and binds both digests.
 
-For an explicitly supplied preview.3 local candidate, the producer's
+For an explicitly supplied preview.4 local candidate, the producer's
 `--toolchain-local-developer` option declares `local-developer` instead. Supply
 its existing nine-role bundle and local sibling assets:
 

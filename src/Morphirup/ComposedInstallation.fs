@@ -242,9 +242,9 @@ let private setupCoreAsync platform home (bundle: ReleaseBundle) (rawCandidate: 
                 "repository",value AcquisitionDelivery.repository;"tag",value("v"+bundle.Version.Text)
                 "bundle",Value.Object ["path",value "acquisition/bundle.json";"sha256",value (Sha256.ofBytes rawBundle).Text]
                 "checksums",Value.Object ["path",value "acquisition/SHA256SUMS";"sha256",value (Sha256.ofBytes checksums).Text]])
-            let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.3" candidate captures.CatalogBytes locks metadata workflow proof
-            let manifest = ComposedDocuments.readManifest "0.1.0-preview.3" candidate manifestBytes |> reader
-            let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate manifest.Identity
+            let manifestBytes = ComposedDocuments.writeManifest "0.1.0-preview.4" candidate captures.CatalogBytes locks metadata workflow proof
+            let manifest = ComposedDocuments.readManifest "0.1.0-preview.4" candidate manifestBytes |> reader
+            let receipt = ComposedDocuments.receipt "0.1.0-preview.4" candidate manifest.Identity
             let preparedIdentity =
                 use generation = stage.Child("generation",false)
                 LocalInstallation.writeFile generation "generation.json" manifestBytes
@@ -320,7 +320,7 @@ let selected home ct = task {
     use root = SafeDirectory.Open(home,false)
     let raw = read root LocalCandidateDocument.selectionPath
     let schema = Syntax.parseJson raw |> reader |> SharedJson.members "selection" |> SharedJson.required "selection" "$schema" |> SharedJson.text "$schema"
-    let family = if schema=ComposedDocuments.schemaFor "0.1.0-preview.3" "selection" then "0.1.0-preview.3" else "0.1.0-preview.2"
+    let family = if schema=ComposedDocuments.schemaFor "0.1.0-preview.4" "selection" then "0.1.0-preview.4" else "0.1.0-preview.2"
     let identity,receiptHash,origin = ComposedDocuments.readPointer family raw |> reader
     let! snapshot = currentSnapshot home (path home (LocalCandidateDocument.generationPath identity)) ct
     if snapshot.Family <> family || snapshot.Candidate.Origin <> origin then refuse "setup.origin_mismatch" "The selected origin or family differs from its bound candidate."
@@ -337,7 +337,7 @@ let isSelected home =
         let document = Syntax.parseJson raw |> reader
         let fields = SharedJson.members "selection" document
         let schema = SharedJson.required "selection" "$schema" fields |> SharedJson.text "$schema"
-        schema = ComposedDocuments.schemaFor "0.1.0-preview.3" "selection" || schema = ComposedDocuments.schemaFor "0.1.0-preview.2" "selection"
+        schema = ComposedDocuments.schemaFor "0.1.0-preview.4" "selection" || schema = ComposedDocuments.schemaFor "0.1.0-preview.2" "selection"
 
 let defaultHome () =
     match Environment.GetEnvironmentVariable "MORPHIR_HOME" with

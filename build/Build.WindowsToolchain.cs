@@ -115,7 +115,7 @@ partial class Build
         File.WriteAllText(ReleaseAssetsDir / selectionName, selection.ToJsonString(), new UTF8Encoding(false));
         var candidate = new JsonObject
         {
-            ["$schema"] = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/candidate.schema.json",
+            ["$schema"] = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/candidate.schema.json",
             ["origin"] = ToolchainLocalDeveloper ? "local-developer" : "release-checksum",
             ["implementation"] = "dotnet",
             ["deployment"] = "self-contained",
@@ -142,7 +142,7 @@ partial class Build
             assets.AddRange([(provider.Role + "-release", provider.Release), (provider.Role + "-manifest", provider.Manifest), (provider.Role + "-archive", provider.Archive)]);
         var bundle = new JsonObject
         {
-            ["$schema"] = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/bundle.schema.json",
+            ["$schema"] = "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/bundle.schema.json",
             ["version"] = releaseVersion,
             ["sourceCommit"] = origin.Commit,
             ["platform"] = rid,

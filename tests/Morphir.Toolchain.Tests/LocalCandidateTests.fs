@@ -1598,7 +1598,7 @@ let releaseChecksumReaderTests =
     let releaseBytes () =
         let raw = composedInput "org.finos.frontend" "org.finos.backend"
         let text = System.Text.Encoding.UTF8.GetString raw
-        System.Text.Encoding.UTF8.GetBytes(text.Replace("0.1.0-preview.2", "0.1.0-preview.3").Replace("local-developer", "release-checksum"))
+        System.Text.Encoding.UTF8.GetBytes(text.Replace("0.1.0-preview.2", "0.1.0-preview.4").Replace("local-developer", "release-checksum"))
     let workflow (candidate: LocalComposedCandidate) =
         let provider role id operation = Value.Object [
             "role",Value.String role;"extensionId",Value.String id;"version",Value.String "1.2.3"
@@ -1622,22 +1622,22 @@ let releaseChecksumReaderTests =
             Expect.equal candidate.Host.ManifestSha256 (Sha256.ofBytes raw) "raw checksum identity"
             Expect.equal candidate.Host.Files.Length 1 "whole declared closure"
         }
-        test "preview3 local developer origin remains explicit and distinct" {
+        test "preview4 local developer origin remains explicit and distinct" {
             let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString
             let candidate = System.Text.Encoding.UTF8.GetBytes(raw.Replace("release-checksum","local-developer")) |> LocalComposedDocument.readReleaseCandidate |> parsed
             Expect.equal candidate.Origin.WireValue "local-developer" "no checksum authority from local input"
         }
-        test "preview3 ARM64 retains its exact platform and receipt binding" {
+        test "preview4 ARM64 retains its exact platform and receipt binding" {
             let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","win-arm64"))
             let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
             Expect.equal candidate.Host.Platform Platform.WinArm64 "declared platform"
             Expect.equal candidate.Host.ManifestSha256 (Sha256.ofBytes raw) "exact ARM64 input"
-            let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate digest
+            let receipt = ComposedDocuments.receipt "0.1.0-preview.4" candidate digest
             use document = System.Text.Json.JsonDocument.Parse receipt
             Expect.equal (document.RootElement.GetProperty("platform").GetString() |> Option.ofObj) (Some "win-arm64") "receipt platform"
-            ComposedDocuments.receiptMatches "0.1.0-preview.3" candidate digest receipt |> parsed
+            ComposedDocuments.receiptMatches "0.1.0-preview.4" candidate digest receipt |> parsed
         }
-        test "preview3 planning accepts matching ARM64 and refuses cross-RID execution" {
+        test "preview4 planning accepts matching ARM64 and refuses cross-RID execution" {
             let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","win-arm64"))
             let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
             Expect.isOk (LocalCandidatePlanning.planRelease Platform.WinArm64 4096UL candidate.Host) "matching Windows ARM64"
@@ -1651,22 +1651,22 @@ let releaseChecksumReaderTests =
             let linux = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("win-x64","linux-arm64"))
             Expect.isError (LocalComposedDocument.readReleaseCandidate linux) "only the two Windows RIDs"
         }
-        test "preview3 local receipts and pointers preserve origin rather than family defaults" {
+        test "preview4 local receipts and pointers preserve origin rather than family defaults" {
             let raw = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("release-checksum","local-developer"))
             let candidate = LocalComposedDocument.readReleaseCandidate raw |> parsed
-            let receipt = ComposedDocuments.receipt "0.1.0-preview.3" candidate digest
-            let pointer = ComposedDocuments.pointer "0.1.0-preview.3" candidate digest receipt
-            let _,_,origin = ComposedDocuments.readPointer "0.1.0-preview.3" pointer |> parsed
+            let receipt = ComposedDocuments.receipt "0.1.0-preview.4" candidate digest
+            let pointer = ComposedDocuments.pointer "0.1.0-preview.4" candidate digest receipt
+            let _,_,origin = ComposedDocuments.readPointer "0.1.0-preview.4" pointer |> parsed
             Expect.equal origin candidate.Origin "pointer binds the validated origin"
             use document = System.Text.Json.JsonDocument.Parse receipt
             Expect.equal (document.RootElement.GetProperty("origin").GetString() |> Option.ofObj) (Some "local-developer") "receipt is not relabelled"
         }
-        test "preview3 acquisition is required only for the bound release-checksum candidate" {
+        test "preview4 acquisition is required only for the bound release-checksum candidate" {
             let release = releaseBytes () |> LocalComposedDocument.readReleaseCandidate |> parsed
             let local = releaseBytes () |> System.Text.Encoding.UTF8.GetString |> fun text -> System.Text.Encoding.UTF8.GetBytes(text.Replace("release-checksum","local-developer")) |> LocalComposedDocument.readReleaseCandidate |> parsed
             let manifest (candidate: LocalComposedCandidate) acquisition =
-                ComposedDocuments.writeManifest "0.1.0-preview.3" candidate [||] [candidate.FrontendId,[||];candidate.BackendId,[||]] [] (workflow candidate) acquisition
-                |> ComposedDocuments.readManifest "0.1.0-preview.3" candidate
+                ComposedDocuments.writeManifest "0.1.0-preview.4" candidate [||] [candidate.FrontendId,[||];candidate.BackendId,[||]] [] (workflow candidate) acquisition
+                |> ComposedDocuments.readManifest "0.1.0-preview.4" candidate
             Expect.isOk (manifest release (Some proof)) "release proof is required"
             Expect.isError (manifest release None) "a family string cannot bypass acquisition"
             Expect.isOk (manifest local None) "explicit local development does not claim acquisition"
@@ -1690,7 +1690,7 @@ let releaseBundleTests =
         | _ -> role+"-win-x64.zip"
     let bundle source =
         Value.Object [
-            "$schema",Value.String "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.3/bundle.schema.json"
+            "$schema",Value.String "https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.4/bundle.schema.json"
             "version",Value.String "0.4.0-alpha.5"; "sourceCommit",Value.String(String('b',40)); "platform",Value.String "win-x64"
             "assets",Value.Array [for role in roles -> Value.Object ["name",Value.String(name role);"url",Value.String(source+name role);"bytes",Value.Number "3";"sha256",Value.String hash;"role",Value.String role]]]
         |> JsonText.toBytes

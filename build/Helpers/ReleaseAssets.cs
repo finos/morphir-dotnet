@@ -116,7 +116,7 @@ public static class ReleaseAssets
 
     /// <summary>
     /// What a bundle says that the outputs contradict. The release SHA256SUMS lists the bundle and every asset it
-    /// names with the bundle's digests (finos/morphir local-toolchains <c>0.1.0-preview.3</c>, rule
+    /// names with the bundle's digests (finos/morphir local-toolchains <c>0.1.0-preview.4</c>, rule
     /// <c>release-bindings</c>), so each named asset must be among the outputs with the bundle's bytes and SHA-256, and
     /// the bundle's <c>platform</c> must be its RID. Only those members are read; the bundle's own schema and the
     /// other rules are the reader's.
