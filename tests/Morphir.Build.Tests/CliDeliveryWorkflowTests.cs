@@ -132,8 +132,10 @@ public class CliDeliveryWorkflowTests
     [Arguments("morphirup.yml", "build")]
     public void TheCliReleaseMatricesBuildEveryPlatformOnItsNativeRunner(string workflow, string job)
     {
+        // A check-only leg uploads nothing, so it is not the producer of its RID (TheReleaseChecksTheMacOsSetupOnMacOs15).
         var include = (YamlSequenceNode)Job(Read(workflow), job)["strategy"]["matrix"]["include"];
         var entries = include.Children.Cast<YamlMappingNode>()
+            .Where(entry => Value(entry, "check-only") != "true")
             .Select(entry => (Rid: entry["rid"].ToString(), Os: entry["os"].ToString())).ToList();
 
         entries.Select(entry => entry.Rid).Should().Equal(Morphir.Build.Helpers.MorphirupRelease.Platforms);
@@ -196,6 +198,37 @@ public class CliDeliveryWorkflowTests
     }
 
     [Test]
+    public void TheReleaseChecksTheMacOsSetupOnMacOs15()
+    {
+        // macOS 15 refuses operations that macOS 26 (macos-latest) allows, such as the rename of a directory without
+        // write permission, so the release and its dry run also run the osx-arm64 setup journey on macOS 15. That leg
+        // uploads nothing: the macos-latest leg stays the one producer of the RID. Pull requests do not run it.
+        var input = (YamlMappingNode)MorphirupBuildInputs()["upload"];
+        input["type"].ToString().Should().Be("boolean");
+        input["default"].ToString().Should().Be("true", "finos/morphir and the pull request workflow upload as before");
+
+        var build = Job(Deployment(), "build-morphirup");
+        var include = ((YamlSequenceNode)build["strategy"]["matrix"]["include"]).Children.Cast<YamlMappingNode>().ToList();
+        var checkOnly = include.Where(entry => Value(entry, "check-only") == "true").ToList();
+        checkOnly.Select(entry => (entry["rid"].ToString(), entry["os"].ToString())).Should().Equal(("osx-arm64", "macos-15"));
+        build["with"]["upload"].ToString().Should().Be("${{ !matrix.check-only }}");
+        build["with"]["toolchain"].ToString().Should().Be("true", "the leg runs the setup journey");
+
+        var pullRequest = Job(Read("morphirup.yml"), "build");
+        ((YamlMappingNode)pullRequest["with"]).Children.Keys.Select(key => key.ToString()).Should().NotContain("upload");
+        ((YamlSequenceNode)pullRequest["strategy"]["matrix"]["include"]).Children.Cast<YamlMappingNode>()
+            .Should().NotContain(entry => entry["os"].ToString() == "macos-15", "the per-PR cost is unchanged");
+
+        var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
+        foreach (var name in new[] { "Upload the complete toolchain proof inputs", "Describe the self-contained host offering", "Upload the morphirup release assets" })
+        {
+            var condition = steps.Single(step => Name(step) == name)["if"].ToString();
+            (condition == "inputs.upload" || condition.StartsWith("inputs.upload && ", StringComparison.Ordinal))
+                .Should().BeTrue($"{name} runs only when the job uploads: {condition}");
+        }
+    }
+
+    [Test]
     public void MorphirupBuildCanBeCalledAtAPinnedCommitOfThisRepository()
     {
         // finos/morphir calls morphirup-build.yml at the commit it pins, as it calls cli-offering.yml. With both inputs
@@ -244,7 +277,9 @@ public class CliDeliveryWorkflowTests
         var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
         var toolchain = steps.Single(step => Name(step) == "Upload the complete toolchain proof inputs")["if"].ToString();
         var describe = steps.Single(step => Name(step) == "Describe the self-contained host offering");
-        describe["if"].ToString().Should().Be($"inputs.upload-host-offering && ({toolchain})", "only a job that packed a toolchain has the host");
+        toolchain.Should().StartWith("inputs.upload && (");
+        describe["if"].ToString().Should().Be($"inputs.upload && inputs.upload-host-offering && {toolchain["inputs.upload && ".Length..]}",
+            "only a job that packed a toolchain and uploads has the host");
         var script = Run(describe);
         // The metadata is the one PackRelease writes for the self-contained offering, as cli-offering.yml reads it.
         script.Should().Contain("-Filter '*.build-launch.json'")

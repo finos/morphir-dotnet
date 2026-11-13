@@ -923,6 +923,38 @@ let tarPackageTests =
             let! verified = PackageInstaller.VerifyAsync(root, plan, ct)
             get verified |> ignore
         }
+        // macOS 15 refuses to rename a directory that is not writable, even within its parent, so the root is sealed
+        // after publication. The macOS 15 leg of the release (deployment.yml) is the guard for the refusal itself.
+        testTask "an installed package is sealed from its root through each directory of its tree" {
+            if OperatingSystem.IsWindows() then
+                skiptest "Unix directory modes."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let plan, archive = tarPackage sandbox []
+            let! root, _ = installTar sandbox plan archive
+            let package = Path.Combine(root, "store", "extensions", "packages", "sha256", plan.TreeDigest.Value)
+            for directory in [ package; Path.Combine(package, "tree"); Path.Combine(package, "tree", "lib"); Path.Combine(package, "tree", "tools") ] do
+                Expect.equal (File.GetUnixFileMode directory) (enum<UnixFileMode> 0o555) $"sealed: {Path.GetRelativePath(package, directory)}"
+            Expect.equal (File.GetUnixFileMode(Path.Combine(package, "manifest"))) (enum<UnixFileMode> 0o444) "sealed manifest"
+            Expect.isEmpty (Directory.GetDirectories(Path.GetDirectoryName package |> nonNull, ".stage-*")) "no stage remains"
+        }
+        testTask "installing a package again seals a root that an interrupted publication left writable" {
+            if OperatingSystem.IsWindows() then
+                skiptest "Unix directory modes."
+
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let plan, archive = tarPackage sandbox []
+            let! root, _ = installTar sandbox plan archive
+            let package = Path.Combine(root, "store", "extensions", "packages", "sha256", plan.TreeDigest.Value)
+            File.SetUnixFileMode(package, enum<UnixFileMode> 0o755)
+            let! (_: string), (again: InstalledPackage) = installTar sandbox plan archive
+            Expect.equal (File.ReadAllBytes again.EntryPointPath) (utf8 "guest") "the published package is the winner"
+            Expect.equal (File.GetUnixFileMode package) (enum<UnixFileMode> 0o555) "the root is sealed again"
+            let! verified = PackageInstaller.VerifyAsync(root, plan, ct)
+            get verified |> ignore
+        }
         testTask "a tar.gz package with a symbolic link is refused before publication" {
             if OperatingSystem.IsWindows() then
                 skiptest "A Windows entry point is a .exe in a ZIP package."
