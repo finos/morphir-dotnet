@@ -208,28 +208,49 @@ public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverS
     public void StandardErrorHoldsLessThan(int kibibytes) =>
         Expect(Exit.StandardError.Sum(line => Encoding.UTF8.GetByteCount(line.Text) + 1) < kibibytes * 1024, $"Standard error holds {kibibytes} KiB or more.");
 
-    [Then("the peak working set of the worker is less than {int} MiB above that of an echo session")]
-    public async Task ThePeakWorkingSetIsBounded(int mebibytes)
+    /// <summary>
+    /// The worker does not hold the guest's output: its peak working set does not grow with what the guest writes.
+    /// </summary>
+    /// <remarks>
+    /// Each call of the flood guest writes 20 MiB, and the host turns each 1 KiB write or log message into the text it
+    /// read and the prefixed text of the output, which are dead when the call returns: about 100 MB of short-lived
+    /// garbage for each call. The peak working set is the live data plus the garbage that the GC lets build up before
+    /// it collects (its gen0 budget), and the runtime sizes that budget from the processor's cache. So the flood peak
+    /// above that of an echo session measured the machine, not retention: 71 MB on the linux-arm64 release runner, 86
+    /// to 90 MB for the Native AOT executable on linux-x64, 9 MB on a win-arm64 laptop, and 70 MB on that laptop with
+    /// <c>DOTNET_GCgen0size</c> at 64 MiB. This step compares the worker with itself instead. By the end of the second
+    /// call the GC has collected at least once whenever its budget is under about 200 MB, so the peak has its steady
+    /// height. Calls three to five write 60 MiB more; a worker that kept a quarter of it would grow by more than the
+    /// bound, and one that kept each output's text grew by more than 120 MB. The 64 KiB tail itself is checked by the
+    /// steps on the output events and on standard error.
+    /// </remarks>
+    [Then("the peak working set of the worker grows by less than {int} MiB from its second call to its fifth")]
+    public async Task ThePeakWorkingSetDoesNotGrowWithTheOutput(int mebibytes)
     {
-        var flood = await PeakAsync(ModulePath("guest:flood-output"));
-        var echo = await PeakAsync(ModulePath("corpus:extism-echo"));
-        if (flood == 0 || echo == 0) return; // The platform does not report a working set.
-        Expect(flood - echo < mebibytes * 1024L * 1024L,
-            $"The flood guest wrote 100 MiB of output through the worker; peak {flood} bytes against {echo} for an echo session.");
+        var peaks = await PeaksAfterEachCallAsync(ModulePath("guest:flood-output"), 5);
+        if (peaks.Contains(0)) return; // The platform does not report a working set.
+        Expect(peaks[4] - peaks[1] < mebibytes * 1024L * 1024L,
+            $"The flood guest wrote 60 MiB of output through the worker in calls three to five; the peak working set after each call was {string.Join(", ", peaks)} bytes.");
     }
 
-    /// <summary>The peak working set of the worker after five answered requests, read before <c>exit</c> is sent.</summary>
-    private async Task<long> PeakAsync(string module)
+    /// <summary>The peak working set of the worker after each of <paramref name="calls"/> answered requests, each
+    /// sent when the one before is answered; <c>exit</c> is sent after the last.</summary>
+    private async Task<long[]> PeaksAfterEachCallAsync(string module, int calls)
     {
         await using var session = await sessions.StartAsync(await ServeArgumentsAsync(module));
-        await session.WriteAsync(ExtensionWorker.Frames("initialize, initialize, initialize, initialize, initialize"));
-        var answered = await session.WaitUntilAsync(() => ContentLengthFrames.Read(session.StandardOutput).Frames.Count == 5, RunLimit);
-        if (!answered) throw new InvalidOperationException(string.Join("\n", session.StandardError.Select(line => line.Text).Take(20)));
-        var peak = session.PeakWorkingSet;
+        var peaks = new long[calls];
+        for (var call = 1; call <= calls; call++)
+        {
+            await session.WriteAsync(ExtensionWorker.Frames("initialize"));
+            var answered = await session.WaitUntilAsync(() => ContentLengthFrames.Read(session.StandardOutput).Frames.Count == call, RunLimit);
+            if (!answered) throw new InvalidOperationException(string.Join("\n", session.StandardError.Select(line => line.Text).Take(20)));
+            peaks[call - 1] = session.PeakWorkingSet;
+        }
+
         await session.WriteAsync(ExtensionWorker.Frames("exit"));
         var exit = await session.WaitForExitAsync(RunLimit);
         if (exit.ExitCode != 0) throw new InvalidOperationException(exit.Describe());
-        return peak;
+        return peaks;
     }
 
     [Then("the temporary directory of the worker is empty")]
