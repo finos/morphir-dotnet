@@ -131,6 +131,78 @@ let private workerInvocations (fake: FakeHost) =
     invocations fake
     |> List.filter (fun arguments -> not (List.contains "--help" arguments))
 
+/// Runs the model tier with a model-tier worker that runs modelScript and has exited before its first request, and
+/// checks that model-initialize fails because the transport ended, naming the session and the worker, and that no
+/// later step runs.
+let private expectTransportEndedBeforeFirstRequest (modelScript: JsonNode list) =
+    let inProcess, opened = run faithful
+
+    let describeRequests =
+        opened
+        |> List.find (fun (request: KitSessionRequest, _) -> request.Purpose = KitSessionPurpose.Describe)
+        |> fun (_, channel) -> channel.Requests
+
+    let fake =
+        FakeWorker.host [
+            "describe", sessionScript describeRequests
+            "model", modelScript
+        ]
+
+    use _gate = ProcessGate.Shared.EnterAsync().GetAwaiter().GetResult()
+    use describe = create fake "describe" (shortLimits ())
+    use model = create fake "model" (shortLimits ())
+
+    let opener =
+        Func<KitSessionRequest, CancellationToken, Task<HostSession>>(fun request cancellation ->
+            if request.Purpose = KitSessionPurpose.Describe then
+                describe.OpenAsync(request, cancellation)
+            else
+                task {
+                    let! session = model.OpenAsync(request, cancellation)
+                    let pid = onlyProcess model
+
+                    if not (eventually (fun () -> not (isRunning pid))) then
+                        failtest "the model-tier worker did not exit"
+
+                    return session
+                }
+        )
+
+    let result =
+        ModelTierRunner
+            .RunAsync(kit.Value, opener, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+
+    let modelPid = onlyProcess model
+
+    Expect.equal
+        (result.Steps |> Seq.map _.Id |> List.ofSeq)
+        (inProcess.Steps |> Seq.map _.Id |> List.ofSeq)
+        "every step is kept"
+
+    Expect.equal (step "describe" result).Outcome StepOutcome.Passed "describe passed"
+
+    match (step "model-initialize" result).Outcome with
+    | StepOutcome.Failed difference ->
+        Expect.stringContains difference "transport ended" "the step says the transport ended"
+        Expect.stringContains difference "model-tier" "the step names the session"
+        Expect.stringContains difference (string modelPid) "the step names the worker"
+    | other -> failtest $"Expected model-initialize to fail, got {other}"
+
+    for later in result.Steps |> Seq.skipWhile (fun step -> step.Id <> "model-initialize") |> Seq.skip 1 do
+        match later.Outcome with
+        | StepOutcome.NotRun reason ->
+            Expect.stringContains reason "transport ended" $"{later.Id} is not run because the transport ended"
+        | other -> failtest $"Expected {later.Id} not to run, got {other}"
+
+    let record =
+        model.EndAsync(CancellationToken.None).GetAwaiter().GetResult()
+        |> List.ofSeq
+        |> only
+
+    Expect.equal record.End (WorkerEnd.Exited 0) "the model-tier worker exited with 0"
+
 [<Tests>]
 let tests =
     // PlatformSpecific: these tests start worker processes, so the platform scope of the Test target runs them on
@@ -423,73 +495,13 @@ let tests =
         }
 
         test "When the model-tier worker has ended before its first request, the run keeps its steps and does not run the rest" {
-            let inProcess, opened = run faithful
+            expectTransportEndedBeforeFirstRequest [ started []; exitWith 0 ]
+        }
 
-            let describeRequests =
-                opened
-                |> List.find (fun (request: KitSessionRequest, _) -> request.Purpose = KitSessionPurpose.Describe)
-                |> fun (_, channel) -> channel.Requests
-
-            let fake =
-                FakeWorker.host [
-                    "describe", sessionScript describeRequests
-                    "model", [ started []; exitWith 0 ]
-                ]
-
-            use _gate = ProcessGate.Shared.EnterAsync().GetAwaiter().GetResult()
-            use describe = create fake "describe" (shortLimits ())
-            use model = create fake "model" (shortLimits ())
-
-            let opener =
-                Func<KitSessionRequest, CancellationToken, Task<HostSession>>(fun request cancellation ->
-                    if request.Purpose = KitSessionPurpose.Describe then
-                        describe.OpenAsync(request, cancellation)
-                    else
-                        task {
-                            let! session = model.OpenAsync(request, cancellation)
-                            let pid = onlyProcess model
-
-                            if not (eventually (fun () -> not (isRunning pid))) then
-                                failtest "the model-tier worker did not exit"
-
-                            return session
-                        }
-                )
-
-            let result =
-                ModelTierRunner
-                    .RunAsync(kit.Value, opener, CancellationToken.None)
-                    .GetAwaiter()
-                    .GetResult()
-
-            let modelPid = onlyProcess model
-
-            Expect.equal
-                (result.Steps |> Seq.map _.Id |> List.ofSeq)
-                (inProcess.Steps |> Seq.map _.Id |> List.ofSeq)
-                "every step is kept"
-
-            Expect.equal (step "describe" result).Outcome StepOutcome.Passed "describe passed"
-
-            match (step "model-initialize" result).Outcome with
-            | StepOutcome.Failed difference ->
-                Expect.stringContains difference "transport ended" "the step says the transport ended"
-                Expect.stringContains difference "model-tier" "the step names the session"
-                Expect.stringContains difference (string modelPid) "the step names the worker"
-            | other -> failtest $"Expected model-initialize to fail, got {other}"
-
-            for later in result.Steps |> Seq.skipWhile (fun step -> step.Id <> "model-initialize") |> Seq.skip 1 do
-                match later.Outcome with
-                | StepOutcome.NotRun reason ->
-                    Expect.stringContains reason "transport ended" $"{later.Id} is not run because the transport ended"
-                | other -> failtest $"Expected {later.Id} not to run, got {other}"
-
-            let record =
-                model.EndAsync(CancellationToken.None).GetAwaiter().GetResult()
-                |> List.ofSeq
-                |> only
-
-            Expect.equal record.End (WorkerEnd.Exited 0) "the model-tier worker exited with 0"
+        test "When the model-tier worker has ended but a child keeps its stdio open, model-initialize says the transport ended" {
+            // The pipes outlive the worker, so a write of initialize succeeds and the connection closes only when the
+            // child exits: an extension that has ended did not refuse initialize.
+            expectTransportEndedBeforeFirstRequest [ started []; holdStdio 3000; exitWith 0 ]
         }
 
         test "OpenAsync after the factory is disposed throws ObjectDisposedException and starts no worker" {

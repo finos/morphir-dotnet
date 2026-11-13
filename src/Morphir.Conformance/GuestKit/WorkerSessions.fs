@@ -127,7 +127,8 @@ type WorkerSessionRecord
 /// A write to the stdin of a worker that has ended: the worker exited or was stopped, or EndAsync or the disposal of
 /// the factory closed its stdin. A HostSession from WorkerSessions.OpenAsync throws it from a request or from
 /// morphir.exit; the write is not retried and no reply is awaited. It derives from IOException, so a catch of
-/// IOException still holds. InnerException is the stream's own exception. Only the factory builds one.
+/// IOException still holds. InnerException is the stream's own exception, or, for a write to an open stdin after the
+/// worker exited, an IOException that says so: the write does not reach the pipe. Only the factory builds one.
 [<Sealed>]
 type WorkerEndedException internal (purpose: KitSessionPurpose, processId: int, inner: exn) =
     inherit
@@ -142,11 +143,14 @@ type WorkerEndedException internal (purpose: KitSessionPurpose, processId: int, 
     /// The id of the worker process.
     member _.ProcessId = processId
 
-/// The stdin of a worker as its HostSession writes it. A write or a flush that fails because the worker has ended, with
-/// an IOException or an ObjectDisposedException from the pipe, throws WorkerEndedException instead. No write is
-/// swallowed: the session would then wait for a reply that never comes.
+/// The stdin of a worker as its HostSession writes it. A write after the worker has exited throws WorkerEndedException
+/// before it reaches the pipe: the pipe can still take the bytes when another process, such as a child of the worker,
+/// holds its other end, and the session would then wait for a reply that no one gives, until the connection closes.
+/// A flush is not checked, because the worker can read a whole message and exit before the flush that follows it. A
+/// write or a flush that fails because the worker has ended, with an IOException or an ObjectDisposedException from
+/// the pipe, also throws WorkerEndedException. No write is swallowed.
 [<Sealed>]
-type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: int) =
+type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: int, hasExited: unit -> bool) =
     inherit Stream()
 
     static let isEnded (error: exn) =
@@ -154,6 +158,12 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
 
     let ended (error: exn) =
         WorkerEndedException(purpose, processId, error)
+
+    /// Throws WorkerEndedException when the worker has exited and its stdin is still open; a closed stdin throws its
+    /// own ObjectDisposedException. Call it outside the catch of isEnded, which would wrap the exception again.
+    let ensureRunning () =
+        if inner.CanWrite && hasExited () then
+            raise (ended (IOException $"The worker process {processId} has exited."))
 
     override _.CanRead = false
     override _.CanSeek = false
@@ -169,18 +179,24 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
     override _.Read(_: byte array, _: int, _: int) : int = raise (NotSupportedException())
 
     override _.Write(buffer: byte array, offset: int, count: int) =
+        ensureRunning ()
+
         try
             inner.Write(buffer, offset, count)
         with error when isEnded error ->
             raise (ended error)
 
     override _.Write(buffer: ReadOnlySpan<byte>) =
+        ensureRunning ()
+
         try
             inner.Write buffer
         with error when isEnded error ->
             raise (ended error)
 
     override _.WriteByte(value: byte) =
+        ensureRunning ()
+
         try
             inner.WriteByte value
         with error when isEnded error ->
@@ -188,6 +204,8 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
 
     override _.WriteAsync(buffer: byte array, offset: int, count: int, cancellation: CancellationToken) : Task =
         task {
+            ensureRunning ()
+
             try
                 do! inner.WriteAsync(buffer, offset, count, cancellation)
             with error when isEnded error ->
@@ -197,6 +215,8 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
     override _.WriteAsync(buffer: ReadOnlyMemory<byte>, cancellation: CancellationToken) : ValueTask =
         ValueTask(
             task {
+                ensureRunning ()
+
                 try
                     do! inner.WriteAsync(buffer, cancellation)
                 with error when isEnded error ->
@@ -570,7 +590,15 @@ type WorkerSessions
                 Task.FromException<HostSession>(InvalidOperationException $"The worker {host.Executable} did not start: {reason}")
             | Ok() ->
                 let output = proc.StandardOutput.BaseStream
-                let input = new WorkerInput(proc.StandardInput.BaseStream, request.Purpose, proc.Id)
+                let hasExited () =
+                    try
+                        proc.HasExited
+                    with
+                    | :? InvalidOperationException
+                    | :? Win32Exception -> true
+
+                let input =
+                    new WorkerInput(proc.StandardInput.BaseStream, request.Purpose, proc.Id, hasExited)
                 let worker = LiveWorker(request.Purpose, proc, workerArguments, limits)
 
                 let added =
