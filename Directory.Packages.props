@@ -38,10 +38,10 @@
     <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.23" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="Autofac" Version="7.1.0" />
+    <PackageVersion Include="Autofac" Version="9.3.4" />
     <PackageVersion Include="Gherkin" Version="35.1.0" />
-    <PackageVersion Include="Autofac.Extensions.DependencyInjection" Version="8.0.0" />
-    <PackageVersion Include="Bogus" Version="34.0.2" />
+    <PackageVersion Include="Autofac.Extensions.DependencyInjection" Version="11.0.2" />
+    <PackageVersion Include="Bogus" Version="35.6.5" />
     <PackageVersion Include="BunsenBurner.Bogus" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="BunsenBurner.Hedgehog" Version="$(BunsenBurnerVersion)" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
@@ -61,7 +61,7 @@
          Microsoft.Build.* 18.1 and later ship only net11.0 and net472 assets, so keep the 18.0 line of the .NET 10 SDK. -->
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
-    <PackageVersion Include="altcover" Version="8.9.3" />
+    <PackageVersion Include="altcover" Version="9.0.145" />
     <PackageVersion Include="System.CommandLine" Version="2.0.15" />
     <PackageVersion Include="Funcky.DiscriminatedUnion" Version="1.2.2" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.269" />
@@ -99,9 +99,9 @@
     <PackageVersion Include="bunit" Version="1.40.0" />
     <PackageVersion Include="bunit.web" Version="1.40.0" />
     <PackageVersion Include="BlazorMonaco" Version="3.5.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.5.2" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.5.3" />
     <PackageVersion Include="Reqnroll" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Reqnroll.TUnit" Version="$(ReqnrollVersion)" />
     <PackageVersion Include="Serilog" Version="4.4.0" />
@@ -112,7 +112,7 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="MEL.Flex" Version="0.1.0" />
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
-    <PackageVersion Include="TUnit" Version="1.81.10" />
+    <PackageVersion Include="TUnit" Version="1.83.8" />
     <PackageVersion Include="Eleven19.IonDotnet" Version="0.1.4" />
     <PackageVersion Include="Expecto" Version="10.2.3" />
     <PackageVersion Include="Expecto.FsCheck" Version="10.2.3" />

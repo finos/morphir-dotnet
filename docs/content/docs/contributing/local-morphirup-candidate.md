@@ -1,5 +1,8 @@
 ---
 title: Try a local managed toolchain candidate
+description: "Developer journey: install, select and run a locally built morphirup toolchain candidate"
+aliases:
+  - /docs/getting-started/local-morphirup-candidate/
 ---
 
 This Windows x64 development journey installs an explicitly supplied candidate
@@ -270,3 +273,35 @@ Without explicit inputs the opt-in test is ignored, not counted as a passed
 milestone. Full installer breadth, orphan sweep,
 independent process providers, portable-lock restore, other offerings/platforms,
 production authentication and final acceptance remain separate unfinished work.
+
+## macOS ARM64 local candidate
+
+On a Mac with Apple silicon, the build makes the macOS ARM64 inputs:
+
+```bash
+./build.sh --target PackWindowsToolchain --rid osx-arm64 --deployment self-contained \
+  --toolchain-local-developer --release-assets-dir artifacts/osx-toolchain
+```
+
+The target keeps its name for the workflows that call it. For `osx-arm64` it writes the host archive
+`morphir-dotnet-<version>-self-contained-osx-arm64.tar.gz`, the candidate `morphir-host-candidate-osx-arm64.json`,
+the F# frontend and backend archives, release descriptors and manifests, `morphir-extensions-osx-arm64.json`, the
+bundle `morphir-toolchain-osx-arm64.json`, `SHA256SUMS` and the manager `morphirup-osx-arm64`. The archives are tar.gz,
+and the entry points are `morphir`, `morphir-fsharp-frontend` and `morphir-fsharp-backend`, with no `.exe`. Then, with
+`A=artifacts/osx-toolchain` and an absolute Home `H`:
+
+```bash
+$A/morphirup-osx-arm64 setup --candidate $A/morphir-host-candidate-osx-arm64.json \
+  --local-archive $A/morphir-dotnet-<version>-self-contained-osx-arm64.tar.gz \
+  --local-bundle $A/morphir-toolchain-osx-arm64.json --local-developer --home "$H" --dry-run
+# The same command with --yes instead of --dry-run installs and prints generationSha256.
+$A/morphirup-osx-arm64 select --generation <generationSha256> --home "$H"
+cd examples/morphirup-fsharp
+$A/morphirup-osx-arm64 run --home "$H" -- compile --output compiled --out-dir out --json
+$A/morphirup-osx-arm64 run --home "$H" -- generate --target fsharp --input compiled/morphir-ir.json \
+  --output generated --option format=false --json
+```
+
+The installed commands need no .NET on `PATH` and no network. What setup and run do differently on macOS is in the
+[morphirup reference]({{< relref "/docs/cli/morphirup#set-up-on-macos-arm64-experimental" >}}). This is local-developer delivery: a checksum
+does not authenticate the publisher.

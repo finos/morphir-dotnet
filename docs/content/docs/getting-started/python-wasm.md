@@ -5,18 +5,12 @@ weight: 45
 description: "Compile and generate Python with the pinned Python extension in the .NET CLI"
 ---
 
-This experimental integration runs the Python **0.6.0** extension inside the .NET
-CLI. It uses the ordinary compile records, model checks and generated-file
-publication. No Python interpreter or extension worker process is required.
+This experimental feature runs the Python **0.6.0** extension inside the Morphir CLI. It compiles a small Python
+file to Morphir IR and generates Python from it. You don't need Python installed.
 
-Use a CLI build containing this feature and check `morphir extension runtimes --json`.
-The engine is supplied for Windows ARM64, macOS x64/ARM64 and glibc Linux x64/ARM64.
-The CLI's existing runtime, SDK and native-library prerequisites still apply.
-Windows x64 currently refuses WASM with
-`extension.runtime_unavailable` and `win_x64_trap_unsupported`, tracked in
-[#609](https://github.com/finos/morphir-dotnet/issues/609). Commands using built-in
-frontends or backends still work there. No protection setting should be changed.
-
+Check that your CLI can run WASM extensions with `morphir extension runtimes --json`. It can on Windows ARM64, macOS
+and Linux (glibc). Windows x64 can't run WASM extensions yet
+([#609](https://github.com/finos/morphir-dotnet/issues/609)); the other commands still work there.
 From a new project directory, download and verify the published module with
 PowerShell:
 
@@ -58,18 +52,10 @@ To generate from an existing IR file instead:
 morphir generate --project . --input morphir-ir.json --target python --output generated --json
 ```
 
-The language or target selects the matching `extensions.python.path` when no
-extension is selected explicitly. `--extension` takes precedence, followed by
-the existing `frontend.<language>.extension` or `codegen.<target>.extension`
-setting. A matching module table uses WASM; other selections keep the process
-transport. A relative module path is resolved from the configuration file that
-set it. The CLI checks the configured digest and ABI before opening a session.
+The `[extensions.python]` table makes `--language python` and `--target python` use the module. The CLI checks the
+module's `sha256` before it runs it. JSON results go to stdout and the extension's messages to stderr. If the
+extension fails, `generate` writes no files. The [WASM extension reference]({{< relref "/docs/configuration/wasm-extensions" >}})
+explains how the CLI picks an extension and the limits it applies.
 
-JSON results stay on stdout; guest diagnostics go to stderr. The runtime retains
-its [session bounds](../configuration/wasm-extensions.md). A guest failure does
-not publish a partial generated tree. This feature does not qualify a platform
-or the extension against the conformance kits.
-
-The pinned frontend supports a limited Python subset. Unsupported expressions,
-including addition in this pin, produce source diagnostics and exit code 1.
-They do not publish IR. The host does not substitute another Python compiler.
+The extension supports a small part of Python. Code it doesn't support, including addition, gives a source
+diagnostic and exit code 1, and no IR.
