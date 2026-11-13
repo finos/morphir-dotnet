@@ -19,6 +19,7 @@
   <ItemGroup>
     <Compile Include="IdentifiersTests.fs" />
     <Compile Include="PlatformsTests.fs" />
+    <Compile Include="UnixFlagsTests.fs" />
     <Compile Include="MepLineTests.fs" />
     <Compile Include="SharedReaderTests.fs" />
     <Compile Include="IoTestSupport.fs" />
