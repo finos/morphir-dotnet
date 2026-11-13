@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0-alpha.1] - 2026-11-13
+
 ### Added
 - Documentation: a getting-started walkthrough, [Your first model with morphirup](docs/content/docs/getting-started/first-model.md), and a [troubleshooting](docs/content/docs/getting-started/troubleshooting.md) page. The walkthrough installs `morphirup`, sets up the toolchain, compiles the `examples/morphirup-fsharp` model, generates F#, changes a rule and compares the output, then compiles and generates again offline. The getting-started pages now cover tasks only: the local candidate journey moves to the contributing section, implementation detail moves to the reference pages, and troubleshooting moves to the new page. The [morphirup](docs/content/docs/cli/morphirup.md) reference opens with a task section for `setup`, `show`, `select` and `run`, and `examples/morphirup-fsharp/README.md` repeats the walkthrough's commands.
 - Install `morphirup` with one command. `scripts/install-morphirup.sh` (POSIX `sh`, Linux x64 and ARM64, macOS on Apple silicon) and `scripts/install-morphirup.ps1` (Windows x64 and ARM64, Windows PowerShell 5.1 and PowerShell 7) install the newest `finos/morphir-dotnet` release that has `morphirup` for the machine, prereleases included, or the release given with `--version` / `-Version`. Each script checks the file against the release's `morphirup-v<version>.sha256` and installs nothing on a mismatch or a missing line. The `sh` script installs to `~/.local/bin` and prints the `PATH` line to add; the PowerShell script installs to `%LOCALAPPDATA%\Programs\morphirup` and adds it to the user `PATH`. Intel macOS and musl Linux are refused. On restricted networks, both scripts use `HTTPS_PROXY` and `NO_PROXY` (the PowerShell script also uses the Windows proxy settings and the current user's proxy credentials, and passes `HTTPS_PROXY` itself on Windows PowerShell 5.1), accept an HTTPS mirror in `MORPHIRUP_DOWNLOAD_URL`, fall back to the release feed on github.com when api.github.com cannot be reached, and stop connecting after 30 seconds. The manually triggered workflow `install-scripts.yml` (inputs `version` and `platforms`) runs both scripts and the mise command `mise use -g 'github:finos/morphir-dotnet[matching=morphirup,version_prefix=v,prerelease=true]'` (also with `@<version>`) on Linux, macOS and Windows.
@@ -396,7 +398,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.5...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.1...HEAD
+[0.5.0-alpha.1]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.5...v0.5.0-alpha.1
 [0.4.0-alpha.5]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.4...v0.4.0-alpha.5
 [0.4.0-alpha.4]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.3...v0.4.0-alpha.4
 [0.4.0-alpha.3]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.2...v0.4.0-alpha.3
