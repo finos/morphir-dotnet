@@ -77,3 +77,4 @@ tests/Fixtures/Configuration/** -text
 tests/Fixtures/Configuration/json5-tests/new-lines/*.json5 -whitespace
 # Unicode conformance data is checked by SHA-256, so its bytes must not change
 tests/Fixtures/Unicode/** -text
+src/Morphir.Extensions.Installation/TrustedRoots/*.pem -text

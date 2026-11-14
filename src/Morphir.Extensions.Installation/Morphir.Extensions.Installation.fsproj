@@ -26,6 +26,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="buildTransitive/Morphir.Extensions.Installation.props" Pack="true" PackagePath="buildTransitive/" />
+    <!-- NuGet's trusted roots for Linux and macOS, from the .NET SDK (TrustedRoots/README.md). -->
+    <EmbeddedResource Include="TrustedRoots/codesignctl.pem" LogicalName="Morphir.Extensions.Installation.TrustedRoots.codesignctl.pem" />
+    <EmbeddedResource Include="TrustedRoots/timestampctl.pem" LogicalName="Morphir.Extensions.Installation.TrustedRoots.timestampctl.pem" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />

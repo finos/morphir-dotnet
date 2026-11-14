@@ -555,6 +555,19 @@ let private configuration =
                     Expect.equal failure.Code "extension.nuget_unreachable" failure.Message
                     Expect.stringContains failure.Message source "the source")
         }
+        test "the embedded NuGet trusted root lists are the pinned dotnet/sdk blobs" {
+            withSandbox (fun sandbox ->
+                let folder = Path.Combine(sandbox.Root, "trust")
+                NuGetTrustRoots.write folder
+
+                for name, expected in [
+                    "codesignctl.pem", "aab671f52e5229906b2100727370007ef4b6d2e360b23f2cf12a6d87773be611"
+                    "timestampctl.pem", "5ccb03367b52f047099f07e1653160e8578a83711cb18560c979febb65f8cb5d"
+                ] do
+                    Expect.equal (Digest.ofBytes (File.ReadAllBytes(Path.Combine(folder, "trustedroots", name)))) expected name
+
+                NuGetTrustRoots.write folder)
+        }
         test "require mode refuses an unsigned package" {
             withSandbox (fun sandbox ->
                 let feed = layoutA sandbox "1.2.3"

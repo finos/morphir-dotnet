@@ -113,9 +113,58 @@ module internal NuGetSettings =
         | [] -> "no source"
         | sources -> sources |> List.map (fun source -> source.Source) |> String.concat ", "
 
+/// NuGet's trusted roots for Linux and macOS (TrustedRoots/README.md). NuGet reads them only from
+/// AppContext.BaseDirectory/trustedroots, and the Native AOT morphir is one file, so they are embedded, written to the
+/// Home, and the base directory points there only while X509TrustStore builds its chain factories.
+module internal NuGetTrustRoots =
+    let private gate = obj ()
+    let mutable private initialized = false
+    let private files = [ "codesignctl.pem"; "timestampctl.pem" ]
+
+    let write (folder: string) =
+        let roots = Path.Combine(folder, "trustedroots")
+        Directory.CreateDirectory roots |> ignore
+
+        for name in files do
+            let resource = $"Morphir.Extensions.Installation.TrustedRoots.{name}"
+
+            use stream =
+                match typeof<StderrNuGetLogger>.Assembly.GetManifestResourceStream resource with
+                | null -> Operations.fail "extension.io_error" $"The NuGet trusted root list {name} is not embedded."
+                | stream -> stream
+
+            use memory = new MemoryStream()
+            stream.CopyTo memory
+            let bytes = memory.ToArray()
+            let path = Path.Combine(roots, name)
+
+            if not (File.Exists path) || not (File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes.AsSpan())) then
+                File.WriteAllBytes(path, bytes)
+
+    /// Sets up NuGet's trust store as the .NET SDK does, once per process: the OS store on Windows, and on Linux and
+    /// macOS a system code signing bundle when there is one, else these lists.
+    let initialize (home: string) =
+        lock gate (fun () ->
+            if not initialized then
+                let logger = StderrNuGetLogger()
+
+                if OperatingSystem.IsWindows() then
+                    X509TrustStore.InitializeForDotNetSdk logger
+                else
+                    let folder = Path.Combine(home, "tmp", "morphir-dotnet-nuget-trust")
+                    write folder
+                    let previous = AppContext.GetData "APP_CONTEXT_BASE_DIRECTORY"
+                    AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", folder + string Path.DirectorySeparatorChar)
+
+                    try
+                        X509TrustStore.InitializeForDotNetSdk logger
+                    finally
+                        AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", previous)
+
+                initialized <- true)
+
 /// Signature verification as the dotnet CLI does it on each OS, with the client policy of nuget.config (NUG-3).
 module internal NuGetSignatures =
-    let private trustStore = lazy (X509TrustStore.InitializeForDotNetSdk(StderrNuGetLogger()))
 
     /// dotnet verifies by default on Windows and Linux, not on macOS; DOTNET_NUGET_SIGNATURE_VERIFICATION overrides
     /// it on Linux and macOS. A require policy always verifies.
@@ -128,12 +177,12 @@ module internal NuGetSignatures =
             | NonNull value when StringComparer.OrdinalIgnoreCase.Equals(value, "false") -> false
             | _ -> OperatingSystem.IsLinux()
 
-    let verifyAsync (settings: ISettings) (reader: PackageArchiveReader) (package: PackageIdentity) (ct: CancellationToken) = task {
+    let verifyAsync (home: string) (settings: ISettings) (reader: PackageArchiveReader) (package: PackageIdentity) (ct: CancellationToken) = task {
         let logger = StderrNuGetLogger()
         let policy = ClientPolicyContext.GetClientPolicy(settings, logger)
 
         if enabled policy then
-            trustStore.Force()
+            NuGetTrustRoots.initialize home
 
             let providers: ISignatureVerificationProvider list = [
                 IntegrityVerificationProvider()
@@ -644,7 +693,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                       try
                         use reader = new PackageArchiveReader(new BorrowedStream(resources.Output), false)
                         NuGetConvention.checkIdentity reader main
-                        do! NuGetSignatures.verifyAsync settings reader main ct
+                        do! NuGetSignatures.verifyAsync home settings reader main ct
                         let! descriptor = NuGetConvention.readDescriptorAsync reader main ct
                         let described = Descriptors.read descriptor |> StateOwnership.unwrap
 
@@ -737,7 +786,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                         try
                             use reader = new PackageArchiveReader(new BorrowedStream(resources.Output), false)
                             NuGetConvention.checkIdentity reader location.Package
-                            NuGetSignatures.verifyAsync location.Settings reader location.Package ct |> fun work -> work.GetAwaiter().GetResult()
+                            NuGetSignatures.verifyAsync fetchHome location.Settings reader location.Package ct |> fun work -> work.GetAwaiter().GetResult()
 
                             if not location.IsModule then
                                 NuGetConvention.checkSelfContained reader resolved.Plan
