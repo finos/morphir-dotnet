@@ -414,6 +414,51 @@ module internal NuGetConvention =
             return! ProviderResults.readBounded stream maximumDescriptor "extension.invalid_descriptor" ct
     }
 
+    /// Copies the WASM entry of the main package into a sealed private stage, checked against the plan digest.
+    let stageModuleAsync (home: string) (resources: StageResources) (plan: PackagePlan) (ct: CancellationToken) = task {
+        let entryName = "morphir/" + plan.Artifact.Filename.Text
+        resources.Output.Position <- 0L
+        use zip = new System.IO.Compression.ZipArchive(new BorrowedStream(resources.Output), System.IO.Compression.ZipArchiveMode.Read, false)
+
+        let entry =
+            match zip.GetEntry entryName with
+            | null -> Operations.fail "extension.artifact_missing" $"The package has no entry {entryName}."
+            | entry -> entry
+
+        if entry.Length > InstallationLimits.MaxArtifactBytes then
+            Operations.fail "extension.artifact_too_large" $"The entry {entryName} exceeds 256 MiB."
+
+        let digest =
+            match plan.Integrity with
+            | PayloadIntegrity.ModuleFile digest -> digest
+            | _ -> Operations.fail "package.runtime" "The plan is not a WASM module."
+
+        let! begun = PrivateStaging.BeginAsync(home, uint64 entry.Length, digest, uint64 InstallationLimits.MaxArtifactBytes, ct)
+        let stage = ProviderResults.unwrap begun
+        let mutable owned = true
+
+        try
+            use input = entry.Open()
+            let buffer = Array.zeroCreate<byte> 65536
+            let mutable reading = true
+
+            while reading do
+                let! count = input.ReadAsync(buffer, 0, buffer.Length, ct)
+
+                if count = 0 then
+                    reading <- false
+                else
+                    do! stage.WriteAsync(ReadOnlyMemory(buffer, 0, count), ct)
+
+            let! sealedResult = stage.SealAsync ct
+            let sealedStage = ProviderResults.unwrap sealedResult
+            owned <- false
+            return sealedStage
+        finally
+            if owned then
+                (stage :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+    }
+
     /// A self-contained or Native AOT payload only: a .dll entry point, or a runtimeconfig.json that names a shared
     /// framework, needs an installed .NET runtime to start.
     let checkSelfContained (reader: PackageArchiveReader) (plan: PackagePlan) =
@@ -653,11 +698,6 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                                     "extension.invalid_descriptor"
                                     $"A NuGet release names a {format} archive; a NuGet package is the archive, so use package format nupkg."
 
-                        if fst(location).IsModule then
-                            Operations.fail
-                                "extension.unsupported_package"
-                                "The selected artifact is a WASM module; this host does not install WASM artifacts yet."
-
                         return ResolvedExtensionRelease(descriptor, plan, NuGetPackage(fst location, provenance, snd location))
                       with error when NuGetConvention.isMalformed error ->
                         return NuGetConvention.malformed main error
@@ -698,19 +738,26 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                             use reader = new PackageArchiveReader(new BorrowedStream(resources.Output), false)
                             NuGetConvention.checkIdentity reader location.Package
                             NuGetSignatures.verifyAsync location.Settings reader location.Package ct |> fun work -> work.GetAwaiter().GetResult()
-                            NuGetConvention.checkSelfContained reader resolved.Plan
+
+                            if not location.IsModule then
+                                NuGetConvention.checkSelfContained reader resolved.Plan
                         with error when NuGetConvention.isMalformed error ->
                             NuGetConvention.malformed location.Package error
 
                         resources.Output.Position <- 0L
                         let values = SourceDocuments.provenanceValue provenance, SourceDocuments.sourceValue source
-                        owned <- false
 
-                        return
-                            new FetchedExtensionArtifact(
-                                Unhashed resources,
-                                Func<string list, CancellationToken, Task<Value * Value>>(fun _ _ -> Task.FromResult values)
-                            )
+                        let record =
+                            Func<string list, CancellationToken, Task<Value * Value>>(fun _ _ -> Task.FromResult values)
+
+                        if location.IsModule then
+                            // The module is the entry morphir/<filename> of the main package. It is copied into a
+                            // sealed private stage, which checks its bytes against the descriptor sha256.
+                            let! staged = NuGetConvention.stageModuleAsync fetchHome resources resolved.Plan ct
+                            return new FetchedExtensionArtifact(Staged staged, record)
+                        else
+                            owned <- false
+                            return new FetchedExtensionArtifact(Unhashed resources, record)
                     finally
                         if owned then
                             resources.CloseAsync().GetAwaiter().GetResult() |> ignore

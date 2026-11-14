@@ -87,12 +87,15 @@ module NuGetFixtures =
     let claims (version: string) =
         $"""{{"protocolVersions":["0.2.0-draft.1"],"extension":{{"id":"com.acme.python","name":"Acme Python","version":"{version}","types":["frontend"]}},"capabilities":{{"frontend":{{"languages":[{{"id":"python","fileExtensions":[".py"]}}],"irVersions":["4"],"compile":true}}}}}}"""
 
-    /// A release.json of the extension family with the given artifacts.
-    let descriptor (version: string) (artifacts: string list) =
+    /// A release.json of the extension family with the given artifacts, and optional extra top-level members.
+    let descriptorWith (version: string) (extra: string) (artifacts: string list) =
         let artifacts = String.concat "," artifacts
 
         utf8
-            $"""{{"$schema":"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json","extensionId":"com.acme.python","shortId":"acme-python","version":"{version}","platformDifferences":"declared","artifacts":[{artifacts}],"critical":["artifacts.package"]}}"""
+            $"""{{"$schema":"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json","extensionId":"com.acme.python","shortId":"acme-python","version":"{version}","platformDifferences":"declared","artifacts":[{artifacts}]{extra}}}"""
+
+    let descriptor (version: string) (artifacts: string list) =
+        descriptorWith version ""","critical":["artifacts.package"]""" artifacts
 
     let processArtifact (version: string) (triple: string) (filename: string) (root: string) (entryPoint: string) (tree: string) =
         $"""{{"runtime":"process","platform":"{triple}","filename":"{filename}","package":{{"format":"nupkg","root":"{root}","entryPoint":"{entryPoint}","treeSha256":"{tree}"}},"claims":{claims version}}}"""
@@ -577,5 +580,130 @@ let private configuration =
         }
     ]
 
+/// The bytes of a WASM module fixture. The guest never runs during installation, so any bytes do.
+let private wasmModule = [| 0uy; 0x61uy; 0x73uy; 0x6duy; 1uy; 0uy; 0uy; 0uy |]
+
+/// A WASM release in the main package: the entry morphir/acme-python.wasm, with optional process artifacts beside it.
+let private wasmRelease (sandbox: TestSandbox) (sha256: string) (extra: string) (processes: string list) =
+    let folder = Path.Combine(sandbox.Root, "feed")
+    let wasm = NuGetFixtures.wasmArtifact "1.2.3" "acme-python.wasm" sha256
+    let extra = if extra = "" then ""","critical":["artifacts.package"]""" else extra
+    let release = NuGetFixtures.descriptorWith "1.2.3" extra (processes @ [ wasm ])
+
+    NuGetFixtures.pack folder "Acme.Morphir.Python" "1.2.3" [ "MorphirExtension" ] [
+        { Name = "morphir/release.json"; Bytes = release }
+        { Name = "morphir/acme-python.wasm"; Bytes = wasmModule }
+    ]
+    |> ignore
+
+    folder
+
+let private wasm =
+    testList "NuGetWasm" [
+        test "a WASM-only release installs the module unchecked, in the single-file store" {
+            withSandbox (fun sandbox ->
+                let digest = Digest.ofBytes wasmModule
+                let folder = wasmRelease sandbox digest "" []
+                use captured = install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> get
+
+                Expect.isTrue captured.IsWasm "a WASM extension"
+                let installed = nonNull captured.Module
+                Expect.equal installed.Digest.Value digest "the locked digest"
+                Expect.equal (File.ReadAllBytes installed.ModulePath) wasmModule "the stored module"
+                Expect.equal installed.ModulePath (Path.Combine(home sandbox, "store", "extensions", "sha256", digest, "acme-python.wasm")) "the single-file store"
+
+                let lock = lockNode sandbox
+                Expect.equal (string lock["runtime"]) "wasm" "lock runtime"
+                Expect.equal (string lock["digest"]) digest "lock digest"
+                Expect.isNull lock["platform"] "no platform"
+                Expect.isNull lock["package"] "no package"
+                Expect.equal (lock["executable"] |> nonNull |> fun value -> value.GetValue<bool>()) false "not executable"
+                let source = nonNull lock["source"]
+                Expect.equal (string source["path"]) "morphir/acme-python.wasm" "the package entry"
+
+                let catalog = nonNull (JsonNode.Parse(File.ReadAllText(Path.Combine(home sandbox, "catalog", "extensions.json"))))
+                let entries = nonNull catalog["extensions"]
+                let entry = nonNull entries[0]
+                Expect.equal (string entry["claimCheck"]) "unchecked" "claims stay unchecked")
+        }
+        test "a WASM module that differs from its sha256 installs nothing" {
+            withSandbox (fun sandbox ->
+                let folder = wasmRelease sandbox (String('a', 64)) "" []
+                install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> refusedWith "extension.digest_mismatch"
+                Expect.isFalse (File.Exists(Path.Combine(home sandbox, "locks", "extensions", "com.acme.python.json"))) "no lock")
+        }
+        test "a WASM release that requires another host installs nothing" {
+            withSandbox (fun sandbox ->
+                let folder = Path.Combine(sandbox.Root, "feed")
+                let plain = NuGetFixtures.claims "1.2.3"
+                let claims = plain.Substring(0, plain.Length - 1) + ""","requires":{"host":[">=99.0.0"]},"critical":["requires.host"]}"""
+                let wasm = $"""{{"runtime":"wasm","filename":"acme-python.wasm","sha256":"{Digest.ofBytes wasmModule}","claims":{claims}}}"""
+
+                NuGetFixtures.pack folder "Acme.Morphir.Python" "1.2.3" [] [
+                    { Name = "morphir/release.json"; Bytes = NuGetFixtures.descriptor "1.2.3" [ wasm ] }
+                    { Name = "morphir/acme-python.wasm"; Bytes = wasmModule }
+                ]
+                |> ignore
+
+                install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> refusedWith "extension.host_incompatible"
+                Expect.isFalse (File.Exists(Path.Combine(home sandbox, "locks", "extensions", "com.acme.python.json"))) "no lock")
+        }
+        test "a mixed release on a platform with no process artifact installs the WASM artifact" {
+            withSandbox (fun sandbox ->
+                let other =
+                    if (platform ()).DescriptorTriple = "x86_64-unknown-linux-gnu" then "aarch64-apple-darwin" else "x86_64-unknown-linux-gnu"
+
+                let tree = NuGetFixtures.treeDigest [ "acme-python", payload, true ]
+                let processArtifact = NuGetFixtures.processArtifact "1.2.3" other "acme.morphir.python.1.2.3.nupkg" "morphir/other" "acme-python" tree
+                let folder = wasmRelease sandbox (Digest.ofBytes wasmModule) "" [ processArtifact ]
+                use captured = install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> get
+                Expect.isTrue captured.IsWasm "the WASM fallback"
+                Expect.equal (string (lockNode sandbox).["runtime"]) "wasm" "the lock records the selection")
+        }
+        test "a mixed release on a matching platform installs the process artifact" {
+            withSandbox (fun sandbox ->
+                let rid = (platform ()).RuntimeIdentifier
+                let tree = NuGetFixtures.treeDigest [ entryPoint (), payload, true ]
+                let processArtifact = NuGetFixtures.processArtifact "1.2.3" (platform ()).DescriptorTriple "acme.morphir.python.1.2.3.nupkg" $"morphir/{rid}" (entryPoint ()) tree
+                let folder = Path.Combine(sandbox.Root, "feed")
+                let release = NuGetFixtures.descriptor "1.2.3" [ processArtifact; NuGetFixtures.wasmArtifact "1.2.3" "acme-python.wasm" (Digest.ofBytes wasmModule) ]
+
+                NuGetFixtures.pack folder "Acme.Morphir.Python" "1.2.3" [] [
+                    { Name = "morphir/release.json"; Bytes = release }
+                    { Name = $"morphir/{rid}/{entryPoint ()}"; Bytes = payload }
+                    { Name = "morphir/acme-python.wasm"; Bytes = wasmModule }
+                ]
+                |> ignore
+
+                use captured = install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> get
+                Expect.isFalse captured.IsWasm "the matching process artifact"
+                Expect.equal (string (lockNode sandbox).["runtime"]) "process" "the lock records the selection")
+        }
+        test "an installed WASM module is verified offline, and a changed module is refused before any guest runs" {
+            withSandbox (fun sandbox ->
+                let folder = wasmRelease sandbox (Digest.ofBytes wasmModule) "" []
+                let modulePath =
+                    use captured = install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> get
+                    (nonNull captured.Module).ModulePath
+
+                Directory.Delete(folder, true)
+                let id = Morphir.Extensions.ExtensionId.Create "com.acme.python"
+
+                do
+                    use captured = InstalledExtensions.CaptureAsync(home sandbox, id, host, ct).GetAwaiter().GetResult() |> get
+                    Expect.isTrue captured.IsWasm "captured as WASM"
+                    Expect.throwsT<InvalidOperationException> (fun () -> captured.Activation |> ignore) "no package activation"
+
+                if not (OperatingSystem.IsWindows()) then
+                    File.SetUnixFileMode(modulePath, UnixFileMode.UserRead ||| UnixFileMode.UserWrite)
+
+                File.SetAttributes(modulePath, FileAttributes.Normal)
+                File.WriteAllBytes(modulePath, Array.append wasmModule [| 1uy |])
+
+                InstalledExtensions.CaptureAsync(home sandbox, id, host, ct).GetAwaiter().GetResult()
+                |> refusedWith "extension.digest_mismatch")
+        }
+    ]
+
 [<Tests>]
-let tests = testLabel "PlatformSpecific" <| testList "NuGetProvider" [ parsing; folderFeed; layouts; configuration ]
+let tests = testLabel "PlatformSpecific" <| testList "NuGetProvider" [ parsing; folderFeed; layouts; configuration; wasm ]

@@ -358,7 +358,11 @@ type LocalRepositoryProvider() =
                     Operations.fail "extension.digest_mismatch" "Local archive differs from the release digest."
 
                 archive.Position <- 0L
-                ArchiveChecks.inspect archive ct |> ignore
+
+                // A WASM module is one file, pinned by its digest; only a package archive is inspected.
+                if not plan.IsModule then
+                    ArchiveChecks.inspect archive ct |> ignore
+
                 repository.ValidateLocation()
 
                 return

@@ -42,11 +42,15 @@ type PackagePlan
         | Some digest -> digest
         | None -> Operations.fail "package.no_archive_digest" "A nupkg package has no archive digest; its tree digest pins it."
 
-    /// The integrity pin the installer checks before it publishes the package.
+    /// The integrity pin the installer checks before it publishes the package or module.
     member _.Integrity =
-        match artifact.Sha256 with
-        | Some digest -> PayloadIntegrity.FileThenTree(digest, tree)
-        | None -> PayloadIntegrity.TreeOnly tree
+        match artifact.Runtime, artifact.Sha256 with
+        | ArtifactRuntime.Wasm, Some digest -> PayloadIntegrity.ModuleFile digest
+        | _, Some digest -> PayloadIntegrity.FileThenTree(digest, tree)
+        | _, None -> PayloadIntegrity.TreeOnly tree
+
+    /// True when the selected artifact is a WASM module, installed in the single-file store with no package tree.
+    member _.IsModule = artifact.Runtime = ArtifactRuntime.Wasm
     /// The digest of the canonical package manifest.
     member _.TreeDigest = tree
     /// The portable regular-file path of the process entry point.
@@ -72,7 +76,37 @@ type PackagePlan
         | Some digest -> $"Package tree {tree.Value}, archive {digest.Value}."
         | None -> $"Package tree {tree.Value}, {format} package."
 
+    /// The plan of an installed WASM module: no package, no platform, pinned by the module digest.
+    static member internal Module(descriptor: ReleaseDescriptor option, artifact: ReleaseArtifact) =
+        let digest =
+            artifact.Sha256
+            |> Option.defaultWith (fun () -> Operations.fail "extension.invalid_descriptor" "A WASM artifact requires sha256.")
+
+        PackagePlan(descriptor, artifact, "wasm", None, artifact.Filename, [||], digest)
+
     static member internal FromState(entry: StateEntry, locked: StateLock) =
+      if entry.Runtime = ArtifactRuntime.Wasm then
+        let lockItems = SharedJson.members "lock" locked.Json
+
+        let filename =
+            SharedJson.required "lock" "source" lockItems
+            |> SourceDocuments.readSource "lock.source" true
+            |> SourceDocuments.filenameOf
+            |> DistributionIdentifiers.ParseArtifactFileName
+            |> StateOwnership.unwrap
+
+        PackagePlan.Module(
+            None,
+            {
+                Runtime = ArtifactRuntime.Wasm
+                Platform = None
+                Filename = filename
+                Sha256 = entry.Digest
+                Claims = entry.Claims
+                Package = None
+            }
+        )
+      else
         let value =
             match entry.Package with
             | Some value -> value
@@ -175,14 +209,10 @@ type PackagePlan
 
                     let artifact = PackagePlan.Select(descriptor, platform)
 
-                    if
-                        artifact.Runtime
-                        <> ArtifactRuntime.Process
-                    then
-                        SharedJson.fail
-                            "package.runtime"
-                            "artifacts"
-                            "Packages require process runtime."
+                    if artifact.Runtime = ArtifactRuntime.Wasm then
+                        PackagePlan.Module(Some descriptor, artifact)
+                    else
+
 
                     let declaration =
                         match artifact.Package with
@@ -1638,6 +1668,114 @@ type PackageInstaller private () =
                     )
                 )
         }
+
+/// An installed WASM module, verified against its lock digest. Retain it until the guest has stopped: it holds the
+/// store directories of the module open.
+[<Sealed>]
+type InstalledModule internal (path: string, digest: Sha256Digest, length: int64, resources: IDisposable array) =
+    let mutable disposed = 0
+    /// The native absolute path of the stored module.
+    member _.ModulePath = path
+    /// The SHA-256 the lock records, which the stored bytes matched when the module was captured.
+    member _.Digest = digest
+    /// The byte count of the stored module.
+    member _.Length = length
+    override _.ToString() = $"WASM module {digest.Value}."
+
+    member private _.Close() =
+        if Interlocked.Exchange(&disposed, 1) = 0 then
+            for resource in Array.rev resources do
+                resource.Dispose()
+
+    interface IDisposable with
+        member this.Dispose() = this.Close()
+
+    interface IAsyncDisposable with
+        member this.DisposeAsync() =
+            this.Close()
+            ValueTask.CompletedTask
+
+/// Installs and captures a WASM module (design WASM-1): the module is staged in the Home, checked against the
+/// descriptor sha256 and published in the single-file store. The guest never runs during installation.
+[<AbstractClass; Sealed>]
+type internal ModuleInstaller private () =
+    static member private Digest(plan: PackagePlan) =
+        match plan.Integrity with
+        | PayloadIntegrity.ModuleFile digest -> digest
+        | _ -> Operations.fail "package.runtime" "The plan is not a WASM module."
+
+    static member InstallAsync(home: string, plan: PackagePlan, openModule: Func<Stream>, ct: CancellationToken) : Task<InstallationResult<StoredArtifact>> =
+        Operations.runAsync ct (fun () -> task {
+            let digest = ModuleInstaller.Digest plan
+            use input = openModule.Invoke()
+
+            if input.Length > InstallationLimits.MaxArtifactBytes then
+                Operations.fail "extension.artifact_too_large" "The WASM module exceeds 256 MiB."
+
+            let! begun = PrivateStaging.BeginAsync(home, uint64 input.Length, digest, uint64 InstallationLimits.MaxArtifactBytes, ct)
+            let stage = PackageTreeIO.unwrap begun
+            let mutable owned = true
+
+            try
+                let buffer = Array.zeroCreate<byte> 65536
+                let mutable reading = true
+
+                while reading do
+                    let! count = input.ReadAsync(buffer, 0, buffer.Length, ct)
+
+                    if count = 0 then
+                        reading <- false
+                    else
+                        do! stage.WriteAsync(ReadOnlyMemory(buffer, 0, count), ct)
+
+                let! sealedResult = stage.SealAsync ct
+                let sealedStage = PackageTreeIO.unwrap sealedResult
+                owned <- false
+
+                try
+                    let! stored = SingleFileStore.PublishAsync(sealedStage, plan.Artifact.Filename, false, ct)
+                    return PackageTreeIO.unwrap stored
+                finally
+                    (sealedStage :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+            finally
+                if owned then
+                    (stage :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+        })
+
+    /// Opens the stored module of a lock and rehashes it offline. Changed bytes fail before any guest runs.
+    static member Acquire(home: string, expectedHome: StageIdentity, plan: PackagePlan, ct: CancellationToken) =
+        let digest = ModuleInstaller.Digest plan
+        let resources = ResizeArray<IDisposable>()
+
+        try
+            let root = SafeDirectory.Open(home, false)
+            resources.Add root
+
+            if root.Identity <> expectedHome then
+                Operations.fail "extension.path_escape" "Morphir Home was replaced since metadata capture."
+
+            let directory =
+                PackageTreeIO.directories resources root [ "store"; "extensions"; "sha256"; digest.Value ] false
+
+            let name = plan.Artifact.Filename.Text
+
+            let length =
+                use stream = directory.File(name, false, false)
+
+                let actual, count =
+                    Copying.hashCopy stream Stream.Null InstallationLimits.MaxArtifactBytes "extension.artifact_too_large" ct
+
+                if actual <> digest.Value then
+                    Operations.fail
+                        "extension.digest_mismatch"
+                        $"The stored WASM module {name} has digest {actual}, not the locked {digest.Value}."
+
+                count
+
+            new InstalledModule(Path.Combine(directory.Path, name), digest, length, resources.ToArray())
+        with _ ->
+            PackageTreeIO.close resources
+            reraise ()
 
 /// Prepares the existing release format for a complete-folder producer archive.
 /// This pure writer makes no installation, readiness or authenticated-provenance claim.
