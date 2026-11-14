@@ -126,12 +126,12 @@ mod tests {
             let version = "1.0.0";
             let rid = "linux-x64";
             let download_url = format!(
-                "https://github.com/finos/morphir-dotnet/releases/download/v{}/morphir-{}-v{}.tar.gz",
+                "https://github.com/finos/morphir/releases/download/v{}/morphir-{}-v{}.tar.gz",
                 version, rid, version
             );
             assert_eq!(
                 download_url,
-                "https://github.com/finos/morphir-dotnet/releases/download/v1.0.0/morphir-linux-x64-v1.0.0.tar.gz"
+                "https://github.com/finos/morphir/releases/download/v1.0.0/morphir-linux-x64-v1.0.0.tar.gz"
             );
         }
 
@@ -216,7 +216,7 @@ mod tests {
             let version = "1.0.0-rc.1";
             let rid = "linux-x64";
             let download_url = format!(
-                "https://github.com/finos/morphir-dotnet/releases/download/v{}/morphir-{}-v{}.tar.gz",
+                "https://github.com/finos/morphir/releases/download/v{}/morphir-{}-v{}.tar.gz",
                 version, rid, version
             );
             assert!(download_url.contains("1.0.0-rc.1"));

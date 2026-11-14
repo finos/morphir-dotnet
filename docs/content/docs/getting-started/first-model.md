@@ -40,14 +40,15 @@ curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/i
 {{% /tab %}}
 {{< /tabpane >}}
 
-The script downloads the newest `morphirup`, checks it against the release's checksums, and installs it:
+The script downloads the newest `morphirup` from the [Morphir releases](https://github.com/finos/morphir/releases),
+checks it against the release's checksums, and installs it:
 
 ```text
 morphirup-install: finding the newest release with morphirup-win-arm64.exe
-morphirup-install: downloading morphirup-win-arm64.exe 0.4.0-alpha.5
-morphirup-install: SHA-256 verified: 6bb59736f765a9f2cbdf7262a1f07838c15c6025927f10f7642f4307a8d237f3
+morphirup-install: downloading morphirup-win-arm64.exe 0.5.0-alpha.2 from https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphirup-win-arm64.exe
+morphirup-install: SHA-256 verified: <the SHA-256 of the file>
 morphirup-install: installed ...\morphirup.exe
-morphirup-install: morphirup --version: 0.4.0-alpha.5+3abb0de0a9de5a321e109db5f2eef3afcdd429ea
+morphirup-install: morphirup --version: 0.5.0-alpha.2+<commit>
 ```
 
 Your version may be newer. Open a new terminal, then check that `morphirup` is found:
@@ -57,7 +58,7 @@ morphirup --version
 ```
 
 ```text
-0.4.0-alpha.5+3abb0de0a9de5a321e109db5f2eef3afcdd429ea
+0.5.0-alpha.2+<commit>
 ```
 
 If the terminal says `morphirup` is not found, see
