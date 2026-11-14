@@ -7,8 +7,13 @@ public sealed record ExtensionRepositoryAddLocal(string Name, string Directory, 
 /// <summary>Local declaration mode within an already registered repository. It never downloads or probes.</summary>
 public sealed record ExtensionLocalDeclarationInstall(string Name, string Repository, string Release, string Archive,
     string Home, bool LocalDeveloper, bool NoProbe, bool DryRun);
-/// <summary>Installation from a provider source such as <c>github:owner/repo@1.2.3</c>. It never probes.</summary>
-public sealed record ExtensionSourceInstall(string Source, string Home, bool NoProbe, bool DryRun);
+/// <summary>
+/// Installation from a provider source such as <c>github:owner/repo@1.2.3</c> or <c>nuget:Acme.Morphir.Python@1.2.3</c>.
+/// It never probes. <paramref name="NuGetSource"/>, <paramref name="ConfigFile"/> and <paramref name="Interactive"/>
+/// are <c>--source</c>, <c>--configfile</c> and <c>--interactive</c>, which only a <c>nuget:</c> source takes.
+/// </summary>
+public sealed record ExtensionSourceInstall(string Source, string Home, bool NoProbe, bool DryRun,
+    string? NuGetSource = null, string? ConfigFile = null, bool Interactive = false);
 /// <summary>A command outcome, not an installation receipt or authentication statement.</summary>
 public sealed record ExtensionLocalOutcome(bool Success, string Code, string Message);
 

@@ -34,7 +34,10 @@ type InstalledActivationRecord
     /// Exact locked argument vector; no shell tokenization or additional arguments.
     member _.Arguments: IReadOnlyList<string> = Array.AsReadOnly(Array.ofList entry.Args)
     /// Delivered archive identity, distinct from tree identity.
-    member _.ArchiveDigest = entry.Digest
+    member _.ArchiveDigest =
+        match entry.Digest with
+        | Some digest -> digest
+        | None -> Operations.fail "package.no_archive_digest" "A nupkg package has no archive digest; its tree digest pins it."
     /// Canonical manifest and tree identity.
     member _.TreeDigest = plan.TreeDigest
     /// Existing-format single-selection catalog snapshot, preserving optional values.
@@ -55,24 +58,59 @@ type InstalledActivationRecord
     member internal _.Plan = plan
     member internal _.Entry = entry
 
-    override _.ToString() =
-        $"{entry.Id}@{entry.Version.Text}, tree {plan.TreeDigest.Value}."
+    /// True when the lock records runtime <c>wasm</c>.
+    member _.IsWasm = entry.Runtime = ArtifactRuntime.Wasm
 
-/// A snapshot and its already-acquired package lease, captured atomically under the state lock.
+    override _.ToString() =
+        if entry.Runtime = ArtifactRuntime.Wasm then
+            $"{entry.Id}@{entry.Version.Text}, WASM module {plan.TreeDigest.Value}."
+        else
+            $"{entry.Id}@{entry.Version.Text}, tree {plan.TreeDigest.Value}."
+
+/// How a captured extension runs: a process from its package tree, or a WASM module from the single-file store.
+[<RequireQualifiedAccess>]
+type internal CapturedRuntime =
+    | Process of PackageActivation
+    | Wasm of InstalledModule
+
+/// A snapshot and its already-acquired package lease or verified module, captured atomically under the state lock.
 [<Sealed>]
-type CapturedExtension internal (record: InstalledActivationRecord, activation: PackageActivation) =
+type CapturedExtension internal (record: InstalledActivationRecord, runtime: CapturedRuntime) =
     /// Immutable metadata that remains valid independently of global id replacement.
     member _.Record = record
-    /// Retain until every consumer child and output pump has settled.
-    member _.Activation = activation
+
+    /// True for an installed WASM extension; then use <see cref="Module"/>, not <see cref="Activation"/>.
+    member _.IsWasm =
+        match runtime with
+        | CapturedRuntime.Wasm _ -> true
+        | CapturedRuntime.Process _ -> false
+
+    /// The package lease of a process extension. Retain until every consumer child and output pump has settled.
+    /// A WASM extension has none and throws <see cref="InvalidOperationException"/>.
+    member _.Activation =
+        match runtime with
+        | CapturedRuntime.Process activation -> activation
+        | CapturedRuntime.Wasm _ -> raise (InvalidOperationException "A WASM extension has no package activation; use Module.")
+
+    /// The verified module of a WASM extension, or null for a process extension.
+    member _.Module: InstalledModule | null =
+        match runtime with
+        | CapturedRuntime.Wasm installed -> installed
+        | CapturedRuntime.Process _ -> null
+
     override _.ToString() = record.ToString()
 
     interface IDisposable with
-        member _.Dispose() = (activation :> IDisposable).Dispose()
+        member _.Dispose() =
+            match runtime with
+            | CapturedRuntime.Process activation -> (activation :> IDisposable).Dispose()
+            | CapturedRuntime.Wasm installed -> (installed :> IDisposable).Dispose()
 
     interface IAsyncDisposable with
         member _.DisposeAsync() =
-            (activation :> IAsyncDisposable).DisposeAsync()
+            match runtime with
+            | CapturedRuntime.Process activation -> (activation :> IAsyncDisposable).DisposeAsync()
+            | CapturedRuntime.Wasm installed -> (installed :> IAsyncDisposable).DisposeAsync()
 
 [<Sealed>]
 type internal CapturedExtensionSet internal (captures: CapturedExtension array, catalog: byte array) =
@@ -136,7 +174,7 @@ module internal GenerationBinding =
                 let retained = PackagePlan.FromState(entry,locked)
                 if retained.Artifact.Platform <> Some (InstallationPlatform.Create(Platform.name candidate.Host.Platform).DescriptorTriple) then
                     Operations.fail "extension.generation_mismatch" "The retained process platform differs from the host candidate."
-            if entry.Version <> pin.Version || entry.Digest.Value <> pin.ArchiveSha256.Text then
+            if entry.Version <> pin.Version || (entry.Digest |> Option.map _.Value) <> Some pin.ArchiveSha256.Text then
                 Operations.fail "extension.generation_mismatch" "Portable pin differs from the retained installed record."
             locked)
         let ids = pins |> List.map(fun pin -> pin.Id.Text) |> Set.ofList
@@ -191,7 +229,7 @@ module internal GenerationBinding =
                     same (asset "selection").Sha256 candidate.SelectionSha256
                     for role,id in ["frontend",candidate.FrontendId;"backend",candidate.BackendId] do
                         let locked = locks |> List.find(fun locked -> locked.Entry.Id=id.Text)
-                        same (asset (role+"-archive")).Sha256.Text locked.Entry.Digest.Value
+                        same (Some (asset (role+"-archive")).Sha256.Text) (locked.Entry.Digest |> Option.map _.Value)
                         let _,path,digest =
                             manifest.Metadata |> List.tryFind(fun (candidate,_,_) -> candidate=id)
                             |> Option.defaultWith(fun () -> Operations.fail "extension.generation_incomplete" "Release checksum generation requires its original provider release envelopes.")
@@ -304,9 +342,21 @@ module private ActivationState =
                     plan
                 )
 
-            new CapturedExtension(record, activation)
+            new CapturedExtension(record, CapturedRuntime.Process activation)
         with _ ->
             (activation :> IDisposable).Dispose()
+            reraise ()
+
+    let fromModule (root: SafeDirectory) (catalog: StateCatalog) (entry: StateEntry) locked plan (installed: InstalledModule) =
+        try
+            let selected =
+                withFields [ "extensions", Value.Array[entry.Json] ] catalog.Json
+                |> JsonText.toBytes
+
+            let record = InstalledActivationRecord(entry, locked, selected, [||], root.Identity, plan)
+            new CapturedExtension(record, CapturedRuntime.Wasm installed)
+        with _ ->
+            (installed :> IDisposable).Dispose()
             reraise ()
 
     let capture (root: SafeDirectory) (catalog: StateCatalog) (entry: StateEntry) locked host ct =
@@ -321,8 +371,13 @@ module private ActivationState =
                 "Selected catalog requires a different host."
 
         let plan = PackagePlan.FromState(entry, locked)
-        let activation = acquire root.Path root.Identity plan false ct
-        fromActivation root catalog entry locked plan activation
+
+        if plan.IsModule then
+            let installed = ModuleInstaller.Acquire(root.Path, root.Identity, plan, ct)
+            fromModule root catalog entry locked plan installed
+        else
+            let activation = acquire root.Path root.Identity plan false ct
+            fromActivation root catalog entry locked plan activation
 
     let captureExpected (root: SafeDirectory) expectedCatalogBytes expectedLockBytes host ct =
         let expectedCatalog =
@@ -431,38 +486,64 @@ module private ActivationState =
                 | None -> ()
         ]
 
-        let platform =
+        let platform () =
             InstallationPlatform.FromDescriptorTriple(plan.Artifact.Platform.Value)
             |> StateOwnership.unwrap
             |> fun p ->
                 p.GetIndexPlatform()
                 |> StateOwnership.unwrap
 
+        // A WASM module (design WASM-1) has no platform, no arguments and no package, and is not executable.
+        let runtime =
+            if plan.IsModule then
+                [ "runtime", stringValue "wasm" ]
+            else
+                let platform = platform ()
+
+                [
+                    "runtime", stringValue "process"
+                    "platform",
+                    Value.Object["os", stringValue platform.Os
+                                 "arch", stringValue platform.Arch]
+                ]
+
         let common =
-            [
-                "extensionId", stringValue descriptor.ExtensionId.Value
-                "name", value "name" extension
-                "version", stringValue descriptor.Version.Text
-                "runtime", stringValue "process"
-                "platform",
-                Value.Object["os", stringValue platform.Os
-                             "arch", stringValue platform.Arch]
-                "args", Value.Array(List.map stringValue args)
-                "digest", stringValue plan.ArchiveDigest.Value
+            runtime
+            @ [
+                "args", Value.Array(if plan.IsModule then [] else List.map stringValue args)
+                yield!
+                    match plan.Integrity with
+                    | PayloadIntegrity.FileThenTree(file, _) -> [ "digest", stringValue file.Value ]
+                    | PayloadIntegrity.ModuleFile digest -> [ "digest", stringValue digest.Value ]
+                    | PayloadIntegrity.TreeOnly _ -> []
                 "capabilities", value "types" extension
                 "mepVersions", value "protocolVersions" claims.Json
-                "executable", Value.Boolean true
-                "package", plan.Artifact.Package.Value
+                "executable", Value.Boolean(not plan.IsModule)
+                yield!
+                    match plan.Artifact.Package with
+                    | Some package -> [ "package", package ]
+                    | None -> []
             ]
             @ summaries
+            |> fun items ->
+                [
+                    "extensionId", stringValue descriptor.ExtensionId.Value
+                    "name", value "name" extension
+                    "version", stringValue descriptor.Version.Text
+                ]
+                @ items
+
+        let storePath =
+            if plan.IsModule then
+                $"store/extensions/sha256/{plan.TreeDigest.Value}/{plan.Artifact.Filename.Text}"
+            else
+                $"store/extensions/packages/sha256/{plan.TreeDigest.Value}/tree/{plan.EntryPoint.Text}"
 
         let catalog =
             Value.Object(
                 common
                 @ [
-                    "storePath",
-                    stringValue
-                        $"store/extensions/packages/sha256/{plan.TreeDigest.Value}/tree/{plan.EntryPoint.Text}"
+                    "storePath", stringValue storePath
                     "index", provenance
                     "claims", claims.Json
                     "claimCheck", stringValue "unchecked"
@@ -506,28 +587,38 @@ module private ActivationState =
             let source =
                 SourceDocuments.sourceValue (ArtifactSource.LocalFile("artifacts/" + plan.Artifact.Filename.Text))
 
-            let platform =
-                InstallationPlatform.FromDescriptorTriple(plan.Artifact.Platform.Value)
-                |> StateOwnership.unwrap
-                |> fun p ->
-                    p.GetIndexPlatform()
-                    |> StateOwnership.unwrap
-
             let artifact =
-                Value.Object["runtime", stringValue "process"
+                if plan.IsModule then
+                    Value.Object["runtime", stringValue "wasm"
+                                 "filename", stringValue plan.Artifact.Filename.Text
+                                 "sha256", stringValue plan.ArchiveDigest.Value
+                                 "claims", claims.Json
+                                 "source", source
+                                 "args", Value.Array []
+                                 "executable", Value.Boolean false
+                                 "claimCheck", stringValue "unchecked"]
+                else
+                    let platform =
+                        InstallationPlatform.FromDescriptorTriple(plan.Artifact.Platform.Value)
+                        |> StateOwnership.unwrap
+                        |> fun p ->
+                            p.GetIndexPlatform()
+                            |> StateOwnership.unwrap
 
-                             "platform",
-                             Value.Object["os", stringValue platform.Os
-                                          "arch", stringValue platform.Arch]
+                    Value.Object["runtime", stringValue "process"
 
-                             "filename", stringValue plan.Artifact.Filename.Text
-                             "sha256", stringValue plan.ArchiveDigest.Value
-                             "claims", claims.Json
-                             "source", source
-                             "args", Value.Array(List.map stringValue args)
-                             "executable", Value.Boolean true
-                             "claimCheck", stringValue "unchecked"
-                             "package", plan.Artifact.Package.Value]
+                                 "platform",
+                                 Value.Object["os", stringValue platform.Os
+                                              "arch", stringValue platform.Arch]
+
+                                 "filename", stringValue plan.Artifact.Filename.Text
+                                 "sha256", stringValue plan.ArchiveDigest.Value
+                                 "claims", claims.Json
+                                 "source", source
+                                 "args", Value.Array(List.map stringValue args)
+                                 "executable", Value.Boolean true
+                                 "claimCheck", stringValue "unchecked"
+                                 "package", plan.Artifact.Package.Value]
 
             let cap =
                 value "capabilities" claims.Json
@@ -544,7 +635,9 @@ module private ActivationState =
                         "capabilities", value "types" extension
                         "mepVersions", value "protocolVersions" claims.Json
                         "artifacts", Value.Array[artifact]
-                        "critical", Value.Array[stringValue "artifacts.package"]
+                        yield!
+                            if plan.IsModule then []
+                            else [ "critical", Value.Array[stringValue "artifacts.package"] ]
                     ]
                     @ [
                         for kind in [ "frontend"; "backend" ] do
@@ -757,9 +850,7 @@ module private ActivationState =
 
         let retainedPlan = PackagePlan.FromState(entry, locked)
 
-        let activation = acquire root.Path root.Identity retainedPlan true ct
-
-        try
+        let commit () =
             StateTransactions.commit
                 root
                 locked.Entry.Id
@@ -768,10 +859,25 @@ module private ActivationState =
                 afterPhase
                 ct
 
-            fromActivation root catalog entry locked retainedPlan activation
-        with _ ->
-            (activation :> IDisposable).Dispose()
-            reraise ()
+        if retainedPlan.IsModule then
+            let installed = ModuleInstaller.Acquire(root.Path, root.Identity, retainedPlan, ct)
+
+            try
+                commit ()
+            with _ ->
+                (installed :> IDisposable).Dispose()
+                reraise ()
+
+            fromModule root catalog entry locked retainedPlan installed
+        else
+            let activation = acquire root.Path root.Identity retainedPlan true ct
+
+            try
+                commit ()
+                fromActivation root catalog entry locked retainedPlan activation
+            with _ ->
+                (activation :> IDisposable).Dispose()
+                reraise ()
 
 /// Installation and activation through the existing extension catalog/lock contracts.
 [<AbstractClass; Sealed>]
@@ -885,8 +991,9 @@ type InstalledExtensions private () =
                 Operations.runAsync
                     ct
                     (fun () -> task {
-                        ActivationPlatforms.ensure plan.Artifact.Platform
-                        |> StateOwnership.unwrap
+                        if not plan.IsModule then
+                            ActivationPlatforms.ensure plan.Artifact.Platform
+                            |> StateOwnership.unwrap
 
                         DistributionIdentifiers.ParseExtensionId plan.Descriptor.ExtensionId.Value
                         |> StateOwnership.unwrap
@@ -925,14 +1032,29 @@ type InstalledExtensions private () =
             with
             | Some failure -> return InstallationResult(Error failure)
             | None ->
-                let! tree = PackageInstaller.InstallFromAsync(home, plan, openArchive, ct)
+                let! installedFailure =
+                    if plan.IsModule then
+                        task {
+                            let! stored = ModuleInstaller.InstallAsync(home, plan, openArchive, ct)
 
-                match
-                    tree.Match(
-                        Func<InstalledPackage, InstallationFailure option>(fun _ -> None),
-                        Func<InstallationFailure, InstallationFailure option>(Some)
-                    )
-                with
+                            return
+                                stored.Match(
+                                    Func<StoredArtifact, InstallationFailure option>(fun _ -> None),
+                                    Func<InstallationFailure, InstallationFailure option>(Some)
+                                )
+                        }
+                    else
+                        task {
+                            let! tree = PackageInstaller.InstallFromAsync(home, plan, openArchive, ct)
+
+                            return
+                                tree.Match(
+                                    Func<InstalledPackage, InstallationFailure option>(fun _ -> None),
+                                    Func<InstallationFailure, InstallationFailure option>(Some)
+                                )
+                        }
+
+                match installedFailure with
                 | Some failure -> return InstallationResult(Error failure)
                 | None ->
                     return!
@@ -1057,6 +1179,12 @@ type InstalledExtensions private () =
                                 "extension.path_escape"
                                 "Retained record belongs to a different Home identity."
 
+                        // A package activation is a process extension's: a WASM extension has a module instead.
+                        if record.IsWasm then
+                            Operations.fail
+                                "extension.not_package"
+                                "The retained record is a WASM extension, which has no package activation; capture it for its module."
+
                         let captured =
                             ActivationState.captureExpected
                                 root
@@ -1064,6 +1192,10 @@ type InstalledExtensions private () =
                                 record.LockBytes
                                 hostVersion
                                 ct
+
+                        if captured.IsWasm then
+                            (captured :> IDisposable).Dispose()
+                            Operations.fail "extension.not_package" "The current installed record is a WASM extension, which has no package activation."
 
                         captured.Activation
                     )

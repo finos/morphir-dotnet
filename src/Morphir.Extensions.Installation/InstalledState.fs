@@ -35,7 +35,7 @@ module internal StateOwnership =
 
                     SharedJson.schema
                         path
-                        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/{kind}.schema.json"
+                        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/{kind}.schema.json"
                         items
                 )
 

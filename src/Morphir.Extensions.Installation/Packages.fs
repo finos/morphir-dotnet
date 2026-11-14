@@ -13,6 +13,16 @@ open System.Threading.Tasks
 open Morphir.Toolchain
 open Morphir.Mep
 
+/// How the installer checks the bytes of one payload shape before it publishes anything.
+[<RequireQualifiedAccess>]
+type PayloadIntegrity =
+    /// A zip or tar.gz archive: the file digest first, then the canonical tree digest of what was written.
+    | FileThenTree of file: Sha256Digest * tree: Sha256Digest
+    /// A subtree of a NuGet package: the tree digest only, because a feed may sign the package after it is packed.
+    | TreeOnly of tree: Sha256Digest
+    /// A single WASM module: its file digest.
+    | ModuleFile of sha256: Sha256Digest
+
 /// A release-bound package plan. Archive and canonical tree identities remain separate.
 [<Sealed>]
 type PackagePlan
@@ -26,8 +36,21 @@ type PackagePlan
         executables: TargetPath array,
         tree: Sha256Digest
     ) =
-    /// The digest of the delivered archive bytes.
-    member _.ArchiveDigest = artifact.Sha256
+    /// The digest of the delivered archive bytes. A nupkg package has none: use <see cref="Integrity"/>.
+    member _.ArchiveDigest =
+        match artifact.Sha256 with
+        | Some digest -> digest
+        | None -> Operations.fail "package.no_archive_digest" "A nupkg package has no archive digest; its tree digest pins it."
+
+    /// The integrity pin the installer checks before it publishes the package or module.
+    member _.Integrity =
+        match artifact.Runtime, artifact.Sha256 with
+        | ArtifactRuntime.Wasm, Some digest -> PayloadIntegrity.ModuleFile digest
+        | _, Some digest -> PayloadIntegrity.FileThenTree(digest, tree)
+        | _, None -> PayloadIntegrity.TreeOnly tree
+
+    /// True when the selected artifact is a WASM module, installed in the single-file store with no package tree.
+    member _.IsModule = artifact.Runtime = ArtifactRuntime.Wasm
     /// The digest of the canonical package manifest.
     member _.TreeDigest = tree
     /// The portable regular-file path of the process entry point.
@@ -49,9 +72,43 @@ type PackagePlan
 
     /// A diagnostic summary of the two independently bound identities.
     override _.ToString() =
-        $"Package tree {tree.Value}, archive {artifact.Sha256.Value}."
+        match artifact.Sha256 with
+        | Some digest -> $"Package tree {tree.Value}, archive {digest.Value}."
+        | None -> $"Package tree {tree.Value}, {format} package."
+
+    /// The plan of an installed WASM module: no package, no platform, pinned by the module digest.
+    static member internal Module(descriptor: ReleaseDescriptor option, artifact: ReleaseArtifact) =
+        let digest =
+            artifact.Sha256
+            |> Option.defaultWith (fun () -> Operations.fail "extension.invalid_descriptor" "A WASM artifact requires sha256.")
+
+        PackagePlan(descriptor, artifact, "wasm", None, artifact.Filename, [||], digest)
 
     static member internal FromState(entry: StateEntry, locked: StateLock) =
+      if entry.Runtime = ArtifactRuntime.Wasm then
+        let lockItems = SharedJson.members "lock" locked.Json
+
+        let filename =
+            SharedJson.protect (fun () ->
+                SharedJson.required "lock" "source" lockItems
+                |> SourceDocuments.readSource "lock.source" true
+                |> SourceDocuments.moduleFilenameOf)
+            |> StateOwnership.unwrap
+            |> DistributionIdentifiers.ParseArtifactFileName
+            |> StateOwnership.unwrap
+
+        PackagePlan.Module(
+            None,
+            {
+                Runtime = ArtifactRuntime.Wasm
+                Platform = None
+                Filename = filename
+                Sha256 = entry.Digest
+                Claims = entry.Claims
+                Package = None
+            }
+        )
+      else
         let value =
             match entry.Package with
             | Some value -> value
@@ -121,6 +178,29 @@ type PackagePlan
             Sha256Digest.Create(text "treeSha256")
         )
 
+    /// The host selection of packages.md: the one process artifact whose platform matches the host, else the first
+    /// WASM artifact, else <c>extension.no_matching_artifact</c>. The lock records the selection; activation never
+    /// selects again.
+    static member internal Select(descriptor: ReleaseDescriptor, platform: InstallationPlatform) =
+        let processes =
+            descriptor.Artifacts
+            |> List.filter (fun artifact ->
+                artifact.Runtime = ArtifactRuntime.Process
+                && artifact.Platform = Some platform.DescriptorTriple)
+
+        match processes with
+        | [ artifact ] -> artifact
+        | _ :: _ :: _ ->
+            SharedJson.fail "extension.no_matching_artifact" "artifacts" "Expected exactly one matching process artifact."
+        | [] ->
+            match descriptor.Artifacts |> List.tryFind (fun artifact -> artifact.Runtime = ArtifactRuntime.Wasm) with
+            | Some artifact -> artifact
+            | None ->
+                SharedJson.fail
+                    "extension.no_matching_artifact"
+                    "artifacts"
+                    $"No process artifact matches {platform.DescriptorTriple} and the release has no WASM artifact."
+
     /// Reads the exact published release family and selects one process artifact by target triple.
     static member Read(bytes: byte array, platform: InstallationPlatform) =
         let result =
@@ -129,29 +209,12 @@ type PackagePlan
                 SharedJson.protect (fun () ->
                     let items = SharedJson.members "release.json" descriptor.Json
 
-                    let selected =
-                        descriptor.Artifacts
-                        |> List.filter (fun artifact ->
-                            artifact.Platform = Some platform.DescriptorTriple
-                        )
+                    let artifact = PackagePlan.Select(descriptor, platform)
 
-                    let artifact =
-                        match selected with
-                        | [ artifact ] -> artifact
-                        | _ ->
-                            SharedJson.fail
-                                "extension.no_matching_artifact"
-                                "artifacts"
-                                "Expected exactly one matching process artifact."
+                    if artifact.Runtime = ArtifactRuntime.Wasm then
+                        PackagePlan.Module(Some descriptor, artifact)
+                    else
 
-                    if
-                        artifact.Runtime
-                        <> ArtifactRuntime.Process
-                    then
-                        SharedJson.fail
-                            "package.runtime"
-                            "artifacts"
-                            "Packages require process runtime."
 
                     let declaration =
                         match artifact.Package with
@@ -181,7 +244,10 @@ type PackagePlan
 
                     if
                         not (
-                            (format = "zip"
+                            (format = "nupkg"
+                             && filename.EndsWith(".nupkg", StringComparison.Ordinal)
+                             && StringComparer.Ordinal.Equals(filename, filename.ToLowerInvariant()))
+                            || (format = "zip"
                              && filename.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
                             || (format = "tar.gz"
                                 && (filename.EndsWith(
@@ -836,7 +902,21 @@ module internal PackageTreeIO =
                 + "/"
             )
 
+        // A nupkg archive is a NuGet package: only the entries under root are package entries. The others
+        // (.nuspec, _rels/, [Content_Types].xml, package/, .signature.p7s, morphir/) are neither refused, extracted
+        // nor hashed (packages.md, "A NuGet package is read as ZIP, and only its root is the tree").
+        let outsideRoot (name: string) =
+            plan.Format = "nupkg"
+            && (match root with
+                | Some prefix ->
+                    let name = if name.StartsWith("./", StringComparison.Ordinal) then name.Substring 2 else name
+                    not (name.StartsWith(prefix, StringComparison.Ordinal))
+                | None -> false)
+
         for recordName, recordDirectory in records do
+          if outsideRoot recordName then
+            normalized.Add None
+          else
             let original = recordName
 
             if original.Length > 240 then
@@ -949,13 +1029,96 @@ module internal PackageTreeIO =
 
         normalized.ToArray()
 
-    let extractZip
-        (source: Stream)
-        (tree: SafeDirectory)
-        (plan: PackagePlan)
-        (created: Dictionary<string, StageIdentity>)
-        (ct: CancellationToken)
-        =
+    /// Where a payload reader puts package files. The sink owns every write into the private stage: directories,
+    /// the per-file and expansion limits, the executable mode from the plan, and the canonical tree digest.
+    type PackageTreeSink(tree: SafeDirectory, plan: PackagePlan, created: Dictionary<string, StageIdentity>, ct: CancellationToken) =
+        let files = ResizeArray<PackageFile>()
+        let mutable total = 0L
+
+        member _.Plan = plan
+        member _.CancellationToken = ct
+
+        /// Writes one regular file at a package-relative path the reader normalized. Returns its length and CRC-32.
+        member _.AddFile(relative: string, input: Stream) : int64 * uint32 =
+            let owned = ResizeArray<IDisposable>()
+
+            try
+                let parts = relative.Split '/'
+
+                // Directory headers are validated by the reader. Materialize directories only when a regular file
+                // requires them, never from empty entries.
+                let parent =
+                    stageDirectories owned created tree (parts[0 .. parts.Length - 2] |> Array.toList)
+
+                let name = parts[parts.Length - 1]
+                use output = parent.File(name, true, false)
+                created[Path.Combine(parent.Path, name)] <- parent.FileIdentity output
+                let hash = Digest.Incremental()
+                let buffer = Array.zeroCreate<byte> 65536
+                let mutable length = 0L
+                let mutable crc = UInt32.MaxValue
+                let mutable reading = true
+
+                while reading do
+                    ct.ThrowIfCancellationRequested()
+                    let count = input.Read(buffer, 0, buffer.Length)
+
+                    if count = 0 then
+                        reading <- false
+                    else
+                        length <- length + int64 count
+                        total <- total + int64 count
+
+                        if length > InstallationLimits.MaxArtifactBytes then
+                            Operations.fail "package.file_too_large" "Package file exceeds 256 MiB."
+
+                        if total > InstallationLimits.MaxArchiveBytes then
+                            Operations.fail "package.expanded_too_large" "Package expansion exceeds 1 GiB."
+
+                        hash.Append(buffer, 0, count)
+
+                        for j in 0 .. count - 1 do
+                            crc <- crcTable[int ((crc ^^^ uint32 buffer[j]) &&& 255u)] ^^^ (crc >>> 8)
+
+                        output.Write(buffer, 0, count)
+
+                output.Flush true
+
+                let executable =
+                    relative = plan.EntryPoint.Text
+                    || plan.Executables |> Seq.exists (fun path -> path.Text = relative)
+
+                mode (Path.Combine(parent.Path, name)) executable
+
+                files.Add(
+                    PackageFile(
+                        PackagePaths.read "package.path" relative,
+                        length,
+                        Sha256Digest.Create(hash.Finish()),
+                        executable
+                    )
+                )
+
+                length, crc ^^^ UInt32.MaxValue
+            finally
+                close owned
+
+        /// The canonical manifest of what was written, checked against <c>package.treeSha256</c>.
+        member _.Finish() =
+            let manifest = PackageManifest.Create(files.ToArray())
+
+            if Digest.ofBytes (manifest.ToBytes()) <> plan.TreeDigest.Value then
+                Operations.fail
+                    "package.tree_digest_mismatch"
+                    "Extracted canonical tree differs from package.treeSha256."
+
+            manifest
+
+    /// Reads a ZIP archive into the sink: the whole archive passes the ZIP layout and header rules, and only the
+    /// entries the package reader keeps are written. A nupkg archive is read this way, with only its root kept.
+    let readZip (source: Stream) (sink: PackageTreeSink) =
+        let plan = sink.Plan
+        let ct = sink.CancellationToken
         let records = ArchiveChecks.zipRecordsWithPolicy source true
         let normalized =
             normalizeEntries (records |> Array.map (fun record -> record.Name, record.Directory)) plan
@@ -963,20 +1126,10 @@ module internal PackageTreeIO =
         source.Position <- 0L
         use zip = new ZipArchive(source, ZipArchiveMode.Read, true)
 
-        if
-            zip.Entries.Count
-            <> records.Length
-        then
-            Operations.fail
-                "package.zip_header_mismatch"
-                "Archive reader and validated records differ."
+        if zip.Entries.Count <> records.Length then
+            Operations.fail "package.zip_header_mismatch" "Archive reader and validated records differ."
 
-        let files = ResizeArray<PackageFile>()
-        let mutable total = 0L
-
-        for i in
-            0 .. records.Length
-                 - 1 do
+        for i in 0 .. records.Length - 1 do
             ct.ThrowIfCancellationRequested()
 
             match normalized[i] with
@@ -985,140 +1138,26 @@ module internal PackageTreeIO =
                 let record = records[i]
                 let entry = zip.Entries[i]
 
-                if
-                    entry.FullName
-                    <> record.Name
-                then
+                if entry.FullName <> record.Name then
                     Operations.fail "package.zip_header_mismatch" "ZIP effective name differs."
 
-                let owned = ResizeArray<IDisposable>()
+                if not record.Directory then
+                    use input = entry.Open()
+                    let length, crc = sink.AddFile(relative, input)
 
-                try
-                    let parts = relative.Split '/'
+                    if length <> record.Length || crc <> record.Crc then
+                        Operations.fail "package.zip_header_mismatch" "ZIP actual file size or CRC differs."
 
-                    // Directory headers are validated above. Materialize directories
-                    // only when a regular file requires them, never from empty entries.
-                    if not record.Directory then
-                        let parent =
-                            stageDirectories
-                                owned
-                                created
-                                tree
-                                (parts[0 .. parts.Length
-                                            - 2]
-                                 |> Array.toList)
-
-                        let name =
-                            parts[parts.Length
-                                  - 1]
-
-                        use output = parent.File(name, true, false)
-                        created[Path.Combine(parent.Path, name)] <- parent.FileIdentity output
-                        use input = entry.Open()
-                        let hash = Digest.Incremental()
-                        let buffer = Array.zeroCreate<byte> 65536
-                        let mutable length = 0L
-                        let mutable crc = UInt32.MaxValue
-                        let mutable reading = true
-
-                        while reading do
-                            ct.ThrowIfCancellationRequested()
-                            let count = input.Read(buffer, 0, buffer.Length)
-
-                            if count = 0 then
-                                reading <- false
-                            else
-                                length <-
-                                    length
-                                    + int64 count
-
-                                total <-
-                                    total
-                                    + int64 count
-
-                                if length > InstallationLimits.MaxArtifactBytes then
-                                    Operations.fail
-                                        "package.file_too_large"
-                                        "Package file exceeds 256 MiB."
-
-                                if total > InstallationLimits.MaxArchiveBytes then
-                                    Operations.fail
-                                        "package.expanded_too_large"
-                                        "Package expansion exceeds 1 GiB."
-
-                                hash.Append(buffer, 0, count)
-
-                                for j in 0 .. count - 1 do
-                                    crc <-
-                                        crcTable[int (
-                                                     (crc
-                                                      ^^^ uint32 buffer[j])
-                                                     &&& 255u
-                                                 )]
-                                        ^^^ (crc >>> 8)
-
-                                output.Write(buffer, 0, count)
-
-                        if
-                            length
-                            <> record.Length
-                            || (crc
-                                ^^^ UInt32.MaxValue)
-                               <> record.Crc
-                        then
-                            Operations.fail
-                                "package.zip_header_mismatch"
-                                "ZIP actual file size or CRC differs."
-
-                        output.Flush true
-
-                        let executable =
-                            relative = plan.EntryPoint.Text
-                            || plan.Executables
-                               |> Seq.exists (fun path -> path.Text = relative)
-
-                        mode (Path.Combine(parent.Path, name)) executable
-
-                        files.Add(
-                            PackageFile(
-                                PackagePaths.read "package.path" relative,
-                                length,
-                                Sha256Digest.Create(hash.Finish()),
-                                executable
-                            )
-                        )
-                finally
-                    close owned
-
-        let manifest = PackageManifest.Create(files.ToArray())
-
-        if
-            Digest.ofBytes (manifest.ToBytes())
-            <> plan.TreeDigest.Value
-        then
-            Operations.fail
-                "package.tree_digest_mismatch"
-                "Extracted canonical tree differs from package.treeSha256."
-
-        manifest
-
-    /// Extracts a tar.gz package by the rules of a ZIP package: the package records first refuse links, devices and
-    /// the package bounds, the package reader checks the names, then one pass writes each regular file with its
-    /// canonical mode.
-    let extractTarGz
-        (source: Stream)
-        (tree: SafeDirectory)
-        (plan: PackagePlan)
-        (created: Dictionary<string, StageIdentity>)
-        (ct: CancellationToken)
-        =
+    /// Reads a tar.gz package by the rules of a ZIP package: the package records first refuse links, devices and
+    /// the package bounds, the package reader checks the names, then one pass writes each regular file.
+    let readTarGz (source: Stream) (sink: PackageTreeSink) =
+        let plan = sink.Plan
+        let ct = sink.CancellationToken
         let records = ArchiveChecks.tarPackageRecords source ct
         let normalized = normalizeEntries (records |> Array.map (fun record -> record.Name, record.IsDirectory)) plan
         source.Position <- 0L
         use gzip = new GZipStream(source, CompressionMode.Decompress, true)
         use tar = new Formats.Tar.TarReader(gzip, true)
-        let files = ResizeArray<PackageFile>()
-        let mutable total = 0L
         let mutable index = 0
         let mutable reading = true
 
@@ -1142,86 +1181,17 @@ module internal PackageTreeIO =
 
                 match normalized[index] with
                 | Some relative when not record.IsDirectory ->
-                    let owned = ResizeArray<IDisposable>()
+                    let input = match entry.DataStream with null -> Stream.Null | stream -> stream
+                    let length, _ = sink.AddFile(relative, input)
 
-                    try
-                        let parts = relative.Split '/'
-
-                        let parent =
-                            stageDirectories
-                                owned
-                                created
-                                tree
-                                (parts[0 .. parts.Length - 2] |> Array.toList)
-
-                        let fileName = parts[parts.Length - 1]
-                        use output = parent.File(fileName, true, false)
-                        created[Path.Combine(parent.Path, fileName)] <- parent.FileIdentity output
-                        let input = match entry.DataStream with null -> Stream.Null | stream -> stream
-                        let hash = Digest.Incremental()
-                        let buffer = Array.zeroCreate<byte> 65536
-                        let mutable length = 0L
-                        let mutable copying = true
-
-                        while copying do
-                            ct.ThrowIfCancellationRequested()
-                            let count = input.Read(buffer, 0, buffer.Length)
-
-                            if count = 0 then
-                                copying <- false
-                            else
-                                length <- length + int64 count
-                                total <- total + int64 count
-
-                                if length > InstallationLimits.MaxArtifactBytes then
-                                    Operations.fail "package.file_too_large" "Package file exceeds 256 MiB."
-
-                                if total > InstallationLimits.MaxArchiveBytes then
-                                    Operations.fail "package.expanded_too_large" "Package expansion exceeds 1 GiB."
-
-                                hash.Append(buffer, 0, count)
-                                output.Write(buffer, 0, count)
-
-                        if length <> entry.Length || length <> record.Length then
-                            Operations.fail "package.tar_header_mismatch" "Tar actual file size differs."
-
-                        output.Flush true
-
-                        let executable =
-                            relative = plan.EntryPoint.Text
-                            || plan.Executables
-                               |> Seq.exists (fun path -> path.Text = relative)
-
-                        mode (Path.Combine(parent.Path, fileName)) executable
-
-                        files.Add(
-                            PackageFile(
-                                PackagePaths.read "package.path" relative,
-                                length,
-                                Sha256Digest.Create(hash.Finish()),
-                                executable
-                            )
-                        )
-                    finally
-                        close owned
+                    if length <> entry.Length || length <> record.Length then
+                        Operations.fail "package.tar_header_mismatch" "Tar actual file size differs."
                 | _ -> ()
 
                 index <- index + 1
 
         if index <> records.Length then
             Operations.fail "package.tar_header_mismatch" "Archive reader and validated records differ."
-
-        let manifest = PackageManifest.Create(files.ToArray())
-
-        if
-            Digest.ofBytes (manifest.ToBytes())
-            <> plan.TreeDigest.Value
-        then
-            Operations.fail
-                "package.tree_digest_mismatch"
-                "Extracted canonical tree differs from package.treeSha256."
-
-        manifest
 
     let sealDirectories (tree: SafeDirectory) =
         let rec seal (directory: SafeDirectory) =
@@ -1338,6 +1308,51 @@ module internal PackageTreeIO =
         (stage :> IDisposable).Dispose()
         packages.DeleteDirectory name
 
+/// Fetched bytes of one shape. A reader puts their package files into the installer's sink; it never touches the
+/// store, the catalog, the lock or the journal.
+type internal IPackagePayload =
+    /// Opens the bytes for reading. The installer disposes the stream.
+    abstract Open: unit -> Stream
+    /// Reads the opened bytes into the sink. The installer checks the file digest, if any, before this.
+    abstract Read: source: Stream * sink: PackageTreeIO.PackageTreeSink -> unit
+
+/// The payload readers for archive bytes: zip and tar.gz archives, and a NuGet package read as ZIP with only its
+/// root as the tree. Local, GitHub and NuGet providers share them.
+module internal ArchivePayload =
+    let private signature (source: Stream) =
+        source.Position <- 0L
+        let bytes = Array.zeroCreate<byte> 4
+        let count = source.Read(bytes, 0, 4)
+        source.Position <- 0L
+        bytes, count
+
+    let private reader (plan: PackagePlan) =
+        match plan.Format with
+        | "zip"
+        | "nupkg" ->
+            fun (source: Stream) sink ->
+                let bytes, count = signature source
+
+                if not (ArchiveChecks.isZip bytes count) then
+                    Operations.fail "package.archive_format" "Archive bytes do not match declared ZIP format."
+
+                PackageTreeIO.readZip source sink
+        | "tar.gz" ->
+            fun (source: Stream) sink ->
+                let bytes, count = signature source
+
+                if not (ArchiveChecks.isGzip bytes count) then
+                    Operations.fail "package.archive_format" "Archive bytes do not match declared tar.gz format."
+
+                PackageTreeIO.readTarGz source sink
+        | _ -> Operations.fail "package.archive_format" "The package format is not zip, tar.gz or nupkg."
+
+    /// The payload of the archive a plan declares, read from a stream the caller opens.
+    let ofStream (plan: PackagePlan) (openArchive: Func<Stream>) =
+        { new IPackagePayload with
+            member _.Open() = openArchive.Invoke()
+            member _.Read(source, sink) = reader plan source sink }
+
 /// A read-only view of a stream that its owner keeps open: disposing the view does not close the owner's handle.
 /// The installer reads a staged download through it, so it never reopens the staged file by path.
 [<Sealed>]
@@ -1380,58 +1395,43 @@ type PackageInstaller private () =
             openArchive: Func<Stream>,
             ct: CancellationToken
         ) : Task<InstallationResult<InstalledPackage>> =
+        PackageInstaller.InstallPayloadAsync(home, plan, ArchivePayload.ofStream plan openArchive, ct)
+
+    /// The installer core for every payload shape: the integrity pin, the sink, then store publication.
+    static member internal InstallPayloadAsync
+        (
+            home: string,
+            plan: PackagePlan,
+            payload: IPackagePayload,
+            ct: CancellationToken
+        ) : Task<InstallationResult<InstalledPackage>> =
         Operations.runAsync
             ct
             (fun () -> task {
-                use input = openArchive.Invoke()
+                use input = payload.Open()
 
                 if input.Length > InstallationLimits.MaxArtifactBytes then
                     Operations.fail "package.archive_too_large" "Package archive exceeds 256 MiB."
 
-                let digest, _ =
-                    Copying.hashCopy
-                        input
-                        Stream.Null
-                        InstallationLimits.MaxArtifactBytes
-                        "package.archive_too_large"
-                        ct
+                match plan.Integrity with
+                | PayloadIntegrity.FileThenTree(file, _) ->
+                    let digest, _ =
+                        Copying.hashCopy
+                            input
+                            Stream.Null
+                            InstallationLimits.MaxArtifactBytes
+                            "package.archive_too_large"
+                            ct
 
-                if
-                    digest
-                    <> plan.ArchiveDigest.Value
-                then
-                    Operations.fail
-                        "package.archive_digest_mismatch"
-                        "Archive bytes differ from the release descriptor."
+                    if digest <> file.Value then
+                        Operations.fail
+                            "package.archive_digest_mismatch"
+                            "Archive bytes differ from the release descriptor."
+                | PayloadIntegrity.TreeOnly _ -> ()
+                | PayloadIntegrity.ModuleFile _ ->
+                    Operations.fail "package.runtime" "A WASM module is not a package tree."
 
                 input.Position <- 0L
-                let signature = Array.zeroCreate<byte> 4
-                let count = input.Read(signature, 0, 4)
-                input.Position <- 0L
-
-                if
-                    plan.Format <> "zip"
-                    && plan.Format <> "tar.gz"
-                then
-                    Operations.fail
-                        "package.archive_format"
-                        "The package format is neither zip nor tar.gz."
-
-                if
-                    plan.Format = "zip"
-                    && not (ArchiveChecks.isZip signature count)
-                then
-                    Operations.fail
-                        "package.archive_format"
-                        "Archive bytes do not match declared ZIP format."
-
-                if
-                    plan.Format = "tar.gz"
-                    && not (ArchiveChecks.isGzip signature count)
-                then
-                    Operations.fail
-                        "package.archive_format"
-                        "Archive bytes do not match declared tar.gz format."
 
                 use root = SafeDirectory.Open(home, true)
                 do! StateOwnership.checkRepositoriesAsync root ct
@@ -1479,10 +1479,9 @@ type PackageInstaller private () =
 
                                 let manifest =
                                     try
-                                        match plan.Format with
-                                        | "zip" -> PackageTreeIO.extractZip input tree plan created ct
-                                        | "tar.gz" -> PackageTreeIO.extractTarGz input tree plan created ct
-                                        | _ -> invalidOp "The package format was checked before staging."
+                                        let sink = PackageTreeIO.PackageTreeSink(tree, plan, created, ct)
+                                        payload.Read(input, sink)
+                                        sink.Finish()
                                     with
                                     | :? InvalidDataException as error ->
                                         ArchiveChecks.unsafe error.Message
@@ -1671,6 +1670,114 @@ type PackageInstaller private () =
                     )
                 )
         }
+
+/// An installed WASM module, verified against its lock digest. Retain it until the guest has stopped: it holds the
+/// store directories of the module open.
+[<Sealed>]
+type InstalledModule internal (path: string, digest: Sha256Digest, length: int64, resources: IDisposable array) =
+    let mutable disposed = 0
+    /// The native absolute path of the stored module.
+    member _.ModulePath = path
+    /// The SHA-256 the lock records, which the stored bytes matched when the module was captured.
+    member _.Digest = digest
+    /// The byte count of the stored module.
+    member _.Length = length
+    override _.ToString() = $"WASM module {digest.Value}."
+
+    member private _.Close() =
+        if Interlocked.Exchange(&disposed, 1) = 0 then
+            for resource in Array.rev resources do
+                resource.Dispose()
+
+    interface IDisposable with
+        member this.Dispose() = this.Close()
+
+    interface IAsyncDisposable with
+        member this.DisposeAsync() =
+            this.Close()
+            ValueTask.CompletedTask
+
+/// Installs and captures a WASM module (design WASM-1): the module is staged in the Home, checked against the
+/// descriptor sha256 and published in the single-file store. The guest never runs during installation.
+[<AbstractClass; Sealed>]
+type internal ModuleInstaller private () =
+    static member private Digest(plan: PackagePlan) =
+        match plan.Integrity with
+        | PayloadIntegrity.ModuleFile digest -> digest
+        | _ -> Operations.fail "package.runtime" "The plan is not a WASM module."
+
+    static member InstallAsync(home: string, plan: PackagePlan, openModule: Func<Stream>, ct: CancellationToken) : Task<InstallationResult<StoredArtifact>> =
+        Operations.runAsync ct (fun () -> task {
+            let digest = ModuleInstaller.Digest plan
+            use input = openModule.Invoke()
+
+            if input.Length > InstallationLimits.MaxArtifactBytes then
+                Operations.fail "extension.artifact_too_large" "The WASM module exceeds 256 MiB."
+
+            let! begun = PrivateStaging.BeginAsync(home, uint64 input.Length, digest, uint64 InstallationLimits.MaxArtifactBytes, ct)
+            let stage = PackageTreeIO.unwrap begun
+            let mutable owned = true
+
+            try
+                let buffer = Array.zeroCreate<byte> 65536
+                let mutable reading = true
+
+                while reading do
+                    let! count = input.ReadAsync(buffer, 0, buffer.Length, ct)
+
+                    if count = 0 then
+                        reading <- false
+                    else
+                        do! stage.WriteAsync(ReadOnlyMemory(buffer, 0, count), ct)
+
+                let! sealedResult = stage.SealAsync ct
+                let sealedStage = PackageTreeIO.unwrap sealedResult
+                owned <- false
+
+                try
+                    let! stored = SingleFileStore.PublishAsync(sealedStage, plan.Artifact.Filename, false, ct)
+                    return PackageTreeIO.unwrap stored
+                finally
+                    (sealedStage :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+            finally
+                if owned then
+                    (stage :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+        })
+
+    /// Opens the stored module of a lock and rehashes it offline. Changed bytes fail before any guest runs.
+    static member Acquire(home: string, expectedHome: StageIdentity, plan: PackagePlan, ct: CancellationToken) =
+        let digest = ModuleInstaller.Digest plan
+        let resources = ResizeArray<IDisposable>()
+
+        try
+            let root = SafeDirectory.Open(home, false)
+            resources.Add root
+
+            if root.Identity <> expectedHome then
+                Operations.fail "extension.path_escape" "Morphir Home was replaced since metadata capture."
+
+            let directory =
+                PackageTreeIO.directories resources root [ "store"; "extensions"; "sha256"; digest.Value ] false
+
+            let name = plan.Artifact.Filename.Text
+
+            let length =
+                use stream = directory.File(name, false, false)
+
+                let actual, count =
+                    Copying.hashCopy stream Stream.Null InstallationLimits.MaxArtifactBytes "extension.artifact_too_large" ct
+
+                if actual <> digest.Value then
+                    Operations.fail
+                        "extension.digest_mismatch"
+                        $"The stored WASM module {name} has digest {actual}, not the locked {digest.Value}."
+
+                count
+
+            new InstalledModule(Path.Combine(directory.Path, name), digest, length, resources.ToArray())
+        with _ ->
+            PackageTreeIO.close resources
+            reraise ()
 
 /// Prepares the existing release format for a complete-folder producer archive.
 /// This pure writer makes no installation, readiness or authenticated-provenance claim.

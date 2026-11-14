@@ -159,6 +159,86 @@ let private parsing =
             }
     ]
 
+/// A WASM-only release.json and its module, for the GitHub and local providers.
+let private wasmBytes = [| 0uy; 0x61uy; 0x73uy; 0x6duy; 1uy; 0uy; 0uy; 0uy; 9uy |]
+
+let private wasmDescriptor () =
+    let claims =
+        """{"protocolVersions":["0.2.0-draft.1"],"extension":{"id":"com.acme.analyzer","name":"Acme Analyzer","version":"2.0.0","types":["frontend"]},"capabilities":{"frontend":{"languages":[{"id":"acme","fileExtensions":[".acme"]}],"irVersions":["4"],"compile":true}}}"""
+
+    Encoding.UTF8.GetBytes(
+        $"""{{"$schema":"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json","extensionId":"com.acme.analyzer","shortId":"acme-analyzer","version":"2.0.0","platformDifferences":"none","artifacts":[{{"runtime":"wasm","filename":"acme-analyzer.wasm","sha256":"{Digest.ofBytes wasmBytes}","claims":{claims}}}]}}"""
+    )
+
+let private wasmLock (sandbox: TestSandbox) =
+    nonNull (JsonNode.Parse(File.ReadAllText(Path.Combine(home sandbox, "locks", "extensions", "com.acme.analyzer.json"))))
+
+let private wasmProviders =
+    testList "WasmProviders" [
+        test "a WASM-only GitHub release installs the module unchecked, and no guest runs" {
+            use sandbox = TestSandbox.Create()
+            let cleanup = PackageTests.packageCleanup sandbox
+
+            try
+                let descriptor = wasmDescriptor ()
+                let github = new FakeGitHub()
+
+                github.Json(
+                    "/api/repos/acme/analyzer/releases/tags/v2.0.0",
+                    $"""{{"tag_name":"v2.0.0","draft":false,"prerelease":false,"assets":[{{"name":"release.json","size":{descriptor.Length},"url":"{apiBase}repos/acme/analyzer/releases/assets/1"}},{{"name":"acme-analyzer.wasm","size":{wasmBytes.Length},"url":"{apiBase}repos/acme/analyzer/releases/assets/2"}}]}}"""
+                )
+
+                github.Bytes("/api/repos/acme/analyzer/releases/assets/1", descriptor)
+                github.Bytes("/api/repos/acme/analyzer/releases/assets/2", wasmBytes)
+                let provider = GitHubReleaseProvider(new HttpClient(github), apiBase, null) :> IExtensionSourceProvider
+
+                use captured =
+                    ExtensionSources.InstallAsync(home sandbox, provider, request "github:acme/analyzer@2.0.0", Array.AsReadOnly [||], host, ct).GetAwaiter().GetResult()
+                    |> get
+
+                Expect.isTrue captured.IsWasm "a WASM extension"
+                Expect.equal (File.ReadAllBytes (nonNull captured.Module).ModulePath) wasmBytes "the stored module"
+                let lock = wasmLock sandbox
+                Expect.equal (string lock["runtime"]) "wasm" "lock runtime"
+                Expect.equal (string (nonNull lock.["source"]).["kind"]) "github-release-asset" "GitHub source"
+            finally
+                cleanup.DisposeAsync().GetAwaiter().GetResult()
+        }
+        test "a WASM local declaration installs through the same installer" {
+            use sandbox = TestSandbox.Create()
+            let cleanup = PackageTests.packageCleanup sandbox
+
+            try
+                let repository = Path.Combine(sandbox.Root, "local-repository")
+                Directory.CreateDirectory repository |> ignore
+                let release = Path.Combine(repository, "release.json")
+                File.WriteAllBytes(release, wasmDescriptor ())
+                let modulePath = Path.Combine(repository, "acme-analyzer.wasm")
+                File.WriteAllBytes(modulePath, wasmBytes)
+
+                InstalledState.RegisterLocalRepositoryAsync(home sandbox, "local-one", repository, false, ct).GetAwaiter().GetResult()
+                |> get
+                |> ignore
+
+                let request =
+                    ExtensionSourceRequest.Local(home sandbox, "local-one", release, modulePath, Morphir.Extensions.ExtensionId.Create "com.acme.analyzer")
+
+                use captured =
+                    ExtensionSources.InstallAsync(home sandbox, LocalRepositoryProvider(), request, Array.AsReadOnly [||], host, ct).GetAwaiter().GetResult()
+                    |> get
+
+                Expect.isTrue captured.IsWasm "a WASM extension"
+                let lock = wasmLock sandbox
+                Expect.equal (string lock["runtime"]) "wasm" "lock runtime"
+                Expect.equal (string (nonNull lock.["source"]).["kind"]) "local-file" "local source"
+            finally
+                cleanup.DisposeAsync().GetAwaiter().GetResult()
+        }
+    ]
+
+[<Tests>]
+let wasmTests = testLabel "PlatformSpecific" <| testList "SourceProviders" [ wasmProviders ]
+
 [<Tests>]
 let tests =
     testLabel "PlatformSpecific" <| testList "SourceProviders" [

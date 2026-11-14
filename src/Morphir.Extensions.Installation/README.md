@@ -4,8 +4,8 @@ This library is the start of extension-model PRD step 3, tracked by
 [finos/morphir-dotnet#558](https://github.com/finos/morphir-dotnet/issues/558).
 It parses distribution values, checks platform and MEP eligibility, publishes raw
 single files, inspects bounded archives and owns temporary run directories.
-It does not complete an extension installation yet. The CLI installation commands
-remain stubs. See the [user status page](../../docs/content/docs/cli/extension-installation.md).
+`extension install` installs process extensions from local declarations, GitHub releases and NuGet feeds through it.
+See the [user status page](../../docs/content/docs/cli/extension-installation.md).
 
 ## Source providers
 
@@ -21,6 +21,25 @@ and journal. No provider has its own install path.
 | --- | --- | --- |
 | `LocalRepositoryProvider` | `ExtensionSourceRequest.Local(...)` | `local-directory`, `local-file` |
 | `GitHubReleaseProvider` | `github:<owner>/<repo>[@<version-or-tag>]` | `github-release`, `github-release-asset` |
+| `NuGetPackageProvider` (`NuGetProvider.fs`) | `nuget:<package-id>[@<version>]`, with `WithNuGetOptions` for `--source`, `--configfile`, `--interactive` | `nuget-package`, `nuget-package-entry` |
+
+The installer core takes a payload (`IPackagePayload` in `Packages.fs`): the bytes of one shape and a reader that
+puts their files into the installer's `PackageTreeSink`. The sink owns every write into the private stage, the
+limits, the executable modes and the tree digest. `PayloadIntegrity` says what is checked before publication: the
+file digest and then the tree digest of a `zip` or `tar.gz` archive (`FileThenTree`), or the tree digest only of a
+`nupkg` subtree (`TreeOnly`), because a feed may sign a package after it is packed. `ArchivePayload` reads zip,
+tar.gz and nupkg payloads for every provider; a nupkg is read as ZIP, and only its entries under `root` are the tree.
+
+The NuGet provider uses the Microsoft NuGet client packages (`NuGet.Protocol`, `NuGet.Configuration`,
+`NuGet.Credentials`, `NuGet.Packaging`, `NuGet.Versioning`) for sources, package source mapping, credentials,
+credential provider plugins, signatures and downloads. Every call uses a `SourceCacheContext` with `NoCache`,
+`DirectDownload` and a temporary folder under the Home, so the provider writes nothing to NuGet's own folders; it
+downloads packages into `StageResources` in the Home. NuGet.Protocol runs in a trimmed or Native AOT application only
+with the `NuGet.UseSystemTextJsonDeserialization` feature switch, which this package sets for its consumers in
+`buildTransitive/Morphir.Extensions.Installation.props`.
+
+`PackagePlan.Select` chooses the artifact for every provider: the matching `process` artifact, else a `wasm`
+artifact (finos/morphir#1176). WASM installation is not implemented yet.
 
 The GitHub provider streams the asset into `PrivateStaging`, which hashes with the
 managed BouncyCastle digest, so no OpenSSL hash is used. It reads GitHub JSON with

@@ -104,13 +104,18 @@ public class ThirdPartyNoticesTests
         foreach (var file in Directory.GetFiles(fallbacks, "*.txt"))
         {
             var lines = File.ReadAllLines(file);
-            lines[0].Should().Be("License: MIT", $"{Path.GetFileName(file)} is the MIT text of its package");
+            var name = Path.GetFileNameWithoutExtension(file);
+            // The NuGet client packages declare Apache-2.0; their fallback is the license of NuGet/NuGet.Client.
+            var apache = name.StartsWith("NuGet.", StringComparison.Ordinal);
+            lines[0].Should().Be(apache ? "License: Apache-2.0" : "License: MIT", $"{Path.GetFileName(file)} is the license text its package declares");
             lines[1].Should().StartWith("Source: https://github.com/");
-            string.Join('\n', lines).Should().Contain(Mit).And.Contain("Copyright");
+            string.Join('\n', lines).Should().Contain(apache ? "Apache License, Version 2.0" : Mit).And.Contain("Copyright");
         }
 
         Directory.GetFiles(fallbacks, "*.txt").Select(Path.GetFileNameWithoutExtension).Order(StringComparer.Ordinal)
-            .Should().Equal("CsToml", "FSharp.Core", "Microsoft.Extensions.Primitives", "Semver", "System.IO.Hashing");
+            .Should().Equal("CsToml", "FSharp.Core", "Microsoft.Extensions.Primitives", "NuGet.Common", "NuGet.Configuration",
+                "NuGet.Credentials", "NuGet.Frameworks", "NuGet.Packaging", "NuGet.Protocol", "NuGet.Versioning", "Semver",
+                "System.IO.Hashing", "System.Security.Cryptography.Pkcs");
     }
 
     [Test]
@@ -194,9 +199,9 @@ public class ThirdPartyNoticesTests
         kernel.NoticeFile.Should().Be("kernel.NOTICE.txt");
 
         var notices = ThirdPartyNotices.Write("1.2.3", "linux-x64", [], declarations, "U", [kernel], declarations);
-        var license = notices.IndexOf("Apache License\r\nVersion 2.0", StringComparison.Ordinal);
-        var notice = notices.IndexOf("Extism kernel\r\nCopyright Dylibso\r\n", StringComparison.Ordinal);
-        license.Should().BePositive("the license text is written as the file holds it");
+        var license = notices.IndexOf("Apache License\nVersion 2.0", StringComparison.Ordinal);
+        var notice = notices.IndexOf("Extism kernel\nCopyright Dylibso\n", StringComparison.Ordinal);
+        license.Should().BePositive("the license text is written as the file holds it, with LF line endings");
         notice.Should().BeGreaterThan(license, "the notice follows the license, as a separate text");
 
         File.Delete(Path.Combine(declarations, "kernel.NOTICE.txt"));
@@ -241,6 +246,34 @@ public class ThirdPartyNoticesTests
         (matched, problems) = ThirdPartyNotices.MatchEmbeddedResources(resources, [kernel with { Sha256 = new string('0', 64) }]);
         matched.Should().BeEmpty();
         problems.Should().ContainSingle().Which.Should().Contain("extism-kernel.wasm").And.Contain("SHA-256");
+    }
+
+    [Test]
+    public async Task EachInsertedTextHasLfLineEndingsWhateverTheCheckoutGaveIt()
+    {
+        // A Windows checkout can give the committed texts CRLF; the notices of each platform must be the same bytes.
+        await using var sandbox = TestSandbox.Create("notices-");
+        var fallbacks = Directory.CreateDirectory(sandbox.PathOf("fallbacks")).FullName;
+        var declarations = Directory.CreateDirectory(sandbox.PathOf("fallbacks", "native")).FullName;
+        var semver = Package(sandbox, "semver", "3.0.0", "Semver", "MIT");
+        var withLicense = Package(sandbox, "cstoml", "1.8.6", "CsToml", "MIT");
+        await File.WriteAllTextAsync(Path.Combine(withLicense, "LICENSE.txt"), "MIT License\r\n\r\nCopyright CsToml\r\n");
+        await File.WriteAllTextAsync(Path.Combine(fallbacks, "Semver.txt"), "License: MIT\r\nSource: https://github.com/example/semver\r\n\r\nMIT text\r\nline two\r\n");
+        await File.WriteAllTextAsync(Path.Combine(declarations, "kernel.LICENSE.txt"), "Apache License\r\nVersion 2.0\r\n");
+        await File.WriteAllTextAsync(Path.Combine(declarations, "kernel.NOTICE.txt"), "Kernel notice\r\nline two");
+        DeclaredNativeLibrary kernel = new("kernel.wasm", "1.0.0", "Apache-2.0", "kernel.LICENSE.txt", "https://example.org/kernel", new string('a', 64))
+        {
+            Kind = DeclaredKind.EmbeddedResource,
+            NoticeFile = "kernel.NOTICE.txt",
+        };
+
+        var notices = ThirdPartyNotices.Write("1.2.3", "win-x64",
+            [new LinkedPackage("CsToml", "1.8.6", withLicense), new LinkedPackage("Semver", "3.0.0", semver)], fallbacks, "Unicode\r\nlicense\r\n",
+            [kernel], declarations);
+
+        notices.Should().NotContain("\r");
+        notices.Should().Contain("MIT text\nline two").And.Contain("Apache License\nVersion 2.0").And.Contain("Kernel notice\nline two")
+            .And.Contain("Copyright CsToml");
     }
 
     private static string Package(TestSandbox sandbox, string folder, string version, string id, string license)

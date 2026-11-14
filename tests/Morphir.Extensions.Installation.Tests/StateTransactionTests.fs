@@ -48,7 +48,7 @@ let refuseResult code result =
 
 let emptyCatalog =
     utf8
-        "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/catalog.schema.json\",\"extensions\":[]}"
+        "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/catalog.schema.json\",\"extensions\":[]}"
 
 [<Tests>]
 let readers =
@@ -69,7 +69,7 @@ let readers =
         test "catalog matching schema without required semantic fields refuses" {
             StateDocuments.readCatalog (
                 utf8
-                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/catalog.schema.json\"}"
+                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/catalog.schema.json\"}"
             )
             |> refuseResult "extension.invalid_document"
         }
@@ -198,7 +198,7 @@ let readers =
         test "repository names are portable tokens rather than arbitrary display text" {
             let node =
                 utf8
-                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/repositories.schema.json\",\"repositories\":[{\"name\":\"bad/name\",\"endpoint\":{\"kind\":\"local-directory\",\"path\":\"/repo\"},\"state\":\"enabled\"}]}"
+                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/repositories.schema.json\",\"repositories\":[{\"name\":\"bad/name\",\"endpoint\":{\"kind\":\"local-directory\",\"path\":\"/repo\"},\"state\":\"enabled\"}]}"
 
             StateDocuments.readRepositories node
             |> refuseResult "extension.invalid_document"
@@ -311,7 +311,7 @@ let transactions =
 
             let invalidLock =
                 utf8
-                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/lock.schema.json\"}"
+                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/lock.schema.json\"}"
 
             let numbers =
                 String.Join(
@@ -322,7 +322,7 @@ let transactions =
 
             let original =
                 utf8
-                    $"{{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/journal.schema.json\",\"nextLock\":[{numbers}],\"nextCatalog\":null}}"
+                    $"{{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/journal.schema.json\",\"nextLock\":[{numbers}],\"nextCatalog\":null}}"
 
             File.WriteAllBytes(path, original)
 
@@ -344,7 +344,7 @@ let transactions =
 
             File.WriteAllText(
                 Path.Combine(root, "catalog", "extensions.json"),
-                "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/catalog.schema.json\"}"
+                "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/catalog.schema.json\"}"
             )
 
             InstalledState.CheckCompatibilityAsync(root, ct).GetAwaiter().GetResult()
@@ -443,7 +443,7 @@ let transactions =
 
             File.WriteAllText(
                 journal,
-                $"{{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":[{saved}]}}"
+                $"{{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":[{saved}]}}"
             )
 
             let! result = InstalledState.RecoverAsync(root, true, CancellationToken.None)
@@ -468,7 +468,7 @@ let transactions =
 
             let content =
                 utf8
-                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":null}"
+                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":null}"
 
             File.WriteAllBytes(journal, content)
             let! result = InstalledState.RecoverAsync(root, false, CancellationToken.None)
@@ -515,3 +515,54 @@ let corpus =
                         | Ok _, _ -> failtest "Expected parent refusal"
                     )
     ]
+
+/// Every parent case of the NuGet kinds (finos/morphir#1176) through the reader its operation names.
+[<Tests>]
+let nugetCorpus =
+    use document =
+        JsonDocument.Parse(
+            File.ReadAllBytes(
+                Path.Combine(AppContext.BaseDirectory, "ParentContracts", "identity-cases.json")
+            )
+        )
+
+    let cases =
+        document.RootElement.GetProperty("cases").EnumerateArray()
+        |> Seq.map (fun value -> value.Clone())
+        |> Seq.filter (fun case ->
+            let id = nonNull (case.GetProperty("id").GetString())
+            id.StartsWith("nuget-", StringComparison.Ordinal) || id.StartsWith("nupkg-", StringComparison.Ordinal))
+        |> Seq.toList
+
+    testLabel "PlatformSpecific" <| testList "NuGetCorpus" [
+        test "the parent has NuGet cases for each reader" {
+            Expect.equal cases.Length 19 "nuget-* and nupkg-* identity cases at 65bbbc96"
+        }
+        for case in cases do
+            let input = case.GetProperty "input"
+            let operation = nonNull (input.GetProperty("operation").GetString())
+            let expected = case.GetProperty "expected"
+
+            testCase
+                (nonNull (case.GetProperty("id").GetString()))
+                (fun () ->
+                    let bytes = utf8 (input.GetProperty("document").GetRawText())
+
+                    let result =
+                        match operation with
+                        | "read-release" -> Descriptors.read bytes |> Result.map ignore
+                        | "read-lock" -> StateDocuments.readLock bytes |> Result.map ignore
+                        | "read-catalog" -> StateDocuments.readCatalog bytes |> Result.map ignore
+                        | other -> failtestf "Unsupported parent operation %s; do not count it as passed" other
+
+                    match result, expected.GetProperty("outcome").GetString() with
+                    | Ok _, "accept" -> ()
+                    | Error error, "refuse" ->
+                        let memberPath = nonNull (expected.GetProperty("member").GetString())
+                        let leaf = memberPath.Substring(memberPath.LastIndexOf '.' + 1)
+                        Expect.stringContains error.Message leaf $"refusal names {memberPath}"
+                    | Error error, _ -> failtest (error.ToString())
+                    | Ok _, _ -> failtest "Expected parent refusal"
+                )
+    ]
+

@@ -34,24 +34,64 @@ type internal LocalDeclaration = {
     ExpectedId: Morphir.Extensions.ExtensionId
 }
 
+/// A <c>nuget:&lt;id&gt;[@&lt;version&gt;]</c> request and the options only a NuGet source takes.
+type internal NuGetPackageRequest = {
+    /// The package id as the user spelled it; NuGet compares ids ignoring case.
+    Id: string
+    /// An exact version, or None for the highest stable listed version.
+    Version: NuGet.Versioning.NuGetVersion option
+    /// <c>--source</c>: a configured source name, a V3 <c>index.json</c> URL, or a folder.
+    Source: string option
+    /// <c>--configfile</c>: the one nuget.config to read instead of the hierarchy.
+    ConfigFile: string option
+    /// <c>--interactive</c>: a credential provider may prompt.
+    Interactive: bool
+}
+
 type internal SourceRequestKind =
     | Local of LocalDeclaration
     | GitHub of GitHubRepository * GitHubReleaseSelector
+    | NuGet of NuGetPackageRequest
 
 /// What the user asked to install, parsed once. The scheme selects the provider.
 [<Sealed>]
 type ExtensionSourceRequest internal (kind: SourceRequestKind, text: string) =
     member internal _.Kind = kind
 
-    /// The provider scheme: <c>github</c> or <c>local</c>.
+    /// The provider scheme: <c>github</c>, <c>nuget</c> or <c>local</c>.
     member _.Scheme =
         match kind with
         | Local _ -> "local"
         | GitHub _ -> "github"
+        | NuGet _ -> "nuget"
+
+    /// Adds the options only a <c>nuget:</c> source takes: <c>--source</c>, <c>--configfile</c> and
+    /// <c>--interactive</c>. Any other source refuses them with <c>extension.invalid_source</c>.
+    member this.WithNuGetOptions(source: string | null, configFile: string | null, interactive: bool) : InstallationResult<ExtensionSourceRequest> =
+        let source = Option.ofObj source |> Option.filter (String.IsNullOrWhiteSpace >> not)
+        let configFile = Option.ofObj configFile |> Option.filter (String.IsNullOrWhiteSpace >> not)
+
+        match kind with
+        | NuGet request ->
+            InstallationResult(
+                Ok(
+                    ExtensionSourceRequest(
+                        NuGet { request with Source = source; ConfigFile = configFile; Interactive = interactive },
+                        text
+                    )
+                )
+            )
+        | _ when source.IsNone && configFile.IsNone && not interactive -> InstallationResult(Ok this)
+        | _ ->
+            InstallationResult(
+                Parsing.refuse
+                    "extension.invalid_source"
+                    $"--source, --configfile and --interactive apply only to a nuget: source, not {text}."
+            )
 
     override _.ToString() = text
 
-    /// Parses <c>github:&lt;owner&gt;/&lt;repo&gt;[@&lt;version-or-tag&gt;]</c>.
+    /// Parses <c>github:&lt;owner&gt;/&lt;repo&gt;[@&lt;version-or-tag&gt;]</c> or <c>nuget:&lt;package-id&gt;[@&lt;version&gt;]</c>.
     static member Parse(text: string | null) : Result<ExtensionSourceRequest, InstallationFailure> =
         let refuse message =
             Parsing.refuse "extension.invalid_source" message
@@ -60,7 +100,9 @@ type ExtensionSourceRequest internal (kind: SourceRequestKind, text: string) =
         | null -> refuse "The source is empty."
         | text ->
             match text.IndexOf ':' with
-            | -1 -> refuse $"The source {text} names no provider; use github:<owner>/<repo>[@<version-or-tag>]."
+            | -1 ->
+                refuse
+                    $"The source {text} names no provider; use github:<owner>/<repo>[@<version-or-tag>] or nuget:<package-id>[@<version>]."
             | colon ->
                 match text.Substring(0, colon) with
                 | "github" ->
@@ -85,7 +127,38 @@ type ExtensionSourceRequest internal (kind: SourceRequestKind, text: string) =
                             ExtensionSourceRequest(GitHub(repository, selector), text)
                         )
                     )
-                | scheme -> refuse $"Unknown source provider {scheme}; the providers are github."
+                | "nuget" ->
+                    let rest = text.Substring(colon + 1)
+
+                    let id, version =
+                        match rest.IndexOf '@' with
+                        | -1 -> rest, None
+                        | at -> rest.Substring(0, at), Some(rest.Substring(at + 1))
+
+                    if not (NuGet.Packaging.PackageIdValidator.IsValidPackageId id) then
+                        refuse $"Not a NuGet package id: {id}"
+                    else
+                        match version with
+                        | None -> Ok None
+                        | Some version ->
+                            let mutable parsed: NuGet.Versioning.NuGetVersion | null = null
+
+                            match NuGet.Versioning.NuGetVersion.TryParse(version, &parsed), parsed with
+                            | true, NonNull parsed -> Ok(Some parsed)
+                            | _ -> refuse $"Not a NuGet version: {version}"
+                        |> Result.map (fun version ->
+                            ExtensionSourceRequest(
+                                NuGet {
+                                    Id = id
+                                    Version = version
+                                    Source = None
+                                    ConfigFile = None
+                                    Interactive = false
+                                },
+                                text
+                            )
+                        )
+                | scheme -> refuse $"Unknown source provider {scheme}; the providers are github and nuget."
 
     /// Parses a source for C# callers.
     static member TryParse
@@ -114,6 +187,22 @@ type internal ArtifactLocation =
     | LocalArchive of repositoryRoot: string * archivePath: string
     /// An HTTPS download of an exact length.
     | Download of uri: Uri * length: uint64 * provenance: IndexProvenance * source: ArtifactSource
+    /// A package of a NuGet source: the selected package, the payload under it, and what the lock records.
+    | NuGetPackage of payload: NuGetPayloadLocation * provenance: IndexProvenance * source: ArtifactSource
+
+/// Where in a NuGet source the selected artifact is. The provider resolved the source and version.
+and internal NuGetPayloadLocation = {
+    /// The source the main package and every artifact package come from.
+    Source: NuGet.Configuration.PackageSource
+    /// The settings the source, its credentials and the signature policy came from.
+    Settings: NuGet.Configuration.ISettings
+    /// The package that holds the payload: the main package (layout A, WASM) or an artifact package (layout B).
+    Package: NuGet.Packaging.Core.PackageIdentity
+    /// True for a WASM module entry of the main package; false for a package subtree under the plan root.
+    IsModule: bool
+    /// <c>--interactive</c>.
+    Interactive: bool
+}
 
 /// A release a provider resolved: the descriptor, the plan for this platform and where the artifact is.
 [<Sealed>]
@@ -131,6 +220,9 @@ type ResolvedExtensionRelease internal (descriptor: byte array, plan: PackagePla
 type internal FetchedArchive =
     | ExistingFile of string
     | Staged of SealedArtifactStage
+    /// Bytes the provider downloaded into a private stage under the Home with no digest to check on the way in,
+    /// because a NuGet package is pinned by its tree, not its bytes.
+    | Unhashed of StageResources
 
 /// Artifact bytes the provider fetched and checked, with the provenance the installer records.
 [<Sealed>]
@@ -156,6 +248,14 @@ type FetchedExtensionArtifact
                 Action(ignore),
                 ct
             )
+        | Unhashed resources ->
+            resources.Validate()
+
+            operation.Invoke(
+                Func<Stream>(fun () ->
+                    resources.Output.Position <- 0L
+                    new BorrowedStream(resources.Output) :> Stream)
+            )
 
     override _.ToString() = "Fetched extension artifact."
 
@@ -164,6 +264,7 @@ type FetchedExtensionArtifact
             match archive with
             | ExistingFile _ -> ValueTask.CompletedTask
             | Staged stage -> (stage :> IAsyncDisposable).DisposeAsync()
+            | Unhashed resources -> ValueTask(resources.CloseAsync() :> Task)
 
 /// A source of extension releases. A provider only resolves and fetches. Validation, store publication,
 /// catalog, lock and journal writes and activation stay in the one installer, the same for every provider.
@@ -221,7 +322,7 @@ type LocalRepositoryProvider() =
                 let declaration =
                     match request.Kind with
                     | Local declaration -> declaration
-                    | GitHub _ -> Operations.fail "extension.provider_mismatch" "The local provider reads only local declarations."
+                    | _ -> Operations.fail "extension.provider_mismatch" "The local provider reads only local declarations."
 
                 if not (Path.IsPathFullyQualified declaration.Home) then
                     Operations.fail "extension.invalid_home" "--home must be absolute."
@@ -257,7 +358,11 @@ type LocalRepositoryProvider() =
                     Operations.fail "extension.digest_mismatch" "Local archive differs from the release digest."
 
                 archive.Position <- 0L
-                ArchiveChecks.inspect archive ct |> ignore
+
+                // A WASM module is one file, pinned by its digest; only a package archive is inspected.
+                if not plan.IsModule then
+                    ArchiveChecks.inspect archive ct |> ignore
+
                 repository.ValidateLocation()
 
                 return
@@ -277,7 +382,7 @@ type LocalRepositoryProvider() =
                             InstalledExtensions.PublishLocalAsync(root, release.Plan, archive, args, ct))
 
                     return new FetchedExtensionArtifact(ExistingFile archive, record)
-                | Download _ ->
+                | _ ->
                     return Operations.fail "extension.provider_mismatch" "The local provider fetches only local archives."
             })
 
@@ -428,7 +533,7 @@ type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string | null)
                 let repository, selector =
                     match source.Kind with
                     | GitHub(repository, selector) -> repository, selector
-                    | Local _ -> Operations.fail "extension.provider_mismatch" "The GitHub provider reads only github: sources."
+                    | _ -> Operations.fail "extension.provider_mismatch" "The GitHub provider reads only github: sources."
 
                 let! metadata = releaseFor repository selector ct
 
@@ -510,7 +615,7 @@ type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string | null)
                 let uri, length, provenance, source =
                     match resolved.Location with
                     | Download(uri, length, provenance, source) -> uri, length, provenance, source
-                    | LocalArchive _ -> Operations.fail "extension.provider_mismatch" "The GitHub provider fetches only downloads."
+                    | _ -> Operations.fail "extension.provider_mismatch" "The GitHub provider fetches only downloads."
 
                 let! begun =
                     PrivateStaging.BeginAsync(
@@ -558,62 +663,3 @@ type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string | null)
                         (stage :> IAsyncDisposable).DisposeAsync().AsTask().Wait()
             })
 
-/// The one entry point for every provider: resolve, fetch, then the installer.
-[<AbstractClass; Sealed>]
-type ExtensionSources private () =
-    /// The provider for a request's scheme. Adding a source means adding a provider here and nothing else.
-    static member ProviderFor(request: ExtensionSourceRequest, http: HttpClient) : IExtensionSourceProvider =
-        match request.Kind with
-        | Local _ -> LocalRepositoryProvider()
-        | GitHub _ -> GitHubReleaseProvider(http)
-
-    /// Resolves only, for a dry run. A GitHub source reads the release metadata and descriptor; no artifact is downloaded.
-    static member ResolveAsync(provider: IExtensionSourceProvider, request: ExtensionSourceRequest, ct: CancellationToken) = task {
-        match ActivationPlatforms.current () with
-        | Error failure -> return InstallationResult(Error failure)
-        | Ok platform -> return! provider.ResolveAsync(request, platform, ct)
-    }
-
-    /// Installs without probing: resolve, fetch and check the digest, then the shared installer.
-    static member InstallAsync
-        (
-            home: string,
-            provider: IExtensionSourceProvider,
-            request: ExtensionSourceRequest,
-            args: IReadOnlyList<string>,
-            hostVersion: SemVer,
-            ct: CancellationToken
-        ) : Task<InstallationResult<CapturedExtension>> =
-        task {
-            if not (Path.IsPathFullyQualified home) then
-                return InstallationResult(Error(InstallationFailure("extension.invalid_home", "--home must be absolute.")))
-            else
-                let! resolved = ExtensionSources.ResolveAsync(provider, request, ct)
-
-                match ProviderResults.ofResult resolved with
-                | Error failure -> return InstallationResult(Error failure)
-                | Ok release ->
-                    let! fetched = provider.FetchAsync(release, home, ct)
-
-                    match ProviderResults.ofResult fetched with
-                    | Error failure -> return InstallationResult(Error failure)
-                    | Ok artifact ->
-                        try
-                            return!
-                                artifact.UseAsync(
-                                    Func<Func<Stream>, Task<InstallationResult<CapturedExtension>>>(fun openArchive ->
-                                        InstalledExtensions.InstallPreparedAsync(
-                                            home,
-                                            release.Plan,
-                                            openArchive,
-                                            artifact.Record,
-                                            args,
-                                            hostVersion,
-                                            Action<int>(ignore),
-                                            ct
-                                        )),
-                                    ct
-                                )
-                        finally
-                            (artifact :> IAsyncDisposable).DisposeAsync().AsTask().Wait()
-        }

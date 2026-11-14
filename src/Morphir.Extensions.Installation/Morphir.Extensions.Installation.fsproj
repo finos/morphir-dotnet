@@ -13,9 +13,22 @@
   <ItemGroup>
     <PackageReference Include="FSharp.Core" />
     <PackageReference Include="Semver" />
+    <PackageReference Include="NuGet.Versioning" />
+    <PackageReference Include="NuGet.Packaging" />
+    <PackageReference Include="NuGet.Configuration" />
+    <PackageReference Include="NuGet.Protocol" />
+    <PackageReference Include="NuGet.Credentials" />
+    <!-- The security pin of Directory.Packages.props: NuGet.Packaging asks for an older Pkcs with known CVEs. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <ProjectReference Include="../Morphir.Extensions/Morphir.Extensions.fsproj" />
     <ProjectReference Include="../Morphir.Mep/Morphir.Mep.fsproj" />
     <ProjectReference Include="../Morphir.Toolchain/Morphir.Toolchain.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="buildTransitive/Morphir.Extensions.Installation.props" Pack="true" PackagePath="buildTransitive/" />
+    <!-- NuGet's trusted roots for Linux and macOS, from the .NET SDK (TrustedRoots/README.md). -->
+    <EmbeddedResource Include="TrustedRoots/codesignctl.pem" LogicalName="Morphir.Extensions.Installation.TrustedRoots.codesignctl.pem" />
+    <EmbeddedResource Include="TrustedRoots/timestampctl.pem" LogicalName="Morphir.Extensions.Installation.TrustedRoots.timestampctl.pem" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
@@ -36,5 +49,7 @@
     <Compile Include="Packages.fs" />
     <Compile Include="ActivationRecords.fs" />
     <Compile Include="Providers.fs" />
+    <Compile Include="NuGetProvider.fs" />
+    <Compile Include="ExtensionSources.fs" />
   </ItemGroup>
 </Project>

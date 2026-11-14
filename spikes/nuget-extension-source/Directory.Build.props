@@ -1,0 +1,23 @@
+<Project>
+  <!--
+    Keeps the spike independent of the repository's build settings: this file stops MSBuild's search for a
+    parent Directory.Build.props, and central package management and lock files are off. Renovate restores
+    every project with the root NuGet.config (nuget.org only), so this spike uses only nuget.org packages.
+    The spike is not in Morphir.slnx and no repository build includes it.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <ImportDirectoryPackagesProps>false</ImportDirectoryPackagesProps>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <!-- The NuGet.Packaging version that Directory.Packages.props pins. -->
+    <SpikeNuGetVersion>7.9.0</SpikeNuGetVersion>
+    <!-- The FSharp.Core version that Directory.Packages.props pins. -->
+    <SpikeFSharpCoreVersion>10.1.403</SpikeFSharpCoreVersion>
+  </PropertyGroup>
+  <!-- The probe builds at three levels; each level gets its own obj and bin folders. -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'NuGetProbe'">
+    <ProbeLevel Condition="'$(ProbeLevel)' == ''">full</ProbeLevel>
+    <BaseIntermediateOutputPath>obj/$(ProbeLevel)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin/$(ProbeLevel)/</BaseOutputPath>
+  </PropertyGroup>
+</Project>

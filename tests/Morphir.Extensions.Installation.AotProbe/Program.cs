@@ -235,7 +235,7 @@ Exception? packageProbeFailure = null;
 try
 {
     var contractCasesPath = Path.Combine(Environment.CurrentDirectory, "tests", "Fixtures",
-        "ExtensionAcquisition", "parent-1f22f491", "package-cases.json");
+        "ExtensionAcquisition", "parent-65bbbc96", "package-cases.json");
     using var contractCases = System.Text.Json.JsonDocument.Parse(await File.ReadAllBytesAsync(contractCasesPath));
     var descriptor = System.Text.Json.Nodes.JsonNode.Parse(contractCases.RootElement.GetProperty("cases")[0]
         .GetProperty("schemaDocuments")[0].GetProperty("document").GetRawText())

@@ -198,8 +198,11 @@ public class ManagementScenario : IMorphirCliScenario
         extensionCommand.Subcommands.Add(repositoryCommand);
 
         var installCommand = new Command("install",
-            "Install an extension from a provider source (github:<owner>/<repo>[@<version-or-tag>]), or an explicit unchecked local declaration from a registered repository");
-        var installName = new Argument<string>("source") { Description = "A provider source such as github:finos/morphir-python@0.6.2, or the full extension id of a local declaration" };
+            "Install an extension from a provider source (github:<owner>/<repo>[@<version-or-tag>] or nuget:<package-id>[@<version>]), or an explicit unchecked local declaration from a registered repository");
+        var installName = new Argument<string>("source") { Description = "A provider source such as github:finos/morphir-python@0.6.2 or nuget:Acme.Morphir.Python@1.2.3, or the full extension id of a local declaration" };
+        var nugetSource = new Option<string?>("--source") { Description = "nuget: only. One NuGet source: a configured source name, a V3 index.json URL, or a folder feed" };
+        var nugetConfig = new Option<string?>("--configfile") { Description = "nuget: only. The nuget.config to read instead of the configuration hierarchy" };
+        var nugetInteractive = new Option<bool>("--interactive") { Description = "nuget: only. Let a credential provider prompt for sign-in" };
         var repository = new Option<string?>("--repository");
         var release = new Option<string?>("--local-release");
         var archive = new Option<string?>("--local-archive");
@@ -210,6 +213,7 @@ public class ManagementScenario : IMorphirCliScenario
         installCommand.Arguments.Add(installName);
         installCommand.Options.Add(repository); installCommand.Options.Add(release); installCommand.Options.Add(archive);
         installCommand.Options.Add(installHome); installCommand.Options.Add(consent); installCommand.Options.Add(noProbe); installCommand.Options.Add(dryRun);
+        installCommand.Options.Add(nugetSource); installCommand.Options.Add(nugetConfig); installCommand.Options.Add(nugetInteractive);
         installCommand.SetAction(async (result, ct) =>
         {
             var requested = result.GetValue(installName)!;
@@ -219,8 +223,11 @@ public class ManagementScenario : IMorphirCliScenario
                 if (result.GetValue(repository) is { Length: > 0 } || result.GetValue(release) is { Length: > 0 } || result.GetValue(archive) is { Length: > 0 })
                     return RenderLocal(new(false, "extension.invalid_source", "A provider source takes no --repository, --local-release or --local-archive."));
                 using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-                return RenderLocal(await ExtensionHandlers.InstallFromSourceAsync(new(requested, home, result.GetValue(noProbe), result.GetValue(dryRun)), http, ct));
+                return RenderLocal(await ExtensionHandlers.InstallFromSourceAsync(new(requested, home, result.GetValue(noProbe), result.GetValue(dryRun),
+                    result.GetValue(nugetSource), result.GetValue(nugetConfig), result.GetValue(nugetInteractive)), http, ct));
             }
+            if (result.GetValue(nugetSource) is { Length: > 0 } || result.GetValue(nugetConfig) is { Length: > 0 } || result.GetValue(nugetInteractive))
+                return RenderLocal(new(false, "extension.invalid_source", "--source, --configfile and --interactive apply only to a nuget: source."));
             if (result.GetValue(release) is not { Length: > 0 } declaration || result.GetValue(archive) is not { Length: > 0 } localArchive)
                 return RenderLocal(new(false, "extension.local_declaration_required", "This local-developer mode requires paired --local-release and --local-archive inside the registered directory; repository index resolution remains unimplemented."));
             return RenderLocal(await ExtensionHandlers.InstallLocalAsync(new(result.GetValue(installName)!, result.GetValue(repository) ?? "",
