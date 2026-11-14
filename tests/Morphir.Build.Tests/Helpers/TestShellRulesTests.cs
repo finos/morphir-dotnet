@@ -10,15 +10,21 @@ namespace Morphir.Build.Tests.Helpers;
 /// The test infrastructure starts no PowerShell of its own. A child that a test needs is the process helper
 /// (tests/Fixtures/process-helper/process-helper.cs) or a program of the repository: Windows PowerShell 5.1 spends
 /// more than a minute on its first start on a fresh CI image ("Preparing modules for first use"), and such a test then
-/// measures that start and not the code under test. A PowerShell script is tested in PowerShell, with Pester
-/// (tests/Scripts), and only the build target that runs Pester starts PowerShell.
+/// measures that start and not the code under test. A script of the build or of CI is tested in PowerShell, with
+/// Pester (tests/Scripts). The one other exception is a delivered install script: users run install-morphirup.ps1 in
+/// PowerShell, and the same end-to-end scenarios run it on Windows and install-morphirup.sh elsewhere, so PowerShell
+/// is the runtime of the thing under test there.
 /// </summary>
 public partial class TestShellRulesTests
 {
-    /// <summary>The files that may start PowerShell, with the reason.</summary>
+    /// <summary>The files that may start PowerShell, or name it as a program, with the reason.</summary>
     private static readonly Dictionary<string, string> Allowed = new(StringComparer.Ordinal)
     {
         ["build/Build.Testing.cs"] = "the TestScripts target runs the Pester tests of tests/Scripts",
+        ["tests/Morphir.TestSupport/Drivers/InstallScriptDriver.cs"] =
+            "runs the delivered scripts/install-morphirup.ps1 in PowerShell 7, else Windows PowerShell, as a user does (EndToEnd/InstallScripts.feature)",
+        ["tests/Morphir.TestSupport.Tests/Drivers/InstallScriptDriverTests.cs"] =
+            "checks the command line of InstallScriptDriver; it starts no process",
     };
 
     private static readonly string[] Extensions = [".cs", ".fs", ".fsx", ".csproj", ".fsproj", ".props", ".targets"];
@@ -39,7 +45,12 @@ public partial class TestShellRulesTests
     public void AMentionOfPowerShellIsNotAProgram(string line) => PowerShellProgram().IsMatch(line).Should().BeFalse();
 
     [Test]
-    public void OnlyTheRunOfThePesterTestsStartsPowerShell()
+    public void EachAllowedFileExists() =>
+        Allowed.Keys.Where(file => !File.Exists(Path.Combine(TestFixture.GetRepositoryRoot(), file))).Should()
+            .BeEmpty("an exception of a file that moved or was deleted must go with it");
+
+    [Test]
+    public void OnlyTheRunOfThePesterTestsAndTheInstallScriptDriverStartPowerShell()
     {
         var root = TestFixture.GetRepositoryRoot();
         var found = new[] { "tests", "build" }

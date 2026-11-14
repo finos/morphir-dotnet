@@ -82,7 +82,9 @@ shares change. Run the same command without `MORPHIR_TEST_MAX_PROCESSES` and `--
 machine with 12 processors the defaults give each test process a share of 1, the smallest gate that a test must
 survive. The test processes start no PowerShell: Windows PowerShell's first start on a fresh CI image can take
 longer than a test's time limit. A test that needs a plain child process starts the `ProcessHelper` of
-`tests/Morphir.TestSupport`, and `TestShellRulesTests` of `tests/Morphir.Build.Tests` keeps PowerShell out.
+`tests/Morphir.TestSupport`, and `TestShellRulesTests` of `tests/Morphir.Build.Tests` keeps PowerShell out. The one test that
+starts PowerShell on purpose runs the delivered `install-morphirup.ps1` (`EndToEnd/InstallScripts.feature`), as a user
+does: with PowerShell 7 when it is on PATH, as on the CI runners.
 
 The same job then runs "Run build tests" (`TestBuild`, after `PackAll`). Its first part, the Pester tests of the
 PowerShell scripts in `tests/Scripts`, needs no packages and runs alone with:
