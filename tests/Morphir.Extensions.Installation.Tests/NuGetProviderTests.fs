@@ -352,5 +352,170 @@ let private folderFeed =
         }
     ]
 
+
+/// Layout B: the main package holds only the descriptor; the artifact package of this platform holds the payload.
+let private layoutB (sandbox: TestSandbox) (artifactId: string) (packArtifact: bool) (entries: FixtureEntry list option) =
+    let folder = Path.Combine(sandbox.Root, "feed")
+    let rid = (platform ()).RuntimeIdentifier
+    let root = $"tools/net11.0/{rid}"
+    let tree = NuGetFixtures.treeDigest [ entryPoint (), payload, true ]
+    let filename = $"{artifactId.ToLowerInvariant()}.1.2.3.nupkg"
+
+    let release =
+        NuGetFixtures.descriptor "1.2.3" [ NuGetFixtures.processArtifact "1.2.3" (platform ()).DescriptorTriple filename root (entryPoint ()) tree ]
+
+    NuGetFixtures.pack folder "Acme.Morphir.Python" "1.2.3" [ "DotnetTool"; "MorphirExtension" ] [ { Name = "morphir/release.json"; Bytes = release } ]
+    |> ignore
+
+    if packArtifact then
+        let files =
+            entries
+            |> Option.defaultValue [
+                { Name = $"{root}/{entryPoint ()}"; Bytes = payload }
+                { Name = "morphir/release.json"; Bytes = utf8 "a stale copy outside the root" }
+            ]
+
+        NuGetFixtures.pack folder artifactId "1.2.3" [ "DotnetTool" ] files |> ignore
+
+    folder
+
+let private writeConfig (sandbox: TestSandbox) (text: string) =
+    let path = Path.Combine(sandbox.Root, "nuget.config")
+    File.WriteAllText(path, text)
+    path
+
+let private installWith (sandbox: TestSandbox) (text: string) (source: string option) (configFile: string option) =
+    let request =
+        match ExtensionSourceRequest.Parse text with
+        | Ok request -> request.WithNuGetOptions(Option.toObj source, Option.toObj configFile, false) |> get
+        | Error failure -> failtestf "Bad request %s: %O" text failure
+
+    let provider = NuGetPackageProvider(home sandbox, sandbox.Root) :> IExtensionSourceProvider
+
+    ExtensionSources
+        .InstallAsync(home sandbox, provider, request, Array.AsReadOnly [||], host, ct)
+        .GetAwaiter()
+        .GetResult()
+
+let private layouts =
+    testList "NuGetLayouts" [
+        test "layout B installs the subtree of the artifact package of the same source and version" {
+            withSandbox (fun sandbox ->
+                let folder = layoutB sandbox $"Acme.Morphir.Python.{(platform ()).RuntimeIdentifier}" true None
+                use captured = install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> get
+                let tree = Path.GetDirectoryName(captured.Activation.EntryPointPath) |> nonNull
+                let files = Directory.GetFiles(tree, "*", SearchOption.AllDirectories)
+                Expect.equal files.Length 1 "only the root of the artifact package, no stale morphir/release.json"
+                let source = nonNull ((lockNode sandbox).["source"])
+                Expect.equal (string source["id"]) $"acme.morphir.python.{(platform ()).RuntimeIdentifier}" "the artifact package"
+                Expect.equal (string source["path"]) $"tools/net11.0/{(platform ()).RuntimeIdentifier}" "its root")
+        }
+        test "an artifact package of another publisher is refused" {
+            withSandbox (fun sandbox ->
+                let folder = layoutB sandbox "Contoso.Tools" true None
+                install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> refusedWith "extension.invalid_descriptor")
+        }
+        test "an id that only starts with the main id is another publisher" {
+            withSandbox (fun sandbox ->
+                let folder = layoutB sandbox "Acme.Morphir.Pythonx" true None
+                install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> refusedWith "extension.invalid_descriptor")
+        }
+        test "a missing artifact package is refused" {
+            withSandbox (fun sandbox ->
+                let folder = layoutB sandbox $"Acme.Morphir.Python.{(platform ()).RuntimeIdentifier}" false None
+                install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> refusedWith "extension.artifact_missing")
+        }
+        test "a framework-dependent .NET tool is refused" {
+            withSandbox (fun sandbox ->
+                let rid = (platform ()).RuntimeIdentifier
+                let stem = "acme-python"
+                let config = utf8 """{"runtimeOptions":{"tfm":"net11.0","framework":{"name":"Microsoft.NETCore.App","version":"11.0.0"}}}"""
+
+                let folder =
+                    layoutB sandbox $"Acme.Morphir.Python.{rid}" true (Some [
+                        { Name = $"tools/net11.0/{rid}/{entryPoint ()}"; Bytes = payload }
+                        { Name = $"tools/net11.0/{rid}/{stem}.runtimeconfig.json"; Bytes = config }
+                    ])
+
+                install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> refusedWith "extension.unsupported_package")
+        }
+    ]
+
+let private configuration =
+    testList "NuGetConfiguration" [
+        test "a named source of nuget.config is used" {
+            withSandbox (fun sandbox ->
+                let feed = layoutA sandbox "1.2.3"
+
+                let config =
+                    writeConfig sandbox $"""<?xml version="1.0" encoding="utf-8"?>
+<configuration><packageSources><clear /><add key="acme" value="{feed.Folder}" /></packageSources></configuration>"""
+
+                use captured = installWith sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some "acme") (Some config) |> get
+                Expect.equal captured.Record.Version.Text "1.2.3" "installed from the named source")
+        }
+        test "package source mapping leaves only the mapped source" {
+            withSandbox (fun sandbox ->
+                let feed = layoutA sandbox "1.2.3"
+                let other = Path.Combine(sandbox.Root, "other-feed")
+                Directory.CreateDirectory other |> ignore
+
+                let config =
+                    writeConfig sandbox $"""<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources><clear /><add key="other" value="{other}" /><add key="acme" value="{feed.Folder}" /></packageSources>
+  <packageSourceMapping>
+    <packageSource key="acme"><package pattern="Acme.*" /></packageSource>
+    <packageSource key="other"><package pattern="*" /></packageSource>
+  </packageSourceMapping>
+</configuration>"""
+
+                use captured = installWith sandbox "nuget:Acme.Morphir.Python" None (Some config) |> get
+                let index = nonNull ((lockNode sandbox).["index"])
+                Expect.equal (string index["feed"]) (Path.GetFullPath feed.Folder) "the mapped source")
+        }
+        test "mapping that excludes every source names no source" {
+            withSandbox (fun sandbox ->
+                let feed = layoutA sandbox "1.2.3"
+
+                let config =
+                    writeConfig sandbox $"""<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources><clear /><add key="acme" value="{feed.Folder}" /></packageSources>
+  <packageSourceMapping><packageSource key="acme"><package pattern="Contoso.*" /></packageSource></packageSourceMapping>
+</configuration>"""
+
+                installWith sandbox "nuget:Acme.Morphir.Python" None (Some config) |> refusedWith "extension.nuget_not_found")
+        }
+        test "an http source is refused, because a lock records only https or a folder" {
+            withSandbox (fun sandbox ->
+                install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some "http://feed.example/v3/index.json")
+                |> refusedWith "extension.invalid_source")
+        }
+        test "require mode refuses an unsigned package" {
+            withSandbox (fun sandbox ->
+                let feed = layoutA sandbox "1.2.3"
+
+                let config =
+                    writeConfig sandbox $"""<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources><clear /><add key="acme" value="{feed.Folder}" /></packageSources>
+  <config><add key="signatureValidationMode" value="require" /></config>
+  <trustedSigners>
+    <author name="acme"><certificate fingerprint="3F9001EA83C560D712C24CF213C3D312CB3BFF51EE89435D3430BD06B5D0EECE" hashAlgorithm="SHA256" allowUntrustedRoot="false" /></author>
+  </trustedSigners>
+</configuration>"""
+
+                installWith sandbox "nuget:Acme.Morphir.Python@1.2.3" None (Some config) |> refusedWith "extension.nuget_signature_invalid")
+        }
+        test "accept mode installs an unsigned package with the default policy" {
+            withSandbox (fun sandbox ->
+                let feed = layoutA sandbox "1.2.3"
+                // On macOS dotnet does not verify by default; on Windows and Linux an unsigned package passes accept mode.
+                use _ = install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some feed.Folder) |> get
+                ())
+        }
+    ]
+
 [<Tests>]
-let tests = testLabel "PlatformSpecific" <| testList "NuGetProvider" [ parsing; folderFeed ]
+let tests = testLabel "PlatformSpecific" <| testList "NuGetProvider" [ parsing; folderFeed; layouts; configuration ]
