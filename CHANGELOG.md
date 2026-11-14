@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0-alpha.3] - 2026-11-14
+
 ### Added
 - `morphir extension install nuget:<package-id>[@<version>] --home <abs-home> --no-probe` installs an extension from a NuGet feed: nuget.org, a private V3 feed such as Azure Artifacts, or a folder feed. It reads the sources, package source mapping, credentials (`packageSourceCredentials` and credential provider plugins) and signature policy of `nuget.config`, as `dotnet tool install` does, through the Microsoft NuGet client packages. `--source` names one source (a configured name, a V3 `index.json` URL or a folder), `--configfile` names the `nuget.config`, and `--interactive` lets a credential provider prompt; the three options apply only to a `nuget:` source. No version selects the highest stable listed version. The main package carries `morphir/release.json`; a process artifact is the subtree under its `root` of the main package (one package) or of a package whose id extends the main id (one package per platform, such as the RID packages of a self-contained .NET tool), pinned by its tree digest. A framework-dependent .NET tool is refused. Signatures are checked as the dotnet CLI checks them on each operating system. The command writes only to the Home: no NuGet HTTP cache, global packages folder or NuGet temporary folder. New codes: `extension.nuget_not_found`, `extension.nuget_unreachable`, `extension.nuget_unauthorized`, `extension.nuget_signature_invalid`. See [Publish an extension as a NuGet package](docs/content/docs/guides/publish-extension-nuget.md).
 - `morphir extension install` installs WASM extensions from every provider: a local declaration, a GitHub release asset, or the entry `morphir/<filename>` of a NuGet main package. The module is checked against its descriptor `sha256` (`extension.digest_mismatch`) and stored in the single-file store; the lock records `runtime` `wasm` and the claims stay unchecked. The guest does not run during installation. `morphir compile` and `morphir generate` with `--extension-id` run an installed WASM extension through the host's WASM runtime, with the loader that configured modules use: they rehash the stored module against the lock first, and check the session against the installed claims. A host without a WASM runtime fails with `extension.runtime_unavailable`.
@@ -426,7 +428,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.2...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.3...HEAD
+[0.5.0-alpha.3]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.2...v0.5.0-alpha.3
 [0.5.0-alpha.2]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.1...v0.5.0-alpha.2
 [0.5.0-alpha.1]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.5...v0.5.0-alpha.1
 [0.4.0-alpha.5]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.4...v0.4.0-alpha.5
