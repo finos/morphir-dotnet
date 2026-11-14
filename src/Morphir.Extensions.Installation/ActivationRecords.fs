@@ -852,7 +852,7 @@ type InstalledExtensions private () =
         InstalledExtensions.InstallPreparedAsync(
             home,
             plan,
-            archivePath,
+            Func<Stream>(fun () -> FileSafety.openInput archivePath :> Stream),
             Func<string list, CancellationToken, Task<Value * Value>>(fun args ct ->
                 ActivationState.publishLocalAsync repositoryRoot plan archivePath args ct),
             args,
@@ -873,7 +873,7 @@ type InstalledExtensions private () =
         (
             home: string,
             plan: PackagePlan,
-            archivePath: string,
+            openArchive: Func<Stream>,
             record: Func<string list, CancellationToken, Task<Value * Value>>,
             args: IReadOnlyList<string>,
             hostVersion: SemVer,
@@ -925,7 +925,7 @@ type InstalledExtensions private () =
             with
             | Some failure -> return InstallationResult(Error failure)
             | None ->
-                let! tree = PackageInstaller.InstallAsync(home, plan, archivePath, ct)
+                let! tree = PackageInstaller.InstallFromAsync(home, plan, openArchive, ct)
 
                 match
                     tree.Match(

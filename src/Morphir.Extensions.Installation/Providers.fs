@@ -138,14 +138,21 @@ type FetchedExtensionArtifact
     internal (archive: FetchedArchive, record: Func<string list, CancellationToken, Task<Value * Value>>) =
     member internal _.Record = record
 
-    member internal _.UseAsync<'T>(operation: Func<string, Task<'T>>, ct: CancellationToken) : Task<'T> =
+    /// Runs <paramref name="operation"/> with a function that opens the archive for reading. A staged download is
+    /// read through the stage's own open handle: on Windows a second open by path is a sharing violation.
+    member internal _.UseAsync<'T>(operation: Func<Func<Stream>, Task<'T>>, ct: CancellationToken) : Task<'T> =
         match archive with
-        | ExistingFile path -> operation.Invoke path
+        | ExistingFile path -> operation.Invoke(Func<Stream>(fun () -> FileSafety.openInput path :> Stream))
         | Staged stage ->
             stage.PublishAsync(
                 Func<StageResources, Task<'T>>(fun resources ->
                     resources.Validate()
-                    operation.Invoke resources.DataPath),
+
+                    operation.Invoke(
+                        Func<Stream>(fun () ->
+                            resources.Output.Position <- 0L
+                            new BorrowedStream(resources.Output) :> Stream)
+                    )),
                 Action(ignore),
                 ct
             )
@@ -347,8 +354,9 @@ type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string | null)
             return Operations.fail "extension.github_unreachable" $"Cannot reach GitHub: {error.Message}"
     }
 
-    let document (uri: Uri) (what: string) (ct: CancellationToken) = task {
-        use! response = send uri "application/vnd.github+json" ct
+    /// The bytes of a release asset. The asset API URL returns its metadata unless the request asks for octet-stream.
+    let assetBytes (uri: Uri) (what: string) (ct: CancellationToken) = task {
+        use! response = send uri "application/octet-stream" ct
 
         if not response.IsSuccessStatusCode then
             refuse response what
@@ -472,7 +480,7 @@ type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string | null)
                             "extension.release_descriptor_missing"
                             $"The release {tag} of {repository.Text} has no release.json asset.")
 
-                let! descriptor = document descriptorUri $"release.json of {repository.Text} {tag}" ct
+                let! descriptor = assetBytes descriptorUri $"release.json of {repository.Text} {tag}" ct
 
                 let plan = PackagePlan.Read(descriptor, platform) |> ProviderResults.unwrap
 
@@ -593,11 +601,11 @@ type ExtensionSources private () =
                         try
                             return!
                                 artifact.UseAsync(
-                                    Func<string, Task<InstallationResult<CapturedExtension>>>(fun archive ->
+                                    Func<Func<Stream>, Task<InstallationResult<CapturedExtension>>>(fun openArchive ->
                                         InstalledExtensions.InstallPreparedAsync(
                                             home,
                                             release.Plan,
-                                            archive,
+                                            openArchive,
                                             artifact.Record,
                                             args,
                                             hostVersion,

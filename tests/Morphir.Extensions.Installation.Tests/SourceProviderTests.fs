@@ -40,8 +40,16 @@ type private FakeGitHub() =
         this.Requests.Enqueue request
         let path = (nonNull request.RequestUri).AbsolutePath
 
+        // As GitHub does: an asset API URL answers with the asset's metadata JSON unless the request asks for
+        // application/octet-stream. A provider that forgets the Accept header gets metadata, not the bytes.
+        let wantsBytes =
+            request.Headers.Accept |> Seq.exists (fun accept -> accept.MediaType = "application/octet-stream")
+
         let answer =
             match answers.TryGetValue path with
+            | true, answer when path.Contains "/releases/assets/" && not wantsBytes ->
+                let metadata = $"{{\"url\":\"{request.RequestUri}\",\"id\":1,\"name\":\"asset\",\"size\":{answer.Body.Length},\"content_type\":\"application/octet-stream\"}}"
+                { Status = HttpStatusCode.OK; Headers = []; Body = Encoding.UTF8.GetBytes metadata }
             | true, answer -> answer
             | _ -> { Status = HttpStatusCode.NotFound; Headers = []; Body = Encoding.UTF8.GetBytes "{\"message\":\"Not Found\"}" }
 
@@ -181,6 +189,13 @@ let tests =
 
                 Expect.equal reread.Record.TreeDigest release.Plan.TreeDigest "the installed lock reads back"
 
+                for sent in release.Github.Requests do
+                    if (nonNull sent.RequestUri).AbsolutePath.Contains "/releases/assets/" then
+                        Expect.contains
+                            (sent.Headers.Accept |> Seq.map _.MediaType |> List.ofSeq)
+                            "application/octet-stream"
+                            "release.json and the archive are fetched as bytes, not as asset metadata"
+
                 let stages =
                     let tmp = Path.Combine(home sandbox, "tmp")
                     if Directory.Exists tmp then Directory.GetDirectories(tmp, "morphir-dotnet-stage-*") else [||]
@@ -233,6 +248,50 @@ let tests =
                 |> refused "extension.provider_mismatch"
                 ExtensionSources.ResolveAsync(LocalRepositoryProvider(), request "github:finos/morphir-python", ct).GetAwaiter().GetResult()
                 |> refused "extension.provider_mismatch")
+        }
+        test "a staged download reaches the installer through the stage's open handle, never a second open by path" {
+            use sandbox = TestSandbox.Create()
+            let cleanup = PackageTests.packageCleanup sandbox
+
+            try
+                let plan, archivePath, _ = PackageTests.fixtureForHost sandbox
+                let bytes = File.ReadAllBytes archivePath
+
+                let stage =
+                    PrivateStaging.BeginAsync(home sandbox, uint64 bytes.Length, plan.ArchiveDigest, uint64 bytes.Length, ct).GetAwaiter().GetResult()
+                    |> get
+
+                stage.WriteAsync(ReadOnlyMemory bytes, ct).AsTask().GetAwaiter().GetResult()
+                let sealedStage = stage.SealAsync(ct).GetAwaiter().GetResult() |> get
+                let fetched = new FetchedExtensionArtifact(Staged sealedStage, Func<string list, CancellationToken, Task<Value * Value>>(fun _ _ -> failwith "unused"))
+
+                let installed =
+                    fetched
+                        .UseAsync(
+                            Func<Func<Stream>, Task<InstallationResult<InstalledPackage>>>(fun openArchive ->
+                                let stagedPath =
+                                    Directory.GetDirectories(Path.Combine(home sandbox, "tmp"), "morphir-dotnet-stage-*")
+                                    |> Array.exactlyOne
+                                    |> fun directory -> Path.Combine(directory, "bytes")
+
+                                // The hazard this handoff avoids: the stage still holds its read/write handle, and the
+                                // installer's FILE_SHARE_READ open by path is a sharing violation on Windows.
+                                if OperatingSystem.IsWindows() then
+                                    Expect.throws
+                                        (fun () -> (FileSafety.openInput stagedPath).Dispose())
+                                        "a second open of the live stage by path is refused on Windows"
+
+                                PackageInstaller.InstallFromAsync(home sandbox, plan, openArchive, ct)),
+                            ct
+                        )
+                        .GetAwaiter()
+                        .GetResult()
+                    |> get
+
+                Expect.equal installed.TreeDigest plan.TreeDigest "the tree installed from the borrowed stage handle"
+                (fetched :> IAsyncDisposable).DisposeAsync().AsTask().GetAwaiter().GetResult()
+            finally
+                cleanup.DisposeAsync().GetAwaiter().GetResult()
         }
         test "a version without a v tag falls back to the bare version tag" {
             use sandbox = TestSandbox.Create()
