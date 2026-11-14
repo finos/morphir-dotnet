@@ -245,7 +245,9 @@ let private folderFeed =
                     Expect.equal (string package["format"]) "nupkg" "package format"
 
                     Expect.isEmpty (Directory.GetFileSystemEntries packages) "NUGET_PACKAGES is untouched"
-                    Expect.isEmpty (Directory.GetFileSystemEntries httpCache) "NUGET_HTTP_CACHE_PATH is untouched"
+                    let written = Directory.GetFiles(httpCache, "*", SearchOption.AllDirectories) |> Array.map (fun path -> Path.GetRelativePath(httpCache, path))
+                    let listed = String.Join("; ", written)
+                    Expect.isEmpty written $"NUGET_HTTP_CACHE_PATH is untouched: {listed}"
 
                     let tmp = Path.Combine(home sandbox, "tmp")
                     let left =
@@ -718,5 +720,252 @@ let private wasm =
         }
     ]
 
+/// One package of the fake V3 feed: id, normalized version, listed, and the .nupkg bytes.
+type private FeedPackage = { Id: string; Version: string; Listed: bool; Bytes: byte array }
+
+/// An in-process NuGet V3 feed at https://feed.test: service index, flat container and registration. It never
+/// touches the network. With a credential, it answers 401 until NuGet's own authentication handler has put that
+/// credential on the HTTP client handler of the source.
+type private FakeV3Handler(packages: FeedPackage list, credential: (string * string) option, clientHandler: System.Net.Http.HttpClientHandler, requests: System.Collections.Concurrent.ConcurrentQueue<string>) =
+    inherit System.Net.Http.HttpMessageHandler()
+
+    let json (text: string) =
+        let response = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        response.Content <- new System.Net.Http.StringContent(text, Encoding.UTF8, "application/json")
+        response
+
+    let status code = new System.Net.Http.HttpResponseMessage(code, Content = new System.Net.Http.ByteArrayContent([||]))
+
+    let authorized (uri: Uri) =
+        match credential with
+        | None -> true
+        | Some(user, password) ->
+            match clientHandler.Credentials with
+            | null -> false
+            | credentials ->
+                match credentials.GetCredential(uri, "Basic") with
+                | null -> false
+                | given -> given.UserName = user && given.Password = password
+
+    override _.SendAsync(request, _ct) =
+        let uri = nonNull request.RequestUri
+        requests.Enqueue(uri.ToString())
+        let path = uri.AbsolutePath
+        let lower (text: string) = text.ToLowerInvariant()
+
+        let response =
+            if uri.Host <> "feed.test" then
+                status System.Net.HttpStatusCode.NotFound
+            elif not (authorized uri) then
+                let refused = status System.Net.HttpStatusCode.Unauthorized
+                refused.Headers.WwwAuthenticate.ParseAdd "Basic realm=\"feed\""
+                refused
+            elif path = "/v3/index.json" then
+                json """{"version":"3.0.0","resources":[{"@id":"https://feed.test/v3-flatcontainer/","@type":"PackageBaseAddress/3.0.0"},{"@id":"https://feed.test/v3/registration/","@type":"RegistrationsBaseUrl/3.6.0"}]}"""
+            else
+                let parts = path.Trim('/').Split('/')
+
+                match parts with
+                | [| "v3-flatcontainer"; id; "index.json" |] ->
+                    match packages |> List.filter (fun package -> lower package.Id = id) with
+                    | [] -> status System.Net.HttpStatusCode.NotFound
+                    | found ->
+                        let versions = found |> List.map (fun package -> $"\"{lower package.Version}\"") |> String.concat ","
+                        json $"""{{"versions":[{versions}]}}"""
+                | [| "v3-flatcontainer"; id; version; _file |] ->
+                    match packages |> List.tryFind (fun package -> lower package.Id = id && lower package.Version = version) with
+                    | Some package ->
+                        let response = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                        response.Content <- new System.Net.Http.ByteArrayContent(package.Bytes)
+                        response
+                    | None -> status System.Net.HttpStatusCode.NotFound
+                | [| "v3"; "registration"; id; "index.json" |] ->
+                    match packages |> List.filter (fun package -> lower package.Id = id) with
+                    | [] -> status System.Net.HttpStatusCode.NotFound
+                    | found ->
+                        let leaf (package: FeedPackage) =
+                            let published = if package.Listed then "2026-11-01T00:00:00+00:00" else "1900-01-01T00:00:00+00:00"
+                            let entry = $"https://feed.test/v3/catalog/{id}.{lower package.Version}.json"
+                            let content = $"https://feed.test/v3-flatcontainer/{id}/{lower package.Version}/{id}.{lower package.Version}.nupkg"
+                            $"""{{"@id":"https://feed.test/v3/registration/{id}/{lower package.Version}.json","catalogEntry":{{"@id":"{entry}","id":"{package.Id}","version":"{package.Version}","listed":{(if package.Listed then "true" else "false")},"published":"{published}","packageContent":"{content}"}},"packageContent":"{content}"}}"""
+
+                        let items = found |> List.map leaf |> String.concat ","
+                        let versions = found |> List.map (fun package -> NuGet.Versioning.NuGetVersion.Parse package.Version) |> List.sort
+                        let low = versions.Head.ToNormalizedString()
+                        let high = (List.last versions).ToNormalizedString()
+
+                        json
+                            $"""{{"count":1,"items":[{{"@id":"https://feed.test/v3/registration/{id}/index.json#page","count":{found.Length},"lower":"{low}","upper":"{high}","items":[{items}]}}]}}"""
+                | _ -> status System.Net.HttpStatusCode.NotFound
+
+        System.Threading.Tasks.Task.FromResult response
+
+/// NuGet's V3 providers with the fake feed as the HTTP handler, behind NuGet's own authentication handler.
+type private FakeHttpHandlerProvider(packages: FeedPackage list, credential: (string * string) option, requests) =
+    inherit NuGet.Protocol.Core.Types.ResourceProvider(typeof<NuGet.Protocol.Core.Types.HttpHandlerResource>, "FakeV3Feed", "HttpHandlerResourceV3Provider")
+
+    override _.TryCreate(source, _ct) =
+        let clientHandler = new System.Net.Http.HttpClientHandler()
+
+        let credentials =
+            match NuGet.Protocol.HttpHandlerResourceV3.CredentialService with
+            | null -> null
+            | service -> service.Value
+
+        let authentication =
+            new NuGet.Protocol.HttpSourceAuthenticationHandler(source.PackageSource, clientHandler, credentials)
+
+        authentication.InnerHandler <- new FakeV3Handler(packages, credential, clientHandler, requests)
+        let resource = NuGet.Protocol.HttpHandlerResourceV3(clientHandler, authentication) :> NuGet.Protocol.Core.Types.INuGetResource
+        System.Threading.Tasks.Task.FromResult(Tuple.Create(true, resource))
+
+let private feedUrl = "https://feed.test/v3/index.json"
+
+let private package (sandbox: TestSandbox) (version: string) (listed: bool) =
+    let folder = Path.Combine(sandbox.Root, $"pack-{version}")
+    let rid = (platform ()).RuntimeIdentifier
+    let tree = NuGetFixtures.treeDigest [ entryPoint (), payload, true ]
+    let filename = $"acme.morphir.python.{version.ToLowerInvariant()}.nupkg"
+    let release = NuGetFixtures.descriptor version [ NuGetFixtures.processArtifact version (platform ()).DescriptorTriple filename $"morphir/{rid}" (entryPoint ()) tree ]
+
+    let path =
+        NuGetFixtures.pack folder "Acme.Morphir.Python" version [] [
+            { Name = "morphir/release.json"; Bytes = release }
+            { Name = $"morphir/{rid}/{entryPoint ()}"; Bytes = payload }
+        ]
+
+    { Id = "Acme.Morphir.Python"; Version = version; Listed = listed; Bytes = File.ReadAllBytes path }
+
+let private installFromFeed (sandbox: TestSandbox) (packages: FeedPackage list) (credential: (string * string) option) (config: string option) (text: string) =
+    let requests = System.Collections.Concurrent.ConcurrentQueue<string>()
+
+    let repositoryOf (source: NuGet.Configuration.PackageSource) =
+        let providers =
+            Seq.append
+                (NuGet.Protocol.Core.Types.Repository.Provider.GetCoreV3())
+                [ Lazy<NuGet.Protocol.Core.Types.INuGetResourceProvider>(fun () -> FakeHttpHandlerProvider(packages, credential, requests) :> NuGet.Protocol.Core.Types.INuGetResourceProvider) ]
+
+        NuGet.Protocol.Core.Types.Repository.CreateSource(providers, source)
+
+    let request =
+        match ExtensionSourceRequest.Parse text with
+        | Ok request -> request.WithNuGetOptions((match config with Some _ -> null | None -> feedUrl), Option.toObj config, false) |> get
+        | Error failure -> failtestf "Bad request %s: %O" text failure
+
+    let provider = NuGetPackageProvider(home sandbox, sandbox.Root, repositoryOf) :> IExtensionSourceProvider
+
+    let result =
+        ExtensionSources.InstallAsync(home sandbox, provider, request, Array.AsReadOnly [||], host, ct).GetAwaiter().GetResult()
+
+    result, requests
+
+let private stateBytes (sandbox: TestSandbox) =
+    [ "catalog"; "locks"; "journal" ]
+    |> List.map (fun name -> Path.Combine(home sandbox, name))
+    |> List.filter Directory.Exists
+    |> List.collect (fun folder -> Directory.GetFiles(folder, "*", SearchOption.AllDirectories) |> Array.toList)
+    |> List.map (fun path -> Encoding.UTF8.GetString(File.ReadAllBytes path))
+    |> String.concat "\n"
+
+let private v3Feed =
+    testList "NuGetV3Feed" [
+        test "an exact version installs from a V3 feed and records its https service index" {
+            withSandbox (fun sandbox ->
+                let result, _ = installFromFeed sandbox [ package sandbox "1.2.3" true ] None None "nuget:Acme.Morphir.Python@1.2.3"
+                use captured = result |> get
+                Expect.equal captured.Record.Version.Text "1.2.3" "the version"
+                let index = nonNull ((lockNode sandbox).["index"])
+                Expect.equal (string index["feed"]) feedUrl "the recorded feed")
+        }
+        test "without a version a newer prerelease and an unlisted version are not selected" {
+            withSandbox (fun sandbox ->
+                let packages = [ package sandbox "1.2.3" true; package sandbox "1.3.0-beta.1" true; package sandbox "1.4.0" false ]
+                let result, _ = installFromFeed sandbox packages None None "nuget:Acme.Morphir.Python"
+                use captured = result |> get
+                Expect.equal captured.Record.Version.Text "1.2.3" "the highest stable listed version")
+        }
+        test "a named unlisted version is selected" {
+            withSandbox (fun sandbox ->
+                let packages = [ package sandbox "1.2.3" true; package sandbox "1.4.0" false ]
+                let result, _ = installFromFeed sandbox packages None None "nuget:Acme.Morphir.Python@1.4.0"
+                use captured = result |> get
+                Expect.equal captured.Record.Version.Text "1.4.0" "the named version")
+        }
+        test "a package the feed does not have is not found" {
+            withSandbox (fun sandbox ->
+                let result, _ = installFromFeed sandbox [ package sandbox "1.2.3" true ] None None "nuget:Acme.Morphir.Missing@1.0.0"
+                result |> refusedWith "extension.nuget_not_found")
+        }
+        test "a version the feed does not have is not found and names the feed" {
+            withSandbox (fun sandbox ->
+                let result, _ = installFromFeed sandbox [ package sandbox "1.2.3" true ] None None "nuget:Acme.Morphir.Python@1.9.9"
+
+                match result.Match(Func<_, _>(fun _ -> None), Func<_, _>(Some)) with
+                | None -> failtest "Expected refusal"
+                | Some(failure: InstallationFailure) ->
+                    Expect.equal failure.Code "extension.nuget_not_found" failure.Message
+                    Expect.stringContains failure.Message "1.9.9" "the version"
+                    Expect.stringContains failure.Message feedUrl "the feed")
+        }
+        test "a feed that requires a credential, with none, is unauthorized and names the source and --interactive" {
+            withSandbox (fun sandbox ->
+                let result, _ = installFromFeed sandbox [ package sandbox "1.2.3" true ] (Some("acme", "s3cret")) None "nuget:Acme.Morphir.Python@1.2.3"
+
+                match result.Match(Func<_, _>(fun _ -> None), Func<_, _>(Some)) with
+                | None -> failtest "Expected refusal"
+                | Some(failure: InstallationFailure) ->
+                    Expect.equal failure.Code "extension.nuget_unauthorized" failure.Message
+                    Expect.stringContains failure.Message feedUrl "the source"
+                    Expect.stringContains failure.Message "--interactive" "the way to sign in")
+        }
+        test "packageSourceCredentials of nuget.config are used and never written to the catalog, lock or journal" {
+            withSandbox (fun sandbox ->
+                let config =
+                    writeConfig sandbox $"""<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources><clear /><add key="acme" value="{feedUrl}" /></packageSources>
+  <packageSourceCredentials><acme><add key="Username" value="acme-user" /><add key="ClearTextPassword" value="s3cret-value" /></acme></packageSourceCredentials>
+</configuration>"""
+
+                let result, requests =
+                    installFromFeed sandbox [ package sandbox "1.2.3" true ] (Some("acme-user", "s3cret-value")) (Some config) "nuget:Acme.Morphir.Python@1.2.3"
+
+                use captured = result |> get
+                Expect.equal captured.Record.Version.Text "1.2.3" "installed with the credential"
+                Expect.all requests (fun uri -> Uri(uri).Host = "feed.test") "requests go only to the feed"
+                let state = stateBytes sandbox
+                Expect.isNonEmpty state "the state was written"
+                Expect.isFalse (state.Contains "s3cret-value") "no password in the state"
+                Expect.isFalse (state.Contains "acme-user") "no user name in the state")
+        }
+        test "an https install writes nothing to NuGet's HTTP cache or scratch folders outside the Home" {
+            withSandbox (fun sandbox ->
+                let httpCache = Path.Combine(sandbox.Root, "nuget-http-cache")
+                Directory.CreateDirectory httpCache |> ignore
+                let previous = Environment.GetEnvironmentVariable "NUGET_HTTP_CACHE_PATH"
+                Environment.SetEnvironmentVariable("NUGET_HTTP_CACHE_PATH", httpCache)
+
+                try
+                    let result, _ = installFromFeed sandbox [ package sandbox "1.2.3" true ] None None "nuget:Acme.Morphir.Python@1.2.3"
+                    use _ = result |> get
+                    let written = Directory.GetFiles(httpCache, "*", SearchOption.AllDirectories) |> Array.map (fun path -> Path.GetRelativePath(httpCache, path))
+                    let listed = String.Join("; ", written)
+                    Expect.isEmpty written $"NUGET_HTTP_CACHE_PATH is untouched: {listed}"
+                    Expect.equal (Environment.GetEnvironmentVariable "NUGET_HTTP_CACHE_PATH") httpCache "restored after the operation"
+                finally
+                    Environment.SetEnvironmentVariable("NUGET_HTTP_CACHE_PATH", previous))
+        }
+        test "the credential service of NuGet, with its plugin providers, is set up non-interactively" {
+            withSandbox (fun sandbox ->
+                let result, _ = installFromFeed sandbox [ package sandbox "1.2.3" true ] None None "nuget:Acme.Morphir.Python@1.2.3"
+                use _ = result |> get
+
+                match NuGet.Protocol.HttpHandlerResourceV3.CredentialService with
+                | null -> failtest "No credential service"
+                | service -> Expect.isTrue (service.Value :? NuGet.Credentials.CredentialService) "NuGet's credential service with plugin providers")
+        }
+    ]
+
 [<Tests>]
-let tests = testLabel "PlatformSpecific" <| testList "NuGetProvider" [ parsing; folderFeed; layouts; configuration; wasm ]
+// Sequenced: the tests set NUGET_* variables, which are process-wide.
+let tests = testLabel "PlatformSpecific" <| testSequenced (testList "NuGetProvider" [ parsing; folderFeed; layouts; configuration; wasm; v3Feed ])

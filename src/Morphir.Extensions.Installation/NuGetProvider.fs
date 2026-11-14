@@ -297,8 +297,13 @@ module internal NuGetFeeds =
     let cache (temporary: string) =
         new SourceCacheContext(NoCache = true, DirectDownload = true, GeneratedTempFolder = temporary)
 
-    let private finder (source: PackageSource) (ct: CancellationToken) = task {
-        let repository = Repository.Factory.GetCoreV3 source
+    /// The repository of a source: NuGet's V3 providers. Tests give an in-process feed instead.
+    type RepositoryOf = PackageSource -> SourceRepository
+
+    let standard: RepositoryOf = fun source -> Repository.Factory.GetCoreV3 source
+
+    let private finder (repositoryOf: RepositoryOf) (source: PackageSource) (ct: CancellationToken) = task {
+        let repository = repositoryOf source
         let! resource = repository.GetResourceAsync<FindPackageByIdResource> ct
 
         return
@@ -308,13 +313,13 @@ module internal NuGetFeeds =
     }
 
     /// The first source, in configuration order, that has the exact version.
-    let findExactAsync sources (id: string) (version: NuGetVersion) interactive cache ct = task {
+    let findExactAsync (repositoryOf: RepositoryOf) sources (id: string) (version: NuGetVersion) interactive cache ct = task {
         let mutable found = None
 
         for source: PackageSource in sources do
             if found.IsNone then
                 try
-                    let! resource = finder source ct
+                    let! resource = finder repositoryOf source ct
                     let! exists = resource.DoesPackageExistAsync(id, version, cache, logger, ct)
 
                     if exists then
@@ -327,12 +332,12 @@ module internal NuGetFeeds =
 
     /// The highest stable listed version across the sources, as <c>dotnet tool install</c> without a version.
     /// A folder feed has no listing, so all its stable versions count. Ties keep the first source.
-    let findLatestAsync sources (id: string) interactive cache ct = task {
+    let findLatestAsync (repositoryOf: RepositoryOf) sources (id: string) interactive cache ct = task {
         let mutable best: (NuGetVersion * PackageSource) option = None
 
         for source: PackageSource in sources do
             try
-                let repository = Repository.Factory.GetCoreV3 source
+                let repository = repositoryOf source
                 let! metadata = repository.GetResourceAsync<PackageMetadataResource> ct
 
                 let metadata =
@@ -356,7 +361,7 @@ module internal NuGetFeeds =
     }
 
     /// Copies a package into a private stage under the Home, bounded by the artifact limit.
-    let downloadAsync (home: string) (source: PackageSource) (package: PackageIdentity) interactive cache (ct: CancellationToken) = task {
+    let downloadAsync (repositoryOf: RepositoryOf) (home: string) (source: PackageSource) (package: PackageIdentity) interactive cache (ct: CancellationToken) = task {
         let! resources = StageResources.CreateAsync(home, ct)
         let mutable owned = true
 
@@ -364,7 +369,7 @@ module internal NuGetFeeds =
             let! resource =
                 task {
                     try
-                        return! finder source ct
+                        return! finder repositoryOf source ct
                     with error ->
                         return refuse source package.Id interactive error
                 }
@@ -558,7 +563,7 @@ module internal NuGetConvention =
 /// feeds, with the sources, mapping, credentials and signature policy of nuget.config. It only resolves and fetches;
 /// the installer checks and writes.
 [<Sealed>]
-type NuGetPackageProvider(home: string, workingDirectory: string) =
+type NuGetPackageProvider internal (home: string, workingDirectory: string, repositoryOf: NuGetFeeds.RepositoryOf) =
     static let gate = obj ()
     static let mutable credentialsInteractive: bool option = None
 
@@ -583,20 +588,28 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
     /// NuGet keeps its HTTP cache (service index, repository signatures) and its lock files in its own folders even
     /// with NoCache. The provider points both into its private temporary folder under the Home for the duration of
     /// one operation, and restores them after it.
-    static let withPrivateFolders (temporary: string) (work: unit -> Task<'T>) : Task<'T> = task {
-        let names = [ "NUGET_HTTP_CACHE_PATH", "http-cache" ]
-        let previous = names |> List.map (fun (name, _) -> name, Environment.GetEnvironmentVariable name)
+    /// The variable is process-wide, so the provider runs one NuGet operation at a time.
+    static let operations = new SemaphoreSlim(1, 1)
 
-        for name, folder in names do
-            let path = Path.Combine(temporary, folder)
-            Directory.CreateDirectory path |> ignore
-            Environment.SetEnvironmentVariable(name, path)
+    static let withPrivateFolders (temporary: string) (work: unit -> Task<'T>) : Task<'T> = task {
+        do! operations.WaitAsync()
 
         try
-            return! work ()
+            let names = [ "NUGET_HTTP_CACHE_PATH", "http-cache" ]
+            let previous = names |> List.map (fun (name, _) -> name, Environment.GetEnvironmentVariable name)
+
+            for name, folder in names do
+                let path = Path.Combine(temporary, folder)
+                Directory.CreateDirectory path |> ignore
+                Environment.SetEnvironmentVariable(name, path)
+
+            try
+                return! work ()
+            finally
+                for name, value in previous do
+                    Environment.SetEnvironmentVariable(name, value)
         finally
-            for name, value in previous do
-                Environment.SetEnvironmentVariable(name, value)
+            operations.Release() |> ignore
     }
 
     /// NuGet reads its scratch folder (lock files) once per process and keeps it. So before its first NuGet call the
@@ -616,7 +629,10 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
             ()
 
     /// Downloads under <paramref name="home"/> and uses the nuget.config hierarchy from the current directory.
-    new(home: string) = NuGetPackageProvider(home, Environment.CurrentDirectory)
+    new(home: string) = NuGetPackageProvider(home, Environment.CurrentDirectory, NuGetFeeds.standard)
+
+    /// Downloads under <paramref name="home"/> and uses the nuget.config hierarchy from <paramref name="workingDirectory"/>.
+    new(home: string, workingDirectory: string) = NuGetPackageProvider(home, workingDirectory, NuGetFeeds.standard)
 
     override _.ToString() = "nuget"
 
@@ -661,10 +677,10 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                         match request.Version with
                         | Some version ->
                             task {
-                                let! found = NuGetFeeds.findExactAsync sources request.Id version request.Interactive cache ct
+                                let! found = NuGetFeeds.findExactAsync repositoryOf sources request.Id version request.Interactive cache ct
                                 return found |> Option.map (fun source -> version, source)
                             }
-                        | None -> NuGetFeeds.findLatestAsync sources request.Id request.Interactive cache ct
+                        | None -> NuGetFeeds.findLatestAsync repositoryOf sources request.Id request.Interactive cache ct
 
                     let version, source =
                         match selected with
@@ -680,7 +696,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                                 $"No NuGet source has {what}; tried {NuGetSettings.describe sources}."
 
                     let main = PackageIdentity(request.Id, version)
-                    let! downloaded = NuGetFeeds.downloadAsync home source main request.Interactive cache ct
+                    let! downloaded = NuGetFeeds.downloadAsync repositoryOf home source main request.Interactive cache ct
 
                     let resources =
                         downloaded
@@ -771,7 +787,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                 try
                   return! withPrivateFolders temporary (fun () -> task {
                     use cache = NuGetFeeds.cache temporary
-                    let! downloaded = NuGetFeeds.downloadAsync fetchHome location.Source location.Package location.Interactive cache ct
+                    let! downloaded = NuGetFeeds.downloadAsync repositoryOf fetchHome location.Source location.Package location.Interactive cache ct
 
                     let resources =
                         downloaded
