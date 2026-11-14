@@ -5,7 +5,10 @@ Shared test infrastructure for this repository. It is never packed or shipped.
 It has two layers:
 
 - **Containment:** `TestSandbox`, `ChildProcess`, `ProcessGate`, `MachineTripwire` and `TolerantDirectory`. See
-  [Test Isolation](../../docs/content/docs/contributing/qa/test-isolation.md).
+  [Test Isolation](../../docs/content/docs/contributing/qa/test-isolation.md). `ProcessHelper` is the child process
+  that these tests and `ConsoleInterrupt` start instead of a shell: the file-based app
+  `tests/Fixtures/process-helper/process-helper.cs`, which the build of this project builds ahead of the tests
+  (`build/Morphir.ProcessHelper.targets`) into the folder `process-helper` of each test output.
 - **Drivers** (namespace `Morphir.TestSupport.Drivers`): the one way in which a black-box test reaches the product.
   This document describes the drivers.
 

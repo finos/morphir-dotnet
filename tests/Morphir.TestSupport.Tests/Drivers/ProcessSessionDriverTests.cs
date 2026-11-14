@@ -61,6 +61,37 @@ public class ProcessSessionDriverTests
         exit.FromInterruptToExit!.Value.Should().BeGreaterThanOrEqualTo(TimeSpan.Zero).And.BeLessThan(TimeSpan.FromSeconds(10));
     }
 
+    // The session of the target holds a slot of the shared gate for its whole life. With a share of one slot, an
+    // interrupt that waited for a slot of the same gate waited until the time limit of the session stopped its target.
+    [Test]
+    public async Task AnInterruptDoesNotWaitForASlotOfTheSharedGate()
+    {
+        var (workspace, sessions, script) = await Arrange("""{"modules":{"*":[{"stderr":"ready"},{"hang":true}]}}""");
+        await using var _ = workspace;
+        await using var session = await sessions.StartAsync(["--script", script, "extension", "worker"], new ProcessSessionOptions { Timeout = TimeSpan.FromSeconds(60) });
+        (await session.WaitUntilAsync(() => session.StandardError.Any(line => line.Text == "ready"), TimeSpan.FromSeconds(30))).Should().BeTrue();
+
+        var slots = new List<IDisposable>();
+        try
+        {
+            // The session holds one slot of the shared gate; the test takes the others, so that none is free, as with a
+            // share of one slot. Other tests of the assembly hold slots too: the wait for them is bounded, and the
+            // slots are held only for the interrupt. On Linux and macOS the interrupt is kill(2) and starts no helper.
+            using var waitForSlots = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            for (var i = 1; i < ProcessGate.Shared.Limit; i++) slots.Add(await ProcessGate.Shared.EnterAsync(waitForSlots.Token));
+            var interrupt = session.InterruptAsync(ConsoleControlEvent.CtrlBreak);
+            (await Task.WhenAny(interrupt, Task.Delay(TimeSpan.FromSeconds(30)))).Should().BeSameAs(interrupt, "the helper of the interrupt has a gate of its own");
+            await interrupt;
+        }
+        finally
+        {
+            foreach (var slot in slots) slot.Dispose();
+        }
+
+        var exit = await session.WaitForExitAsync(TimeSpan.FromSeconds(30));
+        exit.ExitCode.Should().NotBeNull(exit.Describe());
+    }
+
     [Test]
     public async Task TheOutputIsReadAsItComesAndStandardErrorKeepsTheTimeOfEachLine()
     {

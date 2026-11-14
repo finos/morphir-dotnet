@@ -16,4 +16,10 @@
     <ProjectReference Include="../src/Morphir.Compilation.Mep/Morphir.Compilation.Mep.fsproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The PowerShell module of the Pester tests of the scripts (the TestScripts target). It is not a dotnet tool, so
+         the restore of this project downloads it into the NuGet packages folder, pinned, and the target imports it. -->
+    <PackageDownload Include="Pester" Version="[6.2.0]" />
+  </ItemGroup>
+
 </Project>

@@ -24,11 +24,11 @@ public enum ConsoleControlEvent
 /// <para>
 /// <b>Windows.</b> A console control event reaches every process attached to a console, so the test process cannot
 /// send one to a child without receiving it. The worker is started with <c>CreateNoWindow</c>, which gives it a console
-/// of its own with no window. A helper process, Windows PowerShell started with <c>CreateNoWindow</c> too, detaches
-/// from its own console, attaches to the worker's, ignores Ctrl+C itself, and calls
-/// <c>GenerateConsoleCtrlEvent(event, 0)</c>, which signals every process on that console: the worker, and the helper,
-/// which ignores Ctrl+C and exits anyway for Ctrl+Break. No window opens at any point. The helper prints the UTC time
-/// right after the event was generated, so the test measures from the event and not from the helper's start-up.
+/// of its own with no window. The <see cref="ProcessHelper"/>, started with <c>CreateNoWindow</c> too, detaches from its
+/// own console, attaches to the worker's, ignores Ctrl+C itself, and calls <c>GenerateConsoleCtrlEvent(event, 0)</c>,
+/// which signals every process on that console: the worker, and the helper, which ignores Ctrl+C and exits anyway for
+/// Ctrl+Break. No window opens at any point. The helper prints the UTC time right before the event is generated, so the
+/// test measures from the event and not from the helper's start-up.
 /// </para>
 /// </remarks>
 public static class ConsoleInterrupt
@@ -37,6 +37,14 @@ public static class ConsoleInterrupt
 
     [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
     static extern int Kill(int pid, int signal);
+
+    /// <summary>
+    /// The gate of the helper. The target of an interrupt is usually a session that holds a slot of
+    /// <see cref="ProcessGate.Shared"/> for its whole life. With a share of one slot (the Test target gives 1 to each test
+    /// process on a machine with 12 processors) a helper on the shared gate waits for that slot until the time limit of
+    /// the session kills its target. The helper is short and runs only next to its target, so it has a gate of its own.
+    /// </summary>
+    static readonly ProcessGate HelperGate = new(4);
 
     /// <summary>Sends the interruption and returns when it was sent, in UTC.</summary>
     public static async Task<DateTime> SendAsync(int pid, ConsoleControlEvent windowsEvent = ConsoleControlEvent.CtrlC)
@@ -48,37 +56,16 @@ public static class ConsoleInterrupt
             return sent;
         }
 
-        var script = $$"""
-            $ErrorActionPreference = 'Stop'
-            Add-Type -TypeDefinition @'
-            using System;
-            using System.Runtime.InteropServices;
-            public static class MorphirConsoleControl {
-                [DllImport("kernel32.dll", SetLastError = true)] public static extern bool FreeConsole();
-                [DllImport("kernel32.dll", SetLastError = true)] public static extern bool AttachConsole(uint processId);
-                [DllImport("kernel32.dll", SetLastError = true)] public static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
-                [DllImport("kernel32.dll", SetLastError = true)] public static extern bool GenerateConsoleCtrlEvent(uint ctrlEvent, uint processGroupId);
-            }
-            '@
-            $out = [Console]::Out
-            [void][MorphirConsoleControl]::FreeConsole()
-            if (-not [MorphirConsoleControl]::AttachConsole({{pid}})) { $out.WriteLine('attach-failed ' + [Runtime.InteropServices.Marshal]::GetLastWin32Error()); $out.Flush(); exit 2 }
-            [void][MorphirConsoleControl]::SetConsoleCtrlHandler([IntPtr]::Zero, $true)
-            $out.WriteLine('sending ' + [DateTime]::UtcNow.Ticks)
-            $out.Flush()
-            if (-not [MorphirConsoleControl]::GenerateConsoleCtrlEvent({{(int)windowsEvent}}, 0)) { $out.WriteLine('generate-failed ' + [Runtime.InteropServices.Marshal]::GetLastWin32Error()); $out.Flush(); exit 3 }
-            $out.WriteLine('sent')
-            $out.Flush()
-            [void][MorphirConsoleControl]::FreeConsole()
-            exit 0
-            """;
-        var powershell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
-        var encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script.Replace("\r\n", "\n", StringComparison.Ordinal)));
-        var info = ChildProcess.StartInfo(powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded);
         // ChildProcess hides the helper's window and reads its output. A Ctrl+Break also ends the helper, which is why
         // the time is taken just before the event, not after it.
-        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60));
+        var info = ProcessHelper.StartInfo("send-ctrl", pid.ToString(CultureInfo.InvariantCulture), ((int)windowsEvent).ToString(CultureInfo.InvariantCulture));
+        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(30), gate: HelperGate);
         var lines = result.StandardOutput.Split('\n').Select(line => line.Trim()).ToArray();
+        if (lines.FirstOrDefault(line => line.StartsWith("attach-failed ", StringComparison.Ordinal)) is { } attach)
+        {
+            throw AttachFailure(pid, attach, result);
+        }
+
         var sending = lines.FirstOrDefault(line => line.StartsWith("sending ", StringComparison.Ordinal));
         if (sending is null || lines.Any(line => line.StartsWith("generate-failed", StringComparison.Ordinal)))
         {
@@ -86,5 +73,36 @@ public static class ConsoleInterrupt
         }
 
         return new DateTime(long.Parse(sending["sending ".Length..], CultureInfo.InvariantCulture), DateTimeKind.Utc);
+    }
+
+    /// <summary>
+    /// AttachConsole gives ERROR_INVALID_PARAMETER (87) both for a process that does not exist and for a process with
+    /// no console. A target started with <c>CreateNoWindow</c> has a console of its own, also when the test process has
+    /// none, so 87 nearly always means that the target had exited: the message says which case it was.
+    /// </summary>
+    static InvalidOperationException AttachFailure(int pid, string attach, ChildProcessResult result) =>
+        IsRunning(pid)
+            ? new InvalidOperationException(
+                $"The console control helper could not attach to the console of process {pid}, which is running ({attach}; exit {result.ExitCode}). " +
+                $"Was it started with no console (DETACHED_PROCESS) instead of CreateNoWindow? {result.CombinedOutput}")
+            : new InvalidOperationException(
+                $"Process {pid} had exited before the interrupt, so the console control helper could not attach to its console ({attach}). " +
+                "Check that the target was still running, for example that the time limit of its session had not stopped it.");
+
+    static bool IsRunning(int pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException)
+        {
+            return false;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return true; // It exists, but this process may not query it.
+        }
     }
 }

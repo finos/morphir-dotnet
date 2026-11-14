@@ -44,7 +44,7 @@ Words of the steps:
 | unit | The test project of the library, `tests/<Library>.Tests` | A framework test: TUnit (C#) or Expecto (F#). Where the project has feature files for the same subject, follow the form of the tests beside it. | `PlatformSpecific` if it uses the operating system (see `docs/contributing/ci-os-matrix.md`) | Hermetic. Use `TestSandbox` and `ChildProcess` of `tests/Morphir.TestSupport` for a folder or a process. |
 | property | The test project of the library | A property test of its framework | As unit | As unit |
 | conformance | `conformance/suites/` with kit steps, or a test project that references `src/Morphir.Conformance` | Kit feature, or framework test | As unit | As unit. It gets its executable from the target of the testing library. |
-| build | `tests/Morphir.Build.Tests` | TUnit | None | The `TestBuild` target runs the project after the pack step. |
+| build | `tests/Morphir.Build.Tests`; for a PowerShell script of the repository, `tests/Scripts` | TUnit; for a PowerShell script, Pester (`<script>.Tests.ps1`) | None | The `TestBuild` target runs the project after the pack step, and its dependency `TestScripts` runs the Pester tests. |
 | integration | `tests/Morphir.BlackBox.Tests/Integration/` | Gherkin scenario | `@integration` | Each scenario has its own workspace, so scenarios run at the same time. |
 | end-to-end | `tests/Morphir.BlackBox.Tests/EndToEnd/` | Gherkin scenario | `@e2e` | As integration |
 | smoke | `tests/Morphir.BlackBox.Tests/Smoke/` | Gherkin scenario | `@smoke` | As integration |
@@ -56,6 +56,7 @@ More rules for each test:
 
 - A test that runs `dotnet build`, `pack` or `publish` on a project of the repository must not replace the assemblies of the solution build. Its suite has `WithSourceProjects()` in `build/Helpers/TestPlan.cs`.
 - A suite that has tests with a time budget has `Alone()` in `build/Helpers/TestPlan.cs`.
+- A test starts no PowerShell. For a child process that only has to read, write or wait, use the `ProcessHelper` of `tests/Morphir.TestSupport`, not a shell. A PowerShell script of the build or of CI is tested in PowerShell, with Pester. The exception is a delivered install script (`scripts/install-morphirup.ps1`): users run it in PowerShell, and the end-to-end scenarios of `InstallScriptDriver` run it and `install-morphirup.sh` with the same steps. `TestShellRulesTests` in `tests/Morphir.Build.Tests/Helpers` checks this. **Partial:** it finds the program names `powershell` and `pwsh` in a string literal, not a name inside a longer command string, and it allows each named file as a whole: `build/Build.Testing.cs` (runs Pester) and the install-script driver with its unit tests.
 - A new test project is in `Morphir.slnx` and in `TestPlan.Suites`. A group of the black-box project is in `TestPlan.Suites` from the change that adds its first test with no lane.
 
 ## Black-box tests

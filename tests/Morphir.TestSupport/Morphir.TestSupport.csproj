@@ -10,4 +10,7 @@
     <RootNamespace>Morphir.TestSupport</RootNamespace>
   </PropertyGroup>
 
+  <!-- The child process of ChildProcess tests and of ConsoleInterrupt: see ProcessHelper. -->
+  <Import Project="build/Morphir.ProcessHelper.targets" />
+
 </Project>

@@ -53,13 +53,41 @@ partial class Build
         .Executes(() => RunTests(Configuration));
 
     /// <summary>
-    /// Run the build tests (Morphir.Build.Tests), then the packages lane of the black-box tests
-    /// (<see cref="TestPlan.PackagesLaneRun"/>): the tests of the packed packages, which read the output folder of
-    /// PackAll. NOTE: Requires packages to be built first (run PackAll target)
+    /// Run the Pester tests of the PowerShell scripts (tests/Scripts) with the Pester module that the restore of
+    /// build/_build.csproj downloaded (a PackageDownload: Pester is not a dotnet tool). A script is tested in
+    /// PowerShell, with Pester; a test of the .NET code starts no PowerShell (TestShellRulesTests).
+    /// </summary>
+    Target TestScripts => _ => _
+        .DependsOn(Compile)
+        .Description("Run the Pester tests of the PowerShell scripts")
+        .Executes(() =>
+        {
+            var project = System.Xml.Linq.XDocument.Load(RootDirectory / "build" / "_build.csproj");
+            var version = project.Descendants("PackageDownload")
+                .Single(item => (string?)item.Attribute("Include") == "Pester")
+                .Attribute("Version")!.Value.Trim('[', ']');
+            var packages = Environment.GetEnvironmentVariable("NUGET_PACKAGES") is { Length: > 0 } folder
+                ? folder
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+            var module = Path.Combine(packages, "pester", version, "tools", "Pester.psd1");
+            if (!File.Exists(module))
+                throw new Exception($"Pester {version} is not in {packages}. Restore build/_build.csproj, which downloads it.");
+            var stub = TestsDirectory / "Morphir.Mck.Stub" / "bin" / Configuration / CurrentTargetFramework;
+            var results = TestResultsDirectory / "Scripts";
+            var exitCode = RunCommand("pwsh", "-NoProfile", "-NonInteractive", "-File", TestsDirectory / "Scripts" / "Invoke-ScriptTests.ps1",
+                "-PesterModule", module, "-StubFolder", stub, "-ResultsDirectory", results);
+            if (exitCode != 0)
+                throw new Exception($"The Pester tests of the scripts failed: {exitCode} failed (report: {results / "pester.xml"}).");
+        });
+
+    /// <summary>
+    /// Run the Pester tests of the scripts (<see cref="TestScripts"/>), the build tests (Morphir.Build.Tests), then
+    /// the packages lane of the black-box tests (<see cref="TestPlan.PackagesLaneRun"/>): the tests of the packed
+    /// packages, which read the output folder of PackAll. NOTE: Requires packages to be built first (run PackAll target)
     /// </summary>
     Target TestBuild => _ => _
-        .DependsOn(Compile)
-        .Description("Run build tests and the packages lane of the black-box tests (requires packages to be built)")
+        .DependsOn(Compile, TestScripts)
+        .Description("Run the Pester tests of the scripts, the build tests and the packages lane of the black-box tests (requires packages to be built)")
         .Executes(() =>
         {
             Serilog.Log.Information("Running build/package validation tests...");

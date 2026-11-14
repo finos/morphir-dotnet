@@ -7,6 +7,12 @@ This project references `Morphir.TestSupport` only. No assembly from `src/` is v
 test starts no process, makes no temporary directory and reads no environment variable: it calls a driver
 interface of `Morphir.TestSupport.Drivers` (see [the README of the testing library](../Morphir.TestSupport/README.md)).
 
+The drivers start no PowerShell, with one exception: `InstallScriptDriver` runs the delivered
+`scripts/install-morphirup.ps1` in PowerShell as a user does, because `EndToEnd/InstallScripts.feature` runs the same
+scenarios against it on Windows and against `install-morphirup.sh` elsewhere. A driver that needs a plain child
+process starts the `ProcessHelper` of `Morphir.TestSupport`. A PowerShell script of the build or of CI is tested with
+Pester in `tests/Scripts`, not here. `TestShellRulesTests` of `tests/Morphir.Build.Tests` checks this.
+
 Before you add, move, rename or delete a test here, use the `test-manager` skill
 (`.agents/skills/test-manager/SKILL.md`). It has the classification steps and the patterns.
 
