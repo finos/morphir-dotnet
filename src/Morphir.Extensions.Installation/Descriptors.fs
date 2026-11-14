@@ -10,7 +10,8 @@ type internal ReleaseArtifact = {
     Runtime: ArtifactRuntime
     Platform: string option
     Filename: TargetPath
-    Sha256: Sha256Digest
+    /// The digest of the delivered file; None for a nupkg package, whose tree digest is its only digest.
+    Sha256: Sha256Digest option
     Claims: ReleaseClaims
     Package: Value option
 }
@@ -26,7 +27,7 @@ module internal Descriptors =
     open SharedJson
 
     let private releaseSchema =
-        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json"
+        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json"
 
     let private version path value = parsed path SemVer.tryParse value
 
@@ -69,9 +70,39 @@ module internal Descriptors =
             required path "filename" items
             |> parsed $"{path}.filename" DistributionIdentifiers.ParseArtifactFileName
 
+        let packageItems =
+            match optional "package" items with
+            | Some value -> Some(members $"{path}.package" value)
+            | None -> None
+
+        let isNupkg =
+            packageItems
+            |> Option.exists (fun declaration -> optional "format" declaration = Some(Value.String "nupkg"))
+
         let digest =
-            required path "sha256" items
-            |> parsed $"{path}.sha256" Sha256Digest.Parse
+            match isNupkg, optional "sha256" items with
+            | true, Some _ -> invalid $"{path}.sha256" "A nupkg package has no archive digest; treeSha256 pins it."
+            | true, None -> None
+            | false, _ ->
+                required path "sha256" items
+                |> parsed $"{path}.sha256" Sha256Digest.Parse
+                |> Some
+
+        // A NuGet package is the archive: only the entries under root are the tree, so root is required.
+        match packageItems with
+        | Some declaration when isNupkg ->
+            match optional "root" declaration with
+            | None -> invalid $"{path}.package.root" "A nupkg package requires root."
+            | Some value ->
+                let root = text $"{path}.package.root" value
+
+                match DistributionIdentifiers.ParseDeclaredPath root with
+                | Ok _ -> ()
+                | Error error -> invalid $"{path}.package.root" error.Message
+
+            if Option.isNone (optional "treeSha256" declaration) then
+                invalid $"{path}.package.treeSha256" "A nupkg package requires treeSha256."
+        | _ -> ()
 
         let claimSet =
             required path "claims" items
@@ -176,16 +207,8 @@ module internal Descriptors =
 
                 let first = artifacts.Head
 
+                // A descriptor may offer process and wasm artifacts; the host selects one (PackagePlan.Read).
                 for item in artifacts do
-                    if
-                        item.Runtime
-                        <> first.Runtime
-                    then
-                        fail
-                            "extension.invalid_descriptor"
-                            path
-                            "A descriptor cannot mix runtime kinds."
-
                     if
                         item.Claims.Extension.Id
                         <> id.Value

@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/repositories.schema.json",
+  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/repositories.schema.json",
   "title": "Configured extension repositories",
   "type": "object",
   "required": [ "$schema", "repositories" ],
   "properties": {
     "$schema": {
-      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/repositories.schema.json"
+      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/repositories.schema.json"
     },
     "repositories": {
       "type": "array",

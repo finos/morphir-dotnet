@@ -74,7 +74,8 @@ type internal StateEntry = {
     Runtime: ArtifactRuntime
     Platform: Value option
     Args: string list
-    Digest: Sha256Digest
+    /// The archive or module digest; None for a nupkg package, whose tree digest is its only digest.
+    Digest: Sha256Digest option
     Claims: ReleaseClaims
     Index: Value
     Package: Value option
@@ -104,7 +105,7 @@ module internal StateDocuments =
     open SharedJson
 
     let schemaUrl kind =
-        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/{kind}.schema.json"
+        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/{kind}.schema.json"
 
     let private stringValue path name items =
         required path name items
@@ -285,12 +286,15 @@ module internal StateDocuments =
         if closedContext then
             closed path (set [ "format"; "root"; "entryPoint"; "executables"; "treeSha256" ]) items
 
-        required path "format" items
-        |> choices
-            (path
-             + ".format")
-            [ "zip"; "tar.gz" ]
-        |> ignore
+        let format =
+            required path "format" items
+            |> choices
+                (path
+                 + ".format")
+                [ "zip"; "tar.gz"; "nupkg" ]
+
+        if format = "nupkg" && Option.isNone (optional "root" items) then
+            invalid (path + ".root") "A nupkg package requires root."
 
         let entry =
             stringValue path "entryPoint" items
@@ -366,6 +370,9 @@ module internal StateDocuments =
             "index.identity"
             "index.repository"
             "index.tag"
+            "index.feed"
+            "index.id"
+            "index.version"
             "index.revision"
             "frontend"
             "backend"
@@ -461,12 +468,23 @@ module internal StateDocuments =
                 + ".args"
             )
 
+        // A nupkg package has no archive digest: its tree digest is its only digest.
+        let isNupkg =
+            match optional "package" items with
+            | Some(Value.Object packageItems) -> optional "format" packageItems = Some(Value.String "nupkg")
+            | _ -> false
+
         let digest =
-            required path "digest" items
-            |> parsed
-                (path
-                 + ".digest")
-                Sha256Digest.Parse
+            match isNupkg, optional "digest" items with
+            | true, Some _ -> invalid (path + ".digest") "A nupkg package has no archive digest."
+            | true, None -> None
+            | false, _ ->
+                required path "digest" items
+                |> parsed
+                    (path
+                     + ".digest")
+                    Sha256Digest.Parse
+                |> Some
 
         let executable =
             required path "executable" items
@@ -772,9 +790,14 @@ module internal StateDocuments =
                     parsed "lock.selection.value" Token.tryParse requested
                     |> ignore
 
-                required "lock" "source" items
-                |> SourceDocuments.readSource "lock.source" true
-                |> ignore
+                let source =
+                    required "lock" "source" items
+                    |> SourceDocuments.readSource "lock.source" true
+
+                let provenance =
+                    SourceDocuments.readProvenance "lock.index" true true absolute entry.Index
+
+                SourceDocuments.checkPair "lock" provenance source
 
                 {
                     Entry = entry

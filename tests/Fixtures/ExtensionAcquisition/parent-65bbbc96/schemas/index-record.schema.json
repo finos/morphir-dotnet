@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/index-record.schema.json",
+  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/index-record.schema.json",
   "title": "Extension repository history record",
   "type": "object",
   "required": [ "$schema", "id", "name", "version", "channels", "artifacts" ],
   "properties": {
     "$schema": {
-      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/index-record.schema.json"
+      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/index-record.schema.json"
     },
     "id": {
       "type": "string",
@@ -118,7 +118,7 @@
       "type": "array",
       "minItems": 1,
       "items": {
-        "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json#/$defs/indexArtifact"
+        "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json#/$defs/indexArtifact"
       }
     },
     "critical": {

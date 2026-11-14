@@ -34,7 +34,10 @@ type InstalledActivationRecord
     /// Exact locked argument vector; no shell tokenization or additional arguments.
     member _.Arguments: IReadOnlyList<string> = Array.AsReadOnly(Array.ofList entry.Args)
     /// Delivered archive identity, distinct from tree identity.
-    member _.ArchiveDigest = entry.Digest
+    member _.ArchiveDigest =
+        match entry.Digest with
+        | Some digest -> digest
+        | None -> Operations.fail "package.no_archive_digest" "A nupkg package has no archive digest; its tree digest pins it."
     /// Canonical manifest and tree identity.
     member _.TreeDigest = plan.TreeDigest
     /// Existing-format single-selection catalog snapshot, preserving optional values.
@@ -136,7 +139,7 @@ module internal GenerationBinding =
                 let retained = PackagePlan.FromState(entry,locked)
                 if retained.Artifact.Platform <> Some (InstallationPlatform.Create(Platform.name candidate.Host.Platform).DescriptorTriple) then
                     Operations.fail "extension.generation_mismatch" "The retained process platform differs from the host candidate."
-            if entry.Version <> pin.Version || entry.Digest.Value <> pin.ArchiveSha256.Text then
+            if entry.Version <> pin.Version || (entry.Digest |> Option.map _.Value) <> Some pin.ArchiveSha256.Text then
                 Operations.fail "extension.generation_mismatch" "Portable pin differs from the retained installed record."
             locked)
         let ids = pins |> List.map(fun pin -> pin.Id.Text) |> Set.ofList
@@ -191,7 +194,7 @@ module internal GenerationBinding =
                     same (asset "selection").Sha256 candidate.SelectionSha256
                     for role,id in ["frontend",candidate.FrontendId;"backend",candidate.BackendId] do
                         let locked = locks |> List.find(fun locked -> locked.Entry.Id=id.Text)
-                        same (asset (role+"-archive")).Sha256.Text locked.Entry.Digest.Value
+                        same (Some (asset (role+"-archive")).Sha256.Text) (locked.Entry.Digest |> Option.map _.Value)
                         let _,path,digest =
                             manifest.Metadata |> List.tryFind(fun (candidate,_,_) -> candidate=id)
                             |> Option.defaultWith(fun () -> Operations.fail "extension.generation_incomplete" "Release checksum generation requires its original provider release envelopes.")
@@ -448,7 +451,11 @@ module private ActivationState =
                 Value.Object["os", stringValue platform.Os
                              "arch", stringValue platform.Arch]
                 "args", Value.Array(List.map stringValue args)
-                "digest", stringValue plan.ArchiveDigest.Value
+                yield!
+                    match plan.Integrity with
+                    | PayloadIntegrity.FileThenTree(file, _) -> [ "digest", stringValue file.Value ]
+                    | PayloadIntegrity.TreeOnly _
+                    | PayloadIntegrity.ModuleFile _ -> []
                 "capabilities", value "types" extension
                 "mepVersions", value "protocolVersions" claims.Json
                 "executable", Value.Boolean true

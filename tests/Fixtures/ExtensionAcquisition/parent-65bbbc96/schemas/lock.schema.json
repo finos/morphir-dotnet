@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/lock.schema.json",
+  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/lock.schema.json",
   "title": "Extension installation lock",
   "type": "object",
   "allOf": [
@@ -63,6 +63,113 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "required": [ "package" ],
+        "properties": {
+          "package": {
+            "required": [ "format" ],
+            "properties": {
+              "format": {
+                "const": "nupkg"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [ "digest" ]
+        }
+      },
+      "else": {
+        "required": [ "digest" ]
+      }
+    },
+    {
+      "if": {
+        "required": [ "index" ],
+        "properties": {
+          "index": {
+            "required": [ "kind" ],
+            "properties": {
+              "kind": {
+                "const": "local-directory"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [ "source" ],
+        "properties": {
+          "source": {
+            "required": [ "kind" ],
+            "properties": {
+              "kind": {
+                "const": "local-file"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [ "index" ],
+        "properties": {
+          "index": {
+            "required": [ "kind" ],
+            "properties": {
+              "kind": {
+                "const": "github-release"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [ "source" ],
+        "properties": {
+          "source": {
+            "required": [ "kind" ],
+            "properties": {
+              "kind": {
+                "const": "github-release-asset"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [ "index" ],
+        "properties": {
+          "index": {
+            "required": [ "kind" ],
+            "properties": {
+              "kind": {
+                "const": "nuget-package"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [ "source" ],
+        "properties": {
+          "source": {
+            "required": [ "kind" ],
+            "properties": {
+              "kind": {
+                "const": "nuget-package-entry"
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "required": [
@@ -75,14 +182,13 @@
     "source",
     "runtime",
     "args",
-    "digest",
     "capabilities",
     "mepVersions",
     "executable"
   ],
   "properties": {
     "$schema": {
-      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/lock.schema.json"
+      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/lock.schema.json"
     },
     "selection": {
       "type": "object",
@@ -135,7 +241,7 @@
               "pattern": "^[0-9a-f]{64}$"
             },
             "claims": {
-              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json#/$defs/closedEmbedded"
+              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json#/$defs/closedEmbedded"
             }
           },
           "additionalProperties": false
@@ -162,7 +268,48 @@
               "pattern": "^[0-9a-f]{64}$"
             },
             "claims": {
-              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json#/$defs/closedEmbedded"
+              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json#/$defs/closedEmbedded"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [ "kind", "feed", "id", "version", "revision", "claims" ],
+          "properties": {
+            "kind": {
+              "const": "nuget-package"
+            },
+            "feed": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^https://[^/?#@\\s]+(?:/[^?#\\s]*)?/index\\.json$"
+                },
+                {
+                  "type": "string",
+                  "not": {
+                    "pattern": "^\\\\\\\\\\?\\\\"
+                  },
+                  "pattern": "^(?:/|[A-Z]:\\\\|\\\\\\\\(?!\\?\\\\))"
+                }
+              ]
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+(?:[.-][a-z0-9_]+)*$",
+              "maxLength": 100
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[1-9][0-9]*)?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?$"
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "claims": {
+              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json#/$defs/closedEmbedded"
             }
           },
           "additionalProperties": false
@@ -207,6 +354,45 @@
               "type": "string",
               "pattern": "^[^/\\\\]+$",
               "maxLength": 255,
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [ "kind", "feed", "id", "version", "path" ],
+          "properties": {
+            "kind": {
+              "const": "nuget-package-entry"
+            },
+            "feed": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^https://[^/?#@\\s]+(?:/[^?#\\s]*)?/index\\.json$"
+                },
+                {
+                  "type": "string",
+                  "not": {
+                    "pattern": "^\\\\\\\\\\?\\\\"
+                  },
+                  "pattern": "^(?:/|[A-Z]:\\\\|\\\\\\\\(?!\\?\\\\))"
+                }
+              ]
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+(?:[.-][a-z0-9_]+)*$",
+              "maxLength": 100
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[1-9][0-9]*)?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?$"
+            },
+            "path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$",
               "minLength": 1
             }
           },
@@ -329,7 +515,7 @@
       "type": "boolean"
     },
     "package": {
-      "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json#/$defs/closedPackage"
+      "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json#/$defs/closedPackage"
     }
   },
   "additionalProperties": false

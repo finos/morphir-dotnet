@@ -53,7 +53,7 @@ let tests =
 
             let bytes =
                 Encoding.UTF8.GetBytes
-                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":null}"
+                    "{\"$schema\":\"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/journal.schema.json\",\"nextLock\":null,\"nextCatalog\":null}"
 
             File.WriteAllBytes(journal, bytes)
             let! result = InstalledState.CheckCompatibilityAsync(root, CancellationToken.None)

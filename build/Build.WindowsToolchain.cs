@@ -75,7 +75,7 @@ partial class Build
             claimNode.Remove("claimsVersion");
             var descriptor = new JsonObject
             {
-                ["$schema"] = "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json",
+                ["$schema"] = "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json",
                 ["extensionId"] = claims.Extension.Id,
                 ["shortId"] = $"fsharp-{role}",
                 ["version"] = claims.Extension.Version,

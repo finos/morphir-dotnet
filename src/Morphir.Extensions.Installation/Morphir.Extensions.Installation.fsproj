@@ -13,6 +13,13 @@
   <ItemGroup>
     <PackageReference Include="FSharp.Core" />
     <PackageReference Include="Semver" />
+    <PackageReference Include="NuGet.Versioning" />
+    <PackageReference Include="NuGet.Packaging" />
+    <PackageReference Include="NuGet.Configuration" />
+    <PackageReference Include="NuGet.Protocol" />
+    <PackageReference Include="NuGet.Credentials" />
+    <!-- The security pin of Directory.Packages.props: NuGet.Packaging asks for an older Pkcs with known CVEs. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
     <ProjectReference Include="../Morphir.Extensions/Morphir.Extensions.fsproj" />
     <ProjectReference Include="../Morphir.Mep/Morphir.Mep.fsproj" />
     <ProjectReference Include="../Morphir.Toolchain/Morphir.Toolchain.fsproj" />

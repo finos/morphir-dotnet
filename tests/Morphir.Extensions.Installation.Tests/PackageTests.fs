@@ -1092,3 +1092,152 @@ let tarPackageTests =
             Expect.equal (File.GetUnixFileMode(Path.Combine(tree, "lib", "data.json"))) (enum<UnixFileMode> 0o444) "no write"
         }
     ]
+
+let private packageCase (id: string) =
+    use document =
+        JsonDocument.Parse(
+            File.ReadAllBytes(
+                Path.Combine(AppContext.BaseDirectory, "ParentContracts", "package-cases.json")
+            )
+        )
+
+    document.RootElement.GetProperty("cases").EnumerateArray()
+    |> Seq.find (fun case -> case.GetProperty("id").GetString() = id)
+    |> fun case -> case.Clone()
+
+/// A whole descriptor around the artifacts of a parent package case, with the claims of the sample release.
+let private descriptorOf (case: JsonElement) =
+    let node = sample ()
+    let claims = (artifact node).["claims"] |> nonNull
+    let artifacts = JsonArray()
+
+    let input = case.GetProperty "input"
+
+    let items =
+        match input.TryGetProperty "artifacts" with
+        | true, value -> value.EnumerateArray() |> Seq.toList
+        | _ -> [ input.GetProperty "artifact" ]
+
+    for item in items do
+        let value = JsonNode.Parse(item.GetRawText()) |> nonNull
+        value["claims"] <- claims.DeepClone()
+        artifacts.Add value
+
+    node["artifacts"] <- artifacts
+
+    match input.TryGetProperty "critical" with
+    | true, critical -> node["critical"] <- JsonNode.Parse(critical.GetRawText())
+    | _ -> ()
+
+    utf8 (node.ToJsonString())
+
+[<Tests>]
+let nugetPackageTests =
+    testLabel "PlatformSpecific" <| testList "NuGetPackages" [
+        for id in [ "select-matching-process"; "select-wasm-fallback" ] do
+            testCase
+                $"parent selection case {id}"
+                (fun () ->
+                    let case = packageCase id
+                    let input = case.GetProperty "input"
+                    let expected = case.GetProperty("expected").GetProperty "selected"
+
+                    let platform =
+                        InstallationPlatform.FromDescriptorTriple(nonNull (input.GetProperty("hostPlatform").GetString()))
+                        |> StateOwnership.unwrap
+
+                    let descriptor =
+                        Descriptors.read (descriptorOf case)
+                        |> StateOwnership.unwrap
+
+                    let selected = PackagePlan.Select(descriptor, platform)
+
+                    Expect.equal
+                        selected.Filename.Text
+                        (nonNull (expected.GetProperty("filename").GetString()))
+                        "selected artifact"
+
+                    Expect.equal
+                        (match selected.Runtime with
+                         | ArtifactRuntime.Process -> "process"
+                         | _ -> "wasm")
+                        (nonNull (expected.GetProperty("runtime").GetString()))
+                        "selected runtime"
+                )
+        test "a release with no matching process artifact and no WASM artifact is refused" {
+            let case = packageCase "select-matching-process"
+            let node = nonNull (JsonNode.Parse(Encoding.UTF8.GetString(descriptorOf case)))
+            (nonNull node["artifacts"]).AsArray().RemoveAt 1
+
+            PackagePlan.Read(utf8 (node.ToJsonString()), InstallationPlatform.Create "osx-arm64")
+            |> refused "extension.no_matching_artifact"
+        }
+        test "parent case nupkg-upper-case-filename" {
+            PackagePlan.Read(descriptorOf (packageCase "nupkg-upper-case-filename"), InstallationPlatform.Create "linux-x64")
+            |> refused "package.archive_format"
+        }
+        for id in [ "nupkg-packed"; "nupkg-repository-signed" ] do
+            testTask $"parent install case {id}" {
+                use sandbox = TestSandbox.Create()
+                use cleanup = packageCleanup sandbox
+                let case = packageCase id
+                let input = case.GetProperty "input"
+                let expected = case.GetProperty "expected"
+
+                let archive =
+                    Path.Combine(AppContext.BaseDirectory, "ParentContracts", nonNull (input.GetProperty("archive").GetString()))
+
+                Expect.equal
+                    (Digest.ofBytes (File.ReadAllBytes archive))
+                    (nonNull (input.GetProperty("bytesSha256").GetString()))
+                    "the pinned parent fixture"
+
+                let plan =
+                    PackagePlan.Read(descriptorOf case, InstallationPlatform.Create "linux-x64")
+                    |> IoTestSupport.get
+
+                Expect.equal
+                    plan.Integrity
+                    (PayloadIntegrity.TreeOnly plan.TreeDigest)
+                    "a nupkg package is pinned by its tree only"
+
+                let! (result: InstallationResult<InstalledPackage>) =
+                    PackageInstaller.InstallAsync(home sandbox, plan, staged sandbox (File.ReadAllBytes archive), ct)
+
+                let installed: InstalledPackage = IoTestSupport.get result
+
+                Expect.equal
+                    (Encoding.UTF8.GetString(installed.Manifest.ToBytes()))
+                    (nonNull (expected.GetProperty("manifest").GetString()))
+                    "only the entries under root are the tree"
+
+                let installedFiles =
+                    Directory.GetFiles(installed.DirectoryPath, "*", SearchOption.AllDirectories)
+                    |> Array.map (fun path -> Path.GetRelativePath(installed.DirectoryPath, path).Replace('\\', '/'))
+                    |> Array.sort
+
+                Expect.equal installedFiles [| "manifest"; "tree/lib/a.dll"; "tree/run" |] "no package metadata is extracted"
+            }
+        testTask "a changed file under the root of a nupkg payload installs nothing" {
+            use sandbox = TestSandbox.Create()
+            use cleanup = packageCleanup sandbox
+            let case = packageCase "nupkg-packed"
+            let node = nonNull (JsonNode.Parse(Encoding.UTF8.GetString(descriptorOf case)))
+            let package = nonNull ((artifact node).["package"])
+            package["treeSha256"] <- JsonValue.Create(String('0', 64))
+
+            let plan =
+                PackagePlan.Read(utf8 (node.ToJsonString()), InstallationPlatform.Create "linux-x64")
+                |> IoTestSupport.get
+
+            let archive = Path.Combine(AppContext.BaseDirectory, "ParentContracts", "fixtures", "nupkg-packed.nupkg")
+            let! result = PackageInstaller.InstallAsync(home sandbox, plan, staged sandbox (File.ReadAllBytes archive), ct)
+            refused "package.tree_digest_mismatch" result
+
+            let store = Path.Combine(home sandbox, "store", "extensions", "packages", "sha256")
+
+            Expect.isEmpty
+                (Directory.GetDirectories store)
+                "nothing is published"
+        }
+    ]

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json",
+  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json",
   "title": "Extension release descriptor",
   "type": "object",
   "required": [
@@ -13,7 +13,7 @@
   ],
   "properties": {
     "$schema": {
-      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json"
+      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json"
     },
     "extensionId": {
       "type": "string",
@@ -42,7 +42,7 @@
       "type": "array",
       "minItems": 1,
       "items": {
-        "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json#/$defs/bundleArtifact"
+        "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json#/$defs/bundleArtifact"
       }
     },
     "critical": {
@@ -103,7 +103,7 @@
       "required": [ "format", "entryPoint", "treeSha256" ],
       "properties": {
         "format": {
-          "enum": [ "zip", "tar.gz" ]
+          "enum": [ "zip", "tar.gz", "nupkg" ]
         },
         "root": {
           "type": "string",
@@ -132,7 +132,22 @@
           "pattern": "^[0-9a-f]{64}$"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "required": [ "format" ],
+            "properties": {
+              "format": {
+                "const": "nupkg"
+              }
+            }
+          },
+          "then": {
+            "required": [ "root", "treeSha256" ]
+          }
+        }
+      ]
     },
     "platform": {
       "type": "object",
@@ -191,6 +206,45 @@
             }
           },
           "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "required": [ "kind", "feed", "id", "version", "path" ],
+          "properties": {
+            "kind": {
+              "const": "nuget-package-entry"
+            },
+            "feed": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^https://[^/?#@\\s]+(?:/[^?#\\s]*)?/index\\.json$"
+                },
+                {
+                  "type": "string",
+                  "not": {
+                    "pattern": "^\\\\\\\\\\?\\\\"
+                  },
+                  "pattern": "^(?:/|[A-Z]:\\\\|\\\\\\\\(?!\\?\\\\))"
+                }
+              ]
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+(?:[.-][a-z0-9_]+)*$",
+              "maxLength": 100
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[1-9][0-9]*)?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?$"
+            },
+            "path": {
+              "type": "string",
+              "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": true
         }
       ]
     },
@@ -240,6 +294,44 @@
             }
           },
           "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "required": [ "kind", "feed", "id", "version", "revision" ],
+          "properties": {
+            "kind": {
+              "const": "nuget-package"
+            },
+            "feed": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^https://[^/?#@\\s]+(?:/[^?#\\s]*)?/index\\.json$"
+                },
+                {
+                  "type": "string",
+                  "not": {
+                    "pattern": "^\\\\\\\\\\?\\\\"
+                  },
+                  "pattern": "^(?:/|[A-Z]:\\\\|\\\\\\\\(?!\\?\\\\))"
+                }
+              ]
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+(?:[.-][a-z0-9_]+)*$",
+              "maxLength": 100
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[1-9][0-9]*)?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?$"
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "additionalProperties": true
         }
       ]
     },
@@ -264,7 +356,7 @@
               "pattern": "^[0-9a-f]{64}$"
             },
             "claims": {
-              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json#/$defs/embedded"
+              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json#/$defs/embedded"
             }
           },
           "additionalProperties": true
@@ -291,7 +383,48 @@
               "pattern": "^[0-9a-f]{64}$"
             },
             "claims": {
-              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json#/$defs/embedded"
+              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json#/$defs/embedded"
+            }
+          },
+          "additionalProperties": true
+        },
+        {
+          "type": "object",
+          "required": [ "kind", "feed", "id", "version", "revision", "claims" ],
+          "properties": {
+            "kind": {
+              "const": "nuget-package"
+            },
+            "feed": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^https://[^/?#@\\s]+(?:/[^?#\\s]*)?/index\\.json$"
+                },
+                {
+                  "type": "string",
+                  "not": {
+                    "pattern": "^\\\\\\\\\\?\\\\"
+                  },
+                  "pattern": "^(?:/|[A-Z]:\\\\|\\\\\\\\(?!\\?\\\\))"
+                }
+              ]
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]+(?:[.-][a-z0-9_]+)*$",
+              "maxLength": 100
+            },
+            "version": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[1-9][0-9]*)?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?$"
+            },
+            "revision": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "claims": {
+              "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json#/$defs/embedded"
             }
           },
           "additionalProperties": true
@@ -415,9 +548,37 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "required": [ "package" ],
+            "properties": {
+              "package": {
+                "required": [ "format" ],
+                "properties": {
+                  "format": {
+                    "const": "nupkg"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [ "sha256" ]
+            },
+            "properties": {
+              "filename": {
+                "pattern": "^[a-z0-9_]+(?:[.-][a-z0-9_]+)*\\.nupkg$"
+              }
+            }
+          },
+          "else": {
+            "required": [ "sha256" ]
+          }
         }
       ],
-      "required": [ "runtime", "filename", "sha256", "claims" ],
+      "required": [ "runtime", "filename", "claims" ],
       "properties": {
         "runtime": {
           "enum": [ "process", "wasm" ]
@@ -433,10 +594,10 @@
           "minLength": 1
         },
         "claims": {
-          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json#/$defs/embedded"
+          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json#/$defs/embedded"
         },
         "package": {
-          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json#/$defs/package"
+          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json#/$defs/package"
         },
         "platform": {
           "type": "string",
@@ -507,12 +668,39 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "required": [ "package" ],
+            "properties": {
+              "package": {
+                "required": [ "format" ],
+                "properties": {
+                  "format": {
+                    "const": "nupkg"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [ "sha256" ]
+            },
+            "properties": {
+              "filename": {
+                "pattern": "^[a-z0-9_]+(?:[.-][a-z0-9_]+)*\\.nupkg$"
+              }
+            }
+          },
+          "else": {
+            "required": [ "sha256" ]
+          }
         }
       ],
       "required": [
         "runtime",
         "filename",
-        "sha256",
         "claims",
         "source",
         "args",
@@ -534,10 +722,10 @@
           "minLength": 1
         },
         "claims": {
-          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json#/$defs/embedded"
+          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json#/$defs/embedded"
         },
         "package": {
-          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json#/$defs/package"
+          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json#/$defs/package"
         },
         "platform": {
           "type": "object",
@@ -592,6 +780,45 @@
                   "type": "string",
                   "pattern": "^[^/\\\\]+$",
                   "maxLength": 255,
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": true
+            },
+            {
+              "type": "object",
+              "required": [ "kind", "feed", "id", "version", "path" ],
+              "properties": {
+                "kind": {
+                  "const": "nuget-package-entry"
+                },
+                "feed": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^https://[^/?#@\\s]+(?:/[^?#\\s]*)?/index\\.json$"
+                    },
+                    {
+                      "type": "string",
+                      "not": {
+                        "pattern": "^\\\\\\\\\\?\\\\"
+                      },
+                      "pattern": "^(?:/|[A-Z]:\\\\|\\\\\\\\(?!\\?\\\\))"
+                    }
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_]+(?:[.-][a-z0-9_]+)*$",
+                  "maxLength": 100
+                },
+                "version": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[1-9][0-9]*)?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?$"
+                },
+                "path": {
+                  "type": "string",
+                  "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?(?:/|$))[^/]+(?:/[^/]+)*$",
                   "minLength": 1
                 }
               },
@@ -679,6 +906,29 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "required": [ "package" ],
+            "properties": {
+              "package": {
+                "required": [ "format" ],
+                "properties": {
+                  "format": {
+                    "const": "nupkg"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [ "digest" ]
+            }
+          },
+          "else": {
+            "required": [ "digest" ]
+          }
         }
       ],
       "required": [
@@ -687,7 +937,6 @@
         "version",
         "runtime",
         "args",
-        "digest",
         "storePath",
         "capabilities",
         "mepVersions",
@@ -814,6 +1063,44 @@
                 }
               },
               "additionalProperties": true
+            },
+            {
+              "type": "object",
+              "required": [ "kind", "feed", "id", "version", "revision" ],
+              "properties": {
+                "kind": {
+                  "const": "nuget-package"
+                },
+                "feed": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^https://[^/?#@\\s]+(?:/[^?#\\s]*)?/index\\.json$"
+                    },
+                    {
+                      "type": "string",
+                      "not": {
+                        "pattern": "^\\\\\\\\\\?\\\\"
+                      },
+                      "pattern": "^(?:/|[A-Z]:\\\\|\\\\\\\\(?!\\?\\\\))"
+                    }
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9_]+(?:[.-][a-z0-9_]+)*$",
+                  "maxLength": 100
+                },
+                "version": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(\\.[1-9][0-9]*)?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?$"
+                },
+                "revision": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": true
             }
           ]
         },
@@ -888,7 +1175,7 @@
           "type": "boolean"
         },
         "claims": {
-          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json#/$defs/embedded"
+          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json#/$defs/embedded"
         },
         "claimCheck": {
           "enum": [ "probed", "unchecked" ]
@@ -919,7 +1206,7 @@
           "additionalProperties": true
         },
         "package": {
-          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json#/$defs/package"
+          "$ref": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json#/$defs/package"
         }
       },
       "additionalProperties": true
@@ -929,7 +1216,7 @@
       "required": [ "format", "entryPoint", "treeSha256" ],
       "properties": {
         "format": {
-          "enum": [ "zip", "tar.gz" ]
+          "enum": [ "zip", "tar.gz", "nupkg" ]
         },
         "root": {
           "type": "string",
@@ -958,7 +1245,22 @@
           "pattern": "^[0-9a-f]{64}$"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [ "format" ],
+            "properties": {
+              "format": {
+                "const": "nupkg"
+              }
+            }
+          },
+          "then": {
+            "required": [ "root", "treeSha256" ]
+          }
+        }
+      ]
     }
   }
 }

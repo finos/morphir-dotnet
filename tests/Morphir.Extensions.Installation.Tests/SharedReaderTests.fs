@@ -12,10 +12,10 @@ open Morphir.Extensions.Installation
 open Morphir.Toolchain
 
 let private parentRoot = Path.Combine(AppContext.BaseDirectory, "ParentContracts")
-let private parentCommit = "0439c4c06d8ca6d4a46e41afb226ba0872f9bff8"
+let private parentCommit = "65bbbc961d9eb962ad941a859c9d09fba058f5a0"
 
 let private releaseSchema =
-    "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json"
+    "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json"
 
 let private bytes (text: string) = Encoding.UTF8.GetBytes text
 
@@ -80,8 +80,8 @@ let tests =
 
             Expect.equal
                 files.Length
-                9
-                "seven schemas and two case files, no fixture execution claimed"
+                11
+                "seven schemas, two case files and two package fixtures, no fixture execution claimed"
 
             for file in files do
                 Expect.equal
@@ -110,7 +110,7 @@ let tests =
                      |> nonNull)
                     "source path"
 
-            Expect.equal (cases ()).Length 139 "identity corpus inventory, not executed-case count"
+            Expect.equal (cases ()).Length 158 "identity corpus inventory, not executed-case count"
 
             use packages =
                 JsonDocument.Parse(
@@ -119,7 +119,7 @@ let tests =
 
             Expect.equal
                 (packages.RootElement.GetProperty("cases").GetArrayLength())
-                66
+                72
                 "package inventory, not execution"
         }
         // Only these six parent cases exercise the release reader in this tranche.
@@ -216,7 +216,8 @@ let tests =
         for schema in
             [
                 "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/release.schema.json"
-                "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json"
+                "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/release.schema.json"
+                "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json"
                 ""
             ] do
             testCase
@@ -266,12 +267,13 @@ let tests =
 
                 claims["$schema"] <-
                     JsonValue.Create
-                        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json"
+                        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json"
             )
             |> Descriptors.read
             |> refused "extension.unsupported_contract_version" "claims.$schema"
         }
-        test "runtime mixing is refused" {
+        // packages.md: "A descriptor may offer more than one runtime" (finos/morphir#1176).
+        test "a descriptor that mixes process and wasm artifacts is accepted" {
             edit (fun node ->
                 let wasm = (artifact node).DeepClone()
                 wasm["runtime"] <- JsonValue.Create "wasm"
@@ -282,7 +284,7 @@ let tests =
                 (child "artifacts" node).AsArray().Add wasm
             )
             |> Descriptors.read
-            |> refused "extension.invalid_descriptor" "runtime"
+            |> accepted
         }
         test "platformDifferences none compares artifact claim values" {
             edit (fun node ->
@@ -305,7 +307,7 @@ let tests =
     |> testLabel "PlatformSpecific"
 
 let private claimsSchema =
-    "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json"
+    "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json"
 
 let private standaloneNode () =
     let release =
@@ -380,7 +382,7 @@ let claimTests =
                 )
         test "a different prerelease schema is refused exactly" {
             editClaims (fun node ->
-                node["$schema"] <- JsonValue.Create(claimsSchema.Replace("preview.2", "preview.1"))
+                node["$schema"] <- JsonValue.Create(claimsSchema.Replace("preview.3", "preview.2"))
             )
             |> Claims.readStandalone
             |> refused "extension.unsupported_contract_version" claimsSchema

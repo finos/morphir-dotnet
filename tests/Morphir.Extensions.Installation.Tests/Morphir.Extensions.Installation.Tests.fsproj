@@ -36,6 +36,6 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="../Fixtures/ExtensionAcquisition/parent-1f22f491/**" Link="ParentContracts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/ExtensionAcquisition/parent-65bbbc96/**" Link="ParentContracts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
