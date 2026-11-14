@@ -245,7 +245,15 @@ let private folderFeed =
                     Expect.isEmpty (Directory.GetFileSystemEntries httpCache) "NUGET_HTTP_CACHE_PATH is untouched"
 
                     let tmp = Path.Combine(home sandbox, "tmp")
-                    Expect.isEmpty (if Directory.Exists tmp then Directory.GetDirectories tmp else [||]) "no private stage remains"
+                    let left =
+                        if Directory.Exists tmp then
+                            Directory.GetDirectories tmp
+                            |> Array.map Path.GetFileName
+                            |> Array.filter (fun name -> name <> "morphir-dotnet-nuget-scratch")
+                        else
+                            [||]
+
+                    Expect.isEmpty left "no private stage or NuGet temporary folder remains"
                 finally
                     Environment.SetEnvironmentVariable("NUGET_PACKAGES", fst previous)
                     Environment.SetEnvironmentVariable("NUGET_HTTP_CACHE_PATH", snd previous))

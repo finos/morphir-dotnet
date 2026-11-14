@@ -490,7 +490,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
     /// with NoCache. The provider points both into its private temporary folder under the Home for the duration of
     /// one operation, and restores them after it.
     static let withPrivateFolders (temporary: string) (work: unit -> Task<'T>) : Task<'T> = task {
-        let names = [ "NUGET_HTTP_CACHE_PATH", "http-cache"; "NUGET_SCRATCH", "scratch" ]
+        let names = [ "NUGET_HTTP_CACHE_PATH", "http-cache" ]
         let previous = names |> List.map (fun (name, _) -> name, Environment.GetEnvironmentVariable name)
 
         for name, folder in names do
@@ -504,6 +504,15 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
             for name, value in previous do
                 Environment.SetEnvironmentVariable(name, value)
     }
+
+    /// NuGet reads its scratch folder (lock files) once per process and keeps it. So before its first NuGet call the
+    /// provider points NUGET_SCRATCH at a stable folder under the Home, which a later operation of the same Home
+    /// finds again. A process that used NuGet before keeps the folder NuGet chose then.
+    static let usePrivateScratch (home: string) =
+        lock gate (fun () ->
+            let scratch = Path.Combine(home, "tmp", "morphir-dotnet-nuget-scratch")
+            Directory.CreateDirectory scratch |> ignore
+            Environment.SetEnvironmentVariable("NUGET_SCRATCH", scratch))
 
     static let removeFolder (path: string) =
         try
@@ -523,6 +532,11 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
         member _.ResolveAsync(release, platform, ct) =
             Operations.runAsync ct (fun () -> task {
                 let request = request release
+
+                if not (Path.IsPathFullyQualified home) then
+                    Operations.fail "extension.invalid_home" "--home must be absolute."
+
+                usePrivateScratch home
                 configureCredentials request.Interactive
                 let settings = NuGetSettings.load workingDirectory request.ConfigFile
                 let sources = NuGetSettings.applicable settings workingDirectory request.Source request.Id
@@ -661,6 +675,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                     | NuGetPackage(location, provenance, source) -> location, provenance, source
                     | _ -> Operations.fail "extension.provider_mismatch" "The NuGet provider fetches only NuGet packages."
 
+                usePrivateScratch fetchHome
                 configureCredentials location.Interactive
                 let temporary = temporaryFolder fetchHome
 
