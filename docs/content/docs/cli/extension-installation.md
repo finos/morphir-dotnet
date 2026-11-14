@@ -62,19 +62,31 @@ morphir extension install nuget:Acme.Morphir.Python@1.2.3 --source acme --intera
 | macOS | not verified | `true` turns verification on |
 
 `signatureValidationMode` `require` in `nuget.config` verifies on every operating system and
-accepts only packages of its `trustedSigners`. NuGet's trust store is used as by the .NET SDK:
-the operating system store on Windows; on Linux and macOS a system code signing bundle when
-there is one, else the bundle in a `trustedroots` folder beside `morphir`. The Native AOT
-`morphir` does not ship that folder yet, so on Linux a timestamp chain is built with the
-operating system store.
+accepts only packages of its `trustedSigners`. NuGet's trust store is set up as the .NET SDK sets
+it up: the operating system store on Windows; on Linux and macOS a system code signing bundle when
+there is one, else the code signing and timestamping trust lists of the .NET SDK
+(`codesignctl.pem` and `timestampctl.pem`, from dotnet/sdk `v11.0.100`). The Native AOT `morphir`
+is one file, so it carries these lists and writes them to
+`<home>/tmp/morphir-dotnet-nuget-trust/trustedroots/`. Without them, NuGet on Linux has no trusted
+root: on Ubuntu 24.04, `require` mode with the nuget.org repository as trusted signer refused
+`Newtonsoft.Json 13.0.3` (NU3018, NU3028), and `accept` mode only warned (NU3042). With them, the
+same check passes.
 
-### What this host does not do yet
+### WASM extensions
 
-- A WASM artifact is selected when no `process` artifact matches the platform, but its
-  installation fails with `extension.unsupported_package`. WASM installation for every
-  provider and running an installed WASM extension are open work of
-  `openspec/changes/add-nuget-extension-source` (task group 4).
-- `--runtime`, to choose the runtime of a release that offers both, is a follow-up.
+A release may carry a WASM module as well as, or instead of, process packages. `extension install`
+selects the `process` artifact for this platform, else a `wasm` artifact, for every provider: a
+local declaration, a GitHub release asset, or the entry `morphir/<filename>` of a NuGet main package.
+The module is checked against its descriptor `sha256` and stored in the single-file store
+(`store/extensions/sha256/<sha256>/<filename>`); the lock records `runtime` `wasm` and the catalog
+`claimCheck` `unchecked`. The guest does not run during installation.
+
+`morphir compile` and `morphir generate` with `--extension-id <id>` rehash the stored module against
+the lock, load it through the host's WASM runtime with the same loader as a configured module, and
+check the session against the installed claims. A changed module fails with
+`extension.digest_mismatch`, and a host without a WASM runtime with `extension.runtime_unavailable`.
+
+`--runtime`, to choose the runtime of a release that offers both, is a follow-up.
 
 ## Historical implementation evidence
 

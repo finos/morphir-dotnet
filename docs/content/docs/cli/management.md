@@ -251,6 +251,12 @@ morphir extension install github:finos/morphir-python@0.6.2 --home "$HOME/.morph
 morphir compile --language python ... --extension-id <id>
 ```
 
+`compile` and `generate` run an installed extension by its id with `--extension-id`, a process from its package
+tree or a WASM module through the host's WASM runtime. Both check the stored copy against the lock offline first: a
+changed module or tree fails before the extension runs. A WASM extension runs through the same loader as a module
+that `extensions.<name>.path` configures, and its session must agree with the installed claims
+(`extension.claims_mismatch` otherwise). A host without a WASM runtime fails with `extension.runtime_unavailable`.
+
 The part before the colon names the provider. Each provider only finds the release and
 downloads the artifact. The installer that checks the digest, unpacks the package and
 writes the catalog and lock is the same for every provider.
@@ -276,6 +282,8 @@ For `github:`:
 - The command uses the anonymous GitHub API. Set `GITHUB_TOKEN` or `GH_TOKEN` to raise the rate limit or to read a
   private repository. The token goes only to the API host. When the limit is reached, the command fails with
   `extension.github_rate_limited` and says when the limit resets.
+- A WASM-only release installs from GitHub in the same way: the module asset is checked against its `sha256` and
+  stored unchecked, with no guest run.
 - Naming a release is an explicit request, so `--local-developer` does not apply. `--no-probe` is required, as for
   a local declaration: the extension is not started during installation, and its claims stay unchecked.
 - `--dry-run` reads the release metadata and `release.json`, and downloads no artifact.
@@ -313,7 +321,8 @@ morphir extension install nuget:Acme.Morphir.Python@1.2.3 --home "$HOME/.morphir
   standard error. NuGet sends a credential only to its own source. No credential is written to a log, a lock or a
   catalog. A refused credential fails with `extension.nuget_unauthorized`, which names the source.
 - Package signatures are checked as the dotnet CLI checks them on the same operating system: by default on Windows
-  and Linux, not on macOS. `DOTNET_NUGET_SIGNATURE_VERIFICATION=true` or `false` changes the default on Linux and
+  and Linux, not on macOS. On Linux and macOS, `morphir` uses the code signing and timestamping trust lists of the
+  .NET SDK, which it carries, as the dotnet CLI does. `DOTNET_NUGET_SIGNATURE_VERIFICATION=true` or `false` changes the default on Linux and
   macOS. The client policy of `nuget.config` (`signatureValidationMode` `accept`, or `require` with
   `trustedSigners`) applies to each package the command reads; `require` checks signatures on every operating system.
   A refused package fails with `extension.nuget_signature_invalid`.
@@ -333,8 +342,10 @@ morphir extension install nuget:Acme.Morphir.Python@1.2.3 --home "$HOME/.morphir
   `.dll`, or a `<entry point>.runtimeconfig.json` that names a shared framework, fails with
   `extension.unsupported_package`, because such a tool needs an installed .NET runtime.
 - A descriptor may offer `process` and `wasm` artifacts. The command selects the `process` artifact for this
-  platform, else a `wasm` artifact. This host does not install a WASM artifact yet: it fails with
-  `extension.unsupported_package`.
+  platform, else a `wasm` artifact, and the lock records the selection. A WASM artifact is the entry
+  `morphir/<filename>` of the main package, checked against its `sha256` (a mismatch fails with
+  `extension.digest_mismatch`). It is stored in the single-file store, its claims stay unchecked, and the guest does
+  not run during the install.
 - No source with the package or version fails with `extension.nuget_not_found`; a source that cannot be read fails
   with `extension.nuget_unreachable`. Both messages name the package, the version and the sources tried.
 - The command writes only to the Home: it downloads into a private stage in the Home and uses no NuGet HTTP cache,

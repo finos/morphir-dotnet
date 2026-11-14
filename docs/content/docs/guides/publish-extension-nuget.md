@@ -33,8 +33,7 @@ it, and that changes the file.
 ## Choose a layout
 
 **Layout A: one package.** Each platform is a folder of the main package, such as `morphir/linux-x64`. Use it for a
-small extension. (A WASM artifact is also an entry of the main package, but this version of `morphir` does not
-install WASM artifacts yet: publish process artifacts.)
+small extension, or for a WASM extension, whose module is the entry `morphir/<filename>` of the main package.
 
 ```text
 Acme.Morphir.Python 1.2.3
@@ -50,8 +49,8 @@ only the package of their platform.
 
 ```text
 Acme.Morphir.Python 1.2.3                  morphir/release.json
-Acme.Morphir.Python.osx-arm64 1.2.3        tools/net11.0/osx-arm64/acme-python, ...
-Acme.Morphir.Python.linux-x64 1.2.3        tools/net11.0/linux-x64/acme-python, ...
+Acme.Morphir.Python.osx-arm64 1.2.3        tools/any/osx-arm64/acme-python, ...
+Acme.Morphir.Python.linux-x64 1.2.3        tools/any/linux-x64/acme-python, ...
 ```
 
 An artifact package must extend the main id: `Acme.Morphir.Python.linux-x64` extends `Acme.Morphir.Python`, but
@@ -60,9 +59,10 @@ An artifact package must extend the main id: `Acme.Morphir.Python.linux-x64` ext
 
 ## A .NET tool that is also an extension
 
-A RID-specific .NET tool is layout B. `dotnet pack` writes a main package that lists the RID packages, and one package
-for each runtime identifier, with the tool under `tools/<tfm>/<rid>`. Give the tool both package types, and publish it
-self-contained or as Native AOT:
+A RID-specific .NET tool is layout B. `dotnet pack` (.NET SDK 11) writes a main package that lists the RID packages,
+and one package for each runtime identifier. A Native AOT tool is under `tools/any/<rid>` in its RID package, with its
+`DotnetToolSettings.xml`; other tools are under `tools/<tfm>/<rid>`. Check with `unzip -l` and use that folder as the
+`root`. Give the tool both package types, and publish it self-contained or as Native AOT:
 
 ```xml
 <PropertyGroup>
@@ -71,6 +71,7 @@ self-contained or as Native AOT:
   <PackageId>Acme.Morphir.Python</PackageId>
   <PackageType>DotnetTool;MorphirExtension</PackageType>
   <ToolPackageRuntimeIdentifiers>linux-x64;osx-arm64;win-x64</ToolPackageRuntimeIdentifiers>
+  <RuntimeIdentifiers>linux-x64;osx-arm64;win-x64</RuntimeIdentifiers>
   <SelfContained>true</SelfContained>
   <PublishAot>true</PublishAot>
 </PropertyGroup>
@@ -107,9 +108,9 @@ has no `sha256`. Mark `artifacts.package` critical.
       "filename": "acme.morphir.python.osx-arm64.1.2.3.nupkg",
       "package": {
         "format": "nupkg",
-        "root": "tools/net11.0/osx-arm64",
+        "root": "tools/any/osx-arm64",
         "entryPoint": "acme-python",
-        "treeSha256": "<tree digest of tools/net11.0/osx-arm64>"
+        "treeSha256": "<tree digest of tools/any/osx-arm64>"
       },
       "claims": { "...": "the claims of the extension" }
     }
@@ -144,8 +145,8 @@ tree_digest() {
 }
 
 # The root folder of a packed RID package, unzipped
-unzip -q artifacts/nupkg/acme.morphir.python.osx-arm64.1.2.3.nupkg -d /tmp/osx-arm64
-tree_digest /tmp/osx-arm64/tools/net11.0/osx-arm64 acme-python
+unzip -q artifacts/nupkg/Acme.Morphir.Python.osx-arm64.1.2.3.nupkg -d /tmp/osx-arm64
+tree_digest /tmp/osx-arm64/tools/any/osx-arm64 acme-python
 ```
 
 Compute it from the files in the packed package, not from the publish folder: the package is what users install.
@@ -181,5 +182,8 @@ morphir extension install nuget:Acme.Morphir.Python@1.2.3 --source ./artifacts/n
 from the packed package. `extension.release_descriptor_missing` means that the main package has no
 `morphir/release.json`.
 
-The repository has no command that computes a tree digest for an author yet; the shell function above follows the
-same rule as the installer.
+The repository has no command that computes a tree digest for an author yet
+([#657](https://github.com/finos/morphir-dotnet/issues/657)); the shell function above follows the same rule as the
+installer. `tests/Fixtures/NuGetExtension/build.sh` runs these steps on a Native AOT tool: it packs in two passes,
+computes the tree digest with this function, checks that the second pass keeps the tree, and checks that
+`dotnet tool install` installs the same packages. The installer tests read the packages it wrote.

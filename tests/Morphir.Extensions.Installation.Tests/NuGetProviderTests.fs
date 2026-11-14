@@ -1004,6 +1004,63 @@ let private v3Feed =
         }
     ]
 
+/// The checked-in feed of tests/Fixtures/NuGetExtension: a Native AOT RID-specific .NET tool that dotnet pack packed
+/// as DotnetTool;MorphirExtension in two passes, with one RID package, linux-arm64.
+let private dotnetToolFeed = Path.Combine(AppContext.BaseDirectory, "NuGetExtensionFeed")
+
+let private dotnetTool =
+    testList "NuGetDotnetTool" [
+        test "the main package of a dotnet pack tool has both package types and the release descriptor" {
+            use reader = new NuGet.Packaging.PackageArchiveReader(Path.Combine(dotnetToolFeed, "Acme.Morphir.Tool.1.0.0.nupkg"))
+            let types = reader.GetPackageTypes() |> Seq.map _.Name |> Seq.toList
+            Expect.containsAll types [ "DotnetTool"; "MorphirExtension" ] "both package types"
+            use stream = reader.GetStream "morphir/release.json"
+            use memory = new MemoryStream()
+            stream.CopyTo memory
+            let descriptor = Descriptors.read (memory.ToArray()) |> StateOwnership.unwrap
+            Expect.equal descriptor.ExtensionId.Value "com.acme.tool" "the extension"
+        }
+        test "the RID package of a dotnet pack tool installs only its tools folder, pinned by the guide's tree digest" {
+            withSandbox (fun sandbox ->
+                use reader = new NuGet.Packaging.PackageArchiveReader(Path.Combine(dotnetToolFeed, "Acme.Morphir.Tool.1.0.0.nupkg"))
+                use stream = reader.GetStream "morphir/release.json"
+                use memory = new MemoryStream()
+                stream.CopyTo memory
+
+                let plan =
+                    PackagePlan.Read(memory.ToArray(), InstallationPlatform.Create "linux-arm64") |> get
+
+                Expect.equal plan.Integrity (PayloadIntegrity.TreeOnly plan.TreeDigest) "pinned by the tree"
+                let ridPackage = Path.Combine(dotnetToolFeed, "Acme.Morphir.Tool.linux-arm64.1.0.0.nupkg")
+
+                let installed =
+                    PackageInstaller.InstallAsync(home sandbox, plan, staged sandbox (File.ReadAllBytes ridPackage), ct).GetAwaiter().GetResult()
+                    |> get
+
+                let files =
+                    Directory.GetFiles(Path.Combine(installed.DirectoryPath, "tree"), "*", SearchOption.AllDirectories)
+                    |> Array.map (fun path -> Path.GetRelativePath(Path.Combine(installed.DirectoryPath, "tree"), path).Replace('\\', '/'))
+                    |> Array.sort
+
+                Expect.equal files [| "DotnetToolSettings.xml"; "acme-tool" |] "the tools/any/linux-arm64 folder, no .nuspec or morphir/release.json"
+
+                if not (OperatingSystem.IsWindows()) then
+                    let mode = File.GetUnixFileMode(Path.Combine(installed.DirectoryPath, "tree", "acme-tool"))
+                    Expect.isTrue (mode.HasFlag UnixFileMode.UserExecute) "the entry point is executable")
+        }
+        test "a dotnet pack tool installs from its folder feed on linux-arm64" {
+            if (platform ()).RuntimeIdentifier <> "linux-arm64" then
+                skiptest "The fixture tool has one RID package, linux-arm64."
+
+            withSandbox (fun sandbox ->
+                use captured = install sandbox "nuget:Acme.Morphir.Tool@1.0.0" (Some dotnetToolFeed) |> get
+                Expect.equal captured.Record.ExtensionId.Value "com.acme.tool" "installed"
+                let lock = nonNull (JsonNode.Parse(File.ReadAllText(Path.Combine(home sandbox, "locks", "extensions", "com.acme.tool.json"))))
+                let source = nonNull lock["source"]
+                Expect.equal (string source["id"]) "acme.morphir.tool.linux-arm64" "the RID package")
+        }
+    ]
+
 [<Tests>]
 // Sequenced: the tests set NUGET_* variables, which are process-wide.
-let tests = testLabel "PlatformSpecific" <| testSequenced (testList "NuGetProvider" [ parsing; folderFeed; layouts; configuration; wasm; v3Feed ])
+let tests = testLabel "PlatformSpecific" <| testSequenced (testList "NuGetProvider" [ parsing; folderFeed; layouts; configuration; wasm; v3Feed; dotnetTool ])
