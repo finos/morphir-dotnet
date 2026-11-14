@@ -81,3 +81,6 @@ src/Morphir.Extensions.Installation/TrustedRoots/*.pem -text
 # Third-party license texts that the release notices insert: LF on every checkout.
 build/notices/*.txt text eol=lf
 build/notices/native/*.txt text eol=lf
+# Their bytes must equal the release notices' copies in build/notices: LF on every checkout.
+src/Morphir.Extensions.Wasm/Kernel/LICENSE text eol=lf
+src/Morphir.Extensions.Wasm/Kernel/NOTICE text eol=lf
