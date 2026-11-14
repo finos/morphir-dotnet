@@ -208,6 +208,24 @@
           "Microsoft.Extensions.Configuration.Binder": "11.0.0"
         }
       },
+      "Newtonsoft.Json": {
+        "type": "Transitive",
+        "resolved": "13.0.3",
+        "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
+      },
+      "NuGet.Common": {
+        "type": "Transitive",
+        "resolved": "7.9.0",
+        "contentHash": "OWFEzHpwvgzSaHYmWzfbyTm6oBOy/BFSFEDk73zM9jiJaxdopYZ/DrqIQogaM3F+ZGTppBJffmzu5adetEI/YA==",
+        "dependencies": {
+          "NuGet.Frameworks": "7.9.0"
+        }
+      },
+      "NuGet.Frameworks": {
+        "type": "Transitive",
+        "resolved": "7.9.0",
+        "contentHash": "w2adPmgUafmW9ON1MzDjuHmViN0vtiPV48Dz3OE6px8BiGSqrnWHOjwFEPOEPAZx20J1c7bxp90Hxo9l4xGWtw=="
+      },
       "Serilog.Extensions.Logging": {
         "type": "Transitive",
         "resolved": "3.1.0",
@@ -231,6 +249,11 @@
         "type": "Transitive",
         "resolved": "10.0.11",
         "contentHash": "OzKDcIRkeNJeC8qAsbn8yJXnfTLP1dtkWILe+T56Gf/z+IkAASi7sMqLqJQat08j5z/mRN5xVtoAwbkMNMoBUQ=="
+      },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "Transitive",
+        "resolved": "8.0.0",
+        "contentHash": "+TUFINV2q2ifyXauQXRwy4CiBhqvDEDZeVJU7qfxya4aRYOKzVBpN+4acx25VcPB9ywUN6C0n8drWl110PhZEg=="
       },
       "morphir.analyzers": {
         "type": "Project",
@@ -313,7 +336,13 @@
           "Morphir.Extensions": "[1.0.0, )",
           "Morphir.Mep": "[1.0.0, )",
           "Morphir.Toolchain": "[1.0.0, )",
-          "Semver": "[3.0.0, )"
+          "NuGet.Configuration": "[7.9.0, )",
+          "NuGet.Credentials": "[7.9.0, )",
+          "NuGet.Packaging": "[7.9.0, )",
+          "NuGet.Protocol": "[7.9.0, )",
+          "NuGet.Versioning": "[7.9.0, )",
+          "Semver": "[3.0.0, )",
+          "System.Security.Cryptography.Pkcs": "[10.0.15, )"
         }
       },
       "morphir.extensions.wasm": {
@@ -585,6 +614,52 @@
           "Microsoft.Extensions.DependencyInjection": "11.0.0"
         }
       },
+      "NuGet.Configuration": {
+        "type": "CentralTransitive",
+        "requested": "[7.9.0, )",
+        "resolved": "7.9.0",
+        "contentHash": "oY9XZp+TWjOmiGmU4R4JWBRY3F4TAVo7tqPr/z7MOsFcEpdYHMryjNSscoLBxUTR3WmFmYgO0Gvu4eRbz6pzOg==",
+        "dependencies": {
+          "NuGet.Common": "7.9.0",
+          "System.Security.Cryptography.ProtectedData": "8.0.0"
+        }
+      },
+      "NuGet.Credentials": {
+        "type": "CentralTransitive",
+        "requested": "[7.9.0, )",
+        "resolved": "7.9.0",
+        "contentHash": "K+etX+2rEk7nLVd3a6vA/7hjARtiDORoaGgIUYul4hj3VSXC1Icj+PSdBygjQ0c4CmUC3i+Zqoaz7F1EwD+DBw==",
+        "dependencies": {
+          "NuGet.Protocol": "7.9.0"
+        }
+      },
+      "NuGet.Packaging": {
+        "type": "CentralTransitive",
+        "requested": "[7.9.0, )",
+        "resolved": "7.9.0",
+        "contentHash": "Q2jxuud5kJLV0rUzsC02iC5ts8QsQu9UVyMvF8lULY3TwHL/W/PrnQ9bQFvMR7jJkzF1uilRPI1o+7VOtc2XMg==",
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.3",
+          "NuGet.Configuration": "7.9.0",
+          "NuGet.Versioning": "7.9.0",
+          "System.Security.Cryptography.Pkcs": "8.0.1"
+        }
+      },
+      "NuGet.Protocol": {
+        "type": "CentralTransitive",
+        "requested": "[7.9.0, )",
+        "resolved": "7.9.0",
+        "contentHash": "Ts0qPUGJYfFHhlNSSWWrkaSG6++WqS6ry32WmQA7eNdzTc9SumyhDflITcusBYkT6pEQD5BI1UEByakciV3s0A==",
+        "dependencies": {
+          "NuGet.Packaging": "7.9.0"
+        }
+      },
+      "NuGet.Versioning": {
+        "type": "CentralTransitive",
+        "requested": "[7.9.0, )",
+        "resolved": "7.9.0",
+        "contentHash": "r4sZuVpVqwSBLe4qYDrnpScqdyctlRXg0HSF5OoCGkeBc8b+o8BBYHuI/u1RoWYX78PbieijU13TBt71/Xf3lw=="
+      },
       "Semver": {
         "type": "CentralTransitive",
         "requested": "[3.0.0, )",
@@ -599,6 +674,12 @@
         "dependencies": {
           "Spectre.Console.Ansi": "0.57.2"
         }
+      },
+      "System.Security.Cryptography.Pkcs": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.15, )",
+        "resolved": "10.0.15",
+        "contentHash": "4jEv/lXDuQkh60lPU3hlwASErXdv1ZMKmsxVuBfZWiVKT5Q2QGo58kTa6rN519+PU+m4Hsj1m3yT8fN+Xw0XZw=="
       },
       "Vogen": {
         "type": "CentralTransitive",

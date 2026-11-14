@@ -451,6 +451,11 @@ two steps have the same pattern.
 | Extensions | `Then the extension {string} is not available, and its reason names {string}` |
 | Extensions | `Then the extension list text has a row for each extension` |
 | Extensions | `Then the extension runtimes report has the host {string} and the platform of this machine` |
+| Extension installation | `Given a NuGet folder feed with version {string} of the extension package {string}` |
+| Extension installation | `When I install the extension {string} from the NuGet folder feed` |
+| Extension installation | `When I plan the installation of the extension {string} from the NuGet folder feed` |
+| Extension installation | `Then the extension home records the NuGet package {string} version {string}` |
+| Extension installation | `Then the extension home has no installed extension` |
 | Extensions | `Then the WASM runtime of the report has the engine version {string} and is available on this machine unless it is win-x64` |
 | Extensions | `Then the runtimes text names the WASM runtime of this machine and the engine {string}` |
 | Tool routing | `Given the stub morphir-mck is on the search path` |

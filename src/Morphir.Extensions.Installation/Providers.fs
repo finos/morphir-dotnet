@@ -67,23 +67,27 @@ type ExtensionSourceRequest internal (kind: SourceRequestKind, text: string) =
 
     /// Adds the options only a <c>nuget:</c> source takes: <c>--source</c>, <c>--configfile</c> and
     /// <c>--interactive</c>. Any other source refuses them with <c>extension.invalid_source</c>.
-    member this.WithNuGetOptions(source: string | null, configFile: string | null, interactive: bool) =
+    member this.WithNuGetOptions(source: string | null, configFile: string | null, interactive: bool) : InstallationResult<ExtensionSourceRequest> =
         let source = Option.ofObj source |> Option.filter (String.IsNullOrWhiteSpace >> not)
         let configFile = Option.ofObj configFile |> Option.filter (String.IsNullOrWhiteSpace >> not)
 
         match kind with
         | NuGet request ->
-            Ok(
-                ExtensionSourceRequest(
-                    NuGet { request with Source = source; ConfigFile = configFile; Interactive = interactive },
-                    text
+            InstallationResult(
+                Ok(
+                    ExtensionSourceRequest(
+                        NuGet { request with Source = source; ConfigFile = configFile; Interactive = interactive },
+                        text
+                    )
                 )
             )
-        | _ when source.IsNone && configFile.IsNone && not interactive -> Ok this
+        | _ when source.IsNone && configFile.IsNone && not interactive -> InstallationResult(Ok this)
         | _ ->
-            Parsing.refuse
-                "extension.invalid_source"
-                $"--source, --configfile and --interactive apply only to a nuget: source, not {text}."
+            InstallationResult(
+                Parsing.refuse
+                    "extension.invalid_source"
+                    $"--source, --configfile and --interactive apply only to a nuget: source, not {text}."
+            )
 
     override _.ToString() = text
 

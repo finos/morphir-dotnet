@@ -136,9 +136,7 @@ let private request (text: string) (source: string option) =
     match ExtensionSourceRequest.Parse text with
     | Error failure -> failtestf "Bad request %s: %O" text failure
     | Ok request ->
-        match request.WithNuGetOptions(Option.toObj source, null, false) with
-        | Ok request -> request
-        | Error failure -> failtestf "Bad options: %O" failure
+        request.WithNuGetOptions(Option.toObj source, null, false) |> get
 
 let private install (sandbox: TestSandbox) (text: string) (source: string option) =
     let request = request text source
@@ -194,13 +192,9 @@ let private parsing =
                     [ "./feed", null, false; null, "nuget.config", false; null, null, true ]
 
                 for source, configFile, interactive in options do
-                    match github.WithNuGetOptions(source, configFile, interactive) with
-                    | Ok _ -> failtest "Expected refusal"
-                    | Error failure -> Expect.equal failure.Code "extension.invalid_source" failure.Message
+                    github.WithNuGetOptions(source, configFile, interactive) |> refusedWith "extension.invalid_source"
 
-                match github.WithNuGetOptions(null, null, false) with
-                | Ok same -> Expect.equal same.Scheme "github" "no option, no change"
-                | Error failure -> failtestf "%O" failure
+                Expect.equal (github.WithNuGetOptions(null, null, false) |> get).Scheme "github" "no option, no change"
         }
     ]
 
