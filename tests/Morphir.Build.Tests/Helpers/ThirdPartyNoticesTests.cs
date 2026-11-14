@@ -104,13 +104,18 @@ public class ThirdPartyNoticesTests
         foreach (var file in Directory.GetFiles(fallbacks, "*.txt"))
         {
             var lines = File.ReadAllLines(file);
-            lines[0].Should().Be("License: MIT", $"{Path.GetFileName(file)} is the MIT text of its package");
+            var name = Path.GetFileNameWithoutExtension(file);
+            // The NuGet client packages declare Apache-2.0; their fallback is the license of NuGet/NuGet.Client.
+            var apache = name.StartsWith("NuGet.", StringComparison.Ordinal);
+            lines[0].Should().Be(apache ? "License: Apache-2.0" : "License: MIT", $"{Path.GetFileName(file)} is the license text its package declares");
             lines[1].Should().StartWith("Source: https://github.com/");
-            string.Join('\n', lines).Should().Contain(Mit).And.Contain("Copyright");
+            string.Join('\n', lines).Should().Contain(apache ? "Apache License, Version 2.0" : Mit).And.Contain("Copyright");
         }
 
         Directory.GetFiles(fallbacks, "*.txt").Select(Path.GetFileNameWithoutExtension).Order(StringComparer.Ordinal)
-            .Should().Equal("CsToml", "FSharp.Core", "Microsoft.Extensions.Primitives", "Semver", "System.IO.Hashing");
+            .Should().Equal("CsToml", "FSharp.Core", "Microsoft.Extensions.Primitives", "NuGet.Common", "NuGet.Configuration",
+                "NuGet.Credentials", "NuGet.Frameworks", "NuGet.Packaging", "NuGet.Protocol", "NuGet.Versioning", "Semver",
+                "System.IO.Hashing", "System.Security.Cryptography.Pkcs");
     }
 
     [Test]
