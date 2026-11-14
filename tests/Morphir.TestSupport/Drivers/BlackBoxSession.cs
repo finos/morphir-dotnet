@@ -32,6 +32,7 @@ public sealed class DriverSet : IAsyncDisposable
         Configuration = new ConfigurationDriver(Cli);
         Migration = new MigrationDriver(Cli);
         Extensions = new ExtensionDriver(Cli, guests);
+        ExtensionInstallation = new ExtensionInstallDriver(Cli, workspace);
         ToolRouting = new ToolRoutingDriver(Cli, workspace, guests);
         Validation = new ModelValidationDriver(Cli);
         LibraryHosts = new LibraryHostDriver(programs, workspace);
@@ -102,6 +103,9 @@ public sealed class DriverSet : IAsyncDisposable
     public IMigrationDriver Migration { get; }
 
     public IExtensionDriver Extensions { get; }
+
+    /// <summary>The <c>extension install</c> command, with the NuGet feeds it reads and the extension home it writes.</summary>
+    public IExtensionInstallDriver ExtensionInstallation { get; }
 
     public IModelValidationDriver Validation { get; }
 
