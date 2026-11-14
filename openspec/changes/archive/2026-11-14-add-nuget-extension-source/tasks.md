@@ -5,7 +5,7 @@ Tracking: [finos/morphir-dotnet#558](https://github.com/finos/morphir-dotnet/iss
 ## 1. Upstream schema and cross-platform evidence
 
 - [x] 1.1 Get the extension family schema change merged in finos/morphir through its coordinator (design UP-1): package format `nupkg`, kinds `nuget-package` and `nuget-package-entry`, member tables, identity and package cases, and the "NuGet package convention" section. Verify by recording the PR and the merged commit in proposal.md, and update this change's member names in design.html and the specs if upstream renamed any.
-- [ ] 1.2 Run `spikes/nuget-extension-source/run.sh` with `--online` and `CREDPROVIDER` on Linux x64 and Windows x64, and commit `results/linux-x64.md` and `results/win-x64.md`. Verify that every level gives the same warning counts and step results as osx-arm64; record any difference in design.html Risks and as a task or issue.
+- [ ] 1.2 (Deferred: https://github.com/finos/morphir-dotnet/issues/662.) Run `spikes/nuget-extension-source/run.sh` with `--online` and `CREDPROVIDER` on Linux x64 and Windows x64, and commit `results/linux-x64.md` and `results/win-x64.md`. Verify that every level gives the same warning counts and step results as osx-arm64; record any difference in design.html Risks and as a task or issue.
 
 ## 2. Pin the new family version
 
@@ -58,8 +58,8 @@ Tracking: [finos/morphir-dotnet#558](https://github.com/finos/morphir-dotnet/iss
 ## 9. Native AOT and integration
 
 - [x] 9.1 Make the Native AOT publish of `morphir` fail on any IL2xxx or IL3xxx warning from `NuGet.*` or `Newtonsoft.Json` (design AOT-1). Verify that removing the feature switch makes the publish fail, and that the publish with it reports no such warning.
-- [ ] 9.2 Run `morphir extension install nuget:` with the AOT binary against the fixture folder feed and the fake V3 feed, in the lane the `test-manager` skill gives. Verify the test passes on the CI platforms.
-- [ ] 9.3 Update `CHANGELOG.md`, the installation library README and `docs/content/docs/cli/extension-installation.md` status. Verify `dotnet format`, `./build.sh --target Test` and `mise run openspec:verify` pass.
+- [ ] 9.2 (Deferred: https://github.com/finos/morphir-dotnet/issues/662.) Run `morphir extension install nuget:` with the AOT binary against the fixture folder feed and the fake V3 feed, in the lane the `test-manager` skill gives. Verify the test passes on the CI platforms.
+- [x] 9.3 (Done in #656: the 0.5.0-alpha.3 CHANGELOG section, the installation library README, extension-installation.md, management.md and guides/publish-extension-nuget.md; its CI test jobs passed on Linux, macOS and Windows.) Update `CHANGELOG.md`, the installation library README and `docs/content/docs/cli/extension-installation.md` status. Verify `dotnet format`, `./build.sh --target Test` and `mise run openspec:verify` pass.
 
 ## Deferred
 
