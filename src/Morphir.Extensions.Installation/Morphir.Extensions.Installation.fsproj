@@ -23,6 +23,7 @@
     <Compile Include="Platforms.fs" />
     <Compile Include="MepSupport.fs" />
     <Compile Include="SharedJson.fs" />
+    <Compile Include="Sources.fs" />
     <Compile Include="Claims.fs" />
     <Compile Include="Descriptors.fs" />
     <Compile Include="FileSafety.fs" />
@@ -34,5 +35,6 @@
     <Compile Include="InstalledState.fs" />
     <Compile Include="Packages.fs" />
     <Compile Include="ActivationRecords.fs" />
+    <Compile Include="Providers.fs" />
   </ItemGroup>
 </Project>

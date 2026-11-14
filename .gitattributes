@@ -56,7 +56,7 @@ tests/Fixtures/MepGuestKit/** -text
 tests/Fixtures/Toolchain/** -text
 tests/Fixtures/LocalToolchains/** -text
 # Published extension contract blobs are verified offline against their parent Git bytes.
-tests/Fixtures/ExtensionAcquisition/parent-0439c4c0/** -text
+tests/Fixtures/ExtensionAcquisition/parent-1f22f491/** -text
 # The morphirup AOT probe's plan digest covers the SHA-256 of its recipe bytes.
 tests/Morphir.Toolchain.Tests/AotProbe/** -text
 

@@ -7,6 +7,26 @@ single files, inspects bounded archives and owns temporary run directories.
 It does not complete an extension installation yet. The CLI installation commands
 remain stubs. See the [user status page](../../docs/content/docs/cli/extension-installation.md).
 
+## Source providers
+
+`Providers.fs` is the seam for every source of extension releases. An
+`IExtensionSourceProvider` has a `Scheme`, a `ResolveAsync` that reads the release
+descriptor and selects the artifact for the host platform, and a `FetchAsync` that
+brings the artifact bytes to a private local file checked against the descriptor
+SHA-256. `ExtensionSources.InstallAsync` then calls the one installer
+(`InstalledExtensions.InstallPreparedAsync`): preflight, package tree, catalog, lock
+and journal. No provider has its own install path.
+
+| Provider | Request | Provenance and source it records |
+| --- | --- | --- |
+| `LocalRepositoryProvider` | `ExtensionSourceRequest.Local(...)` | `local-directory`, `local-file` |
+| `GitHubReleaseProvider` | `github:<owner>/<repo>[@<version-or-tag>]` | `github-release`, `github-release-asset` |
+
+The GitHub provider streams the asset into `PrivateStaging`, which hashes with the
+managed BouncyCastle digest, so no OpenSSL hash is used. It reads GitHub JSON with
+the reflection-free `Morphir.Toolchain` reader. To add a source, add a request case,
+a provider, and the provenance and source variants of the extension family.
+
 ## Package tree increment on ad24ce68
 
 The current working-tree increment adds `PackagePlan.Read`, canonical

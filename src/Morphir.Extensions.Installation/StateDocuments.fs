@@ -104,7 +104,7 @@ module internal StateDocuments =
     open SharedJson
 
     let schemaUrl kind =
-        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/{kind}.schema.json"
+        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/{kind}.schema.json"
 
     let private stringValue path name items =
         required path name items
@@ -332,41 +332,8 @@ module internal StateDocuments =
         entry
 
     let private provenance path closedContext claimsRequired value =
-        let items = members path value
-
-        if closedContext then
-            closed
-                path
-                (set (
-                    [ "kind"; "identity"; "revision" ]
-                    @ if claimsRequired then [ "claims" ] else []
-                ))
-                items
-
-        required path "kind" items
-        |> choices
-            (path
-             + ".kind")
-            [ "local-directory" ]
+        SourceDocuments.readProvenance path closedContext claimsRequired absolute value
         |> ignore
-
-        required path "identity" items
-        |> absolute (
-            path
-            + ".identity"
-        )
-        |> ignore
-
-        required path "revision" items
-        |> parsed
-            (path
-             + ".revision")
-            Sha256Digest.Parse
-        |> ignore
-
-        if claimsRequired then
-            required path "claims" items
-            |> ignore
 
         value
 
@@ -397,6 +364,8 @@ module internal StateDocuments =
             "index"
             "index.kind"
             "index.identity"
+            "index.repository"
+            "index.tag"
             "index.revision"
             "frontend"
             "backend"
@@ -803,18 +772,8 @@ module internal StateDocuments =
                     parsed "lock.selection.value" Token.tryParse requested
                     |> ignore
 
-                let source =
-                    required "lock" "source" items
-                    |> members "lock.source"
-
-                closed "lock.source" (set [ "kind"; "path" ]) source
-
-                required "lock.source" "kind" source
-                |> choices "lock.source.kind" [ "local-file" ]
-                |> ignore
-
-                required "lock.source" "path" source
-                |> portable "lock.source.path"
+                required "lock" "source" items
+                |> SourceDocuments.readSource "lock.source" true
                 |> ignore
 
                 {
@@ -886,8 +845,7 @@ module internal StateDocuments =
                             "artifacts.filename"
                             "artifacts.sha256"
                             "artifacts.source"
-                            "artifacts.source.kind"
-                            "artifacts.source.path"
+                            yield! SourceDocuments.sourcePaths "artifacts.source"
                         ]
                     )
 
@@ -969,16 +927,8 @@ module internal StateDocuments =
                             "Process archive requires package metadata."
                     | None -> ()
 
-                    let source =
-                        required "artifact" "source" fields
-                        |> members "artifact.source"
-
-                    required "source" "kind" source
-                    |> choices "source.kind" [ "local-file" ]
-                    |> ignore
-
-                    required "source" "path" source
-                    |> portable "source.path"
+                    required "artifact" "source" fields
+                    |> SourceDocuments.readSource "source" false
                     |> ignore
 
                     let storePath =
