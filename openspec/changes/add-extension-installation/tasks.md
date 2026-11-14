@@ -303,7 +303,7 @@ Commands follow the repository's build settings. Build one project with `dotnet 
   - Waits on those package tables/cases and Q-WINLAUNCH. Q-ARCHIVE's outer release-assets packaging question remains separate; its one-executable target recommendation is superseded.
   - First failing tests: a one-file target archive remains a package with its package digest; a self-contained multi-file frontend installs with its manifest and entry point. Full verification at install and explicit verification, structural verification under the state lock at activation (VERIFY-B), and launch from the store with a process-tree lease (LAUNCH-A) follow the parent contract. A raw single-file artifact still uses its private verified run copy. Do not invent package members in advance of the parent tables.
   - Command: `dotnet exec <inst> --filter-test-list "TargetArchives"`.
-- [ ] 5.4 Install a package archive given as a file through the pipeline, with generated local repositories for entries that enter the shared catalog and WASM packages unchecked; verify the `PackageInstall` tests pass.
+- [ ] 5.4 Install a package archive given as a file through the pipeline, with generated local repositories for entries that enter the shared catalog and WASM packages unchecked; verify the `PackageInstall` tests pass. The WASM part moves to `add-nuget-extension-source` task group 4, which installs WASM artifacts for every provider.
   - Q-PROVENANCE (a) is approved. Waits on 5.2 and published parent repository/package tables.
   - First failing tests:
     - a global install's lock has `index.kind` `local-directory`, naming a directory below `data/morphir-dotnet/extensions/repositories/`;

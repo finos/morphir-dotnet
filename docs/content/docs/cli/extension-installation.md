@@ -6,15 +6,75 @@ description: What the extension installer currently implements and what remains
 # Extension installation status
 
 `extension install` installs through source providers. The `github` provider installs
-a package from a GitHub release (`github:<owner>/<repo>[@<version-or-tag>]`). The local
-provider installs an explicit local-developer release declaration and archive from a
-registered repository name. Both need `--no-probe` consent and support a mutation-free
-`--dry-run`. The installer writes and reads only the extension family
-`0.1.0-preview.2`; it does not read or convert preview.1 state. The obsolete
-positional URL/version form is a usage error. Selection and removal commands remain
-stubs. The [management reference](management.md#extension-install) gives the command
-syntax and the GitHub release convention. A digest match is not publisher
-authentication.
+a package from a GitHub release (`github:<owner>/<repo>[@<version-or-tag>]`). The `nuget`
+provider installs a package from a NuGet feed (`nuget:<package-id>[@<version>]`): nuget.org,
+a private V3 feed or a folder feed, with the sources, package source mapping, credentials and
+signature policy of `nuget.config`. The local provider installs an explicit local-developer
+release declaration and archive from a registered repository name. All need `--no-probe`
+consent and support a mutation-free `--dry-run`. The installer writes and reads only the
+extension family `0.1.0-preview.3`; it does not read or convert preview.2 or preview.1 state.
+The obsolete positional URL/version form is a usage error. Selection and removal commands
+remain stubs. The [management reference](management.md#extension-install) gives the command
+syntax, the GitHub release convention and the NuGet options. Extension authors publish to
+NuGet as [Publish an extension as a NuGet package](../../guides/publish-extension-nuget/) says.
+A digest match is not publisher authentication.
+
+## NuGet sources
+
+The NuGet provider uses the Microsoft NuGet client packages (`NuGet.Protocol`,
+`NuGet.Configuration`, `NuGet.Credentials`, `NuGet.Packaging`, `NuGet.Versioning`), so it
+reads `nuget.config` and talks to feeds as `dotnet tool install` does. The Native AOT
+`morphir` runs them with the `NuGet.UseSystemTextJsonDeserialization` feature switch; its
+publish fails on any trim or AOT warning from `NuGet.*` or `Newtonsoft.Json`.
+
+### Credentials and credential providers
+
+- `packageSourceCredentials` of `nuget.config` apply to their own source. NuGet sends a
+  credential only to that source.
+- A credential provider plugin, such as the
+  [Azure Artifacts Credential Provider](https://github.com/microsoft/artifacts-credprovider),
+  works as with the dotnet CLI. NuGet finds plugins in this order: the paths in
+  `NUGET_PLUGIN_PATHS`, else `nuget-plugin-*` executables on `PATH` and the plugins folder
+  of the NuGet home (`~/.nuget/plugins/netcore`).
+- NuGet starts a plugin in `NUGET_PLUGIN_PATHS` with `dotnet`, so a path there must be a
+  `.dll`, and the machine needs a .NET runtime for it. A native plugin executable in
+  `NUGET_PLUGIN_PATHS` exits with code 1. Put a native plugin on `PATH` with a name that
+  starts with `nuget-plugin-`, and leave `NUGET_PLUGIN_PATHS` unset.
+- The command is non-interactive. With `--interactive`, a plugin can start a device flow
+  sign-in; its prompts go to standard error.
+
+```bash
+# Azure Artifacts with the credential provider, as for dotnet restore
+morphir extension install nuget:Acme.Morphir.Python@1.2.3 --source acme --interactive \
+  --home "$HOME/.morphir" --no-probe
+```
+
+- No credential is written to a log, the lock or the catalog. A feed that refuses the
+  credential fails the command with `extension.nuget_unauthorized`; the message names the
+  source and, without `--interactive`, the ways to give a credential.
+
+### Signatures
+
+| Operating system | Default | `DOTNET_NUGET_SIGNATURE_VERIFICATION` |
+| --- | --- | --- |
+| Windows | verified | ignored, always verified |
+| Linux | verified | `false` turns verification off |
+| macOS | not verified | `true` turns verification on |
+
+`signatureValidationMode` `require` in `nuget.config` verifies on every operating system and
+accepts only packages of its `trustedSigners`. NuGet's trust store is used as by the .NET SDK:
+the operating system store on Windows; on Linux and macOS a system code signing bundle when
+there is one, else the bundle in a `trustedroots` folder beside `morphir`. The Native AOT
+`morphir` does not ship that folder yet, so on Linux a timestamp chain is built with the
+operating system store.
+
+### What this host does not do yet
+
+- A WASM artifact is selected when no `process` artifact matches the platform, but its
+  installation fails with `extension.unsupported_package`. WASM installation for every
+  provider and running an installed WASM extension are open work of
+  `openspec/changes/add-nuget-extension-source` (task group 4).
+- `--runtime`, to choose the runtime of a release that offers both, is a follow-up.
 
 ## Historical implementation evidence
 

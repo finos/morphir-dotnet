@@ -75,12 +75,27 @@ When configuration selects an installed extension by id and its lock records run
 - **WHEN** a host without a WASM runtime runs `morphir generate` with an installed WASM backend
 - **THEN** the command fails with `extension.runtime_unavailable`
 
-### Requirement: A release has one runtime
-The installer SHALL keep the parent descriptor rule that a release descriptor lists only `wasm` artifacts or only `process` artifacts, for every provider. A descriptor that mixes them SHALL fail with `extension.unsupported_package`.
+### Requirement: The installer selects a process artifact before a WASM artifact
+For every provider, the installer SHALL select the one `process` artifact whose platform matches the host, else the first `wasm` artifact, else fail with `extension.no_matching_artifact` and install nothing. The lock SHALL record the selected artifact with its `runtime`, and activation SHALL NOT select again.
 
-#### Scenario: Mixed NuGet release
-- **WHEN** the `morphir/release.json` of a NuGet package lists a `wasm` and a `process` artifact
-- **THEN** the install fails with `extension.unsupported_package`
+#### Scenario: Mixed NuGet release on a matching platform
+- **WHEN** the `morphir/release.json` of a NuGet package lists a `wasm` artifact and a `process` artifact for the host platform
+- **THEN** the installer selects the `process` artifact and the lock records runtime `process`
+
+#### Scenario: Mixed release on another platform
+- **WHEN** the descriptor lists a `process` artifact for `x86_64-unknown-linux-gnu` and a `wasm` artifact, and the host is `aarch64-apple-darwin`
+- **THEN** the installer selects the `wasm` artifact
+
+#### Scenario: No matching artifact
+- **WHEN** the descriptor lists only a `process` artifact for another platform
+- **THEN** the install fails with `extension.no_matching_artifact` and the Home is unchanged
+
+### Requirement: A descriptor may offer both runtimes
+The descriptor reader SHALL NOT refuse a release descriptor that lists `process` and `wasm` artifacts.
+
+#### Scenario: Mixed descriptor
+- **WHEN** a descriptor lists a `process` artifact and a `wasm` artifact
+- **THEN** the reader accepts it
 
 ### Requirement: A dry run changes nothing
 `--dry-run` SHALL resolve the release and select the artifact, and SHALL NOT write to the Home's store, catalog, lock or journal or download any artifact that the selection does not need to read the descriptor.

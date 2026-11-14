@@ -21,7 +21,7 @@ Tracking: [finos/morphir-dotnet#558](https://github.com/finos/morphir-dotnet/iss
 ## 4. WASM installation for every provider
 
 - [ ] 4.1 Let `PackagePlan.Read` select a WASM artifact, add the `ModuleFile` payload, and publish it through `SingleFileStore` with a lock of runtime `wasm` and `claimCheck` `unchecked`, without running the guest. Verify unit tests for a WASM-only descriptor, a digest mismatch and a host requirement failure.
-- [ ] 4.2 Keep the one-runtime rule for every provider (design SEL-1). Verify a test that a mixed descriptor from a NuGet package fails with `extension.unsupported_package`.
+- [ ] 4.2 Select a matching process artifact before a WASM artifact for every provider, and accept a descriptor that mixes the runtimes (design SEL-1, finos/morphir#1176). Verify the parent `select-matching-process` and `select-wasm-fallback` cases, and a mixed descriptor that the reader accepts.
 - [ ] 4.3 Install a WASM artifact from a local declaration and from a GitHub release (fake GitHub). Verify both tests pass and no guest process starts.
 - [ ] 4.4 Capture an installed WASM record: verify the stored module against the lock offline and expose it through the `Wasm` case of `InstalledActivation` (design WASM-2). Verify tests for a good module and a changed module.
 - [ ] 4.5 Run installed WASM frontends and backends in `InstalledExtensionConnector` through `IWasmModuleLoader` and the channel connectors, with the session claim check. Verify `morphir compile` and `morphir generate` tests with an installed WASM guest, a claim mismatch, and a host without a WASM runtime (`extension.runtime_unavailable`).

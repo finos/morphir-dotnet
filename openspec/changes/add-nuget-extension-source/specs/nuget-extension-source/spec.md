@@ -88,10 +88,14 @@ An artifact with package format `nupkg` SHALL name in `filename` the package `<i
 - **THEN** the install fails with `extension.artifact_missing`
 
 ### Requirement: Package entries follow the archive safety rules
-Every entry of a package the provider reads SHALL pass the archive safety rules and limits, also when it is outside `package.root`. File modes SHALL come from the descriptor's `entryPoint` and `executables`, never from entry metadata.
+A package the provider reads SHALL pass the ZIP layout, header and feature rules and the archive limits as a whole, and every entry under `package.root` SHALL pass the entry rules. An entry outside `package.root` SHALL be neither refused nor extracted nor hashed, as finos/morphir#1176 (`packages.md`, "A NuGet package is read as ZIP, and only its root is the tree") requires. File modes SHALL come from the descriptor's `entryPoint` and `executables`, never from entry metadata.
 
 #### Scenario: Escaping entry outside the root
 - **WHEN** an artifact package has an entry `../evil` outside `package.root`
+- **THEN** the entry is not extracted, nothing is written outside the private stage, and the files under the root install
+
+#### Scenario: Escaping entry under the root
+- **WHEN** an artifact package has an entry under `package.root` that the entry rules refuse
 - **THEN** the install fails with the archive safety failure and nothing is published
 
 #### Scenario: Executable entry point

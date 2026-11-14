@@ -22,7 +22,7 @@ Why now: the provider seam from #654 exists, and a spike (`spikes/nuget-extensio
 
 ### New Capabilities
 
-- `extension-source-providers`: what is common to every source provider: the provider-tagged request, one installer for every provider, provider-tagged provenance and source records, the integrity pin for each payload shape, the one-runtime rule for a release, and WASM artifact installation and activation.
+- `extension-source-providers`: what is common to every source provider: the provider-tagged request, one installer for every provider, provider-tagged provenance and source records, the integrity pin for each payload shape, the selection of a process artifact before a WASM artifact, and WASM artifact installation and activation.
 - `nuget-extension-source`: installing from NuGet feeds: the request and version selection, sources, source mapping, credentials and signature policy from `nuget.config`, the NuGet package convention and its layouts, .NET tool packages, and NuGet errors.
 
 ### Modified Capabilities
@@ -32,7 +32,7 @@ None in `openspec/specs/`. The in-flight change `add-extension-installation` own
 ## Tracking
 
 - GitHub: [finos/morphir-dotnet#558](https://github.com/finos/morphir-dotnet/issues/558) owns the deployment and acquisition effort. No dedicated issue exists for this change yet; link it here when it is created.
-- Upstream: [finos/morphir#1176](https://github.com/finos/morphir/pull/1176), extension family `0.1.0-preview.3` with NuGet package sources, opened by the finos/morphir coordinator on 14 November 2026 (open; head `b777e212f4`). Link the merged commit here.
+- Upstream: [finos/morphir#1176](https://github.com/finos/morphir/pull/1176), extension family `0.1.0-preview.3` with NuGet package sources, opened by the finos/morphir coordinator on 14 November 2026 and merged as `65bbbc961d9eb962ad941a859c9d09fba058f5a0`, pinned in `tests/Fixtures/ExtensionAcquisition/parent-65bbbc96/`.
 - Spike: `spikes/nuget-extension-source/` and its results on osx-arm64.
 - Beads: no id is recorded. Do not invent one.
 

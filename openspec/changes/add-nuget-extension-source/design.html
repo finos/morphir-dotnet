@@ -55,7 +55,7 @@ svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
 <li><a href="#nug-4">NUG-4 Credentials</a></li>
 <li><a href="#nug-2">NUG-2 The package convention</a></li>
 <li><a href="#nug-3">NUG-3 Integrity and signatures</a></li>
-<li><a href="#sel-1">SEL-1 One runtime per release</a></li>
+<li><a href="#sel-1">SEL-1 A process artifact before a WASM artifact</a></li>
 <li><a href="#pkg-1">PKG-1 Providers, payload readers and one installer core</a></li>
 <li><a href="#wasm-1">WASM-1 WASM installation in the core</a></li>
 <li><a href="#wasm-2">WASM-2 Running an installed WASM extension</a></li>
@@ -186,10 +186,16 @@ svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
 <li>a WASM entry is pinned by its <code>sha256</code>; entry bytes do not change when a package is signed;</li>
 <li>signatures are verified when the dotnet CLI verifies them on the same OS (decided by the user: match dotnet per OS): by default on Windows and Linux, not on macOS, and as <code>DOTNET_NUGET_SIGNATURE_VERIFICATION</code> overrides. NuGet.Packaging reads that variable itself, and <code>X509TrustStore.InitializeForDotNetSdk</code> sets up the trust store as the SDK does: the OS store on Windows and macOS, and on Linux the fallback bundle <code>trustedroots/codesignctl.pem</code> and <code>timestampctl.pem</code>, which <code>morphir</code> ships beside its binary (copied from the pinned NuGet client release and updated with it). Every package the provider reads, main and artifact packages, then goes through <code>ClientPolicyContext.GetClientPolicy(settings, logger)</code> and <code>PackageSignatureVerifier</code> with the policy's settings and <code>trustedSigners</code>: in <code>accept</code> mode an unsigned package passes and a signed one must pass integrity and trust checks; in <code>require</code> mode unsigned or untrusted packages are refused. Refusal is <code>extension.nuget_signature_invalid</code>.</li>
 </ul>
-<p><strong>Security.</strong> With a tree pin, the zip reader parses package bytes before any digest has been checked; for a <code>zip</code> or <code>tar.gz</code> archive the file digest comes first. The protection rests on: the bounded package download, NuGet's signature check before the payload is read, <code>ArchiveChecks</code> applied to every entry of the package (also outside <code>root</code>), writes that can only reach the private stage, and the <code>treeSha256</code> check before publication. The upstream convention states this order.</p>
+<p><strong>Security.</strong> With a tree pin, the zip reader parses package bytes before any digest has been checked; for a <code>zip</code> or <code>tar.gz</code> archive the file digest comes first. The protection rests on: the bounded package download, NuGet's signature check before the payload is read, the ZIP layout and header rules applied to the whole package and the entry rules to every entry under <code>root</code> (entries outside <code>root</code> are neither refused nor extracted nor hashed, as #1176's <code>packages.md</code> requires), writes that can only reach the private stage, and the <code>treeSha256</code> check before publication. The upstream convention states this order.</p>
 
-<h3 id="sel-1">SEL-1 One runtime per release</h3>
-<p>The parent descriptor rule stays: a release lists only <code>wasm</code> artifacts or only <code>process</code> artifacts (<code>Descriptors.fs</code> refuses a mix, and <code>add-extension-installation</code>'s spec requires it). A NuGet release is therefore either a WASM release, whose main package carries <code>morphir/&lt;module&gt;.wasm</code>, or a process release in layout A or B. Supporting both kinds of extension does not need both runtimes in one release, so no runtime choice and no <code>--runtime</code> option are added. An author who wants both publishes two package ids.</p>
+<h3 id="sel-1">SEL-1 A process artifact before a WASM artifact</h3>
+<p>Decided upstream after this design was approved: finos/morphir#1176 (<code>docs/spec/extensions/packages.md</code>, the requirements "A descriptor may offer more than one runtime" and "A host selects a matching process artifact before a WASM artifact") allows a release to list <code>process</code> and <code>wasm</code> artifacts. So:</p>
+<ul>
+<li>the descriptor reader does not refuse a descriptor that mixes the runtimes (<code>Descriptors.fs</code> drops the refusal; <code>add-extension-installation</code> drops its "Mixed runtimes" scenario);</li>
+<li><code>PackagePlan.Select</code> selects, for every provider, the one <code>process</code> artifact whose platform matches the host, else the first <code>wasm</code> artifact, else <code>extension.no_matching_artifact</code>; two matching <code>process</code> artifacts are refused;</li>
+<li>the lock records the selected artifact with its <code>runtime</code>; activation follows the lock and never selects again.</li>
+</ul>
+<p>A <code>--runtime</code> option to let the user choose is a follow-up issue, not part of this change. A NuGet release can therefore carry a WASM module and process subtrees in one main package (the <code>nuget-layout-a</code> case of #1176).</p>
 
 <h3 id="pkg-1">PKG-1 Providers, payload readers and one installer core</h3>
 <p>The installer core stops matching on archive formats. A provider returns a payload, and the core gives the payload a sink:</p>
@@ -279,7 +285,7 @@ Sources/    GitHub/GitHubRepository.fs, NuGet/NuGetPackageRequest.fs   (identity
 
 <h2 id="open-questions">Open questions</h2>
 <ul>
-<li>Whether one descriptor may list both <code>process</code> and <code>wasm</code> artifacts. The #1176 case <code>nuget-layout-a</code> accepts such a descriptor, while morphir-dotnet refuses it today (<a href="#sel-1">SEL-1</a>); the coordinator was asked on 14 November 2026. If the family allows it, SEL-1 gets a selection rule from upstream and the refusal goes; the providers and payloads do not change.</li>
+<li>Resolved: one descriptor may list both <code>process</code> and <code>wasm</code> artifacts (finos/morphir#1176, merged as <code>65bbbc96</code>); see <a href="#sel-1">SEL-1</a>.</li>
 <li>Whether the Rust reference implementation in finos/morphir reads the new kinds in the same upstream change. That is the coordinator's call and does not change this repository's tasks.</li>
 </ul>
 
