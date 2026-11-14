@@ -78,3 +78,6 @@ tests/Fixtures/Configuration/json5-tests/new-lines/*.json5 -whitespace
 # Unicode conformance data is checked by SHA-256, so its bytes must not change
 tests/Fixtures/Unicode/** -text
 src/Morphir.Extensions.Installation/TrustedRoots/*.pem -text
+# Third-party license texts that the release notices insert: LF on every checkout.
+build/notices/*.txt text eol=lf
+build/notices/native/*.txt text eol=lf

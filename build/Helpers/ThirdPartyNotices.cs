@@ -375,9 +375,13 @@ public static class ThirdPartyNotices
             .Where(path => Regex.IsMatch(Path.GetFileName(path), @"^(third-?party-?notices|notice)(\.(txt|md))?$", RegexOptions.IgnoreCase))
             .Order(StringComparer.Ordinal);
 
+    /// <summary>
+    /// A declared license or notice text as committed, with LF line endings: a Windows checkout can give it CRLF, and
+    /// the notices of every platform must be the same bytes.
+    /// </summary>
     private static string Verbatim(string path)
     {
-        var text = File.ReadAllText(path);
+        var text = File.ReadAllText(path).Replace("\r\n", "\n").Replace('\r', '\n');
         return text.EndsWith('\n') ? text : text + "\n";
     }
 
