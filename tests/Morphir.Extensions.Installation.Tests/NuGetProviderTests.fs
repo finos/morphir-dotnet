@@ -955,6 +955,44 @@ let private v3Feed =
                 finally
                     Environment.SetEnvironmentVariable("NUGET_HTTP_CACHE_PATH", previous))
         }
+        test "NuGet finds a credential provider plugin in NUGET_PLUGIN_PATHS, or as nuget-plugin-* on PATH" {
+            withSandbox (fun sandbox ->
+                let previous = Environment.GetEnvironmentVariable "NUGET_PLUGIN_PATHS", Environment.GetEnvironmentVariable "PATH"
+
+                try
+                    // A .dll in NUGET_PLUGIN_PATHS (NuGet starts it with the dotnet host).
+                    let dll = Path.Combine(sandbox.Root, "Acme.CredentialProvider.dll")
+                    File.WriteAllBytes(dll, [| 0uy |])
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_PATHS", dll)
+
+                    let found =
+                        use discoverer = new NuGet.Protocol.Plugins.PluginDiscoverer()
+                        discoverer.DiscoverAsync(ct).GetAwaiter().GetResult() |> Seq.toList
+
+                    Expect.exists found (fun result -> result.PluginFile.Path = dll) "the NUGET_PLUGIN_PATHS plugin"
+
+                    // With no NUGET_PLUGIN_PATHS, a nuget-plugin-* executable on PATH (NuGet starts it directly).
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_PATHS", null)
+                    let bin = Path.Combine(sandbox.Root, "bin")
+                    Directory.CreateDirectory bin |> ignore
+                    let name = if OperatingSystem.IsWindows() then "nuget-plugin-acme.exe" else "nuget-plugin-acme"
+                    let executable = Path.Combine(bin, name)
+                    File.WriteAllText(executable, "#!/bin/sh\nexit 0\n")
+
+                    if not (OperatingSystem.IsWindows()) then
+                        File.SetUnixFileMode(executable, UnixFileMode.UserRead ||| UnixFileMode.UserWrite ||| UnixFileMode.UserExecute)
+
+                    Environment.SetEnvironmentVariable("PATH", bin + string Path.PathSeparator + (snd previous |> Option.ofObj |> Option.defaultValue ""))
+
+                    let found =
+                        use discoverer = new NuGet.Protocol.Plugins.PluginDiscoverer()
+                        discoverer.DiscoverAsync(ct).GetAwaiter().GetResult() |> Seq.toList
+
+                    Expect.exists found (fun result -> result.PluginFile.Path = executable) "the nuget-plugin-* executable on PATH"
+                finally
+                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_PATHS", fst previous)
+                    Environment.SetEnvironmentVariable("PATH", snd previous))
+        }
         test "the credential service of NuGet, with its plugin providers, is set up non-interactively" {
             withSandbox (fun sandbox ->
                 let result, _ = installFromFeed sandbox [ package sandbox "1.2.3" true ] None None "nuget:Acme.Morphir.Python@1.2.3"
