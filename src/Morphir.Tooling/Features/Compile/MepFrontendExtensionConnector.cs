@@ -21,7 +21,7 @@ public sealed class MepFrontendExtensionConnector(IWasmModuleLoader? wasmLoader)
     /// <inheritdoc />
     public Task<Checked<IFrontend>> ConnectAsync(FrontendExtensionRequest request, CancellationToken ct)
     {
-        if (request.InstalledId is not null) return InstalledExtensionConnector.FrontendAsync(request, ct);
+        if (request.InstalledId is not null) return InstalledExtensionConnector.FrontendAsync(request, wasmLoader, ct);
         if (request.WasmModule is { } module)
         {
             if (!ConfiguredWasmModule.TryOpen(wasmLoader, module, out var channel, out var code, out var message))

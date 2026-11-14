@@ -4,7 +4,9 @@ using Morphir.Compilation;
 using Morphir.Compilation.Mep;
 using Morphir.Extensions.Installation;
 using Morphir.Toolchain.IO;
+using Morphir.Extensions.Wasm;
 using Morphir.Tooling.Features.Compile;
+using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Mep;
 using System.Text.Json;
@@ -44,7 +46,28 @@ internal static class InstalledExtensionConnector
     private static void Check(InstalledActivationRecord record, Morphir.Mep.NegotiatedSession session) =>
         record.CheckSession(session).Match(_ => true, failure => throw new Refused(failure.Code, failure.Message));
 
-    internal static async Task<Checked<IFrontend>> FrontendAsync(FrontendExtensionRequest request, CancellationToken ct)
+    /// <summary>
+    /// Opens the channel of an installed WASM extension (design WASM-2) through the loader that configured modules
+    /// use: it checks the runtime, the locked digest and the profile. The module was rehashed against the lock when
+    /// it was captured.
+    /// </summary>
+    private static ISingleMessageChannel OpenModule(CapturedExtension captured, IWasmModuleLoader? loader)
+    {
+        var module = captured.Module ?? throw new Refused("extension.unavailable", "The installed extension is not a WASM module.");
+        if (loader is null)
+            throw new Refused("extension.runtime_unavailable", "This host has no WASM runtime, so it cannot run the installed WASM extension.");
+        if (!ModuleDigest.TryParse(module.Digest.Value, out var digest))
+            throw new Refused("extension.digest_mismatch", "The locked digest of the installed WASM module is not a SHA-256.");
+        var source = new WasmModuleSource(captured.Record.ExtensionId.Value, module.ModulePath, null, digest);
+        if (!ConfiguredWasmModule.TryOpen(loader, source, out var channel, out var code, out var message))
+            throw new Refused(code, message);
+        return channel!;
+    }
+
+    internal static async Task<Checked<IFrontend>> FrontendAsync(FrontendExtensionRequest request, CancellationToken ct) =>
+        await FrontendAsync(request, null, ct);
+
+    internal static async Task<Checked<IFrontend>> FrontendAsync(FrontendExtensionRequest request, IWasmModuleLoader? wasmLoader, CancellationToken ct)
     {
         CapturedExtension? captured = null;
         MepFrontend? guest = null;
@@ -52,9 +75,20 @@ internal static class InstalledExtensionConnector
         {
             var environment = EnvironmentOf(request.Environment);
             captured = await CaptureAsync(request.InstalledId!, environment, request.Home, ct);
-            var options = MepFrontendOptions.Create(captured.Activation.EntryPointPath, captured.Record.Arguments,
-                request.WorkingDirectory, Console.Error, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
-            var connected = await MepFrontend.ConnectCheckedAsync(options, environment, ct);
+            Checked<IFrontend> connected;
+            if (captured.IsWasm)
+            {
+                var channel = OpenModule(captured, wasmLoader);
+                var channelOptions = MepFrontendOptions.Create(captured.Module!.ModulePath, [], request.WorkingDirectory, Console.Error,
+                    MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
+                connected = await MepFrontend.ConnectChannelCheckedAsync(channelOptions, channel, ct);
+            }
+            else
+            {
+                var options = MepFrontendOptions.Create(captured.Activation.EntryPointPath, captured.Record.Arguments,
+                    request.WorkingDirectory, Console.Error, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
+                connected = await MepFrontend.ConnectCheckedAsync(options, environment, ct);
+            }
             if (!connected.TryGetValue(out var frontend))
             {
                 await ((IAsyncDisposable)captured).DisposeAsync();
@@ -74,7 +108,10 @@ internal static class InstalledExtensionConnector
         }
     }
 
-    internal static async Task<Outcome<IExternalGenerationBackend>> BackendAsync(BackendExtensionRequest request, CancellationToken ct)
+    internal static async Task<Outcome<IExternalGenerationBackend>> BackendAsync(BackendExtensionRequest request, CancellationToken ct) =>
+        await BackendAsync(request, null, ct);
+
+    internal static async Task<Outcome<IExternalGenerationBackend>> BackendAsync(BackendExtensionRequest request, IWasmModuleLoader? wasmLoader, CancellationToken ct)
     {
         CapturedExtension? captured = null;
         MepGenerationBackend? guest = null;
@@ -82,7 +119,9 @@ internal static class InstalledExtensionConnector
         {
             var environment = EnvironmentOf(request.Environment);
             captured = await CaptureAsync(request.InstalledId!, environment, null, ct);
-            var options = new MepBackendOptions(captured.Activation.EntryPointPath, captured.Record.Arguments, request.Target)
+            var wasm = captured.IsWasm;
+            var options = new MepBackendOptions(wasm ? captured.Module!.ModulePath : captured.Activation.EntryPointPath,
+                wasm ? [] : captured.Record.Arguments, request.Target)
             {
                 WorkingDirectory = request.WorkingDirectory,
                 Environment = environment,
@@ -90,7 +129,9 @@ internal static class InstalledExtensionConnector
                 HostName = MepExtensionCommand.HostName,
                 HostVersion = MepExtensionCommand.HostVersion
             };
-            var connected = await MepGenerationBackend.ConnectAsync(options, ct);
+            var connected = wasm
+                ? await MepGenerationBackend.ConnectChannelAsync(options, OpenModule(captured, wasmLoader), ct)
+                : await MepGenerationBackend.ConnectAsync(options, ct);
             if (connected is Outcome<MepGenerationBackend>.Failure failure)
             {
                 await ((IAsyncDisposable)captured).DisposeAsync();

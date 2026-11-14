@@ -59,7 +59,7 @@ public sealed class MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) 
     /// <inheritdoc />
     public async Task<Outcome<IExternalGenerationBackend>> ConnectAsync(BackendExtensionRequest request, CancellationToken ct)
     {
-        if (request.InstalledId is not null) return await InstalledExtensionConnector.BackendAsync(request, ct);
+        if (request.InstalledId is not null) return await InstalledExtensionConnector.BackendAsync(request, wasmLoader, ct);
         Morphir.Mep.ISingleMessageChannel? channel = null;
         string executable;
         string[] arguments;
