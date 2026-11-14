@@ -492,6 +492,17 @@ let private configuration =
                 install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some "http://feed.example/v3/index.json")
                 |> refusedWith "extension.invalid_source")
         }
+        test "a source that does not answer fails as unreachable and names the source" {
+            withSandbox (fun sandbox ->
+                // Port 9 (discard) on loopback: refused at once, with no live network.
+                let source = "https://127.0.0.1:9/v3/index.json"
+
+                match (install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some source)).Match(Func<_, _>(fun _ -> None), Func<_, _>(Some)) with
+                | None -> failtest "Expected refusal"
+                | Some(failure: InstallationFailure) ->
+                    Expect.equal failure.Code "extension.nuget_unreachable" failure.Message
+                    Expect.stringContains failure.Message source "the source")
+        }
         test "require mode refuses an unsigned package" {
             withSandbox (fun sandbox ->
                 let feed = layoutA sandbox "1.2.3"
