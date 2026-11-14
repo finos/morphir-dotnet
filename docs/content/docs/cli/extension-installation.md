@@ -66,8 +66,8 @@ accepts only packages of its `trustedSigners`. NuGet's trust store is set up as 
 it up: the operating system store on Windows; on Linux and macOS a system code signing bundle when
 there is one, else the code signing and timestamping trust lists of the .NET SDK
 (`codesignctl.pem` and `timestampctl.pem`, from dotnet/sdk `v11.0.100`). The Native AOT `morphir`
-is one file, so it carries these lists and writes them to
-`<home>/tmp/morphir-dotnet-nuget-trust/trustedroots/`. Without them, NuGet on Linux has no trusted
+is one file, so it carries these lists, writes them to a private folder under `<home>/tmp`
+while NuGet sets up its trust store, and deletes the folder after it. Without them, NuGet on Linux has no trusted
 root: on Ubuntu 24.04, `require` mode with the nuget.org repository as trusted signer refused
 `Newtonsoft.Json 13.0.3` (NU3018, NU3028), and `accept` mode only warned (NU3042). With them, the
 same check passes.

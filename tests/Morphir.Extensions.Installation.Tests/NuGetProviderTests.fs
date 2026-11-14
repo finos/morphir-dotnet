@@ -276,7 +276,19 @@ let private folderFeed =
                 Expect.stringContains result.StandardOutput "installed" "the child installed"
                 Expect.isEmpty (Directory.GetFileSystemEntries packages) "NUGET_PACKAGES is untouched"
                 let written = Directory.GetFiles(httpCache, "*", SearchOption.AllDirectories)
-                Expect.isEmpty written "NUGET_HTTP_CACHE_PATH is untouched")
+                Expect.isEmpty written "NUGET_HTTP_CACHE_PATH is untouched"
+
+                // A fresh process sets up NuGet's trust store; on Linux, where dotnet verifies signatures by default,
+                // it writes the trust lists to the Home and deletes them once NuGet has read them.
+                let tmp = Path.Combine(home sandbox, "tmp")
+
+                let left =
+                    if Directory.Exists tmp then
+                        Directory.GetDirectories tmp |> Array.map Path.GetFileName |> Array.filter (fun name -> name <> "morphir-dotnet-nuget-scratch")
+                    else
+                        [||]
+
+                Expect.isEmpty left "no private stage, NuGet temporary folder or trust list folder remains")
         }
         test "the installed tree re-verifies offline from the lock" {
             withSandbox (fun sandbox ->
@@ -571,6 +583,26 @@ let private configuration =
                 | Some(failure: InstallationFailure) ->
                     Expect.equal failure.Code "extension.nuget_unreachable" failure.Message
                     Expect.stringContains failure.Message source "the source")
+        }
+        test "the trust lists are scratch: in the Home while NuGet reads them, and gone after" {
+            withSandbox (fun sandbox ->
+                let mutable seen = None
+
+                NuGetTrustRoots.withLists (home sandbox) (fun folder ->
+                    seen <- Some folder
+                    Expect.isTrue (File.Exists(Path.Combine(folder, "trustedroots", "codesignctl.pem"))) "the code signing list"
+                    Expect.isTrue (File.Exists(Path.Combine(folder, "trustedroots", "timestampctl.pem"))) "the timestamping list"
+                    Expect.stringStarts folder (Path.Combine(home sandbox, "tmp")) "under the Home")
+
+                Expect.isFalse (Directory.Exists(Option.get seen)) "deleted after NuGet read them"
+
+                Expect.throwsT<InvalidOperationException>
+                    (fun () -> NuGetTrustRoots.withLists (home sandbox) (fun _ -> raise (InvalidOperationException "NuGet failed")))
+                    "a failure propagates"
+
+                let tmp = Path.Combine(home sandbox, "tmp")
+                let left = Directory.GetDirectories tmp |> Array.filter (fun path -> Path.GetFileName(path).StartsWith("morphir-dotnet-nuget-trust", StringComparison.Ordinal))
+                Expect.isEmpty left "no trust folder remains, also after a failure")
         }
         test "the embedded NuGet trusted root lists are the pinned dotnet/sdk blobs" {
             withSandbox (fun sandbox ->

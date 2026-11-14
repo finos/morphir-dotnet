@@ -11,8 +11,9 @@ tag `v11.0.100`, commit `b8600c8854f5d1ac1442d717211d968f69a53acd`, under the MI
 | `timestampctl.pem` | `7bb520e98647d283dba9b7972d1159a29044cb32` | `5ccb03367b52f047099f07e1653160e8578a83711cb18560c979febb65f8cb5d` |
 
 NuGet reads these lists only from a `trustedroots` folder in `AppContext.BaseDirectory`. The Native AOT `morphir` is
-one file, so the library embeds them, writes them to `<home>/tmp/morphir-dotnet-nuget-trust/trustedroots/`, and points
-the base directory there only while `X509TrustStore.InitializeForDotNetSdk` builds its chain factories
+one file, so the library embeds them, writes them to a private folder under `<home>/tmp`, points the base directory
+there only while `X509TrustStore.InitializeForDotNetSdk` builds its chain factories, and then deletes the folder: NuGet
+holds the certificates in memory from then on
 (`NuGetTrustRoots` in `NuGetProvider.fs`). Without them, NuGet on Linux has no trusted root for timestamps (and, with
 no system code signing bundle, none for signatures), so a `require` policy refuses every nuget.org package.
 

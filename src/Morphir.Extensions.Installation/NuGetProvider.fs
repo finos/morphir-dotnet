@@ -114,8 +114,9 @@ module internal NuGetSettings =
         | sources -> sources |> List.map (fun source -> source.Source) |> String.concat ", "
 
 /// NuGet's trusted roots for Linux and macOS (TrustedRoots/README.md). NuGet reads them only from
-/// AppContext.BaseDirectory/trustedroots, and the Native AOT morphir is one file, so they are embedded, written to the
-/// Home, and the base directory points there only while X509TrustStore builds its chain factories.
+/// AppContext.BaseDirectory/trustedroots, and the Native AOT morphir is one file, so they are embedded, written to a
+/// scratch folder under the Home, and the base directory points there only while X509TrustStore builds its chain
+/// factories; then the folder is deleted.
 module internal NuGetTrustRoots =
     let private gate = obj ()
     let mutable private initialized = false
@@ -141,6 +142,22 @@ module internal NuGetTrustRoots =
             if not (File.Exists path) || not (File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes.AsSpan())) then
                 File.WriteAllBytes(path, bytes)
 
+    /// The lists are scratch: they are written to a private folder under the Home's tmp, <paramref name="work"/> reads
+    /// them, and the folder is deleted, also when <paramref name="work"/> fails. NuGet reads the certificates into
+    /// memory when it builds its chain factories, so nothing needs the files after that.
+    let withLists (home: string) (work: string -> unit) =
+        let folder = Path.Combine(home, "tmp", "morphir-dotnet-nuget-trust-" + Guid.NewGuid().ToString("N"))
+
+        try
+            write folder
+            work folder
+        finally
+            try
+                if Directory.Exists folder then
+                    Directory.Delete(folder, true)
+            with _ ->
+                ()
+
     /// Sets up NuGet's trust store as the .NET SDK does, once per process: the OS store on Windows, and on Linux and
     /// macOS a system code signing bundle when there is one, else these lists.
     let initialize (home: string) =
@@ -151,15 +168,14 @@ module internal NuGetTrustRoots =
                 if OperatingSystem.IsWindows() then
                     X509TrustStore.InitializeForDotNetSdk logger
                 else
-                    let folder = Path.Combine(home, "tmp", "morphir-dotnet-nuget-trust")
-                    write folder
-                    let previous = AppContext.GetData "APP_CONTEXT_BASE_DIRECTORY"
-                    AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", folder + string Path.DirectorySeparatorChar)
+                    withLists home (fun folder ->
+                        let previous = AppContext.GetData "APP_CONTEXT_BASE_DIRECTORY"
+                        AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", folder + string Path.DirectorySeparatorChar)
 
-                    try
-                        X509TrustStore.InitializeForDotNetSdk logger
-                    finally
-                        AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", previous)
+                        try
+                            X509TrustStore.InitializeForDotNetSdk logger
+                        finally
+                            AppContext.SetData("APP_CONTEXT_BASE_DIRECTORY", previous))
 
                 initialized <- true)
 
