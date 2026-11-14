@@ -37,6 +37,7 @@ public sealed class DriverSet : IAsyncDisposable
         LibraryHosts = new LibraryHostDriver(programs, workspace);
         BuiltFiles = new ArtifactInspectionDriver(programs);
         Packages = new PackageDriver(workspace, packageSources, packedPackages);
+        _installScripts = new InstallScriptDriver(workspace);
         Capabilities = DriverCapabilities.Of(target, host);
         _hostCopies = hostCopies;
         Sessions = new ProcessSessionDriver(target, host, artifact, workspace);
@@ -124,6 +125,11 @@ public sealed class DriverSet : IAsyncDisposable
 
     public IPackageDriver Packages { get; }
 
+    private readonly InstallScriptDriver _installScripts;
+
+    /// <summary>The install scripts of morphirup, run on the shell of this machine.</summary>
+    public IInstallScriptDriver InstallScripts => _installScripts;
+
     /// <summary>The capabilities that these drivers support.</summary>
     public IReadOnlySet<DriverCapability> Capabilities { get; }
 
@@ -139,6 +145,7 @@ public sealed class DriverSet : IAsyncDisposable
         lock (_sessions) sessions = [.. _sessions];
         foreach (var session in sessions) await session.DisposeAsync().ConfigureAwait(false);
         if (_packaged is not null) await _packaged.DisposeAsync().ConfigureAwait(false);
+        await _installScripts.DisposeAsync().ConfigureAwait(false);
         var keep = failed && _keepFailed;
         if (keep) Workspace.Keep();
         await Workspace.DisposeAsync().ConfigureAwait(false);

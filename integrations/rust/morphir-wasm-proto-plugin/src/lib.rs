@@ -90,7 +90,7 @@ pub fn download_prebuilt(
 
     // GitHub Release URL format
     let download_url = format!(
-        "https://github.com/finos/morphir-dotnet/releases/download/v{}/morphir-{}-v{}.tar.gz",
+        "https://github.com/finos/morphir/releases/download/v{}/morphir-{}-v{}.tar.gz",
         version, rid, version
     );
 
