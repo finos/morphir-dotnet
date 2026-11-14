@@ -53,6 +53,33 @@
         <WarningsAsErrors>$(WarningsAsErrors);IL3050</WarningsAsErrors>
     </PropertyGroup>
 
+    <!--
+      The NuGet guard (design AOT-1 of add-nuget-extension-source). The Native AOT publish reports each trim or AOT
+      warning of NuGet.* and Newtonsoft.Json at its call site, not as one IL2104 or IL3053 summary for the assembly, and
+      each of those warnings is an error. Other package assemblies keep their summary warning, which is not an error. A
+      NuGet client update that moves a code path back to Newtonsoft.Json, or a missing
+      NuGet.UseSystemTextJsonDeserialization switch, fails the publish instead of a NuGet feed read at run time.
+    -->
+    <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+        <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2046;IL2050;IL2055;IL2056;IL2057;IL2058;IL2059;IL2060;IL2061;IL2062;IL2063;IL2064;IL2065;IL2066;IL2067;IL2068;IL2069;IL2070;IL2071;IL2072;IL2073;IL2074;IL2075;IL2076;IL2077;IL2078;IL2079;IL2080;IL2081;IL2082;IL2083;IL2084;IL2085;IL2086;IL2087;IL2088;IL2089;IL2090;IL2091;IL2092;IL2093;IL2094;IL2095;IL2096;IL2097;IL2098;IL2099;IL2103;IL2105;IL2106;IL2107;IL2108;IL2109;IL2110;IL2111;IL2112;IL2113;IL2114;IL2115;IL2116;IL2117;IL2118;IL2119;IL2120;IL2121;IL2122;IL2123;IL3000;IL3001;IL3002;IL3050;IL3051;IL3052;IL3054;IL3055;IL3056</WarningsAsErrors>
+    </PropertyGroup>
+    <Target Name="MorphirReportNuGetTrimWarningsAtTheirCallSite" AfterTargets="_ComputeIlcCompileInputs" Condition="'$(PublishAot)' == 'true'">
+        <ItemGroup>
+            <_IlcManagedInputAssemblies Condition="$([System.String]::Copy('%(Filename)').StartsWith('NuGet.')) or '%(Filename)' == 'Newtonsoft.Json'">
+                <TrimmerSingleWarn>false</TrimmerSingleWarn>
+            </_IlcManagedInputAssemblies>
+        </ItemGroup>
+    </Target>
+
+    <!--
+      NuGet.Protocol reads its feeds with System.Text.Json only behind this feature switch; the trimmer then removes its
+      Newtonsoft.Json path, which does not work in Native AOT (design AOT-1 of add-nuget-extension-source).
+    -->
+    <ItemGroup>
+        <!-- MorphirNuGetSystemTextJson=false exists only to prove the guard below: the Native AOT publish then fails. -->
+        <RuntimeHostConfigurationOption Include="NuGet.UseSystemTextJsonDeserialization" Value="true" Trim="true" Condition="'$(MorphirNuGetSystemTextJson)' != 'false'" />
+    </ItemGroup>
+
     <!-- AOT and trimming settings are set via command-line arguments during publish -->
     <!-- This prevents them from affecting dotnet run/build operations -->
     <!-- See justfile publish-executable task for publish-time settings -->

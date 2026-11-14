@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    Morphir.Extensions.Installation reads NuGet feeds with NuGet.Protocol. NuGet.Protocol works in a trimmed or Native
+    AOT application only with its System.Text.Json path, behind this feature switch. A runtime host option is set by
+    the application, so this package sets it for each application that references it.
+  -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="NuGet.UseSystemTextJsonDeserialization" Value="true" Trim="true" />
+  </ItemGroup>
+</Project>

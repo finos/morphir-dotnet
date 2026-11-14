@@ -20,6 +20,14 @@
         <PackageTags>morphir;cli;dotnet-tool</PackageTags>
     </PropertyGroup>
 
+    <!--
+      NuGet.Protocol reads its feeds with System.Text.Json only behind this feature switch; the trimmer then removes its
+      Newtonsoft.Json path, which does not work in Native AOT (design AOT-1 of add-nuget-extension-source).
+    -->
+    <ItemGroup>
+        <RuntimeHostConfigurationOption Include="NuGet.UseSystemTextJsonDeserialization" Value="true" Trim="true" />
+    </ItemGroup>
+
     <ItemGroup>
         <ProjectReference Include="..\Morphir.Core\Morphir.Core.csproj" />
         <ProjectReference Include="..\Morphir.Tooling\Morphir.Tooling.csproj" />

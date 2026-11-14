@@ -210,7 +210,7 @@ morphir tool which <name> [options]
 ## Extension Commands
 
 `extension list` and `extension install` are available. `extension install` takes a
-provider source, such as `github:finos/morphir-python@0.6.2`, or an explicit
+provider source, such as `github:finos/morphir-python@0.6.2` or `nuget:Acme.Morphir.Python@1.2.3`, or an explicit
 local-developer declaration from a registered repository. Both need explicit
 `--no-probe` consent. A positional archive URL is not accepted. Selection and removal
 commands remain stubs. See [extension installation status](extension-installation.md).
@@ -225,6 +225,7 @@ morphir extension list [--json] [--platform <rid>] [--local]
 morphir extension runtimes [--json]
 morphir extension repository add <name> --directory <absolute-path> --home <absolute-home> --local-developer [--dry-run]
 morphir extension install github:<owner>/<repo>[@<version-or-tag>] --home <absolute-home> --no-probe [--dry-run]
+morphir extension install nuget:<package-id>[@<version>] [--source <name|url|folder>] [--configfile <path>] [--interactive] --home <absolute-home> --no-probe [--dry-run]
 morphir extension install <name> --repository <registered-name> --local-release <json> --local-archive <zip> --home <absolute-home> --local-developer --no-probe [--dry-run]
 morphir extension use <name> <version> [--platform <rid>] [--local]             # not implemented yet
 morphir extension remove <name> <version> [--platform <rid>] [--local]          # not implemented yet
@@ -257,6 +258,7 @@ writes the catalog and lock is the same for every provider.
 | Provider | Source | What it reads |
 | --- | --- | --- |
 | `github` | `github:<owner>/<repo>[@<version-or-tag>]` | The `release.json` asset of a GitHub release, then the artifact asset for this platform |
+| `nuget` | `nuget:<package-id>[@<version>]` | The `morphir/release.json` entry of a NuGet package, then the package subtree or WASM entry for this platform |
 | local developer | `<extension-id> --repository <name> --local-release <json> --local-archive <archive> --local-developer` | A release declaration and archive in a registered local repository |
 
 For `github:`:
@@ -267,7 +269,7 @@ For `github:`:
 - No `@` selects the latest release, as GitHub reports it: never a draft or a prerelease.
 - The release must follow the
   [GitHub release convention](https://morphir.finos.org/docs/design/draft/extensions/distribution-and-acquisition#github-release-convention):
-  one `release.json` asset (extension family `0.1.0-preview.2`), and each artifact `filename` equal to the name of
+  one `release.json` asset (extension family `0.1.0-preview.3`), and each artifact `filename` equal to the name of
   an asset of the same release.
 - The artifact bytes stream into a private stage in the Home, and their SHA-256 must equal the descriptor `sha256`
   before anything else reads them. A mismatch, a missing asset or no artifact for this platform installs nothing.
@@ -279,9 +281,75 @@ For `github:`:
 - `--dry-run` reads the release metadata and `release.json`, and downloads no artifact.
 - Only `extension install` uses the network. `compile` and `generate` run the installed copy and never download.
 
+For `nuget:`:
+
+```bash
+# From the sources of nuget.config (nuget.org, a private V3 feed, a folder feed)
+morphir extension install nuget:Acme.Morphir.Python@1.2.3 --home "$HOME/.morphir" --no-probe
+
+# From one source only: a configured source name, a V3 service index URL, or a folder
+morphir extension install nuget:Acme.Morphir.Python --source ./artifacts/nupkg --home "$HOME/.morphir" --no-probe
+
+# Plan only: reads the main package, selects the artifact, writes nothing to the Home
+morphir extension install nuget:Acme.Morphir.Python@1.2.3 --home "$HOME/.morphir" --no-probe --dry-run
+```
+
+- The package id follows the NuGet id rules and is compared ignoring case. The version is a NuGet version, compared
+  in normalized form (`1.2` is `1.2.0`). A malformed id or version fails with `extension.invalid_source`.
+- `@<version>` selects that exact version from the first applicable source that has it, also a prerelease or an
+  unlisted version. No `@` selects the highest stable listed version across the applicable sources, as
+  `dotnet tool install` without `--version` does: never a prerelease or an unlisted version. A folder feed has no
+  listing, so all its stable versions count.
+- Without `--source`, the sources are the enabled `packageSources` of the `nuget.config` hierarchy from the current
+  directory, or of the file `--configfile` names. When `nuget.config` has `packageSourceMapping`, only the sources
+  mapped to the package id apply. `--source` replaces that list with one source: a configured source name, a V3
+  `index.json` URL, or a folder path. A configured source with the same URL keeps its credentials.
+- A source is recorded in the lock, so it must be an `https` service index whose path ends in `/index.json`, or a
+  folder. An `http` source, a V2 URL or a URL with userinfo, a query or a fragment fails with
+  `extension.invalid_source`.
+- Credentials come from the `packageSourceCredentials` of `nuget.config` and from NuGet credential provider plugins,
+  found as NuGet finds them: the `NUGET_PLUGIN_PATHS` variable, else `nuget-plugin-*` executables on `PATH` and the
+  plugins folder. The command is non-interactive; `--interactive` lets a plugin prompt for sign-in, with its prompts on
+  standard error. NuGet sends a credential only to its own source. No credential is written to a log, a lock or a
+  catalog. A refused credential fails with `extension.nuget_unauthorized`, which names the source.
+- Package signatures are checked as the dotnet CLI checks them on the same operating system: by default on Windows
+  and Linux, not on macOS. `DOTNET_NUGET_SIGNATURE_VERIFICATION=true` or `false` changes the default on Linux and
+  macOS. The client policy of `nuget.config` (`signatureValidationMode` `accept`, or `require` with
+  `trustedSigners`) applies to each package the command reads; `require` checks signatures on every operating system.
+  A refused package fails with `extension.nuget_signature_invalid`.
+- The main package must hold `morphir/release.json`, its `.nuspec` id and version must equal the request, and the
+  descriptor `version` must equal the package version. An ordinary NuGet package fails with
+  `extension.release_descriptor_missing`; a different version fails with `extension.version_mismatch`.
+- A process artifact has the package format `nupkg`. Its `filename` names the main package (one package, layout A)
+  or a package whose id is the main id, a `.`, and more, at the same version and from the same source (one package
+  per platform, layout B). Only the files under the artifact `root` are installed; `.nuspec`, `_rels/`,
+  `[Content_Types].xml`, `package/`, `.signature.p7s` and `morphir/` outside the root are not. A package of another
+  publisher fails with `extension.invalid_descriptor`; a missing artifact package fails with
+  `extension.artifact_missing`.
+- The installed tree is pinned by the descriptor `treeSha256`, not by the `.nupkg` bytes, because a feed such as
+  nuget.org signs a package after it is packed. A changed file under the root fails with
+  `package.tree_digest_mismatch` and installs nothing.
+- A RID-specific .NET tool installs when its payload is self-contained or Native AOT. An `entryPoint` that ends in
+  `.dll`, or a `<entry point>.runtimeconfig.json` that names a shared framework, fails with
+  `extension.unsupported_package`, because such a tool needs an installed .NET runtime.
+- A descriptor may offer `process` and `wasm` artifacts. The command selects the `process` artifact for this
+  platform, else a `wasm` artifact. This host does not install a WASM artifact yet: it fails with
+  `extension.unsupported_package`.
+- No source with the package or version fails with `extension.nuget_not_found`; a source that cannot be read fails
+  with `extension.nuget_unreachable`. Both messages name the package, the version and the sources tried.
+- The command writes only to the Home: it downloads into a private stage in the Home and uses no NuGet HTTP cache,
+  global packages folder or NuGet temporary folder. A credential provider plugin keeps its own cache.
+- `--source`, `--configfile` and `--interactive` apply only to a `nuget:` source; with any other source they fail
+  with `extension.invalid_source`.
+
+Extension authors: see [Publish an extension as a NuGet package](../../guides/publish-extension-nuget/).
+
 The catalog and lock record where the artifact came from as a provider-tagged source, for example
 `{"kind": "github-release-asset", "repository": "finos/morphir-python", "tag": "v0.6.2", "asset": "…"}`, and the
-release as `{"kind": "github-release", …, "revision": "<sha256 of release.json>"}`.
+release as `{"kind": "github-release", …, "revision": "<sha256 of release.json>"}`. A NuGet install records
+`{"kind": "nuget-package-entry", "feed": "https://api.nuget.org/v3/index.json", "id": "acme.morphir.python.osx-arm64",
+"version": "1.2.3", "path": "tools/net11.0/osx-arm64"}` and `{"kind": "nuget-package", "feed": …,
+"id": "acme.morphir.python", "version": "1.2.3", "revision": "<sha256 of morphir/release.json>"}`.
 
 ### extension list
 

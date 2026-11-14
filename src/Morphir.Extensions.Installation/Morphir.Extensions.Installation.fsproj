@@ -25,6 +25,9 @@
     <ProjectReference Include="../Morphir.Toolchain/Morphir.Toolchain.fsproj" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="buildTransitive/Morphir.Extensions.Installation.props" Pack="true" PackagePath="buildTransitive/" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Identifiers.fs" />
     <Compile Include="Platforms.fs" />
