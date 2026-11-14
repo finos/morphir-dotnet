@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    A Morphir extension packed as a RID-specific .NET tool, as docs/content/docs/guides/publish-extension-nuget.md says.
+    This project is not part of the solution build: build.sh in the folder above packs it, in two passes, into feed/.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>acme-tool</ToolCommandName>
+    <AssemblyName>acme-tool</AssemblyName>
+    <PackageId>Acme.Morphir.Tool</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Acme</Authors>
+    <Description>A test fixture: a Morphir extension packed as a RID-specific .NET tool.</Description>
+    <PackageType>DotnetTool;MorphirExtension</PackageType>
+    <ToolPackageRuntimeIdentifiers>linux-arm64</ToolPackageRuntimeIdentifiers>
+    <RuntimeIdentifiers>linux-arm64</RuntimeIdentifiers>
+    <SelfContained>true</SelfContained>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <StripSymbols>true</StripSymbols>
+    <DebugType>none</DebugType>
+    <!-- Deterministic packages for a checked-in fixture. -->
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('morphir/release.json')">
+    <None Include="morphir/release.json" Pack="true" PackagePath="morphir/release.json" />
+  </ItemGroup>
+</Project>
