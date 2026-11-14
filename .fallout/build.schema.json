@@ -78,6 +78,7 @@
         "TestE2E",
         "TestExtensionInstallationAot",
         "TestProtoPlugin",
+        "TestScripts",
         "WindowsToolchainChecksums"
       ]
     },

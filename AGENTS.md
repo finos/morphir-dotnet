@@ -1,4 +1,4 @@
-﻿# AGENTS.md
+# AGENTS.md
 
 Guidance for AI coding agents contributing to finos/morphir-dotnet (a .NET
 binding for the Morphir ecosystem). Produce correct, minimal, and well‑tested
@@ -314,7 +314,8 @@ Where a test goes
   group (`Integration/`, `EndToEnd/`, `Smoke/`, `Journeys/`), as a Gherkin scenario on the test drivers of
   `tests/Morphir.TestSupport`. See [tests/Morphir.BlackBox.Tests/README.md](./tests/Morphir.BlackBox.Tests/README.md).
 - A test that needs a product type in the test process is a unit test. It goes in the test project of its library.
-- A test of the build of the repository goes in `tests/Morphir.Build.Tests`.
+- A test of the build of the repository goes in `tests/Morphir.Build.Tests`. A test of a PowerShell script of the
+  repository is a Pester test in `tests/Scripts`, which the `TestScripts` target runs.
 - The guard tests in `tests/Morphir.Build.Tests/Helpers/BlackBoxRulesTests.cs` check the rules of the black-box
   project that a program can check.
 

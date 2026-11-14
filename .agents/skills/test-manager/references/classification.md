@@ -12,7 +12,7 @@ A check of the kit through the CLI (`morphir mck ...`) needs only the artifact. 
 
 ## Step 2: build
 
-The subject is the build of the repository. Examples in `tests/Morphir.Build.Tests`: `Helpers/TestPlanTests.cs` (a helper of the build), `DevelopmentWorkflowTests.cs` (a workflow file), `EntryPointGuardTests.cs` (a guard of a project file).
+The subject is the build of the repository. Examples in `tests/Morphir.Build.Tests`: `Helpers/TestPlanTests.cs` (a helper of the build), `DevelopmentWorkflowTests.cs` (a workflow file), `EntryPointGuardTests.cs` (a guard of a project file). A PowerShell script of a workflow is a helper of the build too: its tests are Pester tests in `tests/Scripts`, for example `install-tool-package.Tests.ps1` (`.github/scripts/install-tool-package.ps1`).
 
 A test of a packed package or of an installed tool is not a build test. Its subject is what the user gets. Example: a test that reads the layout of a packed package is an end-to-end test with the packages lane.
 

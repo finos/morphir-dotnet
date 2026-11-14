@@ -62,18 +62,14 @@ public class ChildProcessTests
         TolerantDirectory.TryDelete(directory);
     }
 
+    // The child writes 2 MB to each stream, so a runner that reads one stream to its end before the other deadlocks.
     [Test]
     [Category("PlatformSpecific")]
     public async Task LargeOutputOnBothStreams_DoesNotDeadlock()
     {
         const int size = 2_000_000;
-        var info = OperatingSystem.IsWindows()
-            ? ChildProcess.StartInfo("powershell.exe", "-NoProfile", "-Command",
-                $"[Console]::Out.Write('a' * {size}); [Console]::Error.Write('b' * {size})")
-            : ChildProcess.StartInfo("/bin/sh", "-c",
-                $"head -c {size} /dev/zero | tr '\\0' a; head -c {size} /dev/zero | tr '\\0' b >&2");
 
-        var result = await ChildProcess.RunAsync(info, TimeSpan.FromSeconds(60), gate: new ProcessGate(4));
+        var result = await ChildProcess.RunAsync(ProcessHelper.WriteBoth(size), TimeSpan.FromSeconds(60), gate: new ProcessGate(4));
 
         result.ExitCode.Should().Be(0);
         result.StandardOutput.Length.Should().Be(size);
@@ -126,18 +122,12 @@ public class ChildProcessTests
         strictDelete.Should().NotThrow();
     }
 
-    // A child that answers one line of stdin, so the caller must write, then read, then write again.
-    private static ProcessStartInfo Answer() =>
-        OperatingSystem.IsWindows()
-            ? ChildProcess.StartInfo("powershell.exe", "-NoProfile", "-Command",
-                "$line = [Console]::In.ReadLine(); [Console]::Out.WriteLine('got ' + $line); [Console]::Out.Flush(); $rest = [Console]::In.ReadToEnd(); [Console]::Out.WriteLine('rest ' + $rest.Trim())")
-            : ChildProcess.StartInfo("/bin/sh", "-c", "read line; echo \"got $line\"; rest=$(cat); echo \"rest $rest\"");
-
+    // The child answers one line of stdin, so the caller must write, then read, then write again.
     [Test]
     [Category("PlatformSpecific")]
     public async Task Converse_WritesAfterReadingAReply_ThenReturnsTheRestOfStdout()
     {
-        var result = await ChildProcess.ConverseAsync(Answer(), TimeSpan.FromMinutes(1), async (input, output, ct) =>
+        var result = await ChildProcess.ConverseAsync(ProcessHelper.Converse(), TimeSpan.FromMinutes(1), async (input, output, ct) =>
         {
             await input.WriteAsync("hello\n"u8.ToArray(), ct);
             await input.FlushAsync(ct);

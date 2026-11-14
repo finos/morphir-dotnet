@@ -93,6 +93,7 @@
     <Project Path="tests/Morphir.Analyzers.Tests/Morphir.Analyzers.Tests.fsproj" />
     <Project Path="tests/Morphir.Mep.Tests/Morphir.Mep.Tests.fsproj" />
     <Project Path="tests/Morphir.Toolchain.Tests/Morphir.Toolchain.Tests.fsproj" />
+    <Project Path="tests/Morphir.Toolchain.ProcessFixture/Morphir.Toolchain.ProcessFixture.fsproj" />
     <Project Path="tests/Morphir.Toolchain.IO.Tests/Morphir.Toolchain.IO.Tests.fsproj" />
     <Project Path="tests/Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" />
     <Project Path="tests/Morphir.Extensions.Wasm.AotProbe/Morphir.Extensions.Wasm.AotProbe.csproj" />

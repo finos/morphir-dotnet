@@ -27,6 +27,8 @@ attribution notices.
 * Update the `README.md` docs with details of changes to API, behaviour, features, or usage.
 Include useful file locations and relevant documentation.
 * Update an existing or add a new testcase for your change. 
+* A test that fails in the Windows or macOS test job of a pull request can be run locally with the same command
+as CI: see [Run a CI test job locally](docs/contributing/ci-os-matrix.md#run-a-ci-test-job-locally).
 * Ensure any install or build artefacts are removed from the pull request.
 * We generally prefer squashed commits, unless multi-commits add clarity or are 
 required for mixed copyright commits.

@@ -102,7 +102,7 @@ public class CliDeliveryWorkflowTests
         var qualify = steps.Single(step => Name(step) == "Start the produced executable");
         var script = qualify["run"].ToString();
         script.Should().Contain("--version").And.Contain("launchPath").And.Contain("dotnet-morphir");
-        // The tool package is installed only from the built bytes (ToolPackageInstallTests), never with --add-source,
+        // The tool package is installed only from the built bytes (tests/Scripts/install-tool-package.Tests.ps1), never with --add-source,
         // which races the configured feeds.
         script.Should().Contain("./.github/scripts/install-tool-package.ps1 -Package $artifact").And.NotContain("--add-source")
             .And.NotContain("dotnet tool install");

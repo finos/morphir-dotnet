@@ -64,6 +64,36 @@ system for a branch, use a manual run with `os=full`.
 ./build.sh --target Test --test-group smoke      # only one group of the black-box tests
 ```
 
+### Run a CI test job locally
+
+The Windows and macOS test jobs of a pull request run the scope `platform` in Release, with
+`MORPHIR_TEST_MAX_PROCESSES=4` on a runner with 4 processors, so 2 test assemblies at a time and a share of 2 product
+processes for each. To run exactly that on your machine (PowerShell on Windows; `./build.sh` with
+`MORPHIR_TEST_MAX_PROCESSES=4` elsewhere):
+
+```powershell
+$env:MORPHIR_TEST_MAX_PROCESSES = '4'
+./build.ps1 --target Compile --configuration Release
+./build.ps1 --target Test --configuration Release --skip Restore Compile --test-scope platform --test-parallelism 2
+```
+
+`--test-parallelism 2` matters: without it a machine with more processors runs up to 4 assemblies at a time, and the
+shares change. Run the same command without `MORPHIR_TEST_MAX_PROCESSES` and `--test-parallelism` too: on a
+machine with 12 processors the defaults give each test process a share of 1, the smallest gate that a test must
+survive. The test processes start no PowerShell: Windows PowerShell's first start on a fresh CI image can take
+longer than a test's time limit. A test that needs a plain child process starts the `ProcessHelper` of
+`tests/Morphir.TestSupport`, and `TestShellRulesTests` of `tests/Morphir.Build.Tests` keeps PowerShell out.
+
+The same job then runs "Run build tests" (`TestBuild`, after `PackAll`). Its first part, the Pester tests of the
+PowerShell scripts in `tests/Scripts`, needs no packages and runs alone with:
+
+```powershell
+./build.ps1 --target TestScripts --configuration Release --skip Restore Compile
+```
+
+Pester is not a dotnet tool: the restore of `build/_build.csproj` downloads the pinned version (a `PackageDownload`)
+into the NuGet packages folder, and the target imports it from there.
+
 ## The black-box groups
 
 A black-box test reaches the product only through a built artifact. Those tests are in one project,
@@ -103,7 +133,8 @@ of the published lane, and skips each test that the target does not support with
 
 The packages lane (`@lane @packages`) has the tests of the packages that the pack step makes: their layout, their
 metadata, their versions, and the install of the tools. In a pull request, each operating system runs it in the step
-"Run build tests", after "Pack packages for build testing": the `TestBuild` target runs the build tests and then the
+"Run build tests", after "Pack packages for build testing": the `TestBuild` target runs the Pester tests of the
+scripts (`TestScripts`, `tests/Scripts`), the build tests and then the
 black-box project with the filter `[Category=packages]`, `MORPHIR_TEST_LANE=packages` and
 `MORPHIR_TEST_PACKAGES` set to the output folder of `PackAll`. The package driver reads only that folder; a run with
 no package there stops before its first test with the pack command.

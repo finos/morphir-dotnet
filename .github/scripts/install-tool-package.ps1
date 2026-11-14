@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Installs a built dotnet tool package so that only its own bytes can be installed, and proves it. cli-offering.yml uses
-# it to start the produced dotnet-morphir, and tests/Morphir.Build.Tests runs it against conflicting feeds and caches.
+# it to start the produced dotnet-morphir, and tests/Scripts/install-tool-package.Tests.ps1 (Pester, the TestScripts target)
+# runs it against conflicting feeds and caches.
 #
 # Isolation, in both modes:
 # - The package is copied into a new feed folder that holds nothing else.
