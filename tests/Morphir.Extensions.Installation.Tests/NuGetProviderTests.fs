@@ -457,8 +457,17 @@ let private configuration =
         test "package source mapping leaves only the mapped source" {
             withSandbox (fun sandbox ->
                 let feed = layoutA sandbox "1.2.3"
+                // A newer version in the other source: without mapping, the highest version would come from it.
                 let other = Path.Combine(sandbox.Root, "other-feed")
-                Directory.CreateDirectory other |> ignore
+                let rid = (platform ()).RuntimeIdentifier
+                let tree = NuGetFixtures.treeDigest [ entryPoint (), payload, true ]
+                let release = NuGetFixtures.descriptor "1.2.4" [ NuGetFixtures.processArtifact "1.2.4" (platform ()).DescriptorTriple "acme.morphir.python.1.2.4.nupkg" $"morphir/{rid}" (entryPoint ()) tree ]
+
+                NuGetFixtures.pack other "Acme.Morphir.Python" "1.2.4" [] [
+                    { Name = "morphir/release.json"; Bytes = release }
+                    { Name = $"morphir/{rid}/{entryPoint ()}"; Bytes = payload }
+                ]
+                |> ignore
 
                 let config =
                     writeConfig sandbox $"""<?xml version="1.0" encoding="utf-8"?>
@@ -471,6 +480,7 @@ let private configuration =
 </configuration>"""
 
                 use captured = installWith sandbox "nuget:Acme.Morphir.Python" None (Some config) |> get
+                Expect.equal captured.Record.Version.Text "1.2.3" "the version of the mapped source, not 1.2.4"
                 let index = nonNull ((lockNode sandbox).["index"])
                 Expect.equal (string index["feed"]) (Path.GetFullPath feed.Folder) "the mapped source")
         }
@@ -486,6 +496,37 @@ let private configuration =
 </configuration>"""
 
                 installWith sandbox "nuget:Acme.Morphir.Python" None (Some config) |> refusedWith "extension.nuget_not_found")
+        }
+        test "a configured source that the lock cannot record is not asked, and the others still install" {
+            withSandbox (fun sandbox ->
+                let feed = layoutA sandbox "1.2.3"
+
+                let config =
+                    writeConfig sandbox $"""<?xml version="1.0" encoding="utf-8"?>
+<configuration><packageSources><clear />
+  <add key="legacy" value="http://127.0.0.1:9/v3/index.json" />
+  <add key="acme" value="{feed.Folder}" />
+</packageSources></configuration>"""
+
+                use captured = installWith sandbox "nuget:Acme.Morphir.Python@1.2.3" None (Some config) |> get
+                Expect.equal captured.Record.Version.Text "1.2.3" "installed from the folder")
+        }
+        test "a package NuGet cannot read is an invalid descriptor" {
+            withSandbox (fun sandbox ->
+                let folder = Path.Combine(sandbox.Root, "feed")
+                Directory.CreateDirectory folder |> ignore
+                File.WriteAllBytes(Path.Combine(folder, "acme.morphir.python.1.2.3.nupkg"), utf8 "not a zip")
+
+                match (install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder)).Match(Func<_, _>(fun _ -> None), Func<_, _>(Some)) with
+                | None -> failtest "Expected refusal"
+                | Some(failure: InstallationFailure) ->
+                    Expect.contains [ "extension.invalid_descriptor"; "extension.nuget_not_found"; "extension.nuget_unreachable" ] failure.Code failure.Message
+                    Expect.isFalse (failure.Code = "extension.io_error") "a stable NuGet code")
+        }
+        test "a Windows folder feed is recorded with an upper-case drive letter" {
+            if OperatingSystem.IsWindows() then
+                let feed = NuGetSettings.feedOf (NuGet.Configuration.PackageSource(@"c:\feed"))
+                Expect.equal feed.Text @"C:\feed" "the family spelling"
         }
         test "an http source is refused, because a lock records only https or a folder" {
             withSandbox (fun sandbox ->

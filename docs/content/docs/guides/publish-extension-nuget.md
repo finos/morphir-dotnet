@@ -33,7 +33,8 @@ it, and that changes the file.
 ## Choose a layout
 
 **Layout A: one package.** Each platform is a folder of the main package, such as `morphir/linux-x64`. Use it for a
-small extension, or for a WASM extension.
+small extension. (A WASM artifact is also an entry of the main package, but this version of `morphir` does not
+install WASM artifacts yet: publish process artifacts.)
 
 ```text
 Acme.Morphir.Python 1.2.3

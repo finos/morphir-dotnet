@@ -41,11 +41,11 @@ The lock and catalog SHALL record the provenance and the source of an installed 
 - **THEN** reading it fails, because a source is recorded only with the provenance of the same provider
 
 ### Requirement: Each payload shape has an integrity pin
-The installer SHALL check a payload against its pin before it publishes anything: a `zip` or `tar.gz` archive against the descriptor `sha256` of the file and then the package `treeSha256`; a `nupkg` package payload against `treeSha256`; a WASM module against the descriptor `sha256`. A mismatch SHALL install nothing and fail with `extension.digest_mismatch`.
+The installer SHALL check a payload against its pin before it publishes anything: a `zip` or `tar.gz` archive against its `sha256` and then its `treeSha256`; a `nupkg` payload against its `treeSha256`; a WASM module against its `sha256`. A mismatch SHALL install nothing and fail with `package.archive_digest_mismatch`, `package.tree_digest_mismatch` or, for a WASM module, `extension.digest_mismatch`.
 
 #### Scenario: Changed package payload
 - **WHEN** a file under the declared `root` of a `nupkg` payload differs from what `treeSha256` describes
-- **THEN** the install fails with `extension.digest_mismatch`
+- **THEN** the install fails with `package.tree_digest_mismatch`
 - **AND** the Home's store, catalog, lock and journal are unchanged
 
 #### Scenario: Changed WASM module

@@ -83,7 +83,13 @@ module internal NuGetSettings =
     let feedOf (source: PackageSource) =
         let text =
             if source.IsLocal then
-                Path.GetFullPath source.Source
+                let full = Path.GetFullPath source.Source
+
+                // The family spells a Windows drive letter in upper case; Path.GetFullPath keeps the user's case.
+                if full.Length >= 3 && Char.IsAsciiLetterLower full[0] && full[1] = ':' && full[2] = '\\' then
+                    string (Char.ToUpperInvariant full[0]) + full.Substring 1
+                else
+                    full
             else
                 source.Source
 
@@ -93,6 +99,14 @@ module internal NuGetSettings =
             Operations.fail
                 "extension.invalid_source"
                 $"The NuGet source {source.Name} cannot be recorded: {failure.Message} An installed artifact records only an https V3 feed or a folder."
+
+    /// True when the lock can record the source: an https V3 service index or a folder.
+    let recordable (source: PackageSource) =
+        try
+            feedOf source |> ignore
+            true
+        with InstallationException _ ->
+            false
 
     let describe (sources: PackageSource list) =
         match sources with
@@ -359,6 +373,19 @@ module internal NuGetConvention =
 
             PackageIdentity(id, main.Version)
 
+    /// A package that NuGet cannot read: no or a broken .nuspec, or a broken ZIP.
+    let isMalformed (error: exn) =
+        match error with
+        | :? PackagingException
+        | :? System.Xml.XmlException
+        | :? InvalidDataException -> true
+        | _ -> false
+
+    let malformed (package: PackageIdentity) (error: exn) : 'T =
+        Operations.fail
+            "extension.invalid_descriptor"
+            $"{package.Id} {package.Version.ToNormalizedString()} is not a readable NuGet package: {error.Message}"
+
     /// Checks the .nuspec identity of a package against what was asked for.
     let checkIdentity (reader: PackageArchiveReader) (expected: PackageIdentity) =
         let actual = reader.GetIdentity()
@@ -459,6 +486,25 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
         Directory.CreateDirectory path |> ignore
         path
 
+    /// NuGet keeps its HTTP cache (service index, repository signatures) and its lock files in its own folders even
+    /// with NoCache. The provider points both into its private temporary folder under the Home for the duration of
+    /// one operation, and restores them after it.
+    static let withPrivateFolders (temporary: string) (work: unit -> Task<'T>) : Task<'T> = task {
+        let names = [ "NUGET_HTTP_CACHE_PATH", "http-cache"; "NUGET_SCRATCH", "scratch" ]
+        let previous = names |> List.map (fun (name, _) -> name, Environment.GetEnvironmentVariable name)
+
+        for name, folder in names do
+            let path = Path.Combine(temporary, folder)
+            Directory.CreateDirectory path |> ignore
+            Environment.SetEnvironmentVariable(name, path)
+
+        try
+            return! work ()
+        finally
+            for name, value in previous do
+                Environment.SetEnvironmentVariable(name, value)
+    }
+
     static let removeFolder (path: string) =
         try
             if Directory.Exists path then
@@ -486,8 +532,12 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                         "extension.nuget_not_found"
                         $"No NuGet source applies to {request.Id}; check the sources and package source mapping of nuget.config, or use --source."
 
-                for source in sources do
-                    NuGetSettings.feedOf source |> ignore
+                // A source the lock cannot record (http, a V2 URL) is not asked at all, so no credential goes to it.
+                // When no applicable source is left, the first refusal names the reason.
+                let sources =
+                    match sources |> List.filter NuGetSettings.recordable with
+                    | [] -> NuGetSettings.feedOf sources.Head |> fun _ -> []
+                    | recordable -> recordable
 
                 if not (Path.IsPathFullyQualified home) then
                     Operations.fail "extension.invalid_home" "--home must be absolute."
@@ -496,6 +546,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                 let temporary = temporaryFolder home
 
                 try
+                  return! withPrivateFolders temporary (fun () -> task {
                     use cache = NuGetFeeds.cache temporary
 
                     let! selected =
@@ -531,6 +582,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                                 $"{source.Source} lists {request.Id} {version.ToNormalizedString()} but has no package for it.")
 
                     try
+                      try
                         use reader = new PackageArchiveReader(new BorrowedStream(resources.Output), false)
                         NuGetConvention.checkIdentity reader main
                         do! NuGetSignatures.verifyAsync settings reader main ct
@@ -593,8 +645,11 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                                 "The selected artifact is a WASM module; this host does not install WASM artifacts yet."
 
                         return ResolvedExtensionRelease(descriptor, plan, NuGetPackage(fst location, provenance, snd location))
+                      with error when NuGetConvention.isMalformed error ->
+                        return NuGetConvention.malformed main error
                     finally
                         resources.CloseAsync().GetAwaiter().GetResult() |> ignore
+                  })
                 finally
                     removeFolder temporary
             })
@@ -610,6 +665,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                 let temporary = temporaryFolder fetchHome
 
                 try
+                  return! withPrivateFolders temporary (fun () -> task {
                     use cache = NuGetFeeds.cache temporary
                     let! downloaded = NuGetFeeds.downloadAsync fetchHome location.Source location.Package location.Interactive cache ct
 
@@ -623,11 +679,13 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                     let mutable owned = true
 
                     try
-                        do
+                        try
                             use reader = new PackageArchiveReader(new BorrowedStream(resources.Output), false)
                             NuGetConvention.checkIdentity reader location.Package
                             NuGetSignatures.verifyAsync location.Settings reader location.Package ct |> fun work -> work.GetAwaiter().GetResult()
                             NuGetConvention.checkSelfContained reader resolved.Plan
+                        with error when NuGetConvention.isMalformed error ->
+                            NuGetConvention.malformed location.Package error
 
                         resources.Output.Position <- 0L
                         let values = SourceDocuments.provenanceValue provenance, SourceDocuments.sourceValue source
@@ -641,6 +699,7 @@ type NuGetPackageProvider(home: string, workingDirectory: string) =
                     finally
                         if owned then
                             resources.CloseAsync().GetAwaiter().GetResult() |> ignore
+                  })
                 finally
                     removeFolder temporary
             })
