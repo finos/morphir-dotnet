@@ -43,5 +43,7 @@
     <Compile Include="Packages.fs" />
     <Compile Include="ActivationRecords.fs" />
     <Compile Include="Providers.fs" />
+    <Compile Include="NuGetProvider.fs" />
+    <Compile Include="ExtensionSources.fs" />
   </ItemGroup>
 </Project>
