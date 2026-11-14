@@ -93,16 +93,10 @@ type PackagePlan
 
         let lockItems = SharedJson.members "lock" locked.Json
 
-        let source =
-            SharedJson.required "lock" "source" lockItems
-            |> SharedJson.members "source"
-
         let filename =
-            SharedJson.required "source" "path" source
-            |> SharedJson.text "source.path"
-            |> fun path ->
-                (path.Split '/')[path.Split('/').Length
-                                 - 1]
+            SharedJson.required "lock" "source" lockItems
+            |> SourceDocuments.readSource "lock.source" true
+            |> SourceDocuments.filenameOf
 
         let filename =
             DistributionIdentifiers.ParseArtifactFileName filename
@@ -956,7 +950,7 @@ module internal PackageTreeIO =
         normalized.ToArray()
 
     let extractZip
-        (source: FileStream)
+        (source: Stream)
         (tree: SafeDirectory)
         (plan: PackagePlan)
         (created: Dictionary<string, StageIdentity>)
@@ -1112,7 +1106,7 @@ module internal PackageTreeIO =
     /// the package bounds, the package reader checks the names, then one pass writes each regular file with its
     /// canonical mode.
     let extractTarGz
-        (source: FileStream)
+        (source: Stream)
         (tree: SafeDirectory)
         (plan: PackagePlan)
         (created: Dictionary<string, StageIdentity>)
@@ -1344,6 +1338,27 @@ module internal PackageTreeIO =
         (stage :> IDisposable).Dispose()
         packages.DeleteDirectory name
 
+/// A read-only view of a stream that its owner keeps open: disposing the view does not close the owner's handle.
+/// The installer reads a staged download through it, so it never reopens the staged file by path.
+[<Sealed>]
+type internal BorrowedStream(inner: Stream) =
+    inherit Stream()
+    override _.CanRead = inner.CanRead
+    override _.CanSeek = inner.CanSeek
+    override _.CanWrite = false
+    override _.Length = inner.Length
+
+    override _.Position
+        with get () = inner.Position
+        and set value = inner.Position <- value
+
+    override _.Read(buffer: byte array, offset: int, count: int) = inner.Read(buffer, offset, count)
+    override _.Read(buffer: Span<byte>) = inner.Read buffer
+    override _.Seek(offset, origin) = inner.Seek(offset, origin)
+    override _.Flush() = ()
+    override _.SetLength _ = raise (NotSupportedException "A borrowed archive is read-only.")
+    override _.Write(_: byte array, _: int, _: int) = raise (NotSupportedException "A borrowed archive is read-only.")
+
 /// Package tree operations. Catalog/lock registration and selected-record capture are separate, unfinished work.
 [<AbstractClass; Sealed>]
 type PackageInstaller private () =
@@ -1355,10 +1370,20 @@ type PackageInstaller private () =
             archivePath: string,
             ct: CancellationToken
         ) : Task<InstallationResult<InstalledPackage>> =
+        PackageInstaller.InstallFromAsync(home, plan, Func<Stream>(fun () -> FileSafety.openInput archivePath :> Stream), ct)
+
+    /// As <see cref="InstallAsync"/>, reading the archive from a stream the caller opens. The installer disposes it.
+    static member internal InstallFromAsync
+        (
+            home: string,
+            plan: PackagePlan,
+            openArchive: Func<Stream>,
+            ct: CancellationToken
+        ) : Task<InstallationResult<InstalledPackage>> =
         Operations.runAsync
             ct
             (fun () -> task {
-                use input = FileSafety.openInput archivePath
+                use input = openArchive.Invoke()
 
                 if input.Length > InstallationLimits.MaxArtifactBytes then
                     Operations.fail "package.archive_too_large" "Package archive exceeds 256 MiB."

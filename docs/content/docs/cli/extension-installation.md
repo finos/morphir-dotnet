@@ -5,12 +5,16 @@ description: What the extension installer currently implements and what remains
 
 # Extension installation status
 
-`extension install` supports an explicit local-developer release declaration and
-archive from a registered repository name, with `--no-probe` consent and a
-mutation-free `--dry-run`. The obsolete positional URL/version form is a usage
-error. Selection and removal commands remain stubs. The
-[management reference](management.md#extension-commands) gives the command syntax.
-This does not grant publisher authentication or claim published-release acquisition.
+`extension install` installs through source providers. The `github` provider installs
+a package from a GitHub release (`github:<owner>/<repo>[@<version-or-tag>]`). The local
+provider installs an explicit local-developer release declaration and archive from a
+registered repository name. Both need `--no-probe` consent and support a mutation-free
+`--dry-run`. The installer writes and reads only the extension family
+`0.1.0-preview.2`; it does not read or convert preview.1 state. The obsolete
+positional URL/version form is a usage error. Selection and removal commands remain
+stubs. The [management reference](management.md#extension-install) gives the command
+syntax and the GitHub release convention. A digest match is not publisher
+authentication.
 
 ## Historical implementation evidence
 

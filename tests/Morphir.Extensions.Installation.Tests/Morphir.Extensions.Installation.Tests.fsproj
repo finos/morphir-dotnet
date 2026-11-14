@@ -31,10 +31,11 @@
     <Compile Include="InstalledStateTests.fs" />
     <Compile Include="StateTransactionTests.fs" />
     <Compile Include="ActivationRecordTests.fs" />
+    <Compile Include="SourceProviderTests.fs" />
     <Compile Include="NamedLockTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="../Fixtures/ExtensionAcquisition/parent-0439c4c0/**" Link="ParentContracts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/ExtensionAcquisition/parent-1f22f491/**" Link="ParentContracts/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

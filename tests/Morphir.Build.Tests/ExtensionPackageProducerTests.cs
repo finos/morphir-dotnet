@@ -85,7 +85,7 @@ public class ExtensionPackageProducerTests
 
     private static byte[] Template()
     {
-        var corpus = Path.Combine(TestFixture.GetRepositoryRoot(), "tests", "Fixtures", "ExtensionAcquisition", "parent-0439c4c0", "package-cases.json");
+        var corpus = Path.Combine(TestFixture.GetRepositoryRoot(), "tests", "Fixtures", "ExtensionAcquisition", "parent-1f22f491", "package-cases.json");
         using var document = JsonDocument.Parse(File.ReadAllBytes(corpus));
         var template = JsonNode.Parse(document.RootElement.GetProperty("cases")[0].GetProperty("schemaDocuments")[0].GetProperty("document").GetRawText())!;
         template["artifacts"]![0]!["platform"] = "x86_64-pc-windows-msvc";

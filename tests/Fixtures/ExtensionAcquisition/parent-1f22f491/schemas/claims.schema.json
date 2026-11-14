@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/claims.schema.json",
+  "$id": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json",
   "title": "Extension capability claims",
   "type": "object",
   "not": {
@@ -16,7 +16,7 @@
   "required": [ "$schema", "protocolVersions", "extension", "capabilities" ],
   "properties": {
     "$schema": {
-      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.1/claims.schema.json"
+      "const": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.2/claims.schema.json"
     },
     "protocolVersions": {
       "type": "array",
