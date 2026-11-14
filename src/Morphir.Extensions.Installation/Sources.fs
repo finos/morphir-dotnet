@@ -331,16 +331,22 @@ module internal SourceDocuments =
                 "revision", Value.String revision.Value
             ]
 
-    /// The artifact filename a source names: the last path segment of a local file, the release asset name, or the
-    /// <c>&lt;id&gt;.&lt;version&gt;.nupkg</c> file of a package subtree. A WASM package entry names its own filename.
+    /// The artifact filename a source names: the last path segment of a local file, the release asset name, or, for
+    /// a package subtree, the <c>&lt;id&gt;.&lt;version&gt;.nupkg</c> file. A WASM module uses <see cref="moduleFilenameOf"/>.
     let filenameOf source =
         match source with
         | ArtifactSource.LocalFile path -> (path.Split '/') |> Array.last
         | ArtifactSource.GitHubReleaseAsset(_, _, asset) -> asset
-        | ArtifactSource.NuGetPackageEntry(_, package, entry) when entry.StartsWith("morphir/", StringComparison.Ordinal)
-                                                                  && entry.EndsWith(".wasm", StringComparison.Ordinal) ->
-            entry.Substring("morphir/".Length)
         | ArtifactSource.NuGetPackageEntry(_, package, _) -> $"{package.Id}.{package.Version.ToLowerInvariant()}.nupkg"
+
+    /// The filename of a WASM module a source names; a NuGet package entry is <c>morphir/&lt;filename&gt;</c>.
+    let moduleFilenameOf source =
+        match source with
+        | ArtifactSource.NuGetPackageEntry(_, _, entry) when entry.StartsWith("morphir/", StringComparison.Ordinal) ->
+            entry.Substring("morphir/".Length)
+        | ArtifactSource.NuGetPackageEntry(_, _, entry) ->
+            invalid "lock.source.path" $"A WASM module entry must be morphir/<filename>, not {entry}."
+        | other -> filenameOf other
 
     /// A lock pairs a source only with the provenance of the same provider, and a NuGet package entry comes from the
     /// main package or a package whose id extends it, at the same feed and version.

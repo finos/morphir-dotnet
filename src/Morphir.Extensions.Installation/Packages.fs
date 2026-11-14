@@ -89,9 +89,11 @@ type PackagePlan
         let lockItems = SharedJson.members "lock" locked.Json
 
         let filename =
-            SharedJson.required "lock" "source" lockItems
-            |> SourceDocuments.readSource "lock.source" true
-            |> SourceDocuments.filenameOf
+            SharedJson.protect (fun () ->
+                SharedJson.required "lock" "source" lockItems
+                |> SourceDocuments.readSource "lock.source" true
+                |> SourceDocuments.moduleFilenameOf)
+            |> StateOwnership.unwrap
             |> DistributionIdentifiers.ParseArtifactFileName
             |> StateOwnership.unwrap
 

@@ -641,6 +641,20 @@ let private wasm =
                 let entry = nonNull entries[0]
                 Expect.equal (string entry["claimCheck"]) "unchecked" "claims stay unchecked")
         }
+        test "a WASM artifact whose filename does not end in .wasm installs and captures" {
+            withSandbox (fun sandbox ->
+                let folder = Path.Combine(sandbox.Root, "feed")
+                let wasm = NuGetFixtures.wasmArtifact "1.2.3" "acme-python.module" (Digest.ofBytes wasmModule)
+
+                NuGetFixtures.pack folder "Acme.Morphir.Python" "1.2.3" [] [
+                    { Name = "morphir/release.json"; Bytes = NuGetFixtures.descriptor "1.2.3" [ wasm ] }
+                    { Name = "morphir/acme-python.module"; Bytes = wasmModule }
+                ]
+                |> ignore
+
+                use captured = install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some folder) |> get
+                Expect.equal (Path.GetFileName (nonNull captured.Module).ModulePath) "acme-python.module" "the stored module")
+        }
         test "a WASM module that differs from its sha256 installs nothing" {
             withSandbox (fun sandbox ->
                 let folder = wasmRelease sandbox (String('a', 64)) "" []

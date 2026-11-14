@@ -1179,6 +1179,12 @@ type InstalledExtensions private () =
                                 "extension.path_escape"
                                 "Retained record belongs to a different Home identity."
 
+                        // A package activation is a process extension's: a WASM extension has a module instead.
+                        if record.IsWasm then
+                            Operations.fail
+                                "extension.not_package"
+                                "The retained record is a WASM extension, which has no package activation; capture it for its module."
+
                         let captured =
                             ActivationState.captureExpected
                                 root
@@ -1186,6 +1192,10 @@ type InstalledExtensions private () =
                                 record.LockBytes
                                 hostVersion
                                 ct
+
+                        if captured.IsWasm then
+                            (captured :> IDisposable).Dispose()
+                            Operations.fail "extension.not_package" "The current installed record is a WASM extension, which has no package activation."
 
                         captured.Activation
                     )
