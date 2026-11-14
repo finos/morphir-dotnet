@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-nuget-extension-source: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; --accent: #dbeafe; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; --accent: #1e3a5f; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .core { fill: var(--accent); stroke: var(--line); }
+svg .edge { stroke: var(--muted); fill: none; marker-end: url(#arrow); }
+.call { border-left: 4px solid var(--link); padding-left: .8rem; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-nuget-extension-source: design</h1>
+<p class="meta">OpenSpec change | 14 November 2026 | proposed, waits on the finos/morphir schema change</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a>
+<ul>
+<li><a href="#up-1">UP-1 The schema lands in finos/morphir first</a></li>
+<li><a href="#src-1">SRC-1 The request and its options</a></li>
+<li><a href="#nug-1">NUG-1 The Microsoft NuGet client packages, with the System.Text.Json switch</a></li>
+<li><a href="#src-2">SRC-2 Sources and version selection</a></li>
+<li><a href="#nug-4">NUG-4 Credentials</a></li>
+<li><a href="#nug-2">NUG-2 The package convention</a></li>
+<li><a href="#nug-3">NUG-3 Integrity and signatures</a></li>
+<li><a href="#sel-1">SEL-1 One runtime per release</a></li>
+<li><a href="#pkg-1">PKG-1 Providers, payload readers and one installer core</a></li>
+<li><a href="#wasm-1">WASM-1 WASM installation in the core</a></li>
+<li><a href="#wasm-2">WASM-2 Running an installed WASM extension</a></li>
+<li><a href="#code-1">CODE-1 One project, a folder per provider</a></li>
+<li><a href="#aot-1">AOT-1 The feature switch in every host</a></li>
+<li><a href="#doc-1">DOC-1 Publishing guidance</a></li>
+</ul></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the motivation. The requirements are in
+<a href="specs/extension-source-providers/spec.md">extension-source-providers</a> and
+<a href="specs/nuget-extension-source/spec.md">nuget-extension-source</a>.</p>
+<p>Observed state on main (<code>53c645fe</code>):</p>
+<ul>
+<li><code>src/Morphir.Extensions.Installation/Providers.fs</code> has <code>IExtensionSourceProvider</code> (<code>Scheme</code>, <code>ResolveAsync</code>, <code>FetchAsync</code>), <code>LocalRepositoryProvider</code>, <code>GitHubReleaseProvider</code> and <code>ExtensionSources</code>. <code>ProviderFor</code> is a closed match over the internal <code>SourceRequestKind</code>.</li>
+<li><code>Sources.fs</code> has the closed unions <code>ArtifactSource</code> and <code>IndexProvenance</code> and their JSON, at extension family <code>0.1.0-preview.2</code>. The pinned schemas (<code>tests/Fixtures/ExtensionAcquisition/parent-1f22f491/</code>) are closed: they know only the local and GitHub kinds.</li>
+<li><code>PackageInstaller.InstallFromAsync</code> (<code>Packages.fs</code>) hashes the whole archive, matches on <code>plan.Format</code> (<code>zip</code> or <code>tar.gz</code>) and calls <code>PackageTreeIO.extractZip</code> or <code>extractTarGz</code>, which write into the stage themselves.</li>
+<li><code>PackagePlan.Read</code> accepts only a process artifact with a <code>package</code> member ("Packages require process runtime"). No provider can install a WASM artifact, although <code>SingleFileStore</code> exists. That is open task 5.4 of <code>add-extension-installation</code>.</li>
+<li><code>src/Morphir/Morphir.csproj</code> treats IL3050 as an error in its Native AOT publish. IL2xxx warnings are not errors there.</li>
+</ul>
+<p>The spike <code>spikes/nuget-extension-source/</code> (osx-arm64, SDK 11.0.100, NuGet client 7.9.0) gives the facts the decisions below use. Its results are in <code>spikes/nuget-extension-source/results/osx-arm64.md</code>.</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong></p>
+<ul>
+<li>Behave as NuGet behaves: the same sources, mapping, credentials, signature policy and version rules as <code>dotnet tool install</code>, through Microsoft's own client packages.</li>
+<li>No compromise on Native AOT: zero trim and AOT warnings from the NuGet packages.</li>
+<li>Each provider owns the layouts it supports; one installer core keeps every check and every write.</li>
+<li>WASM and process artifacts from every provider.</li>
+</ul>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>Publisher tooling, such as an MSBuild target that writes <code>release.json</code>. This change documents the publish steps (<a href="#doc-1">DOC-1</a>).</li>
+<li>NuGet V2 feeds beyond what <code>NuGet.Protocol</code> gives without extra code, package search, and <code>extension update</code> from a feed.</li>
+<li>Framework-dependent .NET tools, which need an installed .NET runtime to start. A RID payload must be self-contained or Native AOT; the provider refuses an <code>entryPoint</code> ending in <code>.dll</code> or a <code>&lt;entry point&gt;.runtimeconfig.json</code> that names a shared framework, with <code>extension.unsupported_package</code>. (The spike fixture is framework-dependent; the change's fixture is self-contained.)</li>
+<li>A provider registry for third-party providers. <code>ProviderFor</code> stays a closed match.</li>
+</ul>
+
+<h2 id="decisions">Decisions</h2>
+<p>The decisions follow one journey. On a Mac (osx-arm64), a user runs:</p>
+<pre><code class="language-console">$ morphir extension install nuget:Acme.Morphir.Python@1.2.3 --home ~/.morphir --no-probe</code></pre>
+<p>Their <code>nuget.config</code> lists nuget.org and a private Azure Artifacts feed <code>acme</code>, maps <code>Acme.*</code> to <code>acme</code>, and the Azure Artifacts Credential Provider is installed. The feed holds the three packages of the running example in the <a href="specs/nuget-extension-source/spec.md">nuget-extension-source</a> spec.</p>
+
+<svg viewBox="0 0 900 300" role="img" aria-labelledby="layers-title">
+<title id="layers-title">Providers fetch bytes, payload readers report files, the installer core checks and writes</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" style="fill:var(--muted)"/></marker></defs>
+<text x="20" y="24">1. Providers: where the bytes come from</text>
+<rect class="box" x="20" y="36" width="160" height="50" rx="6"/><text x="36" y="66">local declaration</text>
+<rect class="box" x="200" y="36" width="160" height="50" rx="6"/><text x="216" y="66">github: release</text>
+<rect class="box" x="380" y="36" width="160" height="50" rx="6"/><text x="396" y="66">nuget: package</text>
+<text x="20" y="124">2. Payload readers: what shape the bytes have</text>
+<rect class="box" x="20" y="136" width="250" height="50" rx="6"/><text x="36" y="166">archive (zip, tar.gz)</text>
+<rect class="box" x="290" y="136" width="250" height="50" rx="6"/><text x="306" y="166">nupkg subtree under root</text>
+<rect class="box" x="560" y="136" width="200" height="50" rx="6"/><text x="576" y="166">WASM module (one file)</text>
+<path class="edge" d="M100 86 L120 134"/><path class="edge" d="M280 86 L180 134"/><path class="edge" d="M460 86 L420 134"/>
+<path class="edge" d="M300 86 L620 134"/><path class="edge" d="M110 86 L600 134"/><path class="edge" d="M500 86 L660 134"/>
+<text x="20" y="224">3. Installer core: one for every provider</text>
+<rect class="core" x="20" y="236" width="860" height="50" rx="6"/><text x="36" y="266">preflight, sink (paths, limits, modes), integrity pin, store or tree publication, catalog, lock, journal</text>
+<path class="edge" d="M145 186 L145 234"/><path class="edge" d="M415 186 L415 234"/><path class="edge" d="M660 186 L660 234"/>
+</svg>
+
+<h3 id="up-1">UP-1 The schema lands in finos/morphir first</h3>
+<p>The lock and catalog this change writes need three things that the pinned family schema does not have: the package format <code>nupkg</code> (with no file <code>sha256</code>), the provenance kind <code>nuget-package</code> and the source kind <code>nuget-package-entry</code>. The project rule is that morphir-dotnet invents no member. So the order is the one #654 used with finos/morphir#1173: the finos/morphir coordinator lands the schema, the member tables, the identity and package cases and a "NuGet package convention" section in <code>distribution-and-acquisition.md</code>; this repository then pins that commit as a new <code>tests/Fixtures/ExtensionAcquisition/parent-&lt;sha&gt;/</code> folder and moves every family URL it reads and writes.</p>
+<p>The request went to the coordinator on 14 November 2026, who opened <a href="https://github.com/finos/morphir/pull/1176">finos/morphir#1176</a> (head <code>b777e212f4</code>): the family moves to <code>0.1.0-preview.3</code> with these members. Rules in that PR that this change follows: for <code>nupkg</code>, <code>root</code> and <code>treeSha256</code> are required and the artifact <code>sha256</code> and the catalog and lock <code>digest</code> are forbidden; <code>root</code> is a relative POSIX path with no <code>.</code> or <code>..</code> segment; the feed is an <code>https</code> URL ending in <code>/index.json</code> with no userinfo, query or fragment, or an absolute folder path (<code>http</code> is refused); the recorded id is lower case and the version normalized with no build metadata; a lock pairs a source only with the provenance of the same provider; an artifact package id is the main id or starts with <code>&lt;id&gt;.</code> (a host rule).</p>
+<pre><code class="language-json">"package":    { "format": "nupkg", "root": "tools/net11.0/osx-arm64", "entryPoint": "acme-python", "treeSha256": "…" }
+"source":     { "kind": "nuget-package-entry", "feed": "https://pkgs.dev.azure.com/acme/_packaging/tools/nuget/v3/index.json",
+                "id": "acme.morphir.python.osx-arm64", "version": "1.2.3", "path": "tools/net11.0/osx-arm64" }
+"provenance": { "kind": "nuget-package", "feed": "…", "id": "acme.morphir.python", "version": "1.2.3",
+                "revision": "&lt;sha256 of release.json&gt;" }</code></pre>
+<p>Implementation may start in a branch against the proposed shapes; the PR merges only after the pin. If upstream changes a name, only <code>Sources.fs</code>, the descriptor reader and the fixtures move.</p>
+
+<h3 id="src-1">SRC-1 The request and its options</h3>
+<p><code>ExtensionSourceRequest.Parse</code> gains the scheme <code>nuget</code> and the case <code>SourceRequestKind.NuGet of NuGetPackageRequest</code>. The id is parsed with NuGet's rules (<code>NuGet.Packaging.PackageIdValidator</code>) and the version with <code>NuGetVersion.TryParse</code>; an absent version is <code>NuGetVersionSelector.LatestStable</code>. The CLI adds options that only a <code>nuget:</code> source takes:</p>
+<pre><code class="language-console">morphir extension install nuget:&lt;id&gt;[@&lt;version&gt;] [--source &lt;url|folder|name&gt;] [--configfile &lt;path&gt;] [--interactive]
+                          --home &lt;absolute-home&gt; --no-probe [--dry-run]</code></pre>
+<p>The option names are those of <code>dotnet tool install</code>, so a .NET user can guess them. The parsed request carries the options, so the provider never reads raw CLI text. Alternatives: a source URL in the positional argument (<code>nuget:https://…#Acme.Morphir.Python</code>) was rejected as hard to read and to quote.</p>
+
+<h3 id="nug-1">NUG-1 The Microsoft NuGet client packages, with the System.Text.Json switch</h3>
+<p>The provider uses <code>NuGet.Versioning</code>, <code>NuGet.Packaging</code>, <code>NuGet.Configuration</code>, <code>NuGet.Protocol</code> and <code>NuGet.Credentials</code> at the version <code>Directory.Packages.props</code> pins (7.9.0 today; <code>NuGet.Packaging</code> is pinned there already). The user prefers NuGet's own code to a re-implementation that could drift from NuGet's behavior, and the spike shows it is AOT-safe with one setting:</p>
+<table>
+<thead><tr><th>Spike level (osx-arm64)</th><th>Binary</th><th>Trim/AOT warnings</th><th>Steps</th></tr></thead>
+<tbody>
+<tr><td>no NuGet packages</td><td>3.3 MiB</td><td>0</td><td>1/1</td></tr>
+<tr><td>Versioning, Packaging, Configuration</td><td>9.8 MiB</td><td>0</td><td>8/8</td></tr>
+<tr><td>+ Protocol, Credentials</td><td>18.3 MiB</td><td>119</td><td>11/13 (HTTP download and registration fail at run time)</td></tr>
+<tr><td>+ the trimmer keeps Protocol and Newtonsoft whole</td><td>22.0 MiB</td><td>124</td><td>12/13</td></tr>
+<tr><td><strong>+ Protocol, Credentials, switch on</strong></td><td><strong>14.2 MiB</strong></td><td><strong>0</strong></td><td><strong>13/13, plus the Azure Artifacts plugin handshake</strong></td></tr>
+</tbody>
+</table>
+<p><code>NuGet.Protocol</code> 7.9.0 has a System.Text.Json path behind the AppContext switch <code>NuGet.UseSystemTextJsonDeserialization</code>, declared with <code>FeatureSwitchDefinitionAttribute</code>. Set as a trimmed runtime option, the trimmer removes the Newtonsoft path. The AOT-compiled part of the .NET SDK CLI (<code>sdk/11.0.100/libdotnet-aot.dylib</code>) carries the same switch name and no Newtonsoft.Json. Alternatives: our own V3 HTTP code with <code>System.Text.Json</code> (works, but diverges from NuGet and re-implements credentials and plugins); <code>NuGet.Protocol</code> without the switch (fails at run time); rooting assemblies for the trimmer (still fails, and keeps the warnings).</p>
+
+<h3 id="src-2">SRC-2 Sources and version selection</h3>
+<p><code>Settings.LoadDefaultSettings(currentDirectory)</code> reads the <code>nuget.config</code> hierarchy, or <code>Settings.LoadSpecificSettings</code> the file <code>--configfile</code> names. <code>PackageSourceProvider.LoadPackageSources()</code> gives the enabled sources, and <code>PackageSourceMapping.GetPackageSourceMapping(settings)</code> narrows them for the package id when a mapping exists. <code>--source</code> replaces that list with one source: a configured name, or a URL or folder that becomes a <code>PackageSource</code>; the credentials of a configured source with the same URL still apply.</p>
+<ul>
+<li><strong>Exact version</strong> (<code>@1.2.3</code>): the provider asks each applicable source in configuration order through <code>FindPackageByIdResource.DoesPackageExistAsync</code> and takes the first that has it. Prereleases and unlisted versions can be named.</li>
+<li><strong>No version</strong>: the provider reads <code>PackageMetadataResource.GetMetadataAsync(id, includePrerelease: false, includeUnlisted: false)</code> from every applicable source and takes the highest version, as <code>dotnet tool install</code> without <code>--version</code> does. A folder feed has no listing, so all its versions count. The version and the source that has it are then fixed for the rest of the install.</li>
+</ul>
+<p>In the journey, mapping leaves only <code>acme</code>, and the exact version <code>1.2.3</code> is found there. The feed recorded in provenance is that source's URL as <code>nuget.config</code> spells it.</p>
+
+<h3 id="nug-4">NUG-4 Credentials</h3>
+<p>The provider sets <code>HttpHandlerResourceV3.CredentialService</code> to a <code>CredentialService</code> built from <code>SecurePluginCredentialProviderBuilder(PluginManager.Instance, canShowDialog: false, logger)</code>. The service is non-interactive unless <code>--interactive</code> is given; then a plugin can use its device flow, writing its prompts to stderr. <code>packageSourceCredentials</code> come from <code>nuget.config</code> through <code>PackageSource.Credentials</code>. NuGet's own HTTP handler sends a credential only to the source it belongs to.</p>
+<p>The spike proved both ways NuGet finds plugins: a <code>.dll</code> in <code>NUGET_PLUGIN_PATHS</code> (started with <code>dotnet</code>) and a <code>nuget-plugin-*</code> executable on <code>PATH</code> (started directly). A native executable in <code>NUGET_PLUGIN_PATHS</code> exits with code 1, because NuGet starts it with <code>dotnet</code>; the installer documentation says so. A 401 or 403 after the credential service has answered maps to <code>extension.nuget_unauthorized</code>, naming the source and <code>--interactive</code>. The NuGet logger adapter writes to stderr only (the CLI logging rule) and never writes a credential.</p>
+
+<h3 id="nug-2">NUG-2 The package convention</h3>
+<p>Every NuGet call uses a <code>SourceCacheContext</code> with <code>NoCache</code> and <code>DirectDownload</code> set, so the provider writes nothing to NuGet's HTTP cache or global packages folder; only credential provider plugins keep their own caches. The provider downloads the main package (<code>FindPackageByIdResource.CopyNupkgToStreamAsync</code>) into a bounded private stage under the Home and opens it with <code>PackageArchiveReader</code>. It checks the <code>.nuspec</code> id and version against the request, reads <code>morphir/release.json</code>, and runs <code>PackagePlan.Read</code> for the host platform. Then it locates the selected artifact:</p>
+<table>
+<thead><tr><th>Artifact</th><th>Where the provider looks</th><th>Payload</th></tr></thead>
+<tbody>
+<tr><td>runtime <code>wasm</code></td><td>entry <code>morphir/&lt;filename&gt;</code> of the main package</td><td>WASM module, pinned by <code>sha256</code></td></tr>
+<tr><td>runtime <code>process</code>, format <code>nupkg</code>, <code>filename</code> = the main package's file name</td><td>the main package (layout A)</td><td>subtree under <code>root</code>, pinned by <code>treeSha256</code></td></tr>
+<tr><td>runtime <code>process</code>, format <code>nupkg</code>, another <code>filename</code></td><td>package <code>&lt;id&gt;</code> at the same version, from the same source (layout B, .NET tools)</td><td>subtree under <code>root</code></td></tr>
+<tr><td>runtime <code>process</code>, format <code>zip</code> or <code>tar.gz</code></td><td>refused with <code>extension.invalid_descriptor</code>: a NuGet package is already the archive</td><td>none</td></tr>
+</tbody>
+</table>
+<p>The file name is parsed as <code>&lt;id&gt;.&lt;version&gt;.nupkg</code> by splitting off the known version (NuGet ids can contain dots and digits, so the version is matched as the suffix <code>.&lt;normalized main version&gt;.nupkg</code>, compared case-insensitively). The id must be the main id or start with <code>&lt;main id&gt;.</code>. This keeps a descriptor from pulling a package of another publisher, and on nuget.org it lines up with ID prefix reservation. In the journey, the process artifact names <code>acme.morphir.python.osx-arm64.1.2.3.nupkg</code>, so the provider fetches <code>Acme.Morphir.Python.osx-arm64</code> 1.2.3 from <code>acme</code>.</p>
+<p>The provider never reads <code>DotnetToolSettings.xml</code>: the descriptor's <code>root</code> already says where the payload is. That keeps .NET tools a special case of layout B, not a third code path. Alternatives considered: a RID-to-package-id convention (needs a RID table and breaks for custom ids), parsing <code>&lt;RuntimeIdentifierPackages&gt;</code> (works only for tools), and inner <code>.tar.gz</code> files (rejected: the package is already the archive, and it would double every RID package).</p>
+
+<h3 id="nug-3">NUG-3 Integrity and signatures</h3>
+<p>The pins never cover <code>.nupkg</code> bytes: nuget.org adds a repository signature to every package, which changes the bytes after the author packs it, and a <code>release.json</code> inside a package cannot hold its own package's hash. So:</p>
+<ul>
+<li>the descriptor is pinned in provenance by the SHA-256 of the <code>release.json</code> bytes, as for GitHub;</li>
+<li>a <code>nupkg</code> payload is pinned by <code>treeSha256</code>, computed by the installer core from what the sink wrote;</li>
+<li>a WASM entry is pinned by its <code>sha256</code>; entry bytes do not change when a package is signed;</li>
+<li>signatures are verified when the dotnet CLI verifies them on the same OS (decided by the user: match dotnet per OS): by default on Windows and Linux, not on macOS, and as <code>DOTNET_NUGET_SIGNATURE_VERIFICATION</code> overrides. NuGet.Packaging reads that variable itself, and <code>X509TrustStore.InitializeForDotNetSdk</code> sets up the trust store as the SDK does: the OS store on Windows and macOS, and on Linux the fallback bundle <code>trustedroots/codesignctl.pem</code> and <code>timestampctl.pem</code>, which <code>morphir</code> ships beside its binary (copied from the pinned NuGet client release and updated with it). Every package the provider reads, main and artifact packages, then goes through <code>ClientPolicyContext.GetClientPolicy(settings, logger)</code> and <code>PackageSignatureVerifier</code> with the policy's settings and <code>trustedSigners</code>: in <code>accept</code> mode an unsigned package passes and a signed one must pass integrity and trust checks; in <code>require</code> mode unsigned or untrusted packages are refused. Refusal is <code>extension.nuget_signature_invalid</code>.</li>
+</ul>
+<p><strong>Security.</strong> With a tree pin, the zip reader parses package bytes before any digest has been checked; for a <code>zip</code> or <code>tar.gz</code> archive the file digest comes first. The protection rests on: the bounded package download, NuGet's signature check before the payload is read, <code>ArchiveChecks</code> applied to every entry of the package (also outside <code>root</code>), writes that can only reach the private stage, and the <code>treeSha256</code> check before publication. The upstream convention states this order.</p>
+
+<h3 id="sel-1">SEL-1 One runtime per release</h3>
+<p>The parent descriptor rule stays: a release lists only <code>wasm</code> artifacts or only <code>process</code> artifacts (<code>Descriptors.fs</code> refuses a mix, and <code>add-extension-installation</code>'s spec requires it). A NuGet release is therefore either a WASM release, whose main package carries <code>morphir/&lt;module&gt;.wasm</code>, or a process release in layout A or B. Supporting both kinds of extension does not need both runtimes in one release, so no runtime choice and no <code>--runtime</code> option are added. An author who wants both publishes two package ids.</p>
+
+<h3 id="pkg-1">PKG-1 Providers, payload readers and one installer core</h3>
+<p>The installer core stops matching on archive formats. A provider returns a payload, and the core gives the payload a sink:</p>
+<pre><code class="language-fsharp">/// Where a payload reader puts package files. The sink owns every path rule, limit, mode and write.
+type internal PackageTreeSink =
+    member AddDirectory: path: string -&gt; unit
+    member AddFile: path: string * length: int64 * content: Stream -&gt; unit   // mode from the plan
+
+/// Fetched bytes of one shape. It reads entries into the sink; it never touches the store.
+type internal IPackagePayload =
+    abstract Integrity: PayloadIntegrity
+    abstract ReadAsync: sink: PackageTreeSink * ct: CancellationToken -&gt; Task&lt;unit&gt;
+
+and PayloadIntegrity =
+    | FileThenTree of file: Sha256Digest * tree: Sha256Digest   // zip, tar.gz
+    | TreeOnly of tree: Sha256Digest                             // nupkg subtree
+    | ModuleFile of sha256: Sha256Digest                         // WASM, single-file store</code></pre>
+<ul>
+<li><code>PackageTreeIO.extractZip</code> and <code>extractTarGz</code> become <code>ZipArchivePayload</code> and <code>TarGzArchivePayload</code>. Their checks move into the sink unchanged; the existing package tests must stay green without edits (a pure refactor step, first in the task list).</li>
+<li><code>NuGetPackagePayload</code> reads a <code>PackageArchiveReader</code>, runs <code>ArchiveChecks</code> on every entry, and reports only the entries under <code>root</code>, with the <code>root/</code> prefix removed.</li>
+<li><code>FetchedExtensionArtifact</code> carries an <code>IPackagePayload</code> in place of <code>openArchive</code>; <code>InstalledExtensions.InstallPreparedAsync</code> takes it.</li>
+<li><code>PackagePlan.ArchiveDigest</code> becomes the <code>PayloadIntegrity</code> union. <code>PackagePlan.FromState</code>, which reads the artifact file name back from the lock source (<code>Packages.fs</code>), reads it from the new source kind too.</li>
+</ul>
+<p>Alternative: a <code>match</code> on a new <code>"nupkg"</code> format inside <code>InstallFromAsync</code>. Rejected: every new layout would grow the core, and the core is the one place every provider must trust.</p>
+
+<h3 id="wasm-1">WASM-1 WASM installation in the core</h3>
+<p><code>PackagePlan.Read</code> accepts a selected WASM artifact (no <code>package</code>, no <code>platform</code>, as the descriptor schema already requires). The core publishes it with <code>SingleFileStore.PublishAsync</code> after the <code>ModuleFile</code> check and writes a lock with runtime <code>wasm</code>, <code>claimCheck</code> <code>unchecked</code>, no <code>args</code> and <code>executable</code> false. It does not run the guest. Local declarations, GitHub releases and NuGet packages all reach this path; the providers only differ in where the module bytes come from (a file, a release asset, a package entry). This takes over the WASM part of <code>add-extension-installation</code> task 5.4; that task is updated to point here, and its requirement "A WASM package installs without running the guest" is the behavior this implements.</p>
+
+<h3 id="wasm-2">WASM-2 Running an installed WASM extension</h3>
+<p>Decided by the user: this change also runs installed WASM extensions. Today <code>InstalledExtensionConnector</code> (<code>src/Morphir.Tooling/Infrastructure/</code>) captures an installed record and starts <code>captured.Activation.EntryPointPath</code> as a process. A configured WASM module already has a complete path: <code>ConfiguredWasmModule.TryOpen</code> gives a <code>WasmModuleSource</code> to <code>IWasmModuleLoader.Load</code>, which checks the runtime, the digest and the profile, and <code>MepFrontend.ConnectChannelCheckedAsync</code> (or the backend equivalent) runs the session over the returned channel. The installed path reuses it:</p>
+<ul>
+<li><code>InstalledActivation</code> gets a runtime union: <code>Process of entryPointPath</code> or <code>Wasm of modulePath * Sha256Digest</code>. <code>InstalledExtensions.CaptureAsync</code> verifies the stored module against the lock offline, as it verifies a process tree, and holds the same leases while the guest runs.</li>
+<li><code>InstalledExtensionConnector.FrontendAsync</code> and <code>BackendAsync</code> take the connector's <code>IWasmModuleLoader</code>. For <code>Wasm</code> they build a <code>WasmModuleSource</code> from the module path and lock digest and open it with the same helper that configured modules use, then connect over the channel and run the existing <code>CheckSession</code> claim check.</li>
+<li>A host whose loader reports no WASM runtime fails with the loader's <code>extension.runtime_unavailable</code>. <code>extension list</code> already reports such an entry as unavailable (<code>add-extension-installation</code>).</li>
+</ul>
+<p>Alternative: a separate WASM connector for installed extensions. Rejected: two WASM paths could drift in their digest and profile checks.</p>
+
+<h3 id="code-1">CODE-1 One project, a folder per provider</h3>
+<p>All of it stays in <code>src/Morphir.Extensions.Installation</code> (decided by the user: no project per provider). Folders group each provider's code; F# compile order is explicit in the <code>.fsproj</code>, so identity types that the closed unions in <code>Sources.fs</code> need compile before it, and provider logic after <code>Providers.fs</code>:</p>
+<pre><code>Core/       Identifiers, Platforms, SharedJson, FileSafety, PrivateStaging, Store, StateDocuments, InstalledState
+Install/    PackageTree.fs (sink, IPackagePayload, PayloadIntegrity), Packages.fs, ActivationRecords.fs
+Formats/    Archives.fs, ArchivePayload.fs          (zip, tar.gz: shared by local and GitHub)
+Sources/    GitHub/GitHubRepository.fs, NuGet/NuGetPackageRequest.fs   (identity types first)
+            Sources.fs, Providers.fs
+            Local/LocalRepositoryProvider.fs
+            GitHub/GitHubReleaseProvider.fs
+            NuGet/NuGetSettings.fs     sources, mapping, policy, credentials
+                  NuGetFeed.fs         version selection, download into staging
+                  NuGetPayload.fs      package subtree and WASM entry readers
+                  NuGetPackageProvider.fs
+            ExtensionSources.fs        ProviderFor, InstallAsync</code></pre>
+<p>The types C# calls (<code>ExtensionSourceRequest</code>, the providers, <code>ExtensionSources</code>) stay in the namespace <code>Morphir.Extensions.Installation</code>; provider internals are <code>internal</code>. The F#/C# rules of the <code>fsharp-csharp-interop</code> skill apply to every new public member.</p>
+
+<h3 id="aot-1">AOT-1 The feature switch in every host</h3>
+<p>The switch is a runtime host option, so the application sets it, not the library. Three places:</p>
+<ul>
+<li><code>src/Morphir/Morphir.csproj</code> and the <code>dotnet-morphir</code> tool project <code>src/Morphir.Tool/Morphir.Tool.csproj</code> get <code>&lt;RuntimeHostConfigurationOption Include="NuGet.UseSystemTextJsonDeserialization" Value="true" Trim="true" /&gt;</code>.</li>
+<li>The <code>Morphir.Extensions.Installation</code> package ships <code>buildTransitive/Morphir.Extensions.Installation.props</code> with the same item, so an outside consumer gets it.</li>
+<li>A guard: the Native AOT publish of <code>morphir</code> fails on any IL2xxx or IL3xxx warning from an assembly named <code>NuGet.*</code> or <code>Newtonsoft.Json</code> (<code>TrimmerSingleWarn</code> false, and the warnings for those assemblies as errors). IL3050 is an error there already, which catches a missing switch today; the guard also catches IL2xxx.</li>
+</ul>
+
+<h3 id="doc-1">DOC-1 Publishing guidance</h3>
+<p>A page for extension authors describes layouts A and B and RID-specific .NET tools, the package type <code>MorphirExtension</code>, and the two-pass publish the spike found: <code>dotnet pack</code> packs the main and every RID package in one run and copies <code>Pack="true"</code> items into all of them, and a RID package's <code>treeSha256</code> exists only after it is packed. So: pack the RID packages, compute each tree digest with the package contract&#8217;s tree digest rule, then pack the main package with the finished <code>release.json</code>. Duplicate <code>morphir/</code> entries in RID packages are harmless: they are outside <code>root</code>. The repository has no command that computes a tree digest for an author today (<code>PackageManifest.FromFiles</code> computes it internally); such a command is a follow-up issue, not part of this change.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>A NuGet client update moves a code path back to Newtonsoft, or drops the switch.</td><td>The AOT guard (<a href="#aot-1">AOT-1</a>) fails the publish; Renovate updates of <code>NuGet.*</code> run that publish.</td></tr>
+<tr><td>About 11 MiB more in the AOT binary.</td><td>Accepted by the requirement to use NuGet's own code; recorded against the size guideline, which the WASM runtime already exceeds.</td></tr>
+<tr><td>Package bytes are parsed before the tree digest is checked.</td><td>Signature check first, bounded download, <code>ArchiveChecks</code> on every entry, stage-only writes, digest before publication (<a href="#nug-3">NUG-3</a>).</td></tr>
+<tr><td>Upstream renames members or picks another family version.</td><td>The PR merges only after the pin (<a href="#up-1">UP-1</a>); names live in <code>Sources.fs</code>, the descriptor reader and fixtures.</td></tr>
+<tr><td>Under Native AOT single-file, NuGet may not find <code>trustedroots/</code> where it looks for the SDK's copy.</td><td>Task 7.3 checks where <code>X509TrustStore</code> looks in the AOT binary and places the bundle there (beside the binary, or a path NuGet reads); a Linux test installs a nuget.org-signed package.</td></tr>
+<tr><td>The spike ran on osx-arm64 only.</td><td>A task runs it on Linux x64 and Windows x64 before the provider code lands; differences become tasks or issues.</td></tr>
+<tr><td>Credential plugins start external processes.</td><td>Only NuGet's discovery rules, non-interactive by default, stderr logging, credentials never logged or recorded.</td></tr>
+<tr><td>A RID package carries a stale or different <code>morphir/release.json</code>.</td><td>The provider reads the descriptor only from the main package and ignores entries outside <code>root</code>.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ol>
+<li>Pin the upstream schema; the family URLs move to the new version. Following DOC-1 of the family, documents of the old version are refused with no conversion, as #654 did for preview.1.</li>
+<li>Land the payload seam as a pure refactor inside the same PR, with the existing tests unchanged and green.</li>
+<li>Land WASM installation, then the NuGet provider, its CLI options and the docs.</li>
+</ol>
+<p>Rollback: the change is additive for users; reverting the PR removes <code>nuget:</code> and WASM installs. A Home written at the new family version is not readable by an older CLI, as with every family version move.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>Whether one descriptor may list both <code>process</code> and <code>wasm</code> artifacts. The #1176 case <code>nuget-layout-a</code> accepts such a descriptor, while morphir-dotnet refuses it today (<a href="#sel-1">SEL-1</a>); the coordinator was asked on 14 November 2026. If the family allows it, SEL-1 gets a selection rule from upstream and the refusal goes; the providers and payloads do not change.</li>
+<li>Whether the Rust reference implementation in finos/morphir reads the new kinds in the same upstream change. That is the coordinator's call and does not change this repository's tasks.</li>
+</ul>
+
+</main>
+</body>
+</html>

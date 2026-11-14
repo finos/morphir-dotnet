@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Probe level, set with -p:ProbeLevel=<level>:
+      baseline  no NuGet packages: the size of an F# Native AOT console with the same non-NuGet code
+      core      NuGet.Versioning, NuGet.Packaging, NuGet.Configuration
+      full      core plus NuGet.Protocol
+      rooted    full, with NuGet.Protocol and Newtonsoft.Json kept whole by the trimmer
+      stj       full, with the NuGet.UseSystemTextJsonDeserialization switch on and trimmed as a feature switch
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <!-- A spike: F# nullness warnings on NuGet's nullable API surface are noise here. -->
+    <NoWarn>$(NoWarn);FS3261</NoWarn>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- One warning per call site, not one summary warning per assembly. -->
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    <ProbeLevel Condition="'$(ProbeLevel)' == ''">full</ProbeLevel>
+    <DefineConstants Condition="'$(ProbeLevel)' != 'baseline'">$(DefineConstants);NUGET_CORE</DefineConstants>
+    <DefineConstants Condition="'$(ProbeLevel)' == 'full' or '$(ProbeLevel)' == 'rooted' or '$(ProbeLevel)' == 'stj'">$(DefineConstants);NUGET_PROTOCOL</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" Version="$(SpikeFSharpCoreVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ProbeLevel)' != 'baseline'">
+    <PackageReference Include="NuGet.Versioning" Version="$(SpikeNuGetVersion)" />
+    <PackageReference Include="NuGet.Packaging" Version="$(SpikeNuGetVersion)" />
+    <PackageReference Include="NuGet.Configuration" Version="$(SpikeNuGetVersion)" />
+    <!-- The security pin of Directory.Packages.props: NuGet.Packaging asks for 8.0.1, which has known CVEs. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ProbeLevel)' == 'full' or '$(ProbeLevel)' == 'rooted' or '$(ProbeLevel)' == 'stj'">
+    <PackageReference Include="NuGet.Protocol" Version="$(SpikeNuGetVersion)" />
+    <PackageReference Include="NuGet.Credentials" Version="$(SpikeNuGetVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ProbeLevel)' == 'stj'">
+    <RuntimeHostConfigurationOption Include="NuGet.UseSystemTextJsonDeserialization" Value="true" Trim="true" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ProbeLevel)' == 'rooted'">
+    <TrimmerRootAssembly Include="NuGet.Protocol" />
+    <TrimmerRootAssembly Include="Newtonsoft.Json" />
+  </ItemGroup>
+</Project>

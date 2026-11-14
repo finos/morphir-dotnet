@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    A fixture: a .NET tool packed as RID-specific packages (main package plus one package per RID) that also
+    carries the Morphir extension descriptor in the main package. It is never run as an extension.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>acme-python</ToolCommandName>
+    <PackageId>Acme.Morphir.Python</PackageId>
+    <Version>1.2.3</Version>
+    <Authors>spike</Authors>
+    <Description>Spike fixture for a NuGet extension source.</Description>
+    <RuntimeIdentifiers>osx-arm64;linux-x64</RuntimeIdentifiers>
+    <ToolPackageRuntimeIdentifiers>osx-arm64;linux-x64</ToolPackageRuntimeIdentifiers>
+    <PackageType>$(SpikePackageType)</PackageType>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="morphir/release.json" Pack="true" PackagePath="morphir/" />
+    <None Include="morphir/acme-python.wasm" Pack="true" PackagePath="morphir/" />
+  </ItemGroup>
+</Project>
