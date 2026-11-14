@@ -162,6 +162,19 @@ let private withSandbox action =
     finally
         cleanup.DisposeAsync().GetAwaiter().GetResult()
 
+/// Runs a check of the provider in a child process of this test executable (Program.fs), with the NuGet variables of
+/// the check given to the child only: they are process-wide, and a test must not set them in its own process.
+let private runChild (sandbox: TestSandbox) (arguments: string list) (environment: (string * string) list) =
+    let start =
+        ChildProcess.StartInfo("dotnet", Array.ofList ("exec" :: System.Reflection.Assembly.GetExecutingAssembly().Location :: arguments))
+
+    sandbox.Apply start
+
+    for name, value in environment do
+        start.Environment[name] <- value
+
+    ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0, ct).GetAwaiter().GetResult()
+
 let private refusedWith code (result: InstallationResult<'T>) =
     result.Match(
         Func<'T, unit>(fun _ -> failtestf "Expected %s" code),
@@ -206,62 +219,64 @@ let private folderFeed =
         test "layout A installs the subtree under root and records NuGet provenance" {
             withSandbox (fun sandbox ->
                 let feed = layoutA sandbox "1.2.3"
-                let packages = Path.Combine(sandbox.Root, "nuget-packages")
-                let httpCache = Path.Combine(sandbox.Root, "nuget-http-cache")
-                Directory.CreateDirectory packages |> ignore
-                Directory.CreateDirectory httpCache |> ignore
-                let previous = Environment.GetEnvironmentVariable "NUGET_PACKAGES", Environment.GetEnvironmentVariable "NUGET_HTTP_CACHE_PATH"
-                Environment.SetEnvironmentVariable("NUGET_PACKAGES", packages)
-                Environment.SetEnvironmentVariable("NUGET_HTTP_CACHE_PATH", httpCache)
+                use captured = install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some feed.Folder) |> get
+                let tree = Path.GetDirectoryName(captured.Activation.EntryPointPath) |> nonNull
 
-                try
-                    use captured = install sandbox "nuget:Acme.Morphir.Python@1.2.3" (Some feed.Folder) |> get
-                    let tree = Path.GetDirectoryName(captured.Activation.EntryPointPath) |> nonNull
+                let files =
+                    Directory.GetFiles(tree, "*", SearchOption.AllDirectories)
+                    |> Array.map (fun path -> Path.GetRelativePath(tree, path).Replace('\\', '/'))
+                    |> Array.sort
 
-                    let files =
-                        Directory.GetFiles(tree, "*", SearchOption.AllDirectories)
-                        |> Array.map (fun path -> Path.GetRelativePath(tree, path).Replace('\\', '/'))
-                        |> Array.sort
+                Expect.equal files ([| entryPoint (); "lib/helper.dll" |] |> Array.sort) "only the files under root"
+                Expect.equal (File.ReadAllBytes captured.Activation.EntryPointPath) feed.Payload "the payload"
 
-                    Expect.equal files ([| entryPoint (); "lib/helper.dll" |] |> Array.sort) "only the files under root"
-                    Expect.equal (File.ReadAllBytes captured.Activation.EntryPointPath) feed.Payload "the payload"
+                if not (OperatingSystem.IsWindows()) then
+                    let mode = File.GetUnixFileMode captured.Activation.EntryPointPath
+                    Expect.isTrue (mode.HasFlag UnixFileMode.UserExecute) "the entry point is executable with no stored Unix mode"
 
-                    if not (OperatingSystem.IsWindows()) then
-                        let mode = File.GetUnixFileMode captured.Activation.EntryPointPath
-                        Expect.isTrue (mode.HasFlag UnixFileMode.UserExecute) "the entry point is executable with no stored Unix mode"
+                let lock = lockNode sandbox
+                let index = nonNull lock["index"]
+                let source = nonNull lock["source"]
+                Expect.equal (string index["kind"]) "nuget-package" "provenance kind"
+                Expect.equal (string index["feed"]) (Path.GetFullPath feed.Folder) "the folder feed"
+                Expect.equal (string index["id"]) "acme.morphir.python" "lower-case id"
+                Expect.equal (string index["version"]) "1.2.3" "normalized version"
+                Expect.equal (string source["kind"]) "nuget-package-entry" "source kind"
+                Expect.equal (string source["id"]) "acme.morphir.python" "the main package (layout A)"
+                Expect.equal (string source["path"]) $"morphir/{(platform ()).RuntimeIdentifier}" "the root"
+                Expect.isNull lock["digest"] "a nupkg package has no archive digest"
+                let package = nonNull lock["package"]
+                Expect.equal (string package["format"]) "nupkg" "package format"
 
-                    let lock = lockNode sandbox
-                    let index = nonNull lock["index"]
-                    let source = nonNull lock["source"]
-                    Expect.equal (string index["kind"]) "nuget-package" "provenance kind"
-                    Expect.equal (string index["feed"]) (Path.GetFullPath feed.Folder) "the folder feed"
-                    Expect.equal (string index["id"]) "acme.morphir.python" "lower-case id"
-                    Expect.equal (string index["version"]) "1.2.3" "normalized version"
-                    Expect.equal (string source["kind"]) "nuget-package-entry" "source kind"
-                    Expect.equal (string source["id"]) "acme.morphir.python" "the main package (layout A)"
-                    Expect.equal (string source["path"]) $"morphir/{(platform ()).RuntimeIdentifier}" "the root"
-                    Expect.isNull lock["digest"] "a nupkg package has no archive digest"
-                    let package = nonNull lock["package"]
-                    Expect.equal (string package["format"]) "nupkg" "package format"
+                let tmp = Path.Combine(home sandbox, "tmp")
 
-                    Expect.isEmpty (Directory.GetFileSystemEntries packages) "NUGET_PACKAGES is untouched"
-                    let written = Directory.GetFiles(httpCache, "*", SearchOption.AllDirectories) |> Array.map (fun path -> Path.GetRelativePath(httpCache, path))
-                    let listed = String.Join("; ", written)
-                    Expect.isEmpty written $"NUGET_HTTP_CACHE_PATH is untouched: {listed}"
+                let left =
+                    if Directory.Exists tmp then
+                        Directory.GetDirectories tmp
+                        |> Array.map Path.GetFileName
+                        |> Array.filter (fun name -> name <> "morphir-dotnet-nuget-scratch")
+                    else
+                        [||]
 
-                    let tmp = Path.Combine(home sandbox, "tmp")
-                    let left =
-                        if Directory.Exists tmp then
-                            Directory.GetDirectories tmp
-                            |> Array.map Path.GetFileName
-                            |> Array.filter (fun name -> name <> "morphir-dotnet-nuget-scratch")
-                        else
-                            [||]
+                Expect.isEmpty left "no private stage or NuGet temporary folder remains")
+        }
+        test "a folder feed install leaves NUGET_PACKAGES and NUGET_HTTP_CACHE_PATH empty" {
+            withSandbox (fun sandbox ->
+                let feed = layoutA sandbox "1.2.3"
+                let packages = Directory.CreateDirectory(Path.Combine(sandbox.Root, "nuget-packages")).FullName
+                let httpCache = Directory.CreateDirectory(Path.Combine(sandbox.Root, "nuget-http-cache")).FullName
 
-                    Expect.isEmpty left "no private stage or NuGet temporary folder remains"
-                finally
-                    Environment.SetEnvironmentVariable("NUGET_PACKAGES", fst previous)
-                    Environment.SetEnvironmentVariable("NUGET_HTTP_CACHE_PATH", snd previous))
+                let result =
+                    runChild sandbox [ "--nuget-folder-install"; home sandbox; sandbox.Root; feed.Folder ] [
+                        "NUGET_PACKAGES", packages
+                        "NUGET_HTTP_CACHE_PATH", httpCache
+                    ]
+
+                Expect.equal result.ExitCode 0 result.CombinedOutput
+                Expect.stringContains result.StandardOutput "installed" "the child installed"
+                Expect.isEmpty (Directory.GetFileSystemEntries packages) "NUGET_PACKAGES is untouched"
+                let written = Directory.GetFiles(httpCache, "*", SearchOption.AllDirectories)
+                Expect.isEmpty written "NUGET_HTTP_CACHE_PATH is untouched")
         }
         test "the installed tree re-verifies offline from the lock" {
             withSandbox (fun sandbox ->
@@ -850,7 +865,7 @@ let private package (sandbox: TestSandbox) (version: string) (listed: bool) =
 
     { Id = "Acme.Morphir.Python"; Version = version; Listed = listed; Bytes = File.ReadAllBytes path }
 
-let private installFromFeed (sandbox: TestSandbox) (packages: FeedPackage list) (credential: (string * string) option) (config: string option) (text: string) =
+let private installFromFeedAt (homePath: string) (root: string) (packages: FeedPackage list) (credential: (string * string) option) (config: string option) (text: string) =
     let requests = System.Collections.Concurrent.ConcurrentQueue<string>()
 
     let repositoryOf (source: NuGet.Configuration.PackageSource) =
@@ -866,12 +881,15 @@ let private installFromFeed (sandbox: TestSandbox) (packages: FeedPackage list) 
         | Ok request -> request.WithNuGetOptions((match config with Some _ -> null | None -> feedUrl), Option.toObj config, false) |> get
         | Error failure -> failtestf "Bad request %s: %O" text failure
 
-    let provider = NuGetPackageProvider(home sandbox, sandbox.Root, repositoryOf) :> IExtensionSourceProvider
+    let provider = NuGetPackageProvider(homePath, root, repositoryOf) :> IExtensionSourceProvider
 
     let result =
-        ExtensionSources.InstallAsync(home sandbox, provider, request, Array.AsReadOnly [||], host, ct).GetAwaiter().GetResult()
+        ExtensionSources.InstallAsync(homePath, provider, request, Array.AsReadOnly [||], host, ct).GetAwaiter().GetResult()
 
     result, requests
+
+let private installFromFeed (sandbox: TestSandbox) packages credential config text =
+    installFromFeedAt (home sandbox) sandbox.Root packages credential config text
 
 let private stateBytes (sandbox: TestSandbox) =
     [ "catalog"; "locks"; "journal" ]
@@ -952,60 +970,44 @@ let private v3Feed =
                 Expect.isFalse (state.Contains "s3cret-value") "no password in the state"
                 Expect.isFalse (state.Contains "acme-user") "no user name in the state")
         }
-        test "an https install writes nothing to NuGet's HTTP cache or scratch folders outside the Home" {
+        test "an https install writes nothing to NuGet's HTTP cache outside the Home, and restores its variable" {
             withSandbox (fun sandbox ->
-                let httpCache = Path.Combine(sandbox.Root, "nuget-http-cache")
-                Directory.CreateDirectory httpCache |> ignore
-                let previous = Environment.GetEnvironmentVariable "NUGET_HTTP_CACHE_PATH"
-                Environment.SetEnvironmentVariable("NUGET_HTTP_CACHE_PATH", httpCache)
+                let httpCache = Directory.CreateDirectory(Path.Combine(sandbox.Root, "nuget-http-cache")).FullName
+                let packages = Directory.CreateDirectory(Path.Combine(sandbox.Root, "feed-packages")).FullName
+                File.WriteAllBytes(Path.Combine(packages, "acme.morphir.python.1.2.3.nupkg"), (package sandbox "1.2.3" true).Bytes)
 
-                try
-                    let result, _ = installFromFeed sandbox [ package sandbox "1.2.3" true ] None None "nuget:Acme.Morphir.Python@1.2.3"
-                    use _ = result |> get
-                    let written = Directory.GetFiles(httpCache, "*", SearchOption.AllDirectories) |> Array.map (fun path -> Path.GetRelativePath(httpCache, path))
-                    let listed = String.Join("; ", written)
-                    Expect.isEmpty written $"NUGET_HTTP_CACHE_PATH is untouched: {listed}"
-                    Expect.equal (Environment.GetEnvironmentVariable "NUGET_HTTP_CACHE_PATH") httpCache "restored after the operation"
-                finally
-                    Environment.SetEnvironmentVariable("NUGET_HTTP_CACHE_PATH", previous))
+                let result =
+                    runChild sandbox [ "--nuget-feed-install"; home sandbox; sandbox.Root; packages ] [ "NUGET_HTTP_CACHE_PATH", httpCache ]
+
+                Expect.equal result.ExitCode 0 result.CombinedOutput
+                Expect.stringContains result.StandardOutput "installed" "the child installed from the V3 feed"
+                Expect.stringContains result.StandardOutput $"NUGET_HTTP_CACHE_PATH={httpCache}" "restored after the operation"
+                let written = Directory.GetFiles(httpCache, "*", SearchOption.AllDirectories) |> Array.map (fun path -> Path.GetRelativePath(httpCache, path))
+                let listed = String.Join("; ", written)
+                Expect.isEmpty written $"NUGET_HTTP_CACHE_PATH is untouched: {listed}")
         }
         test "NuGet finds a credential provider plugin in NUGET_PLUGIN_PATHS, or as nuget-plugin-* on PATH" {
             withSandbox (fun sandbox ->
-                let previous = Environment.GetEnvironmentVariable "NUGET_PLUGIN_PATHS", Environment.GetEnvironmentVariable "PATH"
+                // A .dll in NUGET_PLUGIN_PATHS (NuGet starts it with the dotnet host).
+                let dll = Path.Combine(sandbox.Root, "Acme.CredentialProvider.dll")
+                File.WriteAllBytes(dll, [| 0uy |])
+                let named = runChild sandbox [ "--nuget-plugins" ] [ "NUGET_PLUGIN_PATHS", dll ]
+                Expect.equal named.ExitCode 0 named.CombinedOutput
+                Expect.stringContains named.StandardOutput dll "the NUGET_PLUGIN_PATHS plugin"
 
-                try
-                    // A .dll in NUGET_PLUGIN_PATHS (NuGet starts it with the dotnet host).
-                    let dll = Path.Combine(sandbox.Root, "Acme.CredentialProvider.dll")
-                    File.WriteAllBytes(dll, [| 0uy |])
-                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_PATHS", dll)
+                // With no NUGET_PLUGIN_PATHS, a nuget-plugin-* executable on PATH (NuGet starts it directly).
+                let bin = Directory.CreateDirectory(Path.Combine(sandbox.Root, "bin")).FullName
+                let name = if OperatingSystem.IsWindows() then "nuget-plugin-acme.exe" else "nuget-plugin-acme"
+                let executable = Path.Combine(bin, name)
+                File.WriteAllText(executable, "#!/bin/sh\nexit 0\n")
 
-                    let found =
-                        use discoverer = new NuGet.Protocol.Plugins.PluginDiscoverer()
-                        discoverer.DiscoverAsync(ct).GetAwaiter().GetResult() |> Seq.toList
+                if not (OperatingSystem.IsWindows()) then
+                    File.SetUnixFileMode(executable, UnixFileMode.UserRead ||| UnixFileMode.UserWrite ||| UnixFileMode.UserExecute)
 
-                    Expect.exists found (fun result -> result.PluginFile.Path = dll) "the NUGET_PLUGIN_PATHS plugin"
-
-                    // With no NUGET_PLUGIN_PATHS, a nuget-plugin-* executable on PATH (NuGet starts it directly).
-                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_PATHS", null)
-                    let bin = Path.Combine(sandbox.Root, "bin")
-                    Directory.CreateDirectory bin |> ignore
-                    let name = if OperatingSystem.IsWindows() then "nuget-plugin-acme.exe" else "nuget-plugin-acme"
-                    let executable = Path.Combine(bin, name)
-                    File.WriteAllText(executable, "#!/bin/sh\nexit 0\n")
-
-                    if not (OperatingSystem.IsWindows()) then
-                        File.SetUnixFileMode(executable, UnixFileMode.UserRead ||| UnixFileMode.UserWrite ||| UnixFileMode.UserExecute)
-
-                    Environment.SetEnvironmentVariable("PATH", bin + string Path.PathSeparator + (snd previous |> Option.ofObj |> Option.defaultValue ""))
-
-                    let found =
-                        use discoverer = new NuGet.Protocol.Plugins.PluginDiscoverer()
-                        discoverer.DiscoverAsync(ct).GetAwaiter().GetResult() |> Seq.toList
-
-                    Expect.exists found (fun result -> result.PluginFile.Path = executable) "the nuget-plugin-* executable on PATH"
-                finally
-                    Environment.SetEnvironmentVariable("NUGET_PLUGIN_PATHS", fst previous)
-                    Environment.SetEnvironmentVariable("PATH", snd previous))
+                let path = bin + string Path.PathSeparator + (Environment.GetEnvironmentVariable "PATH" |> Option.ofObj |> Option.defaultValue "")
+                let onPath = runChild sandbox [ "--nuget-plugins" ] [ "NUGET_PLUGIN_PATHS", ""; "PATH", path ]
+                Expect.equal onPath.ExitCode 0 onPath.CombinedOutput
+                Expect.stringContains onPath.StandardOutput executable "the nuget-plugin-* executable on PATH")
         }
         test "the credential service of NuGet, with its plugin providers, is set up non-interactively" {
             withSandbox (fun sandbox ->
@@ -1075,6 +1077,50 @@ let private dotnetTool =
         }
     ]
 
+/// The child-process checks that runChild starts (Program.fs): they read NuGet's process-wide variables, which only
+/// the child's environment sets. Each prints what it saw, and returns its exit code.
+let child (arguments: string array) : int option =
+    let attempt (work: unit -> unit) =
+        try
+            work ()
+            0
+        with error ->
+            eprintfn "%s" error.Message
+            1
+
+    match arguments with
+    | [| "--nuget-folder-install"; homePath; root; feed |] ->
+        Some(
+            attempt (fun () ->
+                let request = (ExtensionSourceRequest.Parse "nuget:Acme.Morphir.Python@1.2.3" |> Result.toOption |> Option.get).WithNuGetOptions(feed, null, false) |> get
+                let provider = NuGetPackageProvider(homePath, root) :> IExtensionSourceProvider
+                use _ = ExtensionSources.InstallAsync(homePath, provider, request, Array.AsReadOnly [||], host, ct).GetAwaiter().GetResult() |> get
+                printfn "installed")
+        )
+    | [| "--nuget-feed-install"; homePath; root; folder |] ->
+        Some(
+            attempt (fun () ->
+                let packages = [
+                    for path in Directory.GetFiles(folder, "*.nupkg") do
+                        let version = Path.GetFileNameWithoutExtension(path).Substring("acme.morphir.python.".Length)
+                        { Id = "Acme.Morphir.Python"; Version = version; Listed = true; Bytes = File.ReadAllBytes path }
+                ]
+
+                let result, _ = installFromFeedAt homePath root packages None None "nuget:Acme.Morphir.Python@1.2.3"
+                use _ = result |> get
+                printfn "installed"
+                printfn "NUGET_HTTP_CACHE_PATH=%s" (Environment.GetEnvironmentVariable "NUGET_HTTP_CACHE_PATH")
+            )
+        )
+    | [| "--nuget-plugins" |] ->
+        Some(
+            attempt (fun () ->
+                use discoverer = new NuGet.Protocol.Plugins.PluginDiscoverer()
+
+                for result in discoverer.DiscoverAsync(ct).GetAwaiter().GetResult() do
+                    printfn "%s" result.PluginFile.Path)
+        )
+    | _ -> None
+
 [<Tests>]
-// Sequenced: the tests set NUGET_* variables, which are process-wide.
-let tests = testLabel "PlatformSpecific" <| testSequenced (testList "NuGetProvider" [ parsing; folderFeed; layouts; configuration; wasm; v3Feed; dotnetTool ])
+let tests = testLabel "PlatformSpecific" <| testList "NuGetProvider" [ parsing; folderFeed; layouts; configuration; wasm; v3Feed; dotnetTool ]

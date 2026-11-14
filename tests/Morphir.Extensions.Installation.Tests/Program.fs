@@ -90,4 +90,7 @@ let main args =
                     1
                 )
             )
-    | _ -> runTestsInAssemblyWithCLIArgs [] args
+    | _ ->
+        match Morphir.Extensions.Installation.Tests.NuGetProviderTests.child args with
+        | Some code -> code
+        | None -> runTestsInAssemblyWithCLIArgs [] args
