@@ -75,6 +75,7 @@
     <ProjectReference Include="..\Morphir.CodeGeneration.FSharp\Morphir.CodeGeneration.FSharp.fsproj" />
     <ProjectReference Include="..\Morphir.CodeGeneration.CSharp\Morphir.CodeGeneration.CSharp.fsproj" />
     <ProjectReference Include="..\Morphir.Lang.CSharp\Morphir.Lang.CSharp.fsproj" />
+    <ProjectReference Include="..\Morphir.MiddleEnd\Morphir.MiddleEnd.fsproj" />
     <ProjectReference Include="..\Morphir.Ion\Morphir.Ion.fsproj" />
   </ItemGroup>
 

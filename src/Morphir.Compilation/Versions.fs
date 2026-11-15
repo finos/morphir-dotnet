@@ -75,7 +75,7 @@ type IrTarget =
         | _ -> false
 
     override this.GetHashCode() =
-        HashCode.Combine(this.Family, FormatVersion.equivalenceKey this.Version)
+        hash (this.Family, FormatVersion.equivalenceKey this.Version)
 
     override this.ToString() =
         let family =

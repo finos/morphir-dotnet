@@ -1,6 +1,7 @@
 using Foundatio.Mediator;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
+using Morphir.IR.Model;
 
 namespace Morphir.Tooling.Features.Generate;
 
@@ -129,13 +130,28 @@ public static class GenerationStages
         try
         {
             var selected = backendResolver.Resolve(settings.Target, model.Descriptor);
+
+            // A backend that does not read the classic model directly, but reads the current IR, gets the model upgraded.
+            // The report keeps the model as it was loaded.
+            var backendModel = model;
+            if (selected is Outcome<IGenerationBackend>.Failure firstFailure
+                && model.Model.Family == ModelFamily.Classic
+                && firstFailure.Error.Diagnostics.Any(diagnostic => diagnostic.Code == "incompatible-model")
+                && backendResolver.Resolve(settings.Target, ModelUpgrade.Reachable(model.Descriptor)) is Outcome<IGenerationBackend>.Success)
+            {
+                var upgraded = ModelUpgrade.Upgrade(model);
+                if (upgraded is Outcome<LoadedModel>.Failure upgradeFailure) return Failed(upgradeFailure.Error, backendIdentity);
+                backendModel = ((Outcome<LoadedModel>.Success)upgraded).Value;
+                selected = backendResolver.Resolve(settings.Target, backendModel.Descriptor);
+            }
+
             if (selected is Outcome<IGenerationBackend>.Failure selectionFailure) return Failed(selectionFailure.Error, backendIdentity);
             var backend = ((Outcome<IGenerationBackend>.Success)selected).Value;
             backendIdentity = backend.Descriptor.Id.Value;
             var validation = backend.ValidateOptions(settings.Options);
             if (validation is Outcome<ValidatedBackendOptions>.Failure optionFailure) return Failed(optionFailure.Error, backendIdentity);
             var options = ((Outcome<ValidatedBackendOptions>.Success)validation).Value;
-            var generation = await backend.GenerateAsync(new(model, backend.Descriptor.Target, options), ct);
+            var generation = await backend.GenerateAsync(new(backendModel, backend.Descriptor.Target, options), ct);
             if (generation is Outcome<GenerationArtifacts>.Failure generationFailure) return Failed(generationFailure.Error, backendIdentity);
             var artifacts = ((Outcome<GenerationArtifacts>.Success)generation).Value;
             var family = ModelLabels.Family(model.Model.Family);

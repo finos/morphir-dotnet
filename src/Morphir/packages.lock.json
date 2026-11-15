@@ -422,6 +422,14 @@
           "Morphir.Myriad.SystemTextJson.Annotations": "[1.0.0, )"
         }
       },
+      "morphir.middleend": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
@@ -469,6 +477,7 @@
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
           "Morphir.Lang.CSharp": "[1.0.0, )",
+          "Morphir.MiddleEnd": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )",
           "Morphir.Toolchain.IO": "[1.0.0, )",
           "Serilog": "[4.4.0, )",
