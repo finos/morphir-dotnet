@@ -109,8 +109,8 @@ two steps have the same pattern.
 | Generation | `Then the generation report has no written file and has unchanged files` |
 | Generation | `Then the generation report says that it removed only {string}` |
 | Generation | `Then each artifact of the generation report is a file of the output` |
-| Generation | `Then the first artifact of the generation report contains {string} and not {string}` |
-| Generation | `Then the output has one C# file for the module {string} of the package {string}` |
+| Generation | `Then the first module artifact of the generation report contains {string} and not {string}` |
+| Generation | `Then the C# files of the output are the polyfill file and the file of the module {string} of the package {string}` |
 | Generation | `Given I remember the files of the output` |
 | Generation | `Then the files of the output are the same as I remembered` |
 | Generation | `Then the output directory is not there` |
@@ -236,7 +236,7 @@ two steps have the same pattern.
 | Generation | `Then the first diagnostic of the generation report has the code {string}` |
 | Generation | `Then the generation report has the target {string}` |
 | Generation | `Then the generation report has artifacts` |
-| Generation | `Then the generation report has one C# artifact that contains {string} and {string}` |
+| Generation | `Then the generation report has the polyfill file and one C# module artifact that contains {string} and {string}` |
 | Generation | `Then the generation report lists only the artifact {string}` |
 | Generation | `Then the output file {string} has the bytes of the fixture {string}` |
 | Generation | `Given I remember the artifacts of the generation report` |

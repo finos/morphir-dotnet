@@ -10,7 +10,7 @@ Feature: Generate C# through the existing command
     Then generation exits with 0 and one JSON report
     And the generation report has the target "csharp"
     And the generation report has the backend "morphir.csharp"
-    And the generation report has one C# artifact that contains "5000" and "#nullable enable"
+    And the generation report has the polyfill file and one C# module artifact that contains "5000" and "#nullable enable"
 
     Examples:
       | fixture                     |
