@@ -134,12 +134,31 @@ The backend SHALL write the Morphir equality members to a record or a union only
 
 ### Requirement: Value classes of type variables
 
-The backend SHALL write `where T : IComparable<T>` for a type variable of the class `comparable` and `where T : INumber<T>` for one of the class `number`. It SHALL take the class from the IR carrier, else from the first word of the name. It SHALL refuse a generic function over `appendable` or `compappend` with `unsupported-appendable`.
+The backend SHALL write `where T : IComparable<T>` for a type variable of the class `comparable` and `where T : INumber<T>` for one of the class `number`. It SHALL take the class from the IR carrier, else from the first word of the name. A model with no carrier SHALL still generate.
 
 #### Scenario: Generic comparable function
 
 - **WHEN** a model has `maximum : comparable -> comparable -> comparable`
 - **THEN** the C# method has `where TComparable : IComparable<TComparable>` and a program that calls it gives the model result
+
+#### Scenario: Generic number function
+
+- **WHEN** a model has `twice : number -> number` and calls it with an Int and with a Float
+- **THEN** the C# method has `where TNumber : INumber<TNumber>`, each call gives the model result, and a call with a String gives `unsupported-numeric` at the call
+
+### Requirement: Value classes are checked at each call
+
+At each call of a generic function, the backend SHALL refuse a type that is not of the class of its type variable with `unsupported-comparable` or `unsupported-numeric`. A type variable of the class `number` SHALL also take the ordering operations. The backend SHALL refuse a generic function over `appendable` or `compappend` with `unsupported-appendable`, and a dictionary or a set with a key of a type variable with `unsupported-comparable`.
+
+#### Scenario: Call with a type outside the class
+
+- **WHEN** a model calls `maximum : comparable -> comparable -> comparable` with two Bool values
+- **THEN** generation fails with `unsupported-comparable` at the call
+
+#### Scenario: Generic appendable function
+
+- **WHEN** a model has a function over the type variable `appendable`
+- **THEN** generation fails with `unsupported-appendable`
 
 ### Requirement: Equality on function types fails at generation time
 

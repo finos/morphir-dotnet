@@ -150,11 +150,11 @@ C# identifiers SHALL map to Morphir names by splitting PascalCase and camelCase 
 
 ### Requirement: Value classes of type parameters
 
-The frontend SHALL find the class of a type parameter from an explicit statement, from its .NET constraints, and from the type-checked uses in its body. It SHALL keep the name of the type parameter and SHALL write the class in the `extensions` of the type attributes of each type variable of the signature, as `{"morphir-dotnet": {"classes": [...]}}`.
+The frontend SHALL find the class of a type parameter from an explicit statement in the option carriers of OPT-1, from its .NET constraints, and from the type-checked uses in its body, and the first source that gives a class SHALL win. It SHALL keep the name of the type parameter and SHALL write the class in the `extensions` of the type attributes of each type variable of the signature, as `{"morphir-dotnet": {"classes": [...]}}`.
 
 #### Scenario: Constraints and uses
 
-- **WHEN** a type parameter has `IEquatable<T>` or `IEqualityOperators<T, T, bool>`, or its values meet `==`, `Equals` or `EqualityComparer<T>.Default`
+- **WHEN** a type parameter has `IEquatable<T>` or `IEqualityOperators<T, T, bool>`, or its values meet `==`, `!=`, `Equals`, `Basics.Equal`, `Basics.NotEqual` or `EqualityComparer<T>.Default`
 - **THEN** it has the class `equality`; `IComparable<T>`, `IComparisonOperators<T, T, bool>`, `CompareTo` and `Comparer<T>.Default` give `comparable`, and `INumber<T>` gives `number`
 
 #### Scenario: Comparable constraint
@@ -162,10 +162,29 @@ The frontend SHALL find the class of a type parameter from an explicit statement
 - **WHEN** a method has `TKey Max<TKey>(TKey a, TKey b) where TKey : IComparable<TKey>`
 - **THEN** the model has the type variable `key`, and its type attributes carry the class `comparable`
 
-#### Scenario: Equals and CompareTo on a type parameter
+#### Scenario: A constraint wins over a use
 
-- **WHEN** a method calls `a.Equals(b)` or `EqualityComparer<T>.Default.Equals(a, b)`, or `a.CompareTo(b)` or `Comparer<T>.Default.Compare(a, b)`, on values of a type parameter of the method
-- **THEN** the value is `Basics.equal a b`, or a match on `Basics.compare a b` that gives `-1`, `0` and `1` with the order of the SDK; the same calls on a concrete type such as `double` are refused with `csharp.unsupported_reference`
+- **WHEN** a type parameter has `IComparable<T>` and its values meet `Basics.Equal`
+- **THEN** it has the class `comparable` only
+
+#### Scenario: Round trip of a generic function
+
+- **WHEN** a model has a generic function of the class `equality`, `comparable` or `number` with the class in the carrier, and the frontend reads the C# that the backend writes for it
+- **THEN** the model of the frontend has the same values and the same class on each type variable
+
+### Requirement: .NET equality and order on a type parameter
+
+On two values of a type parameter of the method, the frontend SHALL lower `a.Equals(b)` and `EqualityComparer<T>.Default.Equals(a, b)` as `Basics.equal a b`, and `a.CompareTo(b)` and `Comparer<T>.Default.Compare(a, b)` as `Basics.compare a b` matched to `-1` for `LT`, `0` for `EQ` and `1` for `GT`. A call of `Equals` or `CompareTo` on a value of another type SHALL give `csharp.unsupported_reference`.
+
+#### Scenario: .NET equality and order on a type parameter
+
+- **WHEN** a method compares two values of its type parameter with `a.Equals(b)` or `a.CompareTo(b)`
+- **THEN** the model has `Basics.equal a b`, or `Basics.compare a b` matched to `-1`, `0` and `1`, and the C# that the backend writes for that model gives the same result, with the ordinal order of strings
+
+#### Scenario: Equals on a value of another type
+
+- **WHEN** a method calls `a.Equals(b)` on two `double` values
+- **THEN** the frontend gives `csharp.unsupported_reference`, because `double.Equals` makes NaN equal to NaN
 
 ### Requirement: Values carry inferred types and source locations
 
