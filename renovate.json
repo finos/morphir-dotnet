@@ -25,18 +25,6 @@
   ],
   "customManagers": [
     {
-      "description": "The mise manager does not support the dotnet tool. Track its SDK pin alongside global.json so both declarations move together.",
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^mise\\.toml$/"
-      ],
-      "matchStrings": [
-        "(?:^|\\n)dotnet\\s*=\\s*\"(?<currentValue>[^\"\\r\\n]+)\""
-      ],
-      "depNameTemplate": "dotnet-sdk",
-      "datasourceTemplate": "dotnet-version"
-    },
-    {
       "description": "Track the bundled Myriad host pins with the generator packages.",
       "customType": "regex",
       "managerFilePatterns": [
@@ -124,7 +112,7 @@
       "groupName": "rust-major"
     },
     {
-      "description": "Update global.json and mise.toml SDK pins together on the .NET 11 SDK. Libraries also target .NET 10 LTS through MorphirLibraryTargetFrameworks in Directory.Build.props. Review the next SDK major explicitly.",
+      "description": "Update the global.json SDK pin on the .NET 11 SDK. Libraries also target .NET 10 LTS through MorphirLibraryTargetFrameworks in Directory.Build.props. Review the next SDK major explicitly.",
       "matchDatasources": [
         "dotnet-version"
       ],
@@ -133,7 +121,7 @@
       "allowedVersions": "/^11\\./"
     },
     {
-      "description": "Keep the development-container SDK on the same .NET 11 SDK baseline and in the same update PR as global.json and mise.toml.",
+      "description": "Keep the development-container SDK on the same .NET 11 SDK baseline and in the same update PR as global.json.",
       "matchDatasources": [
         "docker"
       ],

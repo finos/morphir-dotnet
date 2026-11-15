@@ -152,13 +152,14 @@ The `netstandard2.0` attribute packages keep that target. The properties
 `MorphirCurrentTargetFramework`, `MorphirLibraryTargetFrameworks` and `MorphirHostedTargetFramework` in
 [`Directory.Build.props`](./Directory.Build.props) set these targets.
 
-Install the SDK pinned in [`global.json`](./global.json), or use `mise install` to install the tools in
-[`mise.toml`](./mise.toml). CI uses the same SDK pin.
+Install the SDK pinned in [`global.json`](./global.json), for example with `dotnetup sdk install` or
+`dotnet-install --jsonfile global.json`. CI uses the same SDK pin. [`mise.toml`](./mise.toml) pins the other
+development tools (OpenSpec, Node, PowerShell), not the .NET SDK.
 
 VS Code users can run **Dev Containers: Reopen in Container** to use the
 Microsoft .NET SDK image in [`.devcontainer/Dockerfile`](./.devcontainer/Dockerfile).
-The SDK includes the C# and F# compilers. Renovate groups the container, global.json,
-and mise SDK updates together and keeps them on the .NET 11 SDK. Moving to the next SDK
+The SDK includes the C# and F# compilers. Renovate groups the container and global.json
+SDK updates together and keeps them on the .NET 11 SDK. Moving to the next SDK
 major version requires an explicit baseline update.
 
 ```bash
