@@ -23,8 +23,6 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Lang.CSharp.Tests" />
-        <!-- The text emission of the backend of today uses the type catalog and the lowering that moved here. -->
-        <InternalsVisibleTo Include="Morphir.CodeGeneration.CSharp" />
     </ItemGroup>
 
     <ItemGroup>
@@ -61,7 +59,7 @@
         <Compile Include="SdkMapping.fs" />
         <Compile Include="Lowering.fs" />
         <Compile Include="CSharpFrontend.fs" />
-        <!-- The type catalog, the lowering and the checks of the backend of today (tasks.md, 4.6). -->
+        <!-- The type catalog, the lowering and the checks of the backend. -->
         <Compile Include="Backend/Types.fs" />
         <Compile Include="Backend/TypeEmission.fs" />
         <Compile Include="Backend/LiteralEmission.fs" />

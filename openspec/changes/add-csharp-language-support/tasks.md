@@ -46,9 +46,9 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [x] 5.4 Implement the IEEE equality option on records and unions, and plain equality as the default. Write the tests first for the cases in `morphir-csharp-transpilation`. Verify that a `NaN` record is equal by default and not equal with the option.
 - [x] 5.5 Make `Morphir.SDK.CSharp` equality, hashing and collections accept plain records and plain unions, and fail explicitly for a function-typed field. Decide the `NaN` in collections case and record it in `design.html`. Verify with tests for the scenarios in `csharp-sdk-runtime` and with the existing SDK conformance cases.
 - [x] 5.6 Switch the `csharp` target to the new backend, keep the options (language version 15 only, namespace, profile), and run the old conformance and `cli-csharp-generation` cases. Replace the cases that test C# 14 output or the `abstract class` shape. Verify that all remaining cases pass and that `language-version=14` returns code 2 with a diagnostic.
-- [ ] 5.7 Remove `src/Morphir.CodeGeneration.CSharp`, its test project and its references. Verify that the solution builds and that no reference remains with `git grep`.
+- [x] 5.7 Remove `src/Morphir.CodeGeneration.CSharp`, its test project and its references. Verify that the solution builds and that no reference remains with `git grep`.
 - [ ] 5.8 Add the round-trip test from IR to C# to IR for models of the backend, with source locations left out, and the Native AOT against JIT output test for the backend. Verify both.
-- [ ] 5.9 Document the output shape, the polyfill file and the breaking change in `docs/` and in `CHANGELOG.md`. Verify that the documented example generates as written.
+- [x] 5.9 Document the output shape, the polyfill file and the breaking change in `docs/` and in `CHANGELOG.md`. Verify that the documented example generates as written.
 
 ## 6. Loop lowering, matching transforms and options (LOP-1, OPT-1)
 

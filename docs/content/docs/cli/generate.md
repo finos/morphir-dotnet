@@ -61,10 +61,12 @@ The default formatted text follows the platform's line endings (CRLF on Windows,
 reports `formatting: unavailable`. The managed hosts (`dotnet-morphir` and the managed `morphir`) format.
 
 C# accepts numeric JSON
-`language-version=14` or `language-version=15`, default `14`, and optional string
+`language-version=15`, the default and the only language version that the backend writes, a string
+`profile=imperative` or `profile=functional`, and optional string
 `namespace=Pricing.Generated`. Plain namespace text becomes a JSON string through
-the shared option parser. Numeric strings, `preview`, `latest`, unsupported
-numbers, unknown keys and wrong JSON kinds are invocation errors.
+the shared option parser. Numeric strings, `preview`, `latest`, unknown keys and wrong JSON kinds are
+invocation errors with the code `invalid-backend-option`. Another number, such as `language-version=14`, is an
+invocation error with the code `unsupported-language`, and its diagnostic names 15.
 
 C# namespaces are dotted literal identifiers in Unicode Normalization Form C.
 An identifier can start with a letter or `_` and continue with letters, decimal
@@ -235,15 +237,14 @@ For C#:
 
 ```powershell
 morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v3.json --target csharp --output artifacts/generated-csharp --json
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=14 --option namespace=Pricing.Generated --json
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=15 --option namespace=Pricing.Generated --json
 morphir generate --input tests/Fixtures/MorphirIon/pairs/v3-daily-rate.ion --target csharp --output artifacts/generated-csharp --input-format ion --json
 morphir generate --input tests/Fixtures/MorphirIon/trees/v3-daily-rate --target csharp --output artifacts/generated-csharp --json
 ```
 
-`--option language-version=15 --option language-version=14` selects `14`.
-Selecting `15` explicitly generates the C# 15 profile independently of the SDK
-installed on the generation machine. Compile it separately using the matching
-.NET 11 compiler. See [the executable C# walkthrough]({{< relref "/docs/getting-started/morphir-to-csharp" >}}).
+`--option language-version=14 --option language-version=15` selects `15`: the last occurrence of an option wins.
+The backend writes C# 15 independently of the SDK installed on the generation machine. Compile it separately
+using the .NET SDK 11 compiler. See [the executable C# walkthrough]({{< relref "/docs/getting-started/morphir-to-csharp" >}}).
 
 For CI, retain the JSON report and propagate a failure:
 

@@ -9,7 +9,7 @@ description: "Solutions to common issues with Morphir .NET CLI"
 
 ## C# generation
 
-Use exact target `csharp`, numeric `language-version=14` or `15`, and an optional
+Use exact target `csharp`, numeric `language-version=15`, and an optional
 literal C# namespace. These invocations fail with exit 2 before publication:
 
 ```powershell
@@ -18,8 +18,9 @@ morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target cs
 ```
 
 The first requires a numeric profile. The second supplies a JSON Boolean where
-a namespace string is required. Use `--option language-version=14` and
-`--option namespace=Pricing.Generated`. Source syntax, empty segments and
+a namespace string is required. Use `--option language-version=15` and
+`--option namespace=Pricing.Generated`. A number other than 15, such as `language-version=14`, fails with
+`unsupported-language`. Source syntax, empty segments and
 unescaped reserved words are refused with a located namespace diagnostic.
 Use `@` for reserved words, for example `namespace=@class.Models`.
 

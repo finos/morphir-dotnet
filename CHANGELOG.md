@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The C# frontend of `morphir compile`: `morphir-dotnet.csharp` reads C# 15 source files in process, with Roslyn, in every offering. It lowers the C# dialect of the model (static classes and namespaces as modules, records and closed records as types, switch expressions as matches) to the current IR, and refuses code outside the subset with located diagnostics (`csharp.unsupported_*`).
+- Passes: `transform` extensions that change a model between a frontend and a backend. `morphir extension list` shows them with their stage; `morphir generate` and `morphir compile` run them and report the applications under `passes` with `--json`. The first built-in pass, `morphir-dotnet.csharp.admission`, runs the checks of the C# backend before it. See [the middle end](docs/content/docs/pipeline/middle-end.md).
+- `morphir generate` upgrades a classic model to the current IR when the backend reads the current IR only.
+- The C# backend writes local recursion: a tail call becomes a `while` loop, and any other recursive binding a local function. `List.filter`, `List.filterMap` and `List.foldl` map to `Morphir.SDK.CSharp`.
+- `Morphir.SDK.CSharp` accepts plain C# records and plain C# unions in `Basics.Equal`, hashing and its collections, and fails explicitly for a function-typed field.
+
+### Changed
+- **BREAKING:** the C# backend is written on Roslyn and writes C# 15 only. The package `Morphir.CodeGeneration.CSharp` is gone; the backend is part of `Morphir.Lang.CSharp`. `language-version=14` now fails with `unsupported-language`, and `language-version=15` is the default.
+- **BREAKING:** the shape of the generated C# changed. A module with only types is a namespace, and a module with values is a `static class` named after the module (no `...Module` suffix), with its types nested in it. A custom type is a `closed record` with `sealed record` cases, or a `union` of wrapper cases (no `abstract class` with nested cases). Records have the equality of plain C#: `NaN` is equal to `NaN`. The Morphir members (`MorphirEquals` and the others) are written only when you ask for IEEE equality. A file `Morphir.Polyfill.g.cs` carries the runtime types that `closed` and `union` need below .NET 11. See [C# generation](docs/content/docs/backends/csharp/_index.md).
+- The Native AOT `morphir` links Roslyn for the C# frontend and backend.
+
 ## [0.5.0-alpha.3] - 2026-11-14
 
 ### Added

@@ -1,4 +1,4 @@
-module Morphir.CodeGeneration.CSharp.Tests.Program
+module Morphir.Lang.CSharp.Backend.Tests.Program
 
 open System
 open System.Threading
@@ -7,7 +7,7 @@ open Expecto
 open Morphir.IR
 open Morphir.IR.Model
 open Morphir.IR.Classic
-open Morphir.CodeGeneration.CSharp
+open Morphir.Lang.CSharp.Backend
 open Microsoft.CodeAnalysis
 open Microsoft.CodeAnalysis.CSharp
 open Microsoft.CodeAnalysis.Text
@@ -1574,19 +1574,21 @@ let tests =
         testCase "Given a typed model, modern generator-driver AddSource compiles and executes"
         <| fun _ -> hostSmoke (constantModel ())
         |> testLabel "PlatformSpecific"
-        testCase "Core references only Models and framework support"
+        testCase "The backend references Models, Roslyn and framework support, and no Workspaces assembly"
         <| fun _ ->
             let names =
-                typeof<CSharpGenerator>.Assembly.GetReferencedAssemblies()
+                typeof<Morphir.Lang.CSharp.Emit.CSharpBackend>.Assembly.GetReferencedAssemblies()
                 |> Array.map (fun assembly -> assembly.Name)
 
             Expect.isTrue (Array.contains "Morphir.Models" names) "real typed dependency"
+            Expect.isTrue (Array.contains "Microsoft.CodeAnalysis.CSharp" names) "the syntax trees are Roslyn trees"
 
             for forbidden in
                 [
                     "Morphir.Tooling"
                     "Morphir.Ion"
-                    "Microsoft.CodeAnalysis"
+                    "Microsoft.CodeAnalysis.Workspaces"
+                    "Microsoft.CodeAnalysis.CSharp.Workspaces"
                     "Morphir.IR.Pipeline"
                 ] do
                 Expect.isFalse

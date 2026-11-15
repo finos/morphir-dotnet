@@ -116,7 +116,7 @@ C#/.NET public types. See the [C# SDK guide](docs/content/docs/sdk/csharp/_index
 for its bounded operation contract and package usage.
 
 The in-memory [C# generator](docs/content/docs/backends/csharp/_index.md) lowers
-typed classic/v4 libraries with explicit numeric C# 14/15 profiles, immutable
+typed classic/v4 libraries as C# 15 (Roslyn syntax trees), immutable
 values, executable functions/patterns/record operations and public SDK bindings.
 Original business fixtures and the bounded modern package-host/trimming checks
 are verified under [#474](https://github.com/finos/morphir-dotnet/issues/474).

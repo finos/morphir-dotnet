@@ -1,4 +1,4 @@
-module Morphir.CodeGeneration.CSharp.Tests.TypeCases
+module Morphir.Lang.CSharp.Backend.Tests.TypeCases
 
 open System.Text.Json
 open Morphir.IR

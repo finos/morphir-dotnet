@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
-using Morphir.CodeGeneration.CSharp;
+using Morphir.Lang.CSharp.Backend;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Tests.Integration.CLI;
 

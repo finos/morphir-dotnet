@@ -1,4 +1,4 @@
-module Morphir.CodeGeneration.CSharp.Tests.BusinessCases
+module Morphir.Lang.CSharp.Backend.Tests.BusinessCases
 
 open System
 open System.Reflection

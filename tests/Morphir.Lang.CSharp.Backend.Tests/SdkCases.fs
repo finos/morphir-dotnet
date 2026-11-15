@@ -1,6 +1,6 @@
-module Morphir.CodeGeneration.CSharp.Tests.SdkCases
+module Morphir.Lang.CSharp.Backend.Tests.SdkCases
 
-open Morphir.CodeGeneration.CSharp.Tests.FunctionCases
+open Morphir.Lang.CSharp.Backend.Tests.FunctionCases
 
 // Shared typed SDK observations, independent of production binding code.
 let maybe t = SdkTy("maybe", "maybe", [ t ])

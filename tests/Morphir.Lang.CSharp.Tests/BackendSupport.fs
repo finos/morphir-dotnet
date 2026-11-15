@@ -4,7 +4,7 @@ module Morphir.Lang.CSharp.Tests.BackendSupport
 
 open System.Numerics
 open System.Threading
-open Morphir.CodeGeneration.CSharp
+open Morphir.Lang.CSharp.Backend
 open Morphir.IR
 open Morphir.IR.Model
 open Morphir.IR.V4

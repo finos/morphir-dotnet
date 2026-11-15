@@ -6,7 +6,7 @@ open System.Threading
 open Microsoft.CodeAnalysis
 open Microsoft.CodeAnalysis.CSharp
 open Microsoft.CodeAnalysis.CSharp.Syntax
-open Morphir.CodeGeneration.CSharp
+open Morphir.Lang.CSharp.Backend
 open Morphir.IR
 open TypeEmission
 

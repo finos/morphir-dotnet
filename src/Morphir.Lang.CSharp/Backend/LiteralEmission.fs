@@ -1,6 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-namespace Morphir.CodeGeneration.CSharp
+namespace Morphir.Lang.CSharp.Backend
 
 open System
 open System.Globalization

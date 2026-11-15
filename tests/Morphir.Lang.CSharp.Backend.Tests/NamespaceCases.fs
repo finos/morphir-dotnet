@@ -1,4 +1,4 @@
-module Morphir.CodeGeneration.CSharp.Tests.NamespaceCases
+module Morphir.Lang.CSharp.Backend.Tests.NamespaceCases
 
 open System
 open System.Threading
@@ -7,7 +7,7 @@ open System.IO
 open Microsoft.CodeAnalysis
 open Microsoft.CodeAnalysis.CSharp
 open Expecto
-open Morphir.CodeGeneration.CSharp
+open Morphir.Lang.CSharp.Backend
 open Morphir.IR
 open Morphir.IR.Model
 

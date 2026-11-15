@@ -1,4 +1,4 @@
-module Morphir.CodeGeneration.CSharp.Tests.CancellationCases
+module Morphir.Lang.CSharp.Backend.Tests.CancellationCases
 
 open System
 open System.Diagnostics
@@ -6,7 +6,7 @@ open System.Threading
 open Expecto
 open Morphir.IR
 open Morphir.IR.Model
-open Morphir.CodeGeneration.CSharp
+open Morphir.Lang.CSharp.Backend
 
 // A compact, acyclic alias DAG expands into many tuple nodes. Cancellation must
 // interrupt expansion itself, rather than wait for its next caller-side check.

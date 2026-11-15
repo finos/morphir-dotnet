@@ -1,11 +1,11 @@
-module Morphir.CodeGeneration.CSharp.Tests.FrozenSdkCases
+module Morphir.Lang.CSharp.Backend.Tests.FrozenSdkCases
 
 open System
 open System.Globalization
 open System.Numerics
 open System.Reflection
 open System.Text.Json
-open Morphir.CodeGeneration.CSharp.Tests.FunctionCases
+open Morphir.Lang.CSharp.Backend.Tests.FunctionCases
 
 // Frozen files are embedded unchanged. Expectations never come from generated code.
 let private resource name =

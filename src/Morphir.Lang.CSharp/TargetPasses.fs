@@ -5,7 +5,7 @@ namespace Morphir.Lang.CSharp
 open System.Text.Json
 open System.Threading
 open Morphir.Compilation
-open Morphir.CodeGeneration.CSharp
+open Morphir.Lang.CSharp.Backend
 open Morphir.IR
 open Morphir.IR.Model
 open Morphir.IR.V4

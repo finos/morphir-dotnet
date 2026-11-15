@@ -372,7 +372,7 @@ public class TestPlanTests
     public void TheSuitesKeepTheArgumentsThatTheirTestsNeed()
     {
         ArgumentsOf("Morphir.Configuration.Tests").Should().Equal("--sequenced");
-        ArgumentsOf("Morphir.CodeGeneration.CSharp.Tests").Should().Equal("--sequenced");
+        ArgumentsOf("Morphir.Lang.CSharp.Backend.Tests").Should().Equal("--sequenced");
         ArgumentsOf("Morphir.Configuration.IO.Tests").Should().Equal("--maximum-parallel-tests", "1");
         ArgumentsOf("Morphir.Configuration.Microsoft.Tests").Should().Equal("--maximum-parallel-tests", "1");
     }

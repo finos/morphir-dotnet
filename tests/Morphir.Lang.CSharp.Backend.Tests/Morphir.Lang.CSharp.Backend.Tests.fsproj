@@ -11,7 +11,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="YoloDev.Expecto.TestSdk" />
     <PackageReference Include="coverlet.collector" PrivateAssets="all" />
-    <ProjectReference Include="../../src/Morphir.CodeGeneration.CSharp/Morphir.CodeGeneration.CSharp.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Lang.CSharp/Morphir.Lang.CSharp.fsproj" />
     <ProjectReference Include="../../src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj" />
     <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.dll" />
     <Reference Include="Microsoft.CodeAnalysis.CSharp" HintPath="$(MSBuildSDKsPath)/../Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll" />

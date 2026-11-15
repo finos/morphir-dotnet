@@ -2,16 +2,15 @@
 title: "C# generation API and diagnostics"
 ---
 
-`CSharpGenerator.Generate(VersionedModel, GenerationOptions, CancellationToken)`
+`CSharpBackend.Generate(VersionedModel, GenerationOptions, CancellationToken)` of `Morphir.Lang.CSharp.Emit`
 is synchronous and has no file, process, configuration or compiler dependency.
-`GenerationOptions.LanguageVersion` accepts numeric `14` or `15`; the default is
-`14`. Compiler release channel is chosen by the caller independently.
+`GenerationOptions.LanguageVersion` accepts numeric `15`, the only language version that the backend writes, and `15` is the default. Another value returns `unsupported-language` and names 15. Compiler release channel is chosen by the caller independently.
 
 The existing `GenerationOptions` record and three-argument entry point are
 unchanged. To choose an emitted namespace, call
 `NamespaceOverride.TryCreate(string)`. It returns `Result<NamespaceOverride,
 GenerationDiagnostic>`; a successful immutable value exposes `Value`. Pass it to
-`CSharpGenerator.Generate(model, options, namespaceOverride, cancellationToken)`.
+`CSharpBackend.Generate(model, options, namespaceOverride, cancellationToken)`.
 Both overloads use the same core implementation. An override applies to the
 input Library package and all its qualified type, value and constructor
 references. Package-derived source paths and the original typed IR remain

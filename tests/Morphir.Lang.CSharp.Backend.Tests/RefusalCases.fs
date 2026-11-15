@@ -1,4 +1,4 @@
-module Morphir.CodeGeneration.CSharp.Tests.RefusalCases
+module Morphir.Lang.CSharp.Backend.Tests.RefusalCases
 
 open System.Text.Json
 open Morphir.IR

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Morphir.CodeGeneration.CSharp;
+using Morphir.Lang.CSharp.Backend;
 using Morphir.IR.Model;
 using Morphir.IR.Pipeline;
 using Morphir.Tooling.Features.Generate;

@@ -1,7 +1,7 @@
-module Morphir.CodeGeneration.CSharp.Tests.PatternCases
+module Morphir.Lang.CSharp.Backend.Tests.PatternCases
 
 open Morphir.IR.Model
-open Morphir.CodeGeneration.CSharp.Tests.FunctionCases
+open Morphir.Lang.CSharp.Backend.Tests.FunctionCases
 
 // One pattern and record corpus constructed directly in each typed family.
 let person = Own("data", "person", [])

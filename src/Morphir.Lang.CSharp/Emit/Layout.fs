@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 namespace Morphir.Lang.CSharp.Emit
 
-open Morphir.CodeGeneration.CSharp
+open Morphir.Lang.CSharp.Backend
 open Morphir.IR
 
 /// <summary>How a module is written: at namespace level, or as a static class.</summary>

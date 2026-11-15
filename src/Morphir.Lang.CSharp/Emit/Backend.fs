@@ -4,7 +4,7 @@ namespace Morphir.Lang.CSharp.Emit
 
 open System
 open System.Threading
-open Morphir.CodeGeneration.CSharp
+open Morphir.Lang.CSharp.Backend
 open Morphir.IR
 open Morphir.IR.Model
 

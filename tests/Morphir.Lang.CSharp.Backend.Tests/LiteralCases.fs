@@ -1,4 +1,4 @@
-module Morphir.CodeGeneration.CSharp.Tests.LiteralCases
+module Morphir.Lang.CSharp.Backend.Tests.LiteralCases
 
 open System
 open System.Numerics

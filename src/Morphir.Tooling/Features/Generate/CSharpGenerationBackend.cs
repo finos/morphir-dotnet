@@ -2,7 +2,7 @@ using Morphir.Extensions;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Microsoft.FSharp.Collections;
-using Morphir.CodeGeneration.CSharp;
+using Morphir.Lang.CSharp.Backend;
 using Morphir.IR.Model;
 using Morphir.IR.Pipeline;
 

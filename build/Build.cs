@@ -122,7 +122,6 @@ partial class Build : FalloutBuild
     AbsolutePath MorphirSDKFSharpProject => SourceDirectory / "Morphir.SDK.FSharp" / "Morphir.SDK.FSharp.fsproj";
     AbsolutePath MorphirSDKCSharpProject => SourceDirectory / "Morphir.SDK.CSharp" / "Morphir.SDK.CSharp.csproj";
     AbsolutePath MorphirModelsProject => SourceDirectory / "Morphir.Models" / "Morphir.Models.fsproj";
-    AbsolutePath MorphirCodeGenerationCSharpProject => SourceDirectory / "Morphir.CodeGeneration.CSharp" / "Morphir.CodeGeneration.CSharp.fsproj";
 
     /// <summary>
     /// Library packages in publish order: each package follows the Morphir packages it depends on,
@@ -147,7 +146,6 @@ partial class Build : FalloutBuild
         ("Morphir.Myriad.SystemTextJson.Annotations", SourceDirectory / "Morphir.Myriad.SystemTextJson.Annotations" / "Morphir.Myriad.SystemTextJson.Annotations.csproj", true),
         ("Morphir.Myriad.SystemTextJson", SourceDirectory / "Morphir.Myriad.SystemTextJson" / "Morphir.Myriad.SystemTextJson.fsproj", false),
         ("Morphir.Mep", SourceDirectory / "Morphir.Mep" / "Morphir.Mep.fsproj", true),
-        ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
         ("Morphir.Extensions", SourceDirectory / "Morphir.Extensions" / "Morphir.Extensions.fsproj", true),
         ("Morphir.Analyzers", SourceDirectory / "Morphir.Analyzers" / "Morphir.Analyzers.fsproj", true),
         // Product tooling depends on the WASM runtime. Kit runners belong to the separate development entry point.

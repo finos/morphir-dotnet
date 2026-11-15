@@ -16,7 +16,7 @@ a fresh consumer and a local runtime feed without publishing a package:
 dotnet pack src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj --configuration Release --output artifacts/csharp-feed -p:Version=0.0.0-local
 dotnet new console --framework net10.0 --output artifacts/csharp-pricing
 dotnet add artifacts/csharp-pricing package Morphir.SDK.CSharp --version 0.0.0-local --source "$PWD/artifacts/csharp-feed"
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/csharp-pricing/Generated --option language-version=14 --option namespace=Pricing.Generated --json
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/csharp-pricing/Generated --option language-version=15 --option namespace=Pricing.Generated --json
 ```
 
 Replace `artifacts/csharp-pricing/Program.cs` with:
@@ -24,7 +24,7 @@ Replace `artifacts/csharp-pricing/Program.cs` with:
 ```csharp
 using Pricing.Generated;
 
-var cents = InventoryModule.DailyRate();
+var cents = Inventory.DailyRate();
 if (cents != 5000) throw new System.Exception("Unexpected daily rate");
 System.Console.WriteLine(cents);
 ```
@@ -32,7 +32,7 @@ System.Console.WriteLine(cents);
 Then compile and execute:
 
 ```powershell
-dotnet build artifacts/csharp-pricing --configuration Release -p:LangVersion=14
+dotnet build artifacts/csharp-pricing --configuration Release -p:LangVersion=15
 dotnet run --project artifacts/csharp-pricing --configuration Release --no-build
 ```
 
