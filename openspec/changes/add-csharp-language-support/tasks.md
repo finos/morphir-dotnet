@@ -4,9 +4,9 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 
 ## 1. Projects and dependencies (PKG-1)
 
-- [ ] 1.1 Add `src/Morphir.Lang.CSharp` (F#), `src/Morphir.Lang.CSharp.Analyzers` and `src/Morphir.Lang.CSharp.Attributes` (C#, `netstandard2.0`) to `Morphir.slnx`, with central package versions for `Microsoft.CodeAnalysis.CSharp` 5.12.0 (no Workspaces). Verify that `dotnet build Morphir.slnx` succeeds and that a restore with the root `NuGet.config` succeeds for each new project.
-- [ ] 1.2 Add `tests/Morphir.Lang.CSharp.Tests` and `tests/Morphir.Lang.CSharp.Analyzers.Tests`, each with one passing placeholder test removed in group 2. Verify that `dotnet test` runs both projects.
-- [ ] 1.3 Move the polyfill members that `netstandard2.0` needs (`MaybeNullWhen`, `NotNullWhen`, `ArrayBufferWriter`, `Char.IsAsciiDigit`, `Double.IsFinite`, `String.Split(string)`, `String.Contains(char)`, `Dictionary.TryAdd`) into one file that `Morphir.Models` compiles for `netstandard2.0` only, and add `netstandard2.0` to the target frameworks of `Morphir.Models`. Verify that the repository tests of `Morphir.Models` pass unchanged and that `dotnet build -f netstandard2.0` succeeds with no source change in other files.
+- [x] 1.1 Add `src/Morphir.Lang.CSharp` (F#), `src/Morphir.Lang.CSharp.Analyzers` and `src/Morphir.Lang.CSharp.Attributes` (C#, `netstandard2.0`) to `Morphir.slnx`, with central package versions for `Microsoft.CodeAnalysis.CSharp` 5.12.0 (no Workspaces). Verify that `dotnet build Morphir.slnx` succeeds and that a restore with the root `NuGet.config` succeeds for each new project.
+- [x] 1.2 Add `tests/Morphir.Lang.CSharp.Tests` and `tests/Morphir.Lang.CSharp.Analyzers.Tests`, each with a first test that stays (the package identity test and the analyzer closure test). Verify that `dotnet test` runs both projects.
+- [x] 1.3 Move the polyfill members that `netstandard2.0` needs (`MaybeNullWhen`, `NotNullWhen`, `ArrayBufferWriter`, `Char.IsAsciiDigit`, `Double.IsFinite`, `String.Split(string)`, `String.Contains(char)`, `Dictionary.TryAdd`) into one file that `Morphir.Models` compiles for `netstandard2.0` only, and add `netstandard2.0` to the target frameworks of `Morphir.Models`. Verify that the repository tests of `Morphir.Models` pass unchanged and that `dotnet build -f netstandard2.0` succeeds. The only source change in other files is a `#if NETSTANDARD2_0` `open Morphir.Compat` in eight files.
 
 ## 2. Frontend thin slice and admission analyzers (FRT-1, ADM-1)
 

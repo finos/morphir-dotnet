@@ -1,5 +1,9 @@
 namespace Morphir.IR
 
+#if NETSTANDARD2_0
+open Morphir.Compat
+#endif
+
 /// <summary>
 /// FQName (Fully-Qualified Name) provides a globally unique identifier for any type or value.
 /// Structure: (package path, module path, local name)

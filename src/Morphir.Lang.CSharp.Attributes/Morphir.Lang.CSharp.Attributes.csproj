@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!-- netstandard2.0 with no dependency, so any C# project can reference it. Attributes arrive with tasks.md, groups 2 and 6. -->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <RootNamespace>Morphir</RootNamespace>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsPackable>false</IsPackable>
+        <Description>Attributes that C# source uses to give Morphir information to the Morphir C# frontend and backend.</Description>
+    </PropertyGroup>
+
+</Project>

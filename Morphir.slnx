@@ -33,6 +33,9 @@
     <Project Path="src/Morphir.Extensions.Wasm/Morphir.Extensions.Wasm.csproj" />
     <Project Path="src/Morphir.Extensions.Installation/Morphir.Extensions.Installation.fsproj" />
     <Project Path="src/Morphir.Analyzers/Morphir.Analyzers.fsproj" />
+    <Project Path="src/Morphir.Lang.CSharp/Morphir.Lang.CSharp.fsproj" />
+    <Project Path="src/Morphir.Lang.CSharp.Analyzers/Morphir.Lang.CSharp.Analyzers.csproj" />
+    <Project Path="src/Morphir.Lang.CSharp.Attributes/Morphir.Lang.CSharp.Attributes.csproj" />
     <Project Path="src/Morphir.Mep/Morphir.Mep.fsproj" />
     <Project Path="src/Morphir.Toolchain/Morphir.Toolchain.fsproj" />
     <Project Path="src/Morphir.Toolchain.IO/Morphir.Toolchain.IO.fsproj" />
@@ -91,6 +94,8 @@
     <Project Path="tests/Morphir.Extensions.Installation.Tests/Morphir.Extensions.Installation.Tests.fsproj" />
     <Project Path="tests/Morphir.Extensions.Installation.AotProbe/Morphir.Extensions.Installation.AotProbe.csproj" />
     <Project Path="tests/Morphir.Analyzers.Tests/Morphir.Analyzers.Tests.fsproj" />
+    <Project Path="tests/Morphir.Lang.CSharp.Tests/Morphir.Lang.CSharp.Tests.fsproj" />
+    <Project Path="tests/Morphir.Lang.CSharp.Analyzers.Tests/Morphir.Lang.CSharp.Analyzers.Tests.fsproj" />
     <Project Path="tests/Morphir.Mep.Tests/Morphir.Mep.Tests.fsproj" />
     <Project Path="tests/Morphir.Toolchain.Tests/Morphir.Toolchain.Tests.fsproj" />
     <Project Path="tests/Morphir.Toolchain.ProcessFixture/Morphir.Toolchain.ProcessFixture.fsproj" />

@@ -1,24 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <!-- netstandard2.0: the source generator and the MSBuild target of Morphir.Lang.CSharp load this assembly in a compiler host. -->
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks);netstandard2.0</TargetFrameworks>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <RootNamespace>Morphir</RootNamespace>
         <Description>Morphir IR model definitions in F#</Description>
         <PackageReleaseNotes>### Added
 Typed classic and v4 Morphir IR models with source-version preservation for in-memory backend consumers.</PackageReleaseNotes>
         <PackageTags>$(PackageTags);morphir;fsharp;ir</PackageTags>
-        <!-- Enable trimming analyzers for AOT/trimming compatibility -->
-        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-        <IsTrimmable>true</IsTrimmable>
         <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees these types as oblivious. -->
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <!-- Trimming and AOT analyzers for the frameworks that support them. netstandard2.0 supports neither (NETSDK1210, NETSDK1212). -->
+    <PropertyGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsTrimmable>true</IsTrimmable>
         <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <!-- netstandard2.0 has no System.Text.Json and lacks some members of newer frameworks; Polyfill.fs adds them. -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="System.Text.Json" />
+        <Compile Include="Polyfill.fs" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <!--
+          netstandard2.0 with only a Roslyn dependency: the compiler, the IDE and the C# frontend load this assembly.
+          The admission rules and the loop recognizer are here (design.html, PKG-1 and ADM-1).
+        -->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <RootNamespace>Morphir.Lang.CSharp.Analyzers</RootNamespace>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <!-- RS2008: release tracking files come with the first published rule. -->
+        <NoWarn>$(NoWarn);RS2008</NoWarn>
+        <!-- Packaging lands with the package of Morphir.Lang.CSharp (tasks.md, group 8). -->
+        <IsPackable>false</IsPackable>
+        <Description>Roslyn analyzer rules that report the C# constructs outside the Morphir subset.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    </ItemGroup>
+
+</Project>

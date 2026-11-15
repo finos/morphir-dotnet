@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <RootNamespace>Morphir.Lang.CSharp</RootNamespace>
+        <Description>C# language support for Morphir: a frontend, a target-side middle end and a backend, all on Roslyn.</Description>
+        <PackageTags>$(PackageTags);morphir;csharp;frontend;backend;roslyn</PackageTags>
+        <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees F# types as oblivious. -->
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!--
+          No IsTrimmable or IsAotCompatible: Roslyn is neither. The publish gate of src/Morphir/Morphir.csproj accepts the
+          Roslyn summary warning and keeps per-site errors for the other packages (tasks.md, group 9).
+        -->
+        <!-- Packaging lands with the package of Morphir.Lang.CSharp (tasks.md, group 8). -->
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.Lang.CSharp.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" />
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="PackageInfo.fs" />
+    </ItemGroup>
+
+</Project>
