@@ -130,10 +130,19 @@ public sealed record Limit(decimal Quantity, decimal Price) : Order;</code></pre
 </table>
 <p><strong>Rules.</strong></p>
 <ol>
-<li><em>Classes of a type variable.</em> <code>comparable</code> and <code>number</code> come from the name of the type variable, by the convention of the SDK that started in Elm core: a name that starts with the class name. The exact rule is checked against morphir-elm (open point).</li>
-<li><em>Equality through a type variable.</em> The backend infers which type variables reach an equality, directly or through a call, with a fixed point over the call graph of the package. At each call with concrete types, it checks the types of those variables. A type that holds a function anywhere, also in a closed-base field or a union case, gives <code>unsupported-equality</code> with the location of the call and the path to the function type. The inference gives diagnostics only and does not change the output.</li>
+<li><em>Sources of the class of a type variable.</em> The first source that gives a class wins:
+<ol>
+<li>An explicit statement: a C# attribute on the type parameter, or a key in <code>morphir.toml</code>, with the carriers of OPT-1.</li>
+<li>A .NET constraint in C# source: <code>IEquatable&lt;T&gt;</code> or <code>IEqualityOperators&lt;T, T, bool&gt;</code> gives equality, <code>IComparable&lt;T&gt;</code> or <code>IComparisonOperators&lt;T, T, bool&gt;</code> gives <code>comparable</code>, and <code>INumber&lt;T&gt;</code> gives <code>number</code>.</li>
+<li>A use in a C# body that the frontend type-checks: <code>==</code>, <code>Equals</code> or <code>EqualityComparer&lt;T&gt;.Default</code> on a value of the type parameter gives equality, and <code>CompareTo</code> or <code>Comparer&lt;T&gt;.Default</code> gives <code>comparable</code>.</li>
+<li>A class that the IR carries (rule 2).</li>
+<li>The name of the type variable, by the convention that the SDK took from Elm core: a name that starts with <code>comparable</code> or <code>number</code>.</li>
+<li>For equality only, the inference of the backend: a type variable reaches an equality directly or through a call, with a fixed point over the call graph of the package.</li>
+</ol></li>
+<li><em>Carriers in the IR.</em> The frontend writes the class that it found, so a later reader does not infer it again. In the current IR (v4), the class goes on each type variable of the signature, in the type attributes (<code>constraints</code>, which v4 has for type constraints, or <code>extensions</code> under a morphir-dotnet key until the content of <code>constraints</code> is agreed upstream), and on a value specification as an annotation, so a dependency package that has specifications only still carries it. A type parameter of a declaration is a bare name and has no attributes. The classic IR (v3) has an attribute value on each node, so it can carry the class to a degree. Many v4 producers leave attributes out, so a reader never depends on a carrier: without one, the sources 5 and 6 apply. Later, decorations can carry the class beside the model, with no change to the IR.</li>
+<li><em>Equality through a type variable.</em> At each call with concrete types, the backend checks the types of the type variables that have equality. A type that holds a function anywhere, also in a closed-base field or a union case, gives <code>unsupported-equality</code> with the location of the call and the path to the function type. The check gives diagnostics only and does not change the output.</li>
 <li><em>Hand-written C#.</em> Code that people write and that calls the SDK gets the same run-time behavior as generated code, with no reflection. It has no function check: a delegate compares by reference, as in .NET.</li>
-<li><em>The frontend.</em> The round trip stays exact. <code>where T : IComparable&lt;T&gt;</code> and <code>where T : INumber&lt;T&gt;</code> give a type variable of the class, and the backend writes the constraint back for that variable.</li>
+<li><em>The frontend and the round trip.</em> The round trip stays exact. The backend writes <code>where T : IComparable&lt;T&gt;</code> or <code>where T : INumber&lt;T&gt;</code> for a type variable of the class, and the frontend reads it back with source 2.</li>
 </ol>
 <pre><code class="language-csharp">// maximum : comparable -> comparable -> comparable
 public static TComparable Maximum&lt;TComparable&gt;(TComparable a, TComparable b)
@@ -147,8 +156,9 @@ public static TNumber Sum&lt;TNumber&gt;(List&lt;TNumber&gt; items) where TNumbe
 <p><em>Alternatives:</em> evidence parameters for each class (the first draft of EQL-2): they carry every choice, but they change every generic signature and need an inference that changes the output; annotate the SDK with <code>DynamicallyAccessedMembers</code>: nested fields, cases and tuple items are still not seen; a generated <code>Equals</code> that throws for a function field: the check stays at run time; generated code registers its types: the output is no longer plain.</p>
 <p><strong>Open points of EQL-2.</strong></p>
 <ul>
-<li>The exact name rule for the class of a type variable (<code>comparable</code>, <code>comparable1</code>, <code>comparableKey</code>), and how the frontend names a C# type parameter that has a constraint but another name (for example <code>TKey</code>).</li>
-<li>A call into a dependency package that has specifications only: the backend cannot infer equality through a function with no body. The proposal is to check the concrete types of every type variable of such a call that is used with equality at the call site, and to accept the rest.</li>
+<li>The exact name rule for the class of a type variable (<code>comparable</code>, <code>comparable1</code>, <code>comparableKey</code>), and whether the frontend renames a C# type parameter that has a class but another name (for example <code>TKey</code>), or keeps the name and relies on the carrier.</li>
+<li>The content of the v4 <code>constraints</code> member for a class, and the name of the annotation on a specification. Both need agreement with <code>finos/morphir</code>; until then the class goes in <code>extensions</code>. The attribute and the <code>morphir.toml</code> key wait for OPT-1 (task 6.1).</li>
+<li>A call into a dependency package that has specifications only and no carrier: the backend cannot infer equality through a function with no body. The proposal is to check the concrete types of every type variable of such a call that is used with equality at the call site, and to accept the rest.</li>
 <li>The specs to change: <code>csharp-sdk-runtime</code>, <code>morphir-csharp-transpilation</code> and <code>csharp-source-frontend</code>.</li>
 </ul>
 
