@@ -130,6 +130,61 @@ let tests =
             expectCompiles files
         }
 
+        test "a custom type with wrapper constructors that are private is a closed record with internal cases" {
+            // A C# union has public creation members (CS9385), so a union cannot keep the constructors private.
+            let opaque =
+                Morphir.IR.V4.CustomTypeDefinition(
+                    [],
+                    Morphir.IR.V4.Private,
+                    ordered [ name "circle", [ name "value", own "geo" "circle" [] ]; name "rect", [ name "value", own "geo" "rect" [] ] ]
+                )
+
+            let files =
+                generate (
+                    library
+                        [ "geo", moduleOf [ "circle", alias [] (recordT [ "radius", floatT ]); "rect", alias [] (recordT [ "w", floatT ]) ] []
+                          "shapes", moduleOf [ "shape", opaque ] [] ]
+                )
+
+            let text = files["p_Acme.Geo/m_ShapesModule.g.cs"]
+            Expect.isFalse (text.Contains "union") "no union"
+            Expect.stringContains text "public closed record Shape;" "the type is public"
+            Expect.stringContains text "internal sealed record Circle(global::Acme.Geo.Geo.Circle Value) : global::Acme.Geo.Shapes.Shape;" "the constructor is internal"
+            let assembly = load files
+
+            match assembly.GetType "Acme.Geo.Shapes.Circle" with
+            | null -> failtest "no case Circle"
+            | case' -> Expect.isFalse case'.IsPublic "a consumer cannot make a Circle shape"
+
+            expectCompiles files
+        }
+
+        test "a custom type with private wrapper constructors of types of its own module is a name collision" {
+            let opaque =
+                Morphir.IR.V4.CustomTypeDefinition([], Morphir.IR.V4.Private, ordered [ name "circle", [ name "value", own "shapes" "circle" [] ] ])
+
+            let diagnostics =
+                refuse (library [ "shapes", moduleOf [ "circle", alias [] (recordT [ "radius", floatT ]); "shape", opaque ] [] ])
+
+            Expect.equal (diagnostics |> List.map (fun d -> d.Rule)) [ "name-collision" ] "the closed form has no valid C# name for the case"
+        }
+
+        test "two wrapper constructors of the same C# type take the closed form" {
+            // The records circle and disk have the same shape, so both are the C# record Circle.
+            let files =
+                generate (
+                    library
+                        [ "geo", moduleOf [ "circle", alias [] (recordT [ "radius", floatT ]); "disk", alias [] (recordT [ "radius", floatT ]) ] []
+                          "shapes", moduleOf [ "shape", custom [] [ "circle", [ "value", own "geo" "circle" [] ]; "disk", [ "value", own "geo" "disk" [] ] ] ] [] ]
+                )
+
+            let text = files["p_Acme.Geo/m_ShapesModule.g.cs"]
+            Expect.isFalse (text.Contains "union") "no union with the same case type two times"
+            Expect.stringContains text "public sealed record Disk(global::Acme.Geo.Geo.Circle Value) : global::Acme.Geo.Shapes.Shape;" "the case Disk"
+            Expect.stringContains text "public sealed record Circle(global::Acme.Geo.Geo.Circle Value) : global::Acme.Geo.Shapes.Shape;" "the case Circle"
+            expectCompiles files
+        }
+
         test "a custom type with a constructor that has fields is a closed record with sealed cases" {
             let files = generate (library [ "prices", moduleOf [ "price", custom [] [ "quote", [ "value", floatT ]; "none", [] ] ] [] ])
 

@@ -48,13 +48,16 @@ The rules that give this shape:
 | A module that has values | A `static class` named after the module, in the namespace of the modules above it. Its types are nested in it. |
 | A module below a module that has values | A nested `static class`, also when it has only types. A class between the two that has no module of its own is `public` when a public module is below it. |
 | A record alias | `sealed record Name(Type Field, ...)`, with `where T : notnull` for each type parameter. |
-| A custom type in which each constructor has one argument that is a reference with the local name of the constructor | `union Name(Case1, Case2)` |
+| A custom type with public constructors, in which each constructor has one argument that is a reference with the local name of the constructor, and no two constructors hold the same C# type | `union Name(Case1, Case2)` |
 | Any other custom type | `closed record Name` with one `sealed record Case(...) : Name` for each constructor |
 | A pattern match | A `switch` expression, with each arm and the closing brace on a line of their own. An arm that cannot match is not written. |
 | A value that takes parameters | A `static` method. A saturated call is a direct call. A partial application is a `Func`. |
 | A tail-recursive `LetRecursion` | A local function with a `while` loop. Any other `LetRecursion` is a local function. |
 
-A custom type that mixes wrapper constructors with other constructors takes the closed form. A constructor whose name is
+A custom type that mixes wrapper constructors with other constructors takes the closed form. A wrapper custom type with
+private constructors also takes the closed form, with `internal` cases: a C# union has public creation members, so it
+cannot keep a constructor private. Two wrapper constructors that hold the same C# type, for example two record aliases
+with the same fields, also take the closed form. A constructor whose name is
 the name of another type of the module has no valid C# form: generation fails with `name-collision` and names both.
 C# does not allow a member with the name of its enclosing type, so a type or a value that has the name of its module
 class gets a trailing underscore.

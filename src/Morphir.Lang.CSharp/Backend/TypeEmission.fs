@@ -29,7 +29,10 @@ module internal TypeEmission =
         Synthetic: bool
         Definition: Definition
         Location: string
-        /// <summary>True for a custom type whose constructors each wrap one reference with the name of the constructor.</summary>
+        /// <summary>
+        /// True for a custom type that takes the C# union form: its constructors are public, and each wraps one reference with
+        /// the name of the constructor and a C# type that no other constructor holds.
+        /// </summary>
         Wrapper: bool
     }
 
@@ -1122,10 +1125,51 @@ module internal TypeEmission =
             args
             |> List.iter (validatePublicType ct catalog location)
 
+    /// <summary>
+    /// The C# type that a wrapper case holds, as a shape: the owner record for a record, and the expanded shape for any
+    /// other type. Two cases with the same shape hold the same C# type.
+    /// </summary>
+    let private caseIdentity ct catalog location shape =
+        match expand ct catalog Set.empty location shape with
+        | Fields _ as fields ->
+            let owner, args = recordTarget ct catalog location fields
+            Named(owner.Name, args)
+        | other -> other
+
+    /// <summary>
+    /// True when a wrapper-shaped custom type keeps the C# union form. Its constructors must be public, because a C# union
+    /// has public creation members (CS9385) and cannot keep a constructor private. Each case must hold a different C#
+    /// type, because a union cannot have the same case type two times (CS0111).
+    /// </summary>
+    let private unionForm ct catalog (declaration: Declaration) =
+        match declaration.Definition with
+        | Cases(true, cases) ->
+            let identities =
+                cases
+                |> List.collect (fun (_, fields) ->
+                    fields
+                    |> List.map (snd >> caseIdentity ct catalog declaration.Location))
+
+            List.length (List.distinct identities) = List.length identities
+        | _ -> false
+
     let rec private prepareCore (unionAware: bool) naming additions model ct =
         let raw =
-            declarations model ct
-            @ additions
+            let initial =
+                declarations model ct
+                @ additions
+
+            let initialCatalog =
+                initial
+                |> List.map (fun declaration -> declaration.Name, declaration)
+                |> Map.ofList
+
+            initial
+            |> List.map (fun declaration ->
+                if declaration.Wrapper then
+                    { declaration with Wrapper = unionForm ct initialCatalog declaration }
+                else
+                    declaration)
 
         let checkFields location className fields =
             uniqueNames
