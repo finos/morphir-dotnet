@@ -176,8 +176,9 @@ public sealed class LibraryHostDriver(TestPrograms programs, IScenarioWorkspace 
                 arguments.AddRange(["-r", runtimeIdentifier, "-p:SelfContained=true", "-p:PublishTrimmed=true"]);
                 break;
             case ProgramForm.NativeAot:
-                // MorphirProbeAot switches on PublishAot in the probes and in morphirup.
-                arguments.AddRange(["-r", runtimeIdentifier, "-p:PublishAot=true", "-p:MorphirProbeAot=true"]);
+                // MorphirProbeAot switches on PublishAot in each program of the lane. A global PublishAot would also reach
+                // the netstandard2.0 projects that a program references, and the SDK refuses it there (NETSDK1207).
+                arguments.AddRange(["-r", runtimeIdentifier, "-p:MorphirProbeAot=true"]);
                 break;
         }
 
