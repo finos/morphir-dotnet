@@ -75,11 +75,10 @@ type CSharpBackend private () =
                 |> List.map (fun (path, unit) -> { RelativePath = path; Text = Format.render unit })
 
             // Each generated assembly gets the polyfill file (PRD, D12): its types are behind guards, so it is the same for
-            // every target framework. The files of the model come first, in the order of their paths.
+            // every target framework. The files are in the order of their paths.
             let sources =
-                match files |> List.sortBy (fun source -> source.RelativePath) with
-                | [] -> []
-                | sorted -> sorted @ [ { RelativePath = Polyfill.path; Text = Polyfill.text } ]
+                (if List.isEmpty files then [] else files @ [ { RelativePath = Polyfill.path; Text = Polyfill.text } ])
+                |> List.sortBy (fun source -> source.RelativePath)
 
             ct.ThrowIfCancellationRequested()
             result GenerationStatus.Success sources []

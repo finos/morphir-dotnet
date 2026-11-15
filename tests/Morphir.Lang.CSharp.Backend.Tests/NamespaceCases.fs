@@ -386,12 +386,12 @@ let tests =
                     "paths retain package identity"
 
                 Expect.stringContains
-                    a.Sources.Head.Text
+                    (a.Sources |> List.find (fun source -> source.RelativePath <> "Morphir.Polyfill.g.cs")).Text
                     "namespace First.Generated;"
                     "first namespace"
 
                 Expect.stringContains
-                    b.Sources.Head.Text
+                    (b.Sources |> List.find (fun source -> source.RelativePath <> "Morphir.Polyfill.g.cs")).Text
                     "namespace Second.Generated;"
                     "second namespace"
 

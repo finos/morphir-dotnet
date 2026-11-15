@@ -834,7 +834,7 @@ let tests =
 
             // The module class has no Module suffix, so the type BadModule has no name of a module class.
             Expect.equal result.Status GenerationStatus.Success (sprintf "%A" result.Diagnostics)
-            Expect.stringContains result.Sources.Head.Text "public sealed record BadModule" "the type keeps its name"
+            Expect.stringContains (result.Sources |> List.find (fun source -> source.RelativePath <> "Morphir.Polyfill.g.cs")).Text "public sealed record BadModule" "the type keeps its name"
         testCase "Record generic parameters cannot share payload member identities"
         <| fun _ ->
             let model =
@@ -878,7 +878,7 @@ let tests =
                 Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal
-                result.Sources.Head.RelativePath
+                (result.Sources |> List.find (fun source -> source.RelativePath <> "Morphir.Polyfill.g.cs")).RelativePath
                 "p_Con/m_SampleModule.g.cs"
                 "safe prefixed components"
 
@@ -973,7 +973,7 @@ let tests =
 
             // The module class is Sample, so the method SampleModule has no name of a module class.
             Expect.equal result.Status GenerationStatus.Success (sprintf "%A" result.Diagnostics)
-            Expect.stringContains result.Sources.Head.Text "public static int SampleModule()" "the method keeps its name"
+            Expect.stringContains (result.Sources |> List.find (fun source -> source.RelativePath <> "Morphir.Polyfill.g.cs")).Text "public static int SampleModule()" "the method keeps its name"
         testCase "A value cannot share an emitted record identity"
         <| fun _ ->
             let model =
@@ -1285,7 +1285,7 @@ let tests =
                 Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.stringContains
-                result.Sources.Head.Text
+                (result.Sources |> List.find (fun source -> source.RelativePath <> "Morphir.Polyfill.g.cs")).Text
                 "internal static class"
                 "module visibility"
         for family, model in [ "classic", TypeCases.classic; "v4", TypeCases.v4 ] do
@@ -1495,7 +1495,7 @@ let tests =
             Expect.equal result.Status GenerationStatus.Success "admitted constant"
 
             Expect.stringContains
-                result.Sources.Head.Text
+                (result.Sources |> List.find (fun source -> source.RelativePath <> "Morphir.Polyfill.g.cs")).Text
                 "internal static int Answer"
                 "private access"
         for version in [ "1"; "2"; "3"; "3.0.0"; "3.1.0" ] do
