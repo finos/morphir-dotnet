@@ -72,7 +72,11 @@ type RewriteApplication = {
     After: NodeAddress
     /// <summary>The source location of the node that was matched, when it has one.</summary>
     Origin: SourceLocation option
-}
+} with
+    /// <summary>For C# callers: the source location of the node that was matched, or null.</summary>
+    member this.OriginOrNull: SourceLocation | null = Option.toObj this.Origin
+
+    override this.ToString() = $"{this.Rule}: {NodeAddress.toUri this.Before} to {NodeAddress.toUri this.After}"
 
 /// <summary>The snapshots of a model: the SHA-256 digest of its canonical bytes, which pins an address.</summary>
 [<RequireQualifiedAccess>]

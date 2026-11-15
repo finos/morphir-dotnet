@@ -45,6 +45,10 @@
         <Compile Include="Upgrade.fs" />
         <Compile Include="ClassicToCurrent.fs" />
         <Compile Include="CurrentIr.fs" />
+        <Compile Include="CurrentModel.fs" />
+        <Compile Include="Features.fs" />
+        <Compile Include="Rewrite.fs" />
+        <Compile Include="Transform.fs" />
     </ItemGroup>
 
 </Project>

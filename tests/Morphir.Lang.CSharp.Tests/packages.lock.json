@@ -158,6 +158,7 @@
           "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Lang.CSharp.Analyzers": "[1.0.0, )",
           "Morphir.Lang.CSharp.Attributes": "[1.0.0, )",
+          "Morphir.MiddleEnd": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
       },
@@ -172,6 +173,14 @@
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "Morphir.Myriad.SystemTextJson.Annotations": "[1.0.0, )"
+        }
+      },
+      "morphir.middleend": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
         }
       },
       "morphir.models": {

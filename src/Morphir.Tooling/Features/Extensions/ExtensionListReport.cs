@@ -49,6 +49,7 @@ public sealed record ExtensionListReport(
         var frontend = entry.FrontendClaimOrNull;
         var backend = entry.BackendClaimOrNull;
         var validator = entry.ValidatorClaimOrNull;
+        var transform = entry.TransformClaimOrNull;
         var availability = entry.AvailabilityIn(host, wasmRuntime);
         return new ExtensionListEntry(
             entry.Identity.Id.Value,
@@ -73,7 +74,8 @@ public sealed record ExtensionListReport(
                     ? null
                     // Generation is the only backend operation in MEP, so a backend claim always generates.
                     : new ExtensionListBackend(backend.Targets.Select(target => target.Value).ToArray(), backend.IrVersions.Select(version => version.Text).ToArray(), true),
-                validator is null ? null : new ExtensionListValidator(validator.IrVersionTexts)),
+                validator is null ? null : new ExtensionListValidator(validator.IrVersionTexts),
+                transform is null ? null : new ExtensionListTransform(transform.Stage.WireValue, transform.Stage.TargetOrNull?.Value)),
             entry.CapabilitySummary);
     }
 
@@ -95,10 +97,14 @@ public sealed record ExtensionListPrerequisites(
 public sealed record ExtensionListPrerequisite(string Kind, string Name, IReadOnlyList<string> Versions, string? Phase);
 
 /// <summary>
-/// Capability claims under their MEP wire names. <c>validator</c> is a morphir-dotnet report member: MEP
-/// 0.2.0-draft.1 has no validator capability, so it is never written into MEP messages.
+/// Capability claims under their MEP wire names. <c>validator</c> and <c>transform</c> are morphir-dotnet report
+/// members: MEP 0.2.0-draft.1 has no validator or transform capability, so they are never written into MEP messages.
 /// </summary>
-public sealed record ExtensionListCapabilities(ExtensionListFrontend? Frontend, ExtensionListBackend? Backend, ExtensionListValidator? Validator);
+public sealed record ExtensionListCapabilities(
+    ExtensionListFrontend? Frontend,
+    ExtensionListBackend? Backend,
+    ExtensionListValidator? Validator,
+    ExtensionListTransform? Transform);
 
 /// <summary>What a frontend reads and produces, under the MEP wire names <c>languages</c> and <c>irVersions</c>.</summary>
 public sealed record ExtensionListFrontend(IReadOnlyList<ExtensionListLanguage> Languages, IReadOnlyList<string> IrVersions);
@@ -110,6 +116,9 @@ public sealed record ExtensionListBackend(IReadOnlyList<string> Targets, IReadOn
 
 /// <summary>The IR versions that a validator reads, in the spelling of the model readers.</summary>
 public sealed record ExtensionListValidator(IReadOnlyList<string> IrVersions);
+
+/// <summary>The stage of a transform (<c>after-frontend</c> or <c>before-backend</c>) and, for the second, the target id.</summary>
+public sealed record ExtensionListTransform(string Stage, string? Target);
 
 public sealed record ExtensionListDiagnostic(string Code, string Message);
 

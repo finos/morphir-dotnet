@@ -119,6 +119,9 @@ public sealed record CompileReport(
     /// <summary>Actual installed process observation in the existing generation-provider shape.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? Provider { get; init; }
+    /// <summary>The passes that ran after the frontend: their ids, the application list and the reads of other modules. Written only when a pass ran.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
 
     /// <summary>The report of a folded compile result.</summary>
     public static CompileReport From(CompileResult result)
@@ -131,7 +134,7 @@ public sealed record CompileReport(
             success => new CompileReport(true, 0, success.Language, success.Frontend, success.IrVersion.Text,
                 SourcesOf(success.Sources, result.Settings!.WorkingDirectory), [.. success.Modules], success.Publication.IrPath, [.. success.Publication.Installed],
                 diagnostics, null, origins)
-            { Generation = success.Generation is { } generation ? CompileReportGeneration.From(generation) : null, Provider = success.Provider },
+            { Generation = success.Generation is { } generation ? CompileReportGeneration.From(generation) : null, Provider = success.Provider, Passes = success.Passes },
             // A failure in the generation stages keeps the published compile (CLI-2).
             failure => new CompileReport(false, failure.Kind.ExitCode(), language, failure.Frontend, irVersion,
                 failure.Sources is { } sources ? SourcesOf(sources, result.Settings!.WorkingDirectory) : null,

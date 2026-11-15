@@ -35,6 +35,10 @@
         <Compile Include="ModelSupport.fs" />
         <Compile Include="NodeWalkTests.fs" />
         <Compile Include="UpgradeTests.fs" />
+        <Compile Include="RewriteTests.fs" />
+        <Compile Include="PassRunnerTests.fs" />
+        <Compile Include="DocumentedRule.fs" />
+        <Compile Include="DocumentationTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

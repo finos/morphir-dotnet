@@ -87,6 +87,12 @@ let private validator =
         ValidatorClaim.Create(formatVersion "1", formatVersion "2", formatVersion "3")
     )
 
+let private transformEntry =
+    ExtensionEntry.BuiltInTransform(
+        ExtensionIdentity.Create(ExtensionId.Create "morphir.csharp.pass", ExtensionName.Create "C# pass", host, null),
+        TransformClaim.Create(TransformStage.BeforeBackend(TargetId.Create "csharp"))
+    )
+
 let private infoJson (entry: ExtensionEntry) =
     JsonSerializer.Serialize(entry.ToMep(), Morphir.Mep.MepJson.Default.ExtensionInfo)
 
@@ -144,6 +150,16 @@ let tests =
             Expect.equal (types.ToJsonString()) """["validator"]""" "types"
             let capabilities = objectOf (capabilitiesJson validator)
             Expect.isFalse (capabilities.ContainsKey "validator") "no invented validator claim"
+            Expect.isFalse (capabilities.ContainsKey "backend") "no backend claim"
+        }
+
+        test "a transform entry has transform in types and no stage member" {
+            let info = objectOf (infoJson transformEntry)
+            Expect.equal ((info["types"] |> nonNull).ToJsonString()) """["transform"]""" "types"
+            Expect.isFalse (info.ContainsKey "stage") "no stage member"
+            Expect.isFalse (info.ContainsKey "transform") "no transform member"
+            let capabilities = objectOf (capabilitiesJson transformEntry)
+            Expect.isFalse (capabilities.ContainsKey "transform") "no invented transform claim"
             Expect.isFalse (capabilities.ContainsKey "backend") "no backend claim"
         }
 

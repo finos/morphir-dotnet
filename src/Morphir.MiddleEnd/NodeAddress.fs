@@ -415,6 +415,7 @@ module NodeAddress =
         | NodeStep.AnnotationArgument index -> add [ "argument"; string index ]
 
     /// <summary>The canonical Morphir URI of an address. One address has one spelling.</summary>
+    [<CompiledName("ToUri")>]
     let toUri (address: NodeAddress) : string =
         let builder = StringBuilder("morphir://ir/")
 

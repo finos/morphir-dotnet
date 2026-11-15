@@ -36,6 +36,7 @@
         <Compile Include="ValueLoweringTests.fs" />
         <Compile Include="SdkMappingTests.fs" />
         <Compile Include="CatalogTests.fs" />
+        <Compile Include="TargetPassTests.fs" />
         <Compile Include="ConformanceTests.fs" />
         <Compile Include="CoveragePageTests.fs" />
         <Compile Include="Program.fs" />

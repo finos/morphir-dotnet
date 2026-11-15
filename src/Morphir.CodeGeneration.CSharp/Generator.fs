@@ -43,48 +43,7 @@ module internal Foundation =
         let values = ValueEmission.emit naming catalog ct checkedValues
 
         let sources pkg modules =
-            ct.ThrowIfCancellationRequested()
-
-            if not (List.isEmpty modules) then
-                TypeEmission.validateModules
-                    ct
-                    pkg
-                    (modules
-                     |> List.map (fun (path, _, names) -> path, names))
-
-            for path, _, names in modules do
-                ct.ThrowIfCancellationRequested()
-
-                for name in names do
-                    ct.ThrowIfCancellationRequested()
-
-                    for declaration in
-                        catalog
-                        |> Map.toList
-                        |> List.map snd do
-                        ct.ThrowIfCancellationRequested()
-
-                        let emitted =
-                            match declaration.Definition with
-                            | TypeEmission.Cases _ -> true
-                            | TypeEmission.Alias(TypeEmission.Fields _ as body) ->
-                                let owner, _ =
-                                    TypeEmission.recordTarget ct catalog declaration.Location body
-
-                                owner.Name = declaration.Name
-                            | _ -> false
-
-                        if
-                            emitted
-                            && declaration.Name.ModulePath = path
-                            && TypeEmission.identifier declaration.Name.LocalName = TypeEmission.identifier
-                                name
-                        then
-                            fail
-                                "name-collision"
-                                declaration.Location
-                                (TypeEmission.title name
-                                 + " shares an emitted type and value identity.")
+            Checks.validateCollisions ct catalog pkg modules
 
             modules
             |> List.map (fun (path, isPublic, _) ->
@@ -105,35 +64,8 @@ module internal Foundation =
                 }
             )
 
-        match model.Distribution with
-        | DistributionModel.Classic(Distribution.Library(pkg, _, definition)) ->
-            definition.Modules
-            |> Map.toList
-            |> List.map (fun (path, modul) ->
-                path,
-                modul.Access = AccessControlled.Public,
-                modul.Value.Values
-                |> Map.toList
-                |> List.map fst
-            )
-            |> sources pkg
-        | DistributionModel.V4(Morphir.IR.V4.Library(pkg, _, definition)) ->
-            definition.Modules
-            |> Morphir.IR.V4.OrderedMap.toList
-            |> List.sortBy fst
-            |> List.map (fun (path, modul) ->
-                path,
-                modul.Access = Morphir.IR.V4.Public,
-                modul.Value.Values
-                |> Morphir.IR.V4.OrderedMap.toList
-                |> List.map fst
-            )
-            |> sources pkg
-        | _ ->
-            fail
-                "unsupported-distribution"
-                "$"
-                "Only admitted Library distributions can be generated."
+        let pkg, modules = Checks.moduleList model
+        sources pkg modules
 
 /// In-memory generation. The caller owns decoding, host configuration and publication.
 [<AbstractClass; Sealed>]

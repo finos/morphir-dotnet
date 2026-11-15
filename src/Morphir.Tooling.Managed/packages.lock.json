@@ -243,6 +243,7 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
+          "Morphir.Lang.CSharp": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
       },
@@ -372,6 +373,7 @@
           "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Lang.CSharp.Analyzers": "[1.0.0, )",
           "Morphir.Lang.CSharp.Attributes": "[1.0.0, )",
+          "Morphir.MiddleEnd": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
       },

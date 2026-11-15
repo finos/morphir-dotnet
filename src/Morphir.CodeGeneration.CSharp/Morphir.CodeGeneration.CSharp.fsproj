@@ -9,13 +9,10 @@ Reusable typed C# generation with explicit language profiles and located diagnos
   <ItemGroup>
     <PackageReference Include="FSharp.Core" />
     <ProjectReference Include="../Morphir.Models/Morphir.Models.fsproj" />
+    <!-- The type catalog, the lowering and the checks moved to Morphir.Lang.CSharp (tasks.md, 4.6); this project keeps the text emission. -->
+    <ProjectReference Include="../Morphir.Lang.CSharp/Morphir.Lang.CSharp.fsproj" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Types.fs" />
-    <Compile Include="TypeEmission.fs" />
-    <Compile Include="LiteralEmission.fs" />
-    <Compile Include="SdkMapping.fs" />
-    <Compile Include="ValueLowering.fs" />
     <Compile Include="ValueEmission.fs" />
     <Compile Include="Generator.fs" />
   </ItemGroup>

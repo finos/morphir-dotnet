@@ -160,7 +160,8 @@ public sealed class CompileTargetTests
     {
         using var workspace = Project();
         workspace.Write("gen/keep.txt", "not generated");
-        var narrow = new RecordingBackend("csharp", new BackendCapability(ModelFamily.V4, Morphir.Extensions.SourceFormatVersions.Create("4"), DistributionKind.Library));
+        // The backend reads classic version 3 only, so neither the model as written nor its upgrade to the current IR suits it.
+        var narrow = new RecordingBackend("csharp", new BackendCapability(ModelFamily.Classic, Morphir.Extensions.SourceFormatVersions.Create("3"), DistributionKind.Library));
         var run = await Compile(workspace, $"--json-lines {Inputs} --ir-version 1 --target csharp --generate-output gen",
             services => services.AddSingleton<IGenerationBackendResolver>(new RegisteredBackendResolver([narrow])));
 
@@ -174,7 +175,7 @@ public sealed class CompileTargetTests
         var diagnostic = report.GetProperty("diagnostics").EnumerateArray().Single(d => d.GetProperty("severity").GetString() == "error");
         diagnostic.GetProperty("code").GetString().Should().Be("incompatible-model");
         diagnostic.GetProperty("message").GetString().Should().Contain("fake.csharp", "the message names the backend")
-            .And.Contain("V4 4 Library", "and the capability that it declares")
+            .And.Contain("Classic 3 Library", "and the capability that it declares")
             .And.Contain("Classic 1 Library", "and the model");
         var ir = report.GetProperty("output").GetString();
         File.Exists(ir).Should().BeTrue("the compile output remains published");

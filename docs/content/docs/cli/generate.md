@@ -263,7 +263,10 @@ backend extension `backendTransport` and `backendVersion`, and `formatting` when
 `applied` (formatted), `off` (`format=false`) or `unavailable` (the host cannot run the formatter). Only a
 built-in backend reports it. An external backend (`backendTransport` `mep`) has no `formatting` member, even
 with `format=false`: a MEP generate result does not say whether the guest formatted, and the host does not report
-what it did not observe. Logs and warnings use stderr, never stdout.
+what it did not observe. When a built-in pass ran before the backend, the report has `passes`: the ids that ran, the
+application list with the node addresses before and after, and the reads of other modules. A pass error stops the
+command before the backend with exit code 1, and nothing is published. See [the middle end](../pipeline/middle-end.md).
+Logs and warnings use stderr, never stdout.
 Failed reports contain no successful artifact list. Parsed JSON-mode invocation
 errors also produce a report.
 

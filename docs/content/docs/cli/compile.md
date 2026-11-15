@@ -416,6 +416,7 @@ The report members are:
 | `diagnostics` | Every diagnostic of the run, ordered by stage, then document, then position. |
 | `failureKind` | `source`, `invocation`, `configuration`, `operational` or `cancelled`, or null. |
 | `origins` | Where each setting came from: `cli` with its `flag`, `configuration` with its `file` and `key`, or `default`. |
+| `passes` | Only when a pass ran after the frontend: the ids that ran, the application list (`rule`, `before` and `after` node addresses, and `origin` when the node has a source location) and the reads of other modules. See [the middle end](../pipeline/middle-end.md). |
 | `generation` | Only with `--target`: `target`, `backend` (null when selection failed), `output`, and the `generate` report members `sourceVersion`, `family`, `distributionKind`, `representation`, `artifacts`, `written`, `unchanged` and `removed`, and `formatting` when the backend reports it. |
 
 Diagnostics have the frontend (MEP) shape: `severity`, `code`, `message`, and optional `location` (a
@@ -583,7 +584,7 @@ stderr.
 | `completed` | `report` | The last line, exactly once. `report` is the report that `--json` writes. |
 
 The stages are `settings`, `sources`, `capture`, `frontend` (which builds the requested IR family),
-`write` and `publish`, and with `--target` also `generate` (model loading, backend selection, option
+`transform` (the passes of the stage after a frontend; it starts only when a pass has that stage), `write` and `publish`, and with `--target` also `generate` (model loading, backend selection, option
 validation and generation) and `generatePublish` (owned publication of the generated files). A stage that
 does not run has no records. All `diagnostics` records together hold
 the same diagnostics as the report. The records keep emission order; the report keeps stage, document and

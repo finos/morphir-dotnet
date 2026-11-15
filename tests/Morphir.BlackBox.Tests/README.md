@@ -103,6 +103,7 @@ two steps have the same pattern.
 | Generation | `Then the generation report has diagnostics` |
 | Generation | `Then the first diagnostic of the generation report has the code {string} and a location` |
 | Generation | `Then the generation report has no artifact` |
+| Generation | `Then the generation report lists the pass {string}` |
 | Generation | `Then the generation report has no written file and has unchanged files` |
 | Generation | `Then the generation report says that it removed only {string}` |
 | Generation | `Then each artifact of the generation report is a file of the output` |
@@ -385,6 +386,9 @@ two steps have the same pattern.
 | Compilation | `When I compile the project at the IR version {string}` |
 | Compilation | `When I compile its input files at the IR version {string}` |
 | Compilation | `When I compile the project with the project file {string}` |
+| Compilation | `Given the C# source file {string} of the package {string}` |
+| Compilation | `Given the C# source file {string} with a foreach loop, of the package {string}` |
+| Compilation | `When I compile the C# source file` |
 | Compilation | `When I compile the project` |
 | Compilation | `When I compile the project and install the IR to {string}` |
 | Compilation | `When I generate F# for the project from its last compile` |
@@ -491,6 +495,7 @@ two steps have the same pattern.
 | Extension list | `Then the extension {string} has the types {string}` |
 | Extension list | `Then the extension {string} has the delivery {string} and the hosts {string}` |
 | Extension list | `Then the extension {string} claims the validator IR versions {string}` |
+| Extension list | `Then the extension {string} claims the transform stage {string} and the target {string}` |
 | Extension list | `Then the extensions that are available in both hosts are equal in both lists` |
 | Extension worker | `When I ask the worker for its help as JSON` |
 | Extension worker | `When the worker serves {string} with the frames {string} and the arguments {string}` |

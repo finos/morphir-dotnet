@@ -31,5 +31,12 @@ Feature: Generate C# through the existing command
     When I generate "csharp" from the model
     Then generation exits with 1 and one JSON report
     And the first diagnostic of the generation report has the code "document-literal"
+    And the generation report has no member "passes"
     And the generation report has no artifact
     And the output directory is not there
+
+  Scenario: The pass before the C# backend is listed in the report
+    Given the model fixture "WireForms/daily-rate-4.json"
+    When I generate "csharp" from the model
+    Then generation exits with 0 and one JSON report
+    And the generation report lists the pass "morphir-dotnet.csharp.admission"

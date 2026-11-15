@@ -21,6 +21,15 @@ type FamilyModel =
         | Classic _ -> ModelFamily.Classic
         | V4 _ -> ModelFamily.V4
 
+    /// <summary>For C# callers: the model as a current-IR (V4) distribution, or null for a classic model.</summary>
+    member this.V4OrNull: V4.Distribution | null =
+        match this with
+        | V4 distribution -> distribution
+        | Classic _ -> null
+
+    /// <summary>For C# callers: a V4 model of a distribution.</summary>
+    static member OfV4(distribution: V4.Distribution) : FamilyModel = V4 distribution
+
     override this.ToString() =
         match this with
         | Classic _ -> "classic model"

@@ -77,6 +77,14 @@ public sealed class ExtensionListSteps(DriverSet drivers, ScenarioRun run, Other
             $"{id} claims the validator IR versions {(claimed is { } some ? string.Join(", ", some) : "(none)")}, not {versions}.");
     }
 
+    [Then("the extension {string} claims the transform stage {string} and the target {string}")]
+    public void TheExtensionClaimsTheTransform(string id, string stage, string target)
+    {
+        var entry = Report.Extension(id);
+        Expect(entry.TransformStage == stage && entry.TransformTarget == target,
+            $"{id} claims the transform stage {entry.TransformStage ?? "(none)"} and the target {entry.TransformTarget ?? "(none)"}, not {stage} and {target}.");
+    }
+
     [Then("the extensions that are available in both hosts are equal in both lists")]
     public void TheSharedExtensionsAreEqual()
     {

@@ -197,7 +197,14 @@ public sealed record ModelDescriptor(SourceFormatVersion Version, ModelFamily Fa
     public static ModelDescriptor From(VersionedModel model) => new(model.SourceVersion, model.Family, model.Kind);
 }
 
-public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original);
+public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original)
+{
+    /// <summary>
+    /// What an upgrade that ran on the input left: the pins of the input model and the records of the upgrade. Null when
+    /// the model is the input of the pipeline.
+    /// </summary>
+    public Morphir.Tooling.Features.Transform.ModelLineage? Lineage { get; init; }
+}
 
 public sealed record BackendCapability(ModelFamily Family, NonEmptySet<SourceFormatVersion> Versions, DistributionKind Kind)
 {

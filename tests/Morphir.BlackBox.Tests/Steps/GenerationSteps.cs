@@ -203,6 +203,15 @@ public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriv
         Check(!string.IsNullOrEmpty(Text("backendVersion")), "The generation report has no backend version.");
     }
 
+    [Then("the generation report lists the pass {string}")]
+    public void TheReportListsThePass(string id)
+    {
+        var ran = Report.Document.TryGetProperty("passes", out var passes) && passes.TryGetProperty("ran", out var list)
+            ? list.EnumerateArray().Select(item => item.GetString()).ToArray()
+            : [];
+        Check(ran.Contains(id), $"The generation report lists the passes {string.Join(", ", ran)}, not {id}.");
+    }
+
     [Then("the generation report has no member {string}")]
     public void TheReportHasNoMember(string member) => Check(!Report.Document.TryGetProperty(member, out _), $"The generation report has the member {member}.");
 

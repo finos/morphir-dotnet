@@ -21,6 +21,8 @@ public enum CompileStage
     Capture,
     /// <summary>Frontend selection and compilation, which builds the requested IR family.</summary>
     Frontend,
+    /// <summary>The passes of the stage after a frontend. The stage runs only when a pass is registered for it.</summary>
+    Transform,
     /// <summary>The IR writer of the requested format version.</summary>
     Write,
     /// <summary>Publication of the written IR.</summary>
@@ -41,6 +43,7 @@ public static class CompileStages
         CompileStage.Sources => "sources",
         CompileStage.Capture => "capture",
         CompileStage.Frontend => "frontend",
+        CompileStage.Transform => "transform",
         CompileStage.Write => "write",
         CompileStage.Publish => "publish",
         CompileStage.Generate => "generate",
@@ -276,6 +279,8 @@ public sealed record CompileSuccess(string Language, string Frontend, SourceForm
     public System.Text.Json.JsonElement? Provider { get; init; }
     /// <summary>The generation of <c>--target</c>, or null when no target was requested.</summary>
     public CompileGeneration? Generation { get; init; }
+    /// <summary>The passes that ran after the frontend, with their application list; null when no pass ran.</summary>
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
 }
 
 /// <summary>A failed compile. Its diagnostics travel on the events and the fold.</summary>

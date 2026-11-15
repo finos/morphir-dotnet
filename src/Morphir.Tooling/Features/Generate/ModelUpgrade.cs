@@ -44,7 +44,8 @@ internal static class ModelUpgrade
     /// <summary>Upgrades a loaded model to the current IR, or says why it cannot.</summary>
     internal static Outcome<LoadedModel> Upgrade(LoadedModel loaded)
     {
-        var input = new UpgradeInput(loaded.Model, ArtifactSelector.NewWorkspace("input"), SnapshotOf(loaded.Original));
+        var snapshot = SnapshotOf(loaded.Original);
+        var input = new UpgradeInput(loaded.Model, ArtifactSelector.NewWorkspace("input"), snapshot);
         var result = CurrentIr.Upgrade(input);
         if (!result.TryGetValue(out var outcome))
         {
@@ -55,6 +56,11 @@ internal static class ModelUpgrade
             return new Outcome<LoadedModel>.Failure(new GenerationFailure(GenerationFailureKind.Semantic, diagnostics));
         }
 
-        return new Outcome<LoadedModel>.Success(loaded with { Model = outcome.Model, Descriptor = ModelDescriptor.From(outcome.Model) with { RequiredSemantics = loaded.Descriptor.RequiredSemantics } });
+        return new Outcome<LoadedModel>.Success(loaded with
+        {
+            Model = outcome.Model,
+            Descriptor = ModelDescriptor.From(outcome.Model) with { RequiredSemantics = loaded.Descriptor.RequiredSemantics },
+            Lineage = new Transform.ModelLineage(input.Artifact, loaded.Model.SourceVersion.Version, snapshot, [.. outcome.Applications]),
+        });
     }
 }

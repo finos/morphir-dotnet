@@ -30,13 +30,13 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 
 ## 4. Middle-end contracts (MID-1)
 
-- [ ] 4.1 Add `CurrentModel`, the `IModelTransform` contract with the stage claim, and the `transform` extension type with its registry entries and `extension list` output. Write the registry tests first. Verify that a transform entry is a morphir-dotnet report member that is not mapped into MEP messages.
-- [ ] 4.2 Add the rewrite rule record, the rule catalog check (an example is necessary) and the engine with the bottom-up, top-down and fixed-point strategies and the round limit. Write failing tests for: example before and after, rule without an example, non-terminating rule set, replacement keeps its attributes, a second pass keeps the first origin. Verify the tests.
-- [ ] 4.3 Add the application log with the address before (pinned to the pipeline input) and after, the module-at-a-time walk and the recorded package view lookups, and report them with `--json`. Verify with a test that a rule that reads another module lists the lookup.
-- [ ] 4.4 Add the host check that each feature that a backend cannot take is removed by an earlier pass. Verify with a test that a remaining feature fails before the backend and names the feature.
-- [ ] 4.5 Run the passes in `morphir generate` (stage before a backend) and in `morphir compile` (stage after a frontend); skip them with one `info` diagnostic for an older family. Add BDD scenarios. Verify that a pass error stops before publication.
-- [ ] 4.6 Move the checks of the old C# backend (`ValueLowering.check` and the collision checks) into the first target-side pass for `csharp`. Verify that the old diagnostics are reported with the same rules, now from the pass.
-- [ ] 4.7 Document the pass contract, the rule catalog format and the application list in `docs/`. Verify that the documented example rule runs through the test harness as written.
+- [x] 4.1 Add `CurrentModel`, the `IModelTransform` contract with the stage claim, and the `transform` extension type with its registry entries and `extension list` output. Write the registry tests first. Verify that a transform entry is a morphir-dotnet report member that is not mapped into MEP messages.
+- [x] 4.2 Add the rewrite rule record, the rule catalog check (an example is necessary) and the engine with the bottom-up, top-down and fixed-point strategies and the round limit. Write failing tests for: example before and after, rule without an example, non-terminating rule set, replacement keeps its attributes, a second pass keeps the first origin. Verify the tests.
+- [x] 4.3 Add the application log with the address before (pinned to the pipeline input) and after, the module-at-a-time walk and the recorded package view lookups, and report them with `--json`. Verify with a test that a rule that reads another module lists the lookup.
+- [x] 4.4 Add the host check that each feature that a backend cannot take is removed by an earlier pass. Verify with a test that a remaining feature fails before the backend and names the feature.
+- [x] 4.5 Run the passes in `morphir generate` (stage before a backend) and in `morphir compile` (stage after a frontend); skip them with one `info` diagnostic for an older family. Add BDD scenarios. Verify that a pass error stops before publication.
+- [x] 4.6 Move the checks of the old C# backend (`ValueLowering.check` and the collision checks) into the first target-side pass for `csharp`. Verify that the old diagnostics are reported with the same rules, now from the pass.
+- [x] 4.7 Document the pass contract, the rule catalog format and the application list in `docs/`. Verify that the documented example rule runs through the test harness as written.
 
 ## 5. Backend on Roslyn (BKD-1, SUM-1, EQL-1)
 

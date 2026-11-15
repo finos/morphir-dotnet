@@ -9,7 +9,7 @@ Feature: List the extensions of the host
     Then the exit code is 0
     And standard output is one JSON document
     And the extension list names the host of the run
-    And the extension list has the ids "morphir-dotnet.fsharp, morphir.csharp, morphir.fsharp, morphir.type-validator"
+    And the extension list has the ids "morphir-dotnet.csharp, morphir-dotnet.csharp.admission, morphir-dotnet.fsharp, morphir.csharp, morphir.fsharp, morphir.type-validator"
     And each listed extension except "morphir-dotnet.fsharp" is available in the host
     And the in-process F# frontend is available exactly when the host has it
 
@@ -26,6 +26,13 @@ Feature: List the extensions of the host
     And the extension "morphir.type-validator" has the types "validator"
     And the extension "morphir.type-validator" has the delivery "built-in" and the hosts "morphir, dotnet-morphir"
     And the extension "morphir.type-validator" claims the validator IR versions "1, 2, 3"
+
+  Scenario: The C# admission checks are a built-in transform before the csharp backend
+    When I list the extensions as JSON
+    Then the exit code is 0
+    And the extension "morphir-dotnet.csharp.admission" has the types "transform"
+    And the extension "morphir-dotnet.csharp.admission" has the delivery "built-in" and the hosts "morphir, dotnet-morphir"
+    And the extension "morphir-dotnet.csharp.admission" claims the transform stage "before-backend" and the target "csharp"
 
   Scenario: The text table shows the validator claim
     When I list the extensions as text
