@@ -73,16 +73,12 @@ type CSharpBackend private () =
                 Modules.compile context pkg checkedValues publicModules.Contains
                 |> List.map (fun (path, unit) -> { RelativePath = path; Text = Format.render unit })
 
-            let needsPolyfill =
-                catalog
-                |> Map.exists (fun _ declaration ->
-                    match declaration.Definition with
-                    | TypeEmission.Cases _ -> true
-                    | _ -> false)
-
+            // Each generated assembly gets the polyfill file (PRD, D12): its types are behind guards, so it is the same for
+            // every target framework. The files of the model come first, in the order of their paths.
             let sources =
-                (if needsPolyfill then files @ [ { RelativePath = Polyfill.path; Text = Format.render Polyfill.unit } ] else files)
-                |> List.sortBy (fun source -> source.RelativePath)
+                match files |> List.sortBy (fun source -> source.RelativePath) with
+                | [] -> []
+                | sorted -> sorted @ [ { RelativePath = Polyfill.path; Text = Polyfill.text } ]
 
             ct.ThrowIfCancellationRequested()
             result GenerationStatus.Success sources []

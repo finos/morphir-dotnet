@@ -8,19 +8,6 @@ open Morphir.Compilation
 open Morphir.Lang.CSharp
 open Morphir.Lang.CSharp.Tests.BackendSupport
 
-/// The diagnostics with the severity error that Roslyn reports for the generated files, compiled as C# 15.
-let private compileErrors (files: Map<string, string>) : string list =
-    let documents =
-        [ for KeyValue(path, text) in files ->
-              ({ Uri = path; LanguageId = CSharpFrontend.languageId; Version = 0UL; Text = text }: SourceDocument) ]
-
-    match CSharpCompiler.compile documents with
-    | Error failure -> [ failure.Message ]
-    | Ok compiled ->
-        CSharpCompiler.compilerDiagnostics compiled CancellationToken.None
-        |> List.filter (fun diagnostic -> diagnostic.IsError)
-        |> List.map (fun diagnostic -> $"{diagnostic.CodeOrNull}: {diagnostic.Message}")
-
 let private expectCompiles (files: Map<string, string>) =
     Expect.equal (compileErrors files) [] "the generated code compiles as C# 15"
 
@@ -186,14 +173,29 @@ let tests =
             Expect.stringContains message "Price" "the custom type"
         }
 
-        test "the polyfill file is written only when the output has a closed record or a union" {
-            let withClosed = generate (library [ "prices", moduleOf [ "price", custom [] [ "quote", [ "value", floatT ] ] ] [] ])
-            Expect.isTrue (withClosed.ContainsKey "Morphir.Polyfill.g.cs") "closed record: the polyfill file"
-            Expect.stringContains withClosed["Morphir.Polyfill.g.cs"] "#if !NET11_0_OR_GREATER" "only below .NET 11"
-            Expect.stringContains withClosed["Morphir.Polyfill.g.cs"] "internal sealed class UnionAttribute" "the attribute"
-
+        test "each generated output has the polyfill file with the five types of the PRD behind their guards" {
             let plain = generate (library [ "pairs", moduleOf [ "point", alias [] (recordT [ "x", intT ]) ] [] ])
-            Expect.isFalse (plain.ContainsKey "Morphir.Polyfill.g.cs") "plain record: no polyfill file"
+            Expect.isTrue (plain.ContainsKey "Morphir.Polyfill.g.cs") "a model with only records also gets the polyfill file"
+            let text = plain["Morphir.Polyfill.g.cs"]
+
+            let guarded (guard: string) (declaration: string) =
+                let at = text.IndexOf("#if " + guard + "\n")
+                Expect.isGreaterThanOrEqual at 0 $"the guard {guard}"
+                let close = text.IndexOf("#endif", at)
+                let inside = text.Substring(at, close - at)
+                Expect.stringContains inside declaration $"{declaration} is behind {guard}"
+
+            guarded "!NET5_0_OR_GREATER" "internal static class IsExternalInit"
+            guarded "!NET7_0_OR_GREATER" "internal sealed class CompilerFeatureRequiredAttribute"
+            guarded "!NET7_0_OR_GREATER" "public CompilerFeatureRequiredAttribute(string featureName)"
+            guarded "!NET11_0_OR_GREATER" "internal sealed class UnionAttribute"
+            guarded "!NET11_0_OR_GREATER" "internal interface IUnion"
+            guarded "!NET11_0_OR_GREATER" "internal sealed class IsClosedTypeAttribute"
+            Expect.stringContains text "namespace System.Runtime.CompilerServices" "the namespace of the runtime types"
+            Expect.equal text Morphir.Polyfill.Source "the same text that the frontend adds to its compilation"
+
+            let withClosed = generate (library [ "prices", moduleOf [ "price", custom [] [ "quote", [ "value", floatT ] ] ] [] ])
+            Expect.equal withClosed["Morphir.Polyfill.g.cs"] text "the file is the same for every model"
         }
 
         test "each arm of a switch expression and its closing brace are on a line of their own" {

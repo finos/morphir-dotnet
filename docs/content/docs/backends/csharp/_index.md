@@ -61,10 +61,17 @@ class gets a trailing underscore.
 
 ### The polyfill file
 
-`closed` and `union` need runtime types that exist from .NET 11. When the output has a closed record or a union, the
-backend writes the file `Morphir.Polyfill.g.cs` with `internal` copies of `UnionAttribute`, `IUnion` and
-`IsClosedTypeAttribute`, behind `#if !NET11_0_OR_GREATER`. The file is the same for every target framework, and it is
-absent when the output has neither form.
+C# 15 output needs runtime types that an older target framework does not have. Each generated output has the file
+`Morphir.Polyfill.g.cs` with `internal` copies of these types, each group behind its guard:
+
+| Type | Guard |
+| --- | --- |
+| `IsExternalInit` | `#if !NET5_0_OR_GREATER` |
+| `CompilerFeatureRequiredAttribute` | `#if !NET7_0_OR_GREATER` |
+| `UnionAttribute`, `IUnion`, `IsClosedTypeAttribute` | `#if !NET11_0_OR_GREATER` |
+
+The file is the same for every model and every target framework. It is also the text that `morphir compile` adds to the
+compilation of a C# model.
 
 ## Equality
 

@@ -132,6 +132,15 @@ let private documentsOf (files: Map<string, string>) : Morphir.Compilation.Sourc
           if path <> "Morphir.Polyfill.g.cs" then
               ({ Uri = path; LanguageId = Morphir.Lang.CSharp.CSharpFrontend.languageId; Version = 0UL; Text = text }: Morphir.Compilation.SourceDocument) ]
 
+/// The diagnostics with the severity error that Roslyn reports for the generated files, compiled as C# 15.
+let compileErrors (files: Map<string, string>) : string list =
+    match Morphir.Lang.CSharp.CSharpCompiler.compile (documentsOf files) with
+    | Error failure -> [ failure.Message ]
+    | Ok compiled ->
+        Morphir.Lang.CSharp.CSharpCompiler.compilerDiagnostics compiled CancellationToken.None
+        |> List.filter (fun diagnostic -> diagnostic.IsError)
+        |> List.map (fun diagnostic -> $"{diagnostic.CodeOrNull}: {diagnostic.Message}")
+
 /// Compiles the files as C# 15 and calls a static method of a type with the arguments. The generated code runs for real.
 let run (files: Map<string, string>) (typeName: string) (methodName: string) (arguments: objnull list) : string =
     let documents = documentsOf files

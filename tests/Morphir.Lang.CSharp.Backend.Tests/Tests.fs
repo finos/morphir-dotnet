@@ -150,7 +150,7 @@ let hostSmoke model =
         )
 
     Expect.isEmpty diagnostics "generator diagnostics"
-    Expect.equal (completed.GetRunResult().GeneratedTrees.Length) 1 "AddSource called"
+    Expect.equal (completed.GetRunResult().GeneratedTrees.Length) 2 "AddSource called for the model file and the polyfill file"
     use stream = new IO.MemoryStream()
     let emitted = output.Emit(stream)
     Expect.isTrue emitted.Success (String.Join("\n", emitted.Diagnostics))
@@ -170,7 +170,8 @@ let executeConsumer model language consumer =
             MetadataReference.CreateFromFile(runtime) :> MetadataReference
         |]
 
-    let trees = [ for source in result.Sources -> CSharpSyntaxTree.ParseText(source.Text) ]
+    // The test compiles against the running .NET, which has the polyfill types, so the polyfill file is left out.
+    let trees = [ for source in result.Sources do if source.RelativePath <> "Morphir.Polyfill.g.cs" then CSharpSyntaxTree.ParseText(source.Text) ]
 
     let trees =
         CSharpSyntaxTree.ParseText(consumer: string)
@@ -208,6 +209,7 @@ let externalDiagnostics model (consumer: string) =
 
     let trees =
         result.Sources
+        |> List.filter (fun source -> source.RelativePath <> "Morphir.Polyfill.g.cs")
         |> List.map (fun source -> CSharpSyntaxTree.ParseText(source.Text))
 
     let library =

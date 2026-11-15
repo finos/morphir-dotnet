@@ -7,18 +7,6 @@ open Morphir.Lang.CSharp.Tests.BackendSupport
 
 let private nan = System.Double.NaN
 
-let private compileErrorsOf (files: Map<string, string>) : string list =
-    let documents =
-        [ for KeyValue(path, text) in files ->
-              ({ Uri = path; LanguageId = Morphir.Lang.CSharp.CSharpFrontend.languageId; Version = 0UL; Text = text }: Morphir.Compilation.SourceDocument) ]
-
-    match Morphir.Lang.CSharp.CSharpCompiler.compile documents with
-    | Error failure -> [ failure.Message ]
-    | Ok compiled ->
-        Morphir.Lang.CSharp.CSharpCompiler.compilerDiagnostics compiled System.Threading.CancellationToken.None
-        |> List.filter (fun diagnostic -> diagnostic.IsError)
-        |> List.map (fun diagnostic -> $"{diagnostic.CodeOrNull}: {diagnostic.Message}")
-
 let private add = sdkRef "basics#add"
 let private subtract = sdkRef "basics#subtract"
 let private multiply = sdkRef "basics#multiply"
@@ -182,6 +170,6 @@ let equalityTests =
             Expect.stringContains text "operator ==" "the operator =="
             Expect.stringContains text "operator !=" "the operator !="
             Expect.stringContains text "MorphirEquals" "the Morphir equality member"
-            Expect.equal (compileErrorsOf files) [] "the union with its members compiles"
+            Expect.equal (compileErrors files) [] "the union with its members compiles"
         }
     ]

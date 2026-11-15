@@ -66,7 +66,8 @@ let compile result consumer =
         |> Array.distinct
         |> Array.map (fun path -> MetadataReference.CreateFromFile(path) :> MetadataReference)
 
-    let sources = [ for source in result.Sources -> CSharpSyntaxTree.ParseText(source.Text) ]
+    // The test compiles against the running .NET, which has the polyfill types, so the polyfill file is left out.
+    let sources = [ for source in result.Sources do if source.RelativePath <> "Morphir.Polyfill.g.cs" then CSharpSyntaxTree.ParseText(source.Text) ]
 
     let compilation =
         CSharpCompilation.Create(
