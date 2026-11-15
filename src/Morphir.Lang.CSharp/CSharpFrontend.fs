@@ -62,7 +62,13 @@ module CSharpFrontend =
                         check {
                             let! plan = Planning.plan request.Package request.ExposedModules compiled cancellationToken
                             let! builder = builders.Resolve request.Output.Family
-                            let! model = builder.Build(PackageLowering plan)
+                            let! built = builder.Build(PackageLowering plan)
+
+                            // The current IR carries the class of a type parameter on its type variables (EQL-2).
+                            let model =
+                                match built with
+                                | FamilyModel.V4 distribution -> FamilyModel.V4(TypeParameterClasses.apply plan distribution)
+                                | other -> other
 
                             return {
                                 Model = model

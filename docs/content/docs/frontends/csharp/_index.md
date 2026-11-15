@@ -95,6 +95,33 @@ The frontend refuses a type that it cannot give in full, so no type or field is 
 | `csharp.unsupported_record_member` | A record member that is not a field: a computed property, a method, a field, or a property of a positional record outside its parameters. |
 | `csharp.unsupported_static_member` | A member of a static class that is not a method, a constant or a nested type, for example a static property or a `static readonly` field. |
 
+### Value classes of type parameters
+
+A type parameter of a method can have a value class, as a type variable of Elm core has: `equality`, `comparable` or
+`number`. The frontend finds the class from two sources. The first source that gives a class wins:
+
+1. The .NET constraints of the type parameter. `IEquatable<T>` and `IEqualityOperators<T, T, bool>` give `equality`.
+   `IComparable<T>` and `IComparisonOperators<T, T, bool>` give `comparable`. `INumber<T>` gives `number`.
+2. The uses in the body on values of the type parameter. `==`, `!=`, `Equals`, `Basics.Equal`, `Basics.NotEqual` and
+   `EqualityComparer<T>.Default` give `equality`. `CompareTo` and `Comparer<T>.Default` give `comparable`.
+
+The type variable keeps the name of the type parameter: `TKey` is `key`. The frontend writes the class in the
+`extensions` of the type attributes of each type variable of the signature, as
+`{"morphir-dotnet": {"classes": ["comparable"]}}`. The C# backend reads it (see
+[Generic functions]({{< relref "/docs/backends/csharp#generic-functions" >}})). So the C# that the backend writes for a generic
+function comes back with the same class.
+
+```csharp
+public static TKey Max<TKey>(TKey a, TKey b) where TKey : IComparable<TKey> => Basics.Max(a, b);
+```
+
+The model has `max : key -> key -> key`, and each `key` has the class `comparable`.
+
+The frontend lowers `==` on values of a type parameter with `IEqualityOperators<T, T, bool>` as `Basics.equal`. It does
+not lower the calls `Equals`, `CompareTo`, `EqualityComparer<T>.Default.Equals` and `Comparer<T>.Default.Compare`:
+they give `csharp.unsupported_reference`. Use `Basics.Equal` and `Basics.Compare`. An explicit class on a type parameter
+(an attribute or a key in `morphir.toml`) is not available yet.
+
 ## Values
 
 A static method of a static class, and a `const` field, becomes a value. The frontend lowers these constructs:

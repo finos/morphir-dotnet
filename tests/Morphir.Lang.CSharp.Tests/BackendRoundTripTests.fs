@@ -89,9 +89,61 @@ let private typeNames (distribution: Distribution) : string list =
                   yield moduleName + "." + String.concat "-" (Name.toList name) + ": " + typeDefinitionText definition.Value.Value ]
     | _ -> []
 
+/// The class words on each type variable of the signature of each value, as the carrier of EQL-2 gives them.
+let private carriersText (distribution: Distribution) : string list =
+    match distribution with
+    | Library(_, _, definition) ->
+        [ for _, access in OrderedMap.toList definition.Modules |> List.sortBy fst do
+              for name, value in OrderedMap.toList access.Value.Values |> List.sortBy fst do
+                  let found =
+                      FrontendValueClassTests.occurrences value.Value.Value
+                      |> List.map (fun (variable, classes) -> variable + ":" + String.concat "," classes)
+
+                  yield String.concat "-" (Name.toList name) + " " + String.concat " " found ]
+    | _ -> []
+
 [<Tests>]
 let tests =
     testList "C# backend on Roslyn: IR to C# to IR" [
+        test "a generic function of each value class comes back with its class in the carrier" {
+            let classified = BackendValueClassTests.classified
+            let comparable = classified "comparable" [ "comparable" ]
+            let number = classified "number" [ "number" ]
+            let a = classified "a" [ "equality" ]
+
+            let model =
+                library
+                    [ "generic",
+                      moduleOf
+                          []
+                          [ "maximum", definition [ "x", comparable; "y", comparable ] comparable (call2 (sdkRef "basics#max") (variable "x") (variable "y"))
+                            "twice", definition [ "x", number ] number (call2 (sdkRef "basics#add") (variable "x") (variable "x"))
+                            "same", definition [ "x", a; "y", a ] boolT (call2 (sdkRef "basics#equal") (variable "x") (variable "y")) ] ]
+
+            let original = distributionOf model
+            let back = throughCSharp model
+            Expect.equal (valuesText back) (valuesText original) "the same values"
+            Expect.equal (carriersText back) (carriersText original) "the same classes on each type variable"
+
+            Expect.equal
+                (carriersText original)
+                [ "maximum comparable:comparable comparable:comparable comparable:comparable"
+                  "same A:equality A:equality"
+                  "twice number:number number:number" ]
+                "the model has a carrier on each type variable"
+        }
+
+        test "a generic function with no carrier generates, and the frontend writes the class of its constraint" {
+            let comparable = variableT "comparable"
+
+            let model =
+                library [ "generic", moduleOf [] [ "maximum", definition [ "x", comparable; "y", comparable ] comparable (call2 (sdkRef "basics#max") (variable "x") (variable "y")) ] ]
+
+            let back = throughCSharp model
+            Expect.equal (valuesText back) (valuesText (distributionOf model)) "the same values"
+            Expect.equal (carriersText back) [ "maximum comparable:comparable comparable:comparable comparable:comparable" ] "the class of where TComparable : IComparable<TComparable>"
+        }
+
         test "types and values come back from the C# of the backend" {
             let model =
                 library
