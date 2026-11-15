@@ -49,10 +49,24 @@ module internal Modules =
 
         build below
 
+    /// <summary>Whether a public module is at or below the node.</summary>
+    let rec private holdsPublic (isPublic: ModulePath -> bool) (node: ClassNode) : bool =
+        node.Module |> Option.exists isPublic || node.Children |> List.exists (holdsPublic isPublic)
+
+    /// <summary>
+    /// The static class of a node. The class of a module has the access of the module. A class with no module of its own is
+    /// public when a public module is below it, so that a consumer can reach that module.
+    /// </summary>
     let rec private staticClass (context: Context) checkedValues (isPublic: ModulePath -> bool) (node: ClassNode) : MemberDeclarationSyntax =
         let own = node.Module |> Option.map (moduleMembers context checkedValues) |> Option.defaultValue []
         let nested = node.Children |> List.map (staticClass context checkedValues isPublic)
-        let accessKind = if node.Module |> Option.exists isPublic then SyntaxKind.PublicKeyword else SyntaxKind.InternalKeyword
+
+        let visible =
+            match node.Module with
+            | Some path -> isPublic path
+            | None -> holdsPublic isPublic node
+
+        let accessKind = if visible then SyntaxKind.PublicKeyword else SyntaxKind.InternalKeyword
 
         SF.ClassDeclaration(Cs.token node.Name)
             .WithModifiers(Cs.modifiers [ accessKind; SyntaxKind.StaticKeyword ])

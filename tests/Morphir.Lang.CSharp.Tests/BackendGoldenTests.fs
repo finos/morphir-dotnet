@@ -81,6 +81,25 @@ let tests =
             expectCompiles files
         }
 
+        test "a class between a static-class module and a public module below it is public, also with no module of its own" {
+            let files =
+                generate (
+                    library
+                        [ "pricing", moduleOf [] [ "base", definition [] intT (int 1) ]
+                          "pricing/rules/discounts", moduleOf [] [ "rate", definition [] intT (int 2) ] ]
+                )
+
+            let text = files["p_Acme.Geo/m_PricingModule.g.cs"]
+            Expect.stringContains text "    public static class Rules\n" "the class Rules has no module, and a public module is below it"
+            let assembly = load files
+
+            match assembly.GetType "Acme.Geo.Pricing+Rules" with
+            | null -> failtest "no class Rules"
+            | rules -> Expect.isTrue rules.IsNestedPublic "a consumer can reach Pricing.Rules.Discounts"
+
+            expectCompiles files
+        }
+
         test "a generic record keeps its type parameters and their notnull constraint" {
             let files = generate (library [ "pairs", moduleOf [ "pair", alias [ "a"; "b" ] (recordT [ "first", variableT "a"; "second", variableT "b" ]) ] [] ])
 

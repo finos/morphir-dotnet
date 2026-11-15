@@ -46,7 +46,7 @@ The rules that give this shape:
 | --- | --- |
 | A module that has only types, with no module above it that has values | A namespace. Its types stand in the namespace. |
 | A module that has values | A `static class` named after the module, in the namespace of the modules above it. Its types are nested in it. |
-| A module below a module that has values | A nested `static class`, also when it has only types. |
+| A module below a module that has values | A nested `static class`, also when it has only types. A class between the two that has no module of its own is `public` when a public module is below it. |
 | A record alias | `sealed record Name(Type Field, ...)`, with `where T : notnull` for each type parameter. |
 | A custom type in which each constructor has one argument that is a reference with the local name of the constructor | `union Name(Case1, Case2)` |
 | Any other custom type | `closed record Name` with one `sealed record Case(...) : Name` for each constructor |
