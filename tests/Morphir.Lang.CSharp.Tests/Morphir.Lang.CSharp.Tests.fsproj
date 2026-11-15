@@ -41,6 +41,7 @@
         <Compile Include="BackendGoldenTests.fs" />
         <Compile Include="BackendValueTests.fs" />
         <Compile Include="BackendDocsTests.fs" />
+        <Compile Include="BackendRoundTripTests.fs" />
         <Compile Include="ConformanceTests.fs" />
         <Compile Include="CoveragePageTests.fs" />
         <Compile Include="Program.fs" />

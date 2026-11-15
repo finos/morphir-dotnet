@@ -81,6 +81,17 @@ module internal Planning =
 
     let private comparer = SymbolEqualityComparer.Default
 
+    /// <summary>
+    /// The Morphir name of a type parameter. By C# convention a type parameter has the prefix <c>T</c> before a word that starts
+    /// with a capital letter (<c>TKey</c>), and the backend writes the type parameter <c>a</c> as <c>TA</c>. The prefix is not part
+    /// of the Morphir name. A type parameter that is only <c>T</c> keeps its name.
+    /// </summary>
+    let typeParameterName (name: string) : Name =
+        if name.Length > 1 && name[0] = 'T' && System.Char.IsUpper name[1] then
+            Name.fromString (name.Substring 1)
+        else
+            Name.fromString name
+
     let private newIndex<'T> () = Dictionary<ISymbol, 'T>(comparer)
 
     let private namesOf (symbol: INamespaceSymbol) : Name list =
@@ -274,7 +285,7 @@ module internal Planning =
                         if Name.isEmpty typeName then
                             diagnostics.Add(nameFailure location symbol.Name)
                         else
-                            let parameters = [ for p in symbol.TypeParameters -> Name.fromString p.Name ]
+                            let parameters = [ for p in symbol.TypeParameters -> typeParameterName p.Name ]
 
                             let kind =
                                 match symbol.TypeKind with

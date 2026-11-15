@@ -104,6 +104,8 @@ two steps have the same pattern.
 | Generation | `Then the first diagnostic of the generation report has the code {string} and a location` |
 | Generation | `Then the generation report has no artifact` |
 | Generation | `Then the generation report lists the pass {string}` |
+| Generation | `When I generate {string} from the model on the other host` |
+| Generation | `Then the files that both hosts generated are the same` |
 | Generation | `Then the generation report has no written file and has unchanged files` |
 | Generation | `Then the generation report says that it removed only {string}` |
 | Generation | `Then each artifact of the generation report is a file of the output` |

@@ -49,3 +49,11 @@ Feature: Generate C# through the existing command
     When I generate "csharp" from the model
     Then generation exits with 0 and one JSON report
     And the generation report lists the pass "morphir-dotnet.csharp.admission"
+
+  @needs-all-hosts
+  Scenario: Both hosts write the same C# bytes
+    Given the model fixture "WireForms/daily-rate-4.json"
+    When I generate "csharp" from the model
+    And I generate "csharp" from the model on the other host
+    Then generation exits with 0 and one JSON report
+    And the files that both hosts generated are the same

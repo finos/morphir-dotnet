@@ -99,7 +99,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
     member this.Type(at: Morphir.Compilation.Location, t: ITypeSymbol) : Checked<'Type> =
         match t with
         | null -> builder.TypeUnit at
-        | :? ITypeParameterSymbol as parameter -> builder.TypeVariable(at, nameOf parameter.Name)
+        | :? ITypeParameterSymbol as parameter -> builder.TypeVariable(at, Planning.typeParameterName parameter.Name)
         | :? IArrayTypeSymbol -> unsupported "array" at "A C# array has no Morphir type. Use a list."
         | :? INamedTypeSymbol as named ->
             if named.IsTupleType then
