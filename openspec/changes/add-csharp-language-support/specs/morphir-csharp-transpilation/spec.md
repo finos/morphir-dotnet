@@ -132,6 +132,24 @@ The backend SHALL write the Morphir equality members to a record or a union only
 - **WHEN** the IEEE option is on for a record
 - **THEN** the record has the four members and a `NaN` field makes two records unequal
 
+### Requirement: Value classes of type variables
+
+The backend SHALL write `where T : IComparable<T>` for a type variable of the class `comparable` and `where T : INumber<T>` for one of the class `number`. It SHALL take the class from the IR carrier, else from the first word of the name. It SHALL refuse a generic function over `appendable` or `compappend` with `unsupported-appendable`.
+
+#### Scenario: Generic comparable function
+
+- **WHEN** a model has `maximum : comparable -> comparable -> comparable`
+- **THEN** the C# method has `where TComparable : IComparable<TComparable>` and a program that calls it gives the model result
+
+### Requirement: Equality on function types fails at generation time
+
+The backend SHALL infer equality for a type variable that reaches an equality, and SHALL refuse with `unsupported-equality` an equality on a type that holds a function, also through a type variable, a closed-base field or a union case.
+
+#### Scenario: Function through a type variable
+
+- **WHEN** a generic function compares two values of a type variable with `==`, and a caller gives it a record with a function field
+- **THEN** generation fails with `unsupported-equality` at the call, and the message names the path to the function type
+
 ## REMOVED Requirements
 
 ### Requirement: Compiler-host reuse evidence

@@ -148,6 +148,20 @@ C# identifiers SHALL map to Morphir names by splitting PascalCase and camelCase 
 - **WHEN** a method is named `CalculateTotal`
 - **THEN** the Morphir name is `calculate-total`
 
+### Requirement: Value classes of type parameters
+
+The frontend SHALL find the class of a type parameter from an explicit statement, from its .NET constraints, and from the type-checked uses in its body. It SHALL keep the name of the type parameter and SHALL write the class in the `extensions` of the type attributes of each type variable of the signature, as `{"morphir-dotnet": {"classes": [...]}}`.
+
+#### Scenario: Constraints and uses
+
+- **WHEN** a type parameter has `IEquatable<T>` or `IEqualityOperators<T, T, bool>`, or its values meet `==`, `Equals` or `EqualityComparer<T>.Default`
+- **THEN** it has the class `equality`; `IComparable<T>`, `IComparisonOperators<T, T, bool>`, `CompareTo` and `Comparer<T>.Default` give `comparable`, and `INumber<T>` gives `number`
+
+#### Scenario: Comparable constraint
+
+- **WHEN** a method has `TKey Max<TKey>(TKey a, TKey b) where TKey : IComparable<TKey>`
+- **THEN** the model has the type variable `key`, and its type attributes carry the class `comparable`
+
 ### Requirement: Values carry inferred types and source locations
 
 Every lowered value and pattern node SHALL carry its C# type as a Morphir type and the source range from which it was lowered. A replacement node of a later pass SHALL keep that range.
