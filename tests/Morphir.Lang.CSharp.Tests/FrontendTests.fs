@@ -81,12 +81,13 @@ let contract =
           }
 
           test "a warning accompanies the model" {
-              let result = compileSource "namespace Acme.Trading.Domain;\npublic sealed record Quote(string Name);\npublic static class M { public static int F() { string? s = null; return s.Length; } }\n"
-              // The nullable warning keeps the model out of the way of the admission rules? It gives a result with warnings only
-              // when the body is lowerable; the body uses a member that has no Morphir mapping, so this source fails later.
-              // The warning itself is what this test pins: the compile warning comes first.
-              let diagnostics = Checked.diagnostics result
-              Expect.isTrue (diagnostics |> List.exists (fun d -> Diagnostic.code d = Some CSharpCodes.compiler && not d.IsError)) "a compiler warning"
+              let result =
+                  compileSource "namespace Acme.Trading.Domain;\npublic sealed record Quote(string? Name);\npublic static class M { public static string F(Quote q) => q.Name; }\n"
+
+              Expect.isSome (Checked.tryValue result) "the model"
+              let warnings = Checked.diagnostics result |> List.filter (fun d -> Diagnostic.code d = Some CSharpCodes.compiler && not d.IsError)
+              Expect.isNonEmpty warnings "the nullable warning"
+              Expect.stringContains (string (Diagnostic.data warnings.Head).Value) "CS8603" "a possible null return"
           }
 
           test "the same input gives the same result twice" {

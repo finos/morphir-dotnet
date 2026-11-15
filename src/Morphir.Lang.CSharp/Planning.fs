@@ -177,9 +177,7 @@ module internal Planning =
     /// and a record without parameters has only public auto-properties. Any other member, such as a computed property or
     /// a method, would be lost, so it is refused.
     /// </summary>
-    let private recordMemberRefusals (compiled: Compiled) (declaration: RecordDeclarationSyntax) =
-        let positional = not (isNull declaration.ParameterList)
-
+    let private recordMemberRefusals (compiled: Compiled) (declaration: RecordDeclarationSyntax) (positional: bool) =
         [ for member' in declaration.Members do
               let refuse (what: string) =
                   refusal
@@ -236,8 +234,16 @@ module internal Planning =
                           declaration
                           $"The record '{symbol.Name}' inherits from '{symbol.BaseType.Name}'. A Morphir record has no base: give every field to the record itself."
 
+              // A partial record has its parameters in one part, and those parameters are the fields of every part.
+              let positional =
+                  symbol.DeclaringSyntaxReferences
+                  |> Seq.exists (fun reference ->
+                      match reference.GetSyntax() with
+                      | :? RecordDeclarationSyntax as part -> not (isNull part.ParameterList)
+                      | _ -> false)
+
               match declaration with
-              | :? RecordDeclarationSyntax as record -> yield! recordMemberRefusals compiled record
+              | :? RecordDeclarationSyntax as record -> yield! recordMemberRefusals compiled record positional
               | _ -> ()
           elif symbol.IsStatic && symbol.TypeKind = TypeKind.Class then
               match declaration with
@@ -319,11 +325,29 @@ module internal Planning =
         for _, declaration, symbol in declarations do
             diagnostics.AddRange(shapeRefusals compiled declaration symbol)
 
+        // One entry for each type: the parts of a partial type are one declaration. The part with the parameter list of a
+        // record comes first, because its parameters are the fields; otherwise the first part in source order.
+        let types =
+            let seen = HashSet<ISymbol>(comparer)
+
+            [ for _, _, symbol in declarations do
+                  if seen.Add symbol then
+                      let parts = declarations |> List.filter (fun (_, _, other) -> comparer.Equals(other, symbol))
+
+                      let positional =
+                          parts
+                          |> List.tryFind (fun (_, declaration, _) ->
+                              match declaration with
+                              | :? RecordDeclarationSyntax as record -> not (isNull record.ParameterList)
+                              | _ -> false)
+
+                      yield Option.defaultValue (List.head parts) positional ]
+
         // The cases of each closed record, in source order.
         let casesOf =
             let table = Dictionary<ISymbol, ResizeArray<INamedTypeSymbol * RecordDeclarationSyntax * SemanticModel>>(comparer)
 
-            for model, declaration, symbol in declarations do
+            for model, declaration, symbol in types do
                 match declaration, symbol.BaseType with
                 | (:? RecordDeclarationSyntax as record), (null | _ as baseType) when not (isNull baseType) && baseType.IsClosed ->
                     let key = baseType.OriginalDefinition :> ISymbol
@@ -342,7 +366,10 @@ module internal Planning =
             not (isNull symbol.BaseType)
             && symbol.BaseType.IsClosed
 
-        for model, declaration, symbol in declarations do
+        // The constructors of each module so far, to find two with one Morphir name.
+        let constructorsOf = Dictionary<ModulePath * Name, PlannedCase * INamedTypeSymbol>()
+
+        for model, declaration, symbol in types do
             let location = locationOf compiled declaration
 
             // A type is planned when it sits directly in a namespace or in a static class. Case records are
@@ -391,13 +418,18 @@ module internal Planning =
                                         symbol.GetMembers()
                                         |> Seq.choose (function
                                             | :? IFieldSymbol as field when field.HasConstantValue ->
+                                                let memberLocation =
+                                                    match field.DeclaringSyntaxReferences |> Seq.tryHead with
+                                                    | Some reference -> locationOf compiled (reference.GetSyntax())
+                                                    | None -> location
+
                                                 Some
                                                     {
                                                         Symbol = field
                                                         Name = Name.fromString field.Name
                                                         Fields = []
                                                         FieldLocations = []
-                                                        Location = location
+                                                        Location = memberLocation
                                                     }
                                             | _ -> None)
                                         |> List.ofSeq
@@ -472,8 +504,22 @@ module internal Planning =
                                     match kind with
                                     | CustomType constructors ->
                                         for case in constructors do
-                                            constructorNames[case.Symbol.OriginalDefinition] <-
-                                                (FQName.fqName package path case.Name, case)
+                                            match constructorsOf.TryGetValue((path, case.Name)) with
+                                            | true, (first, firstType) ->
+                                                diagnostics.Add(
+                                                    Diagnostic.error
+                                                        CSharpCodes.nameCollision
+                                                        $"The constructors '{first.Symbol.Name}' of '{firstType.Name}' and '{case.Symbol.Name}' of '{symbol.Name}' have the same Morphir name in one module."
+                                                    |> Diagnostic.at case.Location
+                                                    |> Diagnostic.withRelated (
+                                                        ({ Location = first.Location; Message = "The first declaration." }: RelatedInformation)
+                                                    )
+                                                )
+                                            | _ ->
+                                                constructorsOf[(path, case.Name)] <- (case, symbol)
+
+                                                constructorNames[case.Symbol.OriginalDefinition] <-
+                                                    (FQName.fqName package path case.Name, case)
                                     | RecordAlias _ -> ()
             | _ -> ()
 

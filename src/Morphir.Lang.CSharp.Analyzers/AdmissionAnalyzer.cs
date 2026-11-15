@@ -89,6 +89,20 @@ public sealed class AdmissionAnalyzer : DiagnosticAnalyzer
             return;
         }
 
+        // A deconstruction declaration such as `var (a, b) = t` declares new locals. It changes a value only when one of
+        // its targets is a local, a parameter or a member that exists before it.
+        if (operation is IDeconstructionAssignmentOperation deconstruction)
+        {
+            var changed = Targets(deconstruction.Target).FirstOrDefault(target => !IsDeclaration(target));
+            if (changed is null)
+            {
+                return;
+            }
+
+            context.ReportDiagnostic(Diagnostic.Create(Rules.Mutation.Descriptor, operation.Syntax.GetLocation(), NameOf(changed, operation)));
+            return;
+        }
+
         var target = operation switch
         {
             IAssignmentOperation assignment => assignment.Target,
@@ -96,17 +110,28 @@ public sealed class AdmissionAnalyzer : DiagnosticAnalyzer
             _ => null,
         };
 
-        var name = target switch
-        {
-            ILocalReferenceOperation local => local.Local.Name,
-            IParameterReferenceOperation parameter => parameter.Parameter.Name,
-            IMemberReferenceOperation member => member.Member.Name,
-            IArrayElementReferenceOperation => "array element",
-            _ => operation.Syntax.ToString(),
-        };
-
-        context.ReportDiagnostic(Diagnostic.Create(Rules.Mutation.Descriptor, operation.Syntax.GetLocation(), name));
+        context.ReportDiagnostic(Diagnostic.Create(Rules.Mutation.Descriptor, operation.Syntax.GetLocation(), NameOf(target, operation)));
     }
+
+    private static string NameOf(IOperation? target, IOperation operation) => target switch
+    {
+        ILocalReferenceOperation local => local.Local.Name,
+        IParameterReferenceOperation parameter => parameter.Parameter.Name,
+        IMemberReferenceOperation member => member.Member.Name,
+        IArrayElementReferenceOperation => "array element",
+        _ => operation.Syntax.ToString(),
+    };
+
+    /// <summary>The single targets of a deconstruction: the elements of each tuple, and the variable of each declaration.</summary>
+    private static System.Collections.Generic.IEnumerable<IOperation> Targets(IOperation target) => target switch
+    {
+        IDeclarationExpressionOperation declaration => Targets(declaration.Expression),
+        ITupleOperation tuple => tuple.Elements.SelectMany(Targets),
+        _ => new[] { target },
+    };
+
+    private static bool IsDeclaration(IOperation target) =>
+        target is IDiscardOperation or ILocalReferenceOperation { IsDeclaration: true };
 
     private static void ReportDynamicOperation(OperationAnalysisContext context) =>
         context.ReportDiagnostic(Diagnostic.Create(Rules.Dynamic.Descriptor, context.Operation.Syntax.GetLocation()));
@@ -118,9 +143,9 @@ public sealed class AdmissionAnalyzer : DiagnosticAnalyzer
             return true;
         }
 
-        var name = assembly.Name;
-        return name is "mscorlib" or "netstandard" or "System" or "Morphir.SDK.CSharp" or "Morphir.Lang.CSharp.Attributes"
-            || name.StartsWith("System.", StringComparison.Ordinal);
+        // A name test, not a test of a prefix: a NuGet package such as System.Reactive has a System name too, and
+        // `morphir compile` cannot bind it.
+        return FixedReferenceSet.Contains(assembly.Name);
     }
 
     private static void ReportOutsideReference(OperationAnalysisContext context, IAssemblySymbol own)

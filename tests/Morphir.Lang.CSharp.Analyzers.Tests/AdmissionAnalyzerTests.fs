@@ -8,6 +8,26 @@ open Morphir.Lang.CSharp.Analyzers.Tests.AnalyzerSupport
 
 let private ids source = diagnose source |> List.map (fun (id, _, _) -> id)
 
+/// The analyzer diagnostics of a model that calls <c>Helper.One()</c> of a second assembly with the given name.
+let private callInto (assemblyName: string) =
+    let other =
+        Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+            assemblyName,
+            [ Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText "public static class Helper { public static int One() => 1; }" ],
+            references,
+            Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary)
+        )
+
+    let main =
+        Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
+            "model",
+            [ Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText "static class M { static int F() => Helper.One(); }" ],
+            Seq.append references [ other.ToMetadataReference() ],
+            Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary)
+        )
+
+    diagnoseWith true main |> List.map (fun (id, _, _) -> id)
+
 let private onlyRule (rule: AdmissionRule) source =
     Expect.isEmpty (compileErrors source) "the source is valid C#"
     Expect.equal (ids source) [ rule.Id ] $"exactly one {rule.Id}"
@@ -76,26 +96,22 @@ let tests =
                 }
 
                 test "a type from an assembly outside the reference set is refused" {
-                    // System.Text.Json is a framework assembly name that starts with System, so it is allowed; a call into
-                    // the compilation of another assembly is not. The test builds a second assembly named Acme.Other.
-                    let other =
-                        Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
-                            "Acme.Other",
-                            [ Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText "public static class Helper { public static int One() => 1; }" ],
-                            references,
-                            Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary)
-                        )
+                    Expect.equal (callInto "Acme.Other") [ Rules.OutsideReference.Id ] "the call into Acme.Other is refused"
+                }
 
-                    let main =
-                        Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create(
-                            "model",
-                            [ Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText "static class M { static int F() => Helper.One(); }" ],
-                            Seq.append references [ other.ToMetadataReference() ],
-                            Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(Microsoft.CodeAnalysis.OutputKind.DynamicallyLinkedLibrary)
-                        )
+                test "a package with a System name outside the reference set is refused" {
+                    // System.Reactive is a NuGet package, not a framework assembly: morphir compile cannot bind it.
+                    Expect.equal (callInto "System.Reactive") [ Rules.OutsideReference.Id ] "the call into System.Reactive is refused"
+                }
 
-                    let found = diagnoseWith true main |> List.map (fun (id, _, _) -> id)
-                    Expect.equal found [ Rules.OutsideReference.Id ] "the call into Acme.Other is refused"
+                test "a deconstruction declaration is not a mutation" {
+                    let source = "static class M { static int F((int, int) t) { var (a, b) = t; (int c, var d) = t; return a + b + c + d; } }"
+                    Expect.isEmpty (compileErrors source) "valid C#"
+                    Expect.isEmpty (ids source) "it declares new locals"
+                }
+
+                test "a deconstruction into a local that exists is a mutation" {
+                    onlyRule Rules.Mutation "static class M { static int F((int, int) t) { var a = 0; (a, var b) = t; return a + b; } }"
                 } ]
 
           testList

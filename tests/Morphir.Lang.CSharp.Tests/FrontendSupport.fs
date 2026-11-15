@@ -143,6 +143,8 @@ let rec renderValue (v: Value) : string =
         let arms = cases |> List.map (fun (p, b) -> renderPattern p + " => " + renderValue b)
         "(match " + renderValue subject + " with " + join " | " arms + ")"
     | Value.UpdateRecord(_, target, items) -> "(update " + renderValue target + " " + fields items + ")"
+    | Value.Destructure(_, p, subject, inValue) ->
+        "(let " + renderPattern p + " = " + renderValue subject + " in " + renderValue inValue + ")"
     | Value.Unit _ -> "()"
     | other -> string other
 
@@ -153,6 +155,12 @@ let private findValue (distribution: Distribution) (modulePath: string) (name: s
         match modul.Values |> OrderedMap.toList |> List.tryFind (fun (n, _) -> simple n = name) with
         | None -> failtest ("No value " + name + " in " + modulePath)
         | Some(_, access) -> access.Value.Value
+
+/// The body of a value of a module.
+let valueBody (distribution: Distribution) (modulePath: string) (name: string) : Value =
+    match (findValue distribution modulePath name).Body with
+    | ExpressionBody(_, body) -> body
+    | _ -> failtest "not an expression body"
 
 /// The body of a value of a module, in text form.
 let valueText (distribution: Distribution) (modulePath: string) (name: string) : string =

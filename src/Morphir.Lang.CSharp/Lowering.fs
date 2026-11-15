@@ -86,6 +86,21 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
         | OperationKind.CompoundAssignment -> "mutation"
         | _ -> "expression"
 
+    /// <summary>
+    /// The words that name a construct in a message. They come from the source text, not from the name of a Roslyn
+    /// enum, so a message is the same in every host: a construct that starts with a keyword is named by the keyword,
+    /// and any other construct by the start of its text.
+    /// </summary>
+    let describe (what: string) (syntax: SyntaxNode) =
+        let first = syntax.GetFirstToken()
+
+        if SyntaxFacts.IsKeywordKind(first.Kind()) then
+            $"'{first.ValueText}' {what}"
+        else
+            let text = System.String.Join(" ", syntax.ToString().Split([| ' '; '\t'; '\r'; '\n' |], System.StringSplitOptions.RemoveEmptyEntries))
+            let shown = if text.Length > 40 then text.Substring(0, 40) + "..." else text
+            $"{what} '{shown}'"
+
     let rune (c: char) = Rune c
 
     let nameOf (name: string) = Name.fromString name
@@ -204,6 +219,31 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
         | :? bool as b -> Checked.pass (LiteralValue.Bool b)
         | _ -> unsupported "literal" at $"The constant of type '{t.ToDisplayString()}' has no Morphir literal."
 
+    /// <summary>The pattern of a constant: a literal, or an enum member as a constructor with no arguments.</summary>
+    member private this.ConstantPattern(at: Morphir.Compilation.Location, value: IOperation, inputType: ITypeSymbol) : Checked<'Pattern> =
+        // An enum member has a constant value too, so the enum test comes first: the member is a constructor, not its number.
+        let isEnum = not (isNull value.Type) && value.Type.TypeKind = TypeKind.Enum
+
+        if not isEnum && value.ConstantValue.HasValue && not (isNull value.ConstantValue.Value) then
+            check {
+                let! t = this.Type(at, inputType)
+                let! literal = this.LiteralOf(at, value.ConstantValue.Value, inputType)
+                return! builder.PatternLiteral(at, t, literal)
+            }
+        elif isEnum then
+            match value with
+            | :? IFieldReferenceOperation as field ->
+                match plan.ConstructorNames.TryGetValue field.Field.OriginalDefinition with
+                | true, (fq, _) ->
+                    check {
+                        let! t = this.Type(at, inputType)
+                        return! builder.PatternConstructor(at, t, fq, [])
+                    }
+                | _ -> unsupportedReference at (field.Field.ToDisplayString())
+            | _ -> unsupported "pattern" at "The constant pattern is not a literal or an enum member."
+        else
+            unsupported "pattern" at "The constant pattern is not a literal or an enum member."
+
     member this.Pattern(env: Env, pattern: IPatternOperation) : Checked<'Pattern * Env> =
         let at = locate pattern.Syntax
         let inferred () = this.Type(at, pattern.NarrowedType)
@@ -282,31 +322,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             | None -> unsupported "pattern" at $"The type pattern '{typePattern.MatchedType.ToDisplayString()}' is not a case of a custom type."
 
         | :? IConstantPatternOperation as constant ->
-            // An enum member has a constant value too, so the enum test comes first: the member is a constructor, not its number.
-            let isEnum = not (isNull constant.Value.Type) && constant.Value.Type.TypeKind = TypeKind.Enum
-
-            if not isEnum && constant.Value.ConstantValue.HasValue && not (isNull constant.Value.ConstantValue.Value) then
-                check {
-                    let! t = this.Type(at, pattern.InputType)
-                    let! literal = this.LiteralOf(at, constant.Value.ConstantValue.Value, pattern.InputType)
-                    let! p = builder.PatternLiteral(at, t, literal)
-                    return p, env
-                }
-            elif isEnum then
-                // An enum constant: a constructor pattern with no arguments.
-                match constant.Value with
-                | :? IFieldReferenceOperation as field ->
-                    match plan.ConstructorNames.TryGetValue field.Field.OriginalDefinition with
-                    | true, (fq, _) ->
-                        check {
-                            let! t = this.Type(at, pattern.InputType)
-                            let! p = builder.PatternConstructor(at, t, fq, [])
-                            return p, env
-                        }
-                    | _ -> unsupportedReference at (field.Field.ToDisplayString())
-                | _ -> unsupported "pattern" at "The constant pattern is not a literal or an enum member."
-            else
-                unsupported "pattern" at "The constant pattern is not a literal or an enum member."
+            this.ConstantPattern(at, constant.Value, pattern.InputType) |> Checked.map (fun p -> p, env)
 
         | :? IRecursivePatternOperation as recursive when recursive.NarrowedType.IsTupleType ->
             // A positional pattern on a tuple.
@@ -534,7 +550,9 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     return! builder.List(at, inferred, items)
                 }
             | :? IParenthesizedOperation as parenthesized -> this.Value(env, parenthesized.Operand)
-            | _ -> unsupported (slugOf operation) at $"The C# construct '{operation.Syntax.Kind()}' is not in the Morphir subset."
+            | _ ->
+                let construct = describe "expression" operation.Syntax
+                unsupported (slugOf operation) at $"The C# {construct} is not in the Morphir subset."
 
     member private this.Variable(env: Env, at, name: string, t: ITypeSymbol) : Checked<'Value> =
         match Map.tryFind name env with
@@ -639,8 +657,9 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             | parameter -> parameter.Ordinal
 
         let arguments = [ for a in invocation.Arguments |> Seq.sortBy ordinal -> a.Value ]
-        let parameters = [ for p in target.OriginalDefinition.Parameters -> p.Type ]
-        let result = target.OriginalDefinition.ReturnType
+        // The types of this call: a generic method has its type arguments here, so `Id(3)` has the type Int, not T.
+        let parameters = [ for p in target.Parameters -> p.Type ]
+        let result = target.ReturnType
 
         let lowerArguments () =
             arguments |> Checked.traverse (fun a -> this.Value(env, a))
@@ -785,26 +804,30 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
         let body =
             match lambda.Body with
             | null -> unsupported "lambda" at "The lambda has no body."
-            | block -> this.Statements(env', symbol.ReturnType, List.ofSeq block.Operations)
+            | block -> this.Statements(env', symbol.ReturnType, List.ofSeq block.Operations, at)
 
         body |> Checked.bind (wrap parameters)
 
-    /// <summary>Lowers a list of statements that ends in a return: declarations become lets, ifs become conditionals.</summary>
-    member this.Statements(env: Env, result: ITypeSymbol, statements: IOperation list) : Checked<'Value> =
+    /// <summary>
+    /// Lowers a list of statements that ends in a return: declarations become lets, deconstructions become destructures,
+    /// ifs become conditionals and switch statements become pattern matches. A list that ends before a return is refused
+    /// at <c>endAt</c>, the end of the block that holds it.
+    /// </summary>
+    member this.Statements(env: Env, result: ITypeSymbol, statements: IOperation list, endAt: Morphir.Compilation.Location) : Checked<'Value> =
         match statements with
-        | [] -> unsupported "missing_return" fallback "A method body must end with a return."
+        | [] -> unsupported "missing_return" endAt "A method body must end with a return."
         | first :: rest ->
             let at = locate first.Syntax
 
             match first with
             | :? IReturnOperation as return' when not (isNull return'.ReturnedValue) -> this.Value(env, return'.ReturnedValue)
-            | :? IBlockOperation as block -> this.Statements(env, result, List.ofSeq block.Operations @ rest)
+            | :? IBlockOperation as block -> this.Statements(env, result, List.ofSeq block.Operations @ rest, endAt)
             | :? IVariableDeclarationGroupOperation as group ->
                 let declarators = [ for declaration in group.Declarations do yield! declaration.Declarators ]
 
                 let rec bind (env: Env) (items: IVariableDeclaratorOperation list) : Checked<'Value> =
                     match items with
-                    | [] -> this.Statements(env, result, rest)
+                    | [] -> this.Statements(env, result, rest, endAt)
                     | declarator :: tail ->
                         let local = declarator.Symbol
                         let dat = locate declarator.Syntax
@@ -822,8 +845,10 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                             }
 
                 bind env declarators
+            | :? IExpressionStatementOperation as statement when (statement.Operation :? IDeconstructionAssignmentOperation) ->
+                this.Deconstruction(env, at, result, statement.Operation :?> IDeconstructionAssignmentOperation, rest, endAt)
             | :? IConditionalOperation as conditional ->
-                let branch (operation: IOperation) = this.Statements(env, result, [ operation ])
+                let branch (operation: IOperation) = this.Statements(env, result, [ operation ], locate operation.Syntax)
 
                 check {
                     let! condition = this.Value(env, conditional.Condition)
@@ -831,13 +856,157 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
                     let! whenFalse =
                         match conditional.WhenFalse with
-                        | null -> this.Statements(env, result, rest)
+                        | null -> this.Statements(env, result, rest, endAt)
                         | other -> branch other
 
                     let! inferred = this.Type(at, result)
                     return! builder.IfThenElse(at, inferred, condition, whenTrue, whenFalse)
                 }
-            | _ -> unsupported (slugOf first) at $"The C# statement '{first.Syntax.Kind()}' is not in the Morphir subset."
+            | :? ISwitchOperation as switch -> this.SwitchStatement(env, at, result, switch, rest, endAt)
+            | _ ->
+                let construct = describe "statement" first.Syntax
+                unsupported (slugOf first) at $"The C# {construct} is not in the Morphir subset."
+
+    /// <summary>
+    /// A deconstruction declaration such as <c>var (a, b) = t;</c>: a destructure of the tuple with a tuple pattern, and the
+    /// statements after it as the body. Only a tuple can be deconstructed: the <c>Deconstruct</c> method of a record has
+    /// no Morphir pattern.
+    /// </summary>
+    member private this.Deconstruction
+        (env: Env, at, result: ITypeSymbol, deconstruction: IDeconstructionAssignmentOperation, rest: IOperation list, endAt)
+        : Checked<'Value> =
+        let rec target (env: Env) (operation: IOperation) (valueType: ITypeSymbol) : Checked<'Pattern * Env> =
+            let tat = locate operation.Syntax
+
+            match operation with
+            | :? IDeclarationExpressionOperation as declaration -> target env declaration.Expression valueType
+            | :? IDiscardOperation ->
+                this.Type(tat, valueType)
+                |> Checked.bind (fun t -> builder.PatternWildcard(tat, t))
+                |> Checked.map (fun p -> p, env)
+            | :? ILocalReferenceOperation as local when local.IsDeclaration ->
+                if not (SymbolEqualityComparer.Default.Equals(local.Local.Type, valueType)) then
+                    unsupported
+                        "conversion"
+                        tat
+                        $"The conversion from '{valueType.ToDisplayString()}' to '{local.Local.Type.ToDisplayString()}' is not in the Morphir subset."
+                else
+                    check {
+                        let! t = this.Type(tat, valueType)
+                        let! w = builder.PatternWildcard(tat, t)
+                        let! p = builder.PatternAs(tat, t, w, nameOf local.Local.Name)
+                        return p, Map.add local.Local.Name Plain env
+                    }
+            | :? ITupleOperation as tuple when valueType.IsTupleType ->
+                let elementTypes = [ for element in (valueType :?> INamedTypeSymbol).TupleElements -> element.Type ]
+
+                let rec walk (env: Env) (items: (IOperation * ITypeSymbol) list) (done': 'Pattern list) =
+                    match items with
+                    | [] -> Checked.pass (List.rev done', env)
+                    | (item, itemType) :: tail -> target env item itemType |> Checked.bind (fun (p, env') -> walk env' tail (p :: done'))
+
+                check {
+                    let! t = this.Type(tat, valueType)
+                    let! elements, env' = walk env (List.zip (List.ofSeq tuple.Elements) elementTypes) []
+                    let! p = builder.PatternTuple(tat, t, elements)
+                    return p, env'
+                }
+            | _ ->
+                unsupported
+                    "deconstruction"
+                    tat
+                    $"The deconstruction of '{valueType.ToDisplayString()}' is not in the Morphir subset. Only a tuple can be deconstructed."
+
+        let value = deconstruction.Value
+
+        if isNull value.Type || not value.Type.IsTupleType then
+            let shown = if isNull value.Type then "this value" else value.Type.ToDisplayString()
+
+            unsupported
+                "deconstruction"
+                at
+                $"The deconstruction of '{shown}' is not in the Morphir subset. Only a tuple can be deconstructed: read the fields of a record by name."
+        else
+            check {
+                let! subject = this.Value(env, value)
+                let! pattern, env' = target env deconstruction.Target value.Type
+                let! inValue = this.Statements(env', result, rest, endAt)
+                let! inferred = this.Type(at, result)
+                return! builder.Destructure(at, inferred, pattern, subject, inValue)
+            }
+
+    /// <summary>
+    /// A <c>switch</c> statement whose sections each end with a return: a pattern match. The arms keep the order of the
+    /// cases, and the <c>default</c> section is the last arm, because C# tests it last. With no <c>default</c>, the
+    /// statements after the switch are the last arm.
+    /// </summary>
+    member private this.SwitchStatement
+        (env: Env, at, result: ITypeSymbol, switch: ISwitchOperation, rest: IOperation list, endAt)
+        : Checked<'Value> =
+        let inputType = switch.Value.Type
+
+        let wildcard (wat: Morphir.Compilation.Location) =
+            this.Type(wat, inputType) |> Checked.bind (fun t -> builder.PatternWildcard(wat, t))
+
+        let returns (section: ISwitchCaseOperation) =
+            match Seq.tryLast section.Body with
+            | Some(:? IBranchOperation) -> false
+            | _ -> true
+
+        let arm (section: ISwitchCaseOperation) (clause: ICaseClauseOperation) : Checked<'Pattern * 'Value> =
+            let sat = locate section.Syntax
+            let cat = locate clause.Syntax
+
+            let body (armEnv: Env) =
+                if returns section then
+                    this.Statements(armEnv, result, List.ofSeq section.Body, sat)
+                else
+                    unsupported "missing_return" sat "Each section of a 'switch' statement must end with a return."
+
+            match clause with
+            | :? IDefaultCaseClauseOperation ->
+                check {
+                    let! p = wildcard cat
+                    let! value = body env
+                    return p, value
+                }
+            | :? IPatternCaseClauseOperation as patternClause when not (isNull patternClause.Guard) ->
+                unsupported "guard" cat "A 'when' guard on a switch case is not in the Morphir subset."
+            | :? IPatternCaseClauseOperation as patternClause ->
+                check {
+                    let! p, armEnv = this.Pattern(env, patternClause.Pattern)
+                    let! value = body armEnv
+                    return p, value
+                }
+            | :? ISingleValueCaseClauseOperation as single ->
+                check {
+                    let! p = this.ConstantPattern(cat, single.Value, inputType)
+                    let! value = body env
+                    return p, value
+                }
+            | _ -> unsupported "pattern" cat "This kind of switch case is not in the Morphir subset."
+
+        let clauses = [ for section in switch.Cases do for clause in section.Clauses -> section, clause ]
+        let isDefault (_, clause: ICaseClauseOperation) = clause :? IDefaultCaseClauseOperation
+
+        let last: Checked<('Pattern * 'Value) list> =
+            match clauses |> List.filter isDefault with
+            | [] when List.isEmpty rest -> unsupported "missing_return" endAt "A method body must end with a return."
+            | [] ->
+                check {
+                    let! p = wildcard at
+                    let! value = this.Statements(env, result, rest, endAt)
+                    return [ p, value ]
+                }
+            | defaults -> defaults |> Checked.traverse (fun (section, clause) -> arm section clause)
+
+        check {
+            let! subject = this.Value(env, switch.Value)
+            and! cases = clauses |> List.filter (isDefault >> not) |> Checked.traverse (fun (section, clause) -> arm section clause)
+            and! last = last
+            let! inferred = this.Type(at, result)
+            return! builder.PatternMatch(at, inferred, subject, cases @ last)
+        }
 
     // ----- definitions -----
 
@@ -859,12 +1028,16 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 | null ->
                     match model.GetOperation(declaration) with
                     | :? IMethodBodyOperation as methodBody when not (isNull methodBody.BlockBody) ->
-                        this.Statements(env, method'.ReturnType, List.ofSeq methodBody.BlockBody.Operations)
+                        let endAt =
+                            CSharpCompiler.locationOfToken compiled declaration.Body.CloseBraceToken
+                            |> Option.defaultValue at
+
+                        this.Statements(env, method'.ReturnType, List.ofSeq methodBody.BlockBody.Operations, endAt)
                     | _ -> unsupported "method_body" at "The method has no body that Morphir can read."
                 | _ ->
                     match model.GetOperation(declaration) with
                     | :? IMethodBodyOperation as methodBody when not (isNull methodBody.ExpressionBody) ->
-                        this.Statements(env, method'.ReturnType, List.ofSeq methodBody.ExpressionBody.Operations)
+                        this.Statements(env, method'.ReturnType, List.ofSeq methodBody.ExpressionBody.Operations, at)
                     | _ -> unsupported "method_body" at "The method has no body that Morphir can read."
 
             // Each type is located at its own syntax in the declaration, not at the whole method.

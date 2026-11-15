@@ -143,10 +143,15 @@ module internal CSharpCompiler =
         |> List.tryFind (fun source -> obj.ReferenceEquals(source.Tree, tree))
         |> Option.map (fun source -> source.Document.Uri)
 
-    /// <summary>The location of a node or token, or None for the polyfill tree.</summary>
+    /// <summary>The location of a node, or None for the polyfill tree.</summary>
     let locationOfNode (compiled: Compiled) (node: SyntaxNode) : Morphir.Compilation.Location option =
         uriOf compiled node.SyntaxTree
         |> Option.map (fun uri -> locate uri (node.GetLocation().GetLineSpan()))
+
+    /// <summary>The location of a token, or None for the polyfill tree.</summary>
+    let locationOfToken (compiled: Compiled) (token: SyntaxToken) : Morphir.Compilation.Location option =
+        uriOf compiled token.SyntaxTree
+        |> Option.map (fun uri -> locate uri (token.GetLocation().GetLineSpan()))
 
     let private dataOf (id: string) =
         use document = JsonDocument.Parse(JsonSerializer.Serialize(dict [ "id", id ]))
@@ -178,20 +183,38 @@ module internal CSharpCompiler =
     let private counts (admission: bool) (diagnostic: Microsoft.CodeAnalysis.Diagnostic) =
         not diagnostic.IsSuppressed || admission || List.contains diagnostic.Id escalated
 
+    /// <summary>
+    /// Puts diagnostics in document order: the document, the start and the end of the span. The id and the message
+    /// then decide between two diagnostics at one span, because the analyzers run at the same time and report in any order.
+    /// </summary>
     let private ordered (compiled: Compiled) (items: (Morphir.Compilation.Diagnostic * Microsoft.CodeAnalysis.Diagnostic) list) =
         let rank (diagnostic: Microsoft.CodeAnalysis.Diagnostic) =
-            match diagnostic.Location.SourceTree with
-            | null -> -1, 0
-            | tree ->
-                let index =
-                    compiled.Sources
-                    |> List.tryFindIndex (fun source -> obj.ReferenceEquals(source.Tree, tree))
-                    |> Option.defaultValue Int32.MaxValue
+            let index, span =
+                match diagnostic.Location.SourceTree with
+                | null -> -1, (0, 0)
+                | tree ->
+                    let index =
+                        compiled.Sources
+                        |> List.tryFindIndex (fun source -> obj.ReferenceEquals(source.Tree, tree))
+                        |> Option.defaultValue Int32.MaxValue
 
-                index, diagnostic.Location.SourceSpan.Start
+                    index, (diagnostic.Location.SourceSpan.Start, diagnostic.Location.SourceSpan.End)
+
+            index, span, diagnostic.Id, diagnostic.GetMessage()
 
         items
-        |> List.sortBy (fun (_, original) -> rank original)
+        |> List.sortWith (fun (_, a) (_, b) ->
+            let (indexA, spanA, idA, messageA), (indexB, spanB, idB, messageB) = rank a, rank b
+
+            match compare indexA indexB with
+            | 0 ->
+                match compare spanA spanB with
+                | 0 ->
+                    match String.CompareOrdinal(idA, idB) with
+                    | 0 -> String.CompareOrdinal(messageA, messageB)
+                    | order -> order
+                | order -> order
+            | order -> order)
         |> List.map fst
 
     /// <summary>The C# compiler diagnostics (code <c>csharp.compiler</c>), in document order. Hidden ones are left out.</summary>
@@ -216,31 +239,44 @@ module internal CSharpCompiler =
         |> List.ofSeq
         |> ordered compiled
 
-    /// <summary>The refusals of the admission analyzer, with the code of each rule, in document order.</summary>
-    let admissionDiagnostics (compiled: Compiled) (cancellationToken: CancellationToken) : Morphir.Compilation.Diagnostic list =
+    /// <summary>
+    /// The diagnostics of the given analyzers, in document order. A diagnostic of an admission rule has the code of the
+    /// rule. Any other diagnostic, for example <c>AD0001</c> when an analyzer fails, is a <c>csharp.compiler</c> error
+    /// with its id in the data: the analyzer did not finish, so the frontend does not know whether the source is admitted.
+    /// </summary>
+    let analyzerDiagnostics
+        (analyzers: DiagnosticAnalyzer list)
+        (compiled: Compiled)
+        (cancellationToken: CancellationToken)
+        : Morphir.Compilation.Diagnostic list =
         let analyzerOptions = AnalyzerOptions(ImmutableArray<AdditionalText>.Empty, ModelOptionsProvider())
 
         let withAnalyzers =
             compiled.Compilation.WithAnalyzers(
-                ImmutableArray.Create<DiagnosticAnalyzer>(AdmissionAnalyzer()),
+                ImmutableArray.CreateRange<DiagnosticAnalyzer>(analyzers),
                 CompilationWithAnalyzersOptions(analyzerOptions, null, true, false, true)
             )
 
         withAnalyzers.GetAnalyzerDiagnosticsAsync(cancellationToken).GetAwaiter().GetResult()
         |> Seq.filter (fun diagnostic -> isUserLocation diagnostic && counts true diagnostic)
-        |> Seq.choose (fun diagnostic ->
-            match Rules.TryGetById diagnostic.Id with
-            | true, rule ->
-                let made =
-                    Morphir.Compilation.Diagnostic.error (DiagnosticCode.Create rule.Code) (diagnostic.GetMessage())
+        |> Seq.map (fun diagnostic ->
+            let made =
+                match Rules.TryGetById diagnostic.Id with
+                | true, rule -> Morphir.Compilation.Diagnostic.error (DiagnosticCode.Create rule.Code) (diagnostic.GetMessage())
+                | _ ->
+                    Morphir.Compilation.Diagnostic.error CSharpCodes.compiler (diagnostic.GetMessage())
+                    |> Morphir.Compilation.Diagnostic.withData (dataOf diagnostic.Id)
 
-                let located =
-                    match place compiled diagnostic with
-                    | Some location -> Morphir.Compilation.Diagnostic.at location made
-                    | None -> made
+            let located =
+                match place compiled diagnostic with
+                | Some location -> Morphir.Compilation.Diagnostic.at location made
+                | None -> made
 
-                Some(located, diagnostic)
-            | _ -> None
+            located, diagnostic
         )
         |> List.ofSeq
         |> ordered compiled
+
+    /// <summary>The refusals of the admission analyzer, with the code of each rule, in document order.</summary>
+    let admissionDiagnostics (compiled: Compiled) (cancellationToken: CancellationToken) : Morphir.Compilation.Diagnostic list =
+        analyzerDiagnostics [ AdmissionAnalyzer() ] compiled cancellationToken
