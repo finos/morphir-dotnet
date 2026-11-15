@@ -199,7 +199,7 @@ public sealed class CompileTargetTests
         report.RootElement.GetProperty("failureKind").GetString().Should().Be("invocation");
         report.RootElement.GetProperty("generation").GetProperty("backend").GetString().Should().Be("morphir.csharp");
         report.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString())
-            .Should().Contain("invalid-backend-option");
+            .Should().Contain("unsupported-language");
         Directory.Exists(workspace.PathOf("gen2")).Should().BeFalse();
     }
 
