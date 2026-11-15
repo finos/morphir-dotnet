@@ -179,6 +179,19 @@
         "resolved": "1.1.1",
         "contentHash": "MalY0Y/uM/LjXtHfX/26l2VtN4LDNZ2OE3aumNOHDLsT4fNYy2hiHXI4CXCqKpNUNm7iJ2brrc4J89UdaL56FA=="
       },
+      "Microsoft.CodeAnalysis.Analyzers": {
+        "type": "Transitive",
+        "resolved": "5.9.0",
+        "contentHash": "jMNOo+uoBGiWbZ6Wx0dqU93r5WD4P5WnIRZdoz67RP5N09OUetHgAbo4L7hihOH1NHdD2TgW5/l+SP4gQukwww=="
+      },
+      "Microsoft.CodeAnalysis.Common": {
+        "type": "Transitive",
+        "resolved": "5.12.0",
+        "contentHash": "0C7o9ys497xp0kZ64sL7C6nY/5WPQlxia28VlezdonBmjxbC6mIovAYs8mBoh/QooxBBZQCo/wMuZnV1kNk9GA==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Analyzers": "5.9.0"
+        }
+      },
       "Microsoft.Diagnostics.NETCore.Client": {
         "type": "Transitive",
         "resolved": "0.2.607501",
@@ -610,6 +623,24 @@
           "Morphir.Models": "[1.0.0, )"
         }
       },
+      "morphir.lang.csharp": {
+        "type": "Project",
+        "dependencies": {
+          "Basic.Reference.Assemblies.Net100": "[1.8.15, )",
+          "FSharp.Core": "[10.1.403, )",
+          "Microsoft.CodeAnalysis.CSharp": "[5.12.0, )",
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.Lang.CSharp.Analyzers": "[1.0.0, )",
+          "Morphir.Lang.CSharp.Attributes": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.lang.csharp.analyzers": {
+        "type": "Project"
+      },
+      "morphir.lang.csharp.attributes": {
+        "type": "Project"
+      },
       "morphir.mep": {
         "type": "Project",
         "dependencies": {
@@ -673,6 +704,7 @@
           "Morphir.Extensions.Wasm": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
+          "Morphir.Lang.CSharp": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )",
           "Morphir.Toolchain.IO": "[1.0.0, )",
           "Serilog": "[4.4.0, )",
@@ -680,6 +712,15 @@
           "Serilog.Sinks.Console": "[6.1.1, )",
           "Spectre.Console": "[0.57.2, )",
           "System.CommandLine": "[2.0.15, )"
+        }
+      },
+      "Basic.Reference.Assemblies.Net100": {
+        "type": "CentralTransitive",
+        "requested": "[1.8.15, )",
+        "resolved": "1.8.15",
+        "contentHash": "29NC0bVEAwySKJdpZy2BEMowDTPZT5VE5Emii7AIK23Leg3FoYe09IF9vs4jmmvlHNFXSdhScLPTcqTTq7YwGg==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Common": "4.11.0"
         }
       },
       "BouncyCastle.Cryptography": {
@@ -816,6 +857,16 @@
         "requested": "[5.0.0-beta-77, )",
         "resolved": "5.0.0-beta-77",
         "contentHash": "zVBqn2alHIDTOSjgWDUo31irEg59ZfM6T8e24UcUn6o/F+5Qr0jRjGPp2LzME7PHyKh+crK+boBmdCAFguwqjw=="
+      },
+      "Microsoft.CodeAnalysis.CSharp": {
+        "type": "CentralTransitive",
+        "requested": "[5.12.0, )",
+        "resolved": "5.12.0",
+        "contentHash": "6W6vBcpQFjlxog+KUGNM2fFy+XA2StC1PtnkEkechk68vFy3a28tGjEdnoA7NrxhMdr8a+zh/AmiUtBAmdkQPg==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Analyzers": "5.9.0",
+          "Microsoft.CodeAnalysis.Common": "[5.12.0]"
+        }
       },
       "Microsoft.Extensions.Configuration": {
         "type": "CentralTransitive",

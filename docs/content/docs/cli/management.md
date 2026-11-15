@@ -365,7 +365,7 @@ release as `{"kind": "github-release", …, "revision": "<sha256 of release.json
 ### extension list
 
 List the extensions that this host knows, and say which offering of morphir-dotnet is running and what it needs from
-the machine. Today the extensions are the built-in F# frontend of `morphir compile`, the built-in generators of
+the machine. Today the extensions are the built-in C# and F# frontends of `morphir compile`, the built-in generators of
 `morphir generate` and the built-in analyzers of [`morphir validate`](validate.md).
 
 ```bash
@@ -373,6 +373,7 @@ $ morphir extension list
 ╭────────────────────────┬────────────────┬─────────┬─────────────────────┬──────────┬─────────────────────────╮
 │ ID                     │ NAME           │ VERSION │ TYPES               │ DELIVERY │ HOSTS                   │
 ├────────────────────────┼────────────────┼─────────┼─────────────────────┼──────────┼─────────────────────────┤
+│ morphir-dotnet.csharp  │ C# frontend    │ 0.4.0   │ frontend (csharp)   │ built-in │ morphir, dotnet-morphir │
 │ morphir-dotnet.fsharp  │ F# frontend    │ 0.4.0   │ frontend (fsharp)   │ built-in │ morphir, dotnet-morphir │
 │ morphir.csharp         │ C# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
 │ morphir.fsharp         │ F# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
@@ -402,6 +403,24 @@ With `--json`, from the Native AOT `morphir` for Windows ARM64:
   "platform": "win-arm64",
   "prerequisites": { "runtime": [], "sdk": [], "native": [] },
   "extensions": [
+    {
+      "id": "morphir-dotnet.csharp",
+      "name": "C# frontend",
+      "version": "0.4.0",
+      "description": "Compiles C# source files to a Morphir model in process, with Roslyn.",
+      "types": ["frontend"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "deployments": ["native-aot", "self-contained", "framework-dependent", "dotnet-tool"],
+      "available": true,
+      "prerequisites": { "runtime": [], "sdk": [], "native": [] },
+      "capabilities": {
+        "frontend": {
+          "languages": [{ "id": "csharp", "fileExtensions": [".cs"] }],
+          "irVersions": ["4"]
+        }
+      }
+    },
     {
       "id": "morphir-dotnet.fsharp",
       "name": "F# frontend",
@@ -440,7 +459,7 @@ With `--json`, from the Native AOT `morphir` for Windows ARM64:
 }
 ```
 
-The example leaves out the `morphir.fsharp` and `morphir.type-validator` entries. The four offerings report:
+The example leaves out the `morphir.fsharp` and `morphir.type-validator` entries. The C# frontend `morphir-dotnet.csharp` is available in every offering, the Native AOT `morphir` included: Roslyn runs under Native AOT. The four offerings report:
 
 | Offering | `host` | `deployment` | `execution` | `platform` | Top-level `prerequisites` | `morphir-dotnet.fsharp` |
 | --- | --- | --- | --- | --- | --- | --- |

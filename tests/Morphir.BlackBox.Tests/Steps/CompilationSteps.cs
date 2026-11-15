@@ -139,6 +139,30 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
         run.Result = await compilation.CompileAsync(new CompilationOptions { Inputs = [file], Language = "fsharp", PackageName = package });
     }
 
+    [Given("the C# source file {string} of the package {string}")]
+    public void TheCSharpSourceFile(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file, "namespace Acme.Demo.Rates;\n\npublic static class Pricing\n{\n    public static int DailyRate(int days) => days * 40;\n}\n");
+        _source = (file, package);
+    }
+
+    [Given("the C# source file {string} with a foreach loop, of the package {string}")]
+    public void TheCSharpSourceFileWithALoop(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file,
+            "namespace Acme.Demo.Rates;\n\npublic static class Pricing\n{\n    public static int Total(int[] xs)\n    {\n        foreach (var x in xs) { }\n        return 0;\n    }\n}\n");
+        _source = (file, package);
+    }
+
+    [When("I compile the C# source file")]
+    public async Task CompileTheCSharpSourceFile()
+    {
+        var (file, package) = _source ?? throw new InvalidOperationException("The scenario has no C# source file before this step.");
+        run.Result = await compilation.CompileAsync(new CompilationOptions { Inputs = [file], Language = "csharp", PackageName = package });
+    }
+
     [Then("the compilation report says that the compile succeeded with the frontend {string}")]
     public void TheCompileSucceededWithTheFrontend(string frontend)
     {

@@ -1,0 +1,255 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+using System;
+using System.Collections.Immutable;
+using System.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Operations;
+
+namespace Morphir.Lang.CSharp.Analyzers;
+
+/// <summary>
+/// Reports the C# constructs that the Morphir frontend refuses. The compiler, the IDE and <c>morphir compile</c> run the
+/// same analyzer, so a refusal has one code, one message and one range everywhere. The analyzer is silent in a project
+/// that is not a Morphir model project.
+/// </summary>
+[DiagnosticAnalyzer(LanguageNames.CSharp)]
+public sealed class AdmissionAnalyzer : DiagnosticAnalyzer
+{
+    private static readonly ImmutableArray<DiagnosticDescriptor> Descriptors =
+        Rules.All.Select(rule => rule.Descriptor).ToImmutableArray();
+
+    /// <inheritdoc />
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => Descriptors;
+
+    /// <inheritdoc />
+    public override void Initialize(AnalysisContext context)
+    {
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
+        context.EnableConcurrentExecution();
+        context.RegisterCompilationStartAction(start =>
+        {
+            if (!ModelProject.IsModelProject(start.Compilation, start.Options))
+            {
+                return;
+            }
+
+            var own = start.Compilation.Assembly;
+            start.RegisterOperationAction(ReportLoop, OperationKind.Loop);
+            start.RegisterOperationAction(
+                ReportMutation,
+                OperationKind.SimpleAssignment,
+                OperationKind.CompoundAssignment,
+                OperationKind.CoalesceAssignment,
+                OperationKind.DeconstructionAssignment,
+                OperationKind.Increment,
+                OperationKind.Decrement);
+            start.RegisterOperationAction(
+                ReportDynamicOperation,
+                OperationKind.DynamicInvocation,
+                OperationKind.DynamicMemberReference,
+                OperationKind.DynamicObjectCreation,
+                OperationKind.DynamicIndexerAccess);
+            start.RegisterOperationAction(
+                c => ReportOutsideReference(c, own),
+                OperationKind.Invocation,
+                OperationKind.ObjectCreation,
+                OperationKind.PropertyReference,
+                OperationKind.FieldReference,
+                OperationKind.MethodReference);
+            start.RegisterSymbolAction(c => ReportTypeShape(c), SymbolKind.NamedType);
+            start.RegisterSymbolAction(c => ReportMembers(c, own), SymbolKind.Property, SymbolKind.Field, SymbolKind.Method);
+        });
+    }
+
+    private static void ReportLoop(OperationAnalysisContext context)
+    {
+        var loop = (ILoopOperation)context.Operation;
+        var text = loop.LoopKind switch
+        {
+            LoopKind.ForEach => "foreach",
+            LoopKind.For => "for",
+            LoopKind.While => WhileOrDo(loop),
+            _ => "loop",
+        };
+        context.ReportDiagnostic(Diagnostic.Create(Rules.Loop.Descriptor, loop.Syntax.GetLocation(), text));
+    }
+
+    private static string WhileOrDo(ILoopOperation loop) => loop.Syntax.IsKind(SyntaxKind.DoStatement) ? "do" : "while";
+
+    private static void ReportMutation(OperationAnalysisContext context)
+    {
+        var operation = context.Operation;
+
+        // A member initializer is not a mutation: `new R { X = 1 }` and `r with { X = 1 }` build a new value.
+        if (operation.Parent is IObjectOrCollectionInitializerOperation)
+        {
+            return;
+        }
+
+        var target = operation switch
+        {
+            IAssignmentOperation assignment => assignment.Target,
+            IIncrementOrDecrementOperation step => step.Target,
+            _ => null,
+        };
+
+        var name = target switch
+        {
+            ILocalReferenceOperation local => local.Local.Name,
+            IParameterReferenceOperation parameter => parameter.Parameter.Name,
+            IMemberReferenceOperation member => member.Member.Name,
+            IArrayElementReferenceOperation => "array element",
+            _ => operation.Syntax.ToString(),
+        };
+
+        context.ReportDiagnostic(Diagnostic.Create(Rules.Mutation.Descriptor, operation.Syntax.GetLocation(), name));
+    }
+
+    private static void ReportDynamicOperation(OperationAnalysisContext context) =>
+        context.ReportDiagnostic(Diagnostic.Create(Rules.Dynamic.Descriptor, context.Operation.Syntax.GetLocation()));
+
+    private static bool IsAllowed(IAssemblySymbol? assembly, IAssemblySymbol own)
+    {
+        if (assembly is null || SymbolEqualityComparer.Default.Equals(assembly, own))
+        {
+            return true;
+        }
+
+        var name = assembly.Name;
+        return name is "mscorlib" or "netstandard" or "System" or "Morphir.SDK.CSharp" or "Morphir.Lang.CSharp.Attributes"
+            || name.StartsWith("System.", StringComparison.Ordinal);
+    }
+
+    private static void ReportOutsideReference(OperationAnalysisContext context, IAssemblySymbol own)
+    {
+        var symbol = context.Operation switch
+        {
+            IInvocationOperation invocation => (ISymbol)invocation.TargetMethod,
+            IObjectCreationOperation creation => creation.Constructor ?? (ISymbol?)creation.Type,
+            IMemberReferenceOperation member => member.Member,
+            _ => null,
+        };
+
+        if (symbol is null)
+        {
+            return;
+        }
+
+        var assembly = symbol.ContainingAssembly;
+        if (!IsAllowed(assembly, own))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                Rules.OutsideReference.Descriptor, context.Operation.Syntax.GetLocation(), symbol.ToDisplayString(), assembly!.Name));
+        }
+    }
+
+    private static void ReportTypeShape(SymbolAnalysisContext context)
+    {
+        var type = (INamedTypeSymbol)context.Symbol;
+        if (type.IsImplicitlyDeclared || type.ContainingType is not null && type.TypeKind == TypeKind.Enum)
+        {
+            return;
+        }
+
+        var kind = type.TypeKind switch
+        {
+            TypeKind.Interface => "interface",
+            TypeKind.Delegate => "delegate",
+            TypeKind.Struct when !type.IsUnion && !type.IsRecord => "struct",
+            TypeKind.Struct when type.IsRecord => "record struct",
+            TypeKind.Class when !type.IsRecord && !type.IsStatic && !type.IsAbstract => "class",
+            TypeKind.Class when !type.IsRecord && !type.IsStatic && type.IsAbstract => "abstract class",
+            _ => null,
+        };
+
+        if (kind is not null)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                Rules.TypeKind.Descriptor, type.Locations.FirstOrDefault(), kind, type.Name));
+        }
+    }
+
+    private static void ReportMembers(SymbolAnalysisContext context, IAssemblySymbol own)
+    {
+        switch (context.Symbol)
+        {
+            case IPropertySymbol property when !property.IsImplicitlyDeclared:
+                if (property.SetMethod is { IsInitOnly: false })
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        Rules.MutableProperty.Descriptor, property.SetMethod.Locations.FirstOrDefault() ?? property.Locations.FirstOrDefault(), property.Name));
+                }
+
+                ReportDynamicType(context, property.Type, property);
+                ReportOutsideType(context, property.Type, property, own);
+                break;
+
+            case IFieldSymbol field when !field.IsImplicitlyDeclared:
+                if (!field.IsReadOnly && !field.IsConst)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        Rules.MutableField.Descriptor, field.Locations.FirstOrDefault(), field.Name));
+                }
+
+                ReportDynamicType(context, field.Type, field);
+                ReportOutsideType(context, field.Type, field, own);
+                break;
+
+            case IMethodSymbol method when !method.IsImplicitlyDeclared && method.MethodKind == MethodKind.Ordinary:
+                ReportDynamicType(context, method.ReturnType, method);
+                ReportOutsideType(context, method.ReturnType, method, own);
+                foreach (var parameter in method.Parameters)
+                {
+                    ReportDynamicType(context, parameter.Type, parameter);
+                    ReportOutsideType(context, parameter.Type, parameter, own);
+                }
+
+                break;
+        }
+    }
+
+    private static void ReportDynamicType(SymbolAnalysisContext context, ITypeSymbol type, ISymbol at)
+    {
+        if (type.TypeKind == TypeKind.Dynamic)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(Rules.Dynamic.Descriptor, at.Locations.FirstOrDefault()));
+        }
+    }
+
+    private static void ReportOutsideType(SymbolAnalysisContext context, ITypeSymbol type, ISymbol at, IAssemblySymbol own)
+    {
+        foreach (var part in Parts(type))
+        {
+            if (!IsAllowed(part.ContainingAssembly, own))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    Rules.OutsideReference.Descriptor, at.Locations.FirstOrDefault(), part.ToDisplayString(), part.ContainingAssembly!.Name));
+            }
+        }
+    }
+
+    private static System.Collections.Generic.IEnumerable<ITypeSymbol> Parts(ITypeSymbol type)
+    {
+        yield return type;
+        if (type is INamedTypeSymbol named)
+        {
+            foreach (var argument in named.TypeArguments)
+            {
+                foreach (var part in Parts(argument))
+                {
+                    yield return part;
+                }
+            }
+        }
+        else if (type is IArrayTypeSymbol array)
+        {
+            foreach (var part in Parts(array.ElementType))
+            {
+                yield return part;
+            }
+        }
+    }
+}

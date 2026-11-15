@@ -5,8 +5,12 @@
         <RootNamespace>Morphir.Lang.CSharp</RootNamespace>
         <Description>C# language support for Morphir: a frontend, a target-side middle end and a backend, all on Roslyn.</Description>
         <PackageTags>$(PackageTags);morphir;csharp;frontend;backend;roslyn</PackageTags>
-        <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees F# types as oblivious. -->
-        <Nullable>enable</Nullable>
+        <!--
+          No F# nullness here: Roslyn has C# nullable annotations everywhere, and F# nullness turns each call of its API into
+          a null check that adds no safety. The public surface of this assembly is small and its types come from
+          Morphir.Compilation, which has nullness.
+        -->
+        <Nullable>disable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <!--
@@ -24,16 +28,36 @@
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Basic.Reference.Assemblies.Net100" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+        <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
         <ProjectReference Include="..\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" />
-        <ProjectReference Include="..\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" />
+        <!-- The attribute assembly is referenced (for the polyfill source) and embedded (for the fixed reference set). -->
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" OutputItemType="EmbeddedReferenceAssembly" />
+        <!-- The SDK that model code compiles against, built for net10.0 to match the fixed .NET 10 reference assemblies. -->
+        <ProjectReference Include="..\Morphir.SDK.CSharp\Morphir.SDK.CSharp.csproj" ReferenceOutputAssembly="false" OutputItemType="EmbeddedReferenceAssembly" SetTargetFramework="TargetFramework=net10.0" />
     </ItemGroup>
+
+    <!-- The Native AOT host has no assembly files on disk: embed the reference assemblies as resources. -->
+    <Target Name="EmbedReferenceAssemblies" AfterTargets="ResolveProjectReferences" BeforeTargets="AssignTargetPaths">
+        <ItemGroup>
+            <EmbeddedResource Include="@(EmbeddedReferenceAssembly)" LogicalName="%(Filename)%(Extension)" WithCulture="false" />
+        </ItemGroup>
+    </Target>
 
     <ItemGroup>
         <Compile Include="PackageInfo.fs" />
+        <Compile Include="CSharpCodes.fs" />
+        <Compile Include="Embedded.fs" />
+        <Compile Include="FixedReferences.fs" />
+        <Compile Include="CSharpCompiler.fs" />
+        <Compile Include="Planning.fs" />
+        <Compile Include="SdkMapping.fs" />
+        <Compile Include="Lowering.fs" />
+        <Compile Include="CSharpFrontend.fs" />
     </ItemGroup>
 
 </Project>

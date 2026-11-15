@@ -22,12 +22,13 @@ let tests =
               Expect.contains (referencedNames ()) "netstandard" "references the netstandard facade"
           }
 
-          test "the assembly depends only on netstandard and Roslyn" {
-              let allowed = set [ "netstandard"; "Microsoft.CodeAnalysis"; "Microsoft.CodeAnalysis.CSharp" ]
+          test "the assembly depends only on netstandard, Roslyn and the Roslyn support packages" {
+              let allowed = set [ "netstandard"; "System.Collections.Immutable"; "System.Memory"; "Microsoft.CodeAnalysis"; "Microsoft.CodeAnalysis.CSharp" ]
 
               let others = referencedNames () |> Array.filter (fun name -> not (allowed.Contains name))
 
-              Expect.isEmpty others "no other assembly is referenced"
+              let names = String.concat ", " others
+              Expect.equal others [||] $"no other assembly is referenced: {names}"
           }
 
           test "no Workspaces assembly is referenced" {

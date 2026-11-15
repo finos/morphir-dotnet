@@ -12,6 +12,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Basic.Reference.Assemblies.Net100" />
         <PackageReference Include="Expecto" />
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
@@ -25,10 +26,13 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" />
+        <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" />
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="AnalyzerSupport.fs" />
         <Compile Include="ClosureTests.fs" />
+        <Compile Include="AdmissionAnalyzerTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

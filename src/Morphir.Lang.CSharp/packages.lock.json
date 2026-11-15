@@ -2,6 +2,15 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "Basic.Reference.Assemblies.Net100": {
+        "type": "Direct",
+        "requested": "[1.8.15, )",
+        "resolved": "1.8.15",
+        "contentHash": "29NC0bVEAwySKJdpZy2BEMowDTPZT5VE5Emii7AIK23Leg3FoYe09IF9vs4jmmvlHNFXSdhScLPTcqTTq7YwGg==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Common": "4.11.0"
+        }
+      },
       "FSharp.Core": {
         "type": "Direct",
         "requested": "[10.1.403, )",
@@ -35,6 +44,13 @@
         "contentHash": "0C7o9ys497xp0kZ64sL7C6nY/5WPQlxia28VlezdonBmjxbC6mIovAYs8mBoh/QooxBBZQCo/wMuZnV1kNk9GA==",
         "dependencies": {
           "Microsoft.CodeAnalysis.Analyzers": "5.9.0"
+        }
+      },
+      "morphir.compilation": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Models": "[1.0.0, )"
         }
       },
       "morphir.lang.csharp.analyzers": {
@@ -51,6 +67,15 @@
       }
     },
     "net11.0": {
+      "Basic.Reference.Assemblies.Net100": {
+        "type": "Direct",
+        "requested": "[1.8.15, )",
+        "resolved": "1.8.15",
+        "contentHash": "29NC0bVEAwySKJdpZy2BEMowDTPZT5VE5Emii7AIK23Leg3FoYe09IF9vs4jmmvlHNFXSdhScLPTcqTTq7YwGg==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Common": "4.11.0"
+        }
+      },
       "FSharp.Core": {
         "type": "Direct",
         "requested": "[10.1.403, )",
@@ -84,6 +109,13 @@
         "contentHash": "0C7o9ys497xp0kZ64sL7C6nY/5WPQlxia28VlezdonBmjxbC6mIovAYs8mBoh/QooxBBZQCo/wMuZnV1kNk9GA==",
         "dependencies": {
           "Microsoft.CodeAnalysis.Analyzers": "5.9.0"
+        }
+      },
+      "morphir.compilation": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Models": "[1.0.0, )"
         }
       },
       "morphir.lang.csharp.analyzers": {

@@ -2,6 +2,15 @@
   "version": 2,
   "dependencies": {
     "net11.0": {
+      "Basic.Reference.Assemblies.Net100": {
+        "type": "Direct",
+        "requested": "[1.8.15, )",
+        "resolved": "1.8.15",
+        "contentHash": "29NC0bVEAwySKJdpZy2BEMowDTPZT5VE5Emii7AIK23Leg3FoYe09IF9vs4jmmvlHNFXSdhScLPTcqTTq7YwGg==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Common": "4.11.0"
+        }
+      },
       "coverlet.collector": {
         "type": "Direct",
         "requested": "[6.0.4, )",
@@ -139,6 +148,9 @@
         "contentHash": "IC1h5g0NeJGHIUgzM1P82ld57knhP0IcQfrYITDPXlNpMYGUrsG5TxuaWTjaeqDNQMBDNZkB8L0rBnwsY6JHuQ=="
       },
       "morphir.lang.csharp.analyzers": {
+        "type": "Project"
+      },
+      "morphir.lang.csharp.attributes": {
         "type": "Project"
       }
     }

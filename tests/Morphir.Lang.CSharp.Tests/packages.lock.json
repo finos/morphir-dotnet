@@ -46,6 +46,11 @@
           "Microsoft.Testing.Platform.MSBuild": "2.3.3"
         }
       },
+      "Cucumber.Messages": {
+        "type": "Transitive",
+        "resolved": "29.0.1",
+        "contentHash": "R2oo/wR3mXrbdK04Yraf+KhB01f/lyBkLQZcdxYt9XKE6tV+Af45MEk+jfbsew1SVvrAO0WvkIRwGYUozKCJvQ=="
+      },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
         "resolved": "2.23.0",
@@ -128,11 +133,29 @@
         "resolved": "0.11.4",
         "contentHash": "IC1h5g0NeJGHIUgzM1P82ld57knhP0IcQfrYITDPXlNpMYGUrsG5TxuaWTjaeqDNQMBDNZkB8L0rBnwsY6JHuQ=="
       },
-      "morphir.lang.csharp": {
+      "morphir.compilation": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
+      "morphir.conformance": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Gherkin": "[35.1.0, )",
+          "Morphir.Compilation": "[1.0.0, )",
+          "Morphir.Mep": "[1.0.0, )"
+        }
+      },
+      "morphir.lang.csharp": {
+        "type": "Project",
+        "dependencies": {
+          "Basic.Reference.Assemblies.Net100": "[1.8.15, )",
+          "FSharp.Core": "[10.1.403, )",
           "Microsoft.CodeAnalysis.CSharp": "[5.12.0, )",
+          "Morphir.Compilation": "[1.0.0, )",
           "Morphir.Lang.CSharp.Analyzers": "[1.0.0, )",
           "Morphir.Lang.CSharp.Attributes": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
@@ -144,10 +167,41 @@
       "morphir.lang.csharp.attributes": {
         "type": "Project"
       },
+      "morphir.mep": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Myriad.SystemTextJson.Annotations": "[1.0.0, )"
+        }
+      },
       "morphir.models": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.myriad.systemtextjson.annotations": {
+        "type": "Project"
+      },
+      "morphir.sdk.csharp": {
+        "type": "Project"
+      },
+      "Basic.Reference.Assemblies.Net100": {
+        "type": "CentralTransitive",
+        "requested": "[1.8.15, )",
+        "resolved": "1.8.15",
+        "contentHash": "29NC0bVEAwySKJdpZy2BEMowDTPZT5VE5Emii7AIK23Leg3FoYe09IF9vs4jmmvlHNFXSdhScLPTcqTTq7YwGg==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Common": "4.11.0"
+        }
+      },
+      "Gherkin": {
+        "type": "CentralTransitive",
+        "requested": "[35.1.0, )",
+        "resolved": "35.1.0",
+        "contentHash": "2eHlz7CQ7uNUsFTveswt9W7p50tN0lpBHeaz4XJ9+/nMGErOkd7fgzjXtzgrkCWQCqF9US8O3tBd81aIP603nA==",
+        "dependencies": {
+          "Cucumber.Messages": "29.0.1"
         }
       },
       "Microsoft.CodeAnalysis.CSharp": {

@@ -12,6 +12,9 @@ under test. Do not record or regenerate expectations from compiler output.
   alternatives of a case share a condition.
 - [F# frontend suite](suites/frontend-fsharp/) covers four IR versions and three
   source input kinds.
+- [C# frontend suite](suites/frontend-csharp/) covers the current IR (version 4) and three
+  source input kinds, with [vocabulary 1.4](steps/steps-1.4.md). It has one refusal case for each admission rule that
+  the frontend can report, and two semantic cases with hand-written expected IR.
 - [WASM host suite](suites/wasm-host/) holds the crafted cases that qualify a
   WASM extension host, generated from a pinned upstream corpus (see
   [WASM host suite](#wasm-host-suite)).

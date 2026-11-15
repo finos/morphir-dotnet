@@ -1,0 +1,123 @@
+---
+title: "C# frontend"
+linkTitle: "C#"
+weight: 15
+description: "Compile a subset of C# 15 into a Morphir IR model, with Roslyn."
+---
+
+The C# frontend compiles C# source documents into a Morphir IR model. It runs on Roslyn, the C# compiler, so a model
+has the types that C# binds. It writes the current IR (version 4) only.
+
+The frontend accepts a subset of C# 15: records, `closed record` hierarchies, enums and static classes with pure
+methods. It refuses every other construct with an error diagnostic. The [coverage reference](coverage/) lists each
+refused construct, with its code, its Roslyn id and an example.
+
+## Status
+
+The C# frontend is a built-in of every offering: the Native AOT `morphir`, the self-contained and framework-dependent
+`morphir`, and `dotnet-morphir`. Roslyn runs under Native AOT, so nothing is downloaded or installed. See
+[`morphir extension list`]({{< relref "/docs/cli/management" >}}) and [compile]({{< relref "/docs/cli/compile" >}}).
+
+This delivery has the frontend for types and for simple values. The rest of the C# language support follows in the
+same change: the IR upgrade, the middle end, the Roslyn backend, loops and options, unions, and generation in a build.
+The plan is the [C# language support PRD](https://github.com/finos/morphir-dotnet/blob/main/docs/content/contributing/design/prds/csharp-language-support.md).
+
+## Input
+
+A compilation gets a package name, such as `acme/trading`, the exposed modules and the source documents. The frontend
+reads no project file: the host gives the documents. It binds them with C# 15, nullable annotations on, and a fixed
+reference set: the .NET 10 reference assemblies, `Morphir.SDK.CSharp` and the attribute assembly. The Native AOT host
+embeds the references, so it needs no file of the .NET SDK.
+
+A C# compiler error stops the compilation. The diagnostic keeps the code `csharp.compiler` and puts the C# id, for
+example `CS0029`, in its data. The frontend then reports no construct that the subset refuses, because they would repeat the
+same mistake.
+
+## Modules
+
+Types directly in a namespace belong to the module of that namespace. A static class is a module below its namespace.
+The module path is the namespace and the class names, without the package path. A namespace that is the package path
+itself has no module name, so types there give `csharp.module_outside_package`. Put them in a namespace below it.
+
+```csharp
+namespace Acme.Trading.Domain;                     // module domain: types only
+
+public enum Side { Buy, Sell }
+public closed record Order;
+public sealed record Market(Side Side, decimal Quantity) : Order;
+public sealed record Limit(Side Side, decimal Quantity, decimal Price) : Order;
+
+public static class Pricing                        // module domain/pricing: values
+{
+    public const decimal Fee = 2.5m;
+
+    public static decimal Notional(Order order, decimal last) => order switch
+    {
+        Market m => m.Quantity * last,
+        Limit l => l.Quantity * l.Price,
+    };
+}
+```
+
+A static class nested in a static class is a child module. The module is public when the exposed list names it, or
+when the request gives no list.
+
+## Types
+
+| C# | Morphir |
+| --- | --- |
+| `record R(int X, string Y)` | a type alias of a record with the fields `x` and `y` |
+| `closed record T` with `sealed record` cases | a custom type; each case is a constructor and its fields are the arguments |
+| `enum` | a custom type with constructors that have no arguments |
+| `int`, `double`, `bool`, `string`, `char`, `decimal` | `Int`, `Float`, `Bool`, `String`, `Char`, `Decimal` of the SDK |
+| `(int, string)` | a tuple |
+| `Func<A, B>` | the function `A -> B` |
+| `IReadOnlyList<T>`, `Morphir.SDK.CSharp.List<T>` | `List` |
+| `Maybe<T>`, `Result<E, V>`, `Dict<K, V>`, `Set<T>`, `Order` of `Morphir.SDK.CSharp` | the types of the same name |
+
+A C# type parameter is a type variable. A case record has the custom type as its Morphir type: a method that makes a
+`Market` has the result type `Order`. Two types of one module with the same Morphir name, such as `TaxRate` and
+`taxRate`, give `csharp.name_collision`.
+
+## Values
+
+A static method of a static class, and a `const` field, becomes a value. The frontend lowers these constructs:
+
+- literals, parameters and locals, and constants and methods of the package;
+- the operators `+ - * / %`, comparisons, `==` and `!=`, `&&`, `||` and `!`, as calls of the SDK;
+- calls of `Morphir.SDK.CSharp.Basics`;
+- `new` of a case record (a constructor) or of a plain record (a record value), and `with` (a record update);
+- property access on a record, tuples and collection expressions (`[1, 2, 3]`);
+- `?:`, and `if` statements that return;
+- local variable declarations, as `let`;
+- lambdas, and calls of a `Func`;
+- a `switch` expression on a closed record, with an arm for each case.
+
+A `switch` that misses a case is an error: Morphir has no partial match. An arm of a `switch` binds a case record to
+a local, and the fields of the case are variables, so `m.Quantity` reads the field that the pattern bound.
+Every node of a value has its source range and its inferred type.
+
+A method call or a property of the .NET libraries that the SDK does not map gives `csharp.unsupported_reference`.
+A construct that the frontend cannot lower gives `csharp.unsupported_<construct>`.
+
+## Compile
+
+```bash
+morphir compile --language csharp --input Domain.cs --package-name acme/trading --ir-version 4
+```
+
+The command writes the IR under `.morphir/out/compile.dest/morphir-ir.json`, as for every language. The report names
+the frontend `morphir-dotnet.csharp (in-process)`. A C# file in `--input` is read with `--language csharp`, and
+the language is also chosen from the extension `.cs` when `--language` is not set.
+
+## Diagnostics in the editor
+
+The analyzer that refuses the constructs is a Roslyn analyzer, so the compiler and the IDE show the same refusals
+as `morphir compile`. It reports only in a Morphir model project, which has `[assembly: Morphir.MorphirModel]` or the
+MSBuild property `MorphirModel` set to `true`.
+
+```csharp
+[assembly: Morphir.MorphirModel]
+```
+
+A short Roslyn id such as `MORPHIR1001` works with `#pragma warning disable` and with `.editorconfig`.

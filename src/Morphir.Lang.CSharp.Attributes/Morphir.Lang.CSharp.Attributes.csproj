@@ -5,6 +5,7 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <RootNamespace>Morphir</RootNamespace>
         <Nullable>enable</Nullable>
+        <!-- The raw string literal of Polyfill.cs needs C# 11 or later; LangVersion 15 comes from Directory.Build.props. -->
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <IsPackable>false</IsPackable>

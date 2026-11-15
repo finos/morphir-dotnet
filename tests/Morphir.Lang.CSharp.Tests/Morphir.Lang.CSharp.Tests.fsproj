@@ -24,10 +24,20 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Lang.CSharp\Morphir.Lang.CSharp.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" />
+        <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.SDK.CSharp\Morphir.SDK.CSharp.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <Compile Include="PackageInfoTests.fs" />
+        <Compile Include="FrontendSupport.fs" />
+        <Compile Include="FrontendTests.fs" />
+        <Compile Include="ValueLoweringTests.fs" />
+        <Compile Include="SdkMappingTests.fs" />
+        <Compile Include="CatalogTests.fs" />
+        <Compile Include="ConformanceTests.fs" />
+        <Compile Include="CoveragePageTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
