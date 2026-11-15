@@ -700,7 +700,7 @@ let consumer () =
                 |> String.concat ""
 
             let call =
-                "Example.FunctionsModule."
+                "Example.Functions."
                 + Char.ToUpperInvariant(entry.Definition.Name[0]).ToString()
                 + entry.Definition.Name.Substring(1)
                 + "("

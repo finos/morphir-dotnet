@@ -191,9 +191,17 @@ module internal Values =
 
             loop pairs
 
-    let private recordFieldsOf (scope: Scope) (shape: Shape) : (Name * Shape) list =
-        match scope.Resolve shape with
-        | Fields fields -> fields
+    /// <summary>The names of the fields of the record that a record shape is written as, in the order of its declaration.</summary>
+    let private recordFieldsOf (scope: Scope) (shape: Shape) : Name list =
+        let resolved = scope.Resolve shape
+
+        match resolved with
+        | Fields _ ->
+            let owner, _ = recordTarget scope.Ct scope.Context.Catalog scope.Location (scope.Checked.CheckedType resolved)
+
+            match owner.Definition with
+            | Alias(Fields declared) -> declared |> List.map fst
+            | _ -> Admission.fail "type-mismatch" scope.Location "The selected record target is not a record."
         | _ -> Admission.fail "type-mismatch" scope.Location "A closed record is required."
 
     /// <summary>The types of the fields of a constructor, the type that it builds, and how to build it from the values.</summary>
@@ -288,6 +296,36 @@ module internal Values =
         | TConstructorPattern(candidate, _, items) when candidate.IsRecord -> List.forall irrefutable items
         | _ -> false
 
+    /// <summary>The value expressions that a typed expression holds directly.</summary>
+    let private childrenOf (v: Typed) : Typed list =
+        match v.Node with
+        | TLiteral _
+        | TVariable _
+        | TUnit
+        | TFieldFunction _
+        | TConstructor _
+        | TSdk _
+        | TReference _ -> []
+        | TApply(f, x) -> [ f; x ]
+        | TLambda(_, _, body)
+        | TPatternLambda(_, _, body) -> [ body ]
+        | TLet(_, binding, rest) -> [ binding; rest ]
+        | TLetRec(definitions, rest) -> (definitions |> List.map (fun (_, d) -> d.LocalBody)) @ [ rest ]
+        | TTuple items
+        | TList items -> items
+        | TRecord fields -> fields |> List.map snd
+        | TField(target, _) -> [ target ]
+        | TUpdate(target, fields) -> target :: (fields |> List.map snd)
+        | TIf(c, a, b) -> [ c; a; b ]
+        | TMatch(target, cases) -> target :: (cases |> List.map snd)
+        | TDestructure(_, target, body) -> [ target; body ]
+
+    /// <summary>Whether the expression names the variable. A local that nothing names gets a discard, so the compiler stays quiet.</summary>
+    let rec private uses (name: Name) (v: Typed) : bool =
+        match v.Node with
+        | TVariable n when n = name -> true
+        | _ -> childrenOf v |> List.exists (uses name)
+
     let rec private expression (scope: Scope) (env: Env) (value: Typed) : ExpressionSyntax =
         scope.Ct.ThrowIfCancellationRequested()
         let expr = expression scope env
@@ -375,7 +413,7 @@ module internal Values =
         inputs, output, (fun values -> Cs.invoke method' values)
 
     and private recordExpression (scope: Scope) (env: Env) (value: Typed) (fields: (Name * Typed) list) : ExpressionSyntax =
-        let declared = recordFieldsOf scope value.Type |> List.map fst
+        let declared = recordFieldsOf scope value.Type
 
         if List.map fst fields = declared then
             Cs.newObject (scope.Type value.Type) (fields |> List.map (snd >> expression scope env))
@@ -445,7 +483,20 @@ module internal Values =
 
             go [] cases
 
-        match converted with
+        // An arm after an arm that takes every value, or after arms that already name every case, can never match.
+        // C# refuses it, so it is not written.
+        let reachable (arms: (PatternSyntax * Env * Typed * TypedPattern) list) =
+            let rec go (acc: _ list) (remaining: _ list) =
+                match remaining with
+                | [] -> List.rev acc
+                | ((_, _, _, p) as arm) :: rest ->
+                    let taken = List.rev (arm :: acc)
+
+                    if irrefutable p || coversAllCases scope target taken then List.rev (arm :: acc) else go (arm :: acc) rest
+
+            go [] arms
+
+        match converted |> Option.map reachable with
         | Some arms ->
             let armSyntax =
                 arms
@@ -523,7 +574,7 @@ module internal Values =
         | TAs(inner, name) ->
             let condition, bindings, env' = patternCondition scope env target inner
             let local = scope.Local name
-            condition, bindings @ [ Cs.local (typ p.Type) local target ], Map.add name local env'
+            condition, bindings @ [ Cs.local (typ p.Type) local target; Cs.unused local ], Map.add name local env'
         | TLiteralPattern lit ->
             let equal = Cs.access (asExpression (Cs.globalGeneric (sdkRoot "Basics") [])) "Equal"
             Some(Cs.invoke equal [ target; literal scope.Ct lit ]), [], env
@@ -590,7 +641,8 @@ module internal Values =
         | TLet(name, binding, rest) ->
             let local = scope.Local name
             let initial = expression scope env binding
-            Cs.local (scope.Type binding.Type) local initial :: tail scope (Map.add name local env) rest
+            Cs.local (scope.Type binding.Type) local initial
+            :: ((if uses name rest then [] else [ Cs.unused local ]) @ tail scope (Map.add name local env) rest)
         | TDestructure(p, target, body) ->
             let subject = scope.Fresh "subject"
             let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
@@ -610,7 +662,14 @@ module internal Values =
                     scope.Functions[local] <- (definition.LocalInputs |> List.map snd, definition.LocalOutput)
                     Map.add name local acc) env
 
-            let functions = names |> List.map (fun (name, local, definition) -> localFunction scope groupEnv name local definition)
+            // A function that nothing calls is not written.
+            let isUsed (name: Name) = uses name rest || (definitions |> List.exists (fun (_, d) -> uses name d.LocalBody))
+
+            let functions =
+                names
+                |> List.filter (fun (name, _, _) -> isUsed name)
+                |> List.map (fun (name, local, definition) -> localFunction scope groupEnv name local definition)
+
             functions @ tail scope groupEnv rest
         | _ -> [ Cs.returns (expression scope env value) ]
 
@@ -649,7 +708,8 @@ module internal Values =
             [ SF.IfStatement(expression scope env condition, Cs.block (recurse env self parameters yes), SF.ElseClause(Cs.block (recurse env self parameters no))) :> StatementSyntax ]
         | TLet(name, binding, rest) ->
             let local = scope.Local name
-            Cs.local (scope.Type binding.Type) local (expression scope env binding) :: recurse (Map.add name local env) self parameters rest
+            Cs.local (scope.Type binding.Type) local (expression scope env binding)
+            :: ((if uses name rest then [] else [ Cs.unused local ]) @ recurse (Map.add name local env) self parameters rest)
         | TDestructure(p, target, body) ->
             let subject = scope.Fresh "subject"
             let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
@@ -765,7 +825,7 @@ module internal Values =
         let parameters = inputs |> List.map (fun (_, shape, local) -> SF.Parameter(Cs.token local).WithType(scope.Type shape))
 
         let statements = tail scope env checkedValue.Body
-        let name = title top.Name.LocalName
+        let name = ModuleLayouts.identifier context.Layouts top.Name
         let output = scope.Type top.Definition.Output
 
         let declaration =

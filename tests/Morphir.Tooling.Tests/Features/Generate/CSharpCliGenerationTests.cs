@@ -59,7 +59,7 @@ public sealed class CSharpCliGenerationTests : IDisposable
         report.RootElement.GetProperty("backend").GetString().Should().Be("morphir.csharp");
         report.RootElement.GetProperty("sourceVersion").GetString().Should().Be(version);
         var loaded = ((Outcome<LoadedModel>.Success)await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(new(input), ModelReadLimits.Default, default)).Value;
-        var direct = CSharpGenerator.Generate(loaded.Model, GenerationOptions.Default, NamespaceOverride.TryCreate("Pricing.Generated").ResultValue, default);
+        var direct = Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(loaded.Model, GenerationOptions.Default, NamespaceOverride.TryCreate("Pricing.Generated").ResultValue, default);
         direct.Status.IsSuccess.Should().BeTrue();
         report.RootElement.GetProperty("artifacts").EnumerateArray().Select(x => x.GetString()).Should().Equal(direct.Sources.Select(x => x.RelativePath));
         foreach (var source in direct.Sources)

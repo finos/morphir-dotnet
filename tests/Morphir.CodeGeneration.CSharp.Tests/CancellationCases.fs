@@ -80,7 +80,7 @@ let private tryDuringActive label input =
                 try
                     outcome <-
                         Ok(
-                            CSharpGenerator.Generate(
+                            Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                                 input,
                                 GenerationOptions.Default,
                                 cancellation.Token
@@ -134,7 +134,7 @@ let private tryDuringActive label input =
 
 let duringAliasExpansion () =
     let warm =
-        CSharpGenerator.Generate(model 3, GenerationOptions.Default, CancellationToken.None)
+        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model 3, GenerationOptions.Default, CancellationToken.None)
 
     Expect.equal warm.Status GenerationStatus.Success "the acyclic source model is admitted"
 
@@ -151,7 +151,7 @@ let duringLargeLiteral (make: FunctionCases.Definition list -> VersionedModel) =
     }
 
     let warm =
-        CSharpGenerator.Generate(
+        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
             make [ definition "warm" ],
             GenerationOptions.Default,
             CancellationToken.None

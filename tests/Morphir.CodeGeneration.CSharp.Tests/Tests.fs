@@ -94,7 +94,7 @@ type InMemoryAdapter(model: VersionedModel) =
                 context.CompilationProvider,
                 fun context _ ->
                     let result =
-                        CSharpGenerator.Generate(
+                        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                             model,
                             GenerationOptions.Default,
                             context.CancellationToken
@@ -155,12 +155,12 @@ let hostSmoke model =
     let emitted = output.Emit(stream)
     Expect.isTrue emitted.Success (String.Join("\n", emitted.Diagnostics))
     let assembly = Reflection.Assembly.Load(stream.ToArray())
-    let generated = assembly.GetType("Example.SampleModule", true)
+    let generated = assembly.GetType("Example.Sample", true)
     Expect.equal (generated.GetMethod("Answer").Invoke(null, [||]) :?> int) 42 "executed constant"
 
 let executeConsumer model language consumer =
     let result =
-        CSharpGenerator.Generate(model, { LanguageVersion = language }, CancellationToken.None)
+        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, { LanguageVersion = language }, CancellationToken.None)
 
     Expect.equal result.Status GenerationStatus.Success (sprintf "%A" result.Diagnostics)
     let runtime = typeof<Morphir.SDK.CSharp.Unit>.Assembly.Location
@@ -196,7 +196,7 @@ let executeConsumer model language consumer =
 
 let externalDiagnostics model (consumer: string) =
     let result =
-        CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
     Expect.equal result.Status GenerationStatus.Success (sprintf "%A" result.Diagnostics)
 
@@ -277,14 +277,14 @@ let tests =
                 Expect.equal model.SourceVersion.Text version "original source version"
 
                 Expect.equal
-                    (executeConsumer model 14 BusinessCases.carConsumer)
+                    (executeConsumer model 15 BusinessCases.carConsumer)
                     7
                     "independent lifecycle and seven rejections"
             |> testLabel "PlatformSpecific"
         testCase "SYNTHESIZED TEST INPUT v4 car lifecycle"
         <| fun _ ->
             Expect.equal
-                (executeConsumer (BusinessCases.synthesizedV4Car ()) 14 BusinessCases.carConsumer)
+                (executeConsumer (BusinessCases.synthesizedV4Car ()) 15 BusinessCases.carConsumer)
                 7
                 "independent lifecycle"
         |> testLabel "PlatformSpecific"
@@ -298,14 +298,14 @@ let tests =
                 Expect.equal model.SourceVersion.Text version "original source spelling"
 
                 Expect.equal
-                    (executeConsumer model 14 BusinessCases.dailyConsumer)
+                    (executeConsumer model 15 BusinessCases.dailyConsumer)
                     5000
                     "independent daily rate"
             |> testLabel "PlatformSpecific"
         testCase "COMPATIBLE TYPE SLICE original v4 books and records"
         <| fun _ ->
             Expect.equal
-                (executeConsumer (BusinessCases.booksTypeSlice ()) 14 BusinessCases.booksConsumer)
+                (executeConsumer (BusinessCases.booksTypeSlice ()) 15 BusinessCases.booksConsumer)
                 1
                 "nonempty immutable nested type behavior"
         |> testLabel "PlatformSpecific"
@@ -320,7 +320,7 @@ let tests =
             )
             <| fun _ ->
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         BusinessCases.read name,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -439,7 +439,7 @@ let tests =
                         | _ -> failwith "V4 library required."
 
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -479,7 +479,7 @@ let tests =
                 Expect.equal
                     (executeConsumer
                         (make FrozenSdkCases.definitions)
-                        14
+                        15
                         (FrozenSdkCases.consumer ()))
                     207
                     "generated calls observe frozen values and errors"
@@ -494,7 +494,7 @@ let tests =
                 )
                 <| fun _ ->
                     let result =
-                        CSharpGenerator.Generate(
+                        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                             make [ definition ],
                             GenerationOptions.Default,
                             CancellationToken.None
@@ -510,7 +510,7 @@ let tests =
             )
             <| fun _ ->
                 Expect.equal
-                    (executeConsumer (make SdkCases.definitions) 14 SdkCases.consumer)
+                    (executeConsumer (make SdkCases.definitions) 15 SdkCases.consumer)
                     1
                     "SDK meaning and persistence"
             |> testLabel "PlatformSpecific"
@@ -533,7 +533,7 @@ let tests =
                     ]
 
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -554,7 +554,7 @@ let tests =
                 }
 
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         make [ definition ],
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -572,7 +572,7 @@ let tests =
                     .Replace("trace[1]!=4 || trace[2]!=3", "trace[1]!=3 || trace[2]!=4")
 
             Expect.equal
-                (executeConsumer (PatternCases.v4Reversed ()) 14 consumer)
+                (executeConsumer (PatternCases.v4Reversed ()) 15 consumer)
                 1
                 "v4 ordered fields"
         |> testLabel "PlatformSpecific"
@@ -583,7 +583,7 @@ let tests =
                 testCase ($"Pattern and record refusal {family} {index}")
                 <| fun _ ->
                     let result =
-                        CSharpGenerator.Generate(
+                        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                             make [ definition ],
                             GenerationOptions.Default,
                             CancellationToken.None
@@ -599,7 +599,7 @@ let tests =
             )
             <| fun _ ->
                 Expect.equal
-                    (executeConsumer (make ()) 14 PatternCases.consumer)
+                    (executeConsumer (make ()) 15 PatternCases.consumer)
                     1
                     "first match, aliases, recursion, record persistence and evaluation order"
             |> testLabel "PlatformSpecific"
@@ -620,7 +620,7 @@ let tests =
                 }
 
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         make [ definition ],
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -642,7 +642,7 @@ let tests =
                 }
 
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         make [ definition ],
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -665,7 +665,7 @@ let tests =
                 }
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Success "empty libraries succeed"
             Expect.isEmpty result.Sources "no source allocation"
@@ -691,7 +691,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "inherited member collision"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
@@ -717,7 +717,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "type protocol collision"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
@@ -756,10 +756,10 @@ let tests =
                 | _ -> failwith "v4 fixture"
 
             let first =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             let second =
-                CSharpGenerator.Generate(
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                     reordered,
                     GenerationOptions.Default,
                     CancellationToken.None
@@ -798,7 +798,7 @@ let tests =
                     )
 
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -828,7 +828,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "class type collision"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
@@ -848,7 +848,7 @@ let tests =
                     ))
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "generic payload collision"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
@@ -872,7 +872,7 @@ let tests =
                 | _ -> failwith "classic fixture"
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal
                 result.Sources.Head.RelativePath
@@ -882,8 +882,8 @@ let tests =
             Expect.equal
                 (executeConsumer
                     model
-                    14
-                    "public static class Observation { public static int Run() => Con.SampleModule.Answer(); }")
+                    15
+                    "public static class Observation { public static int Run() => Con.Sample.Answer(); }")
                 42
                 "device-named namespace compiles"
         |> testLabel "PlatformSpecific"
@@ -894,7 +894,7 @@ let tests =
                 testCase ($"Function admission {family} {index}")
                 <| fun _ ->
                     let result =
-                        CSharpGenerator.Generate(
+                        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                             make [ definition ],
                             GenerationOptions.Default,
                             CancellationToken.None
@@ -910,7 +910,7 @@ let tests =
             )
             <| fun _ ->
                 Expect.equal
-                    (executeConsumer (model ()) 14 FunctionCases.consumer)
+                    (executeConsumer (model ()) 15 FunctionCases.consumer)
                     1
                     "capture, shadowing, partial application, generics and evaluation order"
             |> testLabel "PlatformSpecific"
@@ -941,7 +941,7 @@ let tests =
                     ))
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "nested collision"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
@@ -966,7 +966,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "method class collision"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
@@ -1009,7 +1009,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "method type collision"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
@@ -1029,7 +1029,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "portable path collision"
             Expect.equal result.Diagnostics.Head.Rule "path-collision" "stable category"
@@ -1052,7 +1052,7 @@ let tests =
                     ))
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "member collision"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
@@ -1071,7 +1071,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "invalid typed name"
             Expect.equal result.Diagnostics.Head.Rule "invalid-name" "stable category"
@@ -1101,8 +1101,8 @@ let tests =
             Expect.equal
                 (executeConsumer
                     model
-                    14
-                    "public static class Observation { public static int Run() => new Example.DataModule.Data(2,\"x\").Age; }")
+                    15
+                    "public static class Observation { public static int Run() => new Example.Data.Data(2,\"x\").Age; }")
                 2
                 "separate module class identity"
         |> testLabel "PlatformSpecific"
@@ -1115,7 +1115,7 @@ let tests =
                 Expect.equal
                     (executeConsumer
                         model
-                        14
+                        15
                         ("public static class Observation { public static int Run() { "
                          + body
                          + " } }"))
@@ -1129,7 +1129,7 @@ let tests =
             )
             <| fun _ ->
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -1147,7 +1147,7 @@ let tests =
             )
             <| fun _ ->
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -1164,7 +1164,7 @@ let tests =
             )
             <| fun _ ->
                 Expect.equal
-                    (executeConsumer (model ()) 14 TypeCases.consumer)
+                    (executeConsumer (model ()) 15 TypeCases.consumer)
                     17
                     "repeated alias use in actual type arguments is finite"
             |> testLabel "PlatformSpecific"
@@ -1175,7 +1175,7 @@ let tests =
             )
             <| fun _ ->
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         TypeCases.withRecursiveAlias (model ()),
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -1195,7 +1195,7 @@ let tests =
                     externalDiagnostics
                         (model ()
                          |> TypeCases.hideConstructors)
-                        "public class External { public static object Run() => new Example.DataModule.Choice<int>.Value(3); }"
+                        "public class External { public static object Run() => new Example.Data.Value<int>(3); }"
 
                 Expect.isTrue
                     (diagnostics
@@ -1211,7 +1211,7 @@ let tests =
                     Globalization.CultureInfo.InvariantCulture
 
                 let first =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         constantModel (),
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -1221,7 +1221,7 @@ let tests =
                     Globalization.CultureInfo.GetCultureInfo("tr-TR")
 
                 let second =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         constantModel (),
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -1260,7 +1260,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "collision before source success"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable rule"
@@ -1278,7 +1278,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.stringContains
                 result.Sources.Head.Text
@@ -1291,7 +1291,7 @@ let tests =
             )
             <| fun _ ->
                 Expect.equal
-                    (executeConsumer (model ()) 14 TypeCases.consumer)
+                    (executeConsumer (model ()) 15 TypeCases.consumer)
                     17
                     "independent construction observation"
             |> testLabel "PlatformSpecific"
@@ -1302,7 +1302,7 @@ let tests =
             )
             <| fun _ ->
                 Expect.equal
-                    (executeConsumer (model ()) 14 TypeCases.equalityConsumer)
+                    (executeConsumer (model ()) 15 TypeCases.equalityConsumer)
                     1
                     "independent boxed/nested numeric observations"
             |> testLabel "PlatformSpecific"
@@ -1313,7 +1313,7 @@ let tests =
             )
             <| fun _ ->
                 Expect.equal
-                    (executeConsumer (model ()) 14 TypeCases.aliasConsumer)
+                    (executeConsumer (model ()) 15 TypeCases.aliasConsumer)
                     15
                     "equivalent records share the represented type"
             |> testLabel "PlatformSpecific"
@@ -1324,7 +1324,7 @@ let tests =
             )
             <| fun _ ->
                 Expect.equal
-                    (executeConsumer (model ()) 14 TypeCases.nestedConsumer)
+                    (executeConsumer (model ()) 15 TypeCases.nestedConsumer)
                     1
                     "nested/function/unit types"
             |> testLabel "PlatformSpecific"
@@ -1348,7 +1348,7 @@ let tests =
                 }
 
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -1373,7 +1373,7 @@ let tests =
                 }
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "whole distribution failure"
             Expect.equal result.Diagnostics.Head.Rule "unsupported-distribution" "rule"
@@ -1412,7 +1412,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "whole model"
 
@@ -1453,7 +1453,7 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "foundation refusal"
             Expect.isEmpty result.Sources "no sources"
@@ -1486,13 +1486,13 @@ let tests =
                 )
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Success "admitted constant"
 
             Expect.stringContains
                 result.Sources.Head.Text
-                "internal static int @Answer"
+                "internal static int Answer"
                 "private access"
         for version in [ "1"; "2"; "3"; "3.0.0"; "3.1.0" ] do
             testCase (
@@ -1501,7 +1501,7 @@ let tests =
             )
             <| fun _ ->
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         classicEmpty version,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -1512,7 +1512,7 @@ let tests =
         testCase "Unknown source version fails before emission"
         <| fun _ ->
             let result =
-                CSharpGenerator.Generate(
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                     classicEmpty "9",
                     GenerationOptions.Default,
                     CancellationToken.None
@@ -1524,7 +1524,7 @@ let tests =
         testCase "Unknown numeric language version fails before emission"
         <| fun _ ->
             let result =
-                CSharpGenerator.Generate(
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                     constantModel (),
                     { LanguageVersion = 99 },
                     CancellationToken.None
@@ -1538,22 +1538,20 @@ let tests =
                 "located option"
 
             Expect.isEmpty result.Sources "no partial artifacts"
-        testCase "Default profile is 14 independently of compiler"
+        testCase "Default profile is 15 independently of compiler, and an older version is refused"
         <| fun _ ->
-            Expect.equal GenerationOptions.Default.LanguageVersion 14 "stable default"
+            Expect.equal GenerationOptions.Default.LanguageVersion 15 "stable default"
 
-            let source version =
-                CSharpGenerator.Generate(
-                    constantModel (),
-                    { LanguageVersion = version },
-                    CancellationToken.None
-                )
+            let result =
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(constantModel (), { LanguageVersion = 14 }, CancellationToken.None)
 
-            Expect.equal (source 14).Sources (source 15).Sources "same public representation"
+            Expect.equal result.Status GenerationStatus.Failure "C# 14 is no longer written"
+            Expect.equal (result.Diagnostics |> List.map (fun d -> d.Rule)) [ "unsupported-language" ] "the rule"
+            Expect.stringContains result.Diagnostics.Head.Message "15" "names the supported version"
         testCase "Given an empty library, generation succeeds without sources"
         <| fun _ ->
             let result =
-                CSharpGenerator.Generate(
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                     classicEmpty "3",
                     GenerationOptions.Default,
                     CancellationToken.None
@@ -1569,7 +1567,7 @@ let tests =
             cts.Cancel()
 
             let result =
-                CSharpGenerator.Generate(classicEmpty "3", GenerationOptions.Default, cts.Token)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(classicEmpty "3", GenerationOptions.Default, cts.Token)
 
             Expect.equal result.Status GenerationStatus.Cancelled "cancelled"
             Expect.isEmpty result.Sources "no partials"
@@ -1633,7 +1631,7 @@ let main args =
             LanguageVersion = Int32.Parse(args[1], Globalization.CultureInfo.InvariantCulture)
         }
 
-        let result = CSharpGenerator.Generate(model, options, CancellationToken.None)
+        let result = Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, options, CancellationToken.None)
 
         if
             result.Status
@@ -1714,7 +1712,7 @@ let main args =
                     @ FrozenSdkCases.definitions
                 )
 
-        let result = CSharpGenerator.Generate(model, options, CancellationToken.None)
+        let result = Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, options, CancellationToken.None)
 
         if
             result.Status

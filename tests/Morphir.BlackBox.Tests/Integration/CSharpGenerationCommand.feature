@@ -25,6 +25,15 @@ Feature: Generate C# through the existing command
     And the generation report has no artifact
     And the output directory is not there
 
+  Scenario: An older C# language version names the supported version
+    Given the model fixture "WireForms/daily-rate-4.json"
+    When I generate "csharp" from the model with the option "language-version=14"
+    Then generation exits with 2 and one JSON report
+    And the first diagnostic of the generation report has the code "unsupported-language"
+    And the generation report has the diagnostic "unsupported-language" that names "15"
+    And the generation report has no artifact
+    And the output directory is not there
+
   Scenario: A semantic refusal is structured command data
     Given the model fixture "WireForms/daily-rate-4.json"
     And the model has the problem "document-literal"

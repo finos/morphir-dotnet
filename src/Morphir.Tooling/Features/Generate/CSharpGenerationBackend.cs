@@ -11,7 +11,7 @@ namespace Morphir.Tooling.Features.Generate;
 /// <summary>Static C# adapter over typed models. The caller owns loading and publication.</summary>
 public sealed class CSharpGenerationBackend : IGenerationBackend
 {
-    private sealed record Options(int LanguageVersion, NamespaceOverride? Namespace) : ValidatedBackendOptions;
+    private sealed record Options(int LanguageVersion, NamespaceOverride? Namespace, string Profile) : ValidatedBackendOptions;
 
     public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create("morphir.csharp"), ExtensionName.Create("C# generator"), TargetId.Create("csharp"),
     [
@@ -22,10 +22,19 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
         Description = ExtensionDescription.Create("Generates C# source from a Morphir library model.")
     };
 
+    /// <summary>The only language version that the backend writes.</summary>
+    private const int SupportedLanguage = 15;
+
+    private static readonly string[] Profiles = ["imperative", "functional"];
+
     public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options)
     {
-        var language = 14;
+        var language = SupportedLanguage;
+        var profile = Profiles[0];
         NamespaceOverride? naming = null;
+        Outcome<ValidatedBackendOptions> Invalid(string key) => new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
+            "invalid-backend-option", $"C# accepts numeric 'language-version' {SupportedLanguage}, a string 'profile' (imperative or functional) and a string 'namespace'; received '{key}'."));
+
         foreach (var (key, value) in options.Values)
         {
             if (key == "namespace" && value.ValueKind == JsonValueKind.String)
@@ -36,12 +45,18 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
                         parsed.ErrorValue.Rule, parsed.ErrorValue.Message, location: parsed.ErrorValue.Location));
                 naming = parsed.ResultValue;
             }
-            else if (key != "language-version" || value.ValueKind != JsonValueKind.Number ||
-                !value.TryGetInt32(out language) || language is not (14 or 15))
-                return new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
-                    "invalid-backend-option", $"C# accepts numeric 'language-version' 14 or 15 and a string 'namespace'; received '{key}'."));
+            else if (key == "profile" && value.ValueKind == JsonValueKind.String && Profiles.Contains(value.GetString()))
+                profile = value.GetString()!;
+            else if (key == "language-version" && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out language))
+            {
+                if (language != SupportedLanguage)
+                    return new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
+                        "unsupported-language", $"C# {language} is not supported. Use language-version {SupportedLanguage}, the only version that the backend writes."));
+            }
+            else
+                return Invalid(key);
         }
-        return new Outcome<ValidatedBackendOptions>.Success(new Options(language, naming));
+        return new Outcome<ValidatedBackendOptions>.Success(new Options(language, naming, profile));
     }
 
     public ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct)
@@ -58,8 +73,8 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
 
         var coreOptions = new GenerationOptions(options.LanguageVersion);
         var generated = options.Namespace is null
-            ? CSharpGenerator.Generate(request.Model.Model, coreOptions, ct)
-            : CSharpGenerator.Generate(request.Model.Model, coreOptions, options.Namespace, ct);
+            ? Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(request.Model.Model, coreOptions, ct)
+            : Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(request.Model.Model, coreOptions, options.Namespace, ct);
         if (generated.Status.IsCancelled || ct.IsCancellationRequested)
             return Fail(GenerationFailureKind.Cancelled, "cancelled", "Generation was cancelled.");
         var diagnostics = generated.Diagnostics.Select(item => new GenerationDiagnostic(

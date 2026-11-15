@@ -39,6 +39,9 @@ type CSharpBackend private () =
         try
             ct.ThrowIfCancellationRequested()
 
+            if namespaceOverride |> Option.exists (fun value -> obj.ReferenceEquals(value, null)) then
+                Admission.fail "invalid-namespace" "$options/namespace" "An explicit namespace override must be validated and non-null."
+
             if options.LanguageVersion <> CSharpBackend.LanguageVersion then
                 Admission.fail "unsupported-language" "$options/languageVersion" "Only C# 15 is supported. Use language-version 15."
 

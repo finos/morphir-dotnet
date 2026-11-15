@@ -28,10 +28,14 @@ public sealed class CSharpGenerationBackendTests
     }
 
     [Test]
-    [Arguments("language-version", "14", true)]
     [Arguments("language-version", "15", true)]
+    [Arguments("language-version", "14", false)]
     [Arguments("language-version", "13", false)]
     [Arguments("language-version", "16", false)]
+    [Arguments("profile", "\"imperative\"", true)]
+    [Arguments("profile", "\"functional\"", true)]
+    [Arguments("profile", "\"declarative\"", false)]
+    [Arguments("profile", "1", false)]
     [Arguments("language-version", "14.5", false)]
     [Arguments("language-version", "\"14\"", false)]
     [Arguments("language-version", "\"preview\"", false)]
@@ -51,7 +55,10 @@ public sealed class CSharpGenerationBackendTests
         {
             var error = ((Outcome<ValidatedBackendOptions>.Failure)result).Error;
             error.Kind.Should().Be(GenerationFailureKind.Invocation);
-            error.Diagnostics[0].Code.Should().Be("invalid-backend-option");
+            // A number that is not 15 names the supported version; every other bad value is an invalid option.
+            var numeric = key == "language-version" && int.TryParse(json, out var _);
+            error.Diagnostics[0].Code.Should().Be(numeric ? "unsupported-language" : "invalid-backend-option");
+            if (numeric) error.Diagnostics[0].Message.Should().Contain("15");
         }
     }
 
@@ -170,8 +177,8 @@ public sealed class CSharpGenerationBackendTests
             var options = name is null ? BackendOptions.Empty : ParseOptions("namespace", JsonSerializer.Serialize(name));
             var result = (Outcome<GenerationArtifacts>.Success)await backend.GenerateAsync(new(loaded, TargetId.Create("csharp"), Validated(backend, options)), default);
             var direct = name is null
-                ? CSharpGenerator.Generate(loaded.Model, GenerationOptions.Default, default)
-                : CSharpGenerator.Generate(loaded.Model, GenerationOptions.Default, NamespaceOverride.TryCreate(name).ResultValue, default);
+                ? Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(loaded.Model, GenerationOptions.Default, default)
+                : Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(loaded.Model, GenerationOptions.Default, NamespaceOverride.TryCreate(name).ResultValue, default);
             direct.Status.IsSuccess.Should().BeTrue();
             var files = VFileTreeModule.toStringMap(result.Value.Tree).ResultValue;
             files.Select(x => (x.Key, x.Value)).Should().Equal(direct.Sources.Select(x => (x.RelativePath, x.Text)));

@@ -101,25 +101,25 @@ let v4Literal name modul typ literal =
 let admitted = [
     "classic-string",
     classicLiteral "value" "string" "string" (Morphir.IR.Classic.StringLiteral text),
-    "return Example.ClassModule.Value() == \"\\u0000\\\"\\\\\\r\\n\\t\\u2028\\U0001F600\" ? 1 : 0;"
+    "return Example.Class.Value() == \"\\u0000\\\"\\\\\\r\\n\\t\\u2028\\U0001F600\" ? 1 : 0;"
     "v4-string",
     v4Literal "value" "string" "string" (Morphir.IR.V4.StringLiteral text),
-    "return Example.ClassModule.Value() == \"\\u0000\\\"\\\\\\r\\n\\t\\u2028\\U0001F600\" ? 1 : 0;"
+    "return Example.Class.Value() == \"\\u0000\\\"\\\\\\r\\n\\t\\u2028\\U0001F600\" ? 1 : 0;"
     "classic-char",
     classicLiteral "value" "char" "char" (Morphir.IR.Classic.CharLiteral '\''),
-    "return Example.ClassModule.Value() == '\\'' ? 1 : 0;"
+    "return Example.Class.Value() == '\\'' ? 1 : 0;"
     "v4-char",
     v4Literal "value" "char" "char" (Morphir.IR.V4.CharLiteral "'"),
-    "return Example.ClassModule.Value() == '\\'' ? 1 : 0;"
+    "return Example.Class.Value() == '\\'' ? 1 : 0;"
     "classic-bool",
     classicLiteral "value" "basics" "bool" (Morphir.IR.Classic.BoolLiteral true),
-    "return Example.ClassModule.Value() ? 1 : 0;"
+    "return Example.Class.Value() ? 1 : 0;"
     "v4-bool",
     v4Literal "value" "basics" "bool" (Morphir.IR.V4.BoolLiteral true),
-    "return Example.ClassModule.Value() ? 1 : 0;"
+    "return Example.Class.Value() ? 1 : 0;"
     "classic-decimal",
     classicLiteral "value" "decimal" "decimal" (Morphir.IR.Classic.DecimalLiteral 1.2300M),
-    "return Example.ClassModule.Value() == 1.23m ? 1 : 0;"
+    "return Example.Class.Value() == 1.23m ? 1 : 0;"
     "v4-decimal",
     v4Literal
         "value"
@@ -129,10 +129,10 @@ let admitted = [
             Morphir.IR.V4.DecimalLexeme.create "1.2300"
             |> Result.defaultWith failwith
         )),
-    "return Example.ClassModule.Value() == 1.23m ? 1 : 0;"
+    "return Example.Class.Value() == 1.23m ? 1 : 0;"
     "classic-negative-zero",
     classicLiteral "value" "basics" "float" (Morphir.IR.Classic.FloatLiteral -0.0),
-    "return System.BitConverter.DoubleToInt64Bits(Example.ClassModule.Value()) == long.MinValue ? 1 : 0;"
+    "return System.BitConverter.DoubleToInt64Bits(Example.Class.Value()) == long.MinValue ? 1 : 0;"
     "v4-negative-zero",
     v4Literal
         "value"
@@ -142,10 +142,10 @@ let admitted = [
             Morphir.IR.V4.FloatValue.create -0.0 None
             |> Result.defaultWith failwith
         )),
-    "return System.BitConverter.DoubleToInt64Bits(Example.ClassModule.Value()) == long.MinValue ? 1 : 0;"
+    "return System.BitConverter.DoubleToInt64Bits(Example.Class.Value()) == long.MinValue ? 1 : 0;"
     "classic-nan",
     classicLiteral "value" "basics" "float" (Morphir.IR.Classic.FloatLiteral Double.NaN),
-    "return double.IsNaN(Example.ClassModule.Value()) ? 1 : 0;"
+    "return double.IsNaN(Example.Class.Value()) ? 1 : 0;"
 ]
 
 let refused = [

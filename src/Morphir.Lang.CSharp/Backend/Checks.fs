@@ -99,13 +99,13 @@ module internal Checks =
     /// collision checks. A refusal is raised as <c>Refusal</c>, as the backend of today raises it.
     /// </summary>
     let run (naming: TypeEmission.Naming) (model: VersionedModel) (ct: CancellationToken) : unit =
-        let initialCatalog, _ = TypeEmission.prepare naming model ct
+        let initialCatalog, _ = TypeEmission.prepareUnionAware naming [] model ct
 
         let checkedValues =
             ValueLowering.declarations model ct
             |> ValueLowering.check initialCatalog ct
 
         let records = ValueLowering.recordDeclarations initialCatalog model ct checkedValues
-        let catalog, _ = TypeEmission.prepareWith naming records model ct
+        let catalog, _ = TypeEmission.prepareUnionAware naming records model ct
         let pkg, modules = moduleList model
         validateCollisions ct catalog pkg modules

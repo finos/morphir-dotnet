@@ -49,15 +49,15 @@ Feature: Generate C# from a Morphir model
     When I generate "csharp" from the model with the options
       | option                     |
       | language-version=preview   |
-      | language-version=15        |
       | language-version=14        |
+      | language-version=15        |
       | namespace=First.Generated  |
       | namespace=Second.Generated |
     Then the exit code is 0
     And the first artifact of the generation report contains "namespace Second.Generated;" and not "First.Generated"
     When I generate "csharp" from the model with the options
       | option                   |
-      | language-version=14      |
+      | language-version=15      |
       | language-version=preview |
     Then the exit code is 2
 
@@ -78,6 +78,7 @@ Feature: Generate C# from a Morphir model
       | option                         |
       | language-version=preview       |
       | language-version=latest        |
+      | language-version=14            |
       | language-version="14"          |
       | language-version=14.5          |
       | language-version=16            |

@@ -188,19 +188,19 @@ let consumer =
     """
 public static class Observation {
   public static int Run() {
-    if(Example.FunctionsModule.ChooseFirstRecord(Example.FunctionsModule.ReorderedPair()).A!=1) return 0;
-    if(Example.FunctionsModule.FieldComparison(Example.FunctionsModule.RecordNumber())) return 0;
-    if(Example.FunctionsModule.UnwrapMaybe(Example.FunctionsModule.ReferenceJust(7))!=7) return 0;
-    if(Example.FunctionsModule.Ordering(1,2)!=-1 || Example.FunctionsModule.Ordering(2,2)!=0 || Example.FunctionsModule.Ordering(3,2)!=1) return 0;
-    if(Example.FunctionsModule.Arithmetic(7,3)!=12 || !Example.FunctionsModule.Comparison(3,7)) return 0;
+    if(Example.Functions.ChooseFirstRecord(Example.Functions.ReorderedPair()).A!=1) return 0;
+    if(Example.Functions.FieldComparison(Example.Functions.RecordNumber())) return 0;
+    if(Example.Functions.UnwrapMaybe(Example.Functions.ReferenceJust(7))!=7) return 0;
+    if(Example.Functions.Ordering(1,2)!=-1 || Example.Functions.Ordering(2,2)!=0 || Example.Functions.Ordering(3,2)!=1) return 0;
+    if(Example.Functions.Arithmetic(7,3)!=12 || !Example.Functions.Comparison(3,7)) return 0;
     var xs=Morphir.SDK.CSharp.List<int>.FromEnumerable(new[]{1,2});
-    var mapped=Example.FunctionsModule.MappedList(xs);
-    if(mapped[0]!=2 || mapped[1]!=3 || xs[0]!=1 || !Example.FunctionsModule.Equal(xs,Morphir.SDK.CSharp.List<int>.FromEnumerable(new[]{1,2}))) return 0;
-    if(Example.FunctionsModule.UnwrapMaybe(Example.FunctionsModule.MappedMaybe(Example.FunctionsModule.Just(7)))!=8) return 0;
-    if(Example.FunctionsModule.UnwrapMaybe(Example.FunctionsModule.MappedMaybe(Example.FunctionsModule.Nothing()))!=0) return 0;
-    if(Example.FunctionsModule.UnwrapResult(Example.FunctionsModule.MappedResult(Example.FunctionsModule.Ok(7)))!=8) return 0;
-    var err=Example.FunctionsModule.MappedResult(Example.FunctionsModule.Err("negative"));
-    if(err.IsOk || err.Match(e=>e,v=>"wrong")!="negative" || Example.FunctionsModule.UnwrapResult(err)!=0) return 0;
+    var mapped=Example.Functions.MappedList(xs);
+    if(mapped[0]!=2 || mapped[1]!=3 || xs[0]!=1 || !Example.Functions.Equal(xs,Morphir.SDK.CSharp.List<int>.FromEnumerable(new[]{1,2}))) return 0;
+    if(Example.Functions.UnwrapMaybe(Example.Functions.MappedMaybe(Example.Functions.Just(7)))!=8) return 0;
+    if(Example.Functions.UnwrapMaybe(Example.Functions.MappedMaybe(Example.Functions.Nothing()))!=0) return 0;
+    if(Example.Functions.UnwrapResult(Example.Functions.MappedResult(Example.Functions.Ok(7)))!=8) return 0;
+    var err=Example.Functions.MappedResult(Example.Functions.Err("negative"));
+    if(err.IsOk || err.Match(e=>e,v=>"wrong")!="negative" || Example.Functions.UnwrapResult(err)!=0) return 0;
     return 1;
   }
 }

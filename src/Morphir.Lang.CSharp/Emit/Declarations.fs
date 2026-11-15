@@ -208,7 +208,7 @@ module internal Declarations =
         |> List.collect (fun declaration ->
             context.Ct.ThrowIfCancellationRequested()
             let location = declaration.Location
-            let name = title declaration.Name.LocalName
+            let name = ModuleLayouts.identifier context.Layouts declaration.Name
             let accessKind = access declaration.Public
 
             let typeOf parameters shape =
@@ -268,12 +268,13 @@ module internal Declarations =
                     record [ accessKind; SyntaxKind.ClosedKeyword ] name parameters [] [] []
                     :: (cases
                         |> List.map (fun (caseName, fields) ->
-                            let caseSelf = Cs.genericName (title caseName) (parameters |> List.map (fun p -> Cs.id (generic p) :> TypeSyntax)) :> TypeSyntax
+                            let caseId = ModuleLayouts.identifier context.Layouts { declaration.Name with LocalName = caseName }
+                            let caseSelf = Cs.genericName caseId (parameters |> List.map (fun p -> Cs.id (generic p) :> TypeSyntax)) :> TypeSyntax
                             let fieldNames = fields |> List.map (fst >> title)
 
                             record
                                 [ caseAccess; SyntaxKind.SealedKeyword ]
-                                (title caseName)
+                                caseId
                                 parameters
                                 (fields |> List.map (fun (field, t) -> typeOf parameters t, title field))
                                 (self :: (if ieee then [ sdkType "IMorphirValue" ] else []))

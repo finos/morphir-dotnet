@@ -1,6 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Immutable;
+using System.Text.Json;
 using Morphir.Compilation;
 using Diagnostic = Morphir.Compilation.Diagnostic;
 using Morphir.Extensions;
@@ -64,11 +65,12 @@ public sealed class ModelPasses
     {
         var lineage = model.Lineage ?? ModelLineage.Of(model);
         var result = Run(PassStage.NewBeforeBackend(target), model.Model, lineage, target);
+        var path = model.Original.SourcePath;
         if (!result.TryGetValue(out var passed))
-            return new Outcome<PassedModel>.Failure(new GenerationFailure(GenerationFailureKind.Semantic, Map(result.Diagnostics)));
+            return new Outcome<PassedModel>.Failure(new GenerationFailure(GenerationFailureKind.Semantic, Map(result.Diagnostics, path)));
 
         var after = ReferenceEquals(passed.Model, model.Model) ? model : model with { Model = passed.Model };
-        return new Outcome<PassedModel>.Success(new PassedModel(after, passed.Report, Map(result.Diagnostics)));
+        return new Outcome<PassedModel>.Success(new PassedModel(after, passed.Report, Map(result.Diagnostics, path)));
     }
 
     /// <summary>
@@ -98,9 +100,19 @@ public sealed class ModelPasses
         return Checked<PassedVersionedModel>.Of(new PassedVersionedModel(passed.Model, report), notes);
     }
 
-    private static ImmutableArray<GenerationDiagnostic> Map(IEnumerable<Diagnostic> diagnostics) =>
-        [.. diagnostics.Select(Map)];
+    private static ImmutableArray<GenerationDiagnostic> Map(IEnumerable<Diagnostic> diagnostics, string? path) =>
+        [.. diagnostics.Select(diagnostic => Map(diagnostic, path))];
 
-    private static GenerationDiagnostic Map(Diagnostic diagnostic) =>
-        new(diagnostic.CodeOrNull?.Value ?? "transform.diagnostic", diagnostic.Message, null, null, diagnostic.Severity.WireValue);
+    /// <summary>
+    /// The generation diagnostic of a pass diagnostic: the code, the message and the severity. A pass that carries a model
+    /// location in its data (<c>location</c>) gives that location, and the path is the input file.
+    /// </summary>
+    private static GenerationDiagnostic Map(Diagnostic diagnostic, string? path)
+    {
+        string? location = diagnostic.Data is { ValueKind: JsonValueKind.Object } data
+            && data.TryGetProperty("location", out var text) && text.ValueKind == JsonValueKind.String
+                ? text.GetString()
+                : null;
+        return new(diagnostic.CodeOrNull?.Value ?? "transform.diagnostic", diagnostic.Message, path, location, diagnostic.Severity.WireValue);
+    }
 }

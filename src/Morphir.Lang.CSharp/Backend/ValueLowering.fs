@@ -1194,8 +1194,12 @@ module internal ValueLowering =
                     | LetRec(definitions, rest) ->
                         uniqueNames ct loc (definitions |> List.map (fun (name, _) -> name, identifier name))
 
-                        for name, _ in definitions do
+                        for name, definition in definitions do
                             validateName ct loc name
+
+                            // A recursive value with no parameter has no finite C# form: it would call itself at once.
+                            if List.isEmpty definition.Inputs then
+                                Admission.fail "local-recursion" loc "A recursive binding needs at least one parameter."
 
                         // The declared signatures are complete, so each function is typed before its body is read.
                         let signature (definition: Definition) =

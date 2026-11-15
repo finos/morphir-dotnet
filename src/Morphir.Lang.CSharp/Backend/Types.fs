@@ -13,7 +13,7 @@ type GenerationOptions =
         LanguageVersion: int
     }
 
-    static member Default = { LanguageVersion = 14 }
+    static member Default = { LanguageVersion = 15 }
 
 /// The whole-model outcome. Failure and cancellation never contain sources.
 [<RequireQualifiedAccess>]

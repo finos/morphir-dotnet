@@ -16,7 +16,7 @@ let valid text =
     |> Result.defaultWith (fun error -> failwithf "%A" error)
 
 let generate model language naming =
-    CSharpGenerator.Generate(
+    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
         model,
         { LanguageVersion = language },
         valid naming,
@@ -25,17 +25,17 @@ let generate model language naming =
 
 let typeConsumer naming =
     $"""
-using {naming};
+using {naming}.Data;
 using Morphir.SDK.CSharp;
 public static class Observation {{ public static int Run() {{
-  var person = new DataModule.Person(7,"Ada");
-  var pair = new DataModule.People(person,new DataModule.Person(8,"Grace"));
-  var holder = new DataModule.BoxHolder(new DataModule.Box<int>(List<int>.Singleton(5),(2,"two")));
-  var nested = new DataModule.NestedHolder(new DataModule.NestedBox<DataModule.NestedBox<int>>(new DataModule.NestedBox<int>(42)));
-  var equal = new DataModule.NestedHolder(new DataModule.NestedBox<DataModule.NestedBox<int>>(new DataModule.NestedBox<int>(42)));
-  DataModule.Choice<DataModule.Person> choice = new DataModule.Choice<DataModule.Person>.Value(person);
+  var person = new Person(7,"Ada");
+  var pair = new People(person,new Person(8,"Grace"));
+  var holder = new BoxHolder(new Box<int>(List<int>.Singleton(5),(2,"two")));
+  var nested = new NestedHolder(new NestedBox<NestedBox<int>>(new NestedBox<int>(42)));
+  var equal = new NestedHolder(new NestedBox<NestedBox<int>>(new NestedBox<int>(42)));
+  Choice<Person> choice = new Value<Person>(person);
   if (!Basics.Equal((object)nested,(object)equal) || MorphirValue.Hash(nested) != MorphirValue.Hash(equal)) throw new System.Exception("SDK protocol");
-  if (choice is not DataModule.Choice<DataModule.Person>.Value item || item.Item.Age != 7) throw new System.Exception("Constructor qualification");
+  if (choice is not Value<Person> item || item.Item.Age != 7) throw new System.Exception("Constructor qualification");
   return pair.First.Age + pair.Second.Age + holder.Box.Items[0] + nested.Payload.Value.Value;
 }} }}
 """
@@ -43,14 +43,15 @@ public static class Observation {{ public static int Run() {{
 let carConsumer naming =
     $"""
 using {naming};
+using {naming}.Domain;
 using Morphir.SDK.CSharp;
 public static class Observation {{ public static int Run() {{
-  var before = InventoryModule.Car();
-  var billed = WorkflowModule.Rent(3).Match(e => throw new System.Exception("Lifecycle refusal"), x => x);
-  var invoice = BillingModule.Invoice(billed).Match(x => x, () => throw new System.Exception("Missing invoice"));
-  if (InventoryModule.Availability(before) is not DomainModule.Availability.Available) throw new System.Exception("Original mutated");
-  if (InventoryModule.Availability(billed) is not DomainModule.Availability.Available) throw new System.Exception("Wrong final case");
-  if (!Basics.Equal(billed,WorkflowModule.Rent(3).Match(e => throw new System.Exception(),x => x))) throw new System.Exception("Record protocol");
+  var before = Inventory.Car();
+  var billed = Workflow.Rent(3).Match(e => throw new System.Exception("Lifecycle refusal"), x => x);
+  var invoice = Billing.Invoice(billed).Match(x => x, () => throw new System.Exception("Missing invoice"));
+  if (Inventory.Availability(before) is not Available) throw new System.Exception("Original mutated");
+  if (Inventory.Availability(billed) is not Available) throw new System.Exception("Wrong final case");
+  if (!Basics.Equal(billed,Workflow.Rent(3).Match(e => throw new System.Exception(),x => x))) throw new System.Exception("Record protocol");
   return invoice.TotalCents;
 }} }}
 """
@@ -145,7 +146,7 @@ let tests =
                     | _ -> failwith "Expected classic fixture"
 
                 let result =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -174,7 +175,7 @@ let tests =
                     (Morphir.IR.Classic.Type.Unit RefusalCases.a)
 
             let result =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable collision rule"
             Expect.stringContains result.Diagnostics.Head.Message "Name[\"a\"]" "first raw identity"
@@ -191,7 +192,7 @@ let tests =
                 |> List.find (fun (rule, _) -> rule = "type-mismatch")
 
             let result =
-                CSharpGenerator.Generate(
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                     FunctionCases.classicWith [ definition ],
                     GenerationOptions.Default,
                     CancellationToken.None
@@ -237,7 +238,7 @@ let tests =
                             FunctionCases.v4With [ definition ]
 
                     let result =
-                        CSharpGenerator.Generate(
+                        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                             model,
                             GenerationOptions.Default,
                             CancellationToken.None
@@ -303,7 +304,7 @@ let tests =
             let model = BusinessCases.read "daily-rate-v3.json"
 
             let result =
-                CSharpGenerator.Generate(
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                     model,
                     GenerationOptions.Default,
                     Unchecked.defaultof<NamespaceOverride>,
@@ -325,7 +326,7 @@ let tests =
             cancelled.Cancel()
 
             let result =
-                CSharpGenerator.Generate(
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                     BusinessCases.read "daily-rate-v4.json",
                     GenerationOptions.Default,
                     Unchecked.defaultof<NamespaceOverride>,
@@ -344,14 +345,14 @@ let tests =
                 let model = BusinessCases.read file
 
                 let original =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         CancellationToken.None
                     )
 
                 let a =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         valid "First.Generated",
@@ -359,7 +360,7 @@ let tests =
                     )
 
                 let b =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         valid "Second.Generated",
@@ -367,7 +368,7 @@ let tests =
                     )
 
                 let again =
-                    CSharpGenerator.Generate(
+                    Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                         model,
                         GenerationOptions.Default,
                         CancellationToken.None
@@ -414,7 +415,7 @@ let tests =
                 )
                 <| fun _ ->
                     Expect.equal
-                        (compile (generate (make ()) 14 naming) (typeConsumer naming))
+                        (compile (generate (make ()) 15 naming) (typeConsumer naming))
                         62
                         "independent type observation"
                 |> testLabel "PlatformSpecific"
@@ -431,7 +432,7 @@ let tests =
             <| fun _ ->
                 Expect.equal
                     (compile
-                        (generate (make ()) 14 "Pricing.Generated")
+                        (generate (make ()) 15 "Pricing.Generated")
                         (carConsumer "Pricing.Generated"))
                     15000
                     "independent invoice"
@@ -442,13 +443,13 @@ let tests =
             let model = TypeCases.classic ()
 
             let baseline =
-                CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
             let names = [| "First.Generated"; "Second.Generated" |]
 
             let results =
                 names
-                |> Array.map (fun naming -> Task.Run(fun () -> generate model 14 naming))
+                |> Array.map (fun naming -> Task.Run(fun () -> generate model 15 naming))
                 |> Task.WhenAll
                 |> fun task -> task.GetAwaiter().GetResult()
 
@@ -456,19 +457,18 @@ let tests =
                 (fun naming result ->
                     Expect.equal result.Status GenerationStatus.Success "concurrent status"
 
-                    for source in result.Sources do
+                    for source in result.Sources |> List.filter (fun source -> source.RelativePath <> "Morphir.Polyfill.g.cs") do
                         Expect.stringContains
                             source.Text
                             ("namespace "
-                             + naming
-                             + ";")
+                             + naming)
                             "request-local namespace"
                 )
                 names
                 results
 
             Expect.equal
-                (CSharpGenerator.Generate(model, GenerationOptions.Default, CancellationToken.None))
+                (Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None))
                 baseline
                 "default unchanged"
     ]

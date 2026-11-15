@@ -362,28 +362,28 @@ let consumer =
     """
 public static class Observation {
   public static int Run() {
-    if(Example.FunctionsModule.LargeTuple((1,2,3,4,5,6,7,8,9))!=9) return 0;
-    if(Example.FunctionsModule.LiteralKinds("hello",true,Morphir.SDK.CSharp.Unit.Value)!=7 || Example.FunctionsModule.LiteralKinds("hello",false,Morphir.SDK.CSharp.Unit.Value)!=3 || Example.FunctionsModule.LiteralKinds("bye",true,Morphir.SDK.CSharp.Unit.Value)!=2) return 0;
+    if(Example.Functions.LargeTuple((1,2,3,4,5,6,7,8,9))!=9) return 0;
+    if(Example.Functions.LiteralKinds("hello",true,Morphir.SDK.CSharp.Unit.Value)!=7 || Example.Functions.LiteralKinds("hello",false,Morphir.SDK.CSharp.Unit.Value)!=3 || Example.Functions.LiteralKinds("bye",true,Morphir.SDK.CSharp.Unit.Value)!=2) return 0;
     int calls=0;
-    if(Example.FunctionsModule.ConditionalOrder(x=>{calls++;return x;},true)!=1 || calls!=1) return 0;
-    if(Example.FunctionsModule.LiteralFirst(1)!=10 || Example.FunctionsModule.LiteralFirst(2)!=20) return 0;
-    if(Example.FunctionsModule.ChoiceValue(Example.FunctionsModule.MakeChoice(9))!=10) return 0;
-    if(Example.FunctionsModule.ChoiceValue(Example.FunctionsModule.EmptyChoice())!=0) return 0;
-    if(Example.FunctionsModule.ChoiceValue(Example.FunctionsModule.ChoiceFactory().Invoke(4))!=5) return 0;
-    if(Example.FunctionsModule.TupleAlias((1,8))!=(1,8) || Example.FunctionsModule.TupleAlias((2,8))!=(0,0)) return 0;
-    if(Example.FunctionsModule.PairSum().Invoke((4,5))!=9 || Example.FunctionsModule.Destructure()!=13) return 0;
-    if(Example.FunctionsModule.Sum(Example.FunctionsModule.LiteralList())!=6) return 0;
-    var person=new Example.DataModule.Person(21,"Ada");
-    var older=Example.FunctionsModule.Bump(person,3);
-    if(person.Age!=21 || older.Age!=24 || older.Name!="Ada" || Example.FunctionsModule.AgeGetter().Invoke(person)!=21) return 0;
+    if(Example.Functions.ConditionalOrder(x=>{calls++;return x;},true)!=1 || calls!=1) return 0;
+    if(Example.Functions.LiteralFirst(1)!=10 || Example.Functions.LiteralFirst(2)!=20) return 0;
+    if(Example.Functions.ChoiceValue(Example.Functions.MakeChoice(9))!=10) return 0;
+    if(Example.Functions.ChoiceValue(Example.Functions.EmptyChoice())!=0) return 0;
+    if(Example.Functions.ChoiceValue(Example.Functions.ChoiceFactory().Invoke(4))!=5) return 0;
+    if(Example.Functions.TupleAlias((1,8))!=(1,8) || Example.Functions.TupleAlias((2,8))!=(0,0)) return 0;
+    if(Example.Functions.PairSum().Invoke((4,5))!=9 || Example.Functions.Destructure()!=13) return 0;
+    if(Example.Functions.Sum(Example.Functions.LiteralList())!=6) return 0;
+    var person=new Example.Data.Person(21,"Ada");
+    var older=Example.Functions.Bump(person,3);
+    if(person.Age!=21 || older.Age!=24 || older.Name!="Ada" || Example.Functions.AgeGetter().Invoke(person)!=21) return 0;
     var trace=new System.Collections.Generic.List<int>();
-    var initial=Example.FunctionsModule.OrderedFields(x=>{trace.Add(x);return x;});
+    var initial=Example.Functions.OrderedFields(x=>{trace.Add(x);return x;});
     if(initial.A!=1 || initial.B!=2 || trace.Count!=2 || trace[0]!=1 || trace[1]!=2) return 0;
     trace.Clear();
-    var updated=Example.FunctionsModule.UpdateFields(x=>{trace.Add(x);return initial;},x=>{trace.Add(x);return x;});
+    var updated=Example.Functions.UpdateFields(x=>{trace.Add(x);return initial;},x=>{trace.Add(x);return x;});
     if(updated.A!=4 || updated.B!=3 || initial.A!=1 || initial.B!=2 || trace.Count!=3 || trace[0]!=0 || trace[1]!=4 || trace[2]!=3) return 0;
-    if(Example.FunctionsModule.Choose(true)!=7 || Example.FunctionsModule.Choose(false)!=11) return 0;
-    if(Example.FunctionsModule.UnitValue()!=Morphir.SDK.CSharp.Unit.Value) return 0;
+    if(Example.Functions.Choose(true)!=7 || Example.Functions.Choose(false)!=11) return 0;
+    if(Example.Functions.UnitValue()!=Morphir.SDK.CSharp.Unit.Value) return 0;
     return 1;
   }
 }

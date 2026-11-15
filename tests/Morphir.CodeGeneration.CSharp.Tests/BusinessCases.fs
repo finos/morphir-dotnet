@@ -333,39 +333,40 @@ let carConsumer =
     """
 using System;
 using Car.Rental;
+using Car.Rental.Domain;
 using Morphir.SDK.CSharp;
 public static class Observation {
   static T Ok<E,T>(Result<E,T> value) => value.Match(e => throw new Exception("Unexpected error: " + e), x => x);
   static void Check(bool value) { if (!value) throw new Exception("Car lifecycle observation failed"); }
-  static bool Error(Result<DomainModule.RentalError,DomainModule.Vehicle> value, DomainModule.RentalError expected)
+  static bool Error(Result<RentalError,Vehicle> value, RentalError expected)
     => value.Match(e => Basics.Equal(e,expected), _ => false);
   public static int Run() {
-    var initial = InventoryModule.Car();
-    Check(InventoryModule.DailyRate() == 5000);
-    Check(InventoryModule.Availability(initial) is DomainModule.Availability.Available);
-    Check(InventoryModule.Lookup("CAR-1", List<DomainModule.Vehicle>.FromEnumerable(new[]{initial})).Match(x => Basics.Equal(x,initial), () => false));
-    var reserved = Ok(ReservationModule.Reserve(3,initial));
-    Check(InventoryModule.Availability(reserved) is DomainModule.Availability.Reserved);
-    var picked = Ok(PickupModule.Pickup(reserved));
-    Check(InventoryModule.Availability(picked) is DomainModule.Availability.Rented);
-    var returned = Ok(ReturnModule.ReturnCar(3,picked));
-    Check(InventoryModule.Availability(returned) is DomainModule.Availability.Available);
-    var billed = Ok(BillingModule.Bill(returned));
-    var invoice = BillingModule.Invoice(billed).Match(x => x, () => throw new Exception("Missing invoice"));
+    var initial = Inventory.Car();
+    Check(Inventory.DailyRate() == 5000);
+    Check(Inventory.Availability(initial) is Available);
+    Check(Inventory.Lookup("CAR-1", List<Vehicle>.FromEnumerable(new[]{initial})).Match(x => Basics.Equal(x,initial), () => false));
+    var reserved = Ok(Reservation.Reserve(3,initial));
+    Check(Inventory.Availability(reserved) is Reserved);
+    var picked = Ok(Pickup.Pickup_(reserved));
+    Check(Inventory.Availability(picked) is Rented);
+    var returned = Ok(Return.ReturnCar(3,picked));
+    Check(Inventory.Availability(returned) is Available);
+    var billed = Ok(Billing.Bill(returned));
+    var invoice = Billing.Invoice(billed).Match(x => x, () => throw new Exception("Missing invoice"));
     Check(invoice.TotalCents == 15000);
-    var next = Ok(ReservationModule.Reserve(2,returned));
-    var previous = Ok(BillingModule.Bill(next));
-    Check(InventoryModule.Availability(previous) is DomainModule.Availability.Reserved);
-    Check(Basics.Equal(BillingModule.Invoice(previous),BillingModule.Invoice(billed)));
-    Check(Error(ReservationModule.Reserve(3,reserved),new DomainModule.RentalError.Unavailable()));
-    Check(Error(PickupModule.Pickup(initial),new DomainModule.RentalError.ReservationRequired()));
-    Check(Error(ReturnModule.ReturnCar(3,initial),new DomainModule.RentalError.ActiveRentalRequired()));
-    Check(Error(ReservationModule.Reserve(0,initial),new DomainModule.RentalError.InvalidDuration()));
-    Check(Error(ReturnModule.ReturnCar(0,picked),new DomainModule.RentalError.InvalidDuration()));
-    Check(Error(BillingModule.Bill(picked),new DomainModule.RentalError.ReturnRequired()));
-    Check(Error(BillingModule.Bill(billed),new DomainModule.RentalError.AlreadyBilled()));
-    Check(InventoryModule.Availability(initial) is DomainModule.Availability.Available);
-    Check(Basics.Equal(Ok(WorkflowModule.Rent(3)),billed));
+    var next = Ok(Reservation.Reserve(2,returned));
+    var previous = Ok(Billing.Bill(next));
+    Check(Inventory.Availability(previous) is Reserved);
+    Check(Basics.Equal(Billing.Invoice(previous),Billing.Invoice(billed)));
+    Check(Error(Reservation.Reserve(3,reserved),new Unavailable()));
+    Check(Error(Pickup.Pickup_(initial),new ReservationRequired()));
+    Check(Error(Return.ReturnCar(3,initial),new ActiveRentalRequired()));
+    Check(Error(Reservation.Reserve(0,initial),new InvalidDuration()));
+    Check(Error(Return.ReturnCar(0,picked),new InvalidDuration()));
+    Check(Error(Billing.Bill(picked),new ReturnRequired()));
+    Check(Error(Billing.Bill(billed),new AlreadyBilled()));
+    Check(Inventory.Availability(initial) is Available);
+    Check(Basics.Equal(Ok(Workflow.Rent(3)),billed));
     return 7;
   }
 }
@@ -374,7 +375,7 @@ public static class Observation {
 let dailyConsumer =
     """
 public static class Observation { public static int Run() {
-  if (Car.Rental.InventoryModule.DailyRate() != 5000) throw new System.Exception("Independent daily rate");
+  if (Car.Rental.Inventory.DailyRate() != 5000) throw new System.Exception("Independent daily rate");
   return 5000;
 } }
 """
@@ -382,21 +383,21 @@ public static class Observation { public static int Run() {
 let booksConsumer =
     """
 using System;
-using Morphir.Reference.Model;
+using Morphir.Reference.Model.BooksAndRecords;
 using Morphir.SDK.CSharp;
 public static class Observation { public static int Run() {
-  var first = new BooksAndRecordsModule.Deal("ABC",12.5,3);
-  var second = new BooksAndRecordsModule.Deal("ABC",12.5,3);
+  var first = new Deal("ABC",12.5,3);
+  var second = new Deal("ABC",12.5,3);
   if (!Basics.Equal(first,second) || MorphirValue.Hash(first) != MorphirValue.Hash(second)) throw new Exception("Independent record equality/hash");
-  var one = new BooksAndRecordsModule.DealEvent.DealOpened("ABC",12.5,3);
-  var two = new BooksAndRecordsModule.DealEvent.DealOpened("ABC",12.5,3);
+  var one = new DealOpened("ABC",12.5,3);
+  var two = new DealOpened("ABC",12.5,3);
   if (!Basics.Equal(one,two) || MorphirValue.Hash(one) != MorphirValue.Hash(two)) throw new Exception("Independent case equality/hash");
-  var oldBook = Dict<string,BooksAndRecordsModule.Deal>.Empty(MorphirComparers.String);
+  var oldBook = Dict<string,Deal>.Empty(MorphirComparers.String);
   var newBook = oldBook.Insert("ABC",first);
   if (oldBook.Get("ABC").IsJust || !newBook.Get("ABC").Match(x => Basics.Equal(x,second), () => false)) throw new Exception("Nested persistence");
   if (!Basics.Equal(newBook,newBook.Insert("ABC",second))) throw new Exception("Nested structural equality");
   if (first.Product != "ABC" || first.Price != 12.5 || first.Quantity != 3) throw new Exception("Payload fidelity");
-  foreach (var property in typeof(BooksAndRecordsModule.Deal).GetProperties()) if (property.SetMethod != null) throw new Exception("Mutable generated payload");
+  foreach (var property in typeof(Deal).GetProperties()) if (property.SetMethod != null && !System.Linq.Enumerable.Contains(property.SetMethod.ReturnParameter.GetRequiredCustomModifiers(), typeof(System.Runtime.CompilerServices.IsExternalInit))) throw new Exception("Mutable generated payload");
   return 1;
 } }
 """

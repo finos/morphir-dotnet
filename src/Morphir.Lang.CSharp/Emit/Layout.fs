@@ -92,8 +92,19 @@ module internal ModuleLayouts =
             path, layout)
         |> Map.ofList
 
+    /// <summary>
+    /// The C# identifier of a type or a value of a module. C# does not allow a member with the name of its enclosing type, so
+    /// a name that equals the name of the static class of its module gets a trailing underscore.
+    /// </summary>
+    let identifier (layouts: Map<ModulePath, ModuleLayout>) (name: FQName) : string =
+        let title = TypeEmission.title name.LocalName
+
+        match Map.tryFind name.ModulePath layouts with
+        | Some { Kind = StaticClass; Container = container } when List.last container = title -> title + "_"
+        | _ -> title
+
     /// <summary>The segments of the full name of a type or a value of a module, after <c>global::</c>.</summary>
     let qualified (layouts: Map<ModulePath, ModuleLayout>) (name: FQName) : string list =
         match Map.tryFind name.ModulePath layouts with
-        | Some layout -> layout.Container @ [ TypeEmission.title name.LocalName ]
+        | Some layout -> layout.Container @ [ identifier layouts name ]
         | None -> failwith "A name refers to a module that the layout does not have."

@@ -534,11 +534,11 @@ let consumer =
 public static class Observation {
     public static int Run() {
         var trace = new System.Collections.Generic.List<int>();
-        var order=Example.FunctionsModule.Order(x => {trace.Add(x);return x;});
+        var order=Example.Functions.Order(x => {trace.Add(x);return x;});
         if(order!=11 || trace.Count!=2 || trace[0]!=8 || trace[1]!=3) return 0;
-        if(Example.FunctionsModule.Capture(7)!=10 || Example.FunctionsModule.Shadow(7)!=8) return 0;
-        if(Example.FunctionsModule.Partial(7)!=12 || Example.FunctionsModule.Make(4)(5)!=9) return 0;
-        if(Example.FunctionsModule.Identity("typed")!="typed" || Example.FunctionsModule.GenericUse()!=23) return 0;
+        if(Example.Functions.Capture(7)!=10 || Example.Functions.Shadow(7)!=8) return 0;
+        if(Example.Functions.Partial(7)!=12 || Example.Functions.Make(4)(5)!=9) return 0;
+        if(Example.Functions.Identity("typed")!="typed" || Example.Functions.GenericUse()!=23) return 0;
         return 1;
     }
 }
