@@ -154,6 +154,22 @@ let tests =
             Expect.stringContains (List.head diagnostics).Message "Wrapped" "names the case and the type"
         }
 
+        test "a mixed custom type whose wrapped type is in another module is a closed record with sealed cases" {
+            let model =
+                library
+                    [ "shapes", moduleOf [ "wrapped", alias [] (recordT [ "n", intT ]) ] []
+                      "mixed",
+                      moduleOf [ "either", custom [] [ "wrapped", [ "value", own "shapes" "wrapped" [] ]; "other", [ "x", intT ] ] ] [] ]
+
+            let files = generate model
+            let text = files["p_Acme.Geo/m_MixedModule.g.cs"]
+            Expect.stringContains text "public closed record Either;" "the closed form"
+            Expect.stringContains text "public sealed record Wrapped(global::Acme.Geo.Shapes.Wrapped Value) : global::Acme.Geo.Mixed.Either;" "the wrapper case is a sealed record"
+            Expect.stringContains text "public sealed record Other(int X) : global::Acme.Geo.Mixed.Either;" "the other case"
+            Expect.isFalse (text.Contains "union") "no union"
+            expectCompiles files
+        }
+
         test "a case with the name of another type of the module is a name collision that names both" {
             let model =
                 library

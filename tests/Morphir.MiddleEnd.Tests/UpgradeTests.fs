@@ -79,6 +79,14 @@ let private fixedTests =
               Expect.equal first.Applications second.Applications "same list"
           }
 
+          test "the upgrade leaves its input unchanged" {
+              let input = inputOf (classicModel "daily-rate-v3.json")
+              // The text form compares the classic attributes by their JSON text.
+              let before = sprintf "%A" input
+              outcome (UpgradeChain.upgrade [ ClassicToCurrent.step ] current input) |> ignore
+              Expect.equal (sprintf "%A" input) before "the input is the input that was given"
+          }
+
           test "the digest of the output is the digest of its V4 bytes" {
               let upgraded = outcome (UpgradeChain.upgrade [ ClassicToCurrent.step ] current (inputOf (classicModel "daily-rate-v3.json")))
 

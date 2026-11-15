@@ -18,7 +18,8 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [x] 2.6 Run the analyzers in the frontend and publish the rule catalog (code, message, IRI, example). Verify that a catalog test compiles every example and checks its code and range, and that the frontend and the analyzer give the same diagnostics for the example set.
 - [x] 2.7 Register the frontend as a built-in extension in both hosts and select it for `.cs` documents in `morphir compile`. Add BDD scenarios in `tests/Morphir.Tooling.Tests/Features/Compile/` for the C# compile in `dotnet-morphir` and in the AOT `morphir`, and check that the project file provider gives the default `**/*.cs` items of an SDK-style project. Verify the scenarios and that `extension list` shows the `frontend` entry with delivery `built-in` in both hosts.
 - [x] 2.8 Add C# frontend conformance cases as Morphir Compatibility Kit Gherkin with the closed step vocabulary and independently written expected IR. Verify that the corpus runs against the frontend.
-- [x] 2.9 Document the C# subset, the rule catalog and the module shape rules in `docs/` and verify that the documented `morphir compile` commands run as written on the example project.
+- [ ] 2.9 Document the C# subset, the rule catalog and the module shape rules in `docs/` and verify that the documented `morphir compile` commands run as written on the example project.
+  - Open: the subset, the catalog and the module rules are documented, but no test runs the documented `morphir compile` command on the example project.
 
 ## 3. IR upgrade and node addresses (UPG-1, NAD-1)
 
@@ -26,7 +27,8 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [x] 3.2 Add the walk that gives each node of a current-IR module its address. Verify with tests for `body/apply/argument`, `type-exp/record/field/<name>`, tuple elements, match cases and `let` definitions, and that the `LetDefinition` and `LetRecursion` of one name give the same address.
 - [x] 3.3 Add the `IIrUpgrade` contract, the chain join with a "no path" diagnostic, and the classic to current IR step as the conversion that the repository lacks. Write the tests first: `3.0.0` to current, already current, no path, node without a target form, determinism, input unchanged, and the application list for a removed unreachable case. Verify the tests.
 - [x] 3.4 Make `morphir generate` upgrade a model when the selected backend claims the current IR only, and keep the F# backend on classic models. Add tests for both in `Morphir.Tooling.Tests` (no registered backend reads the current IR only before group 5, so the tests use a recording backend; a black-box scenario with the C# backend lands with group 5). Verify that the existing F# generation tests pass unchanged and that `--target csharp` accepts a classic model.
-- [x] 3.5 Document the upgrade steps and the application list in `docs/` and verify that a documented example command runs as written.
+- [ ] 3.5 Document the upgrade steps and the application list in `docs/` and verify that a documented example command runs as written.
+  - Open: the upgrade and the application list are documented, but the page has an F# fragment and no command, and no test runs a documented example.
 
 ## 4. Middle-end contracts (MID-1)
 
@@ -34,7 +36,8 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [x] 4.2 Add the rewrite rule record, the rule catalog check (an example is necessary) and the engine with the bottom-up, top-down and fixed-point strategies and the round limit. Write failing tests for: example before and after, rule without an example, non-terminating rule set, replacement keeps its attributes, a second pass keeps the first origin. Verify the tests.
 - [x] 4.3 Add the application log with the address before (pinned to the pipeline input) and after, the module-at-a-time walk and the recorded package view lookups, and report them with `--json`. Verify with a test that a rule that reads another module lists the lookup.
 - [x] 4.4 Add the host check that each feature that a backend cannot take is removed by an earlier pass. Verify with a test that a remaining feature fails before the backend and names the feature.
-- [x] 4.5 Run the passes in `morphir generate` (stage before a backend) and in `morphir compile` (stage after a frontend); skip them with one `info` diagnostic for an older family. Add BDD scenarios. Verify that a pass error stops before publication.
+- [ ] 4.5 Run the passes in `morphir generate` (stage before a backend) and in `morphir compile` (stage after a frontend); skip them with one `info` diagnostic for an older family. Add BDD scenarios. Verify that a pass error stops before publication.
+  - Open: unit tests cover the compile stage and the skip diagnostic, but the BDD scenarios cover `generate` only.
 - [x] 4.6 Move the checks of the old C# backend (`ValueLowering.check` and the collision checks) into the first target-side pass for `csharp`. Verify that the old diagnostics are reported with the same rules, now from the pass.
 - [x] 4.7 Document the pass contract, the rule catalog format and the application list in `docs/`. Verify that the documented example rule runs through the test harness as written.
 
