@@ -106,10 +106,15 @@ let tests =
             Expect.equal (run files "Acme.Geo.Loops" "Factorial" [ box 5 ]) "120" "5!"
         }
 
-        test "mutually recursive local functions call each other" {
+        test "functions that call each other only as their last step become one loop with a state, and the program gives the model result" {
             let files = generate (loops [ "is-even", evenOdd ])
+            let text = files["p_Acme.Geo/m_LoopsModule.g.cs"]
+            Expect.stringContains text "while (true)" "one loop for the group"
+            Expect.stringContains text "continue;" "a tail call goes round again"
             Expect.equal (run files "Acme.Geo.Loops" "IsEven" [ box 10 ]) "True" "10 is even"
             Expect.equal (run files "Acme.Geo.Loops" "IsEven" [ box 7 ]) "False" "7 is odd"
+            // A depth that would overflow the stack as calls between local functions.
+            Expect.equal (run files "Acme.Geo.Loops" "IsEven" [ box 5_000_001 ]) "False" "a depth that would overflow the stack"
         }
     
         test "the list functions of the transform table run: filter, filterMap and foldl" {

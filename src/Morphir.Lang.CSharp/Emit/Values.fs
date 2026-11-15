@@ -105,6 +105,12 @@ module internal Values =
 
     type private Env = Map<Name, string>
 
+    /// <summary>The functions that a loop body calls as its last step: the state of each function and its parameters, and the state local when the loop has one.</summary>
+    type private LoopTargets = {
+        State: string option
+        Functions: Map<Name, int * string list>
+    }
+
     let private funcOf (inputs: TypeSyntax list) (output: TypeSyntax) : TypeSyntax =
         Cs.globalGeneric [ "System"; "Func" ] (inputs @ [ output ])
 
@@ -723,9 +729,12 @@ module internal Values =
             let isUsed (name: Name) = uses name rest || (definitions |> List.exists (fun (_, d) -> uses name d.LocalBody))
 
             let functions =
-                names
-                |> List.filter (fun (name, _, _) -> isUsed name)
-                |> List.map (fun (name, local, definition) -> localFunction scope groupEnv name local definition)
+                if isGroupLoop definitions then
+                    groupLoop scope groupEnv names (fun name -> uses name rest)
+                else
+                    names
+                    |> List.filter (fun (name, _, _) -> isUsed name)
+                    |> List.map (fun (name, local, definition) -> localFunction scope groupEnv name local definition)
 
             functions @ tail scope groupEnv rest
         | _ -> [ Cs.returns (expression scope env value) ]
@@ -741,7 +750,8 @@ module internal Values =
 
         let body: StatementSyntax list =
             if isTailLoop name (List.length inputs) definition.LocalBody then
-                [ SF.WhileStatement(Cs.boolLiteral true, Cs.block (loopTail scope bodyEnv name (inputs |> List.map (fun (_, _, ident) -> ident)) definition.LocalBody)) :> StatementSyntax ]
+                let targets = { State = None; Functions = Map.ofList [ name, (0, inputs |> List.map (fun (_, _, ident) -> ident)) ] }
+                [ SF.WhileStatement(Cs.boolLiteral true, Cs.block (loopTail scope bodyEnv targets definition.LocalBody)) :> StatementSyntax ]
             else
                 tail scope bodyEnv definition.LocalBody
 
@@ -750,8 +760,88 @@ module internal Values =
             .WithBody(Cs.block body)
         :> StatementSyntax
 
-    /// <summary>The statements of a loop body: a call of the function itself as the last step replaces the parameters and continues.</summary>
-    and private loopTail (scope: Scope) (env: Env) (self: Name) (parameters: string list) (value: Typed) : StatementSyntax list =
+    /// <summary>
+    /// The functions of a group that call each other only as their last step (D6): one local function with a loop and a
+    /// state that selects the body of a function. A call of a function of the group as the last step sets the parameters of
+    /// that function and the state, and goes round again: no stack grows. Each function that the rest of the value calls is
+    /// a local function that starts the loop in its state.
+    /// </summary>
+    and private groupLoop
+        (scope: Scope)
+        (env: Env)
+        (names: (Name * string * TypedDefinition) list)
+        (calledByRest: Name -> bool)
+        : StatementSyntax list =
+        let state = scope.Fresh "state"
+        let loop = scope.Fresh "loop"
+        let intType = Cs.keywordType SyntaxKind.IntKeyword
+
+        let members =
+            names
+            |> List.mapi (fun index (name, local, definition) ->
+                let inputs = definition.LocalInputs |> List.map (fun (inputName, shape) -> inputName, shape, scope.Local inputName)
+                index, name, local, definition, inputs)
+
+        let targets =
+            { State = Some state
+              Functions = members |> List.map (fun (index, name, _, _, inputs) -> name, (index, inputs |> List.map (fun (_, _, ident) -> ident))) |> Map.ofList }
+
+        let output = scope.Type((let _, _, d = List.head names in d).LocalOutput)
+
+        let bodies =
+            members
+            |> List.map (fun (index, _, _, definition, inputs) ->
+                let bodyEnv = inputs |> List.fold (fun (acc: Env) (inputName, _, ident) -> Map.add inputName ident acc) env
+                index, loopTail scope bodyEnv targets definition.LocalBody)
+
+        // Each body ends in a return, a continue or a throw, so the body of the last state needs no condition.
+        let dispatch =
+            bodies
+            |> List.collect (fun (index, statements) ->
+                if index = List.length bodies - 1 then
+                    statements
+                else
+                    [ SF.IfStatement(SF.BinaryExpression(SyntaxKind.EqualsExpression, Cs.id state, Cs.intLiteral index), Cs.block statements) :> StatementSyntax ])
+
+        let parameters =
+            SF.Parameter(Cs.token state).WithType(intType)
+            :: (members |> List.collect (fun (_, _, _, _, inputs) -> inputs |> List.map (fun (_, shape, ident) -> SF.Parameter(Cs.token ident).WithType(scope.Type shape))))
+
+        let loopFunction =
+            SF.LocalFunctionStatement(output, Cs.token loop)
+                .WithParameterList(SF.ParameterList(SF.SeparatedList<ParameterSyntax>(parameters)))
+                .WithBody(Cs.block [ SF.WhileStatement(Cs.boolLiteral true, Cs.block dispatch) :> StatementSyntax ])
+            :> StatementSyntax
+
+        // An entry gives its own arguments, and a default for the parameters of the other states, which the loop sets before it reads them.
+        let unset: ExpressionSyntax =
+            SF.PostfixUnaryExpression(SyntaxKind.SuppressNullableWarningExpression, SF.LiteralExpression(SyntaxKind.DefaultLiteralExpression, SF.Token SyntaxKind.DefaultKeyword)) :> ExpressionSyntax
+
+        let entries =
+            members
+            |> List.filter (fun (_, name, _, _, _) -> calledByRest name)
+            |> List.map (fun (index, _, local, definition, inputs) ->
+                let own = inputs |> List.map (fun (inputName, shape, _) -> scope.Local inputName, shape)
+
+                let arguments =
+                    Cs.intLiteral index
+                    :: (members
+                        |> List.collect (fun (other, _, _, _, otherInputs) ->
+                            if other = index then own |> List.map (fun (ident, _) -> Cs.id ident :> ExpressionSyntax)
+                            else otherInputs |> List.map (fun _ -> unset)))
+
+                SF.LocalFunctionStatement(scope.Type definition.LocalOutput, Cs.token local)
+                    .WithParameterList(SF.ParameterList(SF.SeparatedList<ParameterSyntax>(own |> List.map (fun (ident, shape) -> SF.Parameter(Cs.token ident).WithType(scope.Type shape)))))
+                    .WithBody(Cs.block [ Cs.returns (Cs.invoke (Cs.id loop) arguments) ])
+                :> StatementSyntax)
+
+        if List.isEmpty entries then [] else loopFunction :: entries
+
+    /// <summary>
+    /// The statements of a loop body. A call of a function of the targets as the last step replaces the parameters of that
+    /// function, sets the state when the loop has one, and continues.
+    /// </summary>
+    and private loopTail (scope: Scope) (env: Env) (targets: LoopTargets) (value: Typed) : StatementSyntax list =
         scope.Ct.ThrowIfCancellationRequested()
         let recurse = loopTail scope
 
@@ -762,11 +852,11 @@ module internal Values =
 
         match value.Node with
         | TIf(condition, yes, no) ->
-            [ SF.IfStatement(expression scope env condition, Cs.block (recurse env self parameters yes), SF.ElseClause(Cs.block (recurse env self parameters no))) :> StatementSyntax ]
+            [ SF.IfStatement(expression scope env condition, Cs.block (recurse env targets yes), SF.ElseClause(Cs.block (recurse env targets no))) :> StatementSyntax ]
         | TLet(name, binding, rest) ->
             let local = scope.Local name
             Cs.local (scope.Type binding.Type) local (expression scope env binding)
-            :: ((if uses name rest then [] else [ Cs.unused local ]) @ recurse (Map.add name local env) self parameters rest)
+            :: ((if uses name rest then [] else [ Cs.unused local ]) @ recurse (Map.add name local env) targets rest)
         | TDestructure(p, target, body) ->
             let subject = scope.Fresh "subject"
             let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
@@ -776,7 +866,7 @@ module internal Values =
                 | Some c -> [ SF.IfStatement(SF.PrefixUnaryExpression(SyntaxKind.LogicalNotExpression, Cs.paren c), Cs.throwStatement [ "System"; "InvalidOperationException" ] "Morphir destructuring failed.") :> StatementSyntax ]
                 | None -> []
 
-            [ Cs.local (scope.Type target.Type) subject (expression scope env target) ] @ guard @ bindings @ recurse scoped self parameters body
+            [ Cs.local (scope.Type target.Type) subject (expression scope env target) ] @ guard @ bindings @ recurse scoped targets body
         | TMatch(target, cases) ->
             let subject = scope.Fresh "subject"
 
@@ -785,7 +875,7 @@ module internal Values =
                 | [] -> [ Cs.throwStatement [ "System"; "InvalidOperationException" ] "Non-exhaustive Morphir pattern." ]
                 | (p, body) :: rest ->
                     let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
-                    let inner = bindings @ recurse scoped self parameters body
+                    let inner = bindings @ recurse scoped targets body
 
                     match condition with
                     | None -> inner
@@ -795,29 +885,41 @@ module internal Values =
         | TApply _ ->
             let head, args = spine value []
 
+            let assign (target: string) (source: ExpressionSyntax) =
+                SF.ExpressionStatement(SF.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, Cs.id target, source)) :> StatementSyntax
+
             match head.Node with
-            | TVariable name when name = self && List.length args = List.length parameters ->
+            | TVariable name when
+                (match Map.tryFind name targets.Functions with
+                 | Some(_, parameters) -> List.length args = List.length parameters
+                 | None -> false)
+                ->
+                let index, parameters = targets.Functions[name]
                 // The new values are all computed before any parameter changes.
                 let temporaries = args |> List.map (fun arg -> scope.Fresh "next", arg)
                 let computes = temporaries |> List.map (fun (temp, arg) -> Cs.local (scope.Type arg.Type) temp (expression scope env arg))
+                let assigns = List.zip parameters temporaries |> List.map (fun (parameter, (temp, _)) -> assign parameter (Cs.id temp))
 
-                let assigns =
-                    List.zip parameters temporaries
-                    |> List.map (fun (parameter, (temp, _)) ->
-                        SF.ExpressionStatement(SF.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, Cs.id parameter, Cs.id temp)) :> StatementSyntax)
+                let select =
+                    match targets.State with
+                    | Some state -> [ assign state (Cs.intLiteral index) ]
+                    | None -> []
 
-                computes @ assigns @ [ SF.ContinueStatement() :> StatementSyntax ]
+                computes @ assigns @ select @ [ SF.ContinueStatement() :> StatementSyntax ]
             | _ -> [ Cs.returns (expression scope env value) ]
         | _ -> [ Cs.returns (expression scope env value) ]
 
-    /// <summary>Whether the body calls the function only as its last step, at least once, with no closure that could keep a parameter.</summary>
-    and private isTailLoop (self: Name) (arity: int) (body: Typed) : bool =
+    /// <summary>
+    /// The calls of the functions of a group in a body: the names that it calls as its last step with all arguments, the
+    /// number of other uses of the names, and whether it has a closure that could keep a parameter.
+    /// </summary>
+    and private groupCalls (group: Map<Name, int>) (body: Typed) : Name list * int * bool =
         let rec spine (v: Typed) (acc: Typed list) =
             match v.Node with
             | TApply(f, x) -> spine f (x :: acc)
             | _ -> v, acc
 
-        let mutable tailCalls = 0
+        let tailCalls = ResizeArray<Name>()
         let mutable otherUses = 0
         let mutable closures = false
 
@@ -827,13 +929,13 @@ module internal Values =
                 let head, args = spine v []
 
                 match head.Node with
-                | TVariable name when name = self && List.length args = arity && isTail ->
-                    tailCalls <- tailCalls + 1
+                | TVariable name when isTail && Map.tryFind name group = Some(List.length args) ->
+                    tailCalls.Add name
                     args |> List.iter (visit false)
                 | _ ->
                     visit false head
                     args |> List.iter (visit false)
-            | TVariable name -> if name = self then otherUses <- otherUses + 1
+            | TVariable name -> if Map.containsKey name group then otherUses <- otherUses + 1
             | TIf(c, a, b) ->
                 visit false c
                 visit isTail a
@@ -870,7 +972,25 @@ module internal Values =
             | TReference _ -> ()
 
         visit true body
-        tailCalls > 0 && otherUses = 0 && not closures
+        List.ofSeq tailCalls, otherUses, closures
+
+    /// <summary>Whether the body calls the function only as its last step, at least once, with no closure that could keep a parameter.</summary>
+    and private isTailLoop (self: Name) (arity: int) (body: Typed) : bool =
+        let tailCalls, otherUses, closures = groupCalls (Map.ofList [ self, arity ]) body
+        not (List.isEmpty tailCalls) && otherUses = 0 && not closures
+
+    /// <summary>
+    /// Whether the functions of a group call each other only as their last step, with no closure in a body, and at least
+    /// one function calls another function of the group. Such a group becomes one loop with a state (D6).
+    /// </summary>
+    and private isGroupLoop (definitions: (Name * TypedDefinition) list) : bool =
+        let group = definitions |> List.map (fun (name, d) -> name, List.length d.LocalInputs) |> Map.ofList
+
+        let calls = definitions |> List.map (fun (name, d) -> name, groupCalls group d.LocalBody)
+
+        List.length definitions > 1
+        && calls |> List.forall (fun (_, (_, otherUses, closures)) -> otherUses = 0 && not closures)
+        && calls |> List.exists (fun (name, (tailCalls, _, _)) -> tailCalls |> List.exists (fun called -> called <> name))
 
     /// <summary>The method of a value definition.</summary>
     let methodOf (context: Context) (checkedValue: Checked) : MemberDeclarationSyntax =

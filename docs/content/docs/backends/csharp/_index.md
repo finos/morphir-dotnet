@@ -52,7 +52,7 @@ The rules that give this shape:
 | Any other custom type | `closed record Name` with one `sealed record Case(...) : Name` for each constructor |
 | A pattern match | A `switch` expression, with each arm and the closing brace on a line of their own. An arm that cannot match is not written. |
 | A value that takes parameters | A `static` method. A saturated call is a direct call. A partial application is a `Func`. |
-| A tail-recursive `LetRecursion` | A local function with a `while` loop. Any other `LetRecursion` is a local function. |
+| A tail-recursive `LetRecursion` | A local function with a `while` loop. Functions of one `LetRecursion` that call each other only as their last step are one local function with a `while` loop and a state for each function; no stack grows. Any other `LetRecursion` is a local function. |
 
 A custom type that mixes wrapper constructors with other constructors takes the closed form. A wrapper custom type with
 private constructors also takes the closed form, with `internal` cases: a C# union has public creation members, so it
