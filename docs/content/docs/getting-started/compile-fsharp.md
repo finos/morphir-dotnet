@@ -67,10 +67,11 @@ dotnet-morphir generate --target csharp --output generated/csharp
 ```
 
 ```text
+Morphir.Polyfill.g.cs
 p_Acme.CarRental/m_RatesModule.g.cs
 ```
 
-`generate` reads the IR of the most recent compile, so it needs no `--input`. Use
+`Morphir.Polyfill.g.cs` has the runtime types that `closed` and `union` need below .NET 11. `generate` reads the IR of the most recent compile, so it needs no `--input`. Use
 `--target fsharp` for F#.
 
 Do both steps in one run:
