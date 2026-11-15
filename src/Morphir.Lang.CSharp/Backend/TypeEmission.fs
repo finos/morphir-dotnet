@@ -29,6 +29,8 @@ module internal TypeEmission =
         Synthetic: bool
         Definition: Definition
         Location: string
+        /// <summary>True for a custom type whose constructors each wrap one reference with the name of the constructor.</summary>
+        Wrapper: bool
     }
 
     // Diagnostic text must not use F# structural reflection, including on valid AOT requests.
@@ -425,6 +427,17 @@ module internal TypeEmission =
         | Morphir.IR.V4.Type.Function(_, input, output) -> Arrow(next input, next output)
         | Morphir.IR.V4.Type.Unit _ -> Unit
 
+    /// <summary>True for a custom type whose constructors each have one field, a reference with the name of the constructor.</summary>
+    let private wrapperShaped (self: FQName) (body: Definition) =
+        match body with
+        | Cases(_, cases) when not (List.isEmpty cases) ->
+            cases
+            |> List.forall (fun (caseName, fields) ->
+                match fields with
+                | [ _, Named(target, _) ] -> title target.LocalName = title caseName && target <> self
+                | _ -> false)
+        | _ -> false
+
     let private declarations (model: VersionedModel) ct =
         let location path name =
             "$modules/"
@@ -466,6 +479,7 @@ module internal TypeEmission =
                         Synthetic = false
                         Definition = body
                         Location = loc
+                        Wrapper = wrapperShaped (FQName.fqName pkg path name) body
                     }
           ]
         | DistributionModel.V4(Morphir.IR.V4.Library(pkg, _, definition)) -> [
@@ -510,6 +524,7 @@ module internal TypeEmission =
                         Synthetic = false
                         Definition = body
                         Location = loc
+                        Wrapper = wrapperShaped (FQName.fqName pkg path name) body
                     }
           ]
         | _ -> []
@@ -603,7 +618,7 @@ module internal TypeEmission =
         | Arrow(input, output) -> Set.union (freeParameters ct input) (freeParameters ct output)
         | Unit -> Set.empty
 
-    let private recordParameters ct catalog declaration body =
+    let recordParameters ct catalog declaration body =
         let used =
             expand ct catalog (Set.singleton declaration.Name) declaration.Location body
             |> freeParameters ct
@@ -1107,7 +1122,7 @@ module internal TypeEmission =
             args
             |> List.iter (validatePublicType ct catalog location)
 
-    let prepareWith naming additions model ct =
+    let rec private prepareCore (unionAware: bool) naming additions model ct =
         let raw =
             declarations model ct
             @ additions
@@ -1180,7 +1195,9 @@ module internal TypeEmission =
                             declaration.Location
                             "A case shares a generated protocol, generic parameter or enclosing type identity."
 
-                    checkFields declaration.Location (title name) fields
+                    // A wrapper case of the union form has no member of its own.
+                    if not (unionAware && declaration.Wrapper) then
+                        checkFields declaration.Location (title name) fields
 
         let rawCatalog =
             raw
@@ -1280,7 +1297,9 @@ module internal TypeEmission =
                 cases
                 |> List.iter (fun (name, fields) ->
                     genericFieldNames fields
-                    checkFields declaration.Location (title name) fields
+                    // A wrapper case of the union form has no member of its own.
+                    if not (unionAware && declaration.Wrapper) then
+                        checkFields declaration.Location (title name) fields
                 )
             | _ -> ()
 
@@ -1389,5 +1408,10 @@ module internal TypeEmission =
 
 
         catalog, modules
+
+    let prepareWith naming additions model ct = prepareCore false naming additions model ct
+
+    /// <summary>Prepares for the backend that writes a custom type of wrapper constructors as a union: a field of such a case is no member.</summary>
+    let prepareUnionAware naming additions model ct = prepareCore true naming additions model ct
 
     let prepare naming model ct = prepareWith naming [] model ct

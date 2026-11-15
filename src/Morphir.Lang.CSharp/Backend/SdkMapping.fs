@@ -262,7 +262,7 @@ module internal SdkMapping =
             case "basics" "order" [] (local.ToUpperInvariant()) []
         | _ -> None
 
-    let rec private comparer (ct: CancellationToken) location shape =
+    let rec comparer (ct: CancellationToken) location shape =
         ct.ThrowIfCancellationRequested()
         let root = "global::Morphir.SDK.CSharp.MorphirComparers."
 

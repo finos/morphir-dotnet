@@ -69,6 +69,16 @@
         <Compile Include="Backend/ValueLowering.fs" />
         <Compile Include="Backend/Checks.fs" />
         <Compile Include="TargetPasses.fs" />
+        <!-- The backend: it writes C# as Roslyn syntax trees (tasks.md, group 5). -->
+        <Compile Include="Emit/Cs.fs" />
+        <Compile Include="Emit/Layout.fs" />
+        <Compile Include="Emit/Types.fs" />
+        <Compile Include="Emit/Declarations.fs" />
+        <Compile Include="Emit/Values.fs" />
+        <Compile Include="Emit/Modules.fs" />
+        <Compile Include="Emit/Format.fs" />
+        <Compile Include="Emit/Polyfill.fs" />
+        <Compile Include="Emit/Backend.fs" />
     </ItemGroup>
 
 </Project>

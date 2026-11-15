@@ -37,6 +37,8 @@
         <Compile Include="SdkMappingTests.fs" />
         <Compile Include="CatalogTests.fs" />
         <Compile Include="TargetPassTests.fs" />
+        <Compile Include="BackendSupport.fs" />
+        <Compile Include="BackendGoldenTests.fs" />
         <Compile Include="ConformanceTests.fs" />
         <Compile Include="CoveragePageTests.fs" />
         <Compile Include="Program.fs" />

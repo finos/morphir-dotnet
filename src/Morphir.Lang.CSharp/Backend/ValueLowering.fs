@@ -834,6 +834,7 @@ module internal ValueLowering =
                                 Synthetic = true
                                 Definition = Cases(true, [])
                                 Location = location
+                                Wrapper = false
                             }
                             Case = name.LocalName
                             Fields = case.Fields
@@ -1249,6 +1250,7 @@ module internal ValueLowering =
                             Synthetic = true
                             Definition = Alias typ
                             Location = checkedValue.Top.Location
+                            Wrapper = false
                         }
 
                         for _, field in fields do

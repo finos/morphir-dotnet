@@ -40,8 +40,8 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 
 ## 5. Backend on Roslyn (BKD-1, SUM-1, EQL-1)
 
-- [ ] 5.1 Write failing golden tests for the new backend: modules (types only at namespace level, values as static classes, nested static class), plain records, closed records, wrapper unions, mixed custom types, the polyfill file and the layout of a switch expression. Verify that they fail before 5.2.
-- [ ] 5.2 Implement `plan`, `syntax` and `layout` with `SyntaxFactory` and no Workspaces assembly, with deterministic names and paths. Verify the golden tests and a test that two runs give the same bytes.
+- [x] 5.1 Write failing golden tests for the new backend: modules (types only at namespace level, values as static classes, nested static class), plain records, closed records, wrapper unions, mixed custom types, the polyfill file and the layout of a switch expression. Verify that they fail before 5.2.
+- [x] 5.2 Implement `plan`, `syntax` and `layout` with `SyntaxFactory` and no Workspaces assembly, with deterministic names and paths. Verify the golden tests and a test that two runs give the same bytes.
 - [ ] 5.3 Implement `LetRecursion` (a `while` loop for a tail call, a local function otherwise) and the list functions of the transform table in the plan. Verify that the old `local-recursion` refusal is gone and that a recursive example executes with the model result.
 - [ ] 5.4 Implement the IEEE equality option on records and unions, and plain equality as the default. Write the tests first for the cases in `morphir-csharp-transpilation`. Verify that a `NaN` record is equal by default and not equal with the option.
 - [ ] 5.5 Make `Morphir.SDK.CSharp` equality, hashing and collections accept plain records and plain unions, and fail explicitly for a function-typed field. Decide the `NaN` in collections case and record it in `design.html`. Verify with tests for the scenarios in `csharp-sdk-runtime` and with the existing SDK conformance cases.

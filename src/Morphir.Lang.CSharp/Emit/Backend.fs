@@ -1,0 +1,101 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+namespace Morphir.Lang.CSharp.Emit
+
+open System
+open System.Threading
+open Morphir.CodeGeneration.CSharp
+open Morphir.IR
+open Morphir.IR.Model
+
+/// <summary>
+/// The C# backend: it plans the files from the checked model, builds each file as a Roslyn syntax tree, and lays the text out.
+/// It is a pure function of the model and the options, with no file or process access.
+/// </summary>
+[<AbstractClass; Sealed>]
+type CSharpBackend private () =
+
+    /// <summary>The only language version that the backend writes.</summary>
+    static member LanguageVersion = 15
+
+    static member private Core
+        (
+            model: VersionedModel,
+            options: GenerationOptions,
+            namespaceOverride: NamespaceOverride option,
+            ct: CancellationToken
+        ) : GenerationResult =
+        let result status sources diagnostics = {
+            Status = status
+            Family = model.Family
+            SourceVersion = model.SourceVersion.Text
+            LanguageVersion = options.LanguageVersion
+            Sources = sources
+            Diagnostics = diagnostics
+            Runtime = { TargetFramework = "net10.0"; Package = "Morphir.SDK.CSharp" }
+        }
+
+        try
+            ct.ThrowIfCancellationRequested()
+
+            if options.LanguageVersion <> CSharpBackend.LanguageVersion then
+                Admission.fail "unsupported-language" "$options/languageVersion" "Only C# 15 is supported. Use language-version 15."
+
+            let versions = if model.Family = ModelFamily.Classic then [ "1"; "2"; "3"; "3.0.0"; "3.1.0" ] else [ "4"; "4.0.0" ]
+
+            if not (List.contains model.SourceVersion.Text versions) then
+                Admission.fail "unsupported-version" "$sourceVersion" "The source version is not supported for this model family."
+
+            let package =
+                match model.Distribution with
+                | DistributionModel.Classic(Morphir.IR.Classic.Distribution.Library(pkg, _, _)) -> Some pkg
+                | DistributionModel.V4(Morphir.IR.V4.Library(pkg, _, _)) -> Some pkg
+                | _ -> None
+
+            let naming: TypeEmission.Naming = { Package = package; Namespace = namespaceOverride |> Option.map (fun value -> value.Value) }
+
+            let initialCatalog, _ = TypeEmission.prepareUnionAware naming [] model ct
+            let checkedValues = ValueLowering.declarations model ct |> ValueLowering.check initialCatalog ct
+            let records = ValueLowering.recordDeclarations initialCatalog model ct checkedValues
+            let catalog, _ = TypeEmission.prepareUnionAware naming records model ct
+            let pkg, modules = Checks.moduleList model
+            Checks.validateCollisions ct catalog pkg modules
+
+            let layouts = ModuleLayouts.compute naming pkg (modules |> List.map (fun (path, _, names) -> path, not (List.isEmpty names)))
+            let context: Context = { Naming = naming; Catalog = catalog; Layouts = layouts; Ct = ct }
+            let publicModules = modules |> List.filter (fun (_, isPublic, _) -> isPublic) |> List.map (fun (path, _, _) -> path) |> Set.ofList
+
+            let files =
+                Modules.compile context pkg checkedValues publicModules.Contains
+                |> List.map (fun (path, unit) -> { RelativePath = path; Text = Format.render unit })
+
+            let needsPolyfill =
+                catalog
+                |> Map.exists (fun _ declaration ->
+                    match declaration.Definition with
+                    | TypeEmission.Cases _ -> true
+                    | _ -> false)
+
+            let sources =
+                (if needsPolyfill then files @ [ { RelativePath = Polyfill.path; Text = Format.render Polyfill.unit } ] else files)
+                |> List.sortBy (fun source -> source.RelativePath)
+
+            ct.ThrowIfCancellationRequested()
+            result GenerationStatus.Success sources []
+        with
+        | :? OperationCanceledException when ct.IsCancellationRequested -> result GenerationStatus.Cancelled [] []
+        | Refusal diagnostic -> result GenerationStatus.Failure [] [ diagnostic ]
+
+    /// <summary>Generates the C# of a model with the default namespace of its package.</summary>
+    static member Generate(model: VersionedModel, options: GenerationOptions, cancellationToken: CancellationToken) : GenerationResult =
+        CSharpBackend.Core(model, options, None, cancellationToken)
+
+    /// <summary>Generates the C# of a model in the namespace of the override.</summary>
+    static member Generate
+        (
+            model: VersionedModel,
+            options: GenerationOptions,
+            namespaceOverride: NamespaceOverride,
+            cancellationToken: CancellationToken
+        ) : GenerationResult =
+        CSharpBackend.Core(model, options, Some namespaceOverride, cancellationToken)
