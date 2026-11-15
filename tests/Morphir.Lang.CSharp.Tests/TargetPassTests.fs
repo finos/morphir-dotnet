@@ -108,6 +108,18 @@ let tests =
             Expect.stringContains error.Message "shares an emitted type and value identity" "the message of the backend"
         }
 
+        test "a module of values below a module of values with the name of a type of that module reports name-collision" {
+            // The class Pricing has the record Rules and the nested class Rules of the module pricing/rules.
+            let result =
+                run [ "pricing", moduleOf [ "rules", alias [ "amount", intType ] ] [ "base", value literal ]; "pricing/rules", clean ]
+
+            Expect.isFalse result.IsPassed "fails before the backend"
+            let error = firstError result
+            Expect.equal (error.CodeOrNull |> string) "name-collision" "the rule of the backend is the code"
+            Expect.stringContains error.Message "the type Rules of the module" "names the type"
+            Expect.stringContains error.Message "the class of the module" "names the module"
+        }
+
         test "the location of the backend is kept as data" {
             let colliding = moduleOf [ "rate", alias [ "amount", intType ] ] [ "rate", value literal ]
             let error = firstError (run [ "orders/pricing", colliding ])

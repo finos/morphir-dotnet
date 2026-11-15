@@ -290,15 +290,14 @@ module internal TypeEmission =
             for name in values do
                 ct.ThrowIfCancellationRequested()
 
-                if
-                    identifier name = moduleName path
-                    || List.contains (title name) protocolNames
-                then
+                // A value with the name of its module class gets a trailing underscore (ModuleLayouts.identifier); the
+                // other collisions of the module layout are checked by Checks.validateLayout.
+                if List.contains (title name) protocolNames then
                     Admission.fail
                         "name-collision"
                         loc
                         (title name
-                         + " shares the generated module class or inherited CLR member identity.")
+                         + " shares an inherited CLR member identity.")
 
             let relative = sourcePath pkg path
 
@@ -1313,16 +1312,15 @@ module internal TypeEmission =
 
             if
                 emitted
-                && (identifier declaration.Name.LocalName = moduleName declaration.Name.ModulePath
-                    || List.contains
-                        (title declaration.Name.LocalName)
-                        (genericNames
-                         @ protocolNames))
+                && List.contains
+                    (title declaration.Name.LocalName)
+                    (genericNames
+                     @ protocolNames)
             then
                 Admission.fail
                     "name-collision"
                     declaration.Location
-                    "A generated type shares its module or generic parameter identity."
+                    "A generated type shares a generic parameter or inherited CLR member identity."
 
             let genericFieldNames fields =
                 for name, _ in fields do

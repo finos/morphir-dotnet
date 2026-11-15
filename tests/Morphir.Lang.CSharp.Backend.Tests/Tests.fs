@@ -808,7 +808,7 @@ let tests =
 
                 Expect.equal result.Status GenerationStatus.Failure "case target collision"
                 Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
-        testCase "A type cannot share its module class identity"
+        testCase "A type with the old module class name is no collision"
         <| fun _ ->
             let model =
                 RefusalCases.classic [] (Type.Record(LiteralCases.a, []))
@@ -832,8 +832,9 @@ let tests =
             let result =
                 Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
-            Expect.equal result.Status GenerationStatus.Failure "class type collision"
-            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+            // The module class has no Module suffix, so the type BadModule has no name of a module class.
+            Expect.equal result.Status GenerationStatus.Success (sprintf "%A" result.Diagnostics)
+            Expect.stringContains result.Sources.Head.Text "public sealed record BadModule" "the type keeps its name"
         testCase "Record generic parameters cannot share payload member identities"
         <| fun _ ->
             let model =
@@ -947,7 +948,7 @@ let tests =
 
             Expect.equal result.Status GenerationStatus.Failure "nested collision"
             Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
-        testCase "A value cannot share its module class identity"
+        testCase "A value with the old module class name is no collision"
         <| fun _ ->
             let model =
                 constantModel ()
@@ -970,8 +971,9 @@ let tests =
             let result =
                 Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
-            Expect.equal result.Status GenerationStatus.Failure "method class collision"
-            Expect.equal result.Diagnostics.Head.Rule "name-collision" "stable category"
+            // The module class is Sample, so the method SampleModule has no name of a module class.
+            Expect.equal result.Status GenerationStatus.Success (sprintf "%A" result.Diagnostics)
+            Expect.stringContains result.Sources.Head.Text "public static int SampleModule()" "the method keeps its name"
         testCase "A value cannot share an emitted record identity"
         <| fun _ ->
             let model =

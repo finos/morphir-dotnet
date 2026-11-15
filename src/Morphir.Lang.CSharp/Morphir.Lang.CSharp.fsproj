@@ -65,11 +65,12 @@
         <Compile Include="Backend/LiteralEmission.fs" />
         <Compile Include="Backend/SdkMapping.fs" />
         <Compile Include="Backend/ValueLowering.fs" />
+        <!-- The layout of the modules comes before the checks: the name-collision check uses the C# containers. -->
+        <Compile Include="Emit/Layout.fs" />
         <Compile Include="Backend/Checks.fs" />
         <Compile Include="TargetPasses.fs" />
         <!-- The backend: it writes C# as Roslyn syntax trees (tasks.md, group 5). -->
         <Compile Include="Emit/Cs.fs" />
-        <Compile Include="Emit/Layout.fs" />
         <Compile Include="Emit/Types.fs" />
         <Compile Include="Emit/Declarations.fs" />
         <Compile Include="Emit/Values.fs" />

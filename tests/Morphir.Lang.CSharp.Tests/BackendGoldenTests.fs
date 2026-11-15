@@ -247,6 +247,77 @@ let tests =
             Expect.stringContains message "Price" "the custom type"
         }
 
+        test "a case with the name of a value of the module is a name collision that names both" {
+            let model =
+                library [ "data", moduleOf [ "status", custom [] [ "active", []; "inactive", [] ] ] [ "active", definition [] intT (int 1) ] ]
+
+            let diagnostics = refuse model
+            Expect.equal (diagnostics |> List.map (fun d -> d.Rule)) [ "name-collision" ] "CS0102: the class Data has the type Active and the method Active"
+            let message = (List.head diagnostics).Message
+            Expect.stringContains message "the case Active of the type Status" "the case"
+            Expect.stringContains message "the value Active of the module" "the value"
+        }
+
+        test "a generic case with the name of a value of the module is also a name collision" {
+            let model =
+                library
+                    [ "data", moduleOf [ "box", custom [ "a" ] [ "full", [ "item", variableT "a" ]; "empty", [] ] ] [ "full", definition [] intT (int 1) ] ]
+
+            Expect.equal (refuse model |> List.map (fun d -> d.Rule)) [ "name-collision" ] "CS0102 also for a type with a type parameter"
+        }
+
+        test "a value with the old module class name is not a collision" {
+            let files = generate (library [ "data", moduleOf [] [ "data-module", definition [] intT (int 1) ] ])
+            Expect.stringContains files["p_Acme.Geo/m_DataModule.g.cs"] "public static int DataModule() => 1;" "the class is Data, so DataModule is free"
+            expectCompiles files
+        }
+
+        test "a module below a static-class module with the name of a type of that module is a name collision" {
+            let model =
+                library
+                    [ "pricing", moduleOf [ "rules", alias [] (recordT [ "n", intT ]) ] [ "base", definition [] intT (int 1) ]
+                      "pricing/rules", moduleOf [] [ "rate", definition [] intT (int 2) ] ]
+
+            let diagnostics = refuse model
+            Expect.equal (diagnostics |> List.map (fun d -> d.Rule)) [ "name-collision" ] "CS0102: the class Pricing has the record Rules and the class Rules"
+            let message = (List.head diagnostics).Message
+            Expect.stringContains message "the type Rules of the module" "the type"
+            Expect.stringContains message "the class of the module" "the module"
+        }
+
+        test "a module with the name of the class that holds it is a name collision" {
+            let model =
+                library
+                    [ "pricing", moduleOf [] [ "base", definition [] intT (int 1) ]
+                      "pricing/rules", moduleOf [] [ "rate", definition [] intT (int 2) ]
+                      "pricing/rules/rules", moduleOf [] [ "cap", definition [] intT (int 3) ] ]
+
+            let diagnostics = refuse model
+            Expect.equal (diagnostics |> List.map (fun d -> d.Rule)) [ "name-collision" ] "CS0542: the class Rules in the class Rules"
+            Expect.stringContains (List.head diagnostics).Message "Rules" "the class"
+        }
+
+        test "a type of a module that has only types and a module of values below it with the same name are a name collision" {
+            let model =
+                library
+                    [ "pricing", moduleOf [ "rules", alias [] (recordT [ "n", intT ]) ] []
+                      "pricing/rules", moduleOf [] [ "rate", definition [] intT (int 2) ] ]
+
+            Expect.equal (refuse model |> List.map (fun d -> d.Rule)) [ "name-collision" ] "CS0101: the namespace Pricing has the record Rules and the class Rules"
+        }
+
+        test "a generic record and a module below it with the same name are not a collision" {
+            // C# allows the generic record Rules<TA> and the static class Rules in one namespace.
+            let files =
+                generate (
+                    library
+                        [ "pricing", moduleOf [ "rules", alias [ "a" ] (recordT [ "n", variableT "a" ]) ] []
+                          "pricing/rules", moduleOf [] [ "rate", definition [] intT (int 2) ] ]
+                )
+
+            expectCompiles files
+        }
+
         test "each generated output has the polyfill file with the five types of the PRD behind their guards" {
             let plain = generate (library [ "pairs", moduleOf [ "point", alias [] (recordT [ "x", intT ]) ] [] ])
             Expect.isTrue (plain.ContainsKey "Morphir.Polyfill.g.cs") "a model with only records also gets the polyfill file"

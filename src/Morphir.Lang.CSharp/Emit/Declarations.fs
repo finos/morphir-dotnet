@@ -192,18 +192,6 @@ module internal Declarations =
             |> List.map snd
             |> List.filter (fun declaration -> declaration.Name.ModulePath = path)
 
-        // The identifiers of the types that the module writes, to find a case that has the name of another type.
-        let emittedNames =
-            own
-            |> List.collect (fun declaration ->
-                match declaration.Definition with
-                | Alias(Fields _ as body) ->
-                    let owner, _ = recordTarget context.Ct context.Catalog declaration.Location body
-                    if owner.Name = declaration.Name then [ title declaration.Name.LocalName, declaration ] else []
-                | Cases _ -> [ title declaration.Name.LocalName, declaration ]
-                | Alias _ -> [])
-            |> Map.ofList
-
         own
         |> List.collect (fun declaration ->
             context.Ct.ThrowIfCancellationRequested()
@@ -253,16 +241,8 @@ module internal Declarations =
                           (if ieee then [ sdkType "IMorphirValue" ] else [])
                           (if ieee then unionEquality unionSelf else []) ]
                 else
-                    for caseName, _ in cases do
-                        match Map.tryFind (title caseName) emittedNames with
-                        | Some other ->
-                            // The case is a sibling type of the module: no other type of the module may have its name.
-                            Admission.fail
-                                "name-collision"
-                                location
-                                (title caseName + " is a case of " + name + " and the name of the type " + title other.Name.LocalName + " of the module.")
-                        | _ -> ()
-
+                    // Each case is a sibling type in the module: Checks.validateLayout refuses a case with the name of
+                    // another type, a value or a module class of the container.
                     let caseAccess = access (declaration.Public && publicCases)
 
                     record [ accessKind; SyntaxKind.ClosedKeyword ] name parameters [] [] []

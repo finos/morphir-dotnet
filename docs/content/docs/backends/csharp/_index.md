@@ -57,10 +57,14 @@ The rules that give this shape:
 A custom type that mixes wrapper constructors with other constructors takes the closed form. A wrapper custom type with
 private constructors also takes the closed form, with `internal` cases: a C# union has public creation members, so it
 cannot keep a constructor private. Two wrapper constructors that hold the same C# type, for example two record aliases
-with the same fields, also take the closed form. A constructor whose name is
-the name of another type of the module has no valid C# form: generation fails with `name-collision` and names both.
-C# does not allow a member with the name of its enclosing type, so a type or a value that has the name of its module
-class gets a trailing underscore.
+with the same fields, also take the closed form.
+
+C# does not allow a member with the name of its enclosing type, so a type, a case or a value that has the name of its
+module class gets a trailing underscore. Other names must be different in each namespace and static class: a case of
+the closed form, a type, a value and the class or namespace of a module below. When two of them have the same name, or
+when a module has the name of the class that holds it, generation fails with `name-collision`, and the diagnostic names
+both. A generic type can have the name of a static class or a namespace, because C# allows it. A value can have a name that ends
+in `Module`: the module classes have no such suffix.
 
 ### The polyfill file
 

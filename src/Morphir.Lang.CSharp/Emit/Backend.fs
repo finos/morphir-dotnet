@@ -64,6 +64,7 @@ type CSharpBackend private () =
             let catalog, _ = TypeEmission.prepareUnionAware naming records model ct
             let pkg, modules = Checks.moduleList model
             Checks.validateCollisions ct catalog pkg modules
+            Checks.validateLayout ct naming catalog pkg modules
 
             let layouts = ModuleLayouts.compute naming pkg (modules |> List.map (fun (path, _, names) -> path, not (List.isEmpty names)))
             let context: Context = { Naming = naming; Catalog = catalog; Layouts = layouts; Ieee = ieee; Ct = ct }
