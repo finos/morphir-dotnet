@@ -322,7 +322,10 @@ type PassPipelineResult internal (model: Morphir.IR.Model.VersionedModel, report
     member _.Model = model
 
     override _.ToString() = "passes of " + model.SourceVersion.Text
-    /// <summary>The report of the passes, or null when no pass was selected or the passes were skipped.</summary>
+    /// <summary>
+    /// The report of the passes. When no pass was selected or the passes were skipped, the report has no pass and holds the
+    /// records of the upgrade that ran before; it is null when the upgrade gave no record.
+    /// </summary>
     member _.ReportOrNull: PassReport | null = Option.toObj report
     /// <summary>The <c>info</c> diagnostic that says why the passes did not run, or null.</summary>
     member _.SkippedOrNull: Diagnostic | null = Option.toObj note
@@ -334,7 +337,8 @@ type PassPipeline =
     /// <summary>
     /// Runs the passes of the stage, in the order given. With no pass for the stage the model is returned as it is. When a
     /// pass is selected and the model is not in the current IR, no pass runs and the result has one <c>info</c> diagnostic
-    /// that names the family and the format version. An error from a pass gives no result.
+    /// that names the family and the format version. In these two cases the report keeps the records of the upgrade that ran
+    /// before. An error from a pass gives no result.
     /// </summary>
     /// <param name="stage">The stage.</param>
     /// <param name="transforms">The registered passes, in the order of registration.</param>
@@ -354,20 +358,28 @@ type PassPipeline =
             upstream: System.Collections.Generic.IEnumerable<RewriteApplication>
         ) : Checked<PassPipelineResult> =
         let selected = PassRunner.select stage (List.ofSeq transforms)
+        let upstream = List.ofSeq upstream
+
+        // With no pass to run, the report keeps the records of an upgrade that ran before.
+        let carried =
+            if List.isEmpty upstream then
+                None
+            else
+                Some { Passes = []; Applications = upstream; Lookups = [] }
 
         if List.isEmpty selected then
-            Checked.pass (PassPipelineResult(model, None, None))
+            Checked.pass (PassPipelineResult(model, carried, None))
         else
             match CurrentModel.tryOf model with
             | None ->
                 let note = PassPipeline.SkipNote(stage, string model.Family, model.SourceVersion.Text)
-                Checked.pass (PassPipelineResult(model, None, Some note))
+                Checked.pass (PassPipelineResult(model, carried, Some note))
             | Some current ->
                 let input =
                     { Artifact = artifact
                       Format = FormatTriplet.ofVersion inputVersion
                       Snapshot = snapshot
-                      Upstream = List.ofSeq upstream }
+                      Upstream = upstream }
 
                 PassRunner.run input selected current
                 |> Checked.map (fun outcome -> PassPipelineResult(outcome.Model.Model, Some outcome.Report, None))

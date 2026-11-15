@@ -284,18 +284,69 @@ module ValueTraversal =
 
         List.ofSeq found
 
-    /// <summary>The features of a value and of all value expressions and patterns below it.</summary>
+    /// <summary>The features of a type expression: <c>type.extensible-record</c> when it or a type below it is an extensible record.</summary>
+    let rec typeFeatures (t: Type) : Set<IrFeature> =
+        match t with
+        | Type.ExtensibleRecord _ -> Set.singleton IrFeature.ExtensibleRecordType
+        | Type.Variable _
+        | Type.Unit _ -> Set.empty
+        | Type.Reference(_, _, arguments) -> arguments |> List.map typeFeatures |> Set.unionMany
+        | Type.Tuple(_, elements) -> elements |> List.map typeFeatures |> Set.unionMany
+        | Type.Record(_, fields) -> fields |> List.map (snd >> typeFeatures) |> Set.unionMany
+        | Type.Function(_, parameter, result) -> Set.union (typeFeatures parameter) (typeFeatures result)
+
+    let private optionalTypeFeatures (t: Type option) : Set<IrFeature> =
+        t |> Option.map typeFeatures |> Option.defaultValue Set.empty
+
+    let private patternAttributesOf (pattern: Pattern) : ValueAttributes =
+        match pattern with
+        | WildcardPattern a
+        | EmptyListPattern a
+        | UnitPattern a
+        | AsPattern(a, _, _)
+        | TuplePattern(a, _)
+        | ConstructorPattern(a, _, _)
+        | HeadTailPattern(a, _, _)
+        | LiteralPattern(a, _) -> a
+
+    /// <summary>The features of the types of a value definition: the input types and the output type.</summary>
+    let private signatureFeatures (definition: ValueDefinition) : Set<IrFeature> =
+        let inputs = definition.InputTypes |> List.map (snd >> typeFeatures) |> Set.unionMany
+
+        let output =
+            match definition.Body with
+            | ExpressionBody(outputType, _)
+            | NativeBody(outputType, _)
+            | ExternalBody(outputType, _) -> typeFeatures outputType
+            | IncompleteBody(outputType, _, _) -> optionalTypeFeatures outputType
+
+        Set.union inputs output
+
+    /// <summary>
+    /// The features of a value and of all value expressions, patterns and types below it. The types are the inferred types of
+    /// the values and of the patterns, the expected type of a hole, and the input and output types of a let definition.
+    /// </summary>
     let rec features (value: Value) : Set<IrFeature> =
         let own = Set.singleton (IrFeature.Value(kindOf value))
 
-        let patterns =
+        let patternNodes =
             match value with
             | Value.Lambda(_, p, _) -> patternsOf p
             | Value.Destructure(_, p, _, _) -> patternsOf p
             | Value.PatternMatch(_, _, cases) -> cases |> List.collect (fst >> patternsOf)
             | _ -> []
-            |> List.map (patternKindOf >> IrFeature.Pattern)
-            |> Set.ofList
+
+        let patterns =
+            patternNodes
+            |> List.map (fun p -> Set.add (IrFeature.Pattern(patternKindOf p)) (optionalTypeFeatures (patternAttributesOf p).InferredType))
+            |> Set.unionMany
+
+        let types =
+            let inferred = optionalTypeFeatures (attributesOf value).InferredType
+
+            match value with
+            | Value.Hole(_, _, expected) -> Set.union inferred (optionalTypeFeatures expected)
+            | _ -> inferred
 
         let definitions =
             match value with
@@ -313,17 +364,43 @@ module ValueTraversal =
                 | IncompleteBody _ -> Some IrFeature.IncompleteBody)
             |> Set.ofList
 
+        let signatures = definitions |> List.map (fun definition -> signatureFeatures definition.Value) |> Set.unionMany
+
         // The let definitions are children, so their bodies are counted through the children below.
         let below = children value |> List.map features |> Set.unionMany
-        Set.unionMany [ own; patterns; bodies; below ]
+        Set.unionMany [ own; patterns; types; bodies; signatures; below ]
 
-    /// <summary>The features of the bodies of the values of a module: the value expressions, and the kinds of body.</summary>
+    /// <summary>The features of a type definition: the types of its alias body, of its constructors or of its partial body.</summary>
+    let private typeDefinitionFeatures (definition: TypeDefinition) : Set<IrFeature> =
+        match definition with
+        | TypeAliasDefinition(_, body) -> typeFeatures body
+        | CustomTypeDefinition(_, _, constructors) ->
+            OrderedMap.toList constructors
+            |> List.collect (fun (_, arguments) -> arguments |> List.map (snd >> typeFeatures))
+            |> Set.unionMany
+        | IncompleteTypeDefinition(_, _, partial) -> optionalTypeFeatures partial
+
+    /// <summary>
+    /// The features of a module: the types of its type definitions, the signatures of its values, the value expressions of the
+    /// bodies, and the kinds of body.
+    /// </summary>
     let featuresOfModule (definition: ModuleDefinition) : Set<IrFeature> =
-        OrderedMap.toList definition.Values
-        |> List.map (fun (_, access) ->
-            match access.Value.Value.Body with
-            | ExpressionBody(_, body) -> features body
-            | NativeBody _ -> Set.singleton IrFeature.NativeBody
-            | ExternalBody _ -> Set.singleton IrFeature.ExternalBody
-            | IncompleteBody _ -> Set.singleton IrFeature.IncompleteBody)
-        |> Set.unionMany
+        let types =
+            OrderedMap.toList definition.Types
+            |> List.map (fun (_, access) -> typeDefinitionFeatures access.Value.Value)
+
+        let values =
+            OrderedMap.toList definition.Values
+            |> List.map (fun (_, access) ->
+                let valueDefinition = access.Value.Value
+
+                let body =
+                    match valueDefinition.Body with
+                    | ExpressionBody(_, body) -> features body
+                    | NativeBody _ -> Set.singleton IrFeature.NativeBody
+                    | ExternalBody _ -> Set.singleton IrFeature.ExternalBody
+                    | IncompleteBody _ -> Set.singleton IrFeature.IncompleteBody
+
+                Set.union body (signatureFeatures valueDefinition))
+
+        Set.unionMany (types @ values)

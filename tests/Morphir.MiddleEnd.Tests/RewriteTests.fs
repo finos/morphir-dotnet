@@ -247,6 +247,67 @@ let tests =
             Expect.equal (IrFeature.Value ValueKind.LetRecursion).Text "value.let-recursion" "text"
         }
 
+        test "top-down: a rule that matches inside an earlier replacement names the replaced node of the input" {
+            let source1 = source 5
+            // The tuple becomes a tuple that holds a, and then the rule a-to-b rewrites that a inside the replacement.
+            let wrap: RewriteRule =
+                { identityRule with
+                    Id = RuleId.Create "https://example.org/rules/unit-to-tuple"
+                    Example = None
+                    Apply = fun _ value -> match value with Value.Unit _ -> Some(Value.Tuple(va, [ Value.Variable(va, name "a") ])) | _ -> None }
+
+            let rename = variableRule "a-to-b" "a" "b"
+
+            match rewrite Strategy.TopDown [ wrap; rename ] (Value.Unit source1) |> Checked.tryValue with
+            | Some(result, applications) ->
+                Expect.equal result (Value.Tuple(source1, [ Value.Variable(va, name "b") ])) "rewritten"
+                Expect.equal applications.Length 2 "one record for each application"
+
+                for record in applications do
+                    Expect.equal record.Before.Steps [ NodeStep.Body ] "the node of the input is the replaced node"
+                    Expect.equal record.Origin source1.Source "the source of the replaced node"
+
+                let inner = applications |> List.find (fun record -> record.Rule = rename.Id)
+                Expect.equal inner.After.Steps [ NodeStep.Body; NodeStep.TupleElement 0 ] "the place of the inner replacement"
+            | None -> failtest "rewrite failed"
+        }
+
+        test "fixed point: a rule that matches inside an earlier replacement names the replaced node of the input" {
+            let wrap: RewriteRule =
+                { identityRule with
+                    Id = RuleId.Create "https://example.org/rules/unit-to-tuple"
+                    Example = None
+                    Apply = fun _ value -> match value with Value.Unit _ -> Some(Value.Tuple(va, [ Value.Variable(va, name "a") ])) | _ -> None }
+
+            let rename = variableRule "a-to-b" "a" "b"
+            let body = Value.List(va, [ Value.Unit va ])
+
+            match rewrite (Strategy.FixedPoint(RoundLimit.Create 5)) [ wrap; rename ] body |> Checked.tryValue with
+            | Some(_, applications) ->
+                let inner = applications |> List.find (fun record -> record.Rule = rename.Id)
+                Expect.equal inner.Before.Steps [ NodeStep.Body; NodeStep.ListElement 0 ] "the replaced node of the input"
+                Expect.equal inner.After.Steps [ NodeStep.Body; NodeStep.ListElement 0; NodeStep.TupleElement 0 ] "the place in the output"
+            | None -> failtest "rewrite failed"
+        }
+
+        test "features of a value include an extensible record in an inferred type" {
+            let openRecord = Type.ExtensibleRecord(ta, name "r", [ name "price", intType ])
+            let annotated = Value.Variable({ va with InferredType = Some openRecord }, name "row")
+            let features = ValueTraversal.features (Value.Tuple(va, [ annotated ]))
+            Expect.isTrue (features.Contains IrFeature.ExtensibleRecordType) "type.extensible-record"
+            Expect.isFalse ((ValueTraversal.features price).Contains IrFeature.ExtensibleRecordType) "no open record"
+        }
+
+        test "features of a module include an extensible record in a value signature and in a type definition" {
+            let openRecord = Type.ExtensibleRecord(ta, name "r", [ name "price", intType ])
+            let signature = moduleOf [] [ "net", expression [ "row", openRecord ] intType price ]
+            let alias = moduleOf [ "row", TypeAliasDefinition([ name "r" ], openRecord) ] []
+            let closed = moduleOf [ "row", TypeAliasDefinition([], Type.Record(ta, [ name "price", intType ])) ] [ "net", expression [] intType price ]
+            Expect.isTrue ((ValueTraversal.featuresOfModule signature).Contains IrFeature.ExtensibleRecordType) "value signature"
+            Expect.isTrue ((ValueTraversal.featuresOfModule alias).Contains IrFeature.ExtensibleRecordType) "type definition"
+            Expect.isFalse ((ValueTraversal.featuresOfModule closed).Contains IrFeature.ExtensibleRecordType) "closed records only"
+        }
+
         test "a current model is built from a current-IR distribution only" {
             let distribution = library [ "orders/pricing", moduleOf [] [] ]
             let model = CurrentModel.ofDistribution distribution

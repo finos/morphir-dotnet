@@ -35,6 +35,18 @@ let private input: PipelineInput =
         Upstream = []
     }
 
+/// One record of an upgrade that ran before the passes: the node `gross` of the input, at the same place in the model.
+let private upstream: RewriteApplication list =
+    let place = NodeRoot.Value(NodeOwner.OwnPackage, pricing, name "gross")
+    let address revision = NodeAddress.unchecked artifact format place [ NodeStep.Body ] revision
+
+    [ {
+          Rule = RuleId.Create "https://example.org/steps/upgrade"
+          Before = address (ArtifactRevision.Pinned snapshot)
+          After = address ArtifactRevision.Current
+          Origin = None
+      } ]
+
 let private ruleOf (id: string) (apply: RewriteContext -> Value -> Value option) : RewriteRule =
     {
         Id = RuleId.Create $"https://example.org/rules/{id}"
@@ -178,9 +190,67 @@ let tests =
         }
 
         test "no pass gives the model and the upstream records unchanged" {
-            let outcome = run []
+            let outcome = PassRunner.run { input with Upstream = upstream } [] model |> Checked.tryValue |> Option.get
             Expect.equal outcome.Model model "same model"
-            Expect.isEmpty outcome.Report.Applications "no records"
+            Expect.equal outcome.Report.Applications upstream "the upstream records"
+            Expect.isEmpty outcome.Report.Passes "no pass ran"
+        }
+
+        test "the pipeline keeps the upstream records when no pass is selected" {
+            let other = pass "other" (PassStage.BeforeBackend "fsharp") []
+
+            let result =
+                PassPipeline.Run(PassStage.BeforeBackend "csharp", [ other ], model.Model, artifact, Versioning.Classic 3, snapshot, upstream)
+                |> Checked.tryValue
+                |> Option.get
+
+            match result.ReportOrNull with
+            | null -> failtest "a report with the upstream records was expected"
+            | report ->
+                Expect.equal report.Applications upstream "the upstream records"
+                Expect.isEmpty report.Passes "no pass ran"
+        }
+
+        test "the pipeline keeps the upstream records when the passes are skipped" {
+            let classic = { model.Model with SourceVersion = Morphir.IR.Model.SourceFormatVersion.Create "3" }
+            let selected = pass "selected" (PassStage.BeforeBackend "csharp") []
+
+            let result =
+                PassPipeline.Run(PassStage.BeforeBackend "csharp", [ selected ], classic, artifact, Versioning.Classic 3, snapshot, upstream)
+                |> Checked.tryValue
+                |> Option.get
+
+            Expect.isNotNull result.SkippedOrNull "the skip note"
+
+            match result.ReportOrNull with
+            | null -> failtest "a report with the upstream records was expected"
+            | report -> Expect.equal report.Applications upstream "the upstream records"
+        }
+
+        test "the pipeline gives no report when no pass is selected and no record came in" {
+            let result =
+                PassPipeline.Run(PassStage.BeforeBackend "csharp", [], model.Model, artifact, Versioning.Classic 4, snapshot, [])
+                |> Checked.tryValue
+                |> Option.get
+
+            Expect.isNull result.ReportOrNull "no report"
+        }
+
+        test "an extensible record type fails a profile that cannot take it" {
+            let openModel =
+                CurrentModel.ofDistribution (
+                    library
+                        [ "orders/pricing",
+                          moduleOf
+                              [ "row", TypeAliasDefinition([ name "r" ], Type.ExtensibleRecord(ta, name "r", [ name "price", intType ])) ]
+                              [] ]
+                )
+
+            let profile = { Target = "csharp"; CannotTake = Set.singleton IrFeature.ExtensibleRecordType }
+            let result = FeatureOrder.check profile openModel
+            Expect.isFalse result.IsPassed "fails"
+            Expect.stringContains (Checked.diagnostics result |> Seq.head).Message "type.extensible-record" "the feature"
+            Expect.isTrue (FeatureOrder.check profile model).IsPassed "a model with closed records passes"
         }
 
         test "a feature that the backend cannot take and no pass removed fails and names the feature and the backend" {

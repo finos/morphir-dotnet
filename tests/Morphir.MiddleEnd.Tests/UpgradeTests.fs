@@ -144,6 +144,17 @@ let private fixedTests =
               let diagnostic = Checked.diagnostics result |> List.head
               Expect.equal (Diagnostic.code diagnostic |> Option.map (fun c -> c.Value)) (Some "ir.upgrade_unrepresentable") "code"
               Expect.stringContains diagnostic.Message "float literal" "names the literal"
+
+              // The location of the node: its address in the input, pinned to the snapshot of the input.
+              let location =
+                  "morphir://ir/pkg/acme/orders?format=3.0.0&rev=sha256:"
+                  + String('a', 64)
+                  + "#/module/inventory/value/daily-rate/body"
+
+              Expect.stringContains diagnostic.Message location "the message names the node"
+
+              Expect.isTrue diagnostic.Data.HasValue "the diagnostic has data"
+              Expect.equal (diagnostic.Data.Value.GetProperty("location").GetString()) location "the data has the location"
           } ]
 
 [<Tests>]
@@ -244,6 +255,30 @@ let applications =
               Expect.equal upgraded.Applications.Length 2 "two records"
               let rules = upgraded.Applications |> List.map (fun r -> string r.Rule) |> List.sort
               Expect.equal rules [ "https://example.org/steps/first"; "https://example.org/steps/second" ] "both steps"
+
+              let kept = upgraded.Applications |> List.find (fun r -> string r.Rule = "https://example.org/steps/first")
+              Expect.equal kept.After.Steps [ NodeStep.LambdaBody ] "the place that the first step gave"
+              Expect.equal kept.After.Revision (ArtifactRevision.Pinned(digestOf 'c')) "pinned to the output of the chain"
+              Expect.equal kept.After.Format { Major = 4; Minor = 1; Patch = 0 } "the format of the output of the chain"
+          }
+
+          test "a record of an earlier step below a node that a later step replaces is dropped" {
+              let first = movingStep "https://example.org/steps/first" (Versioning.Classic 3) middleVersion 'b' [ [ case 1; NodeStep.LetBody ], [ case 0; NodeStep.LetBody ] ]
+              let second = movingStep "https://example.org/steps/second" middleVersion finalVersion 'c' [ [ case 0 ], [ case 0 ] ]
+              let upgraded = outcome (UpgradeChain.upgrade [ first; second ] finalVersion (inputOf (v4Model "3")))
+
+              Expect.equal (upgraded.Applications |> List.map (fun r -> string r.Rule)) [ "https://example.org/steps/second" ] "only the record of the later step"
+          }
+
+          test "a later step that replaces a node inside an earlier replacement names the replaced node of the input" {
+              let first = movingStep "https://example.org/steps/first" (Versioning.Classic 3) middleVersion 'b' [ [ case 1 ], [ case 0 ] ]
+              let second = movingStep "https://example.org/steps/second" middleVersion finalVersion 'c' [ [ case 0; NodeStep.LetBody ], [ case 0; NodeStep.LetBody ] ]
+              let upgraded = outcome (UpgradeChain.upgrade [ first; second ] finalVersion (inputOf (v4Model "3")))
+
+              let inner = upgraded.Applications |> List.find (fun r -> string r.Rule = "https://example.org/steps/second")
+              Expect.equal inner.Before.Steps [ case 1 ] "the node of the input that the earlier step replaced"
+              Expect.equal inner.After.Steps [ case 0; NodeStep.LetBody ] "the place in the output"
+              Expect.equal upgraded.Applications.Length 2 "the record of the earlier step stays"
           }
 
           test "a chain with no step for a version stops with no path" {

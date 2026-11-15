@@ -41,18 +41,31 @@ module PassApplications =
         outer.Root = inner.Root && isPrefix outer.Steps inner.Steps
 
     /// <summary>
+    /// The record of the node that holds a place: the record whose replacement is at the place, or else the record of the
+    /// deepest replacement that the place is in. A place in a replacement is not in the input, so the node of the input that
+    /// it came from is the node that the replacement replaced.
+    /// </summary>
+    let private holderOf (records: PassApplication list) (place: NodePosition) : PassApplication option =
+        match records |> List.tryFind (fun record -> record.After = place) with
+        | Some record -> Some record
+        | None ->
+            records
+            |> List.filter (fun record -> isWithin record.After place)
+            |> List.sortByDescending (fun record -> List.length record.After.Steps)
+            |> List.tryHead
+
+    /// <summary>
     /// The list after a later pass. A record of the later pass that replaces a replacement takes the origin of that
-    /// replacement, and the earlier record is dropped. An earlier record below the node that the later pass replaces is
-    /// dropped too: its node is gone.
+    /// replacement, and the earlier record is dropped. A record of the later pass for a node in an earlier replacement takes
+    /// the origin of that replacement too, and the earlier record stays. An earlier record below the node that the later
+    /// pass replaces is dropped: its node is gone.
     /// </summary>
     let compose (earlier: PassApplication list) (later: PassApplication list) : PassApplication list =
         later
         |> List.fold
             (fun (state: PassApplication list) (application: PassApplication) ->
-                let previous = state |> List.tryFind (fun record -> record.After = application.Before)
-
                 let rebuilt =
-                    match previous with
+                    match holderOf state application.Before with
                     | Some record ->
                         { application with
                             Before = record.Before

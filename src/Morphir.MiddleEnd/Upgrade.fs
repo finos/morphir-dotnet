@@ -63,11 +63,39 @@ module UpgradeChain =
 
     let private positionOf (address: NodeAddress) : Position = address.Root, address.Steps
 
+    let rec private isPrefix (prefix: NodeStep list) (steps: NodeStep list) =
+        match prefix, steps with
+        | [], _ -> true
+        | head :: prefixTail, step :: stepsTail when head = step -> isPrefix prefixTail stepsTail
+        | _ -> false
+
+    /// <summary>True when <paramref name="inner"/> is the place <paramref name="outer"/> or a place below it.</summary>
+    let private isWithin ((outerRoot, outerSteps): Position) ((innerRoot, innerSteps): Position) =
+        outerRoot = innerRoot && isPrefix outerSteps innerSteps
+
+    /// <summary>
+    /// The place in the input of the chain of a place in the model of the chain so far. A place that a record names as its
+    /// <c>After</c> has the <c>Before</c> of that record. A place in a node that a record names has the <c>Before</c> of the
+    /// deepest such record: the place is not in the input, so the node of the input that it came from is that node. Any
+    /// other place is in the input at the same path.
+    /// </summary>
+    let private originOf (records: RewriteApplication list) (position: Position) : Position =
+        match records |> List.tryFind (fun record -> positionOf record.After = position) with
+        | Some record -> positionOf record.Before
+        | None ->
+            records
+            |> List.filter (fun record -> isWithin (positionOf record.After) position)
+            |> List.sortByDescending (fun record -> List.length record.After.Steps)
+            |> List.tryHead
+            |> Option.map (fun record -> positionOf record.Before)
+            |> Option.defaultValue position
+
     /// <summary>
     /// Upgrades a model to the current IR. Each step runs on the output of the step before. The application list of the
     /// result names the input of the whole chain in each <c>Before</c>, and a node that a later step replaces keeps its
     /// first origin: the record of the earlier step is replaced by one record from that origin to the last replacement.
-    /// The chain ends when the model has the current format version.
+    /// A record of an earlier step below a node that a later step replaces is dropped, and each record that stays has its
+    /// <c>After</c> pinned to the output of the chain. The chain ends when the model has the current format version.
     /// </summary>
     let upgrade (steps: IIrUpgrade list) (current: Versioning.FormatVersion) (input: UpgradeInput) : Checked<UpgradeOutcome> =
         let isCurrent (model: VersionedModel) =
@@ -82,13 +110,7 @@ module UpgradeChain =
 
         let inputFormat = FormatTriplet.ofVersion input.Model.SourceVersion.Version
 
-        let rec go
-            (model: VersionedModel)
-            (snapshot: Sha256Digest)
-            (applications: RewriteApplication list)
-            (origins: Map<Position, Position>)
-            (remaining: int)
-            =
+        let rec go (model: VersionedModel) (snapshot: Sha256Digest) (applications: RewriteApplication list) (remaining: int) =
             if isCurrent model then
                 Checked.pass { Model = model; Snapshot = snapshot; Applications = applications }
             elif remaining = 0 then
@@ -99,13 +121,11 @@ module UpgradeChain =
                 | Some step ->
                     step.Upgrade { input with Model = model; Snapshot = snapshot }
                     |> Checked.bind (fun outcome ->
-                        // A node that this step replaces: its place in the input of the chain, from the origins so far.
-                        let originOf (position: Position) = Map.tryFind position origins |> Option.defaultValue position
-
+                        // A node that this step replaces: its place in the input of the chain, from the records so far.
                         let rewritten =
                             outcome.Applications
                             |> List.map (fun record ->
-                                let root, path = originOf (positionOf record.Before)
+                                let root, path = originOf applications (positionOf record.Before)
 
                                 { record with
                                     Before =
@@ -117,20 +137,25 @@ module UpgradeChain =
                                             (ArtifactRevision.Pinned input.Snapshot)
                                 })
 
-                        // The earlier records for a node that this step replaces are superseded by the new record.
-                        let replaced = outcome.Applications |> List.map (fun record -> positionOf record.Before) |> Set.ofList
+                        // The earlier records for a node that this step replaces, or for a node below it, are superseded.
+                        let replaced = outcome.Applications |> List.map (fun record -> positionOf record.Before)
+                        let outputFormat = FormatTriplet.ofVersion outcome.Model.SourceVersion.Version
 
+                        // A node that this step does not move keeps its path, and its address is now in the output of this step.
                         let kept =
-                            applications |> List.filter (fun record -> not (Set.contains (positionOf record.After) replaced))
+                            applications
+                            |> List.filter (fun record -> not (replaced |> List.exists (fun place -> isWithin place (positionOf record.After))))
+                            |> List.map (fun record ->
+                                { record with
+                                    After =
+                                        NodeAddress.unchecked
+                                            record.After.Artifact
+                                            outputFormat
+                                            record.After.Root
+                                            record.After.Steps
+                                            (ArtifactRevision.Pinned outcome.Snapshot)
+                                })
 
-                        let newOrigins =
-                            List.fold2
-                                (fun (state: Map<Position, Position>) (record: RewriteApplication) (rebuilt: RewriteApplication) ->
-                                    Map.add (positionOf record.After) (positionOf rebuilt.Before) state)
-                                origins
-                                outcome.Applications
-                                rewritten
+                        go outcome.Model outcome.Snapshot (kept @ rewritten) (remaining - 1))
 
-                        go outcome.Model outcome.Snapshot (kept @ rewritten) newOrigins (remaining - 1))
-
-        go input.Model input.Snapshot [] Map.empty (List.length steps + 1)
+        go input.Model input.Snapshot [] (List.length steps + 1)
