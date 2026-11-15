@@ -577,7 +577,7 @@ The closure check of the Native AOT executable allows `Microsoft.CodeAnalysis` a
 
 ## Delivery steps
 
-Each step merges on its own. The order is a builder's call, and the product owner can change it.
+The order is a builder's call, and the product owner can change it. The product owner decided on 2026-11-15 to deliver steps 1 to 7 in one OpenSpec change, [add-csharp-language-support](../../../../../openspec/changes/add-csharp-language-support/proposal.md), and one pull request. The step order stays, and each step is a task group that lands as its own commit.
 
 ### Step 0: Spike record
 
