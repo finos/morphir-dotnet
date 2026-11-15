@@ -581,9 +581,9 @@ Each step merges on its own. The order is a builder's call, and the product owne
 
 ### Step 0: Spike record
 
-- Move the probes of 2026-11-15 into `spikes/` and write the spike report, with the reproduction steps. The probes are in a temporary folder today.
-- Test the source generator in Visual Studio, Rider and VS Code.
-- Test generated code on a `net8.0` runtime, if a target below `net10.0` is wanted.
+- Done on 2026-11-15: the probes are in `spikes/csharp-language-support/`, and the [spike report](../spikes/csharp-language-support.md) has the reproduction steps.
+- Open: test the source generator in Visual Studio, Rider and VS Code.
+- Open: test generated code on a `net8.0` runtime, if a target below `net10.0` is wanted.
 
 ### Step 1: Frontend thin slice
 
@@ -682,7 +682,7 @@ Use the `test-manager` skill for the class and the place of each test.
 
 ## Evidence
 
-All measurements are from 2026-11-15, on macOS arm64, with .NET SDK 11.0.100 and `Microsoft.CodeAnalysis.CSharp` 5.12.0. The probes are in a temporary folder until step 0.
+All measurements are from 2026-11-15, on macOS arm64, with .NET SDK 11.0.100 and `Microsoft.CodeAnalysis.CSharp` 5.12.0. The probes are in `spikes/csharp-language-support/`, and the [spike report](../spikes/csharp-language-support.md) has the steps to run them again. All of them ran again from that folder on 2026-11-15, with the same results.
 
 **Roslyn in the real Native AOT `morphir`, `osx-arm64`.**
 
