@@ -469,7 +469,7 @@ With `--json`, from the Native AOT `morphir` for Windows ARM64:
       "available": true,
       "prerequisites": { "runtime": [], "sdk": [], "native": [] },
       "capabilities": {
-        "backend": { "targets": ["csharp"], "irVersions": ["1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0"], "generate": true }
+        "backend": { "targets": ["csharp"], "irVersions": ["4", "4.0.0"], "generate": true }
       }
     }
   ]

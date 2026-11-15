@@ -113,4 +113,26 @@ public sealed class ModelUpgradeTests : IDisposable
         success.Family.Should().Be("Classic");
         success.SourceVersion.Should().Be("3.0.0");
     }
+
+    [Test]
+    public void TheBuiltInCSharpBackendReadsTheCurrentIrOnly()
+    {
+        new CSharpGenerationBackend().Descriptor.Capabilities.Select(capability => capability.Family)
+            .Should().Equal(ModelFamily.V4);
+    }
+
+    [Test]
+    public async Task AClassicModelIsUpgradedForTheCSharpBackendAndTheAdmissionPassRuns()
+    {
+        var input = GenerationInputFixtures.DailyRate(Path.Combine(_root, "csharp"), "3.0.0", "json");
+        var resolution = await new CliGenerationSettingsResolver().ResolveAsync(new(input, "csharp", Path.Combine(_root, "csharp-out")), new(_root), default);
+        var settings = ((Outcome<GenerationSettings>.Success)resolution).Value;
+        var loaded = ((Outcome<LoadedModel>.Success)await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(settings.Input, settings.Limits, default)).Value;
+        var result = await GenerationStages.RunFrom(loaded, settings, new RegisteredBackendResolver([new CSharpGenerationBackend()]), new GenerationPublisher(), default);
+        var success = ((Outcome<GenerationSuccess>.Success)result).Value;
+        // The report names the model as it was loaded, and the admission pass ran on the upgraded model.
+        success.SourceVersion.Should().Be("3.0.0");
+        success.Diagnostics.Should().NotContain(diagnostic => diagnostic.Code == "transform.skipped");
+        success.Passes!.Ran.Should().Contain("morphir-dotnet.csharp.admission");
+    }
 }

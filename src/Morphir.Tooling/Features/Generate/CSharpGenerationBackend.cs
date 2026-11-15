@@ -13,9 +13,9 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
 {
     private sealed record Options(int LanguageVersion, NamespaceOverride? Namespace, string Profile) : ValidatedBackendOptions;
 
+    // The backend reads the current IR only. The host upgrades a classic model before the passes and the backend run.
     public BackendDescriptor Descriptor { get; } = new(ExtensionId.Create("morphir.csharp"), ExtensionName.Create("C# generator"), TargetId.Create("csharp"),
     [
-        new(ModelFamily.Classic, SourceFormatVersions.Create("1", "2", "3", "3.0.0", "3.1.0"), DistributionKind.Library),
         new(ModelFamily.V4, SourceFormatVersions.Create("4", "4.0.0"), DistributionKind.Library)
     ])
     {

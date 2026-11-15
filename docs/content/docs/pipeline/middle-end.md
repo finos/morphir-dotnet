@@ -31,7 +31,8 @@ match Morphir.Compilation.Checked.tryValue (CurrentIr.upgrade input) with
 | None -> () // the diagnostics say why: no step reads the version, or a node has no form in the current IR
 ```
 
-`morphir generate` upgrades a classic model when the selected backend reads the current IR only. A backend that reads
+`morphir generate` upgrades a classic model when the selected backend reads the current IR only, such as the C#
+backend. A backend that reads
 the classic model directly, such as the F# backend, gets the model as it was loaded. The report names the model as it was
 loaded.
 

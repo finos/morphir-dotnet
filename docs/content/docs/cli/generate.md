@@ -6,7 +6,9 @@ description: Generate target artifacts from a Morphir model
 # Generate
 
 Generate target files from a decoded Morphir library. Targets `fsharp` and
-`csharp` support classic and v4 models. Target and output are explicit. The
+`csharp` support classic and v4 models. The C# backend reads the current IR
+only, so the command upgrades a classic model before the passes and the
+backend run. Target and output are explicit. The
 input is an explicit `--input`, or else the IR of the most recent
 `morphir compile` of the project.
 

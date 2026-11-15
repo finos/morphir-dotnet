@@ -35,7 +35,8 @@ public sealed class BackendExtensionSourceTests
         entry.Types.Select(type => type.WireValue).Should().Equal("backend");
         var claim = entry.BackendClaimOrNull!;
         claim.Targets.Select(target => target.Value).Should().Equal("csharp");
-        claim.IrVersions.Select(version => version.Text).Should().Equal("1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0");
+        // The C# backend reads the current IR only; the host upgrades a classic model before it.
+        claim.IrVersions.Select(version => version.Text).Should().Equal("4", "4.0.0");
     }
 
     [Test]

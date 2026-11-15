@@ -146,7 +146,7 @@ public sealed class ExtensionListCommandTests
         csharp.GetProperty("available").GetBoolean().Should().BeTrue();
         var backend = csharp.GetProperty("capabilities").GetProperty("backend");
         backend.GetProperty("targets").EnumerateArray().Select(target => target.GetString()).Should().Equal("csharp");
-        backend.GetProperty("irVersions").EnumerateArray().Select(version => version.GetString()).Should().Equal("1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0");
+        backend.GetProperty("irVersions").EnumerateArray().Select(version => version.GetString()).Should().Equal("4", "4.0.0");
         backend.GetProperty("generate").GetBoolean().Should().BeTrue();
     }
 

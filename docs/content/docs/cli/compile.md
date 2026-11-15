@@ -249,7 +249,8 @@ Both give the same files with the same bytes, and both reports name the same bac
 configuration selects no backend extension. `compile --target` always runs the built-in backend of the target
 and does not read `[codegen.<target>].extension`; when that key is set, the command prints a note on stderr,
 and only `morphir generate` runs the extension. Classic IR versions
-(`1`, `2` and `3`) give a classic model, and the backend uses its classic path. As in `generate`, the
+(`1`, `2` and `3`) give a classic model. The F# backend uses its classic path, and the C# backend gets the model
+after the upgrade to the current IR. As in `generate`, the
 `generation` member says whether the built-in backend formatted the files (`formatting`: `applied`, `off` or
 `unavailable`), and a host that cannot run the formatter (the Native AOT `morphir`) writes a warning on stderr,
 never on stdout or in the JSON output. Pass `--option format=false` for the unformatted files without the warning.
