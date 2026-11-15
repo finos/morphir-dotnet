@@ -60,8 +60,38 @@ public sealed class AdmissionAnalyzer : DiagnosticAnalyzer
                 OperationKind.FieldReference,
                 OperationKind.MethodReference);
             start.RegisterSymbolAction(c => ReportTypeShape(c), SymbolKind.NamedType);
+            start.RegisterSyntaxNodeAction(ReportSuppression, SyntaxKind.Attribute);
             start.RegisterSymbolAction(c => ReportMembers(c, own), SymbolKind.Property, SymbolKind.Field, SymbolKind.Method);
         });
+    }
+
+    /// <summary>The attributes that hide a diagnostic by its id.</summary>
+    private static readonly string[] SuppressionAttributes =
+    [
+        "System.Diagnostics.CodeAnalysis.SuppressMessageAttribute",
+        "System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessageAttribute",
+    ];
+
+    private static void ReportSuppression(SyntaxNodeAnalysisContext context)
+    {
+        var attribute = (Microsoft.CodeAnalysis.CSharp.Syntax.AttributeSyntax)context.Node;
+        if (context.SemanticModel.GetSymbolInfo(attribute, context.CancellationToken).Symbol is not IMethodSymbol constructor
+            || Array.IndexOf(SuppressionAttributes, constructor.ContainingType.ToDisplayString()) < 0
+            || attribute.ArgumentList is not { Arguments.Count: >= 2 } arguments)
+        {
+            return;
+        }
+
+        // The check id is the second argument, for example "MORPHIR1001" or "MORPHIR1001:loop".
+        var checkId = context.SemanticModel.GetConstantValue(arguments.Arguments[1].Expression, context.CancellationToken);
+        if (checkId is { HasValue: true, Value: string text })
+        {
+            var id = text.Split(':')[0].Trim();
+            if (Rules.TryGetById(id, out _))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Rules.Suppression.Descriptor, attribute.GetLocation(), id));
+            }
+        }
     }
 
     private static void ReportLoop(OperationAnalysisContext context)

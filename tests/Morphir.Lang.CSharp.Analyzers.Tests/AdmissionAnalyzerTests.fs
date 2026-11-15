@@ -3,6 +3,7 @@
 module Morphir.Lang.CSharp.Analyzers.Tests.AdmissionAnalyzerTests
 
 open Expecto
+open Microsoft.CodeAnalysis
 open Morphir.Lang.CSharp.Analyzers
 open Morphir.Lang.CSharp.Analyzers.Tests.AnalyzerSupport
 
@@ -143,15 +144,36 @@ let tests =
 
           testList
               "suppression"
-              [ test "the specific diagnostic options of an .editorconfig suppress by id" {
+              [ test "the specific diagnostic options of an .editorconfig or NoWarn do not suppress a rule" {
                     let source = "class C { }"
-                    Expect.equal (diagnoseWithSuppression source Rules.TypeKind.Id) [] "suppressed"
+                    let found = diagnoseWithSuppression source Rules.TypeKind.Id |> List.map (fun (id, _, _) -> id)
+                    Expect.equal found [ Rules.TypeKind.Id ] "the rule is not configurable"
                 }
 
-                test "a pragma suppresses by id" {
+                test "a pragma does not suppress a rule" {
                     let source = "#pragma warning disable MORPHIR1006\nclass C { }\n#pragma warning restore MORPHIR1006\nclass D { }\n"
                     let found = diagnose source |> List.map (fun (id, line, _) -> id, line)
-                    Expect.equal found [ "MORPHIR1006", 4 ] "only the class after the restore is reported"
+                    Expect.equal found [ "MORPHIR1006", 2; "MORPHIR1006", 4 ] "both classes are reported"
+                }
+
+                test "each rule is not configurable" {
+                    for rule in Rules.All do
+                        Expect.contains rule.Descriptor.CustomTags WellKnownDiagnosticTags.NotConfigurable rule.Id
+                }
+
+                test "a SuppressMessage attribute that names a Morphir rule is refused at the attribute" {
+                    let source =
+                        "[System.Diagnostics.CodeAnalysis.SuppressMessage(\"Morphir\", \"MORPHIR1001:loop\")]\nstatic class M\n{\n    public static int F() => 1;\n}\n"
+
+                    let found = diagnose source |> List.map (fun (id, line, _) -> id, line)
+                    Expect.equal found [ Rules.Suppression.Id, 1 ] "the suppression is refused"
+                }
+
+                test "a SuppressMessage attribute for another id is not refused" {
+                    let source =
+                        "[System.Diagnostics.CodeAnalysis.SuppressMessage(\"Style\", \"IDE0060\")]\nstatic class M\n{\n    public static int F() => 1;\n}\n"
+
+                    Expect.equal (diagnose source) [] "no refusal"
                 } ]
 
           testList

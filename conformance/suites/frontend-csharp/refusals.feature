@@ -140,3 +140,26 @@ Feature: Refuse what the Morphir subset leaves out
       | files        | 4       |
       | directory    | 4       |
       | project file | 4       |
+
+  Scenario Outline: frontend-csharp-0007 A suppression of a Morphir rule is refused
+    Given the C# package "acme/demo" exposing "Pricing.Totals"
+    And the source "Pricing.cs":
+      """csharp
+      namespace Acme.Demo.Pricing;
+      [System.Diagnostics.CodeAnalysis.SuppressMessage("Morphir", "MORPHIR1001")]
+      public static class Totals
+      {
+          public static int One() => 1;
+      }
+      """
+    When it is compiled from <input> with IR version <version>
+    Then compilation fails with diagnostics:
+      """json
+      [{"severity":"error","code":"csharp.unsupported_suppression","location":{"uri":"Pricing.cs","range":{"start":{"line":1,"character":1},"end":{"line":1,"character":74}}}}]
+      """
+
+    Examples:
+      | input        | version |
+      | files        | 4       |
+      | directory    | 4       |
+      | project file | 4       |

@@ -370,7 +370,7 @@ documents ─► parse ─► bind (CSharpCompilation, fixed references)
 - The package gives a model project its compile options in an MSBuild props file: `LangVersion`, `Nullable` and the implicit usings. `morphir compile` uses the same values.
 - An admission rule refuses a symbol from an assembly outside the fixed reference set. The IDE then reports the use of a package that `morphir compile` cannot bind.
 
-**Admission analyzers.** Each rule for unsupported C# is a Roslyn `DiagnosticAnalyzer`. The package puts the analyzer assembly in `analyzers/dotnet/cs`, so the compiler and the IDE load it. `morphir compile` runs the same analyzers in process. A Roslyn id is a short code such as `MORPHIR1001`, because `#pragma warning disable` and `.editorconfig` use it. The absolute IRI of the rule goes in `DiagnosticDescriptor.HelpLinkUri`. The analyzer reports only in a Morphir model project.
+**Admission analyzers.** Each rule for unsupported C# is a Roslyn `DiagnosticAnalyzer`. The package puts the analyzer assembly in `analyzers/dotnet/cs`, so the compiler and the IDE load it. `morphir compile` runs the same analyzers in process. A Roslyn id is a short code such as `MORPHIR1001`. A rule has the tag `NotConfigurable`, because a refused construct cannot become a model: `#pragma warning disable`, `.editorconfig` and `NoWarn` do not hide it, and the rule `MORPHIR1008` refuses a `SuppressMessage` attribute that names a rule. `morphir compile` refuses a construct even when the IDE does not report it. The absolute IRI of the rule goes in `DiagnosticDescriptor.HelpLinkUri`. The analyzer reports only in a Morphir model project.
 
 **Loop lowering.** The frontend changes a loop to a collection traversal or to recursion where it can. One recognizer gives one answer to the analyzer and to the lowering.
 
@@ -671,6 +671,7 @@ Use the `test-manager` skill for the class and the place of each test.
 | `LangVersion` above the default of a target framework | Accepted risk | Microsoft does not support it. It works with SDK 11.0.100, with no guarantee. |
 | The size limit of the Native AOT `morphir` | Step 1 | `.agents/aot-optimization.md` has a 20 MB guideline. The executable is 47.9 MB today, so the guideline needs a new value. |
 | The shared middle end and the F# frontend | Step 2 | The F# frontend can use the source-side middle end. Loop lowering for F# is a different decision. |
+| C# in a model project that is not part of the model | Product owner | The rules cannot be suppressed. A declaration-level opt-out, such as a `[MorphirIgnore]` attribute that the analyzer skips and the frontend leaves out (a call to it gives `unresolved-reference`), or an attribute that keeps the signature in the model with an external body (`body.external`), are possible forms. Neither is in the specs. |
 
 ## Calls left to the builder
 

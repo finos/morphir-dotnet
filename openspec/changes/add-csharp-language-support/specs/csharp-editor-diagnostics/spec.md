@@ -22,12 +22,31 @@ Each admission rule of the C# frontend SHALL be a Roslyn analyzer rule. The pack
 
 ### Requirement: Rules have a short id and an IRI
 
-A rule SHALL have a short Roslyn id such as `MORPHIR1001`, so `#pragma warning disable` and `.editorconfig` work. The absolute IRI of the rule SHALL be in the help link of the diagnostic.
+A rule SHALL have a short Roslyn id such as `MORPHIR1001`. The absolute IRI of the rule SHALL be in the help link of the diagnostic.
 
-#### Scenario: Suppression by id
+#### Scenario: Help link
+
+- **WHEN** the analyzer reports a rule
+- **THEN** the help link of the diagnostic is the absolute IRI of the rule
+
+### Requirement: Rules cannot be suppressed
+
+A rule SHALL NOT be configurable: `#pragma warning disable`, an `.editorconfig` severity and `NoWarn` SHALL NOT hide it. A `SuppressMessage` or `UnconditionalSuppressMessage` attribute that names a rule SHALL be refused with its own rule. `morphir compile` SHALL refuse a construct that a rule refuses also when the IDE does not report it.
+
+#### Scenario: Editorconfig entry
 
 - **WHEN** an `.editorconfig` sets one rule id to `none`
-- **THEN** the compiler does not report that rule
+- **THEN** the compiler still reports that rule as an error
+
+#### Scenario: Pragma
+
+- **WHEN** a `#pragma warning disable MORPHIR1006` comes before a class
+- **THEN** the analyzer still reports the class
+
+#### Scenario: Suppression attribute
+
+- **WHEN** a type has `[SuppressMessage("Morphir", "MORPHIR1001")]`
+- **THEN** the analyzer reports `MORPHIR1008` at the attribute
 
 ### Requirement: The analyzer reports only in a model project
 

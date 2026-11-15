@@ -14,8 +14,10 @@ analyzer refuses each construct outside the subset with an error diagnostic. All
 together, and the frontend writes no model. The [overview](../) describes the supported subset.
 
 The same analyzer runs in the compiler, in the IDE and in `morphir compile`, so a refusal has one code, one message
-and one range everywhere. A Roslyn id such as `MORPHIR1001` works with `#pragma warning disable` and with
-`.editorconfig`. The absolute IRI of a rule is the help link of its diagnostic. Codes are stable once released.
+and one range everywhere. A rule cannot be turned off: `#pragma warning disable`, `.editorconfig` and `NoWarn`
+do not hide it, and a `SuppressMessage` attribute that names a rule is refused with `MORPHIR1008`. A construct
+that a rule refuses cannot become a model, so change the construct. The absolute IRI of a rule is the help link
+of its diagnostic. Codes are stable once released.
 
 ## Codes
 
@@ -28,6 +30,7 @@ and one range everywhere. A Roslyn id such as `MORPHIR1001` works with `#pragma 
 | [`csharp.unsupported_outside_reference`](#csharp-unsupported-outside-reference) | `MORPHIR1005` | A symbol outside the fixed reference set is not in the Morphir subset |
 | [`csharp.unsupported_type_kind`](#csharp-unsupported-type-kind) | `MORPHIR1006` | This kind of type is not in the Morphir subset |
 | [`csharp.unsupported_mutable_field`](#csharp-unsupported-mutable-field) | `MORPHIR1007` | A field that can change is not in the Morphir subset |
+| [`csharp.unsupported_suppression`](#csharp-unsupported-suppression) | `MORPHIR1008` | A suppression of a Morphir rule is not in the Morphir subset |
 
 ## `csharp.unsupported_loop`
 
@@ -130,5 +133,21 @@ Example:
 static class M
 {
     public static int X;
+}
+```
+
+## `csharp.unsupported_suppression`
+
+- Roslyn id: `MORPHIR1008`
+- Message: The attribute suppresses the Morphir rule '…'. A construct that a Morphir rule refuses cannot become a model; change the construct.
+- IRI: `https://morphir.finos.org/rules/csharp/unsupported_suppression`
+
+Example:
+
+```csharp
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Morphir", "MORPHIR1001")]
+static class M
+{
+    public static int F() => 1;
 }
 ```

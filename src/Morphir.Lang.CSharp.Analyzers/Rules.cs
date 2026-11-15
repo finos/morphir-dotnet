@@ -24,7 +24,10 @@ public sealed class AdmissionRule
             AnalyzerIds.Category,
             DiagnosticSeverity.Error,
             isEnabledByDefault: true,
-            helpLinkUri: Iri);
+            helpLinkUri: Iri,
+            // A rule says that a construct cannot become a model, so no pragma, .editorconfig entry or NoWarn turns it
+            // off. A [SuppressMessage] attribute is refused by its own rule.
+            customTags: WellKnownDiagnosticTags.NotConfigurable);
     }
 
     /// <summary>The short Roslyn id, for example <c>MORPHIR1001</c>.</summary>
@@ -104,9 +107,19 @@ public static class Rules
         "Field '{0}' can change",
         "static class M\n{\n    public static int X;\n}");
 
+    /// <summary>
+    /// A <c>SuppressMessage</c> attribute that names a Morphir rule. Roslyn lets this attribute hide a rule that is not
+    /// configurable, so the attribute itself is refused. <c>morphir compile</c> refuses the hidden construct all the same.
+    /// </summary>
+    public static readonly AdmissionRule Suppression = new(
+        "MORPHIR1008", "suppression",
+        "A suppression of a Morphir rule is not in the Morphir subset",
+        "The attribute suppresses the Morphir rule '{0}'. A construct that a Morphir rule refuses cannot become a model; change the construct.",
+        "[System.Diagnostics.CodeAnalysis.SuppressMessage(\"Morphir\", \"MORPHIR1001\")]\nstatic class M\n{\n    public static int F() => 1;\n}");
+
     /// <summary>The rules, in id order.</summary>
     public static IReadOnlyList<AdmissionRule> All { get; } = ImmutableArray.Create(
-        Loop, Mutation, Dynamic, MutableProperty, OutsideReference, TypeKind, MutableField);
+        Loop, Mutation, Dynamic, MutableProperty, OutsideReference, TypeKind, MutableField, Suppression);
 
     /// <summary>Finds a rule by its Roslyn id.</summary>
     public static bool TryGetById(string id, out AdmissionRule rule)
