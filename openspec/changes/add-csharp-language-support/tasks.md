@@ -20,6 +20,7 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [x] 2.8 Add C# frontend conformance cases as Morphir Compatibility Kit Gherkin with the closed step vocabulary and independently written expected IR. Verify that the corpus runs against the frontend.
 - [ ] 2.9 Document the C# subset, the rule catalog and the module shape rules in `docs/` and verify that the documented `morphir compile` commands run as written on the example project.
   - Open: the subset, the catalog and the module rules are documented, but no test runs the documented `morphir compile` command on the example project.
+- [x] 2.10 Fix the review findings of the frontend: named arguments, record values and initializers, enum switches, case-field capture, generic call types, constructor name collisions, partial records, refusals for declarations that the model cannot hold, `switch` statements, tuple deconstruction, the fixed reference set in the analyzer, implicit usings, admission that a pragma or a header cannot switch off, rules that cannot be suppressed (`NotConfigurable` and `MORPHIR1008`), `AD0001`, stable diagnostic order and messages. Verify with `FrontendFidelityTests`, the analyzer tests and conformance case `frontend-csharp-0007`.
 
 ## 3. IR upgrade and node addresses (UPG-1, NAD-1)
 
@@ -37,9 +38,10 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [x] 4.3 Add the application log with the address before (pinned to the pipeline input) and after, the module-at-a-time walk and the recorded package view lookups, and report them with `--json`. Verify with a test that a rule that reads another module lists the lookup.
 - [x] 4.4 Add the host check that each feature that a backend cannot take is removed by an earlier pass. Verify with a test that a remaining feature fails before the backend and names the feature.
 - [ ] 4.5 Run the passes in `morphir generate` (stage before a backend) and in `morphir compile` (stage after a frontend); skip them with one `info` diagnostic for an older family. Add BDD scenarios. Verify that a pass error stops before publication.
-  - Open: unit tests cover the compile stage and the skip diagnostic, but the BDD scenarios cover `generate` only.
+  - Open: unit tests cover the compile stage and the skip diagnostic, but the BDD scenarios cover `generate` only. The CLI cannot give a skip note or a pass error with the built-in passes, so a scenario needs a pass that it can select.
 - [x] 4.6 Move the checks of the old C# backend (`ValueLowering.check` and the collision checks) into the first target-side pass for `csharp`. Verify that the old diagnostics are reported with the same rules, now from the pass.
 - [x] 4.7 Document the pass contract, the rule catalog format and the application list in `docs/`. Verify that the documented example rule runs through the test harness as written.
+- [x] 4.8 Fix the review findings of the middle end: the C# profile names the features that the backend refuses and the feature check runs; feature detection reads types; lineage records name nodes of the input; kept upgrade records are pinned to the output; `compile --target` reports `generation.passes` and one lineage; an upgrade error names the node; the upgrade records stay when no pass ran. Verify with MiddleEnd and Tooling tests.
 
 ## 5. Backend on Roslyn (BKD-1, SUM-1, EQL-1)
 
@@ -52,6 +54,8 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [x] 5.7 Remove `src/Morphir.CodeGeneration.CSharp`, its test project and its references. Verify that the solution builds and that no reference remains with `git grep`.
 - [ ] 5.8 Add the round-trip test from IR to C# to IR for models of the backend, with source locations left out, and the Native AOT against JIT output test for the backend. Verify both.
 - [x] 5.9 Document the output shape, the polyfill file and the breaking change in `docs/` and in `CHANGELOG.md`. Verify that the documented example generates as written.
+- [x] 5.10 Fix the review findings of the backend: reachable switch arms, negative literals, record field order across aliases, name collisions against the new module layout, private wrapper constructors and wrapper cases of one C# type in the closed form, a public class between modules, the polyfill file of the PRD in each output, mutual tail recursion as one loop with a state (D6), the layout re-parse as C# 15 (D7) and no round limit in the switch layout. Verify with golden, value, match and target-pass tests, and with the black-box C# features.
+- [ ] 5.11 Decide how `Morphir.SDK.CSharp` finds a plain record and a function-typed field without reflection on a runtime type (`Basics.Equal` on a plain record throws under Native AOT; a function in a closed-base field or a union case is not found). Verify under Native AOT.
 
 ## 6. Loop lowering, matching transforms and options (LOP-1, OPT-1)
 
