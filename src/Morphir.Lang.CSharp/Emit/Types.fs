@@ -15,6 +15,8 @@ type internal Context = {
     Naming: Naming
     Catalog: Map<FQName, Declaration>
     Layouts: Map<ModulePath, ModuleLayout>
+    /// <summary>Whether a custom type or record alias has IEEE equality: NaN is not equal to NaN, and the members of Morphir equality are written.</summary>
+    Ieee: FQName -> bool
     Ct: CancellationToken
 }
 

@@ -66,6 +66,9 @@ module internal Values =
     type private Scope(context: Context, checkedValue: Checked) =
         let used = HashSet<string>(StringComparer.Ordinal)
 
+        /// <summary>The local functions of the method: the C# name, the input shapes and the output shape.</summary>
+        member val Functions = Dictionary<string, Shape list * Shape>(StringComparer.Ordinal)
+
         member _.Context = context
         member _.Checked = checkedValue
         member _.Location = checkedValue.Top.Location
@@ -138,7 +141,10 @@ module internal Values =
         | ("Basics" | "Decimal"), methodName ->
             Cs.invoke (Cs.access (asExpression (Cs.globalGeneric (sdkRoot operation.Module) [])) methodName) args
         | "List", "Singleton" -> factory args
+        | "List", "Foldl" -> instance 2 [ args[0]; args[1] ]
         | "List", "Map"
+        | "List", "Filter"
+        | "List", "FilterMap"
         | "Maybe", _
         | "Result", _
         | "List", "Cons" -> instance 1 [ args[0] ]
@@ -289,7 +295,12 @@ module internal Values =
 
         match value.Node with
         | TLiteral lit -> literal scope.Ct lit
-        | TVariable name -> Cs.id (Map.find name env) :> ExpressionSyntax
+        | TVariable name ->
+            let local = Map.find name env
+
+            match scope.Functions.TryGetValue local with
+            | true, (inputs, output) -> curry scope inputs output (fun values -> Cs.invoke (Cs.id local) values)
+            | _ -> Cs.id local :> ExpressionSyntax
         | TUnit -> Cs.access (asExpression (Cs.globalGeneric (sdkRoot "Unit") [])) "Value"
         | TTuple items -> Cs.tuple (List.map expr items)
         | TList items ->
@@ -330,6 +341,7 @@ module internal Values =
         | TIf(condition, yes, no) -> SF.ConditionalExpression(wrap (expr condition), wrap (expr yes), wrap (expr no)) :> ExpressionSyntax
         | TMatch(target, cases) -> matchExpression scope env value target cases
         | TLet _
+        | TLetRec _
         | TDestructure _ -> immediately (typ value.Type) (tail scope env value)
         | TPatternLambda(p, input, body) ->
             let subject = scope.Fresh "input"
@@ -407,6 +419,12 @@ module internal Values =
                 let fieldShapes, _, build = constructorParts scope candidate tyArgs
                 saturated (List.length fieldShapes) build
             | TSdk operation -> saturated (List.length operation.Inputs) (sdkCall scope operation)
+            | TVariable name ->
+                match scope.Functions.TryGetValue(Map.find name env) with
+                | true, (inputs, _) when not (List.isEmpty inputs) ->
+                    let local = Map.find name env
+                    saturated (List.length inputs) (fun values -> Cs.invoke (Cs.id local) values)
+                | _ -> None
             | _ -> None
 
         match direct with
@@ -583,7 +601,159 @@ module internal Values =
                 | None -> []
 
             [ Cs.local (scope.Type target.Type) subject (expression scope env target) ] @ guard @ bindings @ tail scope scoped body
+        | TLetRec(definitions, rest) ->
+            // Every function of the group is known to every body, so the names are bound before the bodies are written.
+            let names = definitions |> List.map (fun (name, definition) -> name, scope.Local name, definition)
+
+            let groupEnv =
+                names |> List.fold (fun (acc: Env) (name, local, definition) ->
+                    scope.Functions[local] <- (definition.LocalInputs |> List.map snd, definition.LocalOutput)
+                    Map.add name local acc) env
+
+            let functions = names |> List.map (fun (name, local, definition) -> localFunction scope groupEnv name local definition)
+            functions @ tail scope groupEnv rest
         | _ -> [ Cs.returns (expression scope env value) ]
+
+    /// <summary>
+    /// A local function. A function that only calls itself, and only as its last step, becomes a loop that replaces its
+    /// parameters and goes round again: no stack grows. Any other function is a plain local function.
+    /// </summary>
+    and private localFunction (scope: Scope) (env: Env) (name: Name) (local: string) (definition: TypedDefinition) : StatementSyntax =
+        let inputs = definition.LocalInputs |> List.map (fun (inputName, shape) -> inputName, shape, scope.Local inputName)
+        let bodyEnv = inputs |> List.fold (fun (acc: Env) (inputName, _, ident) -> Map.add inputName ident acc) env
+        let parameters = inputs |> List.map (fun (_, shape, ident) -> SF.Parameter(Cs.token ident).WithType(scope.Type shape))
+
+        let body: StatementSyntax list =
+            if isTailLoop name (List.length inputs) definition.LocalBody then
+                [ SF.WhileStatement(Cs.boolLiteral true, Cs.block (loopTail scope bodyEnv name (inputs |> List.map (fun (_, _, ident) -> ident)) definition.LocalBody)) :> StatementSyntax ]
+            else
+                tail scope bodyEnv definition.LocalBody
+
+        SF.LocalFunctionStatement(scope.Type definition.LocalOutput, Cs.token local)
+            .WithParameterList(SF.ParameterList(SF.SeparatedList<ParameterSyntax>(parameters)))
+            .WithBody(Cs.block body)
+        :> StatementSyntax
+
+    /// <summary>The statements of a loop body: a call of the function itself as the last step replaces the parameters and continues.</summary>
+    and private loopTail (scope: Scope) (env: Env) (self: Name) (parameters: string list) (value: Typed) : StatementSyntax list =
+        scope.Ct.ThrowIfCancellationRequested()
+        let recurse = loopTail scope
+
+        let rec spine (v: Typed) (acc: Typed list) =
+            match v.Node with
+            | TApply(f, x) -> spine f (x :: acc)
+            | _ -> v, acc
+
+        match value.Node with
+        | TIf(condition, yes, no) ->
+            [ SF.IfStatement(expression scope env condition, Cs.block (recurse env self parameters yes), SF.ElseClause(Cs.block (recurse env self parameters no))) :> StatementSyntax ]
+        | TLet(name, binding, rest) ->
+            let local = scope.Local name
+            Cs.local (scope.Type binding.Type) local (expression scope env binding) :: recurse (Map.add name local env) self parameters rest
+        | TDestructure(p, target, body) ->
+            let subject = scope.Fresh "subject"
+            let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
+
+            let guard =
+                match condition with
+                | Some c -> [ SF.IfStatement(SF.PrefixUnaryExpression(SyntaxKind.LogicalNotExpression, Cs.paren c), Cs.throwStatement [ "System"; "InvalidOperationException" ] "Morphir destructuring failed.") :> StatementSyntax ]
+                | None -> []
+
+            [ Cs.local (scope.Type target.Type) subject (expression scope env target) ] @ guard @ bindings @ recurse scoped self parameters body
+        | TMatch(target, cases) ->
+            let subject = scope.Fresh "subject"
+
+            let rec branches remaining : StatementSyntax list =
+                match remaining with
+                | [] -> [ Cs.throwStatement [ "System"; "InvalidOperationException" ] "Non-exhaustive Morphir pattern." ]
+                | (p, body) :: rest ->
+                    let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
+                    let inner = bindings @ recurse scoped self parameters body
+
+                    match condition with
+                    | None -> inner
+                    | Some c -> (SF.IfStatement(c, Cs.block inner) :> StatementSyntax) :: branches rest
+
+            [ Cs.local (scope.Type target.Type) subject (expression scope env target) ] @ branches cases
+        | TApply _ ->
+            let head, args = spine value []
+
+            match head.Node with
+            | TVariable name when name = self && List.length args = List.length parameters ->
+                // The new values are all computed before any parameter changes.
+                let temporaries = args |> List.map (fun arg -> scope.Fresh "next", arg)
+                let computes = temporaries |> List.map (fun (temp, arg) -> Cs.local (scope.Type arg.Type) temp (expression scope env arg))
+
+                let assigns =
+                    List.zip parameters temporaries
+                    |> List.map (fun (parameter, (temp, _)) ->
+                        SF.ExpressionStatement(SF.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, Cs.id parameter, Cs.id temp)) :> StatementSyntax)
+
+                computes @ assigns @ [ SF.ContinueStatement() :> StatementSyntax ]
+            | _ -> [ Cs.returns (expression scope env value) ]
+        | _ -> [ Cs.returns (expression scope env value) ]
+
+    /// <summary>Whether the body calls the function only as its last step, at least once, with no closure that could keep a parameter.</summary>
+    and private isTailLoop (self: Name) (arity: int) (body: Typed) : bool =
+        let rec spine (v: Typed) (acc: Typed list) =
+            match v.Node with
+            | TApply(f, x) -> spine f (x :: acc)
+            | _ -> v, acc
+
+        let mutable tailCalls = 0
+        let mutable otherUses = 0
+        let mutable closures = false
+
+        let rec visit (isTail: bool) (v: Typed) : unit =
+            match v.Node with
+            | TApply _ ->
+                let head, args = spine v []
+
+                match head.Node with
+                | TVariable name when name = self && List.length args = arity && isTail ->
+                    tailCalls <- tailCalls + 1
+                    args |> List.iter (visit false)
+                | _ ->
+                    visit false head
+                    args |> List.iter (visit false)
+            | TVariable name -> if name = self then otherUses <- otherUses + 1
+            | TIf(c, a, b) ->
+                visit false c
+                visit isTail a
+                visit isTail b
+            | TMatch(target, cases) ->
+                visit false target
+                cases |> List.iter (fun (_, arm) -> visit isTail arm)
+            | TLet(_, binding, rest) ->
+                visit false binding
+                visit isTail rest
+            | TDestructure(_, target, rest) ->
+                visit false target
+                visit isTail rest
+            | TLetRec(definitions, rest) ->
+                closures <- true
+                definitions |> List.iter (fun (_, d) -> visit false d.LocalBody)
+                visit isTail rest
+            | TLambda(_, _, inner)
+            | TPatternLambda(_, _, inner) ->
+                closures <- true
+                visit false inner
+            | TTuple items
+            | TList items -> items |> List.iter (visit false)
+            | TRecord fields -> fields |> List.iter (snd >> visit false)
+            | TField(target, _) -> visit false target
+            | TUpdate(target, fields) ->
+                visit false target
+                fields |> List.iter (snd >> visit false)
+            | TLiteral _
+            | TUnit
+            | TFieldFunction _
+            | TConstructor _
+            | TSdk _
+            | TReference _ -> ()
+
+        visit true body
+        tailCalls > 0 && otherUses = 0 && not closures
 
     /// <summary>The method of a value definition.</summary>
     let methodOf (context: Context) (checkedValue: Checked) : MemberDeclarationSyntax =

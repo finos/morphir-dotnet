@@ -151,6 +151,15 @@ module internal SdkMapping =
         | Some("list", "map") ->
             let a, b = fresh (), fresh ()
             operation "List" "Map" [ Arrow(a, b); list a ] (list b)
+        | Some("list", "filter") ->
+            let a = fresh ()
+            operation "List" "Filter" [ Arrow(a, boolType); list a ] (list a)
+        | Some("list", "filtermap") ->
+            let a, b = fresh (), fresh ()
+            operation "List" "FilterMap" [ Arrow(a, maybe b); list a ] (list b)
+        | Some("list", "foldl") ->
+            let a, b = fresh (), fresh ()
+            operation "List" "Foldl" [ Arrow(a, Arrow(b, b)); b; list a ] b
         | Some("maybe", (("map" | "andthen") as local)) ->
             let a, b = fresh (), fresh ()
 

@@ -31,6 +31,7 @@ module internal ValueLowering =
         | Apply of Expression * Expression
         | Lambda of Name * Expression
         | Let of Name * Definition * Expression
+        | LetRec of (Name * Definition) list * Expression
         | Constructor of FQName
         | Tuple of Expression list
         | List of Expression list
@@ -59,6 +60,12 @@ module internal ValueLowering =
 
     type Typed = { Type: Shape; Node: TypedNode }
 
+    and TypedDefinition = {
+        LocalInputs: (Name * Shape) list
+        LocalOutput: Shape
+        LocalBody: Typed
+    }
+
     and TypedNode =
         | TLiteral of LiteralEmission.Literal
         | TVariable of Name
@@ -67,6 +74,7 @@ module internal ValueLowering =
         | TApply of Typed * Typed
         | TLambda of Name * Shape * Typed
         | TLet of Name * Typed * Typed
+        | TLetRec of (Name * TypedDefinition) list * Typed
         | TConstructor of Constructor * Shape list
         | TTuple of Typed list
         | TList of Typed list
@@ -259,11 +267,21 @@ module internal ValueLowering =
                         definition,
                     next "/in" rest
                 )
-            | Morphir.IR.Classic.Value.LetRecursion _ ->
-                Admission.fail
-                    "local-recursion"
-                    location
-                    "Local recursive groups are outside the admitted slice."
+            | Morphir.IR.Classic.Value.LetRecursion(_, definitions, rest) ->
+                LetRec(
+                    definitions
+                    |> Map.toList
+                    |> List.map (fun (name, definition) ->
+                        name,
+                        classicDefinition
+                            ct
+                            (location
+                             + "/binding/"
+                             + title name)
+                            definition
+                    ),
+                    next "/in" rest
+                )
 
 
         {
@@ -390,11 +408,21 @@ module internal ValueLowering =
                         definition.Value,
                     next "/in" rest
                 )
-            | Morphir.IR.V4.Value.LetRecursion _ ->
-                Admission.fail
-                    "local-recursion"
-                    location
-                    "Local recursive groups are outside the admitted slice."
+            | Morphir.IR.V4.Value.LetRecursion(a, definitions, rest) ->
+                a,
+                LetRec(
+                    Morphir.IR.V4.OrderedMap.toList definitions
+                    |> List.map (fun (name, definition) ->
+                        name,
+                        v4Definition
+                            ct
+                            (location
+                             + "/binding/"
+                             + title name)
+                            definition.Value
+                    ),
+                    next "/in" rest
+                )
             | Morphir.IR.V4.Value.Hole _ ->
                 Admission.fail
                     "unsupported-body"
@@ -1163,6 +1191,34 @@ module internal ValueLowering =
 
                         let rest = infer (Map.add name binding.Type env) rest
                         TLet(name, binding, rest), rest.Type
+                    | LetRec(definitions, rest) ->
+                        uniqueNames ct loc (definitions |> List.map (fun (name, _) -> name, identifier name))
+
+                        for name, _ in definitions do
+                            validateName ct loc name
+
+                        // The declared signatures are complete, so each function is typed before its body is read.
+                        let signature (definition: Definition) =
+                            List.foldBack (fun (_, input) output -> Arrow(input, output)) definition.Inputs definition.Output
+
+                        let groupEnv =
+                            definitions
+                            |> List.fold (fun env (name, definition) -> Map.add name (signature definition) env) env
+
+                        let typedDefinitions =
+                            definitions
+                            |> List.map (fun (name, definition) ->
+                                uniqueNames ct loc (definition.Inputs |> List.map (fun (input, _) -> input, identifier input))
+
+                                let bodyEnv =
+                                    definition.Inputs |> List.fold (fun env (input, typ) -> Map.add input typ env) groupEnv
+
+                                let body = infer bodyEnv definition.Body
+                                state.Unify loc body.Type definition.Output
+                                name, { LocalInputs = definition.Inputs; LocalOutput = definition.Output; LocalBody = body })
+
+                        let rest = infer groupEnv rest
+                        TLetRec(typedDefinitions, rest), rest.Type
 
                 expression.Annotation
                 |> Option.iter (state.Unify loc typ)
@@ -1275,6 +1331,12 @@ module internal ValueLowering =
                     | TPatternLambda(_, _, body) -> yield! expression body
                     | TLet(_, binding, rest) ->
                         yield! expression binding
+                        yield! expression rest
+                    | TLetRec(definitions, rest) ->
+                        for _, definition in definitions do
+                            yield! shape false (List.foldBack (fun (_, input) output -> Arrow(input, output)) definition.LocalInputs definition.LocalOutput)
+                            yield! expression definition.LocalBody
+
                         yield! expression rest
                     | TTuple items
                     | TList items ->

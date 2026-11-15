@@ -20,6 +20,17 @@ public sealed class List<T> : IReadOnlyList<T>, IEquatable<List<T>>, ISdkValue, 
     public T this[int index] => _items[index];
     public List<T> Cons(T head) { ArgumentNullException.ThrowIfNull(head); return new(_items.Insert(0, head)); }
     public List<TResult> Map<TResult>(Func<T, TResult> callback) => List<TResult>.FromEnumerable(_items.Select(callback));
+    public List<T> Filter(Func<T, bool> predicate) => List<T>.FromEnumerable(_items.Where(predicate));
+    public List<TResult> FilterMap<TResult>(Func<T, Maybe<TResult>> callback) =>
+        List<TResult>.FromEnumerable(_items.Select(callback).Where(maybe => maybe.IsJust).Select(maybe => maybe.Match(value => value, () => throw new InvalidOperationException("FilterMap kept a Nothing."))));
+    /// <summary>Folds from the left: <c>step item state</c> for each item, in order, starting from <paramref name="initial"/>.</summary>
+    public TState Foldl<TState>(Func<T, Func<TState, TState>> step, TState initial)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        var state = initial;
+        foreach (var item in _items) state = step(item)(state);
+        return state;
+    }
     public List<T> Append(List<T> right) => new(_items.AddRange(right._items));
     public Maybe<T> Head() => Length == 0 ? Maybe<T>.Nothing : Maybe<T>.Just(_items[0]);
     public Maybe<List<T>> Tail() => Length == 0 ? Maybe<List<T>>.Nothing : Maybe<List<T>>.Just(new(_items.RemoveAt(0)));

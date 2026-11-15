@@ -25,7 +25,7 @@ public sealed class ValueDomainTests
     [Test]
     public void ArbitraryEquatableTypesDoNotBecomeMorphirValues()
     {
-        Should.Throw<NotSupportedException>(() => Basics.Equal(new PlainRecord(1), new PlainRecord(1)));
+        // A plain record is a value (PlainValueTests); an equatable class that is no record or union is not.
         Should.Throw<NotSupportedException>(() => Basics.Equal(new MutableEquatable(), new MutableEquatable()));
         Should.Throw<NotSupportedException>(() => MorphirValue.Hash(new MutableEquatable()));
     }

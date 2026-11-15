@@ -99,6 +99,13 @@ let constructorPattern (text: string) (items: Pattern list) = ConstructorPattern
 
 let patternMatch (subject: Value) (arms: (Pattern * Value) list) = Value.PatternMatch(va, subject, arms)
 
+let sdkRef (text: string) = Value.Reference(va, fq ("morphir/SDK:" + text))
+let call2 (f: Value) (a: Value) (b: Value) = apply (apply f a) b
+let ifThenElse (c: Value) (a: Value) (b: Value) = Value.IfThenElse(va, c, a, b)
+
+let letRec (bindings: (string * ValueDefinition) list) (body: Value) =
+    Value.LetRecursion(va, ordered [ for n, d in bindings -> name n, ({ Doc = None; Value = d }: Documented<ValueDefinition>) ], body)
+
 /// Generates a model and gives the files, or fails the test with the diagnostics.
 let generate (model: VersionedModel) : Map<string, string> =
     let result = CSharpBackend.Generate(model, { LanguageVersion = 15 }, CancellationToken.None)
@@ -107,6 +114,70 @@ let generate (model: VersionedModel) : Map<string, string> =
     | GenerationStatus.Success -> result.Sources |> List.map (fun source -> source.RelativePath, source.Text) |> Map.ofList
     | _ -> failwithf "generation failed: %A" result.Diagnostics
 
+/// Generates a model with IEEE equality for the types that the predicate selects.
+let generateIeee (model: VersionedModel) (ieee: FQName -> bool) : Map<string, string> =
+    let result = CSharpBackend.GenerateWith(model, { LanguageVersion = 15 }, None, ieee, CancellationToken.None)
+
+    match result.Status with
+    | GenerationStatus.Success -> result.Sources |> List.map (fun source -> source.RelativePath, source.Text) |> Map.ofList
+    | _ -> failwithf "generation failed: %A" result.Diagnostics
+
 let refuse (model: VersionedModel) : GenerationDiagnostic list =
     let result = CSharpBackend.Generate(model, { LanguageVersion = 15 }, CancellationToken.None)
     result.Diagnostics
+
+/// Compiles the files as C# 15 and calls a static method of a type with the arguments. The generated code runs for real.
+let run (files: Map<string, string>) (typeName: string) (methodName: string) (arguments: objnull list) : string =
+    let documents =
+        [ for KeyValue(path, text) in files ->
+              ({ Uri = path; LanguageId = Morphir.Lang.CSharp.CSharpFrontend.languageId; Version = 0UL; Text = text }: Morphir.Compilation.SourceDocument) ]
+
+    match Morphir.Lang.CSharp.CSharpCompiler.compile documents with
+    | Error failure -> failwithf "compile failed: %s" failure.Message
+    | Ok compiled ->
+        use stream = new System.IO.MemoryStream()
+        let emitted = compiled.Compilation.Emit stream
+
+        if not emitted.Success then
+            failwithf "emit failed: %A" (emitted.Diagnostics |> Seq.filter (fun d -> d.Severity = Microsoft.CodeAnalysis.DiagnosticSeverity.Error) |> Seq.map string |> List.ofSeq)
+
+        let assembly = System.Reflection.Assembly.Load(stream.ToArray())
+
+        let target =
+            match assembly.GetType typeName with
+            | null -> failwithf "no type %s" typeName
+            | found -> found
+
+        match target.GetMethod methodName with
+        | null -> failwithf "no method %s" methodName
+        | found ->
+            match found.Invoke(null, Array.ofList arguments) with
+            | :? string as text -> text
+            | :? System.Collections.IEnumerable as items -> "[" + (items |> Seq.cast<obj> |> Seq.map string |> String.concat ", ") + "]"
+            | other -> string other
+
+/// Compiles the files and loads the assembly once.
+let load (files: Map<string, string>) : System.Reflection.Assembly =
+    let documents =
+        [ for KeyValue(path, text) in files ->
+              ({ Uri = path; LanguageId = Morphir.Lang.CSharp.CSharpFrontend.languageId; Version = 0UL; Text = text }: Morphir.Compilation.SourceDocument) ]
+
+    match Morphir.Lang.CSharp.CSharpCompiler.compile documents with
+    | Error failure -> failwithf "compile failed: %s" failure.Message
+    | Ok compiled ->
+        use stream = new System.IO.MemoryStream()
+        let emitted = compiled.Compilation.Emit stream
+
+        if not emitted.Success then
+            failwithf "emit failed: %A" (emitted.Diagnostics |> Seq.filter (fun d -> d.Severity = Microsoft.CodeAnalysis.DiagnosticSeverity.Error) |> Seq.map string |> List.ofSeq)
+
+        System.Reflection.Assembly.Load(stream.ToArray())
+
+/// Makes an instance of a type of the assembly with the constructor arguments.
+let make (assembly: System.Reflection.Assembly) (typeName: string) (arguments: objnull list) : obj =
+    match assembly.GetType typeName with
+    | null -> failwithf "no type %s" typeName
+    | found ->
+        match System.Activator.CreateInstance(found, Array.ofList arguments) with
+        | null -> failwith "no instance"
+        | instance -> instance

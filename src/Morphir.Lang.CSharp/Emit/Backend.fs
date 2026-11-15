@@ -23,6 +23,7 @@ type CSharpBackend private () =
             model: VersionedModel,
             options: GenerationOptions,
             namespaceOverride: NamespaceOverride option,
+            ieee: FQName -> bool,
             ct: CancellationToken
         ) : GenerationResult =
         let result status sources diagnostics = {
@@ -62,7 +63,7 @@ type CSharpBackend private () =
             Checks.validateCollisions ct catalog pkg modules
 
             let layouts = ModuleLayouts.compute naming pkg (modules |> List.map (fun (path, _, names) -> path, not (List.isEmpty names)))
-            let context: Context = { Naming = naming; Catalog = catalog; Layouts = layouts; Ct = ct }
+            let context: Context = { Naming = naming; Catalog = catalog; Layouts = layouts; Ieee = ieee; Ct = ct }
             let publicModules = modules |> List.filter (fun (_, isPublic, _) -> isPublic) |> List.map (fun (path, _, _) -> path) |> Set.ofList
 
             let files =
@@ -88,7 +89,7 @@ type CSharpBackend private () =
 
     /// <summary>Generates the C# of a model with the default namespace of its package.</summary>
     static member Generate(model: VersionedModel, options: GenerationOptions, cancellationToken: CancellationToken) : GenerationResult =
-        CSharpBackend.Core(model, options, None, cancellationToken)
+        CSharpBackend.Core(model, options, None, (fun _ -> false), cancellationToken)
 
     /// <summary>Generates the C# of a model in the namespace of the override.</summary>
     static member Generate
@@ -98,4 +99,18 @@ type CSharpBackend private () =
             namespaceOverride: NamespaceOverride,
             cancellationToken: CancellationToken
         ) : GenerationResult =
-        CSharpBackend.Core(model, options, Some namespaceOverride, cancellationToken)
+        CSharpBackend.Core(model, options, Some namespaceOverride, (fun _ -> false), cancellationToken)
+
+    /// <summary>
+    /// Generates the C# of a model with the types for which <paramref name="ieee"/> is true written with IEEE equality: NaN is
+    /// not equal to NaN, and the Morphir equality members are written. Other types have the equality of plain C#.
+    /// </summary>
+    static member GenerateWith
+        (
+            model: VersionedModel,
+            options: GenerationOptions,
+            namespaceOverride: NamespaceOverride option,
+            ieee: FQName -> bool,
+            cancellationToken: CancellationToken
+        ) : GenerationResult =
+        CSharpBackend.Core(model, options, namespaceOverride, ieee, cancellationToken)

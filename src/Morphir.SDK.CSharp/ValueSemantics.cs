@@ -23,7 +23,8 @@ internal static class ValueSemantics
             return true;
         }
         if (left is int or decimal or string or char or bool or Unit or Order or ISdkValue) return left.Equals(right);
-        throw new NotSupportedException("Equality requires a supported scalar, SDK value, tuple or explicit IMorphirValue implementation.");
+        if (PlainValues.IsSupported(left.GetType())) return left.Equals(right);
+        throw new NotSupportedException("Equality requires a supported scalar, SDK value, tuple, plain record, plain union or explicit IMorphirValue implementation.");
     }
 
     internal static int Hash<T>(T value)
@@ -38,6 +39,7 @@ internal static class ValueSemantics
         }
         if (value is int or double or decimal or string or char or bool or Unit or Order or ISdkValue)
             return value.GetHashCode();
+        if (PlainValues.IsSupported(value.GetType())) return value.GetHashCode();
         throw new NotSupportedException("Hashing requires a supported immutable value.");
     }
 }

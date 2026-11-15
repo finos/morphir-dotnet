@@ -4,6 +4,7 @@
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <LangVersion>15</LangVersion>
     <IsPackable>false</IsPackable>
     <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
     <ReqnrollUseIntermediateOutputPathForCodeBehind>true</ReqnrollUseIntermediateOutputPathForCodeBehind>

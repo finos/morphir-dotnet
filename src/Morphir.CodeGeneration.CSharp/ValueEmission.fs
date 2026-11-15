@@ -649,6 +649,11 @@ module internal ValueEmission =
                     + "; return "
                     + body
                     + "; }))()"
+                | TLetRec _ ->
+                    Admission.fail
+                        "local-recursion"
+                        loc
+                        "Local recursive groups are outside the admitted slice."
                 | TSdk operation ->
                     curry
                         operation.Inputs
