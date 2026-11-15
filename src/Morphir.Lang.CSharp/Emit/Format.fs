@@ -17,7 +17,10 @@ module internal Format =
 
     let private newLine = "\n"
 
-    let private parseOptions = CSharpParseOptions(LanguageVersion.Preview)
+    /// <summary>The language version of the re-parse of the layout pass: C# 15, the only version that the backend writes (D7).</summary>
+    let languageVersion = LanguageVersion.CSharp15
+
+    let private parseOptions = CSharpParseOptions(languageVersion)
 
     /// <summary>The indentation of the line that holds a position.</summary>
     let private indentOf (text: SourceText) (position: int) : string =
@@ -27,45 +30,50 @@ module internal Format =
 
     /// <summary>
     /// The edits for the outermost switch expressions that are not yet in the layout. The edits replace the white space
-    /// before a token with a line break and the indentation.
+    /// before a token with a line break and the indentation. Each round puts one switch expression in the layout, and the
+    /// pass continues until no switch expression needs an edit. A round that does not change the text stops the pass with
+    /// an exception, because the next round would find the same switch expression again.
     /// </summary>
-    let private fixSwitches (text: string) : string =
-        let rec loop (text: string) (rounds: int) =
-            if rounds = 0 then text
-            else
-                let tree = CSharpSyntaxTree.ParseText(text, parseOptions)
-                let source = tree.GetText()
-                let root = tree.GetRoot()
+    let fixSwitches (text: string) : string =
+        let rec loop (text: string) =
+            let tree = CSharpSyntaxTree.ParseText(text, parseOptions)
+            let source = tree.GetText()
+            let root = tree.GetRoot()
 
-                let onOwnLine (token: SyntaxToken) =
-                    let line = source.Lines.GetLineFromPosition token.SpanStart
-                    line.ToString().Trim().StartsWith(token.Text, StringComparison.Ordinal) && line.Start + (line.ToString().Length - line.ToString().TrimStart().Length) = token.SpanStart
+            let onOwnLine (token: SyntaxToken) =
+                let line = source.Lines.GetLineFromPosition token.SpanStart
+                line.ToString().Trim().StartsWith(token.Text, StringComparison.Ordinal) && line.Start + (line.ToString().Length - line.ToString().TrimStart().Length) = token.SpanStart
 
-                let needsFix (expression: SwitchExpressionSyntax) =
-                    expression.Arms.Any(fun arm -> not (onOwnLine (arm.GetFirstToken())))
-                    || not (onOwnLine expression.CloseBraceToken)
+            let needsFix (expression: SwitchExpressionSyntax) =
+                expression.Arms.Any(fun arm -> not (onOwnLine (arm.GetFirstToken())))
+                || not (onOwnLine expression.CloseBraceToken)
 
-                let target =
-                    root.DescendantNodes().OfType<SwitchExpressionSyntax>()
-                    |> Seq.tryFind (fun expression -> needsFix expression && not (expression.Ancestors().OfType<SwitchExpressionSyntax>().Any(fun outer -> needsFix outer)))
+            let target =
+                root.DescendantNodes().OfType<SwitchExpressionSyntax>()
+                |> Seq.tryFind (fun expression -> needsFix expression && not (expression.Ancestors().OfType<SwitchExpressionSyntax>().Any(fun outer -> needsFix outer)))
 
-                match target with
-                | None -> text
-                | Some expression ->
-                    let baseIndent = indentOf source expression.SpanStart
-                    let armIndent = baseIndent + "    "
+            match target with
+            | None -> text
+            | Some expression ->
+                let baseIndent = indentOf source expression.SpanStart
+                let armIndent = baseIndent + "    "
 
-                    let edit (token: SyntaxToken) (indent: string) =
-                        let previous = token.GetPreviousToken()
-                        TextChange(TextSpan.FromBounds(previous.Span.End, token.SpanStart), newLine + indent)
+                let edit (token: SyntaxToken) (indent: string) =
+                    let previous = token.GetPreviousToken()
+                    TextChange(TextSpan.FromBounds(previous.Span.End, token.SpanStart), newLine + indent)
 
-                    let changes =
-                        [ for arm in expression.Arms -> edit (arm.GetFirstToken()) armIndent
-                          yield edit expression.CloseBraceToken baseIndent ]
+                let changes =
+                    [ for arm in expression.Arms -> edit (arm.GetFirstToken()) armIndent
+                      yield edit expression.CloseBraceToken baseIndent ]
 
-                    loop (source.WithChanges(changes).ToString()) (rounds - 1)
+                let next = source.WithChanges(changes).ToString()
 
-        loop text 64
+                if next = text then
+                    invalidOp "The layout pass cannot put a switch expression on lines of its own."
+
+                loop next
+
+        loop text
 
     /// <summary>The white space between a type and the parentheses of its positional pattern: <c>Quote(var v)</c>, not <c>Quote (var v)</c>.</summary>
     let private fixPositionalPatterns (text: string) : string =

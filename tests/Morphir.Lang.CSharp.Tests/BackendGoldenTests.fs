@@ -235,6 +235,18 @@ let tests =
             expectCompiles files
         }
 
+        test "the layout pass puts every switch expression of a file in the layout, also after the 64th" {
+            let methods = [ for index in 1..70 -> $"    int F{index}(int s) => s switch {{ 1 => 2, _ => 3 }};\n" ] |> String.concat ""
+            let text = Morphir.Lang.CSharp.Emit.Format.fixSwitches ("class C\n{\n" + methods + "}\n")
+            let lines = text.Split '\n'
+            Expect.equal (lines |> Array.filter (fun line -> line.Trim() = "1 => 2,") |> Array.length) 70 "each first arm is on a line of its own"
+            Expect.equal (lines |> Array.filter (fun line -> line.Trim() = "};") |> Array.length) 70 "each closing brace is on a line of its own"
+        }
+
+        test "the layout pass parses the text as C# 15, the language version of the backend" {
+            Expect.equal Morphir.Lang.CSharp.Emit.Format.languageVersion Microsoft.CodeAnalysis.CSharp.LanguageVersion.CSharp15 "C# 15, not the preview version"
+        }
+
         test "two runs give the same bytes" {
             let model = library [ "shapes", geoShapes; "shapes/geometry", moduleOf [] [ "one", definition [] intT (int 1) ] ]
             Expect.equal (generate model) (generate model) "deterministic"
