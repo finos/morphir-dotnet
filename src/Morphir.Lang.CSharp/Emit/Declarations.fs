@@ -5,6 +5,7 @@ namespace Morphir.Lang.CSharp.Emit
 open Microsoft.CodeAnalysis
 open Microsoft.CodeAnalysis.CSharp
 open Microsoft.CodeAnalysis.CSharp.Syntax
+open Morphir.Lang.CSharp
 open Morphir.Lang.CSharp.Backend
 open Morphir.IR
 open TypeEmission
@@ -19,6 +20,27 @@ module internal Declarations =
         |> List.map (fun name ->
             SF.TypeParameterConstraintClause(Cs.id (generic name))
                 .WithConstraints(SF.SingletonSeparatedList<TypeParameterConstraintSyntax>(SF.TypeConstraint(SF.IdentifierName "notnull"))))
+
+    /// <summary>
+    /// The constraint clauses of the type parameters of a method (EQL-2): <c>INumber&lt;T&gt;</c> for the class number,
+    /// <c>IComparable&lt;T&gt;</c> for the class comparable, and <c>notnull</c> for each other type parameter.
+    /// </summary>
+    let methodConstraintClauses (classes: Map<Name, Set<ValueClass>>) (names: Name list) : TypeParameterConstraintClauseSyntax list =
+        names
+        |> List.map (fun name ->
+            let self = [ SF.IdentifierName(Cs.token (generic name)) :> TypeSyntax ]
+            let found = Map.tryFind name classes |> Option.defaultValue Set.empty
+
+            let constraint' : TypeParameterConstraintSyntax =
+                if Set.contains Number found then
+                    SF.TypeConstraint(Cs.globalGeneric [ "System"; "Numerics"; "INumber" ] self)
+                elif Set.contains Comparable found then
+                    SF.TypeConstraint(Cs.globalGeneric [ "System"; "IComparable" ] self)
+                else
+                    SF.TypeConstraint(SF.IdentifierName "notnull")
+
+            SF.TypeParameterConstraintClause(Cs.id (generic name))
+                .WithConstraints(SF.SingletonSeparatedList<TypeParameterConstraintSyntax>(constraint')))
 
     let private access (isPublic: bool) : SyntaxKind = if isPublic then SyntaxKind.PublicKeyword else SyntaxKind.InternalKeyword
 

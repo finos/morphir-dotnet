@@ -67,7 +67,7 @@ should continue branching on `Rule` rather than parsing human messages.
 | Input/profile boundary | `unsupported-language`, `unsupported-version`, `unsupported-distribution`, `invalid-namespace` |
 | Target names and portable paths | `invalid-name`, `name-collision`, `path-collision`, `path-length` |
 | Type identity and closure | `unresolved-type`, `unmapped-sdk-type`, `unbound-type`, `type-arity`, `tuple-arity`, `recursive-alias`, `ambiguous-type`, `anonymous-record`, `private-type-exposure` |
-| Type/representation constraints | `type-mismatch`, `open-record`, `unsupported-constraints`, `unsupported-numeric`, `unsupported-comparable`, `unsupported-equality`, `representation-loss`, `document-literal` |
+| Type/representation constraints | `type-mismatch`, `open-record`, `unsupported-constraints`, `unsupported-numeric`, `unsupported-comparable`, `unsupported-equality`, `unsupported-appendable`, `representation-loss`, `document-literal` |
 | Value and constructor resolution | `unbound-variable`, `unresolved-reference`, `unresolved-constructor`, `ambiguous-constructor`, `constructor-arity`, `unmapped-sdk` |
 | Unsupported source semantics | `unsupported-body`, `unsupported-expression`, `local-recursion` |
 | Patterns and records | `duplicate-pattern-binding`, `empty-match`, `unknown-field` |

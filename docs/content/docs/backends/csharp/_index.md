@@ -91,7 +91,60 @@ own equality. A `double` in an SDK list, dictionary, `Maybe`, `Result` or tuple 
 The SDK uses no reflection for equality and hashing, so `Basics.Equal` works under Native AOT. It knows scalars, tuples,
 its own values and `IMorphirValue`; any other value uses its own `Equals` and `GetHashCode`. The SDK has no function
 check at run time. The backend refuses an equality on a type that holds a function with `unsupported-equality` when it
-generates the code. In C# that people write, a delegate compares by reference, as in .NET.
+generates the code (see [Generic functions](#generic-functions)). In C# that people write, a delegate compares by
+reference, as in .NET.
+
+## Generic functions
+
+A type variable of a function can have a value class, as in Elm core. The backend finds the class from one of two
+sources. The first source that gives a class wins:
+
+1. The carrier in the IR: the `extensions` of the type attributes of the type variable in the signature, as
+   `{"morphir-dotnet": {"classes": ["comparable"]}}`. The class words are `equality`, `comparable`, `number`,
+   `appendable` and `compappend`. The C# frontend writes this carrier.
+2. The first word of the Morphir name of the type variable. `comparable`, `comparable-1` and `comparable-key` have the
+   class `comparable`, and `number` has the class `number`.
+
+A model with no carrier still generates: then only the name gives a class.
+
+| Class | Generated C# | The type at each call |
+| --- | --- | --- |
+| `comparable` | `where T : global::System.IComparable<T>` | Int, Float, Char, String, or a list or a 2- or 3-tuple of comparable types. Any other type gives `unsupported-comparable`. |
+| `number` | `where T : global::System.Numerics.INumber<T>` | Int or Float. Any other type gives `unsupported-numeric`. |
+| `equality` | `where T : notnull`, no other constraint | A type that holds no function. |
+| `appendable`, `compappend` | None: the function is refused with `unsupported-appendable`. Use `String` or `List`. | |
+
+```csharp
+// maximum : comparable -> comparable -> comparable
+public static TComparable Maximum<TComparable>(TComparable a, TComparable b)
+    where TComparable : global::System.IComparable<TComparable> => global::Morphir.SDK.CSharp.Basics.Max(a, b);
+
+// twice : number -> number
+public static TNumber Twice<TNumber>(TNumber x)
+    where TNumber : global::System.Numerics.INumber<TNumber> => global::Morphir.SDK.CSharp.Basics.Add(x, x);
+```
+
+The SDK has overloads of `Basics` for `T : INumber<T>` (`Add`, `Subtract`, `Multiply`, `Negate`, `Abs`, `Clamp` and
+`Power`) with checked arithmetic, so Int keeps its overflow failure. The order of a comparable type stays the order of the
+SDK, with ordinal strings. An SDK list implements `IComparable<List<T>>` with the same order. A dictionary or a set with
+a key of a type variable is refused with `unsupported-comparable`: the SDK has no comparer for it.
+
+A type variable with no class takes no ordering and no arithmetic: they give `unsupported-comparable` and
+`unsupported-numeric`.
+
+### Equality through a type variable
+
+The backend finds the type variables that reach an equality: in the body of the function, or through a call of another
+function of the package. At each call, it checks the type that the call gives to each of these type variables. A type
+that holds a function, also in a field of a record, a field of a case or the record of a union case, gives
+`unsupported-equality` at the call. The message gives the path to the function type, for example:
+
+```text
+Functions have no admitted Morphir equality: Same compares the values of its type variable TA, and the compared type holds a function type at Callback.
+```
+
+The check gives diagnostics only. It does not change the generated code. A type variable that does not reach an equality
+takes a function type.
 
 ## Options
 
@@ -140,7 +193,7 @@ Generated code calls the public `Morphir.SDK.CSharp` API. The declared output re
 
 | Source module | Admitted runtime calls |
 | --- | --- |
-| Basics | Checked Int32/IEEE Float arithmetic, conversion and rounding, comparisons, min, max, clamp, Order cases and structural equality |
+| Basics | Checked Int32/IEEE Float arithmetic (also generic for `INumber<T>`), conversion and rounding, comparisons, min, max, clamp, Order cases and structural equality |
 | List | singleton, cons, map, filter, filterMap, foldl, append, head, tail and length |
 | Maybe | Just and Nothing constructors and patterns, map and andThen |
 | Result | Ok and Err constructors and patterns, map and andThen; the error type first, the value type second |

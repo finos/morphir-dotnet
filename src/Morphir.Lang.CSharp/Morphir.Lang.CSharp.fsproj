@@ -51,6 +51,7 @@
 
     <ItemGroup>
         <Compile Include="PackageInfo.fs" />
+        <Compile Include="ValueClasses.fs" />
         <Compile Include="CSharpCodes.fs" />
         <Compile Include="Embedded.fs" />
         <Compile Include="FixedReferences.fs" />

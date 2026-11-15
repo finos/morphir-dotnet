@@ -1016,7 +1016,7 @@ module internal Values =
             else
                 declaration
                     .WithTypeParameterList(Declarations.typeParameterList checkedValue.Parameters)
-                    .WithConstraintClauses(SF.List<TypeParameterConstraintClauseSyntax>(Declarations.constraintClauses checkedValue.Parameters))
+                    .WithConstraintClauses(SF.List<TypeParameterConstraintClauseSyntax>(Declarations.methodConstraintClauses checkedValue.Classes checkedValue.Parameters))
 
         match statements with
         | [ :? ReturnStatementSyntax as only ] ->

@@ -5,6 +5,7 @@ namespace Morphir.Lang.CSharp.Backend
 open System.Threading
 open Morphir.IR
 open Morphir.IR.Model
+open Morphir.Lang.CSharp
 open TypeEmission
 
 module internal ValueLowering =
@@ -56,6 +57,8 @@ module internal ValueLowering =
         Public: bool
         Definition: Definition
         Location: string
+        /// <summary>The classes that the IR carrier gives for the type variables of the signature (EQL-2).</summary>
+        Classes: Map<Name, ValueClass list>
     }
 
     type Typed = { Type: Shape; Node: TypedNode }
@@ -480,6 +483,7 @@ module internal ValueLowering =
                                 location
                                 (Morphir.IR.Classic.Documented.value value.Value)
                         Location = location
+                        Classes = Map.empty
                     }
           ]
         | DistributionModel.V4(Morphir.IR.V4.Library(pkg, _, definition)) -> [
@@ -496,11 +500,97 @@ module internal ValueLowering =
                         Public = value.Access = Morphir.IR.V4.Public
                         Definition = v4Definition ct location value.Value.Value
                         Location = location
+                        Classes = ValueClasses.ofDefinition value.Value.Value
                     }
           ]
         | _ -> []
 
-    type private Inference(catalog, ct: CancellationToken) =
+    /// <summary>
+    /// The classes of a type variable of a top-level value (EQL-2): the classes of the IR carrier, else the class of the
+    /// first word of its name.
+    /// </summary>
+    let classesOf (top: Top) (name: Name) : Set<ValueClass> =
+        match Map.tryFind name top.Classes with
+        | Some classes when not (List.isEmpty classes) -> Set.ofList classes
+        | _ ->
+            ValueClasses.ofName name
+            |> Option.toList
+            |> Set.ofList
+
+    /// <summary>
+    /// The path to a function type in a shape, as the names of the types, cases, fields and items on the way, or None when
+    /// the shape holds no function. A type variable holds no function here: the calls of its function are checked.
+    /// </summary>
+    let functionPath (ct: CancellationToken) (catalog: Map<FQName, Declaration>) (resolve: Shape -> Shape) shape : string list option =
+        let rec go visited shape =
+            ct.ThrowIfCancellationRequested()
+
+            let inside segment items =
+                items
+                |> List.tryPick (fun (step, item) ->
+                    go visited item
+                    |> Option.map (fun path -> segment step @ path)
+                )
+
+            match resolve shape with
+            | Arrow _ -> Some []
+            | Fields fields -> inside (fun name -> [ title name ]) fields
+            | Product items -> inside (fun index -> [ $"Item{index + 1}" ]) (List.indexed items)
+            | Named(name, args) ->
+                let owner = title name.LocalName
+
+                match inside (fun index -> [ owner; $"Arg{index + 1}" ]) (List.indexed args) with
+                | Some path -> Some path
+                | None ->
+                    match Map.tryFind name catalog with
+                    | Some declaration when not (Set.contains name visited) ->
+                        if
+                            declaration.Parameters.Length
+                            <> args.Length
+                        then
+                            Admission.fail
+                                "type-arity"
+                                "$types"
+                                "An equality payload has incorrect type arity."
+
+                        let mapping = Map.ofList (List.zip declaration.Parameters args)
+                        let visited = Set.add name visited
+
+                        match declaration.Definition with
+                        | Cases(_, cases) ->
+                            cases
+                            |> List.tryPick (fun (case, fields) ->
+                                fields
+                                |> List.tryPick (fun (field, typ) ->
+                                    go visited (substitute ct mapping typ)
+                                    |> Option.map (fun path -> owner :: title case :: title field :: path)
+                                )
+                            )
+                        | Alias body ->
+                            go visited (substitute ct mapping body)
+                            |> Option.map (fun path -> owner :: path)
+                    | _ -> None
+            | _ -> None
+
+        go Set.empty shape
+
+    /// <summary>The message of <c>unsupported-equality</c> for the path to the function type.</summary>
+    let private equalityMessage (path: string list) (through: string option) =
+        let where =
+            match path with
+            | [] -> "the compared type is a function type"
+            | _ ->
+                "the compared type holds a function type at "
+                + String.concat "." path
+
+        "Functions have no admitted Morphir equality: "
+        + (match through with
+           | Some text -> text + ", and "
+           | None -> "")
+        + where
+        + "."
+
+    type private Inference(catalog, ct: CancellationToken, rigid: Map<Name, Set<ValueClass>>) =
         let mutable count = 0
         let mutable fresh = Set.empty<Name>
         let mutable bindings = Map.empty<Name, Shape>
@@ -641,9 +731,22 @@ module internal ValueLowering =
                     "A field operation requires a known closed record shape."
             | _ -> Admission.fail "type-mismatch" location "A field operation requires a record."
 
+        member this.EqualityShapes() =
+            domains
+            |> List.choose (fun (_, constraint', shape) ->
+                match constraint' with
+                | SdkMapping.Equatable -> Some(this.Resolve shape)
+                | _ -> None
+            )
+
         member this.Validate() =
+            let hasClass classes name =
+                Map.tryFind name rigid
+                |> Option.exists (fun found -> classes |> List.exists (fun c -> Set.contains c found))
+
             let rec comparable shape =
                 match this.Resolve shape with
+                | Parameter name when hasClass [ Comparable; Number ] name -> true
                 | Named(name, []) ->
                     List.contains (sdk name) [
                         Some("basics", "int")
@@ -658,48 +761,6 @@ module internal ValueLowering =
                     ->
                     List.forall comparable items
                 | _ -> false
-
-            let rec equatable visited shape =
-                match this.Resolve shape with
-                | Arrow _ -> false
-                | Fields fields ->
-                    fields
-                    |> List.forall (
-                        snd
-                        >> equatable visited
-                    )
-                | Product items -> List.forall (equatable visited) items
-                | Named(name, args) ->
-                    let payloads =
-                        match Map.tryFind name catalog with
-                        | Some declaration when not (Set.contains name visited) ->
-                            if
-                                declaration.Parameters.Length
-                                <> args.Length
-                            then
-                                Admission.fail
-                                    "type-arity"
-                                    "$types"
-                                    "An equality payload has incorrect type arity."
-
-                            let mapping = Map.ofList (List.zip declaration.Parameters args)
-
-                            match declaration.Definition with
-                            | Cases(_, cases) ->
-                                cases
-                                |> List.collect (
-                                    snd
-                                    >> List.map (
-                                        snd
-                                        >> substitute ct mapping
-                                    )
-                                )
-                            | Alias body -> [ substitute ct mapping body ]
-                        | _ -> []
-
-                    List.forall (equatable visited) args
-                    && List.forall (equatable (Set.add name visited)) payloads
-                | _ -> true
 
             for location, target, name, result in List.rev fieldConstraints do
                 match
@@ -734,6 +795,7 @@ module internal ValueLowering =
                     || sdk name = Some("basics", "float")
                     ->
                     ()
+                | Parameter name when hasClass [ Number ] name -> ()
                 | _ ->
                     Admission.fail
                         "unsupported-numeric"
@@ -747,11 +809,10 @@ module internal ValueLowering =
                         "unsupported-comparable"
                         location
                         "The SDK ordering requires concrete admitted comparable types."
-                | SdkMapping.Equatable when not (equatable Set.empty shape) ->
-                    Admission.fail
-                        "unsupported-equality"
-                        location
-                        "Functions have no admitted Morphir equality."
+                | SdkMapping.Equatable ->
+                    match functionPath ct catalog this.Resolve shape with
+                    | Some path -> Admission.fail "unsupported-equality" location (equalityMessage path None)
+                    | None -> ()
                 | _ -> ()
 
         member this.Type location shape =
@@ -773,10 +834,27 @@ module internal ValueLowering =
     type Checked = {
         Top: Top
         Parameters: Name list
+        /// <summary>The classes of each type parameter (EQL-2), which give its C# constraint.</summary>
+        Classes: Map<Name, Set<ValueClass>>
         Body: Typed
         Resolve: Shape -> Shape
         CheckedType: Shape -> Shape
     }
+
+    /// <summary>What the equality check after the type check needs of one top-level value.</summary>
+    type private EqualityUses = {
+        /// <summary>The type parameters that reach an equality in the body, or that the IR states with the class equality.</summary>
+        Direct: Set<Name>
+        /// <summary>Each call of a top-level value: its location, the value, and each type parameter of the value with its resolved type.</summary>
+        Calls: (string * FQName * (Name * Shape) list) list
+        Resolve: Shape -> Shape
+    }
+
+    /// <summary>The type parameters of a signature, in the order of the type arguments of a call.</summary>
+    let private parametersOf ct (definition: Definition) =
+        signature ct definition
+        |> freeParameters ct
+        |> Set.toList
 
     let check catalog (ct: CancellationToken) tops =
         let byName =
@@ -784,15 +862,27 @@ module internal ValueLowering =
             |> List.map (fun top -> top.Name, top)
             |> Map.ofList
 
-        tops
-        |> List.map (fun top ->
-            let state = Inference(catalog, ct)
+        let checkTop (top: Top) =
             let loc = top.Location
+            let parameters = parametersOf ct top.Definition
 
-            let parameters =
-                signature ct top.Definition
-                |> freeParameters ct
-                |> Set.toList
+            let classes =
+                parameters
+                |> List.map (fun name -> name, classesOf top name)
+                |> Map.ofList
+
+            // The String and List functions are concrete: a generic function over appendable has no C# form.
+            if
+                classes
+                |> Map.exists (fun _ found -> Set.contains Appendable found || Set.contains CompAppend found)
+            then
+                Admission.fail
+                    "unsupported-appendable"
+                    loc
+                    "A generic function over appendable or compappend has no C# form. Use String or List."
+
+            let state = Inference(catalog, ct, classes)
+            let mutable calls = []
 
             uniqueNames
                 ct
@@ -1037,6 +1127,18 @@ module internal ValueLowering =
                                      + FQName.toString name)
                             | Some target ->
                                 let typ, args = state.Instantiate(signature ct target.Definition)
+                                let pairs = List.zip (parametersOf ct target.Definition) args
+
+                                // A type variable of the class number or comparable takes only a type of its class.
+                                for parameter, arg in pairs do
+                                    let found = classesOf target parameter
+
+                                    if Set.contains Number found then
+                                        state.Numeric loc arg
+                                    elif Set.contains Comparable found then
+                                        state.Constrain loc SdkMapping.Comparable arg
+
+                                calls <- (loc, target.Name, pairs) :: calls
                                 TReference(target, args), typ
                     | Apply(f, x) ->
                         let f = infer env f
@@ -1243,14 +1345,92 @@ module internal ValueLowering =
             state.Unify loc body.Type top.Definition.Output
             state.Validate()
 
+            let own = Set.ofList parameters
+
+            let direct =
+                state.EqualityShapes()
+                |> List.map (freeParameters ct)
+                |> Set.unionMany
+                |> Set.union (
+                    classes
+                    |> Map.filter (fun _ found -> Set.contains Equality found)
+                    |> Map.keys
+                    |> Set.ofSeq
+                )
+                |> Set.intersect own
+
+            let uses = {
+                Direct = direct
+                Calls =
+                    calls
+                    |> List.rev
+                    |> List.map (fun (location, target, pairs) ->
+                        location, target, pairs |> List.map (fun (parameter, arg) -> parameter, state.Resolve arg)
+                    )
+                Resolve = state.Resolve
+            }
+
             {
                 Top = top
                 Parameters = parameters
+                Classes = classes
                 Body = body
                 Resolve = state.Resolve
                 CheckedType = state.Type loc
-            }
-        )
+            },
+            uses
+
+        let checkedTops = tops |> List.map checkTop
+
+        // The type parameters that reach an equality, directly or through a call: a fixed point over the calls of the package.
+        let mutable reach =
+            checkedTops
+            |> List.map (fun (checkedValue, uses) -> checkedValue.Top.Name, uses.Direct)
+            |> Map.ofList
+
+        let mutable changed = true
+
+        while changed do
+            ct.ThrowIfCancellationRequested()
+            changed <- false
+
+            for checkedValue, uses in checkedTops do
+                let own = Set.ofList checkedValue.Parameters
+
+                for _, target, pairs in uses.Calls do
+                    let targetReach = Map.tryFind target reach |> Option.defaultValue Set.empty
+
+                    for parameter, arg in pairs do
+                        if Set.contains parameter targetReach then
+                            let before = reach[checkedValue.Top.Name]
+                            let after = Set.union before (Set.intersect own (freeParameters ct arg))
+
+                            if after <> before then
+                                reach <- Map.add checkedValue.Top.Name after reach
+                                changed <- true
+
+        // At each call, the type of each type parameter that reaches an equality must hold no function.
+        for _, uses in checkedTops do
+            for location, target, pairs in uses.Calls do
+                let targetReach = Map.tryFind target reach |> Option.defaultValue Set.empty
+
+                for parameter, arg in pairs do
+                    if Set.contains parameter targetReach then
+                        match functionPath ct catalog uses.Resolve arg with
+                        | Some path ->
+                            Admission.fail
+                                "unsupported-equality"
+                                location
+                                (equalityMessage
+                                    path
+                                    (Some(
+                                        title target.LocalName
+                                        + " compares the values of its type variable "
+                                        + generic parameter
+                                    )))
+                        | None -> ()
+
+        checkedTops |> List.map fst
 
     let recordDeclarations
         catalog
