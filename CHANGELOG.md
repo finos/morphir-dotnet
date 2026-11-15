@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Morphir.SDK.CSharp` accepts plain C# records and plain C# unions in `Basics.Equal`, hashing and its collections, and fails explicitly for a function-typed field.
 - `Morphir.SDK.CSharp` has generic `Basics` overloads for `INumber<T>` (`Add`, `Subtract`, `Multiply`, `Negate`, `Abs`, `Clamp`, `Power`) with checked arithmetic, and `List<T>` implements `IComparable<List<T>>` with the Morphir order.
 - The C# backend writes generic functions over `comparable` (`where T : IComparable<T>`) and `number` (`where T : INumber<T>`). The class comes from the IR carrier (`extensions` of the type attributes, `{"morphir-dotnet": {"classes": [...]}}`) or from the first word of the type variable name. The C# frontend writes this carrier from the constraints and the uses of a type parameter.
+- The C# frontend lowers `a.Equals(b)` and `EqualityComparer<T>.Default.Equals(a, b)` on values of a type parameter as `Basics.equal`. It lowers `a.CompareTo(b)` and `Comparer<T>.Default.Compare(a, b)` as `Basics.compare`, matched to `-1`, `0` and `1`, with the ordinal order of the SDK.
 
 ### Changed
 - **BREAKING:** the C# backend is written on Roslyn and writes C# 15 only. `language-version=14` now fails with `unsupported-language`, and `language-version=15` is the default.

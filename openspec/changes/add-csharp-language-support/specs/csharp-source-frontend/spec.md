@@ -162,6 +162,11 @@ The frontend SHALL find the class of a type parameter from an explicit statement
 - **WHEN** a method has `TKey Max<TKey>(TKey a, TKey b) where TKey : IComparable<TKey>`
 - **THEN** the model has the type variable `key`, and its type attributes carry the class `comparable`
 
+#### Scenario: Equals and CompareTo on a type parameter
+
+- **WHEN** a method calls `a.Equals(b)` or `EqualityComparer<T>.Default.Equals(a, b)`, or `a.CompareTo(b)` or `Comparer<T>.Default.Compare(a, b)`, on values of a type parameter of the method
+- **THEN** the value is `Basics.equal a b`, or a match on `Basics.compare a b` that gives `-1`, `0` and `1` with the order of the SDK; the same calls on a concrete type such as `double` are refused with `csharp.unsupported_reference`
+
 ### Requirement: Values carry inferred types and source locations
 
 Every lowered value and pattern node SHALL carry its C# type as a Morphir type and the source range from which it was lowered. A replacement node of a later pass SHALL keep that range.
