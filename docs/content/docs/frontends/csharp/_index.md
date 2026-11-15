@@ -81,7 +81,9 @@ when the request gives no list.
 
 A C# type parameter is a type variable. A case record has the custom type as its Morphir type: a method that makes a
 `Market` has the result type `Order`. Two types of one module with the same Morphir name, such as `TaxRate` and
-`taxRate`, give `csharp.name_collision`.
+`taxRate`, give `csharp.name_collision`. The constructors of one module also must have different Morphir names: an
+enum member `Market` and a case record `Market`, or two case records `X` of two closed records, give
+`csharp.name_collision` with the two declarations. The parts of a `partial record` are one type.
 
 The frontend refuses a type that it cannot give in full, so no type or field is left out of the model:
 
@@ -103,7 +105,8 @@ A static method of a static class, and a `const` field, becomes a value. The fro
 - `new` of a case record (a constructor) or of a plain record (a record value), and `with` (a record update);
 - property access on a record, tuples and collection expressions (`[1, 2, 3]`);
 - `?:`, and `if` statements that return;
-- local variable declarations, as `let`;
+- `switch` statements whose sections each end with a `return`;
+- local variable declarations, as `let`, and the deconstruction of a tuple (`var (a, b) = t;`), as a destructure;
 - lambdas, and calls of a `Func`;
 - a `switch` expression on a closed record, with an arm for each case.
 
@@ -112,13 +115,29 @@ is complete, and each member is a constructor pattern. An arm of a `switch` bind
 fields of the case are variables, so `m.Quantity` reads the field that the pattern bound. The variable has the words of
 the local and of the field (`m-quantity`), and a number follows when the method already has that name.
 
+A `switch` statement is a pattern match. The arms keep the order of the cases, and a `default` section is the last
+arm, because C# tests it last. A `switch` statement with no `default` section continues with the statements after it,
+and those statements are the last arm. A section that does not end with a `return`, for example a section that ends
+with `break`, gives `csharp.unsupported_missing_return` at the section. A `when` guard gives `csharp.unsupported_guard`.
+
+Only a tuple can be deconstructed. The deconstruction of a record gives `csharp.unsupported_deconstruction`: read its
+fields by name. A deconstruction into a local that exists, such as `(a, var b) = t;`, is a change of `a`, so the
+admission analyzer refuses it with `csharp.unsupported_mutation`.
+
 A named argument binds to its parameter: `Sub(b: 1, a: 10)` is `sub 10 1`. A record value gets each field from the
 constructor argument of the same name, and an object initializer then sets the field again, as in C#. A record value
 that leaves out a field gives `csharp.unsupported_record_initializer`.
-Every node of a value has its source range and its inferred type.
+Every node of a value has its source range and its inferred type. A call of a generic method has the types of that
+call: in `Id(3)`, the call has the type `Int`, not a type variable.
 
 A method call or a property of the .NET libraries that the SDK does not map gives `csharp.unsupported_reference`.
-A construct that the frontend cannot lower gives `csharp.unsupported_<construct>`.
+A construct that the frontend cannot lower gives `csharp.unsupported_<construct>`. Its message names the construct
+with the words of the source, for example `'lock' statement`. A method body that does not end with a `return` gives
+`csharp.unsupported_missing_return` at the end of the block.
+
+The diagnostics of a run are in document order: the document, then the start and the end of the range. The Roslyn
+id and the message put two diagnostics at one range in a fixed order, so the same input gives the same list each
+time.
 
 ## Compile
 
@@ -139,6 +158,13 @@ MSBuild property `MorphirModel` set to `true`.
 ```csharp
 [assembly: Morphir.MorphirModel]
 ```
+
+The analyzer refuses a symbol from an assembly outside the fixed reference set (`csharp.unsupported_outside_reference`).
+The test is by the name of the assembly, so a NuGet package with a `System` name, such as `System.Reactive`, is
+also refused: `morphir compile` cannot bind it.
+
+When an analyzer fails with an exception (Roslyn id `AD0001`), `morphir compile` reports a `csharp.compiler` error
+with that id in its data and writes no model. A source that the analyzer did not finish is not admitted.
 
 A short Roslyn id such as `MORPHIR1001` works with `#pragma warning disable` and with `.editorconfig` in the compiler
 and the IDE. `morphir compile` still refuses the construct, because it cannot lower it: a suppression hides the
