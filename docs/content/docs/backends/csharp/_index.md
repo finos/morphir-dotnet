@@ -86,8 +86,12 @@ A record and a union have the equality of plain C# by default. A record with a `
 differs from Elm, where `NaN` is not equal to `NaN`. The IEEE option writes the Morphir members (`MorphirEquals`,
 `MorphirHashCode`, `Equals`, `GetHashCode`, and `==` and `!=` for a union) for a type, so `NaN` is not equal to `NaN`
 there. The CLI has no setting for the IEEE option yet: in code, `CSharpBackend.GenerateWith` takes the types that get it. `Morphir.SDK.CSharp` accepts both: its `Basics.Equal` and its collections compare a plain record or union with its
-own equality. A `double` in an SDK list, dictionary, `Maybe` or `Result` compares as a double. A plain record or union that
-holds a function-typed field fails with `NotSupportedException`: references are not compared.
+own equality. A `double` in an SDK list, dictionary, `Maybe`, `Result` or tuple compares as a double.
+
+The SDK uses no reflection for equality and hashing, so `Basics.Equal` works under Native AOT. It knows scalars, tuples,
+its own values and `IMorphirValue`; any other value uses its own `Equals` and `GetHashCode`. The SDK has no function
+check at run time. The backend refuses an equality on a type that holds a function with `unsupported-equality` when it
+generates the code. In C# that people write, a delegate compares by reference, as in .NET.
 
 ## Options
 

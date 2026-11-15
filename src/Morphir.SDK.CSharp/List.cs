@@ -3,8 +3,12 @@ using System.Collections.Immutable;
 
 namespace Morphir.SDK.CSharp;
 
-/// <summary>A persistent list with structural Morphir equality and hashing.</summary>
-public sealed class List<T> : IReadOnlyList<T>, IEquatable<List<T>>, ISdkValue, IComparableSequence
+/// <summary>
+/// A persistent list with structural Morphir equality and hashing. It is <see cref="IComparable{T}"/> with the Morphir
+/// order of <see cref="MorphirComparers.Value"/>, so a list satisfies the constraint of a type variable of the class
+/// <c>comparable</c>.
+/// </summary>
+public sealed class List<T> : IReadOnlyList<T>, IEquatable<List<T>>, IComparable<List<T>>, ISdkValue, IComparableSequence
 {
     private readonly ImmutableList<T> _items;
     private List(ImmutableList<T> items) => _items = items;
@@ -46,6 +50,12 @@ public sealed class List<T> : IReadOnlyList<T>, IEquatable<List<T>>, ISdkValue, 
     public override int GetHashCode() { var hash = new HashCode(); foreach (var item in _items) hash.Add(ValueSemantics.Hash(item)); return hash.ToHashCode(); }
     public static bool operator ==(List<T>? left, List<T>? right) => left is null ? right is null : left.Equals(right);
     public static bool operator !=(List<T>? left, List<T>? right) => !(left == right);
+    /// <summary>Compares with the Morphir order: item by item, then by length, with ordinal strings. Null is not a value.</summary>
+    public int CompareTo(List<T>? other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return ((IComparableSequence)this).CompareSequence(other);
+    }
     IEnumerable<object> IComparableSequence.ComparableItems => _items.Select(x => (object)x!);
     int IComparableSequence.CompareSequence(IComparableSequence other)
     {

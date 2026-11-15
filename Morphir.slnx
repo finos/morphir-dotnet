@@ -72,6 +72,7 @@
     <Project Path="tests/Morphir.Frontend.FSharp.Extension.Tests/Morphir.Frontend.FSharp.Extension.Tests.fsproj" />
     <Project Path="tests/Morphir.Compilation.Mep.Tests/Morphir.Compilation.Mep.Tests.fsproj" />
     <Project Path="tests/Morphir.SDK.Conformance.Tests/Morphir.SDK.Conformance.Tests.csproj" />
+    <Project Path="tests/Morphir.SDK.CSharp.AotProbe/Morphir.SDK.CSharp.AotProbe.csproj" />
     <Project Path="tests/Morphir.SDK.CSharp.Tests/Morphir.SDK.CSharp.Tests.csproj" />
     <Project Path="tests/Morphir.CodeGeneration.FSharp.Tests/Morphir.CodeGeneration.FSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.CodeGeneration.FSharp.Extension.Tests/Morphir.CodeGeneration.FSharp.Extension.Tests.fsproj" />

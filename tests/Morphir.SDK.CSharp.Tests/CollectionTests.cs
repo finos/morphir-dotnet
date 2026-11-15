@@ -51,12 +51,11 @@ public sealed class CollectionTests
     }
 
     [Test]
-    public void UnsupportedDomainsDoNotAcquireClrComparersOrEquality()
+    public void UnsupportedOrderingDomainsDoNotAcquireClrComparers()
     {
         Should.Throw<NotSupportedException>(() => Basics.Compare(true, false));
         Should.Throw<NotSupportedException>(() => Basics.Compare(double.NaN, 1d));
-        Should.Throw<NotSupportedException>(() => Basics.Equal(new int[] { 1 }, new int[] { 1 }));
-        Should.Throw<NotSupportedException>(() => Basics.Equal(new object(), new object()));
+        // Equality has no such refusal: a value outside the known kinds uses its own Equals (ValueDomainTests).
         var c = MorphirComparers.List(MorphirComparers.Int);
         c.Compare(List<int>.Singleton(1), List<int>.FromEnumerable([1, 0])).ShouldBeLessThan(0);
         MorphirComparers.Tuple(MorphirComparers.Int, MorphirComparers.String)

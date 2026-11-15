@@ -45,13 +45,25 @@ public sealed class PlainValueTests
     }
 
     [Test]
-    public void AFunctionTypedFieldFailsExplicitlyAndReferencesAreNotCompared()
+    public void AFunctionTypedFieldComparesItsDelegateByReferenceAsDotNetDoes()
     {
+        // The SDK has no function check at run time: the backend refuses equality on a type that holds a function.
+        // Code that people write gets the equality of .NET, so the same delegate is equal and two delegates are not.
         Func<int, int> callback = x => x;
+        Func<int, int> other = x => x + 1;
         var a = new WithFunction(callback);
-        Should.Throw<NotSupportedException>(() => Basics.Equal(a, a)).Message.ShouldContain("function-typed field");
-        Should.Throw<NotSupportedException>(() => MorphirValue.Hash(a));
-        Should.Throw<NotSupportedException>(() => Basics.Equal(new Wrapper(a), new Wrapper(a)));
-        Should.Throw<NotSupportedException>(() => Basics.Equal(List<WithFunction>.Singleton(a), List<WithFunction>.Singleton(a)));
+        Basics.Equal(a, new WithFunction(callback)).ShouldBeTrue();
+        MorphirValue.Hash(a).ShouldBe(MorphirValue.Hash(new WithFunction(callback)));
+        Basics.Equal(a, new WithFunction(other)).ShouldBeFalse();
+        Basics.Equal(new Wrapper(a), new Wrapper(a)).ShouldBeTrue();
+        Basics.Equal(List<WithFunction>.Singleton(a), List<WithFunction>.Singleton(a)).ShouldBeTrue();
+    }
+
+    [Test]
+    public void ATupleThatHoldsAPlainRecordComparesTheRecordWithItsOwnEquality()
+    {
+        Basics.Equal((new Circle(1d), 2), (new Circle(1d), 2)).ShouldBeTrue();
+        MorphirValue.Hash((new Circle(1d), 2)).ShouldBe(MorphirValue.Hash((new Circle(1d), 2)));
+        Basics.Equal((new Circle(1d), 2), (new Circle(3d), 2)).ShouldBeFalse();
     }
 }

@@ -5,7 +5,9 @@ Feature: Each probe and each library host gives the same output with Native AOT
   So that a trim or AOT defect is found before a release
 
   # The F# compiler does not run the trim analyzers, so only a publish finds an AOT problem in F# code. The two
-  # summary warnings of FSharp.Core are in each F# program that is published with Native AOT.
+  # summary warnings of FSharp.Core are in each F# program that is published with Native AOT. The C# SDK probe has no
+  # F# code, so it has no allowed warning. It ends with exit code 1 when Basics.Equal fails on a plain record, a list of
+  # plain records or a tuple that holds a plain record.
   Scenario Outline: A program published with Native AOT writes the output of the built program
     When I run the program "<program>"
     Then the exit code is 0
@@ -19,6 +21,7 @@ Feature: Each probe and each library host gives the same output with Native AOT
       | program                        | allowed     |
       | myriad-json-probe              | FSharp.Core |
       | mep-probe                      | FSharp.Core |
+      | sdk-csharp-probe               |             |
       | morphirup                      | FSharp.Core |
       | compilation-smoke              | FSharp.Core |
       | configuration-io-smoke         | FSharp.Core |
