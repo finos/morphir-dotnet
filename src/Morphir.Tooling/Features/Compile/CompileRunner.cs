@@ -99,6 +99,7 @@ public sealed class CompileRunner(
             // The passes of the stage after a frontend run on the model that the frontend wrote. Without a pass for the stage the
             // stage does not start, so the events of a compile stay as they were.
             PassesReport? passesReport = null;
+            ModelLineage? lineage = null;
             if (_passes.HasPasses(PassStage.AfterFrontend))
             {
                 yield return new CompileEvent.StageStarted(CompileStage.Transform);
@@ -112,6 +113,7 @@ public sealed class CompileRunner(
 
                 compiled = passed.Compiled;
                 passesReport = passed.Report;
+                lineage = passed.Lineage;
             }
 
             yield return new CompileEvent.StageStarted(CompileStage.Write);
@@ -136,7 +138,7 @@ public sealed class CompileRunner(
 
             var success = new CompileSuccess(compiled.Frontend.Language.Value, compiled.Frontend.Label, settings.IrVersion.Value, sources,
                 [.. compiled.Package.Modules], published)
-            { Provider = (connected as Morphir.Tooling.Infrastructure.IInstalledProviderObservation)?.Provider, Passes = passesReport };
+            { Provider = (connected as Morphir.Tooling.Infrastructure.IInstalledProviderObservation)?.Provider, Passes = passesReport, Lineage = lineage };
             if (overrides.Target is not { } target)
             {
                 yield return new CompileEvent.Completed(new CompileConclusion.Succeeded(success), settings);
@@ -154,7 +156,7 @@ public sealed class CompileRunner(
                 { Sources = sources, Frontend = success.Frontend, Compiled = success }), settings);
                 yield break;
             }
-            await foreach (var e in generation.RunAsync(target, success, settings, bytes, ct)) yield return e;
+            await foreach (var e in generation.RunAsync(target, success, settings, bytes, _passes, ct)) yield return e;
         }
         finally
         {
@@ -228,7 +230,7 @@ public sealed class CompileRunner(
 
     private sealed record Compiled(ResolvedFrontend Frontend, CompiledPackage Package);
 
-    private sealed record PassedCompiled(Compiled Compiled, PassesReport? Report);
+    private sealed record PassedCompiled(Compiled Compiled, PassesReport? Report, ModelLineage? Lineage);
 
     /// <summary>
     /// Runs the passes of the stage after the frontend on a current-IR model. The digest of the bytes that the writer gives for
@@ -239,7 +241,7 @@ public sealed class CompileRunner(
         if (compiled.Package.Model.V4OrNull is not { } v4)
         {
             var note = PassPipeline.SkipNote(PassStage.AfterFrontend, compiled.Package.Model.Family.ToString(), settings.IrVersion.Value.Text);
-            return Checked<PassedCompiled>.Of(new PassedCompiled(compiled, null), [note]);
+            return Checked<PassedCompiled>.Of(new PassedCompiled(compiled, null, null), [note]);
         }
 
         var written = writer.Writer.Write(writer.Target, PublishedLayout, compiled.Package.Model);
@@ -248,10 +250,10 @@ public sealed class CompileRunner(
         var model = new VersionedModel(settings.IrVersion.Value, DistributionModel.NewV4(v4));
         var result = _passes.RunAfterFrontend(model, Sha256Digest.OfBytes(System.Security.Cryptography.SHA256.HashData(bytes)));
         if (!result.TryGetValue(out var passedModel)) return Checked<PassedCompiled>.Fail(result.Diagnostics);
-        if (passedModel.Model.Distribution.Match<Morphir.IR.V4.Distribution?>(_ => null, distribution => distribution) is not { } changed) return Checked<PassedCompiled>.Pass(new PassedCompiled(compiled, passedModel.Report));
+        if (passedModel.Model.Distribution.Match<Morphir.IR.V4.Distribution?>(_ => null, distribution => distribution) is not { } changed) return Checked<PassedCompiled>.Pass(new PassedCompiled(compiled, passedModel.Report, passedModel.Lineage));
 
         var package = new CompiledPackage(FamilyModel.OfV4(changed), compiled.Package.Modules);
-        return Checked<PassedCompiled>.Of(new PassedCompiled(compiled with { Package = package }, passedModel.Report), result.Diagnostics);
+        return Checked<PassedCompiled>.Of(new PassedCompiled(compiled with { Package = package }, passedModel.Report, passedModel.Lineage), result.Diagnostics);
     }
 
     private static async Task<StageResult<Compiled>> CompileAsync(IFrontendResolver resolver, CompileSettings settings, ResolvedWriter writer,

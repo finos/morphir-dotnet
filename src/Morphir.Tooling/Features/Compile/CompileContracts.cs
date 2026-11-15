@@ -281,6 +281,11 @@ public sealed record CompileSuccess(string Language, string Frontend, SourceForm
     public CompileGeneration? Generation { get; init; }
     /// <summary>The passes that ran after the frontend, with their application list; null when no pass ran.</summary>
     public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
+    /// <summary>
+    /// The lineage of the written IR: the pins of the model that the frontend wrote and the application list of the passes after
+    /// the frontend. The passes before a backend continue it. Null when no pass ran after the frontend.
+    /// </summary>
+    public Morphir.Tooling.Features.Transform.ModelLineage? Lineage { get; init; }
 }
 
 /// <summary>A failed compile. Its diagnostics travel on the events and the fold.</summary>

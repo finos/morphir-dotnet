@@ -89,6 +89,19 @@ module CSharpTargetPasses =
                         ]
                 | _ -> Checked.pass unchanged }
 
+    /// <summary>
+    /// The IR features that the C# backend refuses in the own package: an extensible record in any type (<c>open-record</c>),
+    /// a hole, and a value body that is not an expression (<c>unsupported-body</c>). The host checks that none of them remains
+    /// after the passes of the stage before the backend.
+    /// </summary>
+    [<CompiledName("CannotTake")>]
+    let cannotTake: IrFeature list =
+        [ IrFeature.ExtensibleRecordType
+          IrFeature.Value ValueKind.Hole
+          IrFeature.NativeBody
+          IrFeature.ExternalBody
+          IrFeature.IncompleteBody ]
+
     /// <summary>The passes for <c>csharp</c>, in the order that the stage runs them.</summary>
     [<CompiledName("All")>]
     let all: IModelTransform list = [ admission ]

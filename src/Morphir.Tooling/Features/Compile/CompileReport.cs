@@ -86,12 +86,20 @@ public sealed record CompileReportGeneration(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Formatting { get; init; }
 
+    /// <summary>
+    /// The passes before the backend, as in the <c>generate</c> report: the ids that ran, the application list and the reads of
+    /// other modules. Each <c>before</c> is in the model that the frontend wrote, as in the top-level <c>passes</c>. Written only
+    /// when a pass ran or a record came from an earlier stage.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
+
     /// <summary>The report shape of <paramref name="generation"/>.</summary>
     public static CompileReportGeneration From(CompileGeneration generation) => generation.Result is { } result
         ? new(result.Target, result.Backend, result.OutputDirectory, result.SourceVersion, result.Family, result.DistributionKind,
             result.Representation, [.. result.Publication.Artifacts], [.. result.Publication.Written], [.. result.Publication.Unchanged],
             [.. result.Publication.Removed])
-        { Formatting = result.Formatting }
+        { Formatting = result.Formatting, Passes = result.Passes }
         : new(generation.Target, generation.Backend, generation.OutputDirectory, null, null, null, null, [], [], [], []);
 }
 

@@ -41,6 +41,24 @@ public sealed class ModelUpgradeTests : IDisposable
         }
     }
 
+    /// <summary>A backend that gives each request to <paramref name="inner"/> and records the model that the request has.</summary>
+    private sealed class RecordingDecorator(IGenerationBackend inner) : IGenerationBackend
+    {
+        public ModelFamily? SeenFamily { get; private set; }
+        public string? SeenVersion { get; private set; }
+
+        public BackendDescriptor Descriptor => inner.Descriptor;
+
+        public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options) => inner.ValidateOptions(options);
+
+        public ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct)
+        {
+            SeenFamily = request.Model.Model.Family;
+            SeenVersion = request.Model.Model.SourceVersion.Text;
+            return inner.GenerateAsync(request, ct);
+        }
+    }
+
     private static BackendCapability Classic() =>
         new(ModelFamily.Classic, SourceFormatVersions.Create("1", "2", "3", "3.0.0", "3.1.0"), DistributionKind.Library);
 
@@ -108,10 +126,33 @@ public sealed class ModelUpgradeTests : IDisposable
         var resolution = await resolver.ResolveAsync(new(input, "fsharp", Path.Combine(_root, "fsharp-out")), new(_root), default);
         var settings = ((Outcome<GenerationSettings>.Success)resolution).Value;
         var loaded = ((Outcome<LoadedModel>.Success)await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(settings.Input, settings.Limits, default)).Value;
-        var result = await GenerationStages.RunFrom(loaded, settings, new RegisteredBackendResolver([new FSharpGenerationBackend()]), new GenerationPublisher(), default);
-        var success = ((Outcome<GenerationSuccess>.Success)result).Value;
-        success.Family.Should().Be("Classic");
-        success.SourceVersion.Should().Be("3.0.0");
+        var backend = new RecordingDecorator(new FSharpGenerationBackend());
+        var result = await GenerationStages.RunFrom(loaded, settings, new RegisteredBackendResolver([backend]), new GenerationPublisher(), default);
+        result.Should().BeOfType<Outcome<GenerationSuccess>.Success>();
+        // The F# backend itself gets the classic model, not an upgraded model.
+        backend.SeenFamily.Should().Be(ModelFamily.Classic);
+        backend.SeenVersion.Should().Be("3.0.0");
+    }
+
+    [Test]
+    public async Task AnUpgradeFailureNamesTheNodeAndTheInputFile()
+    {
+        var input = GenerationInputFixtures.DailyRate(Path.Combine(_root, "failing"), "3.0.0", "json");
+        var resolution = await new CliGenerationSettingsResolver().ResolveAsync(new(input, "csharp", Path.Combine(_root, "failing-out")), new(_root), default);
+        var settings = ((Outcome<GenerationSettings>.Success)resolution).Value;
+        var loaded = ((Outcome<LoadedModel>.Success)await new GenerationModelLoader(new BoundedModelCapture()).LoadAsync(settings.Input, settings.Limits, default)).Value;
+        const string location = "morphir://ir/workspace/input?format=3.0.0#/module/inventory/value/daily-rate/body";
+        var data = System.Text.Json.JsonDocument.Parse($"{{\"location\":\"{location}\"}}").RootElement.Clone();
+
+        var result = ModelUpgrade.Upgrade(loaded, _ => Morphir.Compilation.Checked<Morphir.MiddleEnd.UpgradeOutcome>.Fail([
+            Morphir.Compilation.Diagnostic.Create(Morphir.Compilation.DiagnosticSeverity.Error,
+                Morphir.MiddleEnd.UpgradeCodes.Unrepresentable, "The node has no form.", null).WithData(data)]));
+
+        var failure = result.Should().BeOfType<Outcome<LoadedModel>.Failure>().Subject;
+        var diagnostic = failure.Error.Diagnostics.Should().ContainSingle().Subject;
+        diagnostic.Code.Should().Be("ir.upgrade_unrepresentable");
+        diagnostic.Location.Should().Be(location);
+        diagnostic.Path.Should().Be(loaded.Original.SourcePath);
     }
 
     [Test]

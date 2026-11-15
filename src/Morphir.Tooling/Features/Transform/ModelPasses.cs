@@ -31,7 +31,14 @@ public sealed record ModelLineage(
 public sealed record PassedModel(LoadedModel Model, PassesReport? Report, ImmutableArray<GenerationDiagnostic> Diagnostics);
 
 /// <summary>A model after the passes of a stage, and the report. The diagnostics are on the checked result.</summary>
-public sealed record PassedVersionedModel(VersionedModel Model, PassesReport? Report);
+public sealed record PassedVersionedModel(VersionedModel Model, PassesReport? Report)
+{
+    /// <summary>
+    /// The lineage for the next stage: the pins of the input of the pipeline and the application list after this stage. Null
+    /// when this stage has no record and no pass ran, so the next stage reads its model as the input.
+    /// </summary>
+    public ModelLineage? Lineage { get; init; }
+}
 
 /// <summary>
 /// The registered passes of the host and what each backend cannot take. <c>generate</c> runs the passes of the stage before
@@ -96,23 +103,26 @@ public sealed class ModelPasses
             if (!order.TryGetValue(out _)) return Checked<PassedVersionedModel>.Fail(notes.Concat(order.Diagnostics));
         }
 
-        var report = passed.ReportOrNull is { } ran ? PassesReport.From(ran) : null;
-        return Checked<PassedVersionedModel>.Of(new PassedVersionedModel(passed.Model, report), notes);
+        var ran = passed.ReportOrNull;
+        var report = ran is not null ? PassesReport.From(ran) : null;
+        var next = ran is not null ? lineage with { Applications = [.. ran.Applications] } : null;
+        return Checked<PassedVersionedModel>.Of(new PassedVersionedModel(passed.Model, report) { Lineage = next }, notes);
     }
 
     private static ImmutableArray<GenerationDiagnostic> Map(IEnumerable<Diagnostic> diagnostics, string? path) =>
         [.. diagnostics.Select(diagnostic => Map(diagnostic, path))];
 
     /// <summary>
-    /// The generation diagnostic of a pass diagnostic: the code, the message and the severity. A pass that carries a model
-    /// location in its data (<c>location</c>) gives that location, and the path is the input file.
+    /// The generation diagnostic of a middle-end diagnostic: the code, the message and the severity. A diagnostic that carries
+    /// a model location in its data (<c>location</c>) gives that location, and the path is the input file. A diagnostic with
+    /// no code gets <paramref name="fallbackCode"/>.
     /// </summary>
-    private static GenerationDiagnostic Map(Diagnostic diagnostic, string? path)
+    internal static GenerationDiagnostic Map(Diagnostic diagnostic, string? path, string fallbackCode = "transform.diagnostic")
     {
         string? location = diagnostic.Data is { ValueKind: JsonValueKind.Object } data
             && data.TryGetProperty("location", out var text) && text.ValueKind == JsonValueKind.String
                 ? text.GetString()
                 : null;
-        return new(diagnostic.CodeOrNull?.Value ?? "transform.diagnostic", diagnostic.Message, path, location, diagnostic.Severity.WireValue);
+        return new(diagnostic.CodeOrNull?.Value ?? fallbackCode, diagnostic.Message, path, location, diagnostic.Severity.WireValue);
     }
 }

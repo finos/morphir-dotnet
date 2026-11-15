@@ -267,7 +267,10 @@ backend extension `backendTransport` and `backendVersion`, and `formatting` when
 built-in backend reports it. An external backend (`backendTransport` `mep`) has no `formatting` member, even
 with `format=false`: a MEP generate result does not say whether the guest formatted, and the host does not report
 what it did not observe. When a built-in pass ran before the backend, the report has `passes`: the ids that ran, the
-application list with the node addresses before and after, and the reads of other modules. A pass error stops the
+application list with the node addresses before and after, and the reads of other modules. When no pass ran but the upgrade
+of a classic model moved or replaced a node, `passes` has an empty `ran` and the records of the upgrade. A feature that the
+backend cannot take and that remains after the passes, such as an extensible record for `csharp`, stops the command before
+the backend with `transform.feature_remains`. An upgrade error names the node address in its `location`. A pass error stops the
 command before the backend with exit code 1, and nothing is published. See [the middle end](../pipeline/middle-end.md).
 Logs and warnings use stderr, never stdout.
 Failed reports contain no successful artifact list. Parsed JSON-mode invocation

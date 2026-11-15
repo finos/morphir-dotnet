@@ -48,8 +48,11 @@ public sealed class ModelPassesTests : IDisposable
     }
 
     /// <summary>A pass written in C#: it records its module paths and gives one application when asked.</summary>
-    private sealed class RecordingPass(string id, PassStage stage, List<string> log, Func<ModuleUnit, Checked<PassResult>>? run = null) : IModelTransform
+    private sealed class RecordingPass(string id, PassStage stage, List<string> log, Func<ModuleUnit, IPackageView, Checked<PassResult>>? run = null) : IModelTransform
     {
+        public RecordingPass(string id, PassStage stage, List<string> log, Func<ModuleUnit, Checked<PassResult>> run)
+            : this(id, stage, log, (unit, _) => run(unit)) { }
+
         public string Id => id;
         public string Name => id;
         public string Description => "A test pass.";
@@ -59,7 +62,7 @@ public sealed class ModelPassesTests : IDisposable
         public Checked<PassResult> Run(ModuleUnit unit, IPackageView view)
         {
             log.Add($"{id}:{Morphir.IR.CanonicalNames.pathToString(unit.Path)}");
-            return run?.Invoke(unit) ?? Checked<PassResult>.Pass(new PassResult(unit.Definition, FSharpList<PassApplication>.Empty));
+            return run?.Invoke(unit, view) ?? Checked<PassResult>.Pass(new PassResult(unit.Definition, FSharpList<PassApplication>.Empty));
         }
     }
 
@@ -69,9 +72,20 @@ public sealed class ModelPassesTests : IDisposable
     private static BackendCapability Classic() =>
         new(ModelFamily.Classic, SourceFormatVersions.Create("1", "2", "3", "3.0.0", "3.1.0"), DistributionKind.Library);
 
-    private async Task<Outcome<GenerationSuccess>> Run(string version, string target, IGenerationBackend backend, ModelPasses passes)
+    /// <summary>A current model with a type alias of an extensible record, which the C# backend cannot take.</summary>
+    private const string OpenRecordModel = """
+        {"formatVersion":4,"distribution":{"Library":{"packageName":"car/rental","dependencies":{},"def":{"modules":{
+          "inventory":{"access":"Public",
+            "types":{"row":{"access":"Public","TypeAliasDefinition":{"typeParams":["r"],
+              "typeExp":{"ExtensibleRecord":{"variable":"r","fields":{"price":"morphir/SDK:basics#int"}}}}}},
+            "values":{"daily-rate":{"access":"Public","ExpressionBody":{"inputTypes":{},"outputType":"morphir/SDK:basics#int","body":{"Literal":{"WholeNumberLiteral": 5000}}}}}}
+        }}}}}
+        """;
+
+    private async Task<Outcome<GenerationSuccess>> Run(string version, string target, IGenerationBackend backend, ModelPasses passes, string? json = null)
     {
         var input = GenerationInputFixtures.DailyRate(Path.Combine(_root, Guid.NewGuid().ToString("N")), version, "json");
+        if (json is not null) File.WriteAllText(input, json);
         var loader = new GenerationModelLoader(new BoundedModelCapture());
         var resolution = await new CliGenerationSettingsResolver().ResolveAsync(new(input, target, Path.Combine(_root, "out-" + Guid.NewGuid().ToString("N"))), new(_root), default);
         var settings = ((Outcome<GenerationSettings>.Success)resolution).Value;
@@ -166,13 +180,34 @@ public sealed class ModelPassesTests : IDisposable
     }
 
     [Test]
+    public async Task TheBuiltInProfileOfTheCSharpTargetRefusesAnOpenRecordBeforeTheBackend()
+    {
+        var log = new List<string>();
+        var result = await Run("4", "csharp", new RecordingBackend("csharp", log, Current()), new ModelPasses([], BuiltInTransforms.CannotTake), OpenRecordModel);
+
+        var failure = result.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Subject;
+        failure.Error.Diagnostics.Should().ContainSingle(d => d.Code == "transform.feature_remains"
+            && d.Message.Contains("type.extensible-record") && d.Message.Contains("csharp") && d.Message.Contains("inventory"));
+        log.Should().NotContain("backend");
+    }
+
+    [Test]
+    public void TheBuiltInProfileOfTheCSharpTargetNamesTheFeaturesThatTheBackendRefuses()
+    {
+        BuiltInTransforms.CannotTake["csharp"].Select(feature => feature.Text).Should().BeEquivalentTo(
+            "type.extensible-record", "value.hole", "body.native", "body.external", "body.incomplete");
+    }
+
+    [Test]
     public async Task TheJsonReportListsThePassesTheApplicationsAndTheLookups()
     {
         var log = new List<string>();
         var rule = RuleId.Create("https://example.org/rules/touch");
 
-        var touching = new RecordingPass("touching", PassStage.NewBeforeBackend("current-only"), log, unit =>
+        var touching = new RecordingPass("touching", PassStage.NewBeforeBackend("current-only"), log, (unit, view) =>
         {
+            // A read of another module: the package view records it, also when the package has no such module.
+            view.TryValue(Morphir.IR.CanonicalNames.parsePath("orders/tax").ResultValue, Morphir.IR.CanonicalNames.parseName("rate").ResultValue);
             var values = OrderedMap.toList(unit.Definition.Values);
             if (values.IsEmpty) return Checked<PassResult>.Pass(new PassResult(unit.Definition, FSharpList<PassApplication>.Empty));
             var value = values.Head.Item1;
@@ -192,5 +227,10 @@ public sealed class ModelPassesTests : IDisposable
         application.GetProperty("before").GetString().Should().StartWith("morphir://ir/").And.Contain("rev=sha256:");
         application.GetProperty("after").GetString().Should().StartWith("morphir://ir/").And.Contain("rev=sha256:");
         application.GetProperty("origin").GetProperty("startLine").GetInt32().Should().Be(3);
+        var lookup = passes.GetProperty("lookups").EnumerateArray().Should().ContainSingle().Subject;
+        lookup.GetProperty("pass").GetString().Should().Be("touching");
+        lookup.GetProperty("from").GetString().Should().Be("inventory");
+        lookup.GetProperty("module").GetString().Should().Be("orders/tax");
+        lookup.GetProperty("value").GetString().Should().Be("rate");
     }
 }

@@ -38,7 +38,15 @@ loaded.
 
 The step from the classic IR keeps every node and every name. A classic attribute that carries data moves to the
 `extensions` of the node, under the key `classic`. A value that the current IR cannot hold, such as a float literal that is
-not finite, is an error that names the value.
+not finite, is the error `ir.upgrade_unrepresentable`. The message and the `location` member of the diagnostic data give the
+node address of the value in the input, pinned to the digest of the input:
+
+```text
+The model has a node that the current IR cannot hold. The float literal NaN: … The node is at
+morphir://ir/workspace/input?format=3.0.0&rev=sha256:<input digest>#/module/inventory/value/daily-rate/body.
+```
+
+`morphir generate` reports the address as the `location` of the diagnostic, and the input file as its `path`.
 
 ## Node addresses
 
@@ -65,6 +73,10 @@ A pass is a registered extension of the type `transform`. Its claim names one st
 | --- | --- | --- |
 | `after-frontend` | Right after a frontend, on the model that it wrote | `morphir compile` (between the stages `frontend` and `write`) |
 | `before-backend`, with a target id | Right before the backend of that target, on the model that the backend reads | `morphir generate`, and the generation of `morphir compile --target` |
+
+In `morphir compile --target`, the passes before the backend continue the application list of the passes after the frontend.
+Each `before` names the node in the model that the frontend wrote, and a node that both stages replaced has one record. The
+report of the passes before the backend is `generation.passes`, and their diagnostics are in the stage `generate`.
 
 A command runs the passes of one stage in the order of their registration. A pass of another target does not run. The
 stage `transform` of `morphir compile` starts only when at least one pass has the stage after a frontend.
@@ -96,6 +108,10 @@ before: the type catalog, the lowering of the values with its type check, and th
 code, the message and the location of the backend, for example `name-collision` and `unbound-variable`. The checks need the
 whole package, so the pass runs them once, in the unit of the first module, and reads the other modules through the package
 view. It changes no module. It uses the default naming; the namespace option stays with the backend.
+
+The C# backend cannot take these IR features: `type.extensible-record` (an extensible record in any type), `value.hole`,
+`body.native`, `body.external` and `body.incomplete`. After the passes for `csharp`, the host checks that none of them
+remains; see [the feature order check](#the-feature-order-check).
 
 ## Rewrite rules
 
@@ -181,6 +197,11 @@ when a feature remains, the command fails before the backend with the error `tra
 feature, the backend and the first module that has it. The check reads the model, not the claims of the passes, so a pass
 that does not remove what it says is found.
 
+The check reads the value expressions, the patterns and the kinds of body of the values, and the types of the module: the
+type definitions, the input and output types of the values and of the let definitions, the inferred types of the values and
+of the patterns, and the expected type of a hole. `type.extensible-record` is in a module when one of these types is an
+extensible record or has one below it.
+
 ## The application list
 
 An upgrade step or a rewrite rule gives one record for each node that it moves or replaces: the rule or the step,
@@ -190,13 +211,20 @@ record names keeps its path, and only the format of its address changes. A sidec
 model finds the node in the new model through this list.
 
 When a chain of steps runs, each record names the input of the whole chain, and a node that a later step replaces keeps
-its first origin.
+its first origin. A record of an earlier step below a node that a later step replaces is dropped. Each record that stays has
+its address after pinned to the output of the chain.
 
 A pass that replaces a replacement keeps the first origin: the new record names the node of the input model, and the record of
 the earlier pass is dropped. A record below a node that a later pass replaces is dropped too, because its node is gone.
 
+A node in a replacement is not in the input model. When a rule replaces such a node, for example when the top-down strategy
+or a fixed point rewrites a child of a replacement, the record names the node of the input that the enclosing replacement
+replaced, with its source location. The record of the enclosing replacement stays. A chain of upgrade steps follows the same
+rule.
+
 With `--json`, `morphir generate` and `morphir compile` report the passes that ran. The member `passes` is written only when a
-pass ran:
+pass ran, or when no pass ran and an upgrade before the stage moved or replaced a node. In that case `ran` is empty and
+`applications` holds the records of the upgrade:
 
 ```json
 "passes": {

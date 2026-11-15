@@ -17,7 +17,10 @@ public static class BuiltInTransforms
 
     /// <summary>The IR features that the built-in backend of a target cannot take, by target id.</summary>
     public static IReadOnlyDictionary<string, ImmutableArray<IrFeature>> CannotTake { get; } =
-        new Dictionary<string, ImmutableArray<IrFeature>>();
+        new Dictionary<string, ImmutableArray<IrFeature>>
+        {
+            [Morphir.Lang.CSharp.CSharpTargetPasses.Target] = [.. Morphir.Lang.CSharp.CSharpTargetPasses.CannotTake],
+        };
 }
 
 /// <summary>The registry entries of the built-in passes: one <c>transform</c> extension for each, with its stage.</summary>

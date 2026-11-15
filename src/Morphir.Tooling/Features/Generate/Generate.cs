@@ -167,6 +167,9 @@ public static class GenerationStages
             var generation = await backend.GenerateAsync(new(backendModel, backend.Descriptor.Target, options), ct);
             if (generation is Outcome<GenerationArtifacts>.Failure generationFailure) return Failed(generationFailure.Error, backendIdentity);
             var artifacts = ((Outcome<GenerationArtifacts>.Success)generation).Value;
+            // The diagnostics of the passes go with the diagnostics of the backend, so that a publisher that reports them at
+            // publication, as compile --target does, reports both.
+            artifacts = artifacts with { Diagnostics = artifacts.Diagnostics.AddRange(passedModel.Diagnostics) };
             var family = ModelLabels.Family(model.Model.Family);
             var kind = ModelLabels.Kind(model.Model.Kind);
             ct.ThrowIfCancellationRequested();
@@ -175,7 +178,7 @@ public static class GenerationStages
             var receipt = ((Outcome<GenerationPublication>.Success)publication).Value;
             return new Outcome<GenerationSuccess>.Success(new(backend.Descriptor.Target.Value, backend.Descriptor.Id.Value, model.Original.SourcePath,
                 settings.Publication.OutputDirectory, model.Model.SourceVersion.Text, family, kind,
-                model.Representation.ToString(), receipt, artifacts.Diagnostics.AddRange(passedModel.Diagnostics))
+                model.Representation.ToString(), receipt, artifacts.Diagnostics)
             { Formatting = artifacts.Formatting, Passes = passedModel.Report });
         }
         catch (OperationCanceledException) { return Cancelled(backendIdentity); }

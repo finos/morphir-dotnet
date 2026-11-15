@@ -42,16 +42,19 @@ internal static class ModelUpgrade
         new(CurrentIr.ReachableVersion, ModelFamily.V4, model.Kind) { RequiredSemantics = model.RequiredSemantics };
 
     /// <summary>Upgrades a loaded model to the current IR, or says why it cannot.</summary>
-    internal static Outcome<LoadedModel> Upgrade(LoadedModel loaded)
+    internal static Outcome<LoadedModel> Upgrade(LoadedModel loaded) => Upgrade(loaded, CurrentIr.Upgrade);
+
+    /// <summary>Upgrades a loaded model with <paramref name="upgrade"/>, or says why it cannot.</summary>
+    internal static Outcome<LoadedModel> Upgrade(LoadedModel loaded, Func<UpgradeInput, Checked<UpgradeOutcome>> upgrade)
     {
         var snapshot = SnapshotOf(loaded.Original);
         var input = new UpgradeInput(loaded.Model, ArtifactSelector.NewWorkspace("input"), snapshot);
-        var result = CurrentIr.Upgrade(input);
+        var result = upgrade(input);
         if (!result.TryGetValue(out var outcome))
         {
+            // A step names the node that it cannot express in the data of its diagnostic; the path is the input file.
             var diagnostics = result.Diagnostics
-                .Select(diagnostic => new GenerationDiagnostic(
-                    diagnostic.CodeOrNull?.Value ?? "ir.upgrade_failed", diagnostic.Message, null, null))
+                .Select(diagnostic => Transform.ModelPasses.Map(diagnostic, loaded.Original.SourcePath, "ir.upgrade_failed"))
                 .ToImmutableArray();
             return new Outcome<LoadedModel>.Failure(new GenerationFailure(GenerationFailureKind.Semantic, diagnostics));
         }

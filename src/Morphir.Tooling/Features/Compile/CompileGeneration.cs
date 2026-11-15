@@ -85,10 +85,11 @@ public sealed class CompileGenerationStages(IGenerationBackendResolver backends,
 
     /// <summary>
     /// The events of the generation stages, ending with the run's <see cref="CompileEvent.Completed"/> event.
-    /// <paramref name="ir"/> is the exact bytes that <paramref name="compiled"/> published.
+    /// <paramref name="ir"/> is the exact bytes that <paramref name="compiled"/> published. <paramref name="passes"/> are the
+    /// registered passes of the compile; the passes before the backend continue the lineage of the passes after the frontend.
     /// </summary>
     public async IAsyncEnumerable<CompileEvent> RunAsync(CompileTarget target, CompileSuccess compiled, CompileSettings settings,
-        ReadOnlyMemory<byte> ir, [EnumeratorCancellation] CancellationToken ct = default)
+        ReadOnlyMemory<byte> ir, Transform.ModelPasses? passes = null, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var irPath = compiled.Publication.IrPath;
         var input = new ModelInput(irPath, InputFormat.Auto);
@@ -106,7 +107,9 @@ public sealed class CompileGenerationStages(IGenerationBackendResolver backends,
             var loaded = GenerationModelLoader.Decode(original, input, Limits, ct);
             run = loaded switch
             {
-                Outcome<LoadedModel>.Success model => GenerationStages.RunFrom(model.Value, generationSettings, backends, gate, ct, logger),
+                Outcome<LoadedModel>.Success model => GenerationStages.RunFrom(
+                    compiled.Lineage is { } lineage ? model.Value with { Lineage = lineage } : model.Value,
+                    generationSettings, backends, gate, ct, logger, passes),
                 Outcome<LoadedModel>.Failure failed => Task.FromResult<Outcome<GenerationSuccess>>(new Outcome<GenerationSuccess>.Failure(failed.Error)),
                 _ => throw new System.Diagnostics.UnreachableException()
             };
