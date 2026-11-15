@@ -23,6 +23,8 @@ module internal Values =
     /// <summary>The expression, in parentheses unless it is already a primary expression.</summary>
     let private wrap (e: ExpressionSyntax) : ExpressionSyntax =
         match e with
+        // A negative number is a primary expression only in parentheses: (T)-1 and -1.M() do not mean the value.
+        | :? LiteralExpressionSyntax as literal when literal.Token.Text.StartsWith "-" -> Cs.paren e
         | :? IdentifierNameSyntax
         | :? MemberAccessExpressionSyntax
         | :? InvocationExpressionSyntax
@@ -204,6 +206,14 @@ module internal Values =
             | _ -> Admission.fail "type-mismatch" scope.Location "The selected record target is not a record."
         | _ -> Admission.fail "type-mismatch" scope.Location "A closed record is required."
 
+    /// <summary>
+    /// The items in the order of the fields of the record that C# writes. Two aliases with the same fields share one
+    /// record, so the order of an alias can differ from the order of the record.
+    /// </summary>
+    let private inRecordOrder (scope: Scope) (fields: (Name * Shape) list) (items: 'item list) : 'item list =
+        let byName = List.zip (List.map fst fields) items |> Map.ofList
+        recordFieldsOf scope (Fields fields) |> List.map (fun name -> Map.find name byName)
+
     /// <summary>The types of the fields of a constructor, the type that it builds, and how to build it from the values.</summary>
     let private constructorParts (scope: Scope) (candidate: Constructor) (args: Shape list) =
         let substitutions = List.zip candidate.Owner.Parameters args |> Map.ofList
@@ -212,7 +222,16 @@ module internal Values =
 
         let build (values: ExpressionSyntax list) : ExpressionSyntax =
             if candidate.IsRecord then
-                Cs.newObject (scope.Type output) values
+                let declared = recordFieldsOf scope output
+
+                if List.map fst fields = declared then
+                    Cs.newObject (scope.Type output) values
+                else
+                    // The values are evaluated in the order of the alias, then given in the order of the record.
+                    let temporaries = List.map2 (fun (name, shape) value -> name, shape, scope.Local name, value) fields values
+                    let statements = temporaries |> List.map (fun (_, shape, temp, v) -> Cs.local (scope.Type shape) temp v)
+                    let ordered = inRecordOrder scope fields (temporaries |> List.map (fun (_, _, temp, _) -> Cs.id temp :> ExpressionSyntax))
+                    immediately (scope.Type output) (statements @ [ Cs.returns (Cs.newObject (scope.Type output) ordered) ])
             elif candidate.Runtime.IsSome then
                 let target = Cs.access (asExpression (scope.Type output)) candidate.Runtime.Value
                 if List.isEmpty values then target else Cs.invoke target values
@@ -262,9 +281,11 @@ module internal Values =
         | TConstructorPattern(candidate, _, _) when candidate.Runtime.IsSome -> None
         | TConstructorPattern(candidate, args, items) ->
             if candidate.IsRecord then
+                let fields = candidate.Fields |> List.map (fun (name, shape) -> name, substitute scope.Ct (List.zip candidate.Owner.Parameters args |> Map.ofList) shape)
+
                 many items
                 |> Option.map (fun (subs, env') ->
-                    SF.RecursivePattern(scope.Type p.Type, positional subs, null, null) :> PatternSyntax, env')
+                    SF.RecursivePattern(scope.Type p.Type, positional (inRecordOrder scope fields subs), null, null) :> PatternSyntax, env')
             elif TypeSyntaxes.isUnion candidate.Owner then
                 let wrapped = scope.Type (snd (List.head candidate.Fields) |> substitute scope.Ct (List.zip candidate.Owner.Parameters args |> Map.ofList))
 
@@ -286,15 +307,71 @@ module internal Values =
                     many items
                     |> Option.map (fun (subs, env') -> SF.RecursivePattern(target, positional subs, null, null) :> PatternSyntax, env')
 
-    /// <summary>Whether a pattern matches every value of its type.</summary>
-    let rec private irrefutable (p: TypedPattern) : bool =
+    /// <summary>
+    /// The values that a pattern of a switch takes, in the form that the check of the arms reads: any value, or one
+    /// constructor with the values of its parts. A constructor knows the keys of all the constructors of its type, or
+    /// none when the type has no end of values, such as an <c>Int</c>.
+    /// </summary>
+    type private Space =
+        | Any
+        | Ctor of key: string * siblings: Set<string> option * parts: Space list
+
+    /// <summary>The space of a pattern. The parts of a record are in the order of their names, so two aliases of one record agree.</summary>
+    let rec private spaceOf (p: TypedPattern) : Space =
         match p.Pattern with
         | TWild
-        | TUnitPattern -> true
-        | TAs(inner, _) -> irrefutable inner
-        | TTuplePattern items -> List.forall irrefutable items
-        | TConstructorPattern(candidate, _, items) when candidate.IsRecord -> List.forall irrefutable items
-        | _ -> false
+        | TUnitPattern -> Any
+        | TAs(inner, _) -> spaceOf inner
+        | TLiteralPattern(LiteralEmission.Bool flag) -> Ctor((if flag then "true" else "false"), Some(set [ "true"; "false" ]), [])
+        | TLiteralPattern literal -> Ctor(sprintf "literal %A" literal, None, [])
+        | TTuplePattern items -> Ctor("tuple", Some(set [ "tuple" ]), List.map spaceOf items)
+        | TEmptyList -> Ctor("[]", Some(set [ "[]"; "::" ]), [])
+        | THeadTail(head, rest) -> Ctor("::", Some(set [ "[]"; "::" ]), [ spaceOf head; spaceOf rest ])
+        | TConstructorPattern(candidate, _, items) when candidate.IsRecord ->
+            let parts = List.zip (List.map fst candidate.Fields) items |> List.sortBy fst |> List.map (snd >> spaceOf)
+            Ctor("record", Some(set [ "record" ]), parts)
+        | TConstructorPattern(candidate, _, items) ->
+            let (Name words) = candidate.Case
+            let key (words: string list) = "case " + String.Join(" ", words)
+
+            let siblings =
+                match candidate.Owner.Definition with
+                | Cases(_, cases) when candidate.Runtime.IsNone -> Some(cases |> List.map (fun (Name words, _) -> key words) |> Set.ofList)
+                | _ -> None
+
+            Ctor(key words, siblings, List.map spaceOf items)
+
+    /// <summary>
+    /// Whether a row of spaces takes a value that no row before it takes (the check of Maranget). C# refuses an arm
+    /// that earlier arms already take, and an arm that takes every value after the arms that take every value.
+    /// </summary>
+    let rec private useful (rows: Space list list) (row: Space list) : bool =
+        let arityOf key =
+            rows |> List.tryPick (function
+                | Ctor(k, _, parts) :: _ when k = key -> Some(List.length parts)
+                | _ -> None)
+
+        let specialize (key: string) (arity: int) =
+            rows
+            |> List.choose (function
+                | Ctor(k, _, parts) :: rest when k = key -> Some(parts @ rest)
+                | Any :: rest -> Some(List.replicate arity Any @ rest)
+                | _ -> None)
+
+        match row with
+        | [] -> List.isEmpty rows
+        | Ctor(key, _, parts) :: rest -> useful (specialize key (List.length parts)) (parts @ rest)
+        | Any :: rest ->
+            let heads = rows |> List.choose (function Ctor(k, siblings, _) :: _ -> Some(k, siblings) | _ -> None)
+            let named = heads |> List.map fst |> Set.ofList
+
+            let complete =
+                heads |> List.tryPick snd |> Option.filter (fun siblings -> Set.isSubset siblings named)
+
+            match complete with
+            | Some siblings ->
+                siblings |> Set.exists (fun key -> let arity = defaultArg (arityOf key) 0 in useful (specialize key arity) (List.replicate arity Any @ rest))
+            | None -> useful (rows |> List.choose (function Any :: rest -> Some rest | _ -> None)) rest
 
     /// <summary>The value expressions that a typed expression holds directly.</summary>
     let private childrenOf (v: Typed) : Typed list =
@@ -483,18 +560,16 @@ module internal Values =
 
             go [] cases
 
-        // An arm after an arm that takes every value, or after arms that already name every case, can never match.
-        // C# refuses it, so it is not written.
+        // An arm that the arms before it already take can never match. C# refuses it, so it is not written.
         let reachable (arms: (PatternSyntax * Env * Typed * TypedPattern) list) =
-            let rec go (acc: _ list) (remaining: _ list) =
-                match remaining with
-                | [] -> List.rev acc
-                | ((_, _, _, p) as arm) :: rest ->
-                    let taken = List.rev (arm :: acc)
-
-                    if irrefutable p || coversAllCases scope target taken then List.rev (arm :: acc) else go (arm :: acc) rest
-
-            go [] arms
+            arms
+            |> List.fold
+                (fun (kept, rows) ((_, _, _, p) as arm) ->
+                    let row = [ spaceOf p ]
+                    if useful rows row then arm :: kept, rows @ [ row ] else kept, rows)
+                ([], [])
+            |> fst
+            |> List.rev
 
         match converted |> Option.map reachable with
         | Some arms ->
@@ -503,8 +578,8 @@ module internal Values =
                 |> List.map (fun (pattern, scoped, body, _) ->
                     SF.SwitchExpressionArm(pattern, bodyExpression scope scoped body))
 
-            // Without an arm that takes every value, the switch ends with the failure of the model.
-            let exhaustive = arms |> List.exists (fun (_, _, _, p) -> irrefutable p) || coversAllCases scope target arms
+            // When some value is left that no arm takes, the switch ends with the failure of the model.
+            let exhaustive = not (useful [ for _, _, _, p in arms -> [ spaceOf p ] ] [ Any ])
             let last =
                 if exhaustive then []
                 else [ SF.SwitchExpressionArm(SF.DiscardPattern(), Cs.throwNew [ "System"; "InvalidOperationException" ] "Non-exhaustive Morphir pattern.") ]
@@ -524,24 +599,6 @@ module internal Values =
                     | Some condition -> (SF.IfStatement(condition, Cs.block inner) :> StatementSyntax) :: branches rest
 
             immediately (scope.Type value.Type) ([ Cs.local (scope.Type target.Type) name subject ] @ branches cases)
-
-    /// <summary>Whether the arms name every case of the custom type that the subject has, each with patterns that take any value.</summary>
-    and private coversAllCases (scope: Scope) (target: Typed) arms : bool =
-        match scope.Resolve target.Type with
-        | Named(name, _) ->
-            match Map.tryFind name scope.Context.Catalog with
-            | Some { Definition = Cases(_, cases) } ->
-                let covered =
-                    arms
-                    |> List.choose (fun (_, _, _, (p: TypedPattern)) ->
-                        match p.Pattern with
-                        | TConstructorPattern(candidate, _, items) when List.forall irrefutable items -> Some candidate.Case
-                        | _ -> None)
-                    |> Set.ofList
-
-                cases |> List.forall (fun (caseName, _) -> Set.contains caseName covered)
-            | _ -> false
-        | _ -> false
 
     /// <summary>The body of an arm: an expression, or a block when the body needs statements.</summary>
     and private bodyExpression (scope: Scope) (env: Env) (body: Typed) : ExpressionSyntax = expression scope env body

@@ -126,11 +126,15 @@ let refuse (model: VersionedModel) : GenerationDiagnostic list =
     let result = CSharpBackend.Generate(model, { LanguageVersion = 15 }, CancellationToken.None)
     result.Diagnostics
 
+/// The files as source documents. The compiler adds its own polyfill, so the polyfill file of the backend is left out.
+let private documentsOf (files: Map<string, string>) : Morphir.Compilation.SourceDocument list =
+    [ for KeyValue(path, text) in files do
+          if path <> "Morphir.Polyfill.g.cs" then
+              ({ Uri = path; LanguageId = Morphir.Lang.CSharp.CSharpFrontend.languageId; Version = 0UL; Text = text }: Morphir.Compilation.SourceDocument) ]
+
 /// Compiles the files as C# 15 and calls a static method of a type with the arguments. The generated code runs for real.
 let run (files: Map<string, string>) (typeName: string) (methodName: string) (arguments: objnull list) : string =
-    let documents =
-        [ for KeyValue(path, text) in files ->
-              ({ Uri = path; LanguageId = Morphir.Lang.CSharp.CSharpFrontend.languageId; Version = 0UL; Text = text }: Morphir.Compilation.SourceDocument) ]
+    let documents = documentsOf files
 
     match Morphir.Lang.CSharp.CSharpCompiler.compile documents with
     | Error failure -> failwithf "compile failed: %s" failure.Message
@@ -158,9 +162,7 @@ let run (files: Map<string, string>) (typeName: string) (methodName: string) (ar
 
 /// Compiles the files and loads the assembly once.
 let load (files: Map<string, string>) : System.Reflection.Assembly =
-    let documents =
-        [ for KeyValue(path, text) in files ->
-              ({ Uri = path; LanguageId = Morphir.Lang.CSharp.CSharpFrontend.languageId; Version = 0UL; Text = text }: Morphir.Compilation.SourceDocument) ]
+    let documents = documentsOf files
 
     match Morphir.Lang.CSharp.CSharpCompiler.compile documents with
     | Error failure -> failwithf "compile failed: %s" failure.Message
