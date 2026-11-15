@@ -118,4 +118,36 @@ let tests =
             Expect.equal found["C"] [ "T", [ Comparable ] ] "CompareTo"
             Expect.equal found["D"] [ "T", [ Comparable ] ] "Comparer<T>.Default"
         }
+
+        test "Equals and EqualityComparer<T>.Default.Equals on values of a type parameter lower as Basics.equal" {
+            let members =
+                String.concat "\n" [
+                    "public static bool A<T>(T a, T b) where T : notnull => a.Equals(b);"
+                    "public static bool B<T>(T a, T b) => EqualityComparer<T>.Default.Equals(a, b);"
+                ]
+
+            let distribution = model (compileSource (calc members))
+            Expect.equal (valueText distribution "domain.calc" "a") (valueText distribution "domain.calc" "b") "the same value"
+            Expect.equal (valueText distribution "domain.calc" "a") "((morphir.sdk:basics#equal a) b)" "a call of Basics.equal"
+        }
+
+        test "CompareTo and Comparer<T>.Default.Compare on values of a type parameter lower as Basics.compare matched to -1, 0 and 1" {
+            let members =
+                String.concat "\n" [
+                    "public static int C<T>(T a, T b) where T : IComparable => a.CompareTo(b);"
+                    "public static int D<T>(T a, T b) => Comparer<T>.Default.Compare(a, b);"
+                ]
+
+            let distribution = model (compileSource (calc members))
+            let text = valueText distribution "domain.calc" "c"
+            Expect.equal (valueText distribution "domain.calc" "d") text "the same value"
+            Expect.equal
+                text
+                "(match ((morphir.sdk:basics#compare a) b) with (ctor l-t) => -1 | (ctor e-q) => 0 | (ctor g-t) => 1)"
+                "Basics.compare matched to -1, 0 and 1"
+        }
+
+        test "Equals on a value whose type is not a type parameter is still refused" {
+            Expect.contains (codes (compileSource (calc "public static bool A(double a, double b) => a.Equals(b);"))) "csharp.unsupported_reference" "double.Equals keeps NaN equal to NaN, so it is not Basics.equal"
+        }
     ]

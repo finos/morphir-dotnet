@@ -117,10 +117,19 @@ public static TKey Max<TKey>(TKey a, TKey b) where TKey : IComparable<TKey> => B
 
 The model has `max : key -> key -> key`, and each `key` has the class `comparable`.
 
-The frontend lowers `==` on values of a type parameter with `IEqualityOperators<T, T, bool>` as `Basics.equal`. It does
-not lower the calls `Equals`, `CompareTo`, `EqualityComparer<T>.Default.Equals` and `Comparer<T>.Default.Compare`:
-they give `csharp.unsupported_reference`. Use `Basics.Equal` and `Basics.Compare`. An explicit class on a type parameter
-(an attribute or a key in `morphir.toml`) is not available yet.
+On two values of a type parameter of the method, the frontend lowers the equality and the order of .NET as calls of
+the SDK:
+
+| C# | Morphir |
+| --- | --- |
+| `a == b` (with `IEqualityOperators<T, T, bool>`), `a.Equals(b)`, `EqualityComparer<T>.Default.Equals(a, b)` | `Basics.equal a b` |
+| `a.CompareTo(b)`, `Comparer<T>.Default.Compare(a, b)` | `Basics.compare a b`, matched to `-1` for `LT`, `0` for `EQ` and `1` for `GT` |
+
+`CompareTo` in .NET gives only a sign, so `-1`, `0` and `1` are correct results. The order is the order of the SDK, with
+ordinal strings: `Cmp("B", "a")` is `-1`, but `string.CompareTo` in C# gives `1`. A call of `Equals` or `CompareTo` on a
+value of another type gives `csharp.unsupported_reference`: `double.Equals`, for example, makes `NaN` equal to `NaN`,
+and `Basics.equal` does not. An explicit class on a type parameter (an attribute or a key in `morphir.toml`) is not
+available yet.
 
 ## Values
 

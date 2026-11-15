@@ -133,6 +133,33 @@ let tests =
                 "the model has a carrier on each type variable"
         }
 
+        test "Equals and CompareTo on a type parameter go from C# through the model to C# that runs" {
+            let source =
+                String.concat "\n" [
+                    "namespace Acme.Trading.Domain;"
+                    "using System;"
+                    "public static class Calc"
+                    "{"
+                    "    public static bool Same<T>(T a, T b) where T : notnull => a.Equals(b);"
+                    "    public static int Cmp<T>(T a, T b) where T : IComparable => a.CompareTo(b);"
+                    "    public static bool UseSame() => Same(1, 1);"
+                    "    public static int UseCmp() => Cmp(\"B\", \"a\");"
+                    "}"
+                ]
+
+            let distribution = FrontendSupport.model (FrontendSupport.compileSource source)
+
+            let model: VersionedModel = {
+                SourceVersion = SourceFormatVersion.Create "4"
+                Distribution = DistributionModel.V4 distribution
+            }
+
+            let files = generate model
+            Expect.equal (run files "Acme.Trading.Domain.Calc" "UseSame" []) "True" "Same(1, 1)"
+            // The order of the model is the order of the SDK: ordinal strings, so "B" is before "a".
+            Expect.equal (run files "Acme.Trading.Domain.Calc" "UseCmp" []) "-1" "Cmp(\"B\", \"a\")"
+        }
+
         test "a generic function with no carrier generates, and the frontend writes the class of its constraint" {
             let comparable = variableT "comparable"
 

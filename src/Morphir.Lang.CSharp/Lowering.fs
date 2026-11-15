@@ -23,6 +23,13 @@ type internal Binding =
     /// </summary>
     | CaseFields of constructor: FQName * fields: (string * Name * ITypeSymbol) list * caseType: ITypeSymbol
 
+/// <summary>A call of the equality or the order of .NET on two values of a type parameter of the method.</summary>
+type internal TypeParameterCall =
+    /// <summary><c>a.Equals(b)</c> or <c>EqualityComparer&lt;T&gt;.Default.Equals(a, b)</c>: the type parameter and the two operands.</summary>
+    | TypeParameterEquality of ITypeSymbol * IOperation * IOperation
+    /// <summary><c>a.CompareTo(b)</c> or <c>Comparer&lt;T&gt;.Default.Compare(a, b)</c>: the type parameter and the two operands.</summary>
+    | TypeParameterOrder of ITypeSymbol * IOperation * IOperation
+
 /// <summary>The names in scope. C# does not allow a local to hide another, so the name is the key.</summary>
 type internal Env = Map<string, Binding>
 
@@ -684,7 +691,86 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     let! lowered = lowerArguments ()
                     return! this.Apply(at, fn, parameters, result, lowered)
                 }
-            | None -> unsupportedReference at (target.ToDisplayString())
+            | None ->
+                match this.TypeParameterCall invocation with
+                | Some(TypeParameterEquality(typeParameter, a, b)) ->
+                    check {
+                        let! fn = this.Reference(at, SdkMapping.sdk "Basics" "equal", [ typeParameter; typeParameter ], result)
+                        let! left = this.Value(env, a)
+                        let! right = this.Value(env, b)
+                        return! this.Apply(at, fn, [ typeParameter; typeParameter ], result, [ left; right ])
+                    }
+                | Some(TypeParameterOrder(typeParameter, a, b)) -> this.OrderAsInt(env, at, typeParameter, a, b, result)
+                | None -> unsupportedReference at (target.ToDisplayString())
+
+    /// <summary>
+    /// The equality or the order of two values of a type parameter of the method (EQL-2): <c>a.Equals(b)</c> and
+    /// <c>EqualityComparer&lt;T&gt;.Default.Equals(a, b)</c> are equality; <c>a.CompareTo(b)</c> and
+    /// <c>Comparer&lt;T&gt;.Default.Compare(a, b)</c> are order. A call on values of another type is not one of these:
+    /// <c>double.Equals</c>, for example, makes NaN equal to NaN.
+    /// </summary>
+    member private this.TypeParameterCall(invocation: IInvocationOperation) : TypeParameterCall option =
+        let target = invocation.TargetMethod
+
+        let rec unwrap (operation: IOperation) =
+            match operation with
+            | :? IConversionOperation as conversion when conversion.IsImplicit -> unwrap conversion.Operand
+            | _ -> operation
+
+        let methodParameter (operation: IOperation) =
+            match unwrap operation with
+            | null -> None
+            | operand ->
+                match operand.Type with
+                | :? ITypeParameterSymbol as parameter when parameter.TypeParameterKind = TypeParameterKind.Method -> Some(parameter :> ITypeSymbol, operand)
+                | _ -> None
+
+        let arguments = [ for a in invocation.Arguments -> a.Value ]
+
+        let defaultOf (typeName: string) =
+            not (isNull invocation.Instance)
+            && target.ContainingType.ContainingNamespace.ToDisplayString() = "System.Collections.Generic"
+            && target.ContainingType.MetadataName = typeName
+
+        let pair make (left: IOperation) (right: IOperation) =
+            match methodParameter left, methodParameter right with
+            | Some(a, leftOperand), Some(b, rightOperand) when SymbolEqualityComparer.Default.Equals(a, b) -> Some(make (a, leftOperand, rightOperand))
+            | _ -> None
+
+        match target.Name, arguments with
+        | "Equals", [ a; b ] when target.IsStatic |> not && defaultOf "EqualityComparer`1" -> pair TypeParameterEquality a b
+        | "Equals", [ other ] when not target.IsStatic && not (isNull invocation.Instance) -> pair TypeParameterEquality invocation.Instance other
+        | "Compare", [ a; b ] when not target.IsStatic && defaultOf "Comparer`1" -> pair TypeParameterOrder a b
+        | "CompareTo", [ other ] when not target.IsStatic && not (isNull invocation.Instance) -> pair TypeParameterOrder invocation.Instance other
+        | _ -> None
+
+    /// <summary>
+    /// The C# order of two values as an Int: <c>Basics.compare</c> matched to -1 for <c>LT</c>, 0 for <c>EQ</c> and 1 for
+    /// <c>GT</c>. The .NET contract of <c>CompareTo</c> gives only the sign, so these three values are one of its results.
+    /// </summary>
+    member private this.OrderAsInt(env: Env, at, typeParameter: ITypeSymbol, a: IOperation, b: IOperation, result: ITypeSymbol) : Checked<'Value> =
+        match compiled.Compilation.GetTypeByMetadataName "Morphir.SDK.CSharp.Order" with
+        | null -> unsupportedReference at "Morphir.SDK.CSharp.Order"
+        | orderSymbol ->
+            check {
+                let! fn = this.Reference(at, SdkMapping.sdk "Basics" "compare", [ typeParameter; typeParameter ], orderSymbol)
+                let! left = this.Value(env, a)
+                let! right = this.Value(env, b)
+                let! order = this.Apply(at, fn, [ typeParameter; typeParameter ], orderSymbol, [ left; right ])
+                let! orderType = this.Type(at, orderSymbol)
+                let! intType = this.Type(at, result)
+
+                let! arms =
+                    [ "LT", -1; "EQ", 0; "GT", 1 ]
+                    |> Checked.traverse (fun (case, value) ->
+                        check {
+                            let! pattern = builder.PatternConstructor(at, orderType, SdkMapping.sdk "Basics" case, [])
+                            let! literal = builder.Literal(at, intType, LiteralValue.Integer(BigInteger value))
+                            return pattern, literal
+                        })
+
+                return! builder.PatternMatch(at, intType, order, arms)
+            }
 
     /// <summary>
     /// The value of each field of a record creation, in the order of the fields. A constructor argument gives the field
