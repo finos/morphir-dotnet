@@ -1,4 +1,16 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  the netstandard2.0 target of this library (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK refuses
+  them for netstandard2.0 (NETSDK1207), so that target keeps them local and off. The other targets keep the values of the
+  publish. The application still compiles and trims this assembly.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
 
     <PropertyGroup>
         <!--
