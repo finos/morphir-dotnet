@@ -34,6 +34,7 @@
         <Compile Include="FrontendSupport.fs" />
         <Compile Include="FrontendTests.fs" />
         <Compile Include="ValueLoweringTests.fs" />
+        <Compile Include="FrontendFidelityTests.fs" />
         <Compile Include="SdkMappingTests.fs" />
         <Compile Include="CatalogTests.fs" />
         <Compile Include="TargetPassTests.fs" />

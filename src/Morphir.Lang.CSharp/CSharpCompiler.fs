@@ -37,6 +37,22 @@ type private ModelOptions() =
             value <- null
             false
 
+/// <summary>
+/// Every document of a request is code of the user. A header such as <c>// &lt;auto-generated/&gt;</c> or a name such as
+/// <c>.g.cs</c> does not switch off the admission analyzer, because the frontend lowers the document all the same.
+/// </summary>
+type private UserCodeOptionsProvider() =
+    inherit SyntaxTreeOptionsProvider()
+    override _.IsGenerated(_: SyntaxTree, _: CancellationToken) = GeneratedKind.NotGenerated
+
+    override _.TryGetDiagnosticValue(_: SyntaxTree, _: string, _: CancellationToken, severity: byref<ReportDiagnostic>) =
+        severity <- ReportDiagnostic.Default
+        false
+
+    override _.TryGetGlobalDiagnosticValue(_: string, _: CancellationToken, severity: byref<ReportDiagnostic>) =
+        severity <- ReportDiagnostic.Default
+        false
+
 type private ModelOptionsProvider() =
     inherit AnalyzerConfigOptionsProvider()
     static let none = ModelOptions() :> AnalyzerConfigOptions
@@ -50,20 +66,40 @@ module internal CSharpCompiler =
     /// <summary>The path of the polyfill tree. Diagnostics of this tree are not the user's.</summary>
     let polyfillPath = "morphir:polyfill/" + Morphir.Polyfill.FileName
 
+    /// <summary>The path of the tree of the implicit usings. Diagnostics of this tree are not the user's.</summary>
+    let usingsPath = "morphir:usings/GlobalUsings.g.cs"
+
+    /// <summary>The implicit usings of an SDK project (<c>ImplicitUsings</c> enabled), the same as the model project gets.</summary>
+    let implicitUsings =
+        [ "System"
+          "System.Collections.Generic"
+          "System.IO"
+          "System.Linq"
+          "System.Net.Http"
+          "System.Threading"
+          "System.Threading.Tasks" ]
+
+    let private usingsSource =
+        implicitUsings |> List.map (fun name -> $"global using global::{name};") |> String.concat "\n"
+
     let private parseOptions = CSharpParseOptions(LanguageVersion.CSharp15)
 
     /// <summary>
     /// Warnings that decide whether a model is complete. A <c>switch</c> that misses a case is an error here: Morphir has
-    /// no way to write a partial match.
+    /// no way to write a partial match. CS8524 is not one of them: it says that a value outside the named members of an
+    /// enum is not handled, and a Morphir custom type has no such value.
     /// </summary>
-    let private escalated = [ "CS8509"; "CS8510"; "CS8524" ]
+    let private escalated = [ "CS8509"; "CS8510" ]
 
     let private options =
         CSharpCompilationOptions(
             OutputKind.DynamicallyLinkedLibrary,
             nullableContextOptions = NullableContextOptions.Enable,
-            specificDiagnosticOptions = [ for id in escalated -> KeyValuePair(id, ReportDiagnostic.Error) ]
+            specificDiagnosticOptions = [ for id in escalated -> KeyValuePair(id, ReportDiagnostic.Error) ],
+            // A pragma or an attribute that suppresses a diagnostic does not change the model, so the frontend sees it.
+            reportSuppressedDiagnostics = true
         )
+            .WithSyntaxTreeOptionsProvider(UserCodeOptionsProvider())
 
     /// <summary>The compilation of the documents, or the diagnostic that says why it cannot start.</summary>
     let compile (documents: SourceDocument list) : Result<Compiled, Diagnostic> =
@@ -82,7 +118,9 @@ module internal CSharpCompiler =
             let polyfill =
                 CSharpSyntaxTree.ParseText(Morphir.Polyfill.Source, parseOptions, path = polyfillPath)
 
-            let trees = [ for source in sources -> source.Tree ] @ [ polyfill ]
+            let usings = CSharpSyntaxTree.ParseText(usingsSource, parseOptions, path = usingsPath)
+
+            let trees = [ for source in sources -> source.Tree ] @ [ polyfill; usings ]
 
             Ok
                 {
@@ -131,7 +169,14 @@ module internal CSharpCompiler =
     let private isUserLocation (diagnostic: Microsoft.CodeAnalysis.Diagnostic) =
         match diagnostic.Location.SourceTree with
         | null -> true
-        | tree -> tree.FilePath <> polyfillPath
+        | tree -> tree.FilePath <> polyfillPath && tree.FilePath <> usingsPath
+
+    /// <summary>
+    /// Whether a diagnostic counts. A suppressed compiler diagnostic counts only when it decides whether the model is
+    /// complete; a suppressed admission diagnostic always counts, because the frontend cannot lower the construct.
+    /// </summary>
+    let private counts (admission: bool) (diagnostic: Microsoft.CodeAnalysis.Diagnostic) =
+        not diagnostic.IsSuppressed || admission || List.contains diagnostic.Id escalated
 
     let private ordered (compiled: Compiled) (items: (Morphir.Compilation.Diagnostic * Microsoft.CodeAnalysis.Diagnostic) list) =
         let rank (diagnostic: Microsoft.CodeAnalysis.Diagnostic) =
@@ -152,7 +197,7 @@ module internal CSharpCompiler =
     /// <summary>The C# compiler diagnostics (code <c>csharp.compiler</c>), in document order. Hidden ones are left out.</summary>
     let compilerDiagnostics (compiled: Compiled) (cancellationToken: CancellationToken) : Morphir.Compilation.Diagnostic list =
         compiled.Compilation.GetDiagnostics cancellationToken
-        |> Seq.filter isUserLocation
+        |> Seq.filter (fun diagnostic -> isUserLocation diagnostic && counts false diagnostic)
         |> Seq.choose (fun diagnostic ->
             severityOf diagnostic.Severity
             |> Option.map (fun severity ->
@@ -178,11 +223,11 @@ module internal CSharpCompiler =
         let withAnalyzers =
             compiled.Compilation.WithAnalyzers(
                 ImmutableArray.Create<DiagnosticAnalyzer>(AdmissionAnalyzer()),
-                analyzerOptions
+                CompilationWithAnalyzersOptions(analyzerOptions, null, true, false, true)
             )
 
         withAnalyzers.GetAnalyzerDiagnosticsAsync(cancellationToken).GetAwaiter().GetResult()
-        |> Seq.filter isUserLocation
+        |> Seq.filter (fun diagnostic -> isUserLocation diagnostic && counts true diagnostic)
         |> Seq.choose (fun diagnostic ->
             match Rules.TryGetById diagnostic.Id with
             | true, rule ->

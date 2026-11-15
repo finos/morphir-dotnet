@@ -90,9 +90,41 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
     let nameOf (name: string) = Name.fromString name
 
-    /// <summary>Variables bound for the fields of a case record that a pattern binds to a local.</summary>
-    let caseVariable (local: string) (field: string) =
-        Name(Name.toList (nameOf local) @ Name.toList (nameOf field))
+    /// <summary>The Morphir names of the identifiers of each member declaration, for the variables of case fields.</summary>
+    let memberNames = Dictionary<SyntaxNode, Set<Name>>()
+
+    let namesOfMember (node: SyntaxNode) =
+        let scope =
+            node.AncestorsAndSelf()
+            |> Seq.tryFind (fun n -> n :? MemberDeclarationSyntax)
+            |> Option.defaultValue (node.SyntaxTree.GetRoot())
+
+        match memberNames.TryGetValue scope with
+        | true, names -> names
+        | _ ->
+            let names =
+                scope.DescendantTokens()
+                |> Seq.filter (fun token -> token.IsKind SyntaxKind.IdentifierToken)
+                |> Seq.map (fun token -> nameOf token.ValueText)
+                |> Set.ofSeq
+
+            memberNames[scope] <- names
+            names
+
+    /// <summary>
+    /// The variable bound for a field of a case record that a pattern binds to a local: the words of the local and of the
+    /// field. When an identifier of the member already has that Morphir name, a number follows, so the variable does not
+    /// capture a parameter or a local such as <c>mQuantity</c>.
+    /// </summary>
+    let caseVariable (at: SyntaxNode) (local: string) (field: string) =
+        let words = Name.toList (nameOf local) @ Name.toList (nameOf field)
+        let taken = namesOfMember at
+
+        let rec pick (count: int) =
+            let candidate = if count = 1 then Name words else Name(words @ [ string count ])
+            if Set.contains candidate taken then pick (count + 1) else candidate
+
+        pick 1
 
     // ----- types -----
 
@@ -191,12 +223,14 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             | Some(fq, case), symbol ->
                 let local = if isNull symbol then "_" else symbol.Name
 
+                let fields = [ for _, member', fieldType in case.Fields -> member', caseVariable pattern.Syntax local member', fieldType ]
+
                 check {
                     let! t = this.Type(at, matched)
 
                     let! wildcards =
-                        case.Fields
-                        |> Checked.traverse (fun (name, member', fieldType) ->
+                        fields
+                        |> Checked.traverse (fun (_, variable, fieldType) ->
                             check {
                                 let! ft = this.Type(at, fieldType)
 
@@ -205,13 +239,11 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                                     return w
                                 else
                                     let! w = builder.PatternWildcard(at, ft)
-                                    let! v = builder.PatternAs(at, ft, w, caseVariable local member')
+                                    let! v = builder.PatternAs(at, ft, w, variable)
                                     return v
                             })
 
                     let! ctor = builder.PatternConstructor(at, t, fq, wildcards)
-
-                    let fields = [ for name, member', fieldType in case.Fields -> member', caseVariable local member', fieldType ]
 
                     let env' =
                         if isNull symbol then env
@@ -250,14 +282,17 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             | None -> unsupported "pattern" at $"The type pattern '{typePattern.MatchedType.ToDisplayString()}' is not a case of a custom type."
 
         | :? IConstantPatternOperation as constant ->
-            if constant.Value.ConstantValue.HasValue && not (isNull constant.Value.ConstantValue.Value) then
+            // An enum member has a constant value too, so the enum test comes first: the member is a constructor, not its number.
+            let isEnum = not (isNull constant.Value.Type) && constant.Value.Type.TypeKind = TypeKind.Enum
+
+            if not isEnum && constant.Value.ConstantValue.HasValue && not (isNull constant.Value.ConstantValue.Value) then
                 check {
                     let! t = this.Type(at, pattern.InputType)
                     let! literal = this.LiteralOf(at, constant.Value.ConstantValue.Value, pattern.InputType)
                     let! p = builder.PatternLiteral(at, t, literal)
                     return p, env
                 }
-            elif constant.Value.Type <> null && constant.Value.Type.TypeKind = TypeKind.Enum then
+            elif isEnum then
                 // An enum constant: a constructor pattern with no arguments.
                 match constant.Value with
                 | :? IFieldReferenceOperation as field ->
@@ -596,7 +631,14 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
     member private this.Invocation(env: Env, at, invocation: IInvocationOperation) : Checked<'Value> =
         let target = invocation.TargetMethod
-        let arguments = [ for a in invocation.Arguments -> a.Value ]
+        // The operation gives the arguments in the order of the source. A named argument can come before an earlier
+        // parameter, so the arguments are put in the order of the parameters.
+        let ordinal (a: IArgumentOperation) =
+            match a.Parameter with
+            | null -> System.Int32.MaxValue
+            | parameter -> parameter.Ordinal
+
+        let arguments = [ for a in invocation.Arguments |> Seq.sortBy ordinal -> a.Value ]
         let parameters = [ for p in target.OriginalDefinition.Parameters -> p.Type ]
         let result = target.OriginalDefinition.ReturnType
 
@@ -625,18 +667,58 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 }
             | None -> unsupportedReference at (target.ToDisplayString())
 
+    /// <summary>
+    /// The value of each field of a record creation, in the order of the fields. A constructor argument gives the field
+    /// with the name of its parameter, and an object initializer then sets a field again. A field with no value is refused.
+    /// </summary>
+    member private this.FieldValues(at, creation: IObjectCreationOperation, typeName: string, fields: string list) : Checked<(string * IOperation) list> =
+        let given = Dictionary<string, IOperation>(System.StringComparer.Ordinal)
+
+        for argument in creation.Arguments do
+            match argument.Parameter with
+            | null -> ()
+            | parameter -> given[parameter.Name] <- argument.Value
+
+        let initializers =
+            match creation.Initializer with
+            | null -> []
+            | initializer -> List.ofSeq initializer.Initializers
+
+        let unknown =
+            initializers
+            |> List.tryPick (fun operation ->
+                match operation with
+                | :? ISimpleAssignmentOperation as assignment ->
+                    match assignment.Target with
+                    | :? IMemberReferenceOperation as reference ->
+                        given[reference.Member.Name] <- assignment.Value
+                        None
+                    | _ -> Some operation
+                | _ -> Some operation)
+
+        match unknown with
+        | Some operation -> unsupported "record_initializer" (locate operation.Syntax) $"The initializer of '{typeName}' sets something that is not a field."
+        | None ->
+            match fields |> List.tryFind (fun field -> not (given.ContainsKey field)) with
+            | Some missing ->
+                unsupported
+                    "record_initializer"
+                    at
+                    $"The record '{typeName}' is created without the field '{missing}'. A Morphir record value gives every field."
+            | None -> Checked.pass [ for field in fields -> field, given[field] ]
+
     member private this.Creation(env: Env, at, creation: IObjectCreationOperation) : Checked<'Value> =
         let created = creation.Type
-        let arguments = [ for a in creation.Arguments -> a.Value ]
 
         match this.CaseOf created with
         | Some(fq, case) ->
             let parameters = [ for _, _, fieldType in case.Fields -> fieldType ]
 
             check {
+                let! values = this.FieldValues(at, creation, created.Name, [ for _, member', _ in case.Fields -> member' ])
                 let! constructorType = this.Function(at, parameters, created)
                 let! constructor = builder.Constructor(at, constructorType, fq)
-                let! lowered = arguments |> Checked.traverse (fun a -> this.Value(env, a))
+                let! lowered = values |> Checked.traverse (fun (_, value) -> this.Value(env, value))
                 return! this.Apply(at, constructor, parameters, created, lowered)
             }
         | None ->
@@ -644,33 +726,11 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             | :? INamedTypeSymbol as named when plan.TypeNames.ContainsKey named.OriginalDefinition ->
                 match snd plan.TypeNames[named.OriginalDefinition] with
                 | { Kind = RecordAlias(fields, _) } ->
-                    let initializers =
-                        match creation.Initializer with
-                        | null -> []
-                        | initializer ->
-                            initializer.Initializers
-                            |> Seq.choose (function
-                                | :? ISimpleAssignmentOperation as a ->
-                                    match a.Target with
-                                    | :? IMemberReferenceOperation as m -> Some(m.Member.Name, a.Value)
-                                    | _ -> None
-                                | _ -> None)
-                            |> List.ofSeq
-
-                    let positional = List.zip (List.truncate arguments.Length [ for _, member', _ in fields -> member' ]) arguments
-
-                    let ordered =
-                        [ for _, member', _ in fields do
-                              match positional |> List.tryFind (fun (m, _) -> m = member') with
-                              | Some(_, value) -> yield member', value
-                              | None ->
-                                  match initializers |> List.tryFind (fun (m, _) -> m = member') with
-                                  | Some(_, value) -> yield member', value
-                                  | None -> () ]
-
                     check {
+                        let! values = this.FieldValues(at, creation, created.Name, [ for _, member', _ in fields -> member' ])
+
                         let! lowered =
-                            ordered
+                            values
                             |> Checked.traverse (fun (member', value) ->
                                 this.Value(env, value) |> Checked.map (fun v -> nameOf member', v))
 

@@ -163,6 +163,100 @@ module internal Planning =
 
             List.map fst items, List.map snd items
 
+    let private refusal (compiled: Compiled) (slug: string) (node: SyntaxNode) (message: string) =
+        Diagnostic.error (CSharpCodes.unsupported slug) message |> Diagnostic.at (locationOf compiled node)
+
+    /// <summary>Whether a property is an auto-property: it has accessors, and no accessor has a body.</summary>
+    let private isAutoProperty (property: PropertyDeclarationSyntax) =
+        isNull property.ExpressionBody
+        && not (isNull property.AccessorList)
+        && property.AccessorList.Accessors |> Seq.forall (fun accessor -> isNull accessor.Body && isNull accessor.ExpressionBody)
+
+    /// <summary>
+    /// The members of a record that the model has no place for. A positional record has only its parameters as fields,
+    /// and a record without parameters has only public auto-properties. Any other member, such as a computed property or
+    /// a method, would be lost, so it is refused.
+    /// </summary>
+    let private recordMemberRefusals (compiled: Compiled) (declaration: RecordDeclarationSyntax) =
+        let positional = not (isNull declaration.ParameterList)
+
+        [ for member' in declaration.Members do
+              let refuse (what: string) =
+                  refusal
+                      compiled
+                      "record_member"
+                      member'
+                      $"The record '{declaration.Identifier.Text}' has {what}. A Morphir record has only fields: give each field as a parameter of the record, and write computations as functions of a static class."
+
+              match member' with
+              | :? PropertyDeclarationSyntax as property when
+                  not positional
+                  && isAutoProperty property
+                  && property.Modifiers.Any(SyntaxKind.PublicKeyword)
+                  && not (property.Modifiers.Any(SyntaxKind.StaticKeyword))
+                  ->
+                  ()
+              | :? PropertyDeclarationSyntax as property when positional && isAutoProperty property ->
+                  yield refuse $"the property '{property.Identifier.Text}' outside its parameters"
+              | :? PropertyDeclarationSyntax as property -> yield refuse $"the computed or hidden property '{property.Identifier.Text}'"
+              | :? BaseTypeDeclarationSyntax -> ()
+              | :? MethodDeclarationSyntax as method -> yield refuse $"the method '{method.Identifier.Text}'"
+              | :? FieldDeclarationSyntax -> yield refuse "a field"
+              | _ -> yield refuse "a member that is not a field" ]
+
+    /// <summary>
+    /// The type declarations that the frontend does not read and that no admission rule refuses: a union (read from
+    /// group 7), an abstract record, a record that inherits from another record that is not closed, and the members of
+    /// a record or a static class that the model has no place for. Without these refusals the types would be left out.
+    /// </summary>
+    let private shapeRefusals (compiled: Compiled) (declaration: BaseTypeDeclarationSyntax) (symbol: INamedTypeSymbol) =
+        [ if symbol.IsUnion then
+              yield
+                  refusal
+                      compiled
+                      "union"
+                      declaration
+                      $"The union '{symbol.Name}' is not read yet. Write it as a closed record with one sealed record case for each case."
+          elif symbol.IsRecord && symbol.TypeKind = TypeKind.Class then
+              if symbol.IsAbstract && not symbol.IsClosed then
+                  yield
+                      refusal
+                          compiled
+                          "abstract_record"
+                          declaration
+                          $"The abstract record '{symbol.Name}' is not a Morphir type. Write 'closed record {symbol.Name}' so that its cases form a custom type."
+              elif not (isNull symbol.BaseType)
+                   && symbol.BaseType.SpecialType <> SpecialType.System_Object
+                   && not symbol.BaseType.IsClosed
+                   && not (symbol.BaseType.IsAbstract && symbol.BaseType.IsRecord) then
+                  yield
+                      refusal
+                          compiled
+                          "record_inheritance"
+                          declaration
+                          $"The record '{symbol.Name}' inherits from '{symbol.BaseType.Name}'. A Morphir record has no base: give every field to the record itself."
+
+              match declaration with
+              | :? RecordDeclarationSyntax as record -> yield! recordMemberRefusals compiled record
+              | _ -> ()
+          elif symbol.IsStatic && symbol.TypeKind = TypeKind.Class then
+              match declaration with
+              | :? TypeDeclarationSyntax as type' ->
+                  for member' in type'.Members do
+                      match member' with
+                      | :? MethodDeclarationSyntax
+                      | :? BaseTypeDeclarationSyntax
+                      | :? DelegateDeclarationSyntax -> ()
+                      | :? FieldDeclarationSyntax as field when field.Modifiers.Any(SyntaxKind.ConstKeyword) -> ()
+                      | _ ->
+                          yield
+                              refusal
+                                  compiled
+                                  "static_member"
+                                  member'
+                                  $"The static class '{symbol.Name}' has a member that is not a method or a constant. Write a value as a 'const' or as a static method."
+              | _ -> () ]
+
     /// <summary>Plans a package. Exposed modules follow the request: none listed means every public module.</summary>
     let plan
         (package: PackageName)
@@ -221,6 +315,9 @@ module internal Planning =
                           | null -> ()
                           | symbol -> yield model, declaration, symbol
                       | _ -> () ]
+
+        for _, declaration, symbol in declarations do
+            diagnostics.AddRange(shapeRefusals compiled declaration symbol)
 
         // The cases of each closed record, in source order.
         let casesOf =
