@@ -183,14 +183,19 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
         Check(workspace.ReadText(PublishedIr).Contains($"\"{name}\"", StringComparison.Ordinal), $"The published IR does not name {name}.");
     }
 
-    /// <summary>The frontend lowered a loop to recursion (LOP-1, OPT-1), not to the SDK function of a traversal.</summary>
-    [Then("the published IR has a LetRecursion and does not name the SDK function {string}")]
-    public void ThePublishedIrHasARecursion(string name)
+    /// <summary>The frontend lowered a loop to recursion (LOP-1, OPT-1).</summary>
+    [Then("the published IR has a LetRecursion")]
+    public void ThePublishedIrHasARecursion()
     {
         Check(workspace.Exists(PublishedIr), $"No IR is published at {PublishedIr.Path}.");
-        var ir = workspace.ReadText(PublishedIr);
-        Check(ir.Contains("\"LetRecursion\"", StringComparison.Ordinal), "The published IR has no LetRecursion.");
-        Check(!ir.Contains($"\"{name}\"", StringComparison.Ordinal), $"The published IR names {name}.");
+        Check(workspace.ReadText(PublishedIr).Contains("\"LetRecursion\"", StringComparison.Ordinal), "The published IR has no LetRecursion.");
+    }
+
+    [Then("the published IR does not name the SDK function {string}")]
+    public void ThePublishedIrDoesNotNameTheSdkFunction(string name)
+    {
+        Check(workspace.Exists(PublishedIr), $"No IR is published at {PublishedIr.Path}.");
+        Check(!workspace.ReadText(PublishedIr).Contains($"\"{name}\"", StringComparison.Ordinal), $"The published IR names {name}.");
     }
 
     [Then("the compilation report has the diagnostic {string} in {string} with the message {string}")]

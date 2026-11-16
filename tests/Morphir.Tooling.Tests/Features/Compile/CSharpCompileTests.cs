@@ -14,6 +14,7 @@ namespace Morphir.Tooling.Tests.Features.Compile;
 /// The compile command with the in-process C# frontend, as both hosts register it. The tests use the real frontend and
 /// the shared command layer, with no process and no project file.
 /// </summary>
+[Category("PlatformSpecific")]
 [NotInParallel(nameof(CSharpCompileTests))]
 public sealed class CSharpCompileTests
 {

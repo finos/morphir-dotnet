@@ -39,14 +39,15 @@ Feature: Compile C# on each host
     Then compilation exits with 0 and one JSON report
     And the published IR names the SDK function "morphir/SDK:list#foldl"
 
-  Scenario: A key of [frontend.csharp] lowers a loop to recursion, as the attribute does
+  Scenario: A key of [frontend.csharp] lowers a loop to recursion
     Given the C# source file "src/Totals.cs" with a loop that sums a list, of the package "acme/demo"
     And the morphir.toml of the project sets the key "loop_lowering" of [frontend.csharp] to "recursion"
     When I compile the C# source file
     Then compilation exits with 0 and one JSON report
-    And the published IR has a LetRecursion and does not name the SDK function "morphir/SDK:list#foldl"
+    And the published IR has a LetRecursion
+    And the published IR does not name the SDK function "morphir/SDK:list#foldl"
 
-  Scenario: A malformed key of [frontend.csharp] fails the compile before the frontend runs
+  Scenario: A malformed key of [frontend.csharp] fails the compile with no IR
     Given the C# source file "src/Totals.cs" with a loop that sums a list, of the package "acme/demo"
     And the morphir.toml of the project sets the key "loop_lowering" of [frontend.csharp] to "sideways"
     When I compile the C# source file

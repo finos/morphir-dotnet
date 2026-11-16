@@ -342,9 +342,9 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         /// <c>extension</c> and <c>project_file</c>, which select the frontend and the sources, with <c>-</c> for <c>_</c>
         /// (<c>loop_lowering</c> is <c>loop-lowering</c>).
         /// </summary>
-        public ImmutableDictionary<string, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>> FrontendOptionTables()
+        public ImmutableDictionary<LanguageId, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>> FrontendOptionTables()
         {
-            var tables = ImmutableDictionary.CreateBuilder<string, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>>(StringComparer.Ordinal);
+            var tables = ImmutableDictionary.CreateBuilder<LanguageId, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>>();
             if (Find(["frontend"]) is not { } frontend) return tables.ToImmutable();
             foreach (var language in ConfigValueProjections.Tables(frontend))
             {
@@ -354,7 +354,8 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
                         .Where(pair => pair.Key is not ("extension" or "project_file"))
                         .Select(pair => new KeyValuePair<string, System.Text.Json.JsonElement>(pair.Key.Replace('_', '-'), pair.Value))
                 ];
-                if (options.Length > 0) tables[language] = options;
+                // A table name that is not a language id names no frontend, so no frontend can read its keys.
+                if (options.Length > 0 && LanguageId.TryParse(language, out var id, out _)) tables[id] = options;
             }
             return tables.ToImmutable();
         }

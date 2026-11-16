@@ -140,6 +140,8 @@ type CompileRequestFailure =
     | ReservedOption of name: string
     /// <summary>An extra option name appears more than once.</summary>
     | RepeatedOption of name: string
+    /// <summary>An extra option has no JSON value (<c>default(JsonElement)</c>).</summary>
+    | UndefinedOption of name: string
 
     override this.ToString() =
         match this with
@@ -155,12 +157,14 @@ type CompileRequestFailure =
         | ReservedOption name ->
             $"The compile option '{name}' cannot be an extra option: the MEP compile options reserve the names typesOnly, irVersion, sourceRootUri and sourceRoot."
         | RepeatedOption name -> $"The extra compile option '{name}' appears more than once."
+        | UndefinedOption name -> $"The extra compile option '{name}' has no JSON value."
 
 /// <summary>
 /// One complete compilation of a source set (MEP <c>CompileModelRequest</c>). Only <c>Parse</c>,
 /// <c>TryParse</c> and <c>Create</c> build one, so a request always has a language, a package and at least
 /// one document; every document has a URI, a text and the request's language; and the URIs are unique.
 /// </summary>
+[<NoEquality; NoComparison>]
 type CompileRequest =
     private
         {
@@ -234,7 +238,7 @@ type CompileRequest =
 
         let reserved =
             options
-            |> Array.tryFind (fun pair -> List.contains pair.Key CompileRequest.ReservedOptionNames)
+            |> Array.tryFind (fun pair -> Array.contains pair.Key CompileRequest.ReservedOptionNames)
 
         match reserved with
         | Some pair -> Error(CompileRequestFailure.ReservedOption pair.Key)
@@ -247,6 +251,8 @@ type CompileRequest =
                     match state with
                     | Error _ -> state
                     | Ok() when extra.ContainsKey pair.Key -> Error(CompileRequestFailure.RepeatedOption pair.Key)
+                    | Ok() when pair.Value.ValueKind = Text.Json.JsonValueKind.Undefined ->
+                        Error(CompileRequestFailure.UndefinedOption pair.Key)
                     | Ok() ->
                         extra.Add(pair.Key, pair.Value.Clone())
                         Ok())
@@ -272,7 +278,7 @@ type CompileRequest =
             false
 
     /// <summary>The names that the MEP compile options reserve; an extra option cannot have one.</summary>
-    static member ReservedOptionNames = [ "typesOnly"; "irVersion"; "sourceRootUri"; "sourceRoot" ]
+    static member private ReservedOptionNames = [| "typesOnly"; "irVersion"; "sourceRootUri"; "sourceRoot" |]
 
     override this.ToString() =
         $"{this.LanguageValue} request with {this.DocumentsValue.Length} document(s) for {this.OutputValue}"

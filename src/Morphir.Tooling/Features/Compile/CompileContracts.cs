@@ -234,12 +234,12 @@ public sealed record CompileSettings
     /// selected frontend to it as the extra options of the compile request (the <c>extra</c> members of the MEP
     /// <c>CompileOptions</c>). See <see cref="FrontendOptionsOf"/>.
     /// </summary>
-    public ImmutableDictionary<string, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>> FrontendOptions { get; init; } =
-        ImmutableDictionary<string, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>>.Empty.WithComparers(StringComparer.Ordinal);
+    public ImmutableDictionary<LanguageId, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>> FrontendOptions { get; init; } =
+        ImmutableDictionary<LanguageId, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>>.Empty;
 
     /// <summary>The extra options of the frontend of a language, from its <c>[frontend.&lt;language&gt;]</c> table. None when the table has none.</summary>
     public ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>> FrontendOptionsOf(LanguageId language) =>
-        FrontendOptions.TryGetValue(language.Value, out var options) ? options : [];
+        FrontendOptions.TryGetValue(language, out var options) ? options : [];
     /// <summary>The project root, or null outside any project.</summary>
     public string? ProjectRoot { get; init; }
     /// <summary>The out root of the workspace (REC-1), for example <c>&lt;workspace&gt;/.morphir/out</c>.</summary>

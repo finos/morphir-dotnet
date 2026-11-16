@@ -292,6 +292,13 @@ let tests =
             |> refused (CompileRequestFailure.RepeatedOption "loop-lowering")
         }
 
+        test "An extra option with no JSON value is refused, not thrown" {
+            // C# can pass default(JsonElement), which has no value to clone.
+            parse fsharp [ document "A.fs" ] package null
+            |> Result.bind (fun request -> request.WithExtraOptions [ Collections.Generic.KeyValuePair("loop-lowering", Unchecked.defaultof<System.Text.Json.JsonElement>) ])
+            |> refused (CompileRequestFailure.UndefinedOption "loop-lowering")
+        }
+
         test "TryWithExtraOptions sets the request or the failure" {
             use value = System.Text.Json.JsonDocument.Parse "1"
             let request = parse fsharp [ document "A.fs" ] package null |> Result.defaultWith (fun failure -> failtest $"{failure}")
@@ -316,6 +323,7 @@ let tests =
                     CompileRequestFailure.RepeatedUri "A.fs"
                     CompileRequestFailure.ReservedOption "typesOnly"
                     CompileRequestFailure.RepeatedOption "loop-lowering"
+                    CompileRequestFailure.UndefinedOption "loop-lowering"
                 ] do
                 Expect.isNotEmpty (failure.ToString()) "The refusal can be shown"
         }
