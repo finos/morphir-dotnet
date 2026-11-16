@@ -153,8 +153,15 @@ module internal CSharpCompiler =
         uriOf compiled token.SyntaxTree
         |> Option.map (fun uri -> locate uri (token.GetLocation().GetLineSpan()))
 
+    /// The data member <c>{"id": id}</c>. The writer needs no reflection, so the Native AOT host can call it.
     let private dataOf (id: string) =
-        use document = JsonDocument.Parse(JsonSerializer.Serialize(dict [ "id", id ]))
+        use buffer = new System.IO.MemoryStream()
+        use writer = new Utf8JsonWriter(buffer)
+        writer.WriteStartObject()
+        writer.WriteString("id", id)
+        writer.WriteEndObject()
+        writer.Flush()
+        use document = JsonDocument.Parse(buffer.ToArray())
         document.RootElement.Clone()
 
     let private severityOf (severity: Microsoft.CodeAnalysis.DiagnosticSeverity) =
