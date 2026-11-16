@@ -38,6 +38,7 @@
         <Compile Include="FrontendFidelityTests.fs" />
         <Compile Include="FrontendValueClassTests.fs" />
         <Compile Include="FrontendUnionTests.fs" />
+        <Compile Include="FrontendDocsTests.fs" />
         <Compile Include="SdkMappingTests.fs" />
         <Compile Include="CatalogTests.fs" />
         <Compile Include="TargetPassTests.fs" />

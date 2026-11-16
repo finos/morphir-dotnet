@@ -116,6 +116,22 @@ let tests =
                   "only the modifier changes"
           }
 
+          test "the fix gives the fixed form of the frontend page for the older encoding of the page" {
+              // The sum type section of docs/content/docs/frontends/csharp/_index.md has the two forms, the older
+              // encoding and the fixed form, in this order.
+              let page =
+                  System.IO.File
+                      .ReadAllText(System.IO.Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "docs", "content", "docs", "frontends", "csharp", "_index.md"))
+                      .Replace("\r\n", "\n")
+
+              let section = page.Substring(page.IndexOf "\n### Sum types\n")
+              let section = section.Substring(0, section.IndexOf("\n### ", 1))
+
+              match section.Split("```csharp\n") |> Array.skip 1 |> Array.map (fun block -> block.Substring(0, block.IndexOf "```")) with
+              | [| _; older; fixedForm |] -> Expect.equal (fixedText older) fixedForm "the documented result of the fix"
+              | blocks -> failtest $"Expected three C# examples, got {blocks.Length}"
+          }
+
           test "no fix is offered for a closed record or a union" {
               let source =
                   "namespace Acme.Trading.Domain;\npublic sealed record Cat(string Name);\npublic sealed record Dog(string Name);\npublic union Pet(Cat, Dog);\n"

@@ -18,8 +18,8 @@ The C# frontend is a built-in of every offering: the Native AOT `morphir`, the s
 `morphir`, and `dotnet-morphir`. Roslyn runs under Native AOT, so nothing is downloaded or installed. See
 [`morphir extension list`]({{< relref "/docs/cli/management" >}}) and [compile]({{< relref "/docs/cli/compile" >}}).
 
-This delivery has the frontend for types and for simple values. The rest of the C# language support follows in the
-same change: the IR upgrade, the middle end, the Roslyn backend, loops and options, unions, and generation in a build.
+This delivery has the frontend for types, sum types (closed records and unions) and simple values. The rest of the C#
+language support follows in the same change: loops and options, and generation in a build.
 The plan is the [C# language support PRD](https://github.com/finos/morphir-dotnet/blob/main/docs/content/contributing/design/prds/csharp-language-support.md).
 
 ## Input
@@ -96,10 +96,81 @@ The frontend refuses a type that it cannot give in full, so no type or field is 
 | `csharp.unsupported_union_member` | A member or a base list of a `union`. A custom type has only its cases. |
 | `csharp.unsupported_union_case` | A case of a `union` with no name (a type parameter, a tuple or a function), or a case record of a `closed record`. |
 
+### Sum types
+
+Two C# forms give a Morphir custom type. For each form, the C# compiler checks that a `switch` has an arm for each
+case.
+
+| C# form | Morphir custom type | Use |
+| --- | --- | --- |
+| `closed record Price;` with `sealed record Quote(decimal Value) : Price;` | `type Price = Quote Decimal` | A new sum type. A case exists only as a constructor, and the constructor holds the fields. This is the preferred form. |
+| `union Shape(Circle, Rect);` | `type Shape = Circle Circle \| Rect Rect` | The cases are types that the model also uses by themselves. A constructor wraps one such type. |
+
+```csharp
+namespace Acme.Trading.Domain;
+
+public closed record Price;
+public sealed record Quote(decimal Value) : Price;
+public sealed record NoQuote : Price;
+
+public sealed record Circle(double Radius);
+public sealed record Rect(double W, double H);
+public union Shape(Circle, Rect);
+
+public static class Geometry
+{
+    public static Shape Unit() => new Circle(1.0);
+
+    public static double Area(Shape s) => s switch
+    {
+        Circle c => 3.14 * c.Radius * c.Radius,
+        Rect r => r.W * r.H,
+    };
+}
+```
+
+The module `domain` has the custom types `Price`, with the constructors `Quote` (one argument `value`) and `NoQuote`,
+and `Shape`, with the constructors `Circle` and `Rect`. The constructor of a union case has one argument `value`, the
+case value. `Unit` applies the constructor `Circle` to the record, and `Area` matches the constructors. The C# backend
+writes the same two forms (see [C# generation]({{< relref "/docs/backends/csharp" >}})), so the C# of a model comes
+back to the same model.
+
 A union converts to a custom type when each case type is a Morphir type reference: a record, a custom type, a
 different union or an SDK type. The constructor has the local name of that reference: `union Amount(int, string)`
 has the constructors `Int` and `String`. The constructors of a module must have different names, so two unions of one
 module with the case `Circle`, or `union Lists(List<int>, List<string>)`, give `csharp.name_collision`.
+
+An older encoding of a sum type, an `abstract record` with a private constructor and `sealed record` cases, is not a
+Morphir type. The rule `MORPHIR1009` (`csharp.unsupported_abstract_record`) reports it in the IDE, in `dotnet build`
+and in `morphir compile`. A `closed record` and a union are not reported.
+
+```csharp
+namespace Acme.Trading.Domain;
+
+public abstract record Side
+{
+    private Side() { }
+    public sealed record Buy(decimal Quantity) : Side;
+    public sealed record Sell(decimal Quantity) : Side;
+}
+```
+
+An IDE that loads `Morphir.Lang.CSharp.CodeFixes` offers the code fix **Change to a closed record** at the report. The
+fix writes `closed` in place of `abstract` and removes the constructors of the record. The cases, their fields and their
+places do not change, so the model has the custom type `Side` with the constructors `Buy` and `Sell`:
+
+```csharp
+namespace Acme.Trading.Domain;
+
+public closed record Side
+{
+    public sealed record Buy(decimal Quantity) : Side;
+    public sealed record Sell(decimal Quantity) : Side;
+}
+```
+
+The fix never changes a union. The code fix assembly uses the Workspaces layer of Roslyn, so `morphir`,
+`dotnet-morphir` and `morphir compile` do not load it.
 
 ### Value classes of type parameters
 
