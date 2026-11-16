@@ -728,3 +728,46 @@ The publish passed with one `IL2104` for `Microsoft.CodeAnalysis`. The probe ran
 - `finos/morphir`, `docs/user-guides/cli-tools/ir-migrate.md`: `morphir migrate` with `--target-version latest`.
 - `finos/morphir`, `docs/spec/ir/node-addresses.md` and `docs/spec/ir/fixtures/node-addresses-draft.json`: the semantic node address, the Morphir URI, the positional guard, the V3 `NodeID` conversion and the sidecar envelope. Issue #957 is closed. The fixture has the status "draft with executable subset".
 - `finos/morphir-elm`, `src/Morphir/IR/NodeId.elm`: the V3 `NodeID` (`TypeID`, `ValueID`, `ModuleID`, with `ChildByName` and `ChildByIndex` steps).
+
+### Native AOT and dotnet-morphir conformance, 2026-11-15
+
+This section is the evidence of task 9.2. All runs are on macOS arm64 with .NET SDK 11.0.100, for the product of commit `18b8fb20` (version `0.5.0-alpha.3+18b8fb20ecedcd0441c19c79f940cceda35fbe8b`). The loop lowering of tasks 6.2 to 6.4 is not in this commit. Run the checks again when that work is complete.
+
+**Frontend.** `tests/Morphir.Lang.CSharp.Tests/CliAdapterTests.fs` runs the `frontend-csharp` suite through the MCK `cli` adapter. The adapter writes a `.csproj` for the `project file` rows (`CliAdapter.csharpProjectFile`). The suite has 20 cases and 60 variants: 3 input kinds for each case, IR version 4. The test compares the model and the diagnostics of each variant with the `library` adapter. The Native AOT test also compares each variant with the `dotnet-morphir` of the development build.
+
+| Adapter | Implementation | SHA-256 of the implementation | Variants | Verdicts |
+| --- | --- | --- | --- | --- |
+| `library` | `Morphir.Lang.CSharp` in process | `17f1bf81050c…` | 60 | 60 passed (6 successes, 54 refusals), qualified |
+| `cli` | `dotnet-morphir compile` (tool host, development build) | `76af951899f5…` | 60 | 60 passed, qualified |
+| `cli` | Native AOT `morphir compile`, `osx-arm64`, 84,689,880 bytes | `6e5033567a42…` | 60 | 60 passed, qualified |
+
+The three reports have the same models and diagnostics for each variant. The only difference is the layout of the JSON text: the CLI writes indented JSON. A normalized list of the observations (each model parsed, the diagnostics and the success flag) has the SHA-256 `2e54e48f4c3411a0f0ad0c1d87ee82bb97e22481ec0792bdc5ee2c52331eb1a4` for each of the three.
+
+**Backend.** The scenarios of `tests/Morphir.BlackBox.Tests/Integration/CSharpGenerationCommand.feature` ran on three targets. The scenario "The generated C# of the Acme.Trading model is the reviewed C#" passed on each of them. The outline "Both hosts write the same C# bytes" now has the Acme.Trading model as a second row. It compares the native host with `dotnet-morphir`, so a pull request checks the full model on the two hosts.
+
+| Target | Host | Scenarios |
+| --- | --- | --- |
+| Development build | native (default) | 9 passed |
+| Development build | `dotnet-morphir` | 9 passed |
+| Native AOT executable | native | 7 passed, 2 skipped (the two rows of "Both hosts write the same C# bytes" need all hosts) |
+
+A direct check gave the same result: `morphir generate` (Native AOT) and `dotnet-morphir generate` wrote the same 3 files with the same bytes for `tests/Fixtures/CSharpGeneration/acme-trading/model.json`. The files are equal to `tests/Fixtures/CSharpGeneration/acme-trading/generated`.
+
+Reproduce on macOS arm64:
+
+```console
+./build.sh --target PublishExecutable --rid osx-arm64 --configuration Release
+dotnet build tests/Morphir.Lang.CSharp.Tests -c Release
+dotnet build tests/Morphir.BlackBox.Tests -c Release
+MORPHIR_MCK_REPORT_DIR=/tmp/mck-tool \
+  dotnet tests/Morphir.Lang.CSharp.Tests/bin/Release/net11.0/Morphir.Lang.CSharp.Tests.dll \
+  --sequenced --filter-test-list "C# corpus through the MCK cli adapter (task 9.2)"
+MORPHIR_TEST_TARGET=aot MORPHIR_MCK_REPORT_DIR=/tmp/mck-aot \
+  dotnet tests/Morphir.Lang.CSharp.Tests/bin/Release/net11.0/Morphir.Lang.CSharp.Tests.dll \
+  --sequenced --filter-test-list "C# corpus through the MCK cli adapter (task 9.2)"
+FILTER='/*/*/GenerateCThroughTheExistingCommandFeature/*'
+dotnet exec tests/Morphir.BlackBox.Tests/bin/Release/net11.0/Morphir.BlackBox.Tests.dll --treenode-filter "$FILTER"
+MORPHIR_TEST_HOST=tool dotnet exec tests/Morphir.BlackBox.Tests/bin/Release/net11.0/Morphir.BlackBox.Tests.dll --treenode-filter "$FILTER"
+MORPHIR_TEST_TARGET=aot MORPHIR_TEST_LANE=published \
+  dotnet exec tests/Morphir.BlackBox.Tests/bin/Release/net11.0/Morphir.BlackBox.Tests.dll --treenode-filter "$FILTER"
+```
