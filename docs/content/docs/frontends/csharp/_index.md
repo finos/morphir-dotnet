@@ -90,7 +90,6 @@ The frontend refuses a type that it cannot give in full, so no type or field is 
 
 | Code | C# |
 | --- | --- |
-| `csharp.unsupported_abstract_record` | An `abstract record`. Write a `closed record`. |
 | `csharp.unsupported_record_inheritance` | A record that inherits from a record that is not closed. Its inherited fields have no place in a Morphir record. |
 | `csharp.unsupported_record_member` | A record member that is not a field: a computed property, a method, a field, or a property of a positional record outside its parameters. |
 | `csharp.unsupported_static_member` | A member of a static class that is not a method, a constant or a nested type, for example a static property or a `static readonly` field. |

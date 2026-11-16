@@ -225,6 +225,13 @@ public sealed class AdmissionAnalyzer : DiagnosticAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(
                 Rules.TypeKind.Descriptor, type.Locations.FirstOrDefault(), kind, type.Name));
         }
+
+        // A closed record is abstract too, so the test is for an abstract record that is not closed.
+        if (type.TypeKind == TypeKind.Class && type.IsRecord && type.IsAbstract && !type.IsClosed)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                Rules.OlderSumType.Descriptor, type.Locations.FirstOrDefault(), type.Name));
+        }
     }
 
     private static void ReportMembers(SymbolAnalysisContext context, IAssemblySymbol own)

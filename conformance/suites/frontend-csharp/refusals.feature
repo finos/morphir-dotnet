@@ -163,3 +163,26 @@ Feature: Refuse what the Morphir subset leaves out
       | files        | 4       |
       | directory    | 4       |
       | project file | 4       |
+
+  Scenario Outline: frontend-csharp-0008 An older encoding of a sum type is refused
+    Given the C# package "acme/demo" exposing "Shapes"
+    And the source "Shapes.cs":
+      """csharp
+      namespace Acme.Demo.Shapes;
+      public abstract record Shape
+      {
+          private Shape() { }
+          public sealed record Circle(double R) : Shape;
+      }
+      """
+    When it is compiled from <input> with IR version <version>
+    Then compilation fails with diagnostics:
+      """json
+      [{"severity":"error","code":"csharp.unsupported_abstract_record","location":{"uri":"Shapes.cs","range":{"start":{"line":1,"character":23},"end":{"line":1,"character":28}}}}]
+      """
+
+    Examples:
+      | input        | version |
+      | files        | 4       |
+      | directory    | 4       |
+      | project file | 4       |

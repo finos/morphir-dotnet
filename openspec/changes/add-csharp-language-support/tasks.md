@@ -77,7 +77,7 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 
 - [x] 7.1 Write failing tests and implement union lowering: construction, conversion, patterns, `is`, the refusals (type parameter case, tuple case, shared case type, `default`, `null` arm, `.Value`, `IUnion`). Verify with the inputs in `spikes/csharp-language-support/union/api/inputs/`.
 - [x] 7.2 Implement the backend `union` output for wrapper constructors and the mixed-shape rule. Verify the round trip from IR to C# to IR for a wrapper type and a mixed type.
-- [ ] 7.3 Add the analyzer rule for older sum type encodings, the same refusal in the frontend, and the rule that a `closed record` or a union is not reported. Verify with analyzer tests.
+- [x] 7.3 Add the analyzer rule for older sum type encodings, the same refusal in the frontend, and the rule that a `closed record` or a union is not reported. Verify with analyzer tests.
 - [ ] 7.4 Add `Morphir.Lang.CSharp.CodeFixes` with the code fix to the closed form, loaded by an IDE only. Verify with a Roslyn code fix test, and with a closure test that no host references the assembly or any Workspaces assembly.
 - [ ] 7.5 Document the sum type forms and the fix in `docs/`. Verify that the documented example compiles.
 

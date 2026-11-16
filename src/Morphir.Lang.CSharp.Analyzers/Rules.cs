@@ -117,9 +117,21 @@ public static class Rules
         "The attribute suppresses the Morphir rule '{0}'. A construct that a Morphir rule refuses cannot become a model; change the construct.",
         "[System.Diagnostics.CodeAnalysis.SuppressMessage(\"Morphir\", \"MORPHIR1001\")]\nstatic class M\n{\n    public static int F() => 1;\n}");
 
+    /// <summary>
+    /// An older encoding of a sum type: an <c>abstract record</c> (with a private constructor and <c>sealed record</c>
+    /// cases) that is not <c>closed</c>. The preferred form is a <c>closed record</c>, and the code fix of
+    /// <c>Morphir.Lang.CSharp.CodeFixes</c> changes the older form to it. A <c>closed record</c> and a union are not
+    /// reported.
+    /// </summary>
+    public static readonly AdmissionRule OlderSumType = new(
+        "MORPHIR1009", "abstract_record",
+        "An older encoding of a sum type is not in the Morphir subset",
+        "The abstract record '{0}' is an older encoding of a sum type. Write 'closed record {0}' with 'sealed record' cases.",
+        "public abstract record Shape\n{\n    private Shape() { }\n    public sealed record Circle(double Radius) : Shape;\n    public sealed record Rect(double W, double H) : Shape;\n}");
+
     /// <summary>The rules, in id order.</summary>
     public static IReadOnlyList<AdmissionRule> All { get; } = ImmutableArray.Create(
-        Loop, Mutation, Dynamic, MutableProperty, OutsideReference, TypeKind, MutableField, Suppression);
+        Loop, Mutation, Dynamic, MutableProperty, OutsideReference, TypeKind, MutableField, Suppression, OlderSumType);
 
     /// <summary>Finds a rule by its Roslyn id.</summary>
     public static bool TryGetById(string id, out AdmissionRule rule)

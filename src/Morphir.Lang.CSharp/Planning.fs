@@ -208,9 +208,9 @@ module internal Planning =
               | _ -> yield refuse "a member that is not a field" ]
 
     /// <summary>
-    /// The type declarations that the frontend does not read and that no admission rule refuses: an abstract record, a
-    /// record that inherits from another record that is not closed, and the members of a record, a union or a static class
-    /// that the model has no place for. Without these refusals the types or members would be left out.
+    /// The type declarations that the frontend does not read and that no admission rule refuses: a record that inherits
+    /// from another record that is not closed, and the members of a record, a union or a static class that the model has
+    /// no place for. Without these refusals the types or members would be left out.
     /// </summary>
     let private shapeRefusals (compiled: Compiled) (declaration: BaseTypeDeclarationSyntax) (symbol: INamedTypeSymbol) =
         [ if symbol.IsUnion then
@@ -234,14 +234,8 @@ module internal Planning =
                               $"The union '{symbol.Name}' has a member. A Morphir custom type has only its cases: write computations as functions of a static class."
               | _ -> ()
           elif symbol.IsRecord && symbol.TypeKind = TypeKind.Class then
-              if symbol.IsAbstract && not symbol.IsClosed then
-                  yield
-                      refusal
-                          compiled
-                          "abstract_record"
-                          declaration
-                          $"The abstract record '{symbol.Name}' is not a Morphir type. Write 'closed record {symbol.Name}' so that its cases form a custom type."
-              elif not (isNull symbol.BaseType)
+              // An abstract record that is not closed is refused by the admission rule MORPHIR1009, before the plan.
+              if not (isNull symbol.BaseType)
                    && symbol.BaseType.SpecialType <> SpecialType.System_Object
                    && not symbol.BaseType.IsClosed
                    && not (symbol.BaseType.IsAbstract && symbol.BaseType.IsRecord) then

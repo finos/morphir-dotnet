@@ -31,6 +31,7 @@ of its diagnostic. Codes are stable once released.
 | [`csharp.unsupported_type_kind`](#csharp-unsupported-type-kind) | `MORPHIR1006` | This kind of type is not in the Morphir subset |
 | [`csharp.unsupported_mutable_field`](#csharp-unsupported-mutable-field) | `MORPHIR1007` | A field that can change is not in the Morphir subset |
 | [`csharp.unsupported_suppression`](#csharp-unsupported-suppression) | `MORPHIR1008` | A suppression of a Morphir rule is not in the Morphir subset |
+| [`csharp.unsupported_abstract_record`](#csharp-unsupported-abstract-record) | `MORPHIR1009` | An older encoding of a sum type is not in the Morphir subset |
 
 ## `csharp.unsupported_loop`
 
@@ -149,5 +150,22 @@ Example:
 static class M
 {
     public static int F() => 1;
+}
+```
+
+## `csharp.unsupported_abstract_record`
+
+- Roslyn id: `MORPHIR1009`
+- Message: The abstract record '…' is an older encoding of a sum type. Write 'closed record …' with 'sealed record' cases.
+- IRI: `https://morphir.finos.org/rules/csharp/unsupported_abstract_record`
+
+Example:
+
+```csharp
+public abstract record Shape
+{
+    private Shape() { }
+    public sealed record Circle(double Radius) : Shape;
+    public sealed record Rect(double W, double H) : Shape;
 }
 ```

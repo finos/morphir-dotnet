@@ -96,6 +96,26 @@ let tests =
                     Expect.isEmpty (ids source) "no diagnostic"
                 }
 
+                test "an abstract record with a private constructor and nested sealed record cases is an older sum type encoding" {
+                    let source =
+                        "public abstract record Shape\n{\n    private Shape() { }\n    public sealed record Circle(double Radius) : Shape;\n    public sealed record Rect(double W, double H) : Shape;\n}"
+
+                    onlyRule Rules.OlderSumType source
+                    Expect.equal (diagnose source |> List.map (fun (_, line, _) -> line)) [ 1 ] "at the abstract record"
+                }
+
+                test "an abstract record with its cases beside it is an older sum type encoding" {
+                    onlyRule Rules.OlderSumType "public abstract record Shape;\npublic sealed record Circle(double Radius) : Shape;"
+                }
+
+                test "a closed record and a union are not reported as an older sum type encoding" {
+                    let source =
+                        "public closed record Shape;\npublic sealed record Circle(double Radius) : Shape;\npublic sealed record Cat(string Name);\npublic sealed record Dog(string Name);\npublic union Pet(Cat, Dog);"
+
+                    Expect.isEmpty (compileErrors source) "valid C# 15"
+                    Expect.isEmpty (ids source) "the preferred forms"
+                }
+
                 test "a type from an assembly outside the reference set is refused" {
                     Expect.equal (callInto "Acme.Other") [ Rules.OutsideReference.Id ] "the call into Acme.Other is refused"
                 }

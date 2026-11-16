@@ -247,9 +247,18 @@ let declarations =
               Expect.contains (refusal types "") "csharp.unsupported_record_inheritance" "the inherited field would be lost"
           }
 
-          test "an abstract record is refused" {
-              let types = "public abstract record Shape;\npublic sealed record Circle(double R) : Shape;"
-              Expect.contains (refusal types "") "csharp.unsupported_abstract_record" "use a closed record"
+          test "an abstract record is refused as an older sum type encoding, with the rule of the analyzer" {
+              let types = "public abstract record Shape\n{\n    private Shape() { }\n    public sealed record Circle(double R) : Shape;\n}"
+
+              match errors types "" with
+              | [ diagnostic ] ->
+                  Expect.equal (Diagnostic.code diagnostic |> Option.map (fun c -> c.Value)) (Some "csharp.unsupported_abstract_record") "the code of MORPHIR1009"
+                  Expect.stringContains diagnostic.Message "older encoding of a sum type" "the message of the rule"
+
+                  match Diagnostic.location diagnostic with
+                  | Some location -> Expect.equal (location.Range.Start.Line, location.Range.Start.Character) (5, 23) "at the name of the record"
+                  | None -> failtest "no location"
+              | other -> failtest $"Expected one error, got {other}"
           }
 
           test "a static property of a static class is refused" {
