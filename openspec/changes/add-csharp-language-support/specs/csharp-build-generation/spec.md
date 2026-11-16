@@ -31,12 +31,17 @@ The source generator SHALL read each `*.morphir.json` additional file, run the p
 
 ### Requirement: The generator loads in the supported compilers
 
-The generator SHALL target `netstandard2.0`, SHALL compile against the oldest Roslyn that it supports, and SHALL ship `FSharp.Core` beside it. It SHALL load and generate in the compilers of each supported .NET SDK.
+The generator SHALL target `netstandard2.0`, SHALL compile against the oldest Roslyn that it supports, and SHALL ship `FSharp.Core` beside it. It SHALL load and generate in the compilers of each supported .NET SDK. The oldest supported Roslyn is 5.12.0, the compiler of .NET SDK 11.0.100, because the generated code is C# 15.
 
 #### Scenario: SDK matrix
 
-- **WHEN** the generator builds a consumer with SDK 10.0.100, 10.0.403 and 11.0.100
-- **THEN** each build generates the code
+- **WHEN** a consumer of the package builds with SDK 10.0.100, 10.0.403 and 11.0.100
+- **THEN** the build with SDK 11.0.100 generates the code, and the builds with SDK 10.0.100 and 10.0.403 report the error that names SDK 11
+
+#### Scenario: A compiler older than the Roslyn of the generator
+
+- **WHEN** the compiler of SDK 10.0.100 or 10.0.403 gets the generator as an analyzer, with no file of the package
+- **THEN** the compiler does not load the generator and reports `CS9057`
 
 ### Requirement: Untested hosts are not claimed
 

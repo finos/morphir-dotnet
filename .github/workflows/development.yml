@@ -241,6 +241,21 @@ jobs:
             - name: Run build tests
               shell: bash
               run: ./build.sh --target TestBuild --configuration ${{ env.CONFIGURATION }} --skip Restore Compile
+            # The SDK matrix of the C# build integration (design.html, BLD-1): a consumer of the packed Morphir.Lang.CSharp
+            # with SDK 10.0.100, 10.0.403 and 11.0.100. SDK 11 generates; an older SDK stops with MORPHIR2010, and the
+            # generator, which compiles against the Roslyn of SDK 11.0.100, does not load in its compiler. One OS is
+            # enough: the check is about the compiler of each SDK.
+            - name: Install the SDKs of the C# generator matrix
+              if: matrix.os == 'ubuntu-latest'
+              uses: actions/setup-dotnet@v5
+              with:
+                  dotnet-version: |
+                      10.0.100
+                      10.0.403
+            - name: Check the C# generator in the SDK matrix
+              if: matrix.os == 'ubuntu-latest'
+              shell: bash
+              run: scripts/csharp-sdk-matrix.sh artifacts/packages 10.0.100 10.0.403 11.0.100
 
     openspec:
         name: OpenSpec workflow
