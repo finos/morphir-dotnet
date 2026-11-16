@@ -31,6 +31,9 @@ public sealed class MorphirCSharpGenerator : IIncrementalGenerator
     /// <summary>The MSBuild property with the namespace of all generated files. Empty: the namespace of the package of the model.</summary>
     public const string NamespaceProperty = "build_property.MorphirCSharpNamespace";
 
+    // UTF-8 with no byte order mark: the bytes of the CLI and of the MSBuild target, also in EmitCompilerGeneratedFiles.
+    private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
+
     private const string HelpLink = "https://morphir.finos.org/rules/csharp/generation_failed";
 
     /// <summary>The generation of a model failed. The message has the model file, the code and the reason.</summary>
@@ -126,7 +129,7 @@ public sealed class MorphirCSharpGenerator : IIncrementalGenerator
                 }
 
                 added.Add(file.RelativePath, (model.Path, file.Text));
-                output.AddSource(file.RelativePath, SourceText.From(file.Text, Encoding.UTF8));
+                output.AddSource(file.RelativePath, SourceText.From(file.Text, Utf8));
             }
         }
     }

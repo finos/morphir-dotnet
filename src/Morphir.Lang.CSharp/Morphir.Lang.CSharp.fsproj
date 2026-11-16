@@ -36,10 +36,13 @@
         -->
         <!--
           One package. The analyzer and attribute assemblies are not packages of their own: their project references are
-          private, and IncludeBundledAssemblies puts their DLLs in lib/ beside this assembly. Group 8 of tasks.md adds the
-          analyzers/ folder, the MSBuild target and the generator to this package.
+          private, and IncludeBundledAssemblies puts their DLLs in lib/ beside this assembly. IncludeBuildIntegration adds
+          the build integration (design.html, BLD-1): analyzers/dotnet/cs, tasks/netstandard2.0 and build/.
         -->
         <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeBundledAssemblies</TargetsForTfmSpecificBuildOutput>
+        <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeBuildIntegration</TargetsForTfmSpecificContentInPackage>
+        <!-- NU5100: the assemblies of tasks/ are for MSBuild, not references of the consumer. -->
+        <NoWarn>$(NoWarn);NU5100</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -87,6 +90,51 @@
     <Target Name="IncludeBundledAssemblies" DependsOnTargets="ResolveReferences">
         <ItemGroup>
             <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.ReferenceSourceTarget)' == 'ProjectReference' and ('%(Filename)' == 'Morphir.Lang.CSharp.Analyzers' or '%(Filename)' == 'Morphir.Lang.CSharp.Attributes') and '%(Extension)' != '.pdb'" />
+        </ItemGroup>
+    </Target>
+
+    <!-- The props and targets of the package: see build/Morphir.Lang.CSharp.targets. -->
+    <ItemGroup>
+        <None Include="build/Morphir.Lang.CSharp.props" Pack="true" PackagePath="build/" />
+        <None Include="build/Morphir.Lang.CSharp.targets" Pack="true" PackagePath="build/" />
+    </ItemGroup>
+
+    <!--
+      The assemblies of the build integration, from the output folders of their projects, so the pack does not build them
+      (they reference this project). The solution build builds them first.
+      - analyzers/dotnet/cs: the admission analyzers, the source generator and its closure (FSharp.Core and the
+        netstandard2.0 pipeline assemblies), with no compiler assembly.
+      - tasks/netstandard2.0: the MSBuild task and its closure, with Roslyn.
+      The slot for the code fix assembly of tasks.md, 7.4: when src/Morphir.Lang.CSharp.CodeFixes/ has its project, the
+      pack puts Morphir.Lang.CSharp.CodeFixes.dll in analyzers/dotnet/cs. Add the file to the CodeFix entries of
+      PackageValidator.ValidateCSharpLanguagePackage in the same change.
+    -->
+    <PropertyGroup>
+        <MorphirCSharpCodeFixesProject>$(MSBuildThisFileDirectory)../Morphir.Lang.CSharp.CodeFixes/Morphir.Lang.CSharp.CodeFixes.csproj</MorphirCSharpCodeFixesProject>
+    </PropertyGroup>
+
+    <Target Name="IncludeBuildIntegration" Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <MSBuild Projects="../Morphir.Lang.CSharp.Generator/Morphir.Lang.CSharp.Generator.csproj" Targets="MorphirGeneratorClosure"
+                 Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier">
+            <Output TaskParameter="TargetOutputs" ItemName="_MorphirAnalyzerAssembly" />
+        </MSBuild>
+        <MSBuild Projects="../Morphir.Lang.CSharp.Analyzers/Morphir.Lang.CSharp.Analyzers.csproj" Targets="GetTargetPath"
+                 Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier">
+            <Output TaskParameter="TargetOutputs" ItemName="_MorphirAnalyzerAssembly" />
+        </MSBuild>
+        <MSBuild Projects="$(MorphirCSharpCodeFixesProject)" Targets="GetTargetPath" Condition="Exists('$(MorphirCSharpCodeFixesProject)')"
+                 Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier">
+            <Output TaskParameter="TargetOutputs" ItemName="_MorphirAnalyzerAssembly" />
+        </MSBuild>
+        <MSBuild Projects="../Morphir.Lang.CSharp.Build/Morphir.Lang.CSharp.Build.csproj" Targets="MorphirTaskClosure"
+                 Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier">
+            <Output TaskParameter="TargetOutputs" ItemName="_MorphirTaskAssembly" />
+        </MSBuild>
+        <Error Condition="!Exists('%(_MorphirAnalyzerAssembly.FullPath)')" Code="MORPHIRPACK1" Text="%(_MorphirAnalyzerAssembly.FullPath) does not exist. Build Morphir.slnx in $(Configuration) before the pack." />
+        <Error Condition="!Exists('%(_MorphirTaskAssembly.FullPath)')" Code="MORPHIRPACK1" Text="%(_MorphirTaskAssembly.FullPath) does not exist. Build Morphir.slnx in $(Configuration) before the pack." />
+        <ItemGroup>
+            <TfmSpecificPackageFile Include="@(_MorphirAnalyzerAssembly)" PackagePath="analyzers/dotnet/cs/%(Filename)%(Extension)" />
+            <TfmSpecificPackageFile Include="@(_MorphirTaskAssembly)" PackagePath="tasks/netstandard2.0/%(Filename)%(Extension)" />
         </ItemGroup>
     </Target>
 

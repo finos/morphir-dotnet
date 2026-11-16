@@ -37,6 +37,7 @@
     <Project Path="src/Morphir.Lang.CSharp.Analyzers/Morphir.Lang.CSharp.Analyzers.csproj" />
     <Project Path="src/Morphir.Lang.CSharp.Attributes/Morphir.Lang.CSharp.Attributes.csproj" />
     <Project Path="src/Morphir.Lang.CSharp.CodeFixes/Morphir.Lang.CSharp.CodeFixes.csproj" />
+    <Project Path="src/Morphir.Lang.CSharp.Build/Morphir.Lang.CSharp.Build.csproj" />
     <Project Path="src/Morphir.Lang.CSharp.Generator/Morphir.Lang.CSharp.Generator.csproj" />
     <Project Path="src/Morphir.Mep/Morphir.Mep.fsproj" />
     <Project Path="src/Morphir.Toolchain/Morphir.Toolchain.fsproj" />

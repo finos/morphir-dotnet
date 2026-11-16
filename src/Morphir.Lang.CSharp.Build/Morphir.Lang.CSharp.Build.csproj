@@ -1,0 +1,54 @@
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  this netstandard2.0 library (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK refuses them for
+  netstandard2.0 (NETSDK1207), so this library keeps them local and off.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup>
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!--
+          The MSBuild task of the opt-in target of Morphir.Lang.CSharp (design.html, BLD-1). netstandard2.0 with only the
+          ITask contract of Microsoft.Build.Framework, so MSBuild loads it in its own process. The package puts it in
+          tasks/netstandard2.0 with its closure, which has the Roslyn assemblies that the backend needs.
+        -->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <RootNamespace>Morphir.Lang.CSharp.Build</RootNamespace>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <!-- Not a package of its own: the Morphir.Lang.CSharp package carries this assembly in tasks/netstandard2.0. -->
+        <IsPackable>false</IsPackable>
+        <Description>The MSBuild task that writes C# files from the *.morphir.json additional files of a project.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Lang.CSharp\Morphir.Lang.CSharp.fsproj" />
+    </ItemGroup>
+
+    <!--
+      The task closure: this assembly and each assembly that it loads except MSBuild, with Roslyn, and without satellite
+      assemblies. The pack target of Morphir.Lang.CSharp.fsproj puts this set in tasks/netstandard2.0.
+    -->
+    <!--
+      The output folder has the closure, because CopyLocalLockFileAssemblies is true. The target resolves no reference,
+      so the pack of Morphir.Lang.CSharp can call it.
+    -->
+    <Target Name="MorphirTaskClosure" Returns="@(MorphirTaskClosure)">
+        <ItemGroup>
+            <MorphirTaskClosure Include="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(OutDir)'))*.dll" />
+            <MorphirTaskClosure Remove="@(MorphirTaskClosure)" Condition="$([System.String]::Copy('%(Filename)').StartsWith('Microsoft.Build'))" />
+        </ItemGroup>
+    </Target>
+
+</Project>

@@ -53,10 +53,14 @@
         <MorphirCompilerAssemblies>;Microsoft.CodeAnalysis;Microsoft.CodeAnalysis.CSharp;System.Collections.Immutable;System.Reflection.Metadata;System.Text.Encoding.CodePages;</MorphirCompilerAssemblies>
     </PropertyGroup>
 
-    <Target Name="MorphirGeneratorClosure" DependsOnTargets="ResolveReferences" Returns="@(MorphirGeneratorClosure)">
+    <!--
+      The output folder has the closure, because CopyLocalLockFileAssemblies is true. The target resolves no reference,
+      so the pack of Morphir.Lang.CSharp can call it.
+    -->
+    <Target Name="MorphirGeneratorClosure" Returns="@(MorphirGeneratorClosure)">
         <ItemGroup>
-            <MorphirGeneratorClosure Include="$(TargetPath)" />
-            <MorphirGeneratorClosure Include="@(ReferenceCopyLocalPaths)" Condition="'%(Extension)' == '.dll' and '%(ReferenceCopyLocalPaths.DestinationSubDirectory)' == '' and !$(MorphirCompilerAssemblies.Contains(';%(Filename);'))" />
+            <MorphirGeneratorClosure Include="$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(OutDir)'))*.dll" />
+            <MorphirGeneratorClosure Remove="@(MorphirGeneratorClosure)" Condition="$(MorphirCompilerAssemblies.Contains(';%(Filename);'))" />
         </ItemGroup>
     </Target>
 
