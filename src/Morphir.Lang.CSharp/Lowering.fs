@@ -68,7 +68,8 @@ type internal Flow<'Value> = {
 type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition, 'Module, 'Package>
     (
         builder: IIrBuilder<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition, 'Module, 'Package>,
-        plan: Plan
+        plan: Plan,
+        configured: HandlingOptions
     ) =
 
     let compiled = plan.Compiled
@@ -227,7 +228,8 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
     /// <summary>
     /// The loop lowering of the method that the lowering reads now (OPT-1): <c>[MorphirLoop]</c> on the method, on a type
-    /// that holds it or on the assembly. With <c>Recursion</c>, a fold is a <c>LetRecursion</c>.
+    /// that holds it or on the assembly, then the <c>[frontend.csharp]</c> key of <c>morphir.toml</c> (<c>configured</c>).
+    /// With <c>Recursion</c>, a fold is a <c>LetRecursion</c>.
     /// </summary>
     let mutable loopLowering = LoopLowering.Traversal
 
@@ -2525,7 +2527,9 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
             let parameters = List.ofSeq method'.Parameters
             let env = parameters |> List.fold (fun e p -> Map.add p.Name Plain e) Map.empty
-            loopLowering <- (OptionAttributes.ofMember method').LoopLowering |> Option.defaultValue LoopLowering.Traversal
+            loopLowering <-
+                (HandlingOptions.merge [ OptionAttributes.ofMember method'; configured ]).LoopLowering
+                |> Option.defaultValue LoopLowering.Traversal
 
             let body: Checked<'Value> =
                 match declaration.ExpressionBody with
@@ -2652,8 +2656,15 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
         |> Checked.traverse this.Module
         |> Checked.bind (fun modules -> builder.Package({ Package = plan.Package; Documentation = None }, modules))
 
-/// <summary>The lowering of a planned package as a builder program, for any registered IR family.</summary>
+/// <summary>
+/// The lowering of a planned package as a builder program, for any registered IR family. The handling options of
+/// <c>configured</c> come from the <c>[frontend.csharp]</c> keys of <c>morphir.toml</c>; an attribute in the source wins
+/// over them.
+/// </summary>
 [<Sealed>]
-type internal PackageLowering(plan: Plan) =
+type internal PackageLowering(plan: Plan, configured: HandlingOptions) =
+    /// <summary>The lowering with no configured option.</summary>
+    new(plan: Plan) = PackageLowering(plan, HandlingOptions.empty)
+
     interface IBuilderProgram with
-        member _.Run(builder) = Lowerer(builder, plan).Package()
+        member _.Run(builder) = Lowerer(builder, plan, configured).Package()

@@ -265,7 +265,9 @@ public sealed class CompileRunner(
 
         var request = captured.Documents.Select(document => new SourceDocument(document.Path, frontend.Language, 0UL, document.Text));
         if (!CompileRequest.TryParse(frontend.Language, null, request, settings.Package.Value.Name,
-                settings.ExposedModules?.Value, writer.Target, "", out var compileRequest, out var invalid))
+                settings.ExposedModules?.Value, writer.Target, "", out var parsedRequest, out var invalid)
+            // The [frontend.<language>] keys of the selected language go to the frontend as extra options (OPT-1).
+            || !parsedRequest.TryWithExtraOptions(settings.FrontendOptionsOf(frontend.Language), out var compileRequest, out invalid))
             return new(Checked<Compiled>.Fail([Error(CompileCodes.InvalidSetting, invalid.ToString())]), CompileFailureKind.Invocation, frontend.Label);
 
         var outcome = await frontend.Frontend.CompileAsync(compileRequest, ct);

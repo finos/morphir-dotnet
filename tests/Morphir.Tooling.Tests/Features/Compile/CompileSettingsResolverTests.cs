@@ -37,6 +37,20 @@ public sealed class CompileSettingsResolverTests
     }
 
     [Test]
+    public void TheKeysOfEachFrontendTableAreItsExtraOptionsWithADashForAnUnderscore()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml",
+            "[project]\nname = \"acme/car-rental\"\n\n[frontend.csharp]\nextension = \"csharp-guest\"\nproject_file = \"Model.csproj\"\nloop_lowering = \"recursion\"\n\n[frontend.fsharp]\nsome_flag = true\n");
+        var settings = Passed(Resolver.Resolve(new CompileOverrides { Inputs = ["Model.cs"] }, workspace.Context()));
+        settings.FrontendOptionsOf(LanguageId.Create("csharp")).Select(pair => $"{pair.Key}={pair.Value.GetRawText()}")
+            .Should().Equal("loop-lowering=\"recursion\"");
+        settings.FrontendOptionsOf(LanguageId.Create("fsharp")).Select(pair => $"{pair.Key}={pair.Value.GetRawText()}")
+            .Should().Equal("some-flag=true");
+        settings.FrontendOptionsOf(LanguageId.Create("elm")).Should().BeEmpty();
+    }
+
+    [Test]
     public void TheConfiguredIntegerVersionAppliesWithoutAFlag()
     {
         using var workspace = new CompileWorkspace();

@@ -38,6 +38,22 @@ let compile (documents: SourceDocument list) =
 
 let compileSource (text: string) = compile [ document "Model.cs" text ]
 
+/// The result of one source with extra options in the request, as compile gives the [frontend.csharp] keys: each option is
+/// a name and the JSON text of its value.
+let compileSourceWith (options: (string * string) list) (text: string) =
+    let extra = [
+        for name, json in options ->
+            use parsed = System.Text.Json.JsonDocument.Parse(json: string)
+            System.Collections.Generic.KeyValuePair(name, parsed.RootElement.Clone())
+    ]
+
+    match (request [ document "Model.cs" text ]).WithExtraOptions extra with
+    | Error failure -> failtest $"{failure}"
+    | Ok request ->
+        match frontend.CompileAsync(request, CancellationToken.None).GetAwaiter().GetResult() with
+        | FrontendOutcome.Completed result -> result
+        | FrontendOutcome.Failed failure -> failtest $"Expected a completed run, got: {failure.Message}"
+
 /// The V4 distribution of a passed result.
 let model (result: Checked<CompiledPackage>) : Distribution =
     match Checked.tryValue result with

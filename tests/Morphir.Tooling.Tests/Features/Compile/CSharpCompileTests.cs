@@ -62,6 +62,66 @@ public sealed class CSharpCompileTests
             .Should().Contain("csharp.compiler");
     }
 
+    private const string Totals =
+        "using System.Collections.Generic;\n\nnamespace Acme.Demo.Rates;\n\npublic static class Pricing\n{\n    public static int Total(IReadOnlyList<int> xs)\n    {\n        var total = 0;\n        foreach (var x in xs) { total += x; }\n        return total;\n    }\n}\n";
+
+    private static string ValueKinds(CompileWorkspace workspace)
+    {
+        var ir = File.ReadAllText(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json"));
+        return ir.Contains("\"LetRecursion\"", StringComparison.Ordinal) ? "LetRecursion" : "no LetRecursion";
+    }
+
+    [Test]
+    public async Task TheLoopKeyOfTheCSharpFrontendTableGivesTheIrOfTheAttribute()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("Totals.cs", Totals);
+        var plain = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        plain.Exit.Should().Be(0, plain.Text);
+        ValueKinds(workspace).Should().Be("no LetRecursion", "a fold is List.foldl by default");
+
+        workspace.Write("morphir.toml", "[frontend.csharp]\nloop_lowering = \"recursion\"\n");
+        var byKey = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        byKey.Exit.Should().Be(0, byKey.Text);
+        var keyIr = File.ReadAllText(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json"));
+        ValueKinds(workspace).Should().Be("LetRecursion", "the key lowers the loop to recursion");
+
+        // The assembly attribute, with no key, gives the same IR. It is at the end of the first line, so no location moves.
+        File.Delete(workspace.PathOf("morphir.toml"));
+        workspace.Write("Totals.cs", Totals.Replace("using System.Collections.Generic;", "using System.Collections.Generic; [assembly: Morphir.MorphirLoop(Morphir.LoopLowering.Recursion)]", StringComparison.Ordinal));
+        var byAttribute = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        byAttribute.Exit.Should().Be(0, byAttribute.Text);
+        File.ReadAllText(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json")).Should().Be(keyIr, "the key and the attribute have the same effect");
+    }
+
+    [Test]
+    public async Task AnAttributeOnTheMethodWinsOverTheLoopKey()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("Totals.cs", Totals.Replace("    public static int Total", "    [Morphir.MorphirLoop(Morphir.LoopLowering.Traversal)]\n    public static int Total", StringComparison.Ordinal));
+        workspace.Write("morphir.toml", "[frontend.csharp]\nloop_lowering = \"recursion\"\n");
+        var run = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        run.Exit.Should().Be(0, run.Text);
+        ValueKinds(workspace).Should().Be("no LetRecursion", "the attribute on the member wins over morphir.toml");
+    }
+
+    [Test]
+    [Arguments("loop_lowering = \"sideways\"")]
+    [Arguments("loop_lowering = true")]
+    [Arguments("traversal = \"functional\"")]
+    public async Task AMalformedKeyOfTheCSharpFrontendTableFailsBeforeCompilationWithExitCode2(string line)
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("Totals.cs", Totals);
+        workspace.Write("morphir.toml", "[frontend.csharp]\n" + line + "\n");
+        var run = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        run.Exit.Should().Be(2, run.Text);
+        using var report = JsonDocument.Parse(run.Text);
+        report.RootElement.GetProperty("success").GetBoolean().Should().BeFalse();
+        run.Text.Should().Contain("frontend.csharp");
+        File.Exists(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json")).Should().BeFalse();
+    }
+
     private static async Task<(int Exit, string Text)> Compile(CompileWorkspace workspace, string arguments)
     {
         var output = new CompileCommandTests.CapturedOutput();

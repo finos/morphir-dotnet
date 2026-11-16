@@ -177,6 +177,16 @@ let tests =
                     Expect.isEmpty (diagnoseOutsideModelProject source) "silent"
                 }
 
+                test "the MSBuild property MorphirModel, the configuration key of the switch, marks a model project with no attribute" {
+                    let source = "static class M { static int F(int[] xs) { foreach (var x in xs) { } return 0; } }"
+                    Expect.isEmpty (diagnoseOutsideModelProject source) "the property is not set"
+
+                    Expect.equal
+                        (diagnose source |> List.map (fun (id, _, _) -> id))
+                        [ Rules.Loop.Id ]
+                        "build_property.MorphirModel = true and no [assembly: MorphirModel]"
+                }
+
                 test "the assembly attribute marks a model project" {
                     let source =
                         "[assembly: Morphir.MorphirModel]\nclass C { }"

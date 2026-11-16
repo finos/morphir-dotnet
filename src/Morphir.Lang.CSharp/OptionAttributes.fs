@@ -209,3 +209,40 @@ module internal OptionAttributes =
 
             Library(pkg, dependencies, { definition with Modules = modules })
         | other -> other
+
+/// <summary>
+/// The configuration carrier of the frontend options (OPT-1): the extra options of the compile request, which
+/// <c>morphir compile</c> fills from the <c>[frontend.csharp]</c> keys of <c>morphir.toml</c> with <c>-</c> for <c>_</c>
+/// (<c>loop_lowering</c> is <c>loop-lowering</c>). The C# frontend reads them below the attributes: an attribute on the
+/// member, a type or the assembly wins over a key.
+/// </summary>
+module internal ConfiguredOptions =
+    /// <summary>The options of the C# frontend that a key sets. A backend option is a key of <c>[codegen.csharp]</c>.</summary>
+    let keys = [ HandlingOptions.LoopLoweringKey ]
+
+    let private accepted (key: string) =
+        HandlingOptions.words
+        |> List.tryFind (fun (k, _) -> k = key)
+        |> Option.map (fun (_, words) -> String.concat ", " words)
+        |> Option.defaultValue ""
+
+    /// <summary>
+    /// Parses the extra options into the option record. A name that is not an option of the C# frontend, or a value that
+    /// is not a word of its option, gives an error message.
+    /// </summary>
+    let parse (extra: System.Collections.Generic.IReadOnlyDictionary<string, System.Text.Json.JsonElement>) : Result<HandlingOptions, string> =
+        extra
+        |> Seq.fold
+            (fun state pair ->
+                state
+                |> Result.bind (fun options ->
+                    if not (List.contains pair.Key keys) then
+                        Error $"'{pair.Key}' is not an option of the C# frontend. The C# frontend accepts {HandlingOptions.describe keys}."
+                    else
+                        match pair.Value.ValueKind with
+                        | System.Text.Json.JsonValueKind.String ->
+                            match pair.Value.GetString() with
+                            | null -> Error $"The option '{pair.Key}' accepts {accepted pair.Key}; received null."
+                            | word -> HandlingOptions.trySet pair.Key word options
+                        | _ -> Error $"The option '{pair.Key}' accepts {accepted pair.Key}; received {pair.Value.GetRawText()}."))
+            (Ok HandlingOptions.empty)

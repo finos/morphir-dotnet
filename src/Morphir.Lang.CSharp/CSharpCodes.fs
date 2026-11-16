@@ -17,6 +17,13 @@ module CSharpCodes =
     let referencesUnavailable = DiagnosticCode.Create "csharp.references_unavailable"
 
     /// <summary>
+    /// An extra option of the compile request, such as a <c>[frontend.csharp]</c> key of <c>morphir.toml</c>, is not an
+    /// option of the C# frontend, or its value is not a word of the option. The diagnostic has no location.
+    /// </summary>
+    [<CompiledName("InvalidOption")>]
+    let invalidOption = DiagnosticCode.Create "csharp.invalid_option"
+
+    /// <summary>
     /// A namespace is not below the package path, or is the package path itself. Its Morphir module path would be
     /// outside the package or empty.
     /// </summary>

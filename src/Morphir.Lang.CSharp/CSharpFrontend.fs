@@ -44,6 +44,11 @@ module CSharpFrontend =
     let private run (builders: FamilyBuilderRegistry) (request: CompileRequest) (cancellationToken: CancellationToken) =
         let documents = request.DocumentList
 
+        // The [frontend.csharp] keys come as extra options of the request. A bad key fails before the C# compiles.
+        match ConfiguredOptions.parse request.ExtraOptions with
+        | Error message -> Checked.fail [ Diagnostic.error CSharpCodes.invalidOption message ]
+        | Ok configured ->
+
         match CSharpCompiler.compile documents with
         | Error diagnostic -> Checked.fail [ diagnostic ]
         | Ok compiled ->
@@ -62,7 +67,7 @@ module CSharpFrontend =
                         check {
                             let! plan = Planning.plan request.Package request.ExposedModules compiled cancellationToken
                             let! builder = builders.Resolve request.Output.Family
-                            let! built = builder.Build(PackageLowering plan)
+                            let! built = builder.Build(PackageLowering(plan, configured))
 
                             // The current IR carries the class of a type parameter on its type variables (EQL-2), and
                             // the backend options of the attributes on the output types and the field types (OPT-1).

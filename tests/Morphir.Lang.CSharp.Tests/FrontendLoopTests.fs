@@ -206,6 +206,54 @@ let tests =
               Expect.stringStarts (valueText distribution "loops.calc" "twice") "((morphir.sdk:list#map " "a map has no recursion form of its own"
           }
 
+          test "Same effect: the [frontend.csharp] key loop-lowering=recursion gives the IR of the assembly attribute" {
+              let members =
+                  "    public static int Total(IReadOnlyList<Order> orders)\n    {\n        var total = 0;\n        foreach (var o in orders) { total += Notional(o); }\n        return total;\n    }"
+
+              let byAttribute = model (compileSource ((source members).Replace("namespace ", "[assembly: Morphir.MorphirLoop(Morphir.LoopLowering.Recursion)]\nnamespace ")))
+              let byKey = model (compileSourceWith [ "loop-lowering", "\"recursion\"" ] (source members))
+              let total = valueText byKey "loops.calc" "total"
+              Expect.equal total (valueText byAttribute "loops.calc" "total") "the key and the attribute give the same IR"
+              Expect.stringStarts total "(letrec loop(total, remaining) = " "a LetRecursion"
+          }
+
+          test "Member over key: MorphirLoop(Traversal) on the method wins over the key loop-lowering=recursion" {
+              let members =
+                  "    [Morphir.MorphirLoop(Morphir.LoopLowering.Traversal)]\n    public static int Total(IReadOnlyList<Order> orders)\n    {\n        var total = 0;\n        foreach (var o in orders) { total += Notional(o); }\n        return total;\n    }\n    public static int Count(IReadOnlyList<Order> orders)\n    {\n        var n = 0;\n        foreach (var o in orders) { n += 1; }\n        return n;\n    }"
+
+              let distribution = model (compileSourceWith [ "loop-lowering", "\"recursion\"" ] (source members))
+              Expect.stringStarts (valueText distribution "loops.calc" "total") "(((morphir.sdk:list#foldl " "the attribute on the member"
+              Expect.stringStarts (valueText distribution "loops.calc" "count") "(letrec loop(n, remaining) = " "the key"
+          }
+
+          test "the key loop-lowering=traversal gives the IR of no option" {
+              let members =
+                  "    public static int Total(IReadOnlyList<Order> orders)\n    {\n        var total = 0;\n        foreach (var o in orders) { total += Notional(o); }\n        return total;\n    }"
+
+              Expect.equal
+                  (valueText (model (compileSourceWith [ "loop-lowering", "\"traversal\"" ] (source members))) "loops.calc" "total")
+                  (body members "total")
+                  "the default"
+          }
+
+          test "an extra option that the C# frontend does not know, or a value that is not a word of its key, fails before lowering" {
+              let text = source "    public static int One() => 1;"
+
+              for options, expected in
+                  [ [ "loop-lowering", "\"sideways\"" ], "'loop-lowering' accepts traversal, recursion; received 'sideways'"
+                    [ "loop-lowering", "true" ], "'loop-lowering' accepts traversal, recursion"
+                    [ "traversal", "\"functional\"" ], "'traversal' is not an option of the C# frontend"
+                    [ "unknown", "1" ], "'unknown' is not an option of the C# frontend" ] do
+                  let result = compileSourceWith options text
+                  Expect.isNone (Checked.tryValue result) $"{options} has no model"
+                  Expect.equal (codes result) [ "csharp.invalid_option" ] $"{options} has the code"
+
+                  Expect.stringContains
+                      (Checked.diagnostics result |> List.map (fun d -> d.Message) |> String.concat " ")
+                      expected
+                      $"{options} has the message"
+          }
+
           test "a loop that writes a field is refused with the name of the field" {
               let members =
                   "    private static int counter;\n    public static int Counted(IReadOnlyList<Order> orders)\n    {\n        var total = 0;\n        foreach (var o in orders) { total += o.Price; counter++; }\n        return total;\n    }"

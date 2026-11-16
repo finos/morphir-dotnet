@@ -223,6 +223,9 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             ? BackendOptions.ConfiguredOf(config.ScalarMembers("codegen", optionsTarget.Id.Value))
             : [];
 
+        // The other keys of each [frontend.<language>] table are extra options of the frontend of that language (OPT-1).
+        var frontendOptions = config.FrontendOptionTables();
+
         // Sources (SRC-1): --project-file, --input, the configured project file, the source directory.
         var unread = ImmutableArray<string>.Empty;
         SourceRequest? sources = null;
@@ -281,6 +284,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             UnreadProjectFileKeys = unread,
             IgnoredBackendExtension = ignoredBackend,
             ConfiguredBackendOptions = configuredBackendOptions,
+            FrontendOptions = frontendOptions,
             ProjectRoot = loaded.ProjectRoot,
             OutRoot = place.OutRoot,
             Member = place.Member,
@@ -332,6 +336,28 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         /// <summary>The scalar members of the table at the path, as JSON values, in ordinal order. No table gives none.</summary>
         public IReadOnlyList<KeyValuePair<string, System.Text.Json.JsonElement>> ScalarMembers(params string[] path) =>
             Find(path) is { } table ? ConfigValueProjections.ScalarMembers(table) : [];
+
+        /// <summary>
+        /// The extra options of each <c>[frontend.&lt;language&gt;]</c> table, by the language: each scalar key except
+        /// <c>extension</c> and <c>project_file</c>, which select the frontend and the sources, with <c>-</c> for <c>_</c>
+        /// (<c>loop_lowering</c> is <c>loop-lowering</c>).
+        /// </summary>
+        public ImmutableDictionary<string, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>> FrontendOptionTables()
+        {
+            var tables = ImmutableDictionary.CreateBuilder<string, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>>(StringComparer.Ordinal);
+            if (Find(["frontend"]) is not { } frontend) return tables.ToImmutable();
+            foreach (var language in ConfigValueProjections.Tables(frontend))
+            {
+                ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>> options =
+                [
+                    .. ScalarMembers("frontend", language)
+                        .Where(pair => pair.Key is not ("extension" or "project_file"))
+                        .Select(pair => new KeyValuePair<string, System.Text.Json.JsonElement>(pair.Key.Replace('_', '-'), pair.Value))
+                ];
+                if (options.Length > 0) tables[language] = options;
+            }
+            return tables.ToImmutable();
+        }
 
         /// <summary>Every <c>frontend.&lt;language&gt;.project_file</c> key that is set, as TOML writes it (a dotted language is quoted).</summary>
         public ImmutableArray<string> ProjectFileKeys() =>

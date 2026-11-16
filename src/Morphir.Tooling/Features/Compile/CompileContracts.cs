@@ -228,6 +228,18 @@ public sealed record CompileSettings
     /// (<see cref="Features.Generate.BackendOptions.Configured"/>). <c>compile --target</c> gives them to the backend.
     /// </summary>
     public ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>> ConfiguredBackendOptions { get; init; } = [];
+    /// <summary>
+    /// The other keys of each <c>[frontend.&lt;language&gt;]</c> table, by the language id: each scalar key except
+    /// <c>extension</c> and <c>project_file</c>, with <c>-</c> for <c>_</c>. The run gives the keys of the language of the
+    /// selected frontend to it as the extra options of the compile request (the <c>extra</c> members of the MEP
+    /// <c>CompileOptions</c>). See <see cref="FrontendOptionsOf"/>.
+    /// </summary>
+    public ImmutableDictionary<string, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>> FrontendOptions { get; init; } =
+        ImmutableDictionary<string, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>>.Empty.WithComparers(StringComparer.Ordinal);
+
+    /// <summary>The extra options of the frontend of a language, from its <c>[frontend.&lt;language&gt;]</c> table. None when the table has none.</summary>
+    public ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>> FrontendOptionsOf(LanguageId language) =>
+        FrontendOptions.TryGetValue(language.Value, out var options) ? options : [];
     /// <summary>The project root, or null outside any project.</summary>
     public string? ProjectRoot { get; init; }
     /// <summary>The out root of the workspace (REC-1), for example <c>&lt;workspace&gt;/.morphir/out</c>.</summary>
