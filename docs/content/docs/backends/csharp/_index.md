@@ -9,6 +9,8 @@ Roslyn Workspaces assembly, and it is a pure function of the model and the optio
 
 The backend is the `csharp` target of `morphir generate` and of `morphir compile --target csharp`. In code, call
 `CSharpBackend.Generate(model, options, cancellationToken)` of `Morphir.Lang.CSharp.Emit`.
+To generate C# when a C# project builds, use the source generator or the MSBuild target of the package: see
+[C# generation in a build](build-integration.md).
 
 > **Breaking change.** The package `Morphir.CodeGeneration.CSharp` and its text backend are gone. The package
 > `Morphir.Lang.CSharp` replaces it, and the API of the backend is `CSharpBackend` in `Morphir.Lang.CSharp.Emit`.

@@ -1,5 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.Text.RegularExpressions;
+
 namespace Morphir.BlackBox.Tests.Steps;
 
 /// <summary>
@@ -8,7 +10,7 @@ namespace Morphir.BlackBox.Tests.Steps;
 /// the model to its compilation, or the MSBuild target of the package writes it into the intermediate output folder.
 /// </summary>
 [Binding]
-public sealed class CSharpBuildSteps(IPackageDriver packages, IScenarioWorkspace workspace, ScenarioRun run, PackageRun state)
+public sealed partial class CSharpBuildSteps(IPackageDriver packages, IScenarioWorkspace workspace, ScenarioRun run, PackageRun state)
 {
     private const string ProjectFile = "Consumer.csproj";
 
@@ -201,5 +203,63 @@ public sealed class CSharpBuildSteps(IPackageDriver packages, IScenarioWorkspace
             System.Console.WriteLine($"{text}, {name}, daily rate {Car.Rental.Inventory.DailyRate()}");
 
             """);
+    }
+
+    // ---- The commands of the page of the build integration -----------------------------------------------------
+
+    [GeneratedRegex("```(?<kind>bash|xml|csharp)\\n(?<body>.*?)\\n```", RegexOptions.Singleline)]
+    private static partial Regex Block();
+
+    /// <summary>
+    /// Follows the page in the order of its blocks, in the work folder "docs": each <c>$ dotnet</c> line of a bash block
+    /// runs, and its documented output lines must be its standard output; <c>$ cd</c> changes the folder. The xml block of
+    /// an item group goes into the project file of the folder, with the model of the scenario as
+    /// <c>car-rental.morphir.json</c>, and the csharp block is <c>Program.cs</c>. The Morphir packages come from the feed
+    /// of the workspace only.
+    /// </summary>
+    [When("I follow the documentation page {string} with the packed packages")]
+    public async Task FollowThePage(string page)
+    {
+        var root = workspace.Directory("docs");
+        packages.WriteNuGetConfig(root, includeNuGetOrg: true, [new PackageSourcePattern(true, "Morphir.*"), new PackageSourcePattern(false, "*")]);
+        var folder = root;
+        var text = workspace.ReadText(workspace.CopyFixture("Docs/" + page));
+        foreach (Match block in Block().Matches(text))
+        {
+            var body = block.Groups["body"].Value;
+            switch (block.Groups["kind"].Value)
+            {
+                case "csharp":
+                    workspace.WriteText(folder.File("Program.cs"), body + "\n");
+                    break;
+                case "xml" when body.StartsWith("<ItemGroup>", StringComparison.Ordinal):
+                    var project = folder.File(folder.Path.Split('/', '\\')[^1] + ".csproj");
+                    workspace.WriteText(project, workspace.ReadText(project).Replace("</Project>", body + "\n</Project>", StringComparison.Ordinal));
+                    workspace.WriteBytes(folder.File("car-rental.morphir.json"), workspace.ReadBytes(run.Model));
+                    break;
+                case "bash":
+                    var lines = body.Split('\n');
+                    for (var index = 0; index < lines.Length; index++)
+                    {
+                        if (!lines[index].StartsWith("$ ", StringComparison.Ordinal)) continue;
+                        var words = lines[index][2..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        var output = lines.Skip(index + 1).TakeWhile(line => !line.StartsWith("$ ", StringComparison.Ordinal)).ToArray();
+                        if (words[0] == "cd")
+                        {
+                            folder = folder.Directory(words[1]);
+                            continue;
+                        }
+
+                        if (words[0] != "dotnet") throw new InvalidOperationException($"The page {page} has a command that is not dotnet or cd: {lines[index]}");
+                        var result = (await packages.DotnetAsync(folder, words[1..])).ShouldExitWith(0);
+                        run.Result = result;
+                        var actual = result.StandardOutput.Trim().Replace("\r\n", "\n");
+                        if (output.Length > 0 && actual != string.Join('\n', output))
+                            throw new CommandAssertionException($"The output of '{lines[index]}' is not the documented output.", result);
+                    }
+
+                    break;
+            }
+        }
     }
 }

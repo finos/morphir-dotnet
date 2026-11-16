@@ -59,3 +59,7 @@ Feature: Generate C# from a Morphir model in the build of a C# project
       | case  |
       | Rect  |
       | Large |
+
+  Scenario: The commands of the page of the build integration run as written
+    When I follow the documentation page "backends/csharp/build-integration.md" with the packed packages
+    Then the exit code is 0

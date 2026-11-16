@@ -88,7 +88,7 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [x] 8.3 Add the SDK matrix check from `spikes/csharp-language-support/source-generator/sdk-matrix.sh` as a build or CI job for SDK 10.0.100, 10.0.403 and 11.0.100. Verify that the job passes and that a generator compiled against Roslyn 5.12 fails the check, as the spike showed. Done as `scripts/csharp-sdk-matrix.sh` in the `test` job of `development.yml`. The C# 15 backend needs Roslyn 5.12, so 5.12 is the oldest supported Roslyn (design.html, BLD-1): SDK 11.0.100 generates, SDK 10.0.100 and 10.0.403 stop with `MORPHIR2010`, and the generator does not load in their compilers (`CS9057`).
 - [x] 8.4 Add the MSBuild target (opt-in, `LangVersion` 15, generated files in the intermediate folder) and the SDK 11 check with a clear error. Verify with a test project build, and with a build under SDK 10 that reports the error.
 - [x] 8.5 Add the polyfill file emission for targets below `net11.0` and a test with a library and an application that each have their own polyfill file and an exhaustive `switch` across them. Verify with 0 warnings.
-- [ ] 8.6 Write the support matrix with Visual Studio, Rider and VS Code as not tested, and document the build integration. Verify that the documented commands run as written.
+- [x] 8.6 Write the support matrix with Visual Studio, Rider and VS Code as not tested, and document the build integration. Verify that the documented commands run as written.
 
 ## 9. Integration checks
 

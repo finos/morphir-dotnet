@@ -209,6 +209,7 @@ two steps have the same pattern.
 | C# build generation | `Given the match of the C# consumer has no arm for the case {string}` |
 | C# build generation | `Then the last build of the C# consumer has no warning` |
 | C# build generation | `Then the C# library and the C# consumer each have the polyfill file` |
+| C# build generation | `When I follow the documentation page {string} with the packed packages` |
 | System.Text.Json plugin | `Given a System.Text.Json consumer` |
 | System.Text.Json plugin | `Given the context of the consumer has the name {string}` |
 | System.Text.Json plugin | `Given the context of the consumer has the metadata:` |
