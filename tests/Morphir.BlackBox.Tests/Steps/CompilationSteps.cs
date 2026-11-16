@@ -139,6 +139,165 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
         run.Result = await compilation.CompileAsync(new CompilationOptions { Inputs = [file], Language = "fsharp", PackageName = package });
     }
 
+    [Given("the C# source file {string} of the package {string}")]
+    public void TheCSharpSourceFile(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file, "namespace Acme.Demo.Rates;\n\npublic static class Pricing\n{\n    public static int DailyRate(int days) => days * 40;\n}\n");
+        _source = (file, package);
+    }
+
+    [Given("the C# source file {string} with a loop that changes nothing, of the package {string}")]
+    public void TheCSharpSourceFileWithALoop(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file,
+            "namespace Acme.Demo.Rates;\n\npublic static class Pricing\n{\n    public static int Total(int[] xs)\n    {\n        foreach (var x in xs) { }\n        return 0;\n    }\n}\n");
+        _source = (file, package);
+    }
+
+    /// <summary>A C# model with a <c>foreach</c> that sums a list: the frontend lowers it to <c>List.foldl</c> (LOP-1).</summary>
+    [Given("the C# source file {string} with a loop that sums a list, of the package {string}")]
+    public void TheCSharpSourceFileWithASum(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file,
+            "namespace Acme.Demo;\n\npublic static class Totals\n{\n    public static int Sum(IReadOnlyList<int> amounts)\n    {\n        var total = 0;\n        foreach (var amount in amounts) { total += amount; }\n        return total;\n    }\n}\n");
+        _source = (file, package);
+    }
+
+    /// <summary>A C# model with a loop that writes a field: the loop has no Morphir form.</summary>
+    [Given("the C# source file {string} with a loop that writes a field, of the package {string}")]
+    public void TheCSharpSourceFileWithAFieldWrite(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file,
+            "namespace Acme.Demo;\n\npublic static class Totals\n{\n    private static int counter;\n\n    public static int Sum(IReadOnlyList<int> amounts)\n    {\n        var total = 0;\n        foreach (var amount in amounts) { total += amount; counter++; }\n        return total;\n    }\n}\n");
+        _source = (file, package);
+    }
+
+    [Then("the published IR names the SDK function {string}")]
+    public void ThePublishedIrNames(string name)
+    {
+        Check(workspace.Exists(PublishedIr), $"No IR is published at {PublishedIr.Path}.");
+        Check(workspace.ReadText(PublishedIr).Contains($"\"{name}\"", StringComparison.Ordinal), $"The published IR does not name {name}.");
+    }
+
+    /// <summary>The frontend lowered a loop to recursion (LOP-1, OPT-1).</summary>
+    [Then("the published IR has a LetRecursion")]
+    public void ThePublishedIrHasARecursion()
+    {
+        Check(workspace.Exists(PublishedIr), $"No IR is published at {PublishedIr.Path}.");
+        Check(workspace.ReadText(PublishedIr).Contains("\"LetRecursion\"", StringComparison.Ordinal), "The published IR has no LetRecursion.");
+    }
+
+    [Then("the published IR does not name the SDK function {string}")]
+    public void ThePublishedIrDoesNotNameTheSdkFunction(string name)
+    {
+        Check(workspace.Exists(PublishedIr), $"No IR is published at {PublishedIr.Path}.");
+        Check(!workspace.ReadText(PublishedIr).Contains($"\"{name}\"", StringComparison.Ordinal), $"The published IR names {name}.");
+    }
+
+    [Then("the compilation report has the diagnostic {string} in {string} with the message {string}")]
+    public void ReportDiagnosticWithMessage(string code, string uri, string message)
+    {
+        Report.ShouldHaveDiagnosticIn(code, uri);
+        var messages = Report.Diagnostics.Where(diagnostic => diagnostic.Code == code).Select(diagnostic => diagnostic.Message).ToArray();
+        Check(messages.Contains(message), $"The diagnostic {code} has the messages {string.Join("; ", messages)}, not {message}.");
+    }
+
+    [When("I compile the C# source file")]
+    public async Task CompileTheCSharpSourceFile()
+    {
+        var (file, package) = _source ?? throw new InvalidOperationException("The scenario has no C# source file before this step.");
+        run.Result = await compilation.CompileAsync(new CompilationOptions { Inputs = [file], Language = "csharp", PackageName = package });
+        // The published IR is the model of the scenario, so that a later step can generate from it.
+        if (workspace.Exists(PublishedIr)) run.Model = PublishedIr;
+    }
+
+    /// <summary>A C# model with the handling attributes of each kind: a type, a member and a method (OPT-1).</summary>
+    private const string QuoteWithAttributes = """
+        using Morphir;
+
+        [assembly: MorphirModel]
+
+        namespace Acme.Trading.Quotes;
+
+        [MorphirEquality(FloatEquality.Ieee)]
+        public partial record Quote([MorphirEquality(FloatEquality.Clr)] double Bid, double Ask);
+
+        public static class Pricing
+        {
+            [MorphirEmit(Traversal = TraversalForm.Functional)]
+            public static double Spread(Quote quote) => quote.Ask - quote.Bid;
+        }
+        """;
+
+    [Given("the C# source file {string} with handling attributes, of the package {string}")]
+    public void TheCSharpSourceFileWithHandlingAttributes(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file, QuoteWithAttributes);
+        _source = (file, package);
+    }
+
+    [Given("the C# source file {string} with a record of a double, of the package {string}")]
+    public void TheCSharpSourceFileWithARecordOfADouble(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file, "namespace Acme.Trading.Quotes;\n\npublic record Price(double Value);\n");
+        _source = (file, package);
+    }
+
+    /// <summary>A key of the C# table of the frontend (<c>[frontend.csharp]</c>) or of the backend (<c>[codegen.csharp]</c>).</summary>
+    [Given("the morphir.toml of the project sets the key {string} of [{word}.csharp] to {string}")]
+    public void TheMorphirTomlSetsACSharpKey(string key, string table, string value) =>
+        workspace.WriteText(Project.File("morphir.toml"), $"[{table}.csharp]\n{key} = \"{value}\"\n");
+
+    private WorkspaceDirectory GeneratedCSharp => Project.Directory("generated-csharp");
+
+    [When("I compile the C# source file with the target {string}")]
+    public async Task CompileTheCSharpSourceFileWithATarget(string target)
+    {
+        var (file, package) = _source ?? throw new InvalidOperationException("The scenario has no C# source file before this step.");
+        run.Result = await compilation.CompileAsync(new CompilationOptions
+        {
+            Inputs = [file],
+            Language = "csharp",
+            PackageName = package,
+            Target = target,
+            GenerateOutput = GeneratedCSharp,
+        });
+    }
+
+    /// <summary>The passes of the stage before the backend are in <c>generation.passes</c> of the compilation report.</summary>
+    [Then("the compilation report lists the pass {string} before the backend")]
+    public void TheCompilationReportListsThePassBeforeTheBackend(string id)
+    {
+        var ran = Report.Document.TryGetProperty("generation", out var generation) && generation.ValueKind == JsonValueKind.Object
+            && generation.TryGetProperty("passes", out var passes) && passes.TryGetProperty("ran", out var list)
+                ? list.EnumerateArray().Select(item => item.GetString()).ToArray()
+                : [];
+        Report.Check(ran.Contains(id), $"The compilation report lists the passes {string.Join(", ", ran)} before the backend, not {id}.");
+    }
+
+    [Then("the compilation report has no member {string}")]
+    public void TheCompilationReportHasNoMember(string member) =>
+        Report.Check(!Report.Document.TryGetProperty(member, out _), $"The compilation report has the member {member}.");
+
+    [Then("the C# that the compile generated contains {string}")]
+    public void TheGeneratedCSharpContains(string text)
+    {
+        var files = workspace.FilesIn(GeneratedCSharp).Where(name => name.EndsWith(".cs", StringComparison.Ordinal)).ToArray();
+        Check(files.Length > 0, $"The compile generated no C# file in {GeneratedCSharp.Path}.");
+        Check(files.Any(name => workspace.ReadText(GeneratedCSharp.File(name)).Contains(text, StringComparison.Ordinal)),
+            $"No C# file that the compile generated contains '{text}'. The files: {string.Join(", ", files)}.");
+    }
+
+    [Then("the compile generated no C#")]
+    public void TheCompileGeneratedNoCSharp() =>
+        Check(!workspace.Exists(GeneratedCSharp), $"The compile generated files in {GeneratedCSharp.Path}.");
+
     [Then("the compilation report says that the compile succeeded with the frontend {string}")]
     public void TheCompileSucceededWithTheFrontend(string frontend)
     {

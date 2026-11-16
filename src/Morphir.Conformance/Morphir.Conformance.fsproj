@@ -41,6 +41,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Frontend.FSharp.Tests" />
     <InternalsVisibleTo Include="Morphir.Conformance.Tests" />
+    <InternalsVisibleTo Include="Morphir.Lang.CSharp.Tests" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />

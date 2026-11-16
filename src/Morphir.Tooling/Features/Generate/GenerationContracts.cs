@@ -150,14 +150,42 @@ public abstract class ModelInputLease : IDisposable
     protected abstract void Dispose(bool disposing);
 }
 
-/// <summary>Owns JSON values independently of their source document and the caller's dictionary.</summary>
+/// <summary>
+/// Owns JSON values independently of their source document and the caller's dictionary. <see cref="Values"/> are the
+/// options of the command line (<c>--option</c>). <see cref="Configured"/> are the keys of <c>[codegen.&lt;target&gt;]</c>
+/// in the project configuration, which a backend can put below its own carriers, as the C# backend does (OPT-1). A
+/// backend that has no use for them ignores them.
+/// </summary>
 public sealed class BackendOptions
 {
     public static BackendOptions Empty { get; } = new([]);
     public ImmutableDictionary<string, JsonElement> Values { get; }
 
-    public BackendOptions(IEnumerable<KeyValuePair<string, JsonElement>> values) =>
+    /// <summary>The keys of <c>[codegen.&lt;target&gt;]</c> other than <c>extension</c>, with <c>-</c> for <c>_</c>.</summary>
+    public ImmutableDictionary<string, JsonElement> Configured { get; }
+
+    public BackendOptions(IEnumerable<KeyValuePair<string, JsonElement>> values)
+        : this(values, []) { }
+
+    private BackendOptions(IEnumerable<KeyValuePair<string, JsonElement>> values, IEnumerable<KeyValuePair<string, JsonElement>> configured)
+    {
         Values = values.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
+        Configured = configured.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
+    }
+
+    /// <summary>The same command-line options with the given configured options.</summary>
+    public BackendOptions WithConfigured(IEnumerable<KeyValuePair<string, JsonElement>> configured) => new(Values, configured);
+
+    /// <summary>
+    /// The configured options of a <c>[codegen.&lt;target&gt;]</c> table: each scalar key except <c>extension</c>, which
+    /// selects the backend, as an option name with <c>-</c> for <c>_</c> (<c>float_equality</c> is <c>float-equality</c>).
+    /// </summary>
+    public static ImmutableArray<KeyValuePair<string, JsonElement>> ConfiguredOf(IEnumerable<KeyValuePair<string, JsonElement>> tableMembers) =>
+    [
+        .. tableMembers
+            .Where(pair => pair.Key != "extension")
+            .Select(pair => new KeyValuePair<string, JsonElement>(pair.Key.Replace('_', '-'), pair.Value))
+    ];
 }
 
 /// <summary>A backend defines its own immutable validated option type.</summary>
@@ -197,7 +225,14 @@ public sealed record ModelDescriptor(SourceFormatVersion Version, ModelFamily Fa
     public static ModelDescriptor From(VersionedModel model) => new(model.SourceVersion, model.Family, model.Kind);
 }
 
-public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original);
+public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original)
+{
+    /// <summary>
+    /// What an upgrade that ran on the input left: the pins of the input model and the records of the upgrade. Null when
+    /// the model is the input of the pipeline.
+    /// </summary>
+    public Morphir.Tooling.Features.Transform.ModelLineage? Lineage { get; init; }
+}
 
 public sealed record BackendCapability(ModelFamily Family, NonEmptySet<SourceFormatVersion> Versions, DistributionKind Kind)
 {

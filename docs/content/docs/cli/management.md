@@ -365,24 +365,27 @@ release as `{"kind": "github-release", …, "revision": "<sha256 of release.json
 ### extension list
 
 List the extensions that this host knows, and say which offering of morphir-dotnet is running and what it needs from
-the machine. Today the extensions are the built-in F# frontend of `morphir compile`, the built-in generators of
-`morphir generate` and the built-in analyzers of [`morphir validate`](validate.md).
+the machine. Today the extensions are the built-in C# and F# frontends of `morphir compile`, the built-in passes that
+change or check a model before a backend runs, the built-in generators of `morphir generate` and the built-in analyzers of
+[`morphir validate`](validate.md).
 
 ```bash
 $ morphir extension list
-╭────────────────────────┬────────────────┬─────────┬─────────────────────┬──────────┬─────────────────────────╮
-│ ID                     │ NAME           │ VERSION │ TYPES               │ DELIVERY │ HOSTS                   │
-├────────────────────────┼────────────────┼─────────┼─────────────────────┼──────────┼─────────────────────────┤
-│ morphir-dotnet.fsharp  │ F# frontend    │ 0.4.0   │ frontend (fsharp)   │ built-in │ morphir, dotnet-morphir │
-│ morphir.csharp         │ C# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
-│ morphir.fsharp         │ F# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
-│ morphir.type-validator │ Type validator │ 0.4.0   │ validator (1, 2, 3) │ built-in │ morphir, dotnet-morphir │
-╰────────────────────────┴────────────────┴─────────┴─────────────────────┴──────────┴─────────────────────────╯
+╭─────────────────────────────────┬─────────────────────┬─────────┬───────────────────────────────────┬──────────┬─────────────────────────╮
+│ ID                              │ NAME                │ VERSION │ TYPES                             │ DELIVERY │ HOSTS                   │
+├─────────────────────────────────┼─────────────────────┼─────────┼───────────────────────────────────┼──────────┼─────────────────────────┤
+│ morphir-dotnet.csharp           │ C# frontend         │ 0.4.0   │ frontend (csharp)                 │ built-in │ morphir, dotnet-morphir │
+│ morphir-dotnet.csharp.admission │ C# admission checks │ 0.4.0   │ transform (before-backend csharp) │ built-in │ morphir, dotnet-morphir │
+│ morphir-dotnet.fsharp           │ F# frontend         │ 0.4.0   │ frontend (fsharp)                 │ built-in │ morphir, dotnet-morphir │
+│ morphir.csharp                  │ C# generator        │ 0.4.0   │ backend                           │ built-in │ morphir, dotnet-morphir │
+│ morphir.fsharp                  │ F# generator        │ 0.4.0   │ backend                           │ built-in │ morphir, dotnet-morphir │
+│ morphir.type-validator          │ Type validator      │ 0.4.0   │ validator (1, 2, 3)               │ built-in │ morphir, dotnet-morphir │
+╰─────────────────────────────────┴─────────────────────┴─────────┴───────────────────────────────────┴──────────┴─────────────────────────╯
 ```
 
 The rows are sorted by id. The version of a built-in is the version of the host, including any build metadata.
 The `TYPES` column shows each type. For a frontend, the languages that it reads follow in parentheses; for a validator,
-the IR versions that it reads.
+the IR versions that it reads; for a transform, its stage, and for a stage before a backend, the target.
 
 In a terminal the table has styled borders and headers and fits the terminal width. When stdout is redirected, or
 `NO_COLOR` is set, the table has no ANSI codes. The table is for people: scripts use `--json`.
@@ -402,6 +405,39 @@ With `--json`, from the Native AOT `morphir` for Windows ARM64:
   "platform": "win-arm64",
   "prerequisites": { "runtime": [], "sdk": [], "native": [] },
   "extensions": [
+    {
+      "id": "morphir-dotnet.csharp",
+      "name": "C# frontend",
+      "version": "0.4.0",
+      "description": "Compiles C# source files to a Morphir model in process, with Roslyn.",
+      "types": ["frontend"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "deployments": ["native-aot", "self-contained", "framework-dependent", "dotnet-tool"],
+      "available": true,
+      "prerequisites": { "runtime": [], "sdk": [], "native": [] },
+      "capabilities": {
+        "frontend": {
+          "languages": [{ "id": "csharp", "fileExtensions": [".cs"] }],
+          "irVersions": ["4"]
+        }
+      }
+    },
+    {
+      "id": "morphir-dotnet.csharp.admission",
+      "name": "C# admission checks",
+      "version": "0.4.0",
+      "description": "Checks that the model fits the C# backend: types, names, the lowering of values, and name collisions.",
+      "types": ["transform"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "deployments": ["native-aot", "self-contained", "framework-dependent", "dotnet-tool"],
+      "available": true,
+      "prerequisites": { "runtime": [], "sdk": [], "native": [] },
+      "capabilities": {
+        "transform": { "stage": "before-backend", "target": "csharp" }
+      }
+    },
     {
       "id": "morphir-dotnet.fsharp",
       "name": "F# frontend",
@@ -433,14 +469,14 @@ With `--json`, from the Native AOT `morphir` for Windows ARM64:
       "available": true,
       "prerequisites": { "runtime": [], "sdk": [], "native": [] },
       "capabilities": {
-        "backend": { "targets": ["csharp"], "irVersions": ["1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0"], "generate": true }
+        "backend": { "targets": ["csharp"], "irVersions": ["4", "4.0.0"], "generate": true }
       }
     }
   ]
 }
 ```
 
-The example leaves out the `morphir.fsharp` and `morphir.type-validator` entries. The four offerings report:
+The `transform` member is a morphir-dotnet report member, like `validator`: MEP 0.2.0-draft.1 has no transform capability, so the stage is never written into a MEP message. The example leaves out the `morphir.fsharp` and `morphir.type-validator` entries. The C# frontend `morphir-dotnet.csharp` is available in every offering, the Native AOT `morphir` included: Roslyn runs under Native AOT. The four offerings report:
 
 | Offering | `host` | `deployment` | `execution` | `platform` | Top-level `prerequisites` | `morphir-dotnet.fsharp` |
 | --- | --- | --- | --- | --- | --- | --- |

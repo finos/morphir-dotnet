@@ -126,7 +126,7 @@ public class TestManagerSkillTests
         string[] folders =
         [
             "tests/Morphir.TestSupport", "tests/Morphir.TestSupport.Tests", "tests/Morphir.BlackBox.Tests", "tests/Morphir.Build.Tests/Helpers",
-            "tests/Morphir.Tooling.Tests/Features/Generate", "build", "src/Morphir.CodeGeneration.CSharp",
+            "tests/Morphir.Tooling.Tests/Features/Generate", "build", "src/Morphir.Lang.CSharp",
         ];
         var sources = string.Join("\n", folders.SelectMany(folder =>
             Directory.EnumerateFiles(Path.Combine(Root, folder.Replace('/', Path.DirectorySeparatorChar)), "*.*", SearchOption.AllDirectories)

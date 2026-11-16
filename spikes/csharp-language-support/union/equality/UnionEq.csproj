@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Spike: how plain records and plain unions compare at run time. -p:ProbeOperator=true adds Op.cs, which must fail with CS0019. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <NoWarn>$(NoWarn);CS1718</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Op.cs" Condition="'$(ProbeOperator)' != 'true'" />
+  </ItemGroup>
+</Project>

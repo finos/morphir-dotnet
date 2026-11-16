@@ -116,7 +116,9 @@ public class LibraryHostDriverTests
 
         managed.Should().StartWith(["publish", "/repo/A.csproj", "-c", "Release"]).And.Contain(["--artifacts-path", "/w/artifacts", "-o", "/w/out"]).And.NotContain("-r");
         trimmed.Should().Contain(["-r", "osx-arm64", "-p:SelfContained=true", "-p:PublishTrimmed=true", "-p:MorphirRidSpecificPublish=true"]);
-        aot.Should().Contain(["-r", "osx-arm64", "-p:PublishAot=true", "-p:MorphirProbeAot=true", "-p:MorphirRidSpecificPublish=true"]);
+        aot.Should().Contain(["-r", "osx-arm64", "-p:MorphirProbeAot=true", "-p:MorphirRidSpecificPublish=true"]);
+        // Each program switches on PublishAot from MorphirProbeAot; a global PublishAot would reach netstandard2.0 references.
+        aot.Should().NotContain("-p:PublishAot=true");
         foreach (var arguments in new[] { trimmed, aot })
         {
             // A restore for the runtime identifier writes its lock files below obj/, not into the committed ones.

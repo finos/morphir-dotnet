@@ -56,6 +56,12 @@
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Dunet" Version="1.16.2" />
     <PackageVersion Include="FSharp.Core" Version="10.1.403" />
+    <!-- The C# frontend, analyzers and backend. Roslyn only: no Microsoft.CodeAnalysis.*.Workspaces in a host (it fails under Native AOT). -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
+    <!-- Only Morphir.Lang.CSharp.CodeFixes and its tests: a code fix needs Workspaces, and only an IDE loads that assembly. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.12.0" />
+    <!-- The reference assemblies of the C# frontend, as embedded resources: the Native AOT host has no framework assembly files on disk. -->
+    <PackageVersion Include="Basic.Reference.Assemblies.Net100" Version="1.8.15" />
     <PackageVersion Include="FSharp.Data" Version="5.0.2" />
     <PackageVersion Include="FSharp.SystemCommandLine" Version="0.17.0-beta4" />
     <PackageVersion Include="Generator.Equals" Version="3.3.0" />

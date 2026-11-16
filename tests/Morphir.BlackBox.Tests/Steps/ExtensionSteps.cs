@@ -65,17 +65,42 @@ public sealed class ExtensionSteps(IExtensionDriver extensions, ScenarioRun run)
     public void TheTextHasARowForEachExtension(Table rows)
     {
         var output = run.Result.StandardOutput;
-        var lines = output.Replace("\r\n", "\n").Split('\n').Where(row => row.StartsWith('│')).ToArray();
+        var table = TableRows(output);
         var expected = rows.Rows.ToArray();
-        Check(lines.Length == expected.Length + 1, $"The table has {lines.Length} rows, not a header and {expected.Length} extensions.");
+        Check(table.Count == expected.Length + 1, $"The table has {table.Count} rows, not a header and {expected.Length} extensions.");
         for (var index = 0; index < expected.Length; index++)
         {
-            var row = lines[index + 1];
-            Check(row.StartsWith($"│ {expected[index]["id"]} ", StringComparison.Ordinal), $"Row {index + 1} is not the extension {expected[index]["id"]}.");
-            if (expected[index]["type"] is { Length: > 0 } type) Check(row.Contains($"│ {type} ", StringComparison.Ordinal), $"Row {index + 1} has not the type {type}.");
+            var row = table[index + 1];
+            Check(row[0] == expected[index]["id"], $"Row {index + 1} is not the extension {expected[index]["id"]}.");
+            if (expected[index]["type"] is { Length: > 0 } type) Check(row[3] == type, $"Row {index + 1} has not the type {type}.");
         }
 
         Check(!output.Contains("\u001b[", StringComparison.Ordinal), "Redirected output is not plain text: it has an ANSI code.");
+    }
+
+    /// <summary>
+    /// The cells of each row of a text table. The table wraps a long cell onto more lines, in which the first cell is
+    /// empty, so each of those lines continues the row above it.
+    /// </summary>
+    private static List<string[]> TableRows(string output)
+    {
+        var rows = new List<string[]>();
+        foreach (var line in output.Replace("\r\n", "\n").Split('\n').Where(line => line.StartsWith('│')))
+        {
+            var cells = line.Trim().Trim('│').Split('│').Select(cell => cell.Trim()).ToArray();
+            if (rows.Count > 0 && cells[0].Length == 0)
+            {
+                var row = rows[^1];
+                for (var i = 0; i < Math.Min(row.Length, cells.Length); i++)
+                    if (cells[i].Length > 0) row[i] = row[i].Length == 0 ? cells[i] : row[i] + " " + cells[i];
+            }
+            else
+            {
+                rows.Add(cells);
+            }
+        }
+
+        return rows;
     }
 
     [Then("the extension runtimes report has the host {string} and the platform of this machine")]

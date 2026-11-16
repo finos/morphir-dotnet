@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+        <RootNamespace>Morphir.Lang.CSharp.Analyzers.Tests</RootNamespace>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Basic.Reference.Assemblies.Net100" />
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" />
+        <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="AnalyzerSupport.fs" />
+        <Compile Include="ClosureTests.fs" />
+        <Compile Include="AdmissionAnalyzerTests.fs" />
+        <Compile Include="EqualityOptionTests.fs" />
+        <Compile Include="LoopRecognizerTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>

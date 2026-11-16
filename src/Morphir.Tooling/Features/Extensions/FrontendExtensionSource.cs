@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Morphir.Compilation;
 using Morphir.Extensions;
 using Morphir.IR;
+using Morphir.IR.Model;
 
 namespace Morphir.Tooling.Features.Extensions;
 
@@ -41,7 +42,16 @@ public sealed class FrontendExtensionSource : IExtensionSource
         "The self-contained and framework-dependent morphir and dotnet-morphir have a built-in F# frontend; " +
         "this offering uses the F# frontend process delivery morphir-fsharp-frontend.";
 
-    public FrontendExtensionSource(HostIdentity host) => Entries = [FSharp(host.Version)];
+    /// <summary>The id of the in-process C# frontend: the frontend identity that the compile report names.</summary>
+    public static readonly ExtensionId CSharpId = ExtensionId.Create("morphir-dotnet.csharp");
+
+    /// <summary>The language of the in-process C# frontend.</summary>
+    public static readonly LanguageId CSharpLanguage = LanguageId.Create("csharp");
+
+    /// <summary>The file extensions that the in-process C# frontend accepts.</summary>
+    public static readonly ImmutableArray<string> CSharpFileExtensions = [".cs"];
+
+    public FrontendExtensionSource(HostIdentity host) => Entries = [FSharp(host.Version), CSharp(host.Version)];
 
     public IReadOnlyList<ExtensionEntry> Entries { get; }
 
@@ -59,6 +69,28 @@ public sealed class FrontendExtensionSource : IExtensionSource
                 NonEmptySet<Versioning.FormatVersion>.Create(versions[0], versions[1..]));
         }
     }
+
+    /// <summary>
+    /// The C# frontend's claim: its language and file extension, and the IR versions of the current IR family, which is
+    /// all that it writes. Roslyn runs in every offering, so the C# frontend is built into each of them.
+    /// </summary>
+    public static FrontendClaim CSharpClaim
+    {
+        get
+        {
+            var versions = FrontendTargets.Standard.Where(target => target.Family == ModelFamily.V4).Select(target => target.Version).ToArray();
+            return FrontendClaim.Create(
+                NonEmptySet<FrontendLanguage>.Create(FrontendLanguage.Create(CSharpLanguage, [.. CSharpFileExtensions])),
+                NonEmptySet<Versioning.FormatVersion>.Create(versions[0], versions[1..]));
+        }
+    }
+
+    private static ExtensionEntry CSharp(ReleaseVersion version) =>
+        ExtensionEntry.BuiltInFrontend(
+            ExtensionIdentity.Create(CSharpId, ExtensionName.Create("C# frontend"), version,
+                ExtensionDescription.Create("Compiles C# source files to a Morphir model in process, with Roslyn.")),
+            CSharpClaim,
+            EntryDeployments.Every);
 
     private static ExtensionEntry FSharp(ReleaseVersion version) =>
         ExtensionEntry.BuiltInFrontend(

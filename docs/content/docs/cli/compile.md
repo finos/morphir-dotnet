@@ -7,8 +7,9 @@ description: Compile source code to Morphir IR
 
 `compile` reads source documents, compiles them with a frontend, writes the IR in the requested format
 version, and publishes it under the out root. With `--target`, it then generates code from the IR that it
-wrote, as `generate` does. The dotnet tool `dotnet-morphir` has a built-in F# frontend.
-The Native AOT executable `morphir` has no built-in frontend. A managed `morphir` built from `src/Morphir.Managed` has the same in-process F# frontend as `dotnet-morphir`, but it is not published yet.
+wrote, as `generate` does. Every offering has the built-in [C# frontend](../frontends/csharp/), the Native AOT
+`morphir` included. The dotnet tool `dotnet-morphir` also has a built-in F# frontend.
+The Native AOT executable `morphir` has no built-in F# frontend. A managed `morphir` built from `src/Morphir.Managed` has the same in-process F# frontend as `dotnet-morphir`, but it is not published yet.
 
 Both executables can also run a frontend as a MEP 0.2.0-draft.1 extension: a guest process that the
 command starts and that compiles the documents. See [Frontend extensions](#frontend-extensions).
@@ -75,6 +76,13 @@ language = "fsharp"
 project_file = "src/Acme.CarRental.fsproj"   # the same key in every [frontend.<language>] table
 ```
 
+The other keys of the `[frontend.<language>]` table of the selected language are options of its frontend. The
+command gives each key to the frontend as an extra member of the MEP compile options, with `-` for `_`, so
+`loop_lowering` is `loop-lowering`. Only a scalar value (a string, a boolean or a number) goes to the frontend. The
+C# frontend has the key `loop_lowering` (`traversal` or `recursion`), and `[frontend.csharp]` is a closed table: a key
+that the C# frontend does not know, or a value that is not one of its words, fails when the configuration loads, with
+exit code 2. See [C# handling options](../backends/csharp/options.md).
+
 A language id can contain a dot; then the id is one quoted TOML key, `[frontend."acme.lang"]`. Without
 the quotes, `[frontend.acme.lang]` is a table `lang` inside a table `acme`, which no language reads.
 
@@ -113,6 +121,7 @@ extensions of every document), the file extension of each document, the output I
 several documents. If no frontend matches, or more than one matches, the command fails before compilation
 and names the frontend and the capability.
 
+- Every offering registers the in-process C# frontend `morphir-dotnet.csharp`. It reads `.cs` documents and writes IR version 4.
 - `dotnet-morphir` registers the in-process F# frontend `morphir-dotnet.fsharp`.
 - The Native AOT `morphir` has no F# frontend. A compile of F# fails with `compile.frontend_unavailable`.
 - The managed `morphir` built from `src/Morphir.Managed` registers the same in-process F# frontend as `dotnet-morphir`. It is not published yet.
@@ -246,8 +255,10 @@ dotnet-morphir generate --input <out root>/compile.dest/morphir-ir.json --target
 Both give the same files with the same bytes, and both reports name the same backend, as long as the project
 configuration selects no backend extension. `compile --target` always runs the built-in backend of the target
 and does not read `[codegen.<target>].extension`; when that key is set, the command prints a note on stderr,
-and only `morphir generate` runs the extension. Classic IR versions
-(`1`, `2` and `3`) give a classic model, and the backend uses its classic path. As in `generate`, the
+and only `morphir generate` runs the extension. The other keys of the table are options of the backend, as in
+`generate`, for example `float_equality = "ieee"` in `[codegen.csharp]`. Classic IR versions
+(`1`, `2` and `3`) give a classic model. The F# backend uses its classic path, and the C# backend gets the model
+after the upgrade to the current IR. As in `generate`, the
 `generation` member says whether the built-in backend formatted the files (`formatting`: `applied`, `off` or
 `unavailable`), and a host that cannot run the formatter (the Native AOT `morphir`) writes a warning on stderr,
 never on stdout or in the JSON output. Pass `--option format=false` for the unformatted files without the warning.
@@ -414,7 +425,8 @@ The report members are:
 | `diagnostics` | Every diagnostic of the run, ordered by stage, then document, then position. |
 | `failureKind` | `source`, `invocation`, `configuration`, `operational` or `cancelled`, or null. |
 | `origins` | Where each setting came from: `cli` with its `flag`, `configuration` with its `file` and `key`, or `default`. |
-| `generation` | Only with `--target`: `target`, `backend` (null when selection failed), `output`, and the `generate` report members `sourceVersion`, `family`, `distributionKind`, `representation`, `artifacts`, `written`, `unchanged` and `removed`, and `formatting` when the backend reports it. |
+| `passes` | Only when a pass ran after the frontend: the ids that ran, the application list (`rule`, `before` and `after` node addresses, and `origin` when the node has a source location) and the reads of other modules. See [the middle end](../pipeline/middle-end.md). |
+| `generation` | Only with `--target`: `target`, `backend` (null when selection failed), `output`, and the `generate` report members `sourceVersion`, `family`, `distributionKind`, `representation`, `artifacts`, `written`, `unchanged` and `removed`, `formatting` when the backend reports it, and `passes` when a pass ran before the backend. The application list of `generation.passes` continues the list of `passes`: each `before` names the node in the model that the frontend wrote, and a node that a pass after the frontend and a pass before the backend replaced has one record. The diagnostics of the passes before the backend are in `diagnostics`, in the stage `generate`. |
 
 Diagnostics have the frontend (MEP) shape: `severity`, `code`, `message`, and optional `location` (a
 document `uri` and a zero-based `range` in UTF-16 code units), `related` and `data`. A location `uri` is
@@ -543,7 +555,7 @@ $ morphir compile --language fsharp --input src/Rates.fs --package-name acme/dem
     {
       "severity": "error",
       "code": "compile.frontend_unavailable",
-      "message": "No registered frontend reads the language 'fsharp'. This build registers no frontend. The self-contained and framework-dependent morphir and dotnet-morphir have a built-in F# frontend; this offering uses the F# frontend process delivery morphir-fsharp-frontend. Set [frontend.fsharp].extension in morphir.toml, or use --extension, to configure a frontend extension."
+      "message": "No registered frontend reads the language 'fsharp'. Registered frontends: morphir-dotnet.csharp. The self-contained and framework-dependent morphir and dotnet-morphir have a built-in F# frontend; this offering uses the F# frontend process delivery morphir-fsharp-frontend. Set [frontend.fsharp].extension in morphir.toml, or use --extension, to configure a frontend extension."
     }
   ],
   "failureKind": "configuration",
@@ -581,7 +593,7 @@ stderr.
 | `completed` | `report` | The last line, exactly once. `report` is the report that `--json` writes. |
 
 The stages are `settings`, `sources`, `capture`, `frontend` (which builds the requested IR family),
-`write` and `publish`, and with `--target` also `generate` (model loading, backend selection, option
+`transform` (the passes of the stage after a frontend; it starts only when a pass has that stage), `write` and `publish`, and with `--target` also `generate` (model loading, backend selection, option
 validation and generation) and `generatePublish` (owned publication of the generated files). A stage that
 does not run has no records. All `diagnostics` records together hold
 the same diagnostics as the report. The records keep emission order; the report keeps stage, document and

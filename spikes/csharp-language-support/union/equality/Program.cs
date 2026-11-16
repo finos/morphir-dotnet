@@ -1,0 +1,14 @@
+var a = new Shape(new Circle(1.0));
+var b = new Shape(new Circle(1.0));
+var c = new Shape(new Rect(1.0, 2.0));
+Console.WriteLine($"union Equals same case/value: {a.Equals(b)}");
+Console.WriteLine($"union Equals other case: {a.Equals(c)}");
+Console.WriteLine($"union hash equal: {a.GetHashCode() == b.GetHashCode()}");
+Console.WriteLine($"EqualityComparer union: {EqualityComparer<Shape>.Default.Equals(a, b)}");
+Console.WriteLine($"double NaN == NaN: {double.NaN == double.NaN}");
+Console.WriteLine($"record NaN == record NaN: {new Circle(double.NaN) == new Circle(double.NaN)}");
+Console.WriteLine($"union of NaN records Equals: {new Shape(new Circle(double.NaN)).Equals(new Shape(new Circle(double.NaN)))}");
+Console.WriteLine($"record 0.0 == record -0.0: {new Circle(0.0) == new Circle(-0.0)}, hash equal: {new Circle(0.0).GetHashCode() == new Circle(-0.0).GetHashCode()}");
+public sealed record Circle(double Radius);
+public sealed record Rect(double W, double H);
+public union Shape(Circle, Rect);

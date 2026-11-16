@@ -1,0 +1,51 @@
+<Project>
+  <!--
+    The build integration of Morphir.Lang.CSharp (design.html, BLD-1). A model is an AdditionalFiles item with a name that
+    ends in .morphir.json. By default the source generator of analyzers/dotnet/cs adds its C# to the compilation. With
+    MorphirGenerateCSharpFiles set to true, the target MorphirGenerateCSharpFiles writes the same files into
+    $(IntermediateOutputPath)morphir/csharp/ before the compilation and adds them to the Compile items.
+  -->
+  <PropertyGroup>
+    <MorphirCSharpTaskAssembly Condition="'$(MorphirCSharpTaskAssembly)' == ''">$(MSBuildThisFileDirectory)../tasks/netstandard2.0/Morphir.Lang.CSharp.Build.dll</MorphirCSharpTaskAssembly>
+    <!-- The generated code is C# 15. The project can still target a lower framework, for example net10.0. -->
+    <LangVersion Condition="'$(LangVersion)' != 'preview'">15</LangVersion>
+  </PropertyGroup>
+
+  <UsingTask TaskName="Morphir.Lang.CSharp.Build.GenerateMorphirCSharp" AssemblyFile="$(MorphirCSharpTaskAssembly)" />
+
+  <!-- C# 15 needs the compiler of .NET SDK 11. An older SDK stops here, before the compiler reports the language version. -->
+  <Target Name="MorphirCheckSdk" BeforeTargets="BeforeBuild;CoreCompile"
+          Condition="'$(NETCoreSdkVersion)' != '' and $([MSBuild]::VersionLessThan('$(NETCoreSdkVersion)', '11.0.100'))">
+    <Error Code="MORPHIR2010"
+           Text="Morphir.Lang.CSharp needs the .NET SDK 11.0.100 or later, because the generated code is C# 15. This build uses the .NET SDK $(NETCoreSdkVersion). Install the .NET SDK 11, or select it in global.json. The project can still target a lower framework, for example net10.0." />
+  </Target>
+
+  <!--
+    Set in a target: IntermediateOutputPath can be empty when this file is imported. It can also be absolute (for example
+    with -artifacts-path), so it is combined with the project folder, not appended to it.
+  -->
+  <Target Name="_MorphirCSharpPaths">
+    <PropertyGroup>
+      <_MorphirCSharpOutput>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'morphir', 'csharp'))))</_MorphirCSharpOutput>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="MorphirGenerateCSharpFiles" BeforeTargets="CoreCompile" DependsOnTargets="MorphirCheckSdk;_MorphirCSharpPaths"
+          Condition="'$(MorphirGenerateCSharpFiles)' == 'true'">
+    <ItemGroup>
+      <_MorphirCSharpModel Include="@(AdditionalFiles)" Condition="$([System.String]::Copy('%(Filename)%(Extension)').ToLowerInvariant().EndsWith('.morphir.json'))" />
+    </ItemGroup>
+    <GenerateMorphirCSharp Models="@(_MorphirCSharpModel)" OutputDirectory="$(_MorphirCSharpOutput)" Namespace="$(MorphirCSharpNamespace)"
+                           TargetFrameworkIdentifier="$(TargetFrameworkIdentifier)" TargetFrameworkVersion="$(TargetFrameworkVersion)">
+      <Output TaskParameter="GeneratedFiles" ItemName="_MorphirCSharpGenerated" />
+    </GenerateMorphirCSharp>
+    <ItemGroup>
+      <Compile Include="@(_MorphirCSharpGenerated)" />
+      <FileWrites Include="@(_MorphirCSharpGenerated)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="MorphirCleanCSharpFiles" AfterTargets="CoreClean" DependsOnTargets="_MorphirCSharpPaths">
+    <RemoveDir Directories="$(_MorphirCSharpOutput)" Condition="Exists('$(_MorphirCSharpOutput)')" />
+  </Target>
+</Project>

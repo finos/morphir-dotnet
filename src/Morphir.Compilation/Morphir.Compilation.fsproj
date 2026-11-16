@@ -1,7 +1,24 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  the netstandard2.0 target of this library (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK refuses
+  them for netstandard2.0 (NETSDK1207), so that target keeps them local and off. The other targets keep the values of the
+  publish. The application still compiles and trims this assembly.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
 
     <PropertyGroup>
-        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <!--
+          netstandard2.0 holds the core that the pipeline function of Morphir.Lang.CSharp needs in a compiler host: checked
+          results, diagnostics and the exact IR targets. The rest (builders, writers, registries and frontends) uses
+          System.Text.Rune and other types that netstandard2.0 does not have.
+        -->
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks);netstandard2.0</TargetFrameworks>
         <RootNamespace>Morphir.Compilation</RootNamespace>
         <Description>Language-neutral Morphir compilation contracts: exact IR targets, checked diagnostics, the IR builder interface and the writer, builder and project-file provider registries.</Description>
         <PackageReleaseNotes>### Added
@@ -11,6 +28,10 @@ Exact IR targets, checked diagnostics, the IR builder interface and compilation 
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <!-- Trimming and AOT analyzers for the frameworks that support them (NETSDK1210, NETSDK1212). -->
+    <PropertyGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
         <IsTrimmable>true</IsTrimmable>
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
         <IsAotCompatible>true</IsAotCompatible>
@@ -24,10 +45,18 @@ Exact IR targets, checked diagnostics, the IR builder interface and compilation 
         <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
     </ItemGroup>
 
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="System.Text.Json" />
+        <Compile Include="Polyfill.fs" />
+    </ItemGroup>
+
     <ItemGroup>
         <Compile Include="Diagnostics.fs" />
         <Compile Include="Checked.fs" />
         <Compile Include="Versions.fs" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
         <Compile Include="Builders.fs" />
         <Compile Include="Registries.fs" />
         <Compile Include="Writers.fs" />

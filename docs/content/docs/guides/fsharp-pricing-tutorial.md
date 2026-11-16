@@ -233,7 +233,7 @@ dotnet-morphir compile --target csharp --generate-output BookingApp/Generated
 ```
 
 ```text
-compile succeeded: 3 module(s), IR version 4, /work/acme/.morphir/out/compile.dest/morphir-ir.json, generated 3 artifact(s) with morphir.csharp to /work/acme/BookingApp/Generated; no diagnostics
+compile succeeded: 3 module(s), IR version 4, /work/acme/.morphir/out/compile.dest/morphir-ir.json, generated 4 artifact(s) with morphir.csharp to /work/acme/BookingApp/Generated; no diagnostics
 ```
 
 ## What you built

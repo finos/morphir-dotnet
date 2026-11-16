@@ -264,6 +264,27 @@ let tests =
               finally
                   dispose frontend
 
+          testCase "The extra options of a request go to the guest beside the named compile options"
+          <| fun _ ->
+              let frontend = connect (fakeOptions "echo-options")
+
+              try
+                  use value = System.Text.Json.JsonDocument.Parse "\"recursion-for-the-echo-test\""
+
+                  let withExtra =
+                      match (request (Versioning.Classic 4) frontend).WithExtraOptions [ Collections.Generic.KeyValuePair("loop-lowering", value.RootElement) ] with
+                      | Ok request -> request
+                      | Error failure -> failtest $"{failure}"
+
+                  (frontend :> IFrontend).CompileAsync(withExtra, CancellationToken.None).GetAwaiter().GetResult() |> ignore
+              finally
+                  dispose frontend
+
+              Expect.stringContains
+                  (stderr.ToString())
+                  "\"loop-lowering\":\"recursion-for-the-echo-test\""
+                  "the extra option is a member of the options, beside typesOnly and irVersion"
+
           testCase "A guest that selects only 4.0.0 gets no request for classic 3, and the refusal names the extension"
           <| fun _ ->
               let frontend = connect (fakeOptions "only-v4")

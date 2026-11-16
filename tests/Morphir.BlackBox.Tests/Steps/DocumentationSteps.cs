@@ -101,6 +101,31 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
     [GeneratedRegex("```toml\\n(?<body>.*?)\\n```", RegexOptions.Singleline)]
     private static partial Regex TomlBlock();
 
+    [GeneratedRegex("```csharp\\n(?<body>.*?)\\n```", RegexOptions.Singleline)]
+    private static partial Regex CSharpBlock();
+
+    /// <summary>The text of a C# block of the section, counted from 1.</summary>
+    private string CSharpBlockOfTheSection(int number)
+    {
+        var blocks = CSharpBlock().Matches(_section ?? throw new InvalidOperationException("The scenario has no section before this step."));
+        if (number < 1 || number > blocks.Count) throw new InvalidOperationException($"The section has {blocks.Count} C# blocks, not a block {number}.");
+        return blocks[number - 1].Groups["body"].Value;
+    }
+
+    [Given("the C# block {int} of the section is the source file {string}")]
+    public void TheCSharpBlockIsTheSourceFile(int number, string relative) =>
+        workspace.WriteText(workspace.File(relative.Split('/')), CSharpBlockOfTheSection(number) + "\n");
+
+    [Then("the file {string} contains the C# block {int} of the section")]
+    public void TheFileContainsTheCSharpBlock(string relative, int number)
+    {
+        var file = workspace.File(relative.Split('/'));
+        if (!workspace.Exists(file)) throw new InvalidOperationException($"There is no file {relative}.");
+        var text = workspace.ReadText(file).Replace("\r\n", "\n");
+        if (!text.Contains(CSharpBlockOfTheSection(number), StringComparison.Ordinal))
+            throw new InvalidOperationException($"The file {relative} does not contain the C# block {number} of the section. It has:\n{text}");
+    }
+
     private string? _section;
 
     [Given("the morphir.toml of the section in the project directory {string}")]
@@ -129,14 +154,46 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
         }
     }
 
+
+    [Given("the first C# code block of the documentation page {string} as the file {string}")]
+    public void TheFirstCSharpCodeBlockAsTheFile(string page, string relative)
+    {
+        var block = CSharpBlock().Match(Page(page));
+        if (!block.Success) throw new InvalidOperationException($"The page {page} has no C# code block.");
+        workspace.WriteText(workspace.File(relative), block.Groups["body"].Value + "\n");
+    }
+
+    /// <summary>
+    /// Runs each documented command of the section in the order of the page, as written, with the directory as the
+    /// working directory, and stops at the first command that fails.
+    /// </summary>
+    [When("I run the documented commands of the section in the directory {string}")]
+    public async Task RunTheCommandsOfTheSectionInTheDirectory(string directory)
+    {
+        _ran.Clear();
+        var workingDirectory = workspace.Directory(directory).Path;
+        foreach (var command in Commands)
+        {
+            var result = await cli.RunCommandLineAsync(command.Arguments, new CliRunOptions { Timeout = TimeSpan.FromSeconds(120), WorkingDirectory = workingDirectory });
+            _ran.Add((command, result));
+            run.Result = result.ShouldExitWith(0);
+        }
+    }
+
+    /// <summary>
+    /// The compile wrote the path of the published IR of the project, and the page shows that path below
+    /// <c>/work/</c> and the directory of the project.
+    /// </summary>
     [Then("the documented compile writes the path of the published IR of the project {string}")]
     public void TheCompileWritesThePublishedIr(string directory)
     {
         var (command, result) = _ran.Single(item => item.Command.Arguments.StartsWith("compile", StringComparison.Ordinal));
         var published = workspace.File(directory, ".morphir", "out", "compile.dest", "morphir-ir.json").Path;
         Check(result.StandardOutput.Trim() == published, $"The compile wrote {result.StandardOutput.Trim()}, not the published IR {published}.", result);
-        var documented = command.Output.Single();
-        Check(published.Replace('\\', '/').EndsWith(documented["/work/demo".Length..], StringComparison.Ordinal), $"The published IR {published} is not at the documented place {documented}.", result);
+        var documented = command.Output.SingleOrDefault() ?? "";
+        var example = $"/work/{directory}";
+        Check(documented.StartsWith(example + "/", StringComparison.Ordinal), $"The page shows the published IR at {documented}, not below {example}.", result);
+        Check(published.Replace('\\', '/').EndsWith(documented[example.Length..], StringComparison.Ordinal), $"The published IR {published} is not at the documented place {documented}.", result);
     }
 
     [Then("the documented generate writes its documented files to {string} of the project {string}")]

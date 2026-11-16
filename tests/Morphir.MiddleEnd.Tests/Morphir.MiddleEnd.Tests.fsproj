@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+        <RootNamespace>Morphir.MiddleEnd.Tests</RootNamespace>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.MiddleEnd\Morphir.MiddleEnd.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="../Fixtures/NodeAddresses/*.json" Link="Fixtures/NodeAddresses/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="NodeAddressTests.fs" />
+        <Compile Include="ModelSupport.fs" />
+        <Compile Include="NodeWalkTests.fs" />
+        <Compile Include="UpgradeTests.fs" />
+        <Compile Include="RewriteTests.fs" />
+        <Compile Include="PassRunnerTests.fs" />
+        <Compile Include="DocumentedRule.fs" />
+        <Compile Include="DocumentationTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>

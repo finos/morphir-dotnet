@@ -275,6 +275,7 @@ type AnalyzerRunner =
             match capability with
             | ExtensionCapability.Validator claim -> claim.Reads model.SourceVersion.Version
             | ExtensionCapability.Frontend _
+            | ExtensionCapability.Transform _
             | ExtensionCapability.Backend _ -> false
         )
 

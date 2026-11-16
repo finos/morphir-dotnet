@@ -160,7 +160,8 @@ public sealed class CompileTargetTests
     {
         using var workspace = Project();
         workspace.Write("gen/keep.txt", "not generated");
-        var narrow = new RecordingBackend("csharp", new BackendCapability(ModelFamily.V4, Morphir.Extensions.SourceFormatVersions.Create("4"), DistributionKind.Library));
+        // The backend reads classic version 3 only, so neither the model as written nor its upgrade to the current IR suits it.
+        var narrow = new RecordingBackend("csharp", new BackendCapability(ModelFamily.Classic, Morphir.Extensions.SourceFormatVersions.Create("3"), DistributionKind.Library));
         var run = await Compile(workspace, $"--json-lines {Inputs} --ir-version 1 --target csharp --generate-output gen",
             services => services.AddSingleton<IGenerationBackendResolver>(new RegisteredBackendResolver([narrow])));
 
@@ -174,7 +175,7 @@ public sealed class CompileTargetTests
         var diagnostic = report.GetProperty("diagnostics").EnumerateArray().Single(d => d.GetProperty("severity").GetString() == "error");
         diagnostic.GetProperty("code").GetString().Should().Be("incompatible-model");
         diagnostic.GetProperty("message").GetString().Should().Contain("fake.csharp", "the message names the backend")
-            .And.Contain("V4 4 Library", "and the capability that it declares")
+            .And.Contain("Classic 3 Library", "and the capability that it declares")
             .And.Contain("Classic 1 Library", "and the model");
         var ir = report.GetProperty("output").GetString();
         File.Exists(ir).Should().BeTrue("the compile output remains published");
@@ -198,8 +199,42 @@ public sealed class CompileTargetTests
         report.RootElement.GetProperty("failureKind").GetString().Should().Be("invocation");
         report.RootElement.GetProperty("generation").GetProperty("backend").GetString().Should().Be("morphir.csharp");
         report.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString())
-            .Should().Contain("invalid-backend-option");
+            .Should().Contain("unsupported-language");
         Directory.Exists(workspace.PathOf("gen2")).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task TheCSharpTableOfTheProjectReachesTheBackendOfCompileTarget()
+    {
+        using var workspace = Project();
+        // A record with a float field, so that the equality option has an effect on the C#.
+        workspace.Write("src/Rates.fs", "namespace Acme.CarRental\n\nmodule Rates =\n    type Quote = { Price: float }\n    let dailyRate (seats: int) : int = if seats > 4 then 80 else 60\n");
+        workspace.Write("morphir.toml", File.ReadAllText(workspace.PathOf("morphir.toml")) + "\n[codegen.csharp]\nfloat_equality = \"ieee\"\n");
+        var run = await Compile(workspace, $"--json {Inputs} --target csharp --generate-output gen");
+        run.Exit.Should().Be(0, run.Output.Text);
+        Directory.EnumerateFiles(workspace.PathOf("gen"), "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText).Should().Contain(text => text.Contains("MorphirEquals", StringComparison.Ordinal), "the key gives IEEE equality");
+
+        var plain = await Compile(workspace, $"--json {Inputs} --target csharp --generate-output gen2 --option float-equality=clr");
+        plain.Exit.Should().Be(0, plain.Output.Text);
+        Directory.EnumerateFiles(workspace.PathOf("gen2"), "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText).Should().NotContain(text => text.Contains("MorphirEquals", StringComparison.Ordinal), "the command line wins over the key");
+    }
+
+    [Test]
+    public async Task AMalformedCSharpKeyOrOptionFailsWithExitCode2AndWritesNoFile()
+    {
+        using var workspace = Project();
+        var option = await Compile(workspace, $"--json {Inputs} --target csharp --generate-output gen --option float-equality=maybe");
+        option.Exit.Should().Be(2, option.Output.Text);
+        option.Output.Text.Should().Contain("invalid-backend-option");
+        Directory.Exists(workspace.PathOf("gen")).Should().BeFalse();
+
+        workspace.Write("morphir.toml", File.ReadAllText(workspace.PathOf("morphir.toml")) + "\n[codegen.csharp]\ntraversal = \"sideways\"\n");
+        var key = await Compile(workspace, $"--json {Inputs} --target csharp --generate-output gen");
+        key.Exit.Should().Be(2, key.Output.Text);
+        key.Output.Text.Should().Contain("traversal");
+        Directory.Exists(workspace.PathOf("gen")).Should().BeFalse();
     }
 
     [Test]

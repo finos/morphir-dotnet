@@ -6,7 +6,9 @@ description: Generate target artifacts from a Morphir model
 # Generate
 
 Generate target files from a decoded Morphir library. Targets `fsharp` and
-`csharp` support classic and v4 models. Target and output are explicit. The
+`csharp` support classic and v4 models. The C# backend reads the current IR
+only, so the command upgrades a classic model before the passes and the
+backend run. Target and output are explicit. The
 input is an explicit `--input`, or else the IR of the most recent
 `morphir compile` of the project.
 
@@ -34,8 +36,9 @@ morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output
 | `--out-dir` | Without `--input`: the out root. Overrides `MORPHIR_OUT_DIR` and `workspace.out_dir` |
 
 Paths resolve against the invocation directory. With `--input`, no project
-configuration is required. Without `--extension`, `generate` reads the project
-configuration only for `[codegen.<target>].extension`. With `--project` or `--config`, a configuration
+configuration is required. `generate` reads the project configuration only for the
+`[codegen.<target>]` table: `extension` selects a backend extension when `--extension` is absent, and each other key
+is an option of the backend (see the C# options below). With `--project` or `--config`, a configuration
 error fails the command with exit code 2, as it does for `compile`. With neither, a discovered configuration
 that does not load is a warning on stderr, and the built-in backend runs. Repeated option keys use the last value. Values parse
 as JSON first, so `optimize=false` is Boolean while `optimize='"false"'` is a
@@ -61,10 +64,15 @@ The default formatted text follows the platform's line endings (CRLF on Windows,
 reports `formatting: unavailable`. The managed hosts (`dotnet-morphir` and the managed `morphir`) format.
 
 C# accepts numeric JSON
-`language-version=14` or `language-version=15`, default `14`, and optional string
-`namespace=Pricing.Generated`. Plain namespace text becomes a JSON string through
-the shared option parser. Numeric strings, `preview`, `latest`, unsupported
-numbers, unknown keys and wrong JSON kinds are invocation errors.
+`language-version=15`, the default and the only language version that the backend writes, a string
+`profile=imperative` or `profile=functional`, optional string
+`namespace=Pricing.Generated`, and the handling options `traversal=loop|functional`,
+`tail-recursion=loop|local-function` and `float-equality=clr|ieee`. The keys of `[codegen.csharp]` in the project
+configuration give the same options, with `_` for `-` (`float_equality = "ieee"`). `--option` wins over the key. See
+[C# generation]({{< relref "/docs/backends/csharp" >}}) for the table and the attributes in C# source. Plain namespace text becomes a JSON string through
+the shared option parser. Numeric strings, `preview`, `latest`, unknown keys and wrong JSON kinds are
+invocation errors with the code `invalid-backend-option`. Another number, such as `language-version=14`, is an
+invocation error with the code `unsupported-language`, and its diagnostic names 15.
 
 C# namespaces are dotted literal identifiers in Unicode Normalization Form C.
 An identifier can start with a letter or `_` and continue with letters, decimal
@@ -235,15 +243,14 @@ For C#:
 
 ```powershell
 morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v3.json --target csharp --output artifacts/generated-csharp --json
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=14 --option namespace=Pricing.Generated --json
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=15 --option namespace=Pricing.Generated --json
 morphir generate --input tests/Fixtures/MorphirIon/pairs/v3-daily-rate.ion --target csharp --output artifacts/generated-csharp --input-format ion --json
 morphir generate --input tests/Fixtures/MorphirIon/trees/v3-daily-rate --target csharp --output artifacts/generated-csharp --json
 ```
 
-`--option language-version=15 --option language-version=14` selects `14`.
-Selecting `15` explicitly generates the C# 15 profile independently of the SDK
-installed on the generation machine. Compile it separately using the matching
-.NET 11 compiler. See [the executable C# walkthrough]({{< relref "/docs/getting-started/morphir-to-csharp" >}}).
+`--option language-version=14 --option language-version=15` selects `15`: the last occurrence of an option wins.
+The backend writes C# 15 independently of the SDK installed on the generation machine. Compile it separately
+using the .NET SDK 11 compiler. See [the executable C# walkthrough]({{< relref "/docs/getting-started/morphir-to-csharp" >}}).
 
 For CI, retain the JSON report and propagate a failure:
 
@@ -263,7 +270,13 @@ backend extension `backendTransport` and `backendVersion`, and `formatting` when
 `applied` (formatted), `off` (`format=false`) or `unavailable` (the host cannot run the formatter). Only a
 built-in backend reports it. An external backend (`backendTransport` `mep`) has no `formatting` member, even
 with `format=false`: a MEP generate result does not say whether the guest formatted, and the host does not report
-what it did not observe. Logs and warnings use stderr, never stdout.
+what it did not observe. When a built-in pass ran before the backend, the report has `passes`: the ids that ran, the
+application list with the node addresses before and after, and the reads of other modules. When no pass ran but the upgrade
+of a classic model moved or replaced a node, `passes` has an empty `ran` and the records of the upgrade. A feature that the
+backend cannot take and that remains after the passes, such as an extensible record for `csharp`, stops the command before
+the backend with `transform.feature_remains`. An upgrade error names the node address in its `location`. A pass error stops the
+command before the backend with exit code 1, and nothing is published. See [the middle end](../pipeline/middle-end.md).
+Logs and warnings use stderr, never stdout.
 Failed reports contain no successful artifact list. Parsed JSON-mode invocation
 errors also produce a report.
 

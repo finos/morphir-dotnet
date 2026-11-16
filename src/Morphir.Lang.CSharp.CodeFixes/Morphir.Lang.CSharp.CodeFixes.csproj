@@ -1,0 +1,40 @@
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  this netstandard2.0 library. The SDK refuses them for netstandard2.0 (NETSDK1207), so this library keeps them local
+  and off.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup>
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!--
+          The code fixes of the Morphir admission rules. A Roslyn code fix needs the Workspaces layer, which does not run
+          under Native AOT, so only an IDE loads this assembly. No host, Morphir.Lang.CSharp or Morphir.Tooling references
+          it (design.html, PKG-1; CSharpCodeFixClosureTests checks this).
+        -->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <RootNamespace>Morphir.Lang.CSharp.CodeFixes</RootNamespace>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <!-- Not a package of its own: the Morphir.Lang.CSharp package is to carry it in analyzers/ (tasks.md, group 8). -->
+        <IsPackable>false</IsPackable>
+        <Description>Roslyn code fixes that change C# outside the Morphir subset to the preferred form, for an IDE.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" />
+    </ItemGroup>
+
+</Project>

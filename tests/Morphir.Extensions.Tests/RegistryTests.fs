@@ -45,6 +45,12 @@ let private validator (id: string) =
         ValidatorClaim.Create(formatVersion "1", formatVersion "2", formatVersion "3")
     )
 
+let private transform (id: string) (stage: TransformStage) =
+    ExtensionEntry.BuiltInTransform(
+        ExtensionIdentity.Create(ExtensionId.Create id, ExtensionName.Create $"{id} pass", host.Version, null),
+        TransformClaim.Create stage
+    )
+
 let private catalogOf entries =
     match ExtensionCatalog.create host entries with
     | Ok catalog -> catalog
@@ -172,6 +178,36 @@ let tests =
 
             Expect.equal (string entry.Capabilities) "validator (1, 2, 3)" "capability text"
             Expect.equal entry.CapabilitySummary "validator (1, 2, 3)" "capability summary"
+        }
+
+        test "a transform entry derives its type and stage from its transform claim" {
+            let entry = transform "morphir.csharp.no-reserved-names" (TransformStage.BeforeBackend(TargetId.Create "csharp"))
+            Expect.equal (List.ofSeq entry.Types) [ ExtensionType.Transform ] "transform"
+            Expect.isNull entry.BackendClaimOrNull "no backend claim"
+            Expect.isNull entry.ValidatorClaimOrNull "no validator claim"
+            Expect.isNull entry.FrontendClaimOrNull "no frontend claim"
+
+            match entry.TransformClaimOrNull with
+            | null -> failtest "no transform claim"
+            | claim ->
+                Expect.equal claim.Stage.WireValue "before-backend" "stage text"
+                Expect.equal (claim.Stage.TargetOrNull |> string) "csharp" "target"
+
+            Expect.equal (string entry.Capabilities) "transform (before-backend csharp)" "capability text"
+            Expect.equal entry.CapabilitySummary "transform (before-backend csharp)" "capability summary"
+        }
+
+        test "an after-frontend transform has no target" {
+            let entry = transform "morphir.prune" TransformStage.AfterFrontend
+            let claim = nonNull entry.TransformClaimOrNull
+            Expect.equal claim.Stage.WireValue "after-frontend" "stage text"
+            Expect.isNull claim.Stage.TargetOrNull "no target"
+
+            let text =
+                claim.Stage.Match((fun () -> "frontend"), (fun target -> $"backend {target.Value}"))
+
+            Expect.equal text "frontend" "match"
+            Expect.equal entry.CapabilitySummary "transform (after-frontend)" "capability summary"
         }
 
         test "a backend capability summary is its type" {

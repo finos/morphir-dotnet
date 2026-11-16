@@ -1,7 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Morphir.CodeGeneration.CSharp;
+using Morphir.Lang.CSharp.Backend;
 using Morphir.IR.Model;
 using Morphir.IR.Pipeline;
 using Morphir.Tooling.Features.Generate;
@@ -28,10 +28,25 @@ public sealed class CSharpGenerationBackendTests
     }
 
     [Test]
-    [Arguments("language-version", "14", true)]
     [Arguments("language-version", "15", true)]
+    [Arguments("language-version", "14", false)]
     [Arguments("language-version", "13", false)]
     [Arguments("language-version", "16", false)]
+    [Arguments("profile", "\"imperative\"", true)]
+    [Arguments("profile", "\"functional\"", true)]
+    [Arguments("profile", "\"declarative\"", false)]
+    [Arguments("profile", "1", false)]
+    [Arguments("traversal", "\"loop\"", true)]
+    [Arguments("traversal", "\"functional\"", true)]
+    [Arguments("traversal", "\"sideways\"", false)]
+    [Arguments("tail-recursion", "\"loop\"", true)]
+    [Arguments("tail-recursion", "\"local-function\"", true)]
+    [Arguments("tail-recursion", "\"recursion\"", false)]
+    [Arguments("float-equality", "\"clr\"", true)]
+    [Arguments("float-equality", "\"ieee\"", true)]
+    [Arguments("float-equality", "\"maybe\"", false)]
+    [Arguments("float-equality", "true", false)]
+    [Arguments("loop-lowering", "\"recursion\"", false)]
     [Arguments("language-version", "14.5", false)]
     [Arguments("language-version", "\"14\"", false)]
     [Arguments("language-version", "\"preview\"", false)]
@@ -51,8 +66,49 @@ public sealed class CSharpGenerationBackendTests
         {
             var error = ((Outcome<ValidatedBackendOptions>.Failure)result).Error;
             error.Kind.Should().Be(GenerationFailureKind.Invocation);
-            error.Diagnostics[0].Code.Should().Be("invalid-backend-option");
+            // A number that is not 15 names the supported version; every other bad value is an invalid option.
+            var numeric = key == "language-version" && int.TryParse(json, out var _);
+            error.Diagnostics[0].Code.Should().Be(numeric ? "unsupported-language" : "invalid-backend-option");
+            if (numeric) error.Diagnostics[0].Message.Should().Contain("15");
         }
+    }
+
+    [Test]
+    [Arguments("float-equality", "\"ieee\"", true)]
+    [Arguments("float-equality", "\"maybe\"", false)]
+    [Arguments("profile", "\"functional\"", true)]
+    [Arguments("namespace", "\"Acme.Configured\"", true)]
+    [Arguments("namespace", "\"X..Y\"", false)]
+    [Arguments("language-version", "15", true)]
+    [Arguments("language-version", "14", false)]
+    [Arguments("unknown", "\"x\"", false)]
+    public void ConfiguredOptionsHaveTheValidationOfTheCommandLine(string key, string json, bool valid)
+    {
+        using var document = JsonDocument.Parse(json);
+        var options = BackendOptions.Empty.WithConfigured([new(key, document.RootElement)]);
+        var result = new CSharpGenerationBackend().ValidateOptions(options);
+        (result is Outcome<ValidatedBackendOptions>.Success).Should().Be(valid);
+        if (!valid) ((Outcome<ValidatedBackendOptions>.Failure)result).Error.Kind.Should().Be(GenerationFailureKind.Invocation);
+    }
+
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task TheCommandLineWinsOverTheConfiguredKeysAndBothReachTheCore()
+    {
+        var loaded = await Load("4", "json");
+        var backend = new CSharpGenerationBackend();
+        using var configuredName = JsonDocument.Parse("\"Acme.Configured\"");
+        var configured = BackendOptions.Empty.WithConfigured([new("namespace", configuredName.RootElement)]);
+        var both = new BackendOptions(ParseOptions("namespace", "\"Acme.CommandLine\"").Values).WithConfigured(configured.Configured);
+
+        async Task<string> Text(BackendOptions options)
+        {
+            var result = (Outcome<GenerationArtifacts>.Success)await backend.GenerateAsync(new(loaded, TargetId.Create("csharp"), Validated(backend, options)), default);
+            return string.Concat(VFileTreeModule.toStringMap(result.Value.Tree).ResultValue.Values);
+        }
+
+        (await Text(configured)).Should().Contain("namespace Acme.Configured");
+        (await Text(both)).Should().Contain("namespace Acme.CommandLine").And.NotContain("Acme.Configured");
     }
 
     [Test]
@@ -62,8 +118,8 @@ public sealed class CSharpGenerationBackendTests
         descriptor.Id.Value.Should().Be("morphir.csharp");
         descriptor.Target.Value.Should().Be("csharp");
         descriptor.SupportedSemantics.Should().BeEmpty();
-        descriptor.Capabilities.Should().HaveCount(2);
-        descriptor.Capabilities.Single(x => x.Family.Equals(ModelFamily.Classic)).Versions.Select(version => version.Text).Should().BeEquivalentTo("1", "2", "3", "3.0.0", "3.1.0");
+        // A classic model reaches the backend through the host's upgrade, so the backend claims the current IR only.
+        descriptor.Capabilities.Should().ContainSingle();
         descriptor.Capabilities.Single(x => x.Family.Equals(ModelFamily.V4)).Versions.Select(version => version.Text).Should().BeEquivalentTo("4", "4.0.0");
         descriptor.Capabilities.Should().OnlyContain(x => x.Kind.Equals(DistributionKind.Library));
     }
@@ -170,8 +226,8 @@ public sealed class CSharpGenerationBackendTests
             var options = name is null ? BackendOptions.Empty : ParseOptions("namespace", JsonSerializer.Serialize(name));
             var result = (Outcome<GenerationArtifacts>.Success)await backend.GenerateAsync(new(loaded, TargetId.Create("csharp"), Validated(backend, options)), default);
             var direct = name is null
-                ? CSharpGenerator.Generate(loaded.Model, GenerationOptions.Default, default)
-                : CSharpGenerator.Generate(loaded.Model, GenerationOptions.Default, NamespaceOverride.TryCreate(name).ResultValue, default);
+                ? Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(loaded.Model, GenerationOptions.Default, default)
+                : Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(loaded.Model, GenerationOptions.Default, NamespaceOverride.TryCreate(name).ResultValue, default);
             direct.Status.IsSuccess.Should().BeTrue();
             var files = VFileTreeModule.toStringMap(result.Value.Tree).ResultValue;
             files.Select(x => (x.Key, x.Value)).Should().Equal(direct.Sources.Select(x => (x.RelativePath, x.Text)));

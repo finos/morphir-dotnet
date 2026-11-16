@@ -252,6 +252,64 @@ let tests =
                 "documents"
         }
 
+        test "A request has no extra options until a caller gives them" {
+            match parse fsharp [ document "A.fs" ] package null with
+            | Ok request -> Expect.isEmpty request.ExtraOptions "no extra options"
+            | Error failure -> failtest $"{failure}"
+        }
+
+        test "Extra options of the MEP compile options go with the request, in ordinal order of the name" {
+            use recursion = System.Text.Json.JsonDocument.Parse "\"recursion\""
+            use flag = System.Text.Json.JsonDocument.Parse "true"
+
+            let options = [
+                Collections.Generic.KeyValuePair("loop-lowering", recursion.RootElement)
+                Collections.Generic.KeyValuePair("a-flag", flag.RootElement)
+            ]
+
+            match parse fsharp [ document "A.fs" ] package null |> Result.bind (fun request -> request.WithExtraOptions options) with
+            | Ok request ->
+                Expect.sequenceEqual (request.ExtraOptions |> Seq.map (fun pair -> pair.Key)) [ "a-flag"; "loop-lowering" ] "the names"
+                Expect.equal (request.ExtraOptions["loop-lowering"].GetString()) "recursion" "the value is kept"
+                Expect.equal request.Documents.Count 1 "the rest of the request stays"
+            | Error failure -> failtest $"{failure}"
+        }
+
+        test "An extra option cannot have a name that the MEP compile options reserve, or a name that repeats" {
+            use value = System.Text.Json.JsonDocument.Parse "false"
+
+            for name in [ "typesOnly"; "irVersion"; "sourceRootUri"; "sourceRoot" ] do
+                parse fsharp [ document "A.fs" ] package null
+                |> Result.bind (fun request -> request.WithExtraOptions [ Collections.Generic.KeyValuePair(name, value.RootElement) ])
+                |> refused (CompileRequestFailure.ReservedOption name)
+
+            parse fsharp [ document "A.fs" ] package null
+            |> Result.bind (fun request ->
+                request.WithExtraOptions [
+                    Collections.Generic.KeyValuePair("loop-lowering", value.RootElement)
+                    Collections.Generic.KeyValuePair("loop-lowering", value.RootElement)
+                ])
+            |> refused (CompileRequestFailure.RepeatedOption "loop-lowering")
+        }
+
+        test "An extra option with no JSON value is refused, not thrown" {
+            // C# can pass default(JsonElement), which has no value to clone.
+            parse fsharp [ document "A.fs" ] package null
+            |> Result.bind (fun request -> request.WithExtraOptions [ Collections.Generic.KeyValuePair("loop-lowering", Unchecked.defaultof<System.Text.Json.JsonElement>) ])
+            |> refused (CompileRequestFailure.UndefinedOption "loop-lowering")
+        }
+
+        test "TryWithExtraOptions sets the request or the failure" {
+            use value = System.Text.Json.JsonDocument.Parse "1"
+            let request = parse fsharp [ document "A.fs" ] package null |> Result.defaultWith (fun failure -> failtest $"{failure}")
+            let mutable result = Unchecked.defaultof<CompileRequest>
+            let mutable failure = Unchecked.defaultof<CompileRequestFailure>
+            Expect.isTrue (request.TryWithExtraOptions([ Collections.Generic.KeyValuePair("n", value.RootElement) ], &result, &failure)) "accepted"
+            Expect.equal result.ExtraOptions.Count 1 "the request is set"
+            Expect.isFalse (request.TryWithExtraOptions([ Collections.Generic.KeyValuePair("irVersion", value.RootElement) ], &result, &failure)) "refused"
+            Expect.equal failure (CompileRequestFailure.ReservedOption "irVersion") "the failure is set"
+        }
+
         test "Every refusal has a message" {
             for failure in
                 [
@@ -263,6 +321,9 @@ let tests =
                     CompileRequestFailure.MissingText 0
                     CompileRequestFailure.LanguageMismatch 0
                     CompileRequestFailure.RepeatedUri "A.fs"
+                    CompileRequestFailure.ReservedOption "typesOnly"
+                    CompileRequestFailure.RepeatedOption "loop-lowering"
+                    CompileRequestFailure.UndefinedOption "loop-lowering"
                 ] do
                 Expect.isNotEmpty (failure.ToString()) "The refusal can be shown"
         }

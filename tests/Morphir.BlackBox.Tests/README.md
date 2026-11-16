@@ -103,11 +103,15 @@ two steps have the same pattern.
 | Generation | `Then the generation report has diagnostics` |
 | Generation | `Then the first diagnostic of the generation report has the code {string} and a location` |
 | Generation | `Then the generation report has no artifact` |
+| Generation | `Then the generation report lists the pass {string}` |
+| Generation | `When I generate {string} from the model on the other host` |
+| Generation | `Then the generated files are the files of the fixture {string}` |
+| Generation | `Then the files that both hosts generated are the same` |
 | Generation | `Then the generation report has no written file and has unchanged files` |
 | Generation | `Then the generation report says that it removed only {string}` |
 | Generation | `Then each artifact of the generation report is a file of the output` |
-| Generation | `Then the first artifact of the generation report contains {string} and not {string}` |
-| Generation | `Then the output has one C# file for the module {string} of the package {string}` |
+| Generation | `Then the first module artifact of the generation report contains {string} and not {string}` |
+| Generation | `Then the C# files of the output are the polyfill file and the file of the module {string} of the package {string}` |
 | Generation | `Given I remember the files of the output` |
 | Generation | `Then the files of the output are the same as I remembered` |
 | Generation | `Then the output directory is not there` |
@@ -192,6 +196,19 @@ two steps have the same pattern.
 | Myriad plugin | `Given the daily rate of the module {string} of the model is the string {string}` |
 | Myriad plugin | `When the daily rate of the car rental model changes to {int} cents` |
 | Myriad plugin | `When the model of the consumer changes to the invalid input {string}` |
+| C# build generation | `Given the packed packages of C# generation in the feed of the workspace` |
+| C# build generation | `Given a C# consumer of the model` |
+| C# build generation | `Given a C# consumer of the model that writes the generated files with the MSBuild target` |
+| C# build generation | `When I build and run the C# consumer` |
+| C# build generation | `When I build the C# consumer and it fails` |
+| C# build generation | `Then the files of the source generator in the C# consumer are the files of the output` |
+| C# build generation | `Then the files of the MSBuild target in the C# consumer are the files of the output` |
+| C# build generation | `Then the source generator wrote no file in the C# consumer` |
+| C# build generation | `Given a C# library of the model and a C# consumer that matches on the types of the library` |
+| C# build generation | `Given the match of the C# consumer has no arm for the case {string}` |
+| C# build generation | `Then the last build of the C# consumer has no warning` |
+| C# build generation | `Then the C# library and the C# consumer each have the polyfill file` |
+| C# build generation | `When I follow the documentation page {string} with the packed packages` |
 | System.Text.Json plugin | `Given a System.Text.Json consumer` |
 | System.Text.Json plugin | `Given the context of the consumer has the name {string}` |
 | System.Text.Json plugin | `Given the context of the consumer has the metadata:` |
@@ -233,7 +250,7 @@ two steps have the same pattern.
 | Generation | `Then the first diagnostic of the generation report has the code {string}` |
 | Generation | `Then the generation report has the target {string}` |
 | Generation | `Then the generation report has artifacts` |
-| Generation | `Then the generation report has one C# artifact that contains {string} and {string}` |
+| Generation | `Then the generation report has the polyfill file and one C# module artifact that contains {string} and {string}` |
 | Generation | `Then the generation report lists only the artifact {string}` |
 | Generation | `Then the output file {string} has the bytes of the fixture {string}` |
 | Generation | `Given I remember the artifacts of the generation report` |
@@ -385,6 +402,23 @@ two steps have the same pattern.
 | Compilation | `When I compile the project at the IR version {string}` |
 | Compilation | `When I compile its input files at the IR version {string}` |
 | Compilation | `When I compile the project with the project file {string}` |
+| Compilation | `Given the C# source file {string} of the package {string}` |
+| Compilation | `Given the C# source file {string} with a loop that changes nothing, of the package {string}` |
+| Compilation | `Given the C# source file {string} with a loop that sums a list, of the package {string}` |
+| Compilation | `Given the C# source file {string} with a loop that writes a field, of the package {string}` |
+| Compilation | `Then the published IR names the SDK function {string}` |
+| Compilation | `Then the published IR has a LetRecursion` |
+| Compilation | `Then the published IR does not name the SDK function {string}` |
+| Compilation | `Then the compilation report has the diagnostic {string} in {string} with the message {string}` |
+| Compilation | `When I compile the C# source file` |
+| Compilation | `Given the C# source file {string} with handling attributes, of the package {string}` |
+| Compilation | `Given the C# source file {string} with a record of a double, of the package {string}` |
+| Compilation | `Given the morphir.toml of the project sets the key {string} of [{word}.csharp] to {string}` |
+| Compilation | `When I compile the C# source file with the target {string}` |
+| Compilation | `Then the C# that the compile generated contains {string}` |
+| Compilation | `Then the compile generated no C#` |
+| Compilation | `Then the compilation report lists the pass {string} before the backend` |
+| Compilation | `Then the compilation report has no member {string}` |
 | Compilation | `When I compile the project` |
 | Compilation | `When I compile the project and install the IR to {string}` |
 | Compilation | `When I generate F# for the project from its last compile` |
@@ -415,6 +449,10 @@ two steps have the same pattern.
 | Documentation | `Then each documented command gives its documented output` |
 | Documentation | `Given the morphir.toml of the section in the project directory {string}` |
 | Documentation | `When I run the documented commands of the section in the project directory {string}` |
+| Documentation | `Given the first C# code block of the documentation page {string} as the file {string}` |
+| Documentation | `When I run the documented commands of the section in the directory {string}` |
+| Documentation | `Given the C# block {int} of the section is the source file {string}` |
+| Documentation | `Then the file {string} contains the C# block {int} of the section` |
 | Documentation | `Then the documented compile writes the path of the published IR of the project {string}` |
 | Documentation | `Then the documented generate writes its documented files to {string} of the project {string}` |
 | Tutorial | `Then each marked code block of the tutorial is the file of the example that it names` |
@@ -491,6 +529,7 @@ two steps have the same pattern.
 | Extension list | `Then the extension {string} has the types {string}` |
 | Extension list | `Then the extension {string} has the delivery {string} and the hosts {string}` |
 | Extension list | `Then the extension {string} claims the validator IR versions {string}` |
+| Extension list | `Then the extension {string} claims the transform stage {string} and the target {string}` |
 | Extension list | `Then the extensions that are available in both hosts are equal in both lists` |
 | Extension worker | `When I ask the worker for its help as JSON` |
 | Extension worker | `When the worker serves {string} with the frames {string} and the arguments {string}` |

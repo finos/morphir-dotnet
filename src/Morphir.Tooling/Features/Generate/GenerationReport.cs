@@ -30,6 +30,13 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Formatting { get; init; }
 
+    /// <summary>
+    /// The passes that ran before the backend: their ids, the application list with the node addresses before and after,
+    /// and the reads of other modules. Written only when a pass ran.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
+
     public static GenerationReport From(Outcome<GenerationSuccess> outcome, GenerateOverrides invocation) => outcome switch
     {
         Outcome<GenerationSuccess>.Success success => new(true, 0, success.Value.Target, success.Value.Backend, success.Value.InputPath,
@@ -41,6 +48,7 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
             BackendVersion = success.Value.BackendVersion,
             Provider = success.Value.Provider,
             Formatting = success.Value.Formatting,
+            Passes = success.Value.Passes,
         },
         Outcome<GenerationSuccess>.Failure failure => new(false, Exit(failure.Error.Kind), invocation.Target, failure.Error.Backend, invocation.Input, invocation.Output,
             null, null, null, null, [], [], [], [], failure.Error.Diagnostics.ToArray(), failure.Error.Kind.ToString().ToLowerInvariant())

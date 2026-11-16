@@ -13,7 +13,7 @@ Feature: Follow the F# pricing tutorial
     Then the compile of the example succeeds with the modules "Rates, Quote, Discount" and no diagnostic
     When I generate "csharp" from the last compile of the example to "BookingApp/Generated"
     Then the exit code is 0
-    And the example has the generated C# files "m_RatesModule.g.cs, m_QuoteModule.g.cs, m_DiscountModule.g.cs" in "BookingApp/Generated"
+    And the example has the generated C# files "Morphir.Polyfill.g.cs, m_RatesModule.g.cs, m_QuoteModule.g.cs, m_DiscountModule.g.cs" in "BookingApp/Generated"
     When I compile the example at the IR version "3" and install the IR to "dist"
     Then the exit code is 0
     When I validate the IR that the example installed in "dist"
@@ -21,4 +21,4 @@ Feature: Follow the F# pricing tutorial
     And standard output contains "0 errors, 0 warnings, 0 info, 0 hints. Analyzers: 1 ran, 0 not run, 0 failed."
     When I compile the example with the target "csharp" and the generated output "BookingApp/Generated"
     Then the exit code is 0
-    And standard error contains "generated 3 artifact(s) with morphir.csharp"
+    And standard error contains "generated 4 artifact(s) with morphir.csharp"

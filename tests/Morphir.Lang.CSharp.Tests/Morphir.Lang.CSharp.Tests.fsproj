@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+        <RootNamespace>Morphir.Lang.CSharp.Tests</RootNamespace>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Lang.CSharp\Morphir.Lang.CSharp.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" />
+        <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" />
+        <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.SDK.CSharp\Morphir.SDK.CSharp.csproj" />
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="PackageInfoTests.fs" />
+        <Compile Include="FrontendSupport.fs" />
+        <Compile Include="FrontendTests.fs" />
+        <Compile Include="ValueLoweringTests.fs" />
+        <Compile Include="FrontendFidelityTests.fs" />
+        <Compile Include="FrontendLoopTests.fs" />
+        <Compile Include="FrontendValueClassTests.fs" />
+        <Compile Include="FrontendUnionTests.fs" />
+        <Compile Include="FrontendDocsTests.fs" />
+        <Compile Include="SdkMappingTests.fs" />
+        <Compile Include="CatalogTests.fs" />
+        <Compile Include="TargetPassTests.fs" />
+        <Compile Include="BackendSupport.fs" />
+        <Compile Include="BackendGoldenTests.fs" />
+        <Compile Include="BackendValueTests.fs" />
+        <Compile Include="BackendValueClassTests.fs" />
+        <Compile Include="BackendMatchTests.fs" />
+        <Compile Include="BackendDocsTests.fs" />
+        <Compile Include="BackendRoundTripTests.fs" />
+        <Compile Include="HandlingCarrierTests.fs" />
+        <Compile Include="HandlingOptionTests.fs" />
+        <Compile Include="BackendLoopTests.fs" />
+        <Compile Include="ConformanceTests.fs" />
+        <Compile Include="CliAdapterTests.fs" />
+        <Compile Include="CoveragePageTests.fs" />
+        <Compile Include="PipelineTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <!--
+      The CLI entry points of the development build, for the kit test CliAdapterTests.fs: built first, and their paths in
+      the assembly metadata. The test gets its executable from the target of the testing library.
+    -->
+    <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
+
+</Project>

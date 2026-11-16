@@ -74,6 +74,7 @@ public sealed class ExtensionListCommandTests
             "╭────────────────────────┬────────────────┬─────────┬─────────────────────┬──────────┬─────────────────────────╮\n" +
             "│ ID                     │ NAME           │ VERSION │ TYPES               │ DELIVERY │ HOSTS                   │\n" +
             "├────────────────────────┼────────────────┼─────────┼─────────────────────┼──────────┼─────────────────────────┤\n" +
+            "│ morphir-dotnet.csharp  │ C# frontend    │ 0.4.0   │ frontend (csharp)   │ built-in │ morphir, dotnet-morphir │\n" +
             "│ morphir-dotnet.fsharp  │ F# frontend    │ 0.4.0   │ frontend (fsharp)   │ built-in │ morphir, dotnet-morphir │\n" +
             "│ morphir.csharp         │ C# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │\n" +
             "│ morphir.fsharp         │ F# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │\n" +
@@ -87,8 +88,8 @@ public sealed class ExtensionListCommandTests
     {
         var (_, lines, _) = Run(HostRegistry(Native), json: false);
         var rows = string.Join('\n', lines).Split('\n').Where(row => row.StartsWith('│')).ToArray();
-        rows.Should().HaveCount(5);
-        rows[4].Should().MatchRegex(@"^│ morphir\.type-validator\s+│ Type validator\s+│ 0\.4\.0\s+│ validator \(1, 2, 3\)\s+│ built-in\s+│ morphir, dotnet-morphir\s+│$");
+        rows.Should().HaveCount(6);
+        rows[5].Should().MatchRegex(@"^│ morphir\.type-validator\s+│ Type validator\s+│ 0\.4\.0\s+│ validator \(1, 2, 3\)\s+│ built-in\s+│ morphir, dotnet-morphir\s+│$");
     }
 
     [Test]
@@ -99,8 +100,8 @@ public sealed class ExtensionListCommandTests
         using var document = JsonDocument.Parse(string.Join('\n', lines));
         var extensions = document.RootElement.GetProperty("extensions");
         extensions.EnumerateArray().Select(entry => entry.GetProperty("id").GetString())
-            .Should().Equal("morphir-dotnet.fsharp", "morphir.csharp", "morphir.fsharp", "morphir.type-validator");
-        var validator = extensions[3];
+            .Should().Equal("morphir-dotnet.csharp", "morphir-dotnet.fsharp", "morphir.csharp", "morphir.fsharp", "morphir.type-validator");
+        var validator = extensions[4];
         validator.GetProperty("types").EnumerateArray().Select(type => type.GetString()).Should().Equal("validator");
         validator.GetProperty("delivery").GetString().Should().Be("built-in");
         validator.GetProperty("hosts").EnumerateArray().Select(host => host.GetString()).Should().Equal("morphir", "dotnet-morphir");
@@ -145,7 +146,7 @@ public sealed class ExtensionListCommandTests
         csharp.GetProperty("available").GetBoolean().Should().BeTrue();
         var backend = csharp.GetProperty("capabilities").GetProperty("backend");
         backend.GetProperty("targets").EnumerateArray().Select(target => target.GetString()).Should().Equal("csharp");
-        backend.GetProperty("irVersions").EnumerateArray().Select(version => version.GetString()).Should().Equal("1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0");
+        backend.GetProperty("irVersions").EnumerateArray().Select(version => version.GetString()).Should().Equal("4", "4.0.0");
         backend.GetProperty("generate").GetBoolean().Should().BeTrue();
     }
 

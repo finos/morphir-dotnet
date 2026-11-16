@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace Morphir.SDK.CSharp;
 
 public static class Basics
@@ -50,6 +52,28 @@ public static class Basics
     {
         if (!double.IsFinite(value)) throw new NonFiniteConversionException();
         return checked((int)value);
+    }
+    // The generic overloads for a type variable of the class number (Int or Float). The arithmetic is checked, so Int
+    // keeps its overflow failure. A call with int or double selects the overload for that type, which gives the same result.
+    public static T Add<T>(T a, T b) where T : INumber<T> => checked(a + b);
+    public static T Subtract<T>(T a, T b) where T : INumber<T> => checked(a - b);
+    public static T Multiply<T>(T a, T b) where T : INumber<T> => checked(a * b);
+    public static T Negate<T>(T value) where T : INumber<T> => checked(-value);
+    public static T Abs<T>(T value) where T : INumber<T> => T.Abs(value);
+    public static T Clamp<T>(T low, T high, T value) where T : INumber<T> => value < low ? low : value > high ? high : value;
+    public static T Power<T>(T value, T exponent) where T : INumber<T>
+    {
+        if (typeof(T) == typeof(double)) return T.CreateChecked(Math.Pow(double.CreateChecked(value), double.CreateChecked(exponent)));
+        if (T.IsNegative(exponent) || !T.IsInteger(exponent)) throw new NotSupportedException("Negative integer powers are outside the Int profile.");
+        var two = T.One + T.One;
+        var result = T.One;
+        while (exponent > T.Zero)
+        {
+            if (!T.IsEvenInteger(exponent)) result = checked(result * value);
+            exponent /= two;
+            if (exponent > T.Zero) value = checked(value * value);
+        }
+        return result;
     }
     public static bool IsNaN(double value) => double.IsNaN(value);
     public static bool IsInfinite(double value) => double.IsInfinity(value);

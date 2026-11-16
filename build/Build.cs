@@ -122,7 +122,6 @@ partial class Build : FalloutBuild
     AbsolutePath MorphirSDKFSharpProject => SourceDirectory / "Morphir.SDK.FSharp" / "Morphir.SDK.FSharp.fsproj";
     AbsolutePath MorphirSDKCSharpProject => SourceDirectory / "Morphir.SDK.CSharp" / "Morphir.SDK.CSharp.csproj";
     AbsolutePath MorphirModelsProject => SourceDirectory / "Morphir.Models" / "Morphir.Models.fsproj";
-    AbsolutePath MorphirCodeGenerationCSharpProject => SourceDirectory / "Morphir.CodeGeneration.CSharp" / "Morphir.CodeGeneration.CSharp.fsproj";
 
     /// <summary>
     /// Library packages in publish order: each package follows the Morphir packages it depends on,
@@ -138,6 +137,10 @@ partial class Build : FalloutBuild
         ("Morphir.Configuration.IO", SourceDirectory / "Morphir.Configuration.IO" / "Morphir.Configuration.IO.csproj", true),
         ("Morphir.Models", MorphirModelsProject, true),
         ("Morphir.Compilation", SourceDirectory / "Morphir.Compilation" / "Morphir.Compilation.fsproj", true),
+        ("Morphir.MiddleEnd", SourceDirectory / "Morphir.MiddleEnd" / "Morphir.MiddleEnd.fsproj", true),
+        // One package with the frontend, the middle end passes and the backend for C#. It carries its analyzer and
+        // attribute assemblies in lib/, so neither is a package of its own.
+        ("Morphir.Lang.CSharp", SourceDirectory / "Morphir.Lang.CSharp" / "Morphir.Lang.CSharp.fsproj", true),
         ("Morphir.IR.Pipeline", SourceDirectory / "Morphir.IR.Pipeline" / "Morphir.IR.Pipeline.fsproj", true),
         ("Morphir.IR.Pipeline.Plugins", SourceDirectory / "Morphir.IR.Pipeline.Plugins" / "Morphir.IR.Pipeline.Plugins.fsproj", true),
         ("Morphir.Ion", SourceDirectory / "Morphir.Ion" / "Morphir.Ion.fsproj", true),
@@ -147,7 +150,6 @@ partial class Build : FalloutBuild
         ("Morphir.Myriad.SystemTextJson.Annotations", SourceDirectory / "Morphir.Myriad.SystemTextJson.Annotations" / "Morphir.Myriad.SystemTextJson.Annotations.csproj", true),
         ("Morphir.Myriad.SystemTextJson", SourceDirectory / "Morphir.Myriad.SystemTextJson" / "Morphir.Myriad.SystemTextJson.fsproj", false),
         ("Morphir.Mep", SourceDirectory / "Morphir.Mep" / "Morphir.Mep.fsproj", true),
-        ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
         ("Morphir.Extensions", SourceDirectory / "Morphir.Extensions" / "Morphir.Extensions.fsproj", true),
         ("Morphir.Analyzers", SourceDirectory / "Morphir.Analyzers" / "Morphir.Analyzers.fsproj", true),
         // Product tooling depends on the WASM runtime. Kit runners belong to the separate development entry point.
@@ -311,6 +313,39 @@ partial class Build : FalloutBuild
         .Description("Publish the Native AOT executable for a specific platform (requires --rid parameter)")
         .Executes(() => PublishLegacyLayout(Morphir.Build.Helpers.Deployment.NativeAot.Project,
             TargetSettings.PublishExecutable, ExecutablesDir, "Native AOT"));
+
+    /// <summary>
+    /// Publish the Native AOT executable (PublishExecutable, whose publish fails on a trim or AOT error) and check it with
+    /// NativeAotHostGate: no IDE-only assembly in the input of ILC, and a size not above the limit.
+    /// Requires: --rid parameter. The Linux test job of development.yml runs it for linux-x64.
+    /// </summary>
+    Target CheckNativeAotHost => _ => _
+        .DependsOn(PublishExecutable)
+        .Description("Publish the Native AOT executable and check its closure and its size (requires --rid parameter)")
+        .Executes(() =>
+        {
+            var executable = ExecutablesDir / Rid / (Rid.StartsWith("win-", StringComparison.Ordinal) ? "morphir.exe" : "morphir");
+            var response = RootDirectory / "src" / "Morphir" / "obj" / Configuration.ToString() / CurrentTargetFramework / Rid / "native" / "morphir.ilc.rsp";
+            if (!File.Exists(response))
+            {
+                throw new Exception($"The ILC response file of the publish is not at {response}.");
+            }
+
+            var bytes = new FileInfo(executable).Length;
+            var problems = Morphir.Build.Helpers.NativeAotHostGate.Problems(File.ReadAllLines(response), bytes,
+                Morphir.Build.Helpers.NativeAotHostGate.SizeLimitBytes);
+            foreach (var problem in problems)
+            {
+                Serilog.Log.Error(problem);
+            }
+
+            if (problems.Count > 0)
+            {
+                throw new Exception("The Native AOT morphir did not pass its gate. See the errors above.");
+            }
+
+            Serilog.Log.Information($"✓ The Native AOT morphir for {Rid} is {bytes:N0} bytes (limit {Morphir.Build.Helpers.NativeAotHostGate.SizeLimitBytes:N0}) and has no IDE-only assembly");
+        });
 
     /// <summary>
     /// Publish the legacy release asset: a single-file executable without AOT (managed .NET runtime) with trimming.

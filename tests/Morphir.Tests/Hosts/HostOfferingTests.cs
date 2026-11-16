@@ -60,13 +60,27 @@ public sealed class HostOfferingTests
         available.Should().BeEquivalentTo(selectable);
     }
 
+    /// <summary>The declared C# frontend entry claims what the registered C# frontend advertises.</summary>
+    [Test]
+    [Category("PlatformSpecific")]
+    public void TheCSharpFrontendEntryClaimsWhatTheFrontendAdvertises()
+    {
+        using var app = Morphir.Program.CreateApp([], Morphir.Program.Host, Morphir.Program.NativeComposition);
+        var frontend = app.Services.GetServices<IFrontend>().Single();
+        frontend.Identity.Value.Should().Be(FrontendExtensionSource.CSharpId.Value);
+        var claim = FrontendExtensionSource.CSharpClaim;
+        claim.Languages.Select(language => language.Language.Value).Should().Equal(frontend.Capability.Languages.Select(language => language.Id.Value));
+        claim.Languages.Single().FileExtensions.Should().Equal(frontend.Capability.Languages.Single().FileExtensions);
+        claim.IrVersionTexts.Should().BeEquivalentTo(frontend.Capability.Outputs.Select(target => Morphir.IR.Versioning.version(target.Version)).Distinct());
+    }
+
     /// <summary>The declared F# frontend entry claims what the registered F# frontend advertises.</summary>
     [Test]
     [Category("PlatformSpecific")]
     public void TheFSharpFrontendEntryClaimsWhatTheFrontendAdvertises()
     {
         using var app = Morphir.Tool.Program.CreateApp([]);
-        var frontend = app.Services.GetServices<IFrontend>().Single();
+        var frontend = app.Services.GetServices<IFrontend>().Single(item => item.Identity.Value == FrontendExtensionSource.FSharpId.Value);
         frontend.Identity.Value.Should().Be(FrontendExtensionSource.FSharpId.Value);
         var claim = FrontendExtensionSource.FSharpClaim;
         claim.Languages.Select(language => language.Language.Value).Should().Equal(frontend.Capability.Languages.Select(language => language.Id.Value));

@@ -86,12 +86,20 @@ public sealed record CompileReportGeneration(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Formatting { get; init; }
 
+    /// <summary>
+    /// The passes before the backend, as in the <c>generate</c> report: the ids that ran, the application list and the reads of
+    /// other modules. Each <c>before</c> is in the model that the frontend wrote, as in the top-level <c>passes</c>. Written only
+    /// when a pass ran or a record came from an earlier stage.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
+
     /// <summary>The report shape of <paramref name="generation"/>.</summary>
     public static CompileReportGeneration From(CompileGeneration generation) => generation.Result is { } result
         ? new(result.Target, result.Backend, result.OutputDirectory, result.SourceVersion, result.Family, result.DistributionKind,
             result.Representation, [.. result.Publication.Artifacts], [.. result.Publication.Written], [.. result.Publication.Unchanged],
             [.. result.Publication.Removed])
-        { Formatting = result.Formatting }
+        { Formatting = result.Formatting, Passes = result.Passes }
         : new(generation.Target, generation.Backend, generation.OutputDirectory, null, null, null, null, [], [], [], []);
 }
 
@@ -119,6 +127,9 @@ public sealed record CompileReport(
     /// <summary>Actual installed process observation in the existing generation-provider shape.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? Provider { get; init; }
+    /// <summary>The passes that ran after the frontend: their ids, the application list and the reads of other modules. Written only when a pass ran.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
 
     /// <summary>The report of a folded compile result.</summary>
     public static CompileReport From(CompileResult result)
@@ -131,7 +142,7 @@ public sealed record CompileReport(
             success => new CompileReport(true, 0, success.Language, success.Frontend, success.IrVersion.Text,
                 SourcesOf(success.Sources, result.Settings!.WorkingDirectory), [.. success.Modules], success.Publication.IrPath, [.. success.Publication.Installed],
                 diagnostics, null, origins)
-            { Generation = success.Generation is { } generation ? CompileReportGeneration.From(generation) : null, Provider = success.Provider },
+            { Generation = success.Generation is { } generation ? CompileReportGeneration.From(generation) : null, Provider = success.Provider, Passes = success.Passes },
             // A failure in the generation stages keeps the published compile (CLI-2).
             failure => new CompileReport(false, failure.Kind.ExitCode(), language, failure.Frontend, irVersion,
                 failure.Sources is { } sources ? SourcesOf(sources, result.Settings!.WorkingDirectory) : null,

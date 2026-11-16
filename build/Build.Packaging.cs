@@ -98,6 +98,20 @@ partial class Build
                 Serilog.Log.Information($"✓ {packageId} package validated successfully");
             }
 
+            {
+                var packagePath = PathHelper.GetLibraryPackagePath("Morphir.Lang.CSharp", versionString, OutputDir);
+                var validation = PackageValidator.ValidateCSharpLanguagePackage(packagePath);
+                if (!validation.IsValid)
+                {
+                    foreach (var error in validation.Errors)
+                    {
+                        Serilog.Log.Error($"  - {error}");
+                    }
+                    throw new Exception("Morphir.Lang.CSharp package validation failed. See errors above.");
+                }
+                Serilog.Log.Information("✓ Morphir.Lang.CSharp build integration validated successfully");
+            }
+
             foreach (var (packageId, taskAssembly) in MyriadPluginPackages)
             {
                 var packagePath = PathHelper.GetLibraryPackagePath(packageId, versionString, OutputDir);

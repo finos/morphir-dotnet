@@ -7,7 +7,9 @@ description: >
 
 # Roslyn under Native AOT spike, 2026-11-07
 
-Status: Feasible. A C# frontend built on Roslyn can technically be a built-in in both hosts (`morphir` and `dotnet-morphir`). Building it into `morphir` adds about 31 to 38 MB for every user. Decided 2026-11-07: a C# frontend ships as an optional extension for now, not as a built-in. The conditions below apply if it becomes a built-in later. It must use only `Microsoft.CodeAnalysis` and `Microsoft.CodeAnalysis.CSharp`: syntax, `CSharpCompilation`, the semantic model and `IOperation`. It must not use the Workspaces layer, IL emit or analyzer loading. The `morphir` build must accept a fixed baseline of 6 known Roslyn warnings and fail on all other warnings. The fallback is a JIT-only built-in in `dotnet-morphir`.
+Status: Feasible. The delivery decision of this report was replaced on 2026-11-15: C# is a built-in in all offerings, and the size numbers have new measurements. See the [C# language support PRD](../../prds/csharp-language-support.md).
+
+Status on 2026-11-07: A C# frontend built on Roslyn can technically be a built-in in both hosts (`morphir` and `dotnet-morphir`). Building it into `morphir` adds about 31 to 38 MB for every user. Decided 2026-11-07: a C# frontend ships as an optional extension for now, not as a built-in. The conditions below apply if it becomes a built-in later. It must use only `Microsoft.CodeAnalysis` and `Microsoft.CodeAnalysis.CSharp`: syntax, `CSharpCompilation`, the semantic model and `IOperation`. It must not use the Workspaces layer, IL emit or analyzer loading. The `morphir` build must accept a fixed baseline of 6 known Roslyn warnings and fail on all other warnings. The fallback is a JIT-only built-in in `dotnet-morphir`.
 
 This spike is the "Roslyn in the AOT host" item in [Spikes before step 2](../../prds/morphir-extension-model.md#spikes-before-step-2) of the Morphir extension model PRD. The PRD rule is: "The language does not decide whether an extension can be a built-in. The dependency set decides: a built-in for the AOT host must pass the AOT checks." The probe sources are in `spikes/extension-model/roslyn-aot/`.
 

@@ -4,6 +4,8 @@
     <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsAotCompatible>true</IsAotCompatible>
+    <!-- A Native AOT publish of the test lane passes -p:MorphirProbeAot=true. A global PublishAot would reach the netstandard2.0 projects that this project references (NETSDK1207). -->
+    <PublishAot Condition="'$(MorphirProbeAot)' == 'true'">true</PublishAot>
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>

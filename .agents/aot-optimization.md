@@ -134,6 +134,23 @@ Current Size?
         └── Document configuration for others
 ```
 
+### The size limit of the Native AOT `morphir`
+
+The size ranges above are guidelines for a small CLI. The Native AOT `morphir` has the C# frontend and backend
+built in, and Roslyn (`Microsoft.CodeAnalysis`, `Microsoft.CodeAnalysis.CSharp`) adds about 30 MB. The limit of the
+Native AOT `morphir` is **100,000,000 bytes**.
+
+- `./build.sh --target CheckNativeAotHost --rid <rid>` publishes the executable and checks the limit. The Linux job of
+  `development.yml` runs it for `linux-x64` on each pull request. The value is `NativeAotHostGate.SizeLimitBytes` in
+  `build/Helpers/NativeAotHostGate.cs`, and a build test checks that this file has the same value.
+- The same target fails when an IDE-only assembly is an input of ILC: `Microsoft.CodeAnalysis.Workspaces`,
+  `Microsoft.CodeAnalysis.CSharp.Workspaces` or `Morphir.Lang.CSharp.CodeFixes`.
+- The publish itself is the gate for trim and AOT warnings: an IL3050 or a per-site trim warning is an error. The
+  allowed summary warnings are IL2104 and IL3053 for `FSharp.Core`, `Foundatio.Mediator.Abstractions` and
+  `Microsoft.CodeAnalysis`.
+- Measured sizes with the C# language support (before it: 47,893,064 bytes on osx-arm64): osx-arm64, 85,103,768 bytes
+  (2026-11-16); linux-x64, 90,773,848 bytes (2026-11-16, the CI job).
+
 ## Diagnostic Procedures
 
 ### Procedure: Diagnose AOT Issue in New Feature

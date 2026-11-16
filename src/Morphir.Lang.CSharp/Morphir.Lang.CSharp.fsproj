@@ -1,0 +1,185 @@
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  the netstandard2.0 target of this library (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK refuses
+  them for netstandard2.0 (NETSDK1207), so that target keeps them local and off. The other targets keep the values of the
+  publish.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!--
+          netstandard2.0 holds only the pipeline function (the upgrade, the target-side passes and the backend), for the
+          source generator and the MSBuild task of the package (design.html, BLD-1). The frontend needs the fixed .NET 10
+          reference assemblies and stays on the repository targets.
+        -->
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks);netstandard2.0</TargetFrameworks>
+        <RootNamespace>Morphir.Lang.CSharp</RootNamespace>
+        <Description>C# language support for Morphir: a frontend, a target-side middle end and a backend, all on Roslyn.</Description>
+        <PackageTags>$(PackageTags);morphir;csharp;frontend;backend;roslyn</PackageTags>
+        <!--
+          No F# nullness here: Roslyn has C# nullable annotations everywhere, and F# nullness turns each call of its API into
+          a null check that adds no safety. The public surface of this assembly is small and its types come from
+          Morphir.Compilation, which has nullness.
+        -->
+        <Nullable>disable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!--
+          No IsTrimmable or IsAotCompatible: Roslyn is neither. The publish gate of src/Morphir/Morphir.csproj accepts the
+          Roslyn summary warning and keeps per-site errors for the other packages (tasks.md, group 9).
+        -->
+        <!--
+          One package. The analyzer and attribute assemblies are not packages of their own: their project references are
+          private, and IncludeBundledAssemblies puts their DLLs in lib/ beside this assembly. IncludeBuildIntegration adds
+          the build integration (design.html, BLD-1): analyzers/dotnet/cs, tasks/netstandard2.0 and build/.
+        -->
+        <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeBundledAssemblies</TargetsForTfmSpecificBuildOutput>
+        <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeBuildIntegration</TargetsForTfmSpecificContentInPackage>
+        <!-- NU5100: the assemblies of tasks/ are for MSBuild, not references of the consumer. -->
+        <NoWarn>$(NoWarn);NU5100</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.Lang.CSharp.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="System.Text.Json" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+        <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
+        <ProjectReference Include="..\Morphir.MiddleEnd\Morphir.MiddleEnd.fsproj" />
+    </ItemGroup>
+
+    <!-- The pipeline target reads only the polyfill source, a constant, of the attribute assembly. -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- The frontend and the bundled assemblies: not in the netstandard2.0 pipeline target. -->
+    <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+        <PackageReference Include="Basic.Reference.Assemblies.Net100" />
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" PrivateAssets="all" />
+        <!-- The attribute assembly is referenced (for the polyfill source) and embedded (for the fixed reference set). -->
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" OutputItemType="EmbeddedReferenceAssembly" PrivateAssets="all" />
+        <!-- The SDK that model code compiles against, built for net10.0 to match the fixed .NET 10 reference assemblies. -->
+        <ProjectReference Include="..\Morphir.SDK.CSharp\Morphir.SDK.CSharp.csproj" ReferenceOutputAssembly="false" OutputItemType="EmbeddedReferenceAssembly" SetTargetFramework="TargetFramework=net10.0" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- The Native AOT host has no assembly files on disk: embed the reference assemblies as resources. -->
+    <Target Name="EmbedReferenceAssemblies" AfterTargets="ResolveProjectReferences" BeforeTargets="AssignTargetPaths">
+        <ItemGroup>
+            <EmbeddedResource Include="@(EmbeddedReferenceAssembly)" LogicalName="%(Filename)%(Extension)" WithCulture="false" />
+        </ItemGroup>
+    </Target>
+
+    <!-- The bundled assemblies of the package: see TargetsForTfmSpecificBuildOutput above. -->
+    <Target Name="IncludeBundledAssemblies" DependsOnTargets="ResolveReferences">
+        <ItemGroup>
+            <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.ReferenceSourceTarget)' == 'ProjectReference' and ('%(Filename)' == 'Morphir.Lang.CSharp.Analyzers' or '%(Filename)' == 'Morphir.Lang.CSharp.Attributes') and '%(Extension)' != '.pdb'" />
+        </ItemGroup>
+    </Target>
+
+    <!-- The props and targets of the package: see build/Morphir.Lang.CSharp.targets. -->
+    <ItemGroup>
+        <None Include="build/Morphir.Lang.CSharp.props" Pack="true" PackagePath="build/" />
+        <None Include="build/Morphir.Lang.CSharp.targets" Pack="true" PackagePath="build/" />
+    </ItemGroup>
+
+    <!--
+      The assemblies of the build integration, from the output folders of their projects, so the pack does not build them
+      (they reference this project). The solution build builds them first.
+      - analyzers/dotnet/cs: the admission analyzers, the source generator and its closure (FSharp.Core and the
+        netstandard2.0 pipeline assemblies), with no compiler assembly.
+      - tasks/netstandard2.0: the MSBuild task and its closure, with Roslyn.
+      The slot for the code fix assembly of tasks.md, 7.4: when src/Morphir.Lang.CSharp.CodeFixes/ has its project, the
+      pack puts Morphir.Lang.CSharp.CodeFixes.dll in analyzers/dotnet/cs. Add the file to the CodeFix entries of
+      PackageValidator.ValidateCSharpLanguagePackage in the same change.
+    -->
+    <PropertyGroup>
+        <MorphirCSharpCodeFixesProject>$(MSBuildThisFileDirectory)../Morphir.Lang.CSharp.CodeFixes/Morphir.Lang.CSharp.CodeFixes.csproj</MorphirCSharpCodeFixesProject>
+    </PropertyGroup>
+
+    <Target Name="IncludeBuildIntegration" Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <MSBuild Projects="../Morphir.Lang.CSharp.Generator/Morphir.Lang.CSharp.Generator.csproj" Targets="MorphirGeneratorClosure"
+                 Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier">
+            <Output TaskParameter="TargetOutputs" ItemName="_MorphirAnalyzerAssembly" />
+        </MSBuild>
+        <MSBuild Projects="../Morphir.Lang.CSharp.Analyzers/Morphir.Lang.CSharp.Analyzers.csproj" Targets="GetTargetPath"
+                 Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier">
+            <Output TaskParameter="TargetOutputs" ItemName="_MorphirAnalyzerAssembly" />
+        </MSBuild>
+        <MSBuild Projects="$(MorphirCSharpCodeFixesProject)" Targets="GetTargetPath" Condition="Exists('$(MorphirCSharpCodeFixesProject)')"
+                 Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier">
+            <Output TaskParameter="TargetOutputs" ItemName="_MorphirAnalyzerAssembly" />
+        </MSBuild>
+        <MSBuild Projects="../Morphir.Lang.CSharp.Build/Morphir.Lang.CSharp.Build.csproj" Targets="MorphirTaskClosure"
+                 Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier">
+            <Output TaskParameter="TargetOutputs" ItemName="_MorphirTaskAssembly" />
+        </MSBuild>
+        <Error Condition="!Exists('%(_MorphirAnalyzerAssembly.FullPath)')" Code="MORPHIRPACK1" Text="%(_MorphirAnalyzerAssembly.FullPath) does not exist. Build Morphir.slnx in $(Configuration) before the pack." />
+        <Error Condition="!Exists('%(_MorphirTaskAssembly.FullPath)')" Code="MORPHIRPACK1" Text="%(_MorphirTaskAssembly.FullPath) does not exist. Build Morphir.slnx in $(Configuration) before the pack." />
+        <ItemGroup>
+            <TfmSpecificPackageFile Include="@(_MorphirAnalyzerAssembly)" PackagePath="analyzers/dotnet/cs/%(Filename)%(Extension)" />
+            <TfmSpecificPackageFile Include="@(_MorphirTaskAssembly)" PackagePath="tasks/netstandard2.0/%(Filename)%(Extension)" />
+        </ItemGroup>
+    </Target>
+
+    <ItemGroup>
+        <Compile Include="PackageInfo.fs" />
+        <Compile Include="ValueClasses.fs" />
+        <Compile Include="HandlingOptions.fs" />
+        <Compile Include="CSharpCodes.fs" />
+    </ItemGroup>
+
+    <!-- The frontend: it binds C# against the fixed .NET 10 reference assemblies, so it is not in netstandard2.0. -->
+    <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+        <Compile Include="Embedded.fs" />
+        <Compile Include="FixedReferences.fs" />
+        <Compile Include="CSharpCompiler.fs" />
+        <Compile Include="SdkMapping.fs" />
+        <Compile Include="Planning.fs" />
+        <Compile Include="OptionAttributes.fs" />
+        <Compile Include="Lowering.fs" />
+        <Compile Include="TypeParameterClasses.fs" />
+        <Compile Include="CSharpFrontend.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The type catalog, the lowering and the checks of the backend. -->
+        <Compile Include="Backend/Types.fs" />
+        <Compile Include="Backend/TypeEmission.fs" />
+        <Compile Include="Backend/LiteralEmission.fs" />
+        <Compile Include="Backend/SdkMapping.fs" />
+        <Compile Include="Backend/ValueLowering.fs" />
+        <!-- The layout of the modules comes before the checks: the name-collision check uses the C# containers. -->
+        <Compile Include="Emit/Layout.fs" />
+        <Compile Include="Backend/Checks.fs" />
+        <Compile Include="TargetPasses.fs" />
+        <!-- The backend: it writes C# as Roslyn syntax trees (tasks.md, group 5). -->
+        <Compile Include="Emit/Cs.fs" />
+        <Compile Include="Emit/Types.fs" />
+        <Compile Include="Emit/Declarations.fs" />
+        <Compile Include="Emit/Values.fs" />
+        <Compile Include="Emit/Modules.fs" />
+        <Compile Include="Emit/Format.fs" />
+        <Compile Include="Emit/Polyfill.fs" />
+        <Compile Include="Emit/Backend.fs" />
+        <!-- The pipeline function: the upgrade, the target-side passes and the backend (design.html, BLD-1). -->
+        <Compile Include="Pipeline.fs" />
+    </ItemGroup>
+
+</Project>

@@ -139,6 +139,12 @@ public sealed record ListedExtension(string Id, bool Available, string? Reason)
     /// <summary>The IR versions of the validator capability of the entry, or null when the entry claims no validator.</summary>
     public IReadOnlyList<string>? ValidatorIrVersions { get; init; }
 
+    /// <summary>The stage of the transform capability of the entry (<c>after-frontend</c> or <c>before-backend</c>), or null when the entry claims no transform.</summary>
+    public string? TransformStage { get; init; }
+
+    /// <summary>The target of the transform capability of the entry, or null when it has none.</summary>
+    public string? TransformTarget { get; init; }
+
     /// <summary>The JSON text of the entry, to compare the entries of two reports.</summary>
     public string RawJson { get; init; } = "";
 }
@@ -203,6 +209,13 @@ public sealed class ExtensionListReport : JsonCommandReport
                 ? [.. list.EnumerateArray().Where(value => value.ValueKind == JsonValueKind.String).Select(value => value.GetString()!)]
                 : [];
 
+        static string? Transform(JsonElement element, string member) =>
+            element.TryGetProperty("capabilities", out var capabilities) && capabilities.ValueKind == JsonValueKind.Object
+                && capabilities.TryGetProperty("transform", out var transform) && transform.ValueKind == JsonValueKind.Object
+                && transform.TryGetProperty(member, out var value) && value.ValueKind == JsonValueKind.String
+                    ? value.GetString()
+                    : null;
+
         return new ListedExtension(
             item.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString()! : "",
             item.TryGetProperty("available", out var available) && available.ValueKind == JsonValueKind.True,
@@ -216,6 +229,8 @@ public sealed class ExtensionListReport : JsonCommandReport
                 && capabilities.TryGetProperty("validator", out var validator) && validator.ValueKind == JsonValueKind.Object
                     ? Texts(validator, "irVersions")
                     : null,
+            TransformStage = Transform(item, "stage"),
+            TransformTarget = Transform(item, "target"),
             RawJson = item.GetRawText(),
         };
     }

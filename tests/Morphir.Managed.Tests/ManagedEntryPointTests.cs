@@ -41,12 +41,12 @@ public sealed class ManagedEntryPointTests
     }
     [Test]
     [Category("PlatformSpecific")]
-    public void TheManagedEntryPointRegistersTheInProcessFSharpFrontend()
+    public void TheManagedEntryPointRegistersTheInProcessFSharpAndCSharpFrontends()
     {
         using var app = ManagedProgram.CreateApp([]);
         var frontends = app.Services.GetServices<IFrontend>().ToArray();
-        frontends.Select(frontend => frontend.Identity.Value).Should().Equal("morphir-dotnet.fsharp");
-        frontends[0].Transport.Should().Be(FrontendTransport.InProcess);
+        frontends.Select(frontend => frontend.Identity.Value).Should().Equal("morphir-dotnet.csharp", "morphir-dotnet.fsharp");
+        frontends.Should().OnlyContain(frontend => frontend.Transport == FrontendTransport.InProcess);
     }
 
     [Test]

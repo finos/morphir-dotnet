@@ -4,7 +4,7 @@ namespace Morphir.BlackBox.Tests.Steps;
 
 /// <summary>The steps of the <c>generate</c> command, of its report and of its output directory.</summary>
 [Binding]
-public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriver extensions, IScenarioWorkspace workspace, ScenarioRun run)
+public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriver extensions, IScenarioWorkspace workspace, ScenarioRun run, DriverSet drivers, OtherHostRun other)
 {
     // The first moment of the year 2000: a time that no run of the command gives to a file.
     private static readonly DateTime Year2000 = new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -32,6 +32,43 @@ public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriv
     [When("I generate {string} from the model with the options")]
     public Task GenerateWithTheOptions(string target, Table options) =>
         Generate(target, new GenerationOptions { Options = [.. options.Rows.Select(row => row["option"])] });
+
+    private WorkspaceDirectory OtherOutput => workspace.Directory("output-other");
+
+    [When("I generate {string} from the model on the other host")]
+    public async Task GenerateOnTheOtherHost(string target) =>
+        other.Result = await new GenerationDriver(drivers.CliOf(drivers.OtherHost)).GenerateAsync(run.Model, target, OtherOutput);
+
+    /// <summary>The two output directories have the same files with the same bytes: for the Native AOT host against a JIT host.</summary>
+    [Then("the files that both hosts generated are the same")]
+    public void TheFilesOfBothHostsAreTheSame()
+    {
+        other.Result.ShouldExitWith(0);
+        var mine = workspace.FilesIn(Output).Where(file => !file.StartsWith('.')).ToArray();
+        var theirs = workspace.FilesIn(OtherOutput).Where(file => !file.StartsWith('.')).ToArray();
+        Check(mine.Length > 0, "The host generated no file.");
+        Check(mine.SequenceEqual(theirs), $"The hosts generated the files {string.Join(", ", mine)} and {string.Join(", ", theirs)}.");
+
+        var different = mine.Where(file => !workspace.ReadBytes(Output.File(file)).AsSpan().SequenceEqual(workspace.ReadBytes(OtherOutput.File(file)))).ToArray();
+        Check(different.Length == 0, $"The bytes of these files differ between the hosts: {string.Join(", ", different)}.");
+    }
+
+    /// <summary>
+    /// The output directory has the files of the fixture directory, with the same bytes, and no other file apart from the
+    /// files of the command whose names start with a dot.
+    /// </summary>
+    [Then("the generated files are the files of the fixture {string}")]
+    public void TheGeneratedFilesAreTheFilesOfTheFixture(string fixture)
+    {
+        var expected = workspace.CopyFixtureDirectory(fixture, "expected");
+        var reviewed = workspace.FilesIn(expected).ToArray();
+        var generated = workspace.FilesIn(Output).Where(file => !file.StartsWith('.')).ToArray();
+        Check(reviewed.Length > 0, $"The fixture {fixture} has no file.");
+        Check(generated.SequenceEqual(reviewed), $"The command generated the files {string.Join(", ", generated)}, not the files {string.Join(", ", reviewed)} of the fixture.");
+
+        var different = generated.Where(file => !workspace.ReadBytes(Output.File(file)).AsSpan().SequenceEqual(workspace.ReadBytes(expected.File(file)))).ToArray();
+        Check(different.Length == 0, $"These generated files are not the files of the fixture {fixture}: {string.Join(", ", different)}.");
+    }
 
     /// <summary>The exit code, and one generation report on standard output that agrees with it.</summary>
     [Then("generation exits with {int} and one JSON report")]
@@ -85,22 +122,25 @@ public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriv
         Check(missing.Length == 0, $"The output has no file for the artifacts: {string.Join(", ", missing)}.");
     }
 
-    [Then("the first artifact of the generation report contains {string} and not {string}")]
-    public void TheFirstArtifactContainsAndNot(string text, string absent)
+    /// <summary>The C# backend writes one polyfill file into each output, beside the files of the modules.</summary>
+    private const string PolyfillFile = "Morphir.Polyfill.g.cs";
+
+    [Then("the first module artifact of the generation report contains {string} and not {string}")]
+    public void TheFirstModuleArtifactContainsAndNot(string text, string absent)
     {
-        var artifacts = Report.Artifacts;
-        Check(artifacts.Count > 0, "The generation report has no artifact.");
+        var artifacts = Report.Artifacts.Where(artifact => artifact != PolyfillFile).ToArray();
+        Check(artifacts.Length > 0, "The generation report has no module artifact.");
         var source = workspace.ReadText(Output.File(artifacts[0]));
         Check(source.Contains(text, StringComparison.Ordinal), $"The artifact {artifacts[0]} does not contain '{text}'.");
         Check(!source.Contains(absent, StringComparison.Ordinal), $"The artifact {artifacts[0]} contains '{absent}'.");
     }
 
-    [Then("the output has one C# file for the module {string} of the package {string}")]
-    public void TheOutputHasOneFileForTheModule(string module, string package)
+    [Then("the C# files of the output are the polyfill file and the file of the module {string} of the package {string}")]
+    public void TheOutputHasThePolyfillAndTheFileOfTheModule(string module, string package)
     {
-        var files = workspace.FilesIn(Output).Where(file => file.EndsWith(".cs", StringComparison.Ordinal)).ToArray();
-        var expected = $"p_{package}/m_{char.ToUpperInvariant(module[0])}{module[1..]}Module.g.cs";
-        Check(files.SequenceEqual([expected]), $"The output has the C# files: {string.Join(", ", files)}. Expected only {expected}.");
+        var files = workspace.FilesIn(Output).Where(file => file.EndsWith(".cs", StringComparison.Ordinal)).Order(StringComparer.Ordinal).ToArray();
+        var expected = new[] { PolyfillFile, $"p_{package}/m_{char.ToUpperInvariant(module[0])}{module[1..]}Module.g.cs" }.Order(StringComparer.Ordinal).ToArray();
+        Check(files.SequenceEqual(expected), $"The output has the C# files: {string.Join(", ", files)}. Expected {string.Join(", ", expected)}.");
     }
 
     [Given("I remember the files of the output")]
@@ -203,6 +243,15 @@ public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriv
         Check(!string.IsNullOrEmpty(Text("backendVersion")), "The generation report has no backend version.");
     }
 
+    [Then("the generation report lists the pass {string}")]
+    public void TheReportListsThePass(string id)
+    {
+        var ran = Report.Document.TryGetProperty("passes", out var passes) && passes.TryGetProperty("ran", out var list)
+            ? list.EnumerateArray().Select(item => item.GetString()).ToArray()
+            : [];
+        Check(ran.Contains(id), $"The generation report lists the passes {string.Join(", ", ran)}, not {id}.");
+    }
+
     [Then("the generation report has no member {string}")]
     public void TheReportHasNoMember(string member) => Check(!Report.Document.TryGetProperty(member, out _), $"The generation report has the member {member}.");
 
@@ -232,11 +281,13 @@ public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriv
     [Then("the generation report has artifacts")]
     public void TheReportHasArtifacts() => Check(Report.Artifacts.Count > 0, "The generation report has no artifact.");
 
-    [Then("the generation report has one C# artifact that contains {string} and {string}")]
-    public void TheReportHasOneCSharpArtifactThatContains(string first, string second)
+    [Then("the generation report has the polyfill file and one C# module artifact that contains {string} and {string}")]
+    public void TheReportHasThePolyfillAndOneModuleArtifactThatContains(string first, string second)
     {
-        var artifacts = Report.Artifacts;
-        Check(artifacts.Count == 1 && artifacts[0].EndsWith(".g.cs", StringComparison.Ordinal), $"The generation report has the artifacts {string.Join(", ", artifacts)}, not one C# file.");
+        var all = Report.Artifacts;
+        var artifacts = all.Where(artifact => artifact != PolyfillFile).ToArray();
+        Check(all.Contains(PolyfillFile) && artifacts.Length == 1 && artifacts[0].EndsWith(".g.cs", StringComparison.Ordinal),
+            $"The generation report has the artifacts {string.Join(", ", all)}, not the polyfill file and one C# module file.");
         var source = workspace.ReadText(Output.File(artifacts[0]));
         Check(source.Contains(first, StringComparison.Ordinal) && source.Contains(second, StringComparison.Ordinal), $"The artifact {artifacts[0]} does not contain '{first}' and '{second}'.");
     }

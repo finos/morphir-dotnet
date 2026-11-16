@@ -23,11 +23,23 @@ public sealed class ValueDomainTests
     }
 
     [Test]
-    public void ArbitraryEquatableTypesDoNotBecomeMorphirValues()
+    public void AValueOutsideTheKnownKindsUsesItsOwnEqualsAndGetHashCode()
     {
-        Should.Throw<NotSupportedException>(() => Basics.Equal(new PlainRecord(1), new PlainRecord(1)));
-        Should.Throw<NotSupportedException>(() => Basics.Equal(new MutableEquatable(), new MutableEquatable()));
-        Should.Throw<NotSupportedException>(() => MorphirValue.Hash(new MutableEquatable()));
+        // The SDK does not find the kind of a value with reflection. A value that is not a scalar, a tuple, an SDK value or
+        // an IMorphirValue compares with its own Equals and hashes with its own GetHashCode.
+        var value = new MutableEquatable();
+        Basics.Equal(value, value).ShouldBeTrue();
+        Basics.Equal(new MutableEquatable(), new MutableEquatable()).ShouldBeFalse();
+        MorphirValue.Hash(value).ShouldBe(value.GetHashCode());
+        Basics.Equal(new int[] { 1 }, new int[] { 1 }).ShouldBeFalse();
+        Basics.Equal(new object(), new object()).ShouldBeFalse();
+    }
+
+    [Test]
+    public void NullIsStillOutsideTheValueDomain()
+    {
+        Should.Throw<NotSupportedException>(() => Basics.Equal<object?>(null, 1));
+        Should.Throw<NotSupportedException>(() => MorphirValue.Hash<object?>(null));
     }
 
     [Test]

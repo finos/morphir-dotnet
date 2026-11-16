@@ -2,6 +2,7 @@
 
 | PRD | Status | Phase | Current task |
 | --- | --- | --- | --- |
+| [C# language support](./csharp-language-support.md) | In Progress | Review | Steps 0 to 7 implemented in OpenSpec change `add-csharp-language-support` (PR #664); open: the generator and the code fix in IDEs, and a `net8.0` runtime |
 | [Generic guest kit adoption](./adopt-generic-guest-kit.md) | Draft | Planning review | Distinct OpenSpec adoption of parent #1154; dev morphir-mck; runtime #570 dependency, [#563](https://github.com/finos/morphir-dotnet/issues/563) |
 | [F# source frontend and compile](./fsharp-source-frontend.md) | In Progress | Tracking and acceptance | #499; compile acceptance and native compilation contracts |
 | [C# generation CLI](./integrate-csharp-generation-cli.md) | Implementation landed | Specification archive | #482 squash landed; 9/9 tasks, both deltas synced and archived; archive follow-up landing and coordinator cleanup pending, [#481](https://github.com/finos/morphir-dotnet/issues/481) |

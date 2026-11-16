@@ -45,6 +45,9 @@ public class ReportDriverTests
         tool.Extension("morphir-dotnet.fsharp").Available.Should().BeTrue();
         tool.Extension("morphir-dotnet.fsharp").HasReason.Should().BeFalse();
         native.Extension("morphir.type-validator").ValidatorIrVersions.Should().Equal("1", "2", "3");
+        native.Extension("morphir-dotnet.csharp.admission").TransformStage.Should().Be("before-backend");
+        native.Extension("morphir-dotnet.csharp.admission").TransformTarget.Should().Be("csharp");
+        native.Extension("morphir.type-validator").TransformStage.Should().BeNull();
         var missing = () => native.Extension("no.such-extension");
         missing.Should().Throw<CommandAssertionException>().WithMessage("*no entry 'no.such-extension'*");
     }

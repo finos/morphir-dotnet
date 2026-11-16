@@ -13,5 +13,5 @@ Feature: From a Morphir model to a C# library
     Then the exit code is 0
     And the generation report says that the generation succeeded
     And each artifact of the generation report is a file of the output
-    And the output has one C# file for the module "inventory" of the package "Car.Rental"
-    And the first artifact of the generation report contains "namespace Pricing.Generated;" and not "error"
+    And the C# files of the output are the polyfill file and the file of the module "inventory" of the package "Car.Rental"
+    And the first module artifact of the generation report contains "namespace Pricing.Generated;" and not "error"

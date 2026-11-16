@@ -1,5 +1,9 @@
 namespace Morphir.Json.Classic
 
+#if NETSTANDARD2_0
+open Morphir.Compat
+#endif
+
 open System
 open System.Globalization
 open System.Runtime.CompilerServices

@@ -133,6 +133,15 @@ type CompileRequestFailure =
     | LanguageMismatch of index: int
     /// <summary>The URI appears more than once.</summary>
     | RepeatedUri of uri: string
+    /// <summary>
+    /// An extra option has a name that the MEP compile options reserve: <c>typesOnly</c>, <c>irVersion</c>,
+    /// <c>sourceRootUri</c> or <c>sourceRoot</c>.
+    /// </summary>
+    | ReservedOption of name: string
+    /// <summary>An extra option name appears more than once.</summary>
+    | RepeatedOption of name: string
+    /// <summary>An extra option has no JSON value (<c>default(JsonElement)</c>).</summary>
+    | UndefinedOption of name: string
 
     override this.ToString() =
         match this with
@@ -145,12 +154,17 @@ type CompileRequestFailure =
         | LanguageMismatch index ->
             $"Source document {index} is not in the language of the request."
         | RepeatedUri uri -> $"The source document URI '{uri}' appears more than once."
+        | ReservedOption name ->
+            $"The compile option '{name}' cannot be an extra option: the MEP compile options reserve the names typesOnly, irVersion, sourceRootUri and sourceRoot."
+        | RepeatedOption name -> $"The extra compile option '{name}' appears more than once."
+        | UndefinedOption name -> $"The extra compile option '{name}' has no JSON value."
 
 /// <summary>
 /// One complete compilation of a source set (MEP <c>CompileModelRequest</c>). Only <c>Parse</c>,
 /// <c>TryParse</c> and <c>Create</c> build one, so a request always has a language, a package and at least
 /// one document; every document has a URI, a text and the request's language; and the URIs are unique.
 /// </summary>
+[<NoEquality; NoComparison>]
 type CompileRequest =
     private
         {
@@ -161,6 +175,7 @@ type CompileRequest =
             ExposedValue: string array option
             OutputValue: IrTarget
             DigestValue: string
+            ExtraValue: IReadOnlyDictionary<string, Text.Json.JsonElement>
         }
 
     /// <summary>The language of the request.</summary>
@@ -203,6 +218,67 @@ type CompileRequest =
     /// read it.
     /// </summary>
     member this.ContextDigest = this.DigestValue
+
+    /// <summary>
+    /// The extra options of the request (the <c>extra</c> members of the MEP <c>CompileOptions</c>), in ordinal order of
+    /// the name. A frontend reads the options that it knows, such as the <c>[frontend.&lt;language&gt;]</c> keys of
+    /// <c>morphir.toml</c>, and parses each value into its own types. A new request has none.
+    /// </summary>
+    member this.ExtraOptions = this.ExtraValue
+
+    /// <summary>
+    /// The same request with the given extra options in place of the old ones. A name that the MEP compile options
+    /// reserve, or a name that repeats, is refused. The values are copied, so the request does not keep the caller's
+    /// JSON documents. For F# callers.
+    /// </summary>
+    member this.WithExtraOptions
+        (options: IEnumerable<KeyValuePair<string, Text.Json.JsonElement>>)
+        : Result<CompileRequest, CompileRequestFailure> =
+        let options = Array.ofSeq options
+
+        let reserved =
+            options
+            |> Array.tryFind (fun pair -> Array.contains pair.Key CompileRequest.ReservedOptionNames)
+
+        match reserved with
+        | Some pair -> Error(CompileRequestFailure.ReservedOption pair.Key)
+        | None ->
+            let extra = SortedDictionary<string, Text.Json.JsonElement>(StringComparer.Ordinal)
+
+            options
+            |> Array.fold
+                (fun state (pair: KeyValuePair<string, Text.Json.JsonElement>) ->
+                    match state with
+                    | Error _ -> state
+                    | Ok() when extra.ContainsKey pair.Key -> Error(CompileRequestFailure.RepeatedOption pair.Key)
+                    | Ok() when pair.Value.ValueKind = Text.Json.JsonValueKind.Undefined ->
+                        Error(CompileRequestFailure.UndefinedOption pair.Key)
+                    | Ok() ->
+                        extra.Add(pair.Key, pair.Value.Clone())
+                        Ok())
+                (Ok())
+            |> Result.map (fun () ->
+                { this with
+                    ExtraValue = Collections.ObjectModel.ReadOnlyDictionary(extra) })
+
+    /// <summary>The same request with the given extra options, or the failure. For C# callers.</summary>
+    member this.TryWithExtraOptions
+        (options: IEnumerable<KeyValuePair<string, Text.Json.JsonElement>>,
+         [<Out; MaybeNullWhen(false)>] result: byref<CompileRequest>,
+         [<Out; MaybeNullWhen(true)>] failure: byref<CompileRequestFailure>)
+        : bool =
+        match this.WithExtraOptions options with
+        | Ok request ->
+            result <- request
+            failure <- Unchecked.defaultof<_>
+            true
+        | Error error ->
+            result <- Unchecked.defaultof<_>
+            failure <- error
+            false
+
+    /// <summary>The names that the MEP compile options reserve; an extra option cannot have one.</summary>
+    static member private ReservedOptionNames = [| "typesOnly"; "irVersion"; "sourceRootUri"; "sourceRoot" |]
 
     override this.ToString() =
         $"{this.LanguageValue} request with {this.DocumentsValue.Length} document(s) for {this.OutputValue}"
@@ -276,6 +352,8 @@ type CompileRequest =
                                 DigestValue =
                                     Option.ofObj contextDigest
                                     |> Option.defaultValue ""
+                                ExtraValue =
+                                    Collections.ObjectModel.ReadOnlyDictionary(Dictionary<string, Text.Json.JsonElement>())
                             }
 
     /// <summary>Builds a request from untrusted input. For C# callers.</summary>

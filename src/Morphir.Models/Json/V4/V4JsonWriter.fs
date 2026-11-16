@@ -1,5 +1,9 @@
 namespace Morphir.Json.V4
 
+#if NETSTANDARD2_0
+open Morphir.Compat
+#endif
+
 open System
 open System.Buffers
 open System.Collections.Generic

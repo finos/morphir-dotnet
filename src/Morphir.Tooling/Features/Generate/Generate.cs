@@ -1,6 +1,7 @@
 using Foundatio.Mediator;
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
+using Morphir.IR.Model;
 
 namespace Morphir.Tooling.Features.Generate;
 
@@ -19,6 +20,9 @@ public sealed record GenerationSuccess(string Target, string Backend, string Inp
 
     /// <summary>Whether the backend formatted the files: <c>applied</c>, <c>off</c> or <c>unavailable</c>; null when it does not report it.</summary>
     public string? Formatting { get; init; }
+
+    /// <summary>The passes that ran before the backend, with their application list; null when no pass ran.</summary>
+    public Transform.PassesReport? Passes { get; init; }
 }
 
 /// <summary>Coordinates generation through injectable application boundaries in the existing mediator.</summary>
@@ -84,7 +88,8 @@ public static class GenerateHandler
         if (registered.Any(builtIn => builtIn.Descriptor.Id.Equals(id)))
             return GenerationStages.Failed(GenerationFailure.One(GenerationFailureKind.Operational, "extension.unavailable",
                 $"The backend extension {extension.Value} gave the extension id {id.Value}, which is the id of a built-in backend. An extension must have its own id."), null);
-        var outcome = await GenerationStages.RunFrom(model, settings, new RegisteredBackendResolver([backend]), publisher, ct, logger);
+        // A backend extension reads the bytes of the model, so the built-in passes do not apply to it.
+        var outcome = await GenerationStages.RunFrom(model, settings, new RegisteredBackendResolver([backend]), publisher, ct, logger, Transform.ModelPasses.None);
         return outcome switch
         {
             Outcome<GenerationSuccess>.Success success => new Outcome<GenerationSuccess>.Success(success.Value with
@@ -123,21 +128,48 @@ public static class GenerationStages
 {
     /// <summary>Runs the stages from a loaded model. A failure names the backend when one was selected.</summary>
     public static async Task<Outcome<GenerationSuccess>> RunFrom(LoadedModel model, GenerationSettings settings,
-        IGenerationBackendResolver backendResolver, IGenerationPublisher publisher, CancellationToken ct, ILogger? logger = null)
+        IGenerationBackendResolver backendResolver, IGenerationPublisher publisher, CancellationToken ct, ILogger? logger = null,
+        Transform.ModelPasses? passes = null)
     {
         string? backendIdentity = null;
         try
         {
             var selected = backendResolver.Resolve(settings.Target, model.Descriptor);
+
+            // A backend that does not read the classic model directly, but reads the current IR, gets the model upgraded.
+            // The report keeps the model as it was loaded.
+            var backendModel = model;
+            if (selected is Outcome<IGenerationBackend>.Failure firstFailure
+                && model.Model.Family == ModelFamily.Classic
+                && firstFailure.Error.Diagnostics.Any(diagnostic => diagnostic.Code == "incompatible-model")
+                && backendResolver.Resolve(settings.Target, ModelUpgrade.Reachable(model.Descriptor)) is Outcome<IGenerationBackend>.Success)
+            {
+                var upgraded = ModelUpgrade.Upgrade(model);
+                if (upgraded is Outcome<LoadedModel>.Failure upgradeFailure) return Failed(upgradeFailure.Error, backendIdentity);
+                backendModel = ((Outcome<LoadedModel>.Success)upgraded).Value;
+                selected = backendResolver.Resolve(settings.Target, backendModel.Descriptor);
+            }
+
             if (selected is Outcome<IGenerationBackend>.Failure selectionFailure) return Failed(selectionFailure.Error, backendIdentity);
             var backend = ((Outcome<IGenerationBackend>.Success)selected).Value;
             backendIdentity = backend.Descriptor.Id.Value;
             var validation = backend.ValidateOptions(settings.Options);
             if (validation is Outcome<ValidatedBackendOptions>.Failure optionFailure) return Failed(optionFailure.Error, backendIdentity);
             var options = ((Outcome<ValidatedBackendOptions>.Success)validation).Value;
-            var generation = await backend.GenerateAsync(new(model, backend.Descriptor.Target, options), ct);
+
+            // The passes of the stage before this backend run on the current IR, and the host checks that no feature remains
+            // that the backend cannot take. A pass error stops the run before the backend.
+            var passed = (passes ?? Transform.ModelPasses.BuiltIn).RunBeforeBackend(backendModel, backend.Descriptor.Target.Value);
+            if (passed is Outcome<Transform.PassedModel>.Failure passFailure) return Failed(passFailure.Error, backendIdentity);
+            var passedModel = ((Outcome<Transform.PassedModel>.Success)passed).Value;
+            backendModel = passedModel.Model;
+
+            var generation = await backend.GenerateAsync(new(backendModel, backend.Descriptor.Target, options), ct);
             if (generation is Outcome<GenerationArtifacts>.Failure generationFailure) return Failed(generationFailure.Error, backendIdentity);
             var artifacts = ((Outcome<GenerationArtifacts>.Success)generation).Value;
+            // The diagnostics of the passes go with the diagnostics of the backend, so that a publisher that reports them at
+            // publication, as compile --target does, reports both.
+            artifacts = artifacts with { Diagnostics = artifacts.Diagnostics.AddRange(passedModel.Diagnostics) };
             var family = ModelLabels.Family(model.Model.Family);
             var kind = ModelLabels.Kind(model.Model.Kind);
             ct.ThrowIfCancellationRequested();
@@ -147,7 +179,7 @@ public static class GenerationStages
             return new Outcome<GenerationSuccess>.Success(new(backend.Descriptor.Target.Value, backend.Descriptor.Id.Value, model.Original.SourcePath,
                 settings.Publication.OutputDirectory, model.Model.SourceVersion.Text, family, kind,
                 model.Representation.ToString(), receipt, artifacts.Diagnostics)
-            { Formatting = artifacts.Formatting });
+            { Formatting = artifacts.Formatting, Passes = passedModel.Report });
         }
         catch (OperationCanceledException) { return Cancelled(backendIdentity); }
         catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))

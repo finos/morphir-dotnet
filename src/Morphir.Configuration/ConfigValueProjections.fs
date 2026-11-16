@@ -125,6 +125,39 @@ type ConfigValueProjections =
             false
 
     /// <summary>
+    /// The names of the child tables of an object value, in ordinal order: <c>csharp</c> and <c>fsharp</c> of
+    /// <c>[frontend]</c>. A member that is not a table is left out. Empty when the value is not an object.
+    /// </summary>
+    static member Tables(value: ConfigValue) : IReadOnlyList<string> =
+        match value with
+        | ConfigValue.Object members ->
+            members
+            |> Map.toArray
+            |> Array.choose (fun (name, child) ->
+                match child with
+                | ConfigValue.Object _ -> Some name
+                | ConfigValue.Null
+                | ConfigValue.String _
+                | ConfigValue.Boolean _
+                | ConfigValue.Integer _
+                | ConfigValue.BigInteger _
+                | ConfigValue.Number _
+                | ConfigValue.Temporal _
+                | ConfigValue.Array _
+                | ConfigValue.SecretReference _ -> None)
+            |> Array.sortWith (fun left right -> String.CompareOrdinal(left, right))
+            :> IReadOnlyList<string>
+        | ConfigValue.Null
+        | ConfigValue.String _
+        | ConfigValue.Boolean _
+        | ConfigValue.Integer _
+        | ConfigValue.BigInteger _
+        | ConfigValue.Number _
+        | ConfigValue.Temporal _
+        | ConfigValue.Array _
+        | ConfigValue.SecretReference _ -> Array.empty :> IReadOnlyList<string>
+
+    /// <summary>
     /// The names of the child tables of an object value that hold <paramref name="key"/>, in ordinal order. Empty
     /// when the value is not an object.
     /// </summary>
@@ -159,3 +192,45 @@ type ConfigValueProjections =
         | ConfigValue.Temporal _
         | ConfigValue.Array _
         | ConfigValue.SecretReference _ -> Array.empty :> IReadOnlyList<string>
+
+    /// <summary>
+    /// The members of a table whose value is a string, a boolean, an integer or a finite number, each as a JSON value, in
+    /// ordinal order of the key: <c>"functional"</c>, <c>false</c>, <c>15</c>, <c>0.5</c>. A member of another kind is left
+    /// out, and a value that is not a table gives none. A backend option of <c>[codegen.&lt;target&gt;]</c> is read this way.
+    /// The JSON is built with no reflection, so the member is safe under Native AOT.
+    /// </summary>
+    static member ScalarMembers(value: ConfigValue) : IReadOnlyList<KeyValuePair<string, System.Text.Json.JsonElement>> =
+        let json (child: ConfigValue) =
+            match child with
+            | ConfigValue.String text -> Some("\"" + System.Text.Json.JsonEncodedText.Encode(text).ToString() + "\"")
+            | ConfigValue.Boolean flag -> Some(if flag then "true" else "false")
+            | ConfigValue.Integer number -> Some(number.ToString(CultureInfo.InvariantCulture))
+            | ConfigValue.Number number when Double.IsFinite number -> Some(number.ToString("R", CultureInfo.InvariantCulture))
+            | ConfigValue.Number _
+            | ConfigValue.Null
+            | ConfigValue.BigInteger _
+            | ConfigValue.Temporal _
+            | ConfigValue.Array _
+            | ConfigValue.Object _
+            | ConfigValue.SecretReference _ -> None
+
+        let element (text: string) =
+            use document = System.Text.Json.JsonDocument.Parse text
+            document.RootElement.Clone()
+
+        match value with
+        | ConfigValue.Object members ->
+            members
+            |> Map.toArray
+            |> Array.sortWith (fun (left, _) (right, _) -> String.CompareOrdinal(left, right))
+            |> Array.choose (fun (key, child) -> json child |> Option.map (fun text -> KeyValuePair(key, element text)))
+            :> IReadOnlyList<KeyValuePair<string, System.Text.Json.JsonElement>>
+        | ConfigValue.Null
+        | ConfigValue.String _
+        | ConfigValue.Boolean _
+        | ConfigValue.Integer _
+        | ConfigValue.BigInteger _
+        | ConfigValue.Number _
+        | ConfigValue.Temporal _
+        | ConfigValue.Array _
+        | ConfigValue.SecretReference _ -> Array.empty :> IReadOnlyList<KeyValuePair<string, System.Text.Json.JsonElement>>

@@ -6,7 +6,7 @@ Feature: List the extensions of a host and report its runtimes
   Scenario Outline: The JSON list has the built-in extensions on standard output only
     When I list the extensions as JSON with the options "<options>"
     Then the exit code is 0
-    And the extension list report has the host "morphir" and the extensions "morphir-dotnet.fsharp, morphir.csharp, morphir.fsharp, morphir.type-validator"
+    And the extension list report has the host "morphir" and the extensions "morphir-dotnet.csharp, morphir-dotnet.csharp.admission, morphir-dotnet.fsharp, morphir.csharp, morphir.fsharp, morphir.type-validator"
     And the extension list report states no deployment
     And the extension "morphir-dotnet.fsharp" is not available, and its reason names "morphir-fsharp-frontend"
 
@@ -21,18 +21,20 @@ Feature: List the extensions of a host and report its runtimes
     When I list the extensions as text
     Then the exit code is 0
     And the extension list text has a row for each extension
-      | id                     | type              |
-      | morphir-dotnet.fsharp  | frontend (fsharp) |
-      | morphir.csharp         |                   |
-      | morphir.fsharp         |                   |
-      | morphir.type-validator | validator (1, 2, 3) |
+      | id                              | type                              |
+      | morphir-dotnet.csharp           | frontend (csharp)                 |
+      | morphir-dotnet.csharp.admission | transform (before-backend csharp) |
+      | morphir-dotnet.fsharp           | frontend (fsharp)                 |
+      | morphir.csharp                  |                                   |
+      | morphir.fsharp                  |                                   |
+      | morphir.type-validator          | validator (1, 2, 3)               |
 
   @host-managed @needs-unprofiled-build
   Scenario: The managed host lists the shared built-in extensions
     When I list the extensions as JSON with the options ""
     Then the exit code is 0
     And the command ran on the "managed" host
-    And the extension list report has the host "morphir" and the extensions "morphir-dotnet.fsharp, morphir.csharp, morphir.fsharp, morphir.type-validator"
+    And the extension list report has the host "morphir" and the extensions "morphir-dotnet.csharp, morphir-dotnet.csharp.admission, morphir-dotnet.fsharp, morphir.csharp, morphir.fsharp, morphir.type-validator"
     And the extension list report states no deployment and the execution "jit"
 
   @host-native

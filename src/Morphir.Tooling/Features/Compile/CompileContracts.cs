@@ -21,6 +21,8 @@ public enum CompileStage
     Capture,
     /// <summary>Frontend selection and compilation, which builds the requested IR family.</summary>
     Frontend,
+    /// <summary>The passes of the stage after a frontend. The stage runs only when a pass is registered for it.</summary>
+    Transform,
     /// <summary>The IR writer of the requested format version.</summary>
     Write,
     /// <summary>Publication of the written IR.</summary>
@@ -41,6 +43,7 @@ public static class CompileStages
         CompileStage.Sources => "sources",
         CompileStage.Capture => "capture",
         CompileStage.Frontend => "frontend",
+        CompileStage.Transform => "transform",
         CompileStage.Write => "write",
         CompileStage.Publish => "publish",
         CompileStage.Generate => "generate",
@@ -220,6 +223,23 @@ public sealed record CompileSettings
     /// not use it: it runs the built-in backend, and only <c>morphir generate</c> runs a backend extension.
     /// </summary>
     public Setting<string>? IgnoredBackendExtension { get; init; }
+    /// <summary>
+    /// The other keys of <c>[codegen.&lt;target&gt;]</c> of the requested <c>--target</c>, as configured backend options
+    /// (<see cref="Features.Generate.BackendOptions.Configured"/>). <c>compile --target</c> gives them to the backend.
+    /// </summary>
+    public ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>> ConfiguredBackendOptions { get; init; } = [];
+    /// <summary>
+    /// The other keys of each <c>[frontend.&lt;language&gt;]</c> table, by the language id: each scalar key except
+    /// <c>extension</c> and <c>project_file</c>, with <c>-</c> for <c>_</c>. The run gives the keys of the language of the
+    /// selected frontend to it as the extra options of the compile request (the <c>extra</c> members of the MEP
+    /// <c>CompileOptions</c>). See <see cref="FrontendOptionsOf"/>.
+    /// </summary>
+    public ImmutableDictionary<LanguageId, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>> FrontendOptions { get; init; } =
+        ImmutableDictionary<LanguageId, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>>.Empty;
+
+    /// <summary>The extra options of the frontend of a language, from its <c>[frontend.&lt;language&gt;]</c> table. None when the table has none.</summary>
+    public ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>> FrontendOptionsOf(LanguageId language) =>
+        FrontendOptions.TryGetValue(language, out var options) ? options : [];
     /// <summary>The project root, or null outside any project.</summary>
     public string? ProjectRoot { get; init; }
     /// <summary>The out root of the workspace (REC-1), for example <c>&lt;workspace&gt;/.morphir/out</c>.</summary>
@@ -276,6 +296,13 @@ public sealed record CompileSuccess(string Language, string Frontend, SourceForm
     public System.Text.Json.JsonElement? Provider { get; init; }
     /// <summary>The generation of <c>--target</c>, or null when no target was requested.</summary>
     public CompileGeneration? Generation { get; init; }
+    /// <summary>The passes that ran after the frontend, with their application list; null when no pass ran.</summary>
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
+    /// <summary>
+    /// The lineage of the written IR: the pins of the model that the frontend wrote and the application list of the passes after
+    /// the frontend. The passes before a backend continue it. Null when no pass ran after the frontend.
+    /// </summary>
+    public Morphir.Tooling.Features.Transform.ModelLineage? Lineage { get; init; }
 }
 
 /// <summary>A failed compile. Its diagnostics travel on the events and the fold.</summary>

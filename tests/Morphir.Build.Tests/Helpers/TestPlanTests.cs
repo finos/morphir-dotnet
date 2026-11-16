@@ -192,7 +192,7 @@ public class TestPlanTests
     [Test]
     public void TheSuitesOfTheTestTargetAreUnique()
     {
-        TestPlan.Suites.Should().HaveCount(37);
+        TestPlan.Suites.Should().HaveCount(42);
         TestPlan.Suites.Select(suite => suite.Name).Should().OnlyHaveUniqueItems();
         TestPlan.Suites.Where(suite => suite.Group is null).Select(suite => suite.Project).Should().OnlyHaveUniqueItems();
     }
@@ -372,7 +372,7 @@ public class TestPlanTests
     public void TheSuitesKeepTheArgumentsThatTheirTestsNeed()
     {
         ArgumentsOf("Morphir.Configuration.Tests").Should().Equal("--sequenced");
-        ArgumentsOf("Morphir.CodeGeneration.CSharp.Tests").Should().Equal("--sequenced");
+        ArgumentsOf("Morphir.Lang.CSharp.Backend.Tests").Should().Equal("--sequenced");
         ArgumentsOf("Morphir.Configuration.IO.Tests").Should().Equal("--maximum-parallel-tests", "1");
         ArgumentsOf("Morphir.Configuration.Microsoft.Tests").Should().Equal("--maximum-parallel-tests", "1");
     }

@@ -109,4 +109,46 @@ let tests =
               Expect.sequenceEqual (ConfigValueProjections.TablesWithKey(tables, "project_file")) [ "csharp"; "fsharp" ] "tables"
 
               for value in every |> List.filter (function ConfigValue.Object _ -> false | _ -> true) do
-                  Expect.isEmpty (ConfigValueProjections.TablesWithKey(value, "project_file")) $"{value}" ]
+                  Expect.isEmpty (ConfigValueProjections.TablesWithKey(value, "project_file")) $"{value}"
+
+          testCase "Tables names the child tables of an object, in ordinal order"
+          <| fun _ ->
+              let tables =
+                  ConfigValue.Object(
+                      Map.ofList
+                          [ "fsharp", ConfigValue.Object Map.empty
+                            "csharp", ConfigValue.Object(Map.ofList [ "loop_lowering", ConfigValue.String "recursion" ])
+                            "language", ConfigValue.String "fsharp" ]
+                  )
+
+              Expect.sequenceEqual (ConfigValueProjections.Tables tables) [ "csharp"; "fsharp" ] "only the tables"
+
+              for value in every |> List.filter (function ConfigValue.Object _ -> false | _ -> true) do
+                  Expect.isEmpty (ConfigValueProjections.Tables value) $"{value}"
+
+          testCase "ScalarMembers gives the scalar members of a table as JSON values, in ordinal order"
+          <| fun _ ->
+              let table =
+                  ConfigValue.Object(
+                      Map.ofList
+                          [ "profile", ConfigValue.String "functional"
+                            "language_version", ConfigValue.Integer 15L
+                            "strict", ConfigValue.Boolean false
+                            "ratio", ConfigValue.Number 0.5
+                            "quoted", ConfigValue.String "a \"b\""
+                            "nested", ConfigValue.Object Map.empty
+                            "items", ConfigValue.Array [ ConfigValue.String "a" ] ]
+                  )
+
+              let members = ConfigValueProjections.ScalarMembers table |> Seq.map (fun pair -> pair.Key, pair.Value.GetRawText()) |> List.ofSeq
+
+              Expect.equal
+                  members
+                  [ "language_version", "15"; "profile", "\"functional\""; "quoted", "\"a \\u0022b\\u0022\""; "ratio", "0.5"; "strict", "false" ]
+                  "the scalars as JSON, and no table or array"
+
+              let quoted = ConfigValueProjections.ScalarMembers table |> Seq.find (fun pair -> pair.Key = "quoted")
+              Expect.equal (quoted.Value.GetString()) "a \"b\"" "the text reads back"
+
+              for value in every |> List.filter (function ConfigValue.Object _ -> false | _ -> true) do
+                  Expect.isEmpty (ConfigValueProjections.ScalarMembers value) $"{value}" ]
