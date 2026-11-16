@@ -177,11 +177,16 @@ time.
 
 ## Compile
 
+Save the example of [Modules](#modules) as `Domain.cs` in a directory, for example `/work/trading`, and run this
+command in that directory:
+
 ```bash
-morphir compile --language csharp --input Domain.cs --package-name acme/trading --ir-version 4
+$ morphir compile --language csharp --input Domain.cs --package-name acme/trading --ir-version 4
+/work/trading/.morphir/out/compile.dest/morphir-ir.json
 ```
 
-The command writes the IR under `.morphir/out/compile.dest/morphir-ir.json`, as for every language. The report names
+The command writes the IR under `.morphir/out/compile.dest/morphir-ir.json`, as for every language, and writes the
+path of the IR to stdout. The report names
 the frontend `morphir-dotnet.csharp (in-process)`. A C# file in `--input` is read with `--language csharp`, and
 the language is also chosen from the extension `.cs` when `--language` is not set.
 

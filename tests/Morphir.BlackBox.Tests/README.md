@@ -421,6 +421,8 @@ two steps have the same pattern.
 | Documentation | `Then each documented command gives its documented output` |
 | Documentation | `Given the morphir.toml of the section in the project directory {string}` |
 | Documentation | `When I run the documented commands of the section in the project directory {string}` |
+| Documentation | `Given the first C# code block of the documentation page {string} as the file {string}` |
+| Documentation | `When I run the documented commands of the section in the directory {string}` |
 | Documentation | `Then the documented compile writes the path of the published IR of the project {string}` |
 | Documentation | `Then the documented generate writes its documented files to {string} of the project {string}` |
 | Tutorial | `Then each marked code block of the tutorial is the file of the example that it names` |

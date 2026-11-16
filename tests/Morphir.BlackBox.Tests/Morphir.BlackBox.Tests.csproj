@@ -90,6 +90,7 @@
     <None Include="../../docs/content/docs/cli/validate.md" Link="Fixtures/Docs/cli/validate.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/guides/fsharp-pricing-tutorial.md" Link="Fixtures/Docs/guides/fsharp-pricing-tutorial.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/getting-started/compile-fsharp.md" Link="Fixtures/Docs/getting-started/compile-fsharp.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/frontends/csharp/_index.md" Link="Fixtures/Docs/frontends/csharp/_index.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../examples/car-rental-pricing/**/*" Exclude="../../examples/car-rental-pricing/bin/**;../../examples/car-rental-pricing/obj/**"
           Link="Fixtures/Examples/car-rental-pricing/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../Fixtures/MorphirIR/daily-rate-mismatch-v3.json" Link="Fixtures/Models/daily-rate-mismatch-v3.json" CopyToOutputDirectory="PreserveNewest" />
