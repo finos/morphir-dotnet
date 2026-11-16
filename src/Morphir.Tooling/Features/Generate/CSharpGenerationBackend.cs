@@ -27,13 +27,18 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
 
     public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options)
     {
+        // The keys of [codegen.csharp] come first, so that a command-line language version or namespace replaces them. The
+        // handling options of the two stay apart, because the carrier in the model is between them (OPT-1).
         var language = SupportedLanguage;
         NamespaceOverride? naming = null;
-        var handling = new List<KeyValuePair<string, string>>();
-        Outcome<ValidatedBackendOptions> Invalid(string key) => new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
-            "invalid-backend-option", $"C# accepts numeric 'language-version' {SupportedLanguage}, a string 'namespace', and the string handling options 'profile' (imperative or functional), 'traversal' (loop or functional), 'tail-recursion' (loop or local-function) and 'float-equality' (clr or ieee); received '{key}'."));
+        var commandLine = new List<KeyValuePair<string, string>>();
+        var configured = new List<KeyValuePair<string, string>>();
+        Outcome<ValidatedBackendOptions> Invalid(string key, bool fromConfiguration) => new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
+            "invalid-backend-option", $"C# accepts numeric 'language-version' {SupportedLanguage}, a string 'namespace', and the string handling options 'profile' (imperative or functional), 'traversal' (loop or functional), 'tail-recursion' (loop or local-function) and 'float-equality' (clr or ieee); received '{key}'{(fromConfiguration ? " from [codegen.csharp]" : "")}."));
 
-        foreach (var (key, value) in options.Values)
+        var entries = options.Configured.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => (pair.Key, pair.Value, FromConfiguration: true))
+            .Concat(options.Values.Select(pair => (pair.Key, pair.Value, FromConfiguration: false)));
+        foreach (var (key, value, fromConfiguration) in entries)
         {
             if (key == "namespace" && value.ValueKind == JsonValueKind.String)
             {
@@ -44,7 +49,7 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
                 naming = parsed.ResultValue;
             }
             else if (HandlingKeys.Contains(key) && value.ValueKind == JsonValueKind.String)
-                handling.Add(new(key, value.GetString()!));
+                (fromConfiguration ? configured : commandLine).Add(new(key, value.GetString()!));
             else if (key == "language-version" && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out language))
             {
                 if (language != SupportedLanguage)
@@ -52,10 +57,10 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
                         "unsupported-language", $"C# {language} is not supported. Use language-version {SupportedLanguage}, the only version that the backend writes."));
             }
             else
-                return Invalid(key);
+                return Invalid(key, fromConfiguration);
         }
 
-        var created = Morphir.Lang.CSharp.Emit.CSharpBackend.TryCreateOptions(language, handling, []);
+        var created = Morphir.Lang.CSharp.Emit.CSharpBackend.TryCreateOptions(language, commandLine, configured);
         if (created.IsError)
             return new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
                 created.ErrorValue.Rule, created.ErrorValue.Message, location: created.ErrorValue.Location));

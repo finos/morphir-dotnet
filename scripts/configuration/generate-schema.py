@@ -10,7 +10,7 @@ schema = json.loads((root / 'tests/Fixtures/Configuration/morphir-config-v1.json
 profiles = json.loads((root / 'tests/Fixtures/MepWasm/wasm-execution-profiles.json').read_text())['profiles']
 
 # Local amendments (add-fsharp-compile, VER-1 and SRC-2; generate --extension, codegen tables; add-wasm-extension-host,
-# CFG-1). The pinned upstream fixture stays unchanged; these changes are applied to the parsed schema before
+# CFG-1; add-csharp-language-support, OPT-1). The pinned upstream fixture stays unchanged; these changes are applied to the parsed schema before
 # generation, and PROVENANCE.md records them.
 SEMVER = (r'^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
           r'(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$')
@@ -52,7 +52,23 @@ def amend(schema):
     codegen['additionalProperties'] = {
         'anyOf': [{'$ref': '#/definitions/codegenTarget'}, {'not': {'type': 'object'}}],
     }
-    # 4. Every [extensions.<name>] table may declare the ABI profile and the SHA-256 of its module (CFG-1). abi is
+    # 4. [codegen.csharp] has the keys of the C# backend (add-csharp-language-support, OPT-1): the extension, the
+    #    namespace, the language version and the handling options with their words. The table is closed, so a key that the
+    #    backend does not know fails before generation. A key with '_' is the backend option with '-'.
+    codegen['properties']['csharp'] = {
+        'type': 'object',
+        'properties': {
+            'extension': dict(extension),
+            'namespace': {'type': 'string', 'minLength': 1},
+            'language_version': {'type': 'integer'},
+            'profile': {'type': 'string', 'enum': ['imperative', 'functional']},
+            'traversal': {'type': 'string', 'enum': ['loop', 'functional']},
+            'tail_recursion': {'type': 'string', 'enum': ['loop', 'local-function']},
+            'float_equality': {'type': 'string', 'enum': ['clr', 'ieee']},
+        },
+        'additionalProperties': False,
+    }
+    # 5. Every [extensions.<name>] table may declare the ABI profile and the SHA-256 of its module (CFG-1). abi is
     #    a profile id of the pinned contract; sha256 is 64 lowercase hexadecimal digits.
     entry = schema['definitions']['extension']['properties']
     entry['abi'] = {'type': 'string', 'enum': list(profiles)}
@@ -115,7 +131,8 @@ text = '''namespace Morphir.Configuration
 // Schema SHA-256 b5b2f636b8fbbdcc4dc3636ffe7bcee81776d0dbd73810d9c9391f1ee2813901.
 // Amendments: ir.format_version takes a SemVer string; every [frontend.<language>] table (an object-valued member of
 // [frontend]) has project_file and extension; every [codegen.<target>] table (an object-valued member of [codegen])
-// has extension; every [extensions.<name>] table has abi and sha256.
+// has extension; [codegen.csharp] has the closed set of keys of the C# backend; every [extensions.<name>] table has abi
+// and sha256.
 module internal ConfigurationSchema =
     type Rule =
         | Reference of string

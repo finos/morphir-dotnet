@@ -36,8 +36,9 @@ morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output
 | `--out-dir` | Without `--input`: the out root. Overrides `MORPHIR_OUT_DIR` and `workspace.out_dir` |
 
 Paths resolve against the invocation directory. With `--input`, no project
-configuration is required. Without `--extension`, `generate` reads the project
-configuration only for `[codegen.<target>].extension`. With `--project` or `--config`, a configuration
+configuration is required. `generate` reads the project configuration only for the
+`[codegen.<target>]` table: `extension` selects a backend extension when `--extension` is absent, and each other key
+is an option of the backend (see the C# options below). With `--project` or `--config`, a configuration
 error fails the command with exit code 2, as it does for `compile`. With neither, a discovered configuration
 that does not load is a warning on stderr, and the built-in backend runs. Repeated option keys use the last value. Values parse
 as JSON first, so `optimize=false` is Boolean while `optimize='"false"'` is a
@@ -64,8 +65,11 @@ reports `formatting: unavailable`. The managed hosts (`dotnet-morphir` and the m
 
 C# accepts numeric JSON
 `language-version=15`, the default and the only language version that the backend writes, a string
-`profile=imperative` or `profile=functional`, and optional string
-`namespace=Pricing.Generated`. Plain namespace text becomes a JSON string through
+`profile=imperative` or `profile=functional`, optional string
+`namespace=Pricing.Generated`, and the handling options `traversal=loop|functional`,
+`tail-recursion=loop|local-function` and `float-equality=clr|ieee`. The keys of `[codegen.csharp]` in the project
+configuration give the same options, with `_` for `-` (`float_equality = "ieee"`). `--option` wins over the key. See
+[C# generation]({{< relref "/docs/backends/csharp" >}}) for the table and the attributes in C# source. Plain namespace text becomes a JSON string through
 the shared option parser. Numeric strings, `preview`, `latest`, unknown keys and wrong JSON kinds are
 invocation errors with the code `invalid-backend-option`. Another number, such as `language-version=14`, is an
 invocation error with the code `unsupported-language`, and its diagnostic names 15.

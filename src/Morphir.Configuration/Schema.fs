@@ -4,7 +4,8 @@ namespace Morphir.Configuration
 // Schema SHA-256 b5b2f636b8fbbdcc4dc3636ffe7bcee81776d0dbd73810d9c9391f1ee2813901.
 // Amendments: ir.format_version takes a SemVer string; every [frontend.<language>] table (an object-valued member of
 // [frontend]) has project_file and extension; every [codegen.<target>] table (an object-valued member of [codegen])
-// has extension; every [extensions.<name>] table has abi and sha256.
+// has extension; [codegen.csharp] has the closed set of keys of the C# backend; every [extensions.<name>] table has abi
+// and sha256.
 module internal ConfigurationSchema =
     type Rule =
         | Reference of string
@@ -415,8 +416,63 @@ module internal ConfigurationSchema =
                         ]
                     ]
                 )
+                Property(
+                    "csharp",
+                    [
+                        Kind "object"
+                        Property("extension", [ Kind "string"; Pattern "^\\S(.*\\S)?$" ])
+                        Property("namespace", [ Kind "string"; MinLength 1 ])
+                        Property("language_version", [ Kind "integer" ])
+                        Property(
+                            "profile",
+                            [
+                                Kind "string"
+                                Choice [
+                                    ConfigValue.String "imperative"
+                                    ConfigValue.String "functional"
+                                ]
+                            ]
+                        )
+                        Property(
+                            "traversal",
+                            [
+                                Kind "string"
+                                Choice [
+                                    ConfigValue.String "loop"
+                                    ConfigValue.String "functional"
+                                ]
+                            ]
+                        )
+                        Property(
+                            "tail_recursion",
+                            [
+                                Kind "string"
+                                Choice [
+                                    ConfigValue.String "loop"
+                                    ConfigValue.String "local-function"
+                                ]
+                            ]
+                        )
+                        Property(
+                            "float_equality",
+                            [
+                                Kind "string"
+                                Choice [ ConfigValue.String "clr"; ConfigValue.String "ieee" ]
+                            ]
+                        )
+                        Closed [
+                            "extension"
+                            "namespace"
+                            "language_version"
+                            "profile"
+                            "traversal"
+                            "tail_recursion"
+                            "float_equality"
+                        ]
+                    ]
+                )
                 Additional(
-                    [ "targets"; "template_dir"; "output_format" ],
+                    [ "targets"; "template_dir"; "output_format"; "csharp" ],
                     [ Any [ [ Reference "codegenTarget" ]; [ Not [ Kind "object" ] ] ] ]
                 )
             ]

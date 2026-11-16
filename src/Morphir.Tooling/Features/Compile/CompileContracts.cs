@@ -223,6 +223,11 @@ public sealed record CompileSettings
     /// not use it: it runs the built-in backend, and only <c>morphir generate</c> runs a backend extension.
     /// </summary>
     public Setting<string>? IgnoredBackendExtension { get; init; }
+    /// <summary>
+    /// The other keys of <c>[codegen.&lt;target&gt;]</c> of the requested <c>--target</c>, as configured backend options
+    /// (<see cref="Features.Generate.BackendOptions.Configured"/>). <c>compile --target</c> gives them to the backend.
+    /// </summary>
+    public ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>> ConfiguredBackendOptions { get; init; } = [];
     /// <summary>The project root, or null outside any project.</summary>
     public string? ProjectRoot { get; init; }
     /// <summary>The out root of the workspace (REC-1), for example <c>&lt;workspace&gt;/.morphir/out</c>.</summary>

@@ -43,6 +43,11 @@ applies these amendments to the parsed schema before it generates `src/Morphir.C
   Any other member stays unconstrained, as upstream's `additionalProperties: true` leaves it. It names the backend
   extension that `generate` runs for that target, as `[frontend.<language>].extension` names a frontend extension
   for `compile`. Upstream has no such key yet.
+- `[codegen.csharp]` is a closed table with the keys of the C# backend: `extension`, `namespace` (a nonempty string),
+  `language_version` (an integer), and the handling options `profile` (`imperative`, `functional`), `traversal`
+  (`loop`, `functional`), `tail_recursion` (`loop`, `local-function`) and `float_equality` (`clr`, `ieee`). Any other
+  key fails. `generate` and `compile --target` give each key except `extension` to the backend as the option with `-`
+  for `_`. morphir-dotnet proposes these keys; upstream has only `extension` for a target today.
 - The definition `extension`, which every `[extensions.<name>]` table uses, has two more optional keys.
   `abi` is a profile id of the pinned WASM execution profile contract, which the generator reads from
   `tests/Fixtures/MepWasm/wasm-execution-profiles.json` (`extism-kernel-v1` or `morphir-bytes-v1` at the

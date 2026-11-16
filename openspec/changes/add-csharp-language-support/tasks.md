@@ -70,7 +70,7 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [ ] 6.3 Implement loop lowering in the frontend with the same recognizer, the refusals with reasons, and the analyzer diagnostics. Verify that the analyzer and the frontend refuse the same loops with the same reasons.
 - [ ] 6.4 Implement the backend profiles (imperative and functional) for each row of the transform table, including `FilterMap` in the SDK, and the frontend reading of `Select`, `Where`, `Aggregate` and local functions. Write the round-trip tests first for each row and each profile. Verify them, and that `Where` then `Select` reads as `List.map` over `List.filter`.
 - [ ] 6.5 Implement the option record with the two carriers (attributes in `Morphir.Lang.CSharp.Attributes` and `morphir.toml` keys), the precedence order and the `partial` check for equality, and the explicit class of a type parameter (EQL-2, the first source of its class). Write tests first for each scenario in `csharp-handling-options`. Verify them, including a project with attributes and no `morphir.toml`.
-- [ ] 6.6 Add the `[codegen.csharp]` keys to the configuration schema, to `--option` and to the reference docs. Verify that a malformed value fails before emission with code 2.
+- [x] 6.6 Add the `[codegen.csharp]` keys to the configuration schema, to `--option` and to the reference docs. Verify that a malformed value fails before emission with code 2.
 - [ ] 6.7 Add BDD scenarios for the loop and option behavior in `morphir compile` and `morphir generate`. Verify them, and document the options and the profiles in `docs/` with commands that run as written.
 
 ## 7. Sum type diagnostics, unions and rewriters (SUM-1)

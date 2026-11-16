@@ -85,7 +85,9 @@ compilation of a C# model.
 A record and a union have the equality of plain C# by default. A record with a `NaN` field is equal to its copy. This
 differs from Elm, where `NaN` is not equal to `NaN`. The IEEE option writes the Morphir members (`MorphirEquals`,
 `MorphirHashCode`, `Equals`, `GetHashCode`, and `==` and `!=` for a union) for a type, so `NaN` is not equal to `NaN`
-there. The CLI has no setting for the IEEE option yet: in code, `CSharpBackend.GenerateWith` takes the types that get it. `Morphir.SDK.CSharp` accepts both: its `Basics.Equal` and its collections compare a plain record or union with its
+there. Select it with `--option float-equality=ieee`, with `float_equality = "ieee"` in `[codegen.csharp]`, or with the
+attribute `[MorphirEquality(FloatEquality.Ieee)]` in the C# of the model (see [Handling options](options.md)). In code,
+`CSharpBackend.GenerateWith` also takes the types that get it. `Morphir.SDK.CSharp` accepts both: its `Basics.Equal` and its collections compare a plain record or union with its
 own equality. A `double` in an SDK list, dictionary, `Maybe`, `Result` or tuple compares as a double.
 
 The SDK uses no reflection for equality and hashing, so `Basics.Equal` works under Native AOT. It knows scalars, tuples,
@@ -148,17 +150,36 @@ takes a function type.
 
 ## Options
 
-| Option | Values | Default |
-| --- | --- | --- |
-| `language-version` | `15` | `15` |
-| `namespace` | A dotted C# namespace | The package path |
-| `profile` | `imperative`, `functional` | `imperative` |
+Give an option with `--option KEY=VALUE` on `morphir generate` or `morphir compile --target csharp`, or as a key of
+`[codegen.csharp]` in `morphir.toml`. A key of the table has `_` where the option has `-`.
 
-The backend checks the value of `profile`, but the two profiles give the same output until the loop forms of the
-profiles are written.
+| Option | `[codegen.csharp]` key | Values | Default |
+| --- | --- | --- | --- |
+| `language-version` | `language_version` | `15` | `15` |
+| `namespace` | `namespace` | A dotted C# namespace | The package path |
+| `profile` | `profile` | `imperative`, `functional` | `imperative` |
+| `traversal` | `traversal` | `loop`, `functional` | `loop` for `imperative`, `functional` for `functional` |
+| `tail-recursion` | `tail_recursion` | `loop`, `local-function` | `loop` |
+| `float-equality` | `float_equality` | `clr`, `ieee` | `clr` |
 
-A repeated option uses its last occurrence. An unknown option, a value of the wrong JSON type, or a namespace with source
-syntax fails the invocation with the code `invalid-backend-option` (exit code 2) before any file is written.
+```toml
+[codegen.csharp]
+profile = "functional"
+float_equality = "ieee"
+```
+
+`profile`, `traversal`, `tail-recursion` and `float-equality` are handling options. They also have C# attributes, and the
+model keeps the attribute values. See [Handling options](options.md) for the attributes and the order in which the
+carriers apply. In short: `--option` wins over an attribute, and an attribute wins over a `[codegen.csharp]` key. For
+`language-version` and `namespace`, `--option` wins over the key.
+
+The backend checks the values of `profile`, `traversal` and `tail-recursion`, but the forms give the same output until
+the loop forms of the profiles are written.
+
+A repeated option uses its last occurrence. An unknown option, a value of the wrong JSON type, a word that is not a value
+of the option, or a namespace with source syntax fails the invocation with the code `invalid-backend-option` (exit code
+2) before any file is written. `[codegen.csharp]` is a closed table: an unknown key or a word that is not a value fails
+when the configuration loads, with exit code 2, before any file is written.
 
 ## Checks before the backend
 

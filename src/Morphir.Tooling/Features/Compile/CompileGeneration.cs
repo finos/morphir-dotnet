@@ -93,7 +93,8 @@ public sealed class CompileGenerationStages(IGenerationBackendResolver backends,
     {
         var irPath = compiled.Publication.IrPath;
         var input = new ModelInput(irPath, InputFormat.Auto);
-        var generationSettings = new GenerationSettings(input, target.Target, target.Options, new PublicationPolicy(target.OutputDirectory), Limits);
+        var options = target.Options.WithConfigured(settings.ConfiguredBackendOptions);
+        var generationSettings = new GenerationSettings(input, target.Target, options, new PublicationPolicy(target.OutputDirectory), Limits);
         var gate = new StagedPublisher(publisher);
 
         yield return new CompileEvent.StageStarted(CompileStage.Generate);

@@ -150,14 +150,46 @@ public abstract class ModelInputLease : IDisposable
     protected abstract void Dispose(bool disposing);
 }
 
-/// <summary>Owns JSON values independently of their source document and the caller's dictionary.</summary>
+/// <summary>
+/// Owns JSON values independently of their source document and the caller's dictionary. <see cref="Values"/> are the
+/// options of the command line (<c>--option</c>). <see cref="Configured"/> are the keys of <c>[codegen.&lt;target&gt;]</c>
+/// in the project configuration, which a backend can put below its own carriers, as the C# backend does (OPT-1). A
+/// backend that has no use for them ignores them.
+/// </summary>
 public sealed class BackendOptions
 {
     public static BackendOptions Empty { get; } = new([]);
     public ImmutableDictionary<string, JsonElement> Values { get; }
 
-    public BackendOptions(IEnumerable<KeyValuePair<string, JsonElement>> values) =>
+    /// <summary>The keys of <c>[codegen.&lt;target&gt;]</c> other than <c>extension</c>, with <c>-</c> for <c>_</c>.</summary>
+    public ImmutableDictionary<string, JsonElement> Configured { get; }
+
+    public BackendOptions(IEnumerable<KeyValuePair<string, JsonElement>> values)
+        : this(values, []) { }
+
+    private BackendOptions(IEnumerable<KeyValuePair<string, JsonElement>> values, IEnumerable<KeyValuePair<string, JsonElement>> configured)
+    {
         Values = values.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
+        Configured = configured.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
+    }
+
+    /// <summary>The same command-line options with the given configured options.</summary>
+    public BackendOptions WithConfigured(IEnumerable<KeyValuePair<string, JsonElement>> configured) => new(Values, configured);
+
+    /// <summary>
+    /// The configured options of a <c>[codegen.&lt;target&gt;]</c> table: each scalar key except <c>extension</c>, which
+    /// selects the backend, as an option name with <c>-</c> for <c>_</c> (<c>float_equality</c> is <c>float-equality</c>).
+    /// </summary>
+    public static ImmutableArray<KeyValuePair<string, JsonElement>> ConfiguredOf(IEnumerable<KeyValuePair<string, string>> tableMembers) =>
+    [
+        .. tableMembers
+            .Where(pair => pair.Key != "extension")
+            .Select(pair =>
+            {
+                using var document = JsonDocument.Parse(pair.Value);
+                return new KeyValuePair<string, JsonElement>(pair.Key.Replace('_', '-'), document.RootElement.Clone());
+            })
+    ];
 }
 
 /// <summary>A backend defines its own immutable validated option type.</summary>

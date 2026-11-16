@@ -95,6 +95,29 @@ public sealed class GenerationExtensionSelectionTests
     }
 
     [Test]
+    public async Task TheKeysOfTheTargetTableAreConfiguredBackendOptionsBesideTheCommandLine()
+    {
+        using var workspace = Workspace("\n[codegen.fsharp]\nfloat_equality = \"ieee\"\ntail_recursion = \"loop\"\nextension = \"backend-guest\"\n");
+        var settings = await Settings(workspace, Explicit(workspace) with { Options = ["float-equality=clr"] });
+
+        // A key of the table is the option with '-' for '_'. extension selects the backend and is not an option.
+        settings.Options.Configured.Keys.Should().BeEquivalentTo("float-equality", "tail-recursion");
+        settings.Options.Configured["float-equality"].GetString().Should().Be("ieee");
+        // The command line stays apart, because the carrier in the model is between the two.
+        settings.Options.Values["float-equality"].GetString().Should().Be("clr");
+    }
+
+    [Test]
+    public async Task AMalformedKeyOfTheCSharpTableFailsBeforeGeneration()
+    {
+        using var workspace = Workspace("\n[codegen.csharp]\nfloat_equality = \"maybe\"\n");
+        var resolved = await Resolver().ResolveAsync(Explicit(workspace) with { Target = "csharp" }, Invocation(workspace), default);
+        var failure = ((Outcome<GenerationSettings>.Failure)resolved).Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Invocation);
+        failure.Diagnostics.Should().Contain(d => d.Message.Contains("float_equality", StringComparison.Ordinal));
+    }
+
+    [Test]
     public async Task AnEmptyExtensionIsAnInvocationFailure()
     {
         using var workspace = Workspace();

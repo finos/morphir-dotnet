@@ -218,6 +218,10 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         var ignoredBackend = overrides.Target?.Target is RequestedTarget.Valid requestedTarget
             ? config.String("codegen", requestedTarget.Id.Value, "extension")
             : null;
+        // The other keys of that table are configured backend options, as generate reads them.
+        var configuredBackendOptions = overrides.Target?.Target is RequestedTarget.Valid optionsTarget
+            ? BackendOptions.ConfiguredOf(config.ScalarMembers("codegen", optionsTarget.Id.Value))
+            : [];
 
         // Sources (SRC-1): --project-file, --input, the configured project file, the source directory.
         var unread = ImmutableArray<string>.Empty;
@@ -276,6 +280,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Sources = sources,
             UnreadProjectFileKeys = unread,
             IgnoredBackendExtension = ignoredBackend,
+            ConfiguredBackendOptions = configuredBackendOptions,
             ProjectRoot = loaded.ProjectRoot,
             OutRoot = place.OutRoot,
             Member = place.Member,
@@ -323,6 +328,10 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Find(path) is { } value && ConfigValueProjections.TryTextList(value, out var items)
                 ? new([.. items], Origin(path))
                 : null;
+
+        /// <summary>The scalar members of the table at the path, as JSON text, in ordinal order. No table gives none.</summary>
+        public IReadOnlyList<KeyValuePair<string, string>> ScalarMembers(params string[] path) =>
+            Find(path) is { } table ? ConfigValueProjections.ScalarMembers(table) : [];
 
         /// <summary>Every <c>frontend.&lt;language&gt;.project_file</c> key that is set, as TOML writes it (a dotted language is quoted).</summary>
         public ImmutableArray<string> ProjectFileKeys() =>

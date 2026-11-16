@@ -204,6 +204,40 @@ public sealed class CompileTargetTests
     }
 
     [Test]
+    public async Task TheCSharpTableOfTheProjectReachesTheBackendOfCompileTarget()
+    {
+        using var workspace = Project();
+        // A record with a float field, so that the equality option has an effect on the C#.
+        workspace.Write("src/Rates.fs", "namespace Acme.CarRental\n\nmodule Rates =\n    type Quote = { Price: float }\n    let dailyRate (seats: int) : int = if seats > 4 then 80 else 60\n");
+        workspace.Write("morphir.toml", File.ReadAllText(workspace.PathOf("morphir.toml")) + "\n[codegen.csharp]\nfloat_equality = \"ieee\"\n");
+        var run = await Compile(workspace, $"--json {Inputs} --target csharp --generate-output gen");
+        run.Exit.Should().Be(0, run.Output.Text);
+        Directory.EnumerateFiles(workspace.PathOf("gen"), "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText).Should().Contain(text => text.Contains("MorphirEquals", StringComparison.Ordinal), "the key gives IEEE equality");
+
+        var plain = await Compile(workspace, $"--json {Inputs} --target csharp --generate-output gen2 --option float-equality=clr");
+        plain.Exit.Should().Be(0, plain.Output.Text);
+        Directory.EnumerateFiles(workspace.PathOf("gen2"), "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText).Should().NotContain(text => text.Contains("MorphirEquals", StringComparison.Ordinal), "the command line wins over the key");
+    }
+
+    [Test]
+    public async Task AMalformedCSharpKeyOrOptionFailsWithExitCode2AndWritesNoFile()
+    {
+        using var workspace = Project();
+        var option = await Compile(workspace, $"--json {Inputs} --target csharp --generate-output gen --option float-equality=maybe");
+        option.Exit.Should().Be(2, option.Output.Text);
+        option.Output.Text.Should().Contain("invalid-backend-option");
+        Directory.Exists(workspace.PathOf("gen")).Should().BeFalse();
+
+        workspace.Write("morphir.toml", File.ReadAllText(workspace.PathOf("morphir.toml")) + "\n[codegen.csharp]\ntraversal = \"sideways\"\n");
+        var key = await Compile(workspace, $"--json {Inputs} --target csharp --generate-output gen");
+        key.Exit.Should().Be(2, key.Output.Text);
+        key.Output.Text.Should().Contain("traversal");
+        Directory.Exists(workspace.PathOf("gen")).Should().BeFalse();
+    }
+
+    [Test]
     [Arguments("--target fsharp --target csharp --generate-output gen", "--target")]
     [Arguments("--target fsharp", "--generate-output")]
     [Arguments("--generate-output gen", "--target")]

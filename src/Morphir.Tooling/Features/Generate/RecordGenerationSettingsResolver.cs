@@ -131,6 +131,9 @@ public sealed class RecordGenerationSettingsResolver(
         if (settings.InstalledExtensionId is not null) return new Outcome<GenerationSettings>.Success(settings);
         if (settings.Target is not RequestedTarget.Valid target) return new Outcome<GenerationSettings>.Success(settings);
         var config = new ProjectCompileSettingsResolver.ConfigurationView(loaded);
+        // The other keys of [codegen.<target>] are configured backend options. They stay apart from --option, because a
+        // backend can put its own carriers between the two (OPT-1).
+        settings = settings with { Options = settings.Options.WithConfigured(BackendOptions.ConfiguredOf(config.ScalarMembers("codegen", target.Id.Value))) };
         var configured = settings.Extension ?? config.String("codegen", target.Id.Value, "extension");
         if (configured is null && config.String("extensions", target.Id.Value, "path") is { } path)
             configured = new(target.Id.Value, path.Origin);

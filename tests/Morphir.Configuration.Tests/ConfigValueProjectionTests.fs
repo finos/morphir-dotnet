@@ -109,4 +109,28 @@ let tests =
               Expect.sequenceEqual (ConfigValueProjections.TablesWithKey(tables, "project_file")) [ "csharp"; "fsharp" ] "tables"
 
               for value in every |> List.filter (function ConfigValue.Object _ -> false | _ -> true) do
-                  Expect.isEmpty (ConfigValueProjections.TablesWithKey(value, "project_file")) $"{value}" ]
+                  Expect.isEmpty (ConfigValueProjections.TablesWithKey(value, "project_file")) $"{value}"
+
+          testCase "ScalarMembers gives the scalar members of a table as JSON text, in ordinal order"
+          <| fun _ ->
+              let table =
+                  ConfigValue.Object(
+                      Map.ofList
+                          [ "profile", ConfigValue.String "functional"
+                            "language_version", ConfigValue.Integer 15L
+                            "strict", ConfigValue.Boolean false
+                            "ratio", ConfigValue.Number 0.5
+                            "spaced", ConfigValue.String "a b"
+                            "nested", ConfigValue.Object Map.empty
+                            "items", ConfigValue.Array [ ConfigValue.String "a" ] ]
+                  )
+
+              let members = ConfigValueProjections.ScalarMembers table |> Seq.map (fun pair -> pair.Key, pair.Value) |> List.ofSeq
+
+              Expect.equal
+                  members
+                  [ "language_version", "15"; "profile", "\"functional\""; "ratio", "0.5"; "spaced", "\"a b\""; "strict", "false" ]
+                  "the scalars as JSON, and no table or array"
+
+              for value in every |> List.filter (function ConfigValue.Object _ -> false | _ -> true) do
+                  Expect.isEmpty (ConfigValueProjections.ScalarMembers value) $"{value}" ]

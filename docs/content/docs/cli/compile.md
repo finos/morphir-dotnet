@@ -248,7 +248,8 @@ dotnet-morphir generate --input <out root>/compile.dest/morphir-ir.json --target
 Both give the same files with the same bytes, and both reports name the same backend, as long as the project
 configuration selects no backend extension. `compile --target` always runs the built-in backend of the target
 and does not read `[codegen.<target>].extension`; when that key is set, the command prints a note on stderr,
-and only `morphir generate` runs the extension. Classic IR versions
+and only `morphir generate` runs the extension. The other keys of the table are options of the backend, as in
+`generate`, for example `float_equality = "ieee"` in `[codegen.csharp]`. Classic IR versions
 (`1`, `2` and `3`) give a classic model. The F# backend uses its classic path, and the C# backend gets the model
 after the upgrade to the current IR. As in `generate`, the
 `generation` member says whether the built-in backend formatted the files (`formatting`: `applied`, `off` or
