@@ -58,10 +58,17 @@ Feature: Generate C# through the existing command
     Then generation exits with 0 and one JSON report
     And the generated files are the files of the fixture "CSharpGeneration/acme-trading/generated"
 
+  # The other host of the native host is dotnet-morphir, and the other host of dotnet-morphir is the native host. The
+  # Acme.Trading row compares the two hosts on the model of the reviewed C# (task 9.2).
   @needs-all-hosts
-  Scenario: Both hosts write the same C# bytes
-    Given the model fixture "WireForms/daily-rate-4.json"
+  Scenario Outline: Both hosts write the same C# bytes
+    Given the model fixture "<fixture>"
     When I generate "csharp" from the model
     And I generate "csharp" from the model on the other host
     Then generation exits with 0 and one JSON report
     And the files that both hosts generated are the same
+
+    Examples:
+      | fixture                                  |
+      | WireForms/daily-rate-4.json              |
+      | CSharpGeneration/acme-trading/model.json |
