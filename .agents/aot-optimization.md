@@ -148,7 +148,8 @@ Native AOT `morphir` is **100,000,000 bytes**.
 - The publish itself is the gate for trim and AOT warnings: an IL3050 or a per-site trim warning is an error. The
   allowed summary warnings are IL2104 and IL3053 for `FSharp.Core`, `Foundatio.Mediator.Abstractions` and
   `Microsoft.CodeAnalysis`.
-- Measured sizes: osx-arm64, 84,408,376 bytes (2026-11-15).
+- Measured sizes with the C# language support (before it: 47,893,064 bytes on osx-arm64): osx-arm64, 85,103,768 bytes
+  (2026-11-16); linux-x64, 90,773,848 bytes (2026-11-16, the CI job).
 
 ## Diagnostic Procedures
 

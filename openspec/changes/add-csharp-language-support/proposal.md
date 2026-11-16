@@ -16,7 +16,7 @@ This change adds `Morphir.Lang.CSharp`: one package with a C# frontend, a middle
 - **Loop lowering and matching transforms (step 5).** Lower `foreach`, `for` and `while` loops to collection traversals or recursion, and write the matching loop form or functional form in the backend by profile. Add the option record with its two carriers: C# attributes and `morphir.toml` keys.
 - **Sum type diagnostics and rewriters (step 6).** Report an older encoding of a sum type, and give a code fix that changes it to the preferred `closed record` form. Accept a C# `union` that converts to a Morphir custom type.
 - **Generation in a user build (step 7).** Add an MSBuild target and a Roslyn source generator, on one F# core that builds for `netstandard2.0`. Both are in scope.
-- **Size and gate.** The Native AOT `morphir` grows by about 28 MB. The publish gate and the size limit of `.agents/aot-optimization.md` change to match; the PRD has the numbers.
+- **Size and gate.** The Native AOT `morphir` grows by about 37 MB (measured: 47.9 MB to 85.1 MB on `osx-arm64`, with the embedded reference assemblies). The publish gate and the size limit of `.agents/aot-optimization.md` change to match; the PRD has the numbers.
 
 This change does not include:
 
@@ -58,7 +58,7 @@ This change does not include:
 - New projects: `src/Morphir.Lang.CSharp` (F#), `src/Morphir.Lang.CSharp.Analyzers` (C#, `netstandard2.0`), `src/Morphir.Lang.CSharp.CodeFixes` (C#), `src/Morphir.Lang.CSharp.Attributes` (C#, `netstandard2.0`), `src/Morphir.Lang.CSharp.Generator` (C#, `netstandard2.0`), the MSBuild props and targets, and a test project for each assembly that has behavior.
 - New or changed contracts: `IModelTransform`, `IIrUpgrade`, the rewrite rule record and the node address type, in a library that also builds for `netstandard2.0`.
 - Removed: `src/Morphir.CodeGeneration.CSharp` and its text emission, after the new backend passes its tests.
-- `src/Morphir`: links Roslyn (`Microsoft.CodeAnalysis.CSharp` 5.12.0, no Workspaces). The executable grows by about 28 MB (47.9 MB to 76.0 MB on `osx-arm64`). The publish gate gains one accepted `IL2104`.
+- `src/Morphir`: links Roslyn (`Microsoft.CodeAnalysis.CSharp` 5.12.0, no Workspaces). The executable grows by about 37 MB (47.9 MB to 85.1 MB on `osx-arm64`; the spike without the embedded references measured 76.0 MB). The publish gate gains one accepted `IL2104`.
 - `src/Morphir.SDK.CSharp`: equality and collections accept plain records and unions.
 - CLI: `morphir generate` and `morphir compile` run the middle end; `morphir compile` selects the C# frontend for `.cs` files.
 - Build: .NET SDK 11 is required to build a C# model project. The generator compiles against the oldest Roslyn that it supports.

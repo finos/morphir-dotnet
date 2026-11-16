@@ -669,7 +669,7 @@ Use the `test-manager` skill for the class and the place of each test.
 | The source generator in Visual Studio | Step 0 | `FSharp.Core` ships beside the generator. A conflict in the .NET Framework process of Visual Studio is possible and not tested. |
 | A target framework below `net10.0` | Product owner | The polyfill guards are ready. `Morphir.SDK.CSharp` must target it too. Execution on a `net8.0` runtime is not tested. |
 | `LangVersion` above the default of a target framework | Accepted risk | Microsoft does not support it. It works with SDK 11.0.100, with no guarantee. |
-| The size limit of the Native AOT `morphir` | Step 1 | `.agents/aot-optimization.md` has a 20 MB guideline. The executable is 47.9 MB today, so the guideline needs a new value. |
+| The size limit of the Native AOT `morphir` | Step 1 | Closed on 2026-11-16. The limit is 100,000,000 bytes, in `.agents/aot-optimization.md` and in `NativeAotHostGate.SizeLimitBytes`. `CheckNativeAotHost` checks it in the Linux job of each pull request. The executable with C# is 85,103,768 bytes on `osx-arm64` and 90,773,848 bytes on `linux-x64`. |
 | The shared middle end and the F# frontend | Step 2 | The F# frontend can use the source-side middle end. Loop lowering for F# is a different decision. |
 | C# in a model project that is not part of the model | Product owner | The rules cannot be suppressed. A declaration-level opt-out, such as a `[MorphirIgnore]` attribute that the analyzer skips and the frontend leaves out (a call to it gives `unresolved-reference`), or an attribute that keeps the signature in the model with an external body (`body.external`), are possible forms. Neither is in the specs. |
 
