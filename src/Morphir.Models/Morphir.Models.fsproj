@@ -102,6 +102,8 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Models.Tests" />
         <InternalsVisibleTo Include="Morphir.CodeGeneration.FSharp" />
+        <!-- The netstandard2.0 pipeline target of Morphir.Lang.CSharp uses the polyfill members of Morphir.Compat. -->
+        <InternalsVisibleTo Include="Morphir.Lang.CSharp" />
     </ItemGroup>
 
 </Project>

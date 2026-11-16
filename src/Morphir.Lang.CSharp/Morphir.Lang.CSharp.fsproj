@@ -1,7 +1,24 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  the netstandard2.0 target of this library (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK refuses
+  them for netstandard2.0 (NETSDK1207), so that target keeps them local and off. The other targets keep the values of the
+  publish.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
 
     <PropertyGroup>
-        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <!--
+          netstandard2.0 holds only the pipeline function (the upgrade, the target-side passes and the backend), for the
+          source generator and the MSBuild task of the package (design.html, BLD-1). The frontend needs the fixed .NET 10
+          reference assemblies and stays on the repository targets.
+        -->
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks);netstandard2.0</TargetFrameworks>
         <RootNamespace>Morphir.Lang.CSharp</RootNamespace>
         <Description>C# language support for Morphir: a frontend, a target-side middle end and a backend, all on Roslyn.</Description>
         <PackageTags>$(PackageTags);morphir;csharp;frontend;backend;roslyn</PackageTags>
@@ -32,13 +49,26 @@
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-        <PackageReference Include="Basic.Reference.Assemblies.Net100" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="System.Text.Json" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
         <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
         <ProjectReference Include="..\Morphir.MiddleEnd\Morphir.MiddleEnd.fsproj" />
+    </ItemGroup>
+
+    <!-- The pipeline target reads only the polyfill source, a constant, of the attribute assembly. -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" PrivateAssets="all" />
+    </ItemGroup>
+
+    <!-- The frontend and the bundled assemblies: not in the netstandard2.0 pipeline target. -->
+    <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+        <PackageReference Include="Basic.Reference.Assemblies.Net100" />
         <ProjectReference Include="..\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" PrivateAssets="all" />
         <!-- The attribute assembly is referenced (for the polyfill source) and embedded (for the fixed reference set). -->
         <ProjectReference Include="..\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" OutputItemType="EmbeddedReferenceAssembly" PrivateAssets="all" />
@@ -65,6 +95,10 @@
         <Compile Include="ValueClasses.fs" />
         <Compile Include="HandlingOptions.fs" />
         <Compile Include="CSharpCodes.fs" />
+    </ItemGroup>
+
+    <!-- The frontend: it binds C# against the fixed .NET 10 reference assemblies, so it is not in netstandard2.0. -->
+    <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
         <Compile Include="Embedded.fs" />
         <Compile Include="FixedReferences.fs" />
         <Compile Include="CSharpCompiler.fs" />
@@ -74,6 +108,9 @@
         <Compile Include="TypeParameterClasses.fs" />
         <Compile Include="OptionAttributes.fs" />
         <Compile Include="CSharpFrontend.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- The type catalog, the lowering and the checks of the backend. -->
         <Compile Include="Backend/Types.fs" />
         <Compile Include="Backend/TypeEmission.fs" />
@@ -93,6 +130,8 @@
         <Compile Include="Emit/Format.fs" />
         <Compile Include="Emit/Polyfill.fs" />
         <Compile Include="Emit/Backend.fs" />
+        <!-- The pipeline function: the upgrade, the target-side passes and the backend (design.html, BLD-1). -->
+        <Compile Include="Pipeline.fs" />
     </ItemGroup>
 
 </Project>

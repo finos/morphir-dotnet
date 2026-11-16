@@ -53,6 +53,7 @@
         <Compile Include="HandlingOptionTests.fs" />
         <Compile Include="ConformanceTests.fs" />
         <Compile Include="CoveragePageTests.fs" />
+        <Compile Include="PipelineTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

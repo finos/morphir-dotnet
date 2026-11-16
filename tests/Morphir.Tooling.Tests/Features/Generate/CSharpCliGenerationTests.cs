@@ -65,4 +65,35 @@ public sealed class CSharpCliGenerationTests : IDisposable
         foreach (var source in direct.Sources)
             File.ReadAllBytes(Path.Combine(Output, source.RelativePath)).Should().Equal(Encoding.UTF8.GetBytes(source.Text));
     }
+
+    /// <summary>
+    /// The CLI and the pipeline function of the source generator and the MSBuild task give the same paths and bytes
+    /// (csharp-build-generation, "Same bytes"). The black-box scenario of the package compares the CLI with the target and
+    /// the generator in a user build.
+    /// </summary>
+    [Test]
+    [Arguments("2")]
+    [Arguments("3")]
+    [Arguments("3.1.0")]
+    [Arguments("4")]
+    [Arguments("4.0.0")]
+    public async Task TheCliWritesThePathsAndBytesOfThePipelineFunction(string version)
+    {
+        var input = GenerationInputFixtures.DailyRate(_root, version, "json");
+        var result = await Invoke(input, options: ["namespace=Pricing.Generated"]);
+        result.ExitCode.Should().Be(0, result.CombinedOutput);
+
+        var request = Morphir.Lang.CSharp.CSharpPipelineRequest.Create(File.ReadAllBytes(input))
+            .WithNamespace(NamespaceOverride.TryCreate("Pricing.Generated").ResultValue);
+        var piped = Morphir.Lang.CSharp.CSharpPipeline.Generate(request, default);
+        piped.Succeeded.Should().BeTrue(string.Join("; ", piped.Diagnostics));
+
+        var written = Directory.EnumerateFiles(Output, "*", SearchOption.AllDirectories)
+            .Select(file => Path.GetRelativePath(Output, file).Replace(Path.DirectorySeparatorChar, '/'))
+            .Where(path => path != GenerationDefaults.OwnershipManifest)
+            .Order(StringComparer.Ordinal);
+        written.Should().Equal(piped.Files.Select(file => file.RelativePath).Order(StringComparer.Ordinal));
+        foreach (var file in piped.Files)
+            File.ReadAllBytes(Path.Combine(Output, file.RelativePath)).Should().Equal(Encoding.UTF8.GetBytes(file.Text), file.RelativePath);
+    }
 }

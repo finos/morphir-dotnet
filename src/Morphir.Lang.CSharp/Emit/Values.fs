@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 namespace Morphir.Lang.CSharp.Emit
 
+#if NETSTANDARD2_0
+open Morphir.Compat
+#endif
+
 open System
 open System.Collections.Generic
 open System.Globalization
