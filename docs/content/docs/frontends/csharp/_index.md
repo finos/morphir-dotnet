@@ -319,6 +319,17 @@ For example, `foreach (var o in orders) { total += o.Price; counter++; }` gives 
 Morphir subset: it writes the field 'counter'". A change of a local in a loop is the state of the loop, so the
 admission analyzer does not report it as a mutation.
 
+To lower a loop that changes locals to a `LetRecursion` and not to `List.foldl`, put
+`[MorphirLoop(LoopLowering.Recursion)]` on the method, on its class or on the assembly, or set the key of the project:
+
+```toml
+[frontend.csharp]
+loop_lowering = "recursion"
+```
+
+An attribute wins over the key. A loop that the frontend refuses stays refused with each value. See
+[C# handling options](../../backends/csharp/options.md#frontend-options-in-morphirtoml).
+
 The C# backend writes each form back by its profile. See [C# generation](../../backends/csharp/_index.md#profiles).
 
 ## Compile

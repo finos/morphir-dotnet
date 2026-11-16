@@ -11,15 +11,15 @@ a C# attribute and a key. Use the carrier that you prefer. A project that has on
 
 ## The options
 
-| Option | Kind | Attribute | `--option` | `[codegen.csharp]` key | Values | Default |
+| Option | Kind | Attribute | `--option` | `morphir.toml` key | Values | Default |
 | --- | --- | --- | --- | --- | --- | --- |
-| Float equality | Backend | `[MorphirEquality(FloatEquality.X)]` | `float-equality` | `float_equality` | `Clr`, `Ieee` (`clr`, `ieee`) | `Clr` |
-| Traversal form | Backend | `[MorphirEmit(Traversal = TraversalForm.X)]` | `traversal` | `traversal` | `Loop`, `Functional` (`loop`, `functional`) | The profile |
-| Tail recursion form | Backend | `[MorphirEmit(TailRecursion = TailRecursionForm.X)]` | `tail-recursion` | `tail_recursion` | `Loop`, `LocalFunction` (`loop`, `local-function`) | `Loop` |
-| Profile | Backend | None | `profile` | `profile` | `imperative`, `functional` | `imperative` |
-| Loop lowering | Frontend | `[MorphirLoop(LoopLowering.X)]` | None | None | `Traversal`, `Recursion` | `Traversal` |
+| Float equality | Backend | `[MorphirEquality(FloatEquality.X)]` | `float-equality` | `[codegen.csharp]` `float_equality` | `Clr`, `Ieee` (`clr`, `ieee`) | `Clr` |
+| Traversal form | Backend | `[MorphirEmit(Traversal = TraversalForm.X)]` | `traversal` | `[codegen.csharp]` `traversal` | `Loop`, `Functional` (`loop`, `functional`) | The profile |
+| Tail recursion form | Backend | `[MorphirEmit(TailRecursion = TailRecursionForm.X)]` | `tail-recursion` | `[codegen.csharp]` `tail_recursion` | `Loop`, `LocalFunction` (`loop`, `local-function`) | `Loop` |
+| Profile | Backend | None | `profile` | `[codegen.csharp]` `profile` | `imperative`, `functional` | `imperative` |
+| Loop lowering | Frontend | `[MorphirLoop(LoopLowering.X)]` | None | `[frontend.csharp]` `loop_lowering` | `Traversal`, `Recursion` (`traversal`, `recursion`) | `Traversal` |
 | Class of a type parameter | Frontend | `[MorphirValueClass(ValueClass.X)]` | None | None | `Equality`, `Comparable`, `Number`, `Appendable`, `CompAppend` | The constraints and the uses |
-| Model project | Analyzer | `[assembly: MorphirModel]` | None | None | | Not a model project |
+| Model project | Analyzer | `[assembly: MorphirModel]` | None | The MSBuild property `MorphirModel` | `true` | Not a model project |
 
 The attributes are in the namespace `Morphir`, in the attribute assembly of the package `Morphir.Lang.CSharp`, which
 targets `netstandard2.0`. `morphir compile` has the assembly in its fixed references.
@@ -30,9 +30,13 @@ targets `netstandard2.0`. `morphir compile` has the assembly in its fixed refere
 - The profile gives the default traversal form: `imperative` writes loops, and `functional` writes `Select`, `Where`,
   `Aggregate` and `FilterMap`. A tail call is a `while` loop in each profile, and `tail-recursion=local-function` makes
   it a call of a local recursive function. See [Profiles](_index.md#profiles).
-- `[MorphirLoop(LoopLowering.Recursion)]` lowers a `foreach` that changes locals to a `LetRecursion` over the list, not
-  to `List.foldl`. A loop that fills a list stays `List.map`, `List.filter` or `List.filterMap`, and a loop that is
+- `[MorphirLoop(LoopLowering.Recursion)]` and `loop_lowering = "recursion"` lower a `foreach` that changes locals to a
+  `LetRecursion` over the list, not to `List.foldl`. A loop that fills a list stays `List.map`, `List.filter` or `List.filterMap`, and a loop that is
   already a recursion does not change. See [Loops](../../frontends/csharp/_index.md#loops).
+
+- The model project switch is an option of the analyzer in the IDE and in `dotnet build`, which do not read
+  `morphir.toml`. Its key is the MSBuild property `<MorphirModel>true</MorphirModel>` in the project file.
+  `morphir compile` takes each C# source that it compiles as code of a model project.
 
 ## The nearest carrier wins
 
@@ -118,6 +122,49 @@ traversal = "functional"
 A malformed value fails before any file is written, with exit code 2: `--option float-equality=maybe` fails with
 `invalid-backend-option`, and `float_equality = "maybe"` fails when the configuration loads.
 
+## Frontend options in `morphir.toml`
+
+A frontend option changes the IR, so its key is in `[frontend.csharp]`, not in `[codegen.csharp]`. `morphir compile`
+gives the key to the C# frontend in the compile request. An attribute on the member, the type or the assembly wins over
+the key. Make a directory with this `Totals.cs`:
+
+```csharp
+using System.Collections.Generic;
+
+namespace Acme.Demo;
+
+public static class Totals
+{
+    public static int Sum(IReadOnlyList<int> amounts)
+    {
+        var total = 0;
+        foreach (var amount in amounts) { total += amount; }
+        return total;
+    }
+}
+```
+
+and this `morphir.toml`:
+
+```toml
+[frontend.csharp]
+loop_lowering = "recursion"
+```
+
+Then compile it:
+
+```bash
+morphir compile --language csharp --input Totals.cs --package-name acme/demo --ir-version 4
+```
+
+The `Sum` function of the IR is a `LetRecursion` over the list. Without the key, it is `List.foldl`. The attribute
+`[assembly: MorphirLoop(LoopLowering.Recursion)]` in `Totals.cs`, with no key, gives the same IR.
+
+`[frontend.csharp]` has the keys `extension`, `project_file` and `loop_lowering`, and no other key. A malformed key
+fails when the configuration loads, before the frontend runs, with exit code 2: `loop_lowering = "sideways"` and
+`traversal = "functional"` (a backend key in the frontend table) both fail.
+
 ## Not yet
 
-- A `morphir.toml` key for a frontend option (the loop lowering and the class of a type parameter). Use the attribute.
+- A `morphir.toml` key for the class of a type parameter. A key must name one type parameter of one declaration, and
+  the address of such a node is not agreed upstream. Use the attribute `[MorphirValueClass]`.

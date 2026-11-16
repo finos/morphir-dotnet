@@ -76,6 +76,13 @@ language = "fsharp"
 project_file = "src/Acme.CarRental.fsproj"   # the same key in every [frontend.<language>] table
 ```
 
+The other keys of the `[frontend.<language>]` table of the selected language are options of its frontend. The
+command gives each key to the frontend as an extra member of the MEP compile options, with `-` for `_`, so
+`loop_lowering` is `loop-lowering`. Only a scalar value (a string, a boolean or a number) goes to the frontend. The
+C# frontend has the key `loop_lowering` (`traversal` or `recursion`), and `[frontend.csharp]` is a closed table: a key
+that the C# frontend does not know, or a value that is not one of its words, fails when the configuration loads, with
+exit code 2. See [C# handling options](../backends/csharp/options.md).
+
 A language id can contain a dot; then the id is one quoted TOML key, `[frontend."acme.lang"]`. Without
 the quotes, `[frontend.acme.lang]` is a table `lang` inside a table `acme`, which no language reads.
 
