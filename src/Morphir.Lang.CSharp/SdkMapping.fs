@@ -76,6 +76,8 @@ module internal SdkMapping =
                 t.OriginalDefinition.ToDisplayString() = "System.Collections.Generic.IReadOnlyList<T>"
                 // The list that a foreach fills: the admission rules and the lowering refuse any other change of it.
                 || t.OriginalDefinition.ToDisplayString() = "System.Collections.Generic.List<T>"
+                // A step of a LINQ chain, such as the result of Where before Select.
+                || t.OriginalDefinition.ToDisplayString() = "System.Collections.Generic.IEnumerable<T>"
             then
                 Some(sdk "List" "List", [ 0 ])
             else

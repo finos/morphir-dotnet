@@ -220,3 +220,98 @@ let tests =
               Expect.equal (List.length fromCompile) 3 "three loops are refused"
               Expect.equal fromLowering fromCompile "the same loops, ranges and reasons"
           } ]
+
+[<Tests>]
+let functional =
+    testList
+        "C# frontend: functional forms"
+        [ test "Select is List.map" {
+              let members =
+                  "    public static IReadOnlyList<int> Notionals(IReadOnlyList<Order> orders) => orders.Select(o => Notional(o)).ToList();"
+
+              Expect.equal (body members "notionals") $"((morphir.sdk:list#map {notional}) orders)" "the same IR as the loop"
+          }
+
+          test "Where is List.filter" {
+              let members = "    public static IReadOnlyList<Order> Large(IReadOnlyList<Order> orders) => orders.Where(o => o.Price > 10).ToList();"
+
+              Expect.equal
+                  (body members "large")
+                  "((morphir.sdk:list#filter (fun (as _ o) -> ((morphir.sdk:basics#greater-than (o.price)) 10))) orders)"
+                  "the same IR as the loop"
+          }
+
+          test "Where then Select is List.map over List.filter, not List.filterMap" {
+              let members =
+                  "    public static IReadOnlyList<int> LargeNotionals(IReadOnlyList<Order> orders) => orders.Where(o => o.Price > 10).Select(o => Notional(o)).ToList();"
+
+              Expect.equal
+                  (body members "large-notionals")
+                  $"((morphir.sdk:list#map {notional}) ((morphir.sdk:list#filter (fun (as _ o) -> ((morphir.sdk:basics#greater-than (o.price)) 10))) orders))"
+                  "map over filter"
+          }
+
+          test "Aggregate is List.foldl with the element first" {
+              let members =
+                  "    public static int Total(IReadOnlyList<Order> orders) => orders.Aggregate(0, (total, o) => total + Notional(o));"
+
+              Expect.equal
+                  (body members "total")
+                  $"(((morphir.sdk:list#foldl (fun (as _ o) -> (fun (as _ total) -> ((morphir.sdk:basics#add total) ({notional} o))))) 0) orders)"
+                  "the same IR as the loop"
+          }
+
+          test "Aggregate of a function of the element and the state is the function" {
+              let members =
+                  "    public static int Sum(Morphir.SDK.CSharp.List<int> xs) => xs.Aggregate(0, (acc, x) => Morphir.SDK.CSharp.Basics.Add(x, acc));"
+
+              Expect.equal (body members "sum") "(((morphir.sdk:list#foldl morphir.sdk:basics#add) 0) xs)" "foldl add"
+          }
+
+          test "Select, Where and FilterMap of an SDK list are the list functions" {
+              let members =
+                  String.concat
+                      "\n"
+                      [ "    public static Morphir.SDK.CSharp.List<int> Twice(Morphir.SDK.CSharp.List<int> xs) => xs.Select<int>(x => x * 2);"
+                        "    public static Morphir.SDK.CSharp.List<int> Positive(Morphir.SDK.CSharp.List<int> xs) => xs.Where(x => x > 0);"
+                        "    public static Morphir.SDK.CSharp.List<int> Halves(Morphir.SDK.CSharp.List<int> xs) => xs.FilterMap<int>(x => x > 0 ? Morphir.SDK.CSharp.Maybe<int>.Just(x / 2) : Morphir.SDK.CSharp.Maybe<int>.Nothing);" ]
+
+              let distribution = model (compileSource (source members))
+              let text = valueText distribution "loops.calc"
+              Expect.equal (text "twice") "((morphir.sdk:list#map (fun (as _ x) -> ((morphir.sdk:basics#multiply x) 2))) xs)" "map"
+              Expect.equal (text "positive") "((morphir.sdk:list#filter (fun (as _ x) -> ((morphir.sdk:basics#greater-than x) 0))) xs)" "filter"
+
+              Expect.equal
+                  (text "halves")
+                  "((morphir.sdk:list#filter-map (fun (as _ x) -> (if ((morphir.sdk:basics#greater-than x) 0) then ((new just) ((morphir.sdk:basics#integer-divide x) 2)) else (new nothing)))) xs)"
+                  "filterMap"
+          }
+
+          test "FromEnumerable of a list is the list" {
+              let members = "    public static Morphir.SDK.CSharp.List<int> Same(IReadOnlyList<int> xs) => Morphir.SDK.CSharp.List<int>.FromEnumerable(xs);"
+              Expect.equal (body members "same") "xs" "the list"
+          }
+
+          test "a local recursive function is a LetRecursion with its name" {
+              let members =
+                  "    public static int SumTo(int n)\n    {\n        int go(int k) => k <= 0 ? 0 : k + go(k - 1);\n        return go(n);\n    }"
+
+              Expect.equal
+                  (body members "sum-to")
+                  "(letrec go(k) = (if ((morphir.sdk:basics#less-than-or-equal k) 0) then 0 else ((morphir.sdk:basics#add k) (go ((morphir.sdk:basics#subtract k) 1)))) in (go n))"
+                  "LetRecursion"
+          }
+
+          test "local functions next to each other are one group" {
+              let members =
+                  "    public static bool IsEven(int n)\n    {\n        bool even(int k) => k == 0 || odd(k - 1);\n        bool odd(int k) => k != 0 && even(k - 1);\n        return even(n);\n    }"
+
+              let text = body members "is-even"
+              Expect.stringStarts text "(letrec even(k) = " "the first function"
+              Expect.stringContains text "; odd(k) = " "the second function in the same group"
+          }
+
+          test "a local function that is called before its declaration is refused" {
+              let members = "    public static int F(int n)\n    {\n        return go(n);\n        int go(int k) => k;\n    }"
+              Expect.contains (codes (compileSource (source members))) "csharp.unsupported_local_function" "declare it first"
+          } ]

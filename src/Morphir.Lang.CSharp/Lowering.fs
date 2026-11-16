@@ -806,6 +806,14 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     let construct = describe "expression" operation.Syntax
                     unsupported "type_test" at $"The C# {construct} is not in the Morphir subset.")
 
+            | :? IPropertyReferenceOperation as property when
+                isNull property.Instance
+                && property.Property.Name = "Nothing"
+                && property.Property.ContainingType.OriginalDefinition.ToDisplayString() = "Morphir.SDK.CSharp.Maybe<T>"
+                ->
+                this.Type(at, property.Type)
+                |> Checked.bind (fun inferred -> builder.Constructor(at, inferred, SdkMapping.sdk "Maybe" "Nothing"))
+
             | :? IPropertyReferenceOperation as property when not (isNull property.Instance) ->
                 let owner = property.Property.ContainingType.OriginalDefinition
 
@@ -1066,6 +1074,16 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 let! lowered = lowerArguments ()
                 return! this.Apply(at, fn, [ for p in target.Parameters -> p.Type ], target.ReturnType, lowered)
             }
+        elif target.MethodKind = MethodKind.LocalFunction then
+            if not (Map.containsKey target.Name env) then
+                unsupported "local_function" at $"The local function '{target.Name}' is called before its declaration. Declare the local function before the statement that calls it."
+            else
+                check {
+                    let! inferred = this.Function(at, parameters, result)
+                    let! fn = builder.Variable(at, inferred, nameOf target.Name)
+                    let! lowered = lowerArguments ()
+                    return! this.Apply(at, fn, parameters, result, lowered)
+                }
         elif plan.ValueNames.ContainsKey target.OriginalDefinition then
             check {
                 let! fn = this.Reference(at, plan.ValueNames[target.OriginalDefinition], parameters, result)
@@ -1093,6 +1111,21 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     return! builder.List(at, inferred, lowered)
                 }
             | None -> unsupportedReference at (target.ToDisplayString())
+        elif this.IsListIdentity invocation then
+            this.Value(env, invocation.Arguments[0].Value)
+        elif
+            target.IsStatic
+            && target.Name = "Just"
+            && target.ContainingType.OriginalDefinition.ToDisplayString() = "Morphir.SDK.CSharp.Maybe<T>"
+        then
+            check {
+                let! inferred = this.Function(at, parameters, result)
+                let! just = builder.Constructor(at, inferred, SdkMapping.sdk "Maybe" "Just")
+                let! lowered = lowerArguments ()
+                return! this.Apply(at, just, parameters, result, lowered)
+            }
+        elif (this.Traversal(env, at, invocation)).IsSome then
+            (this.Traversal(env, at, invocation)).Value
         else
             match SdkMapping.tryMethod target with
             | Some(fq, _) ->
@@ -1121,6 +1154,210 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     }
                 | Some(TypeParameterOrder(typeParameter, a, b)) -> this.OrderAsInt(env, at, typeParameter, a, b, result)
                 | None -> unsupportedReference at (target.ToDisplayString())
+
+    /// <summary>The lambda of a function argument: a lambda, or a delegate made from a lambda.</summary>
+    member private this.LambdaOf(operation: IOperation) : IAnonymousFunctionOperation option =
+        match unwrap operation with
+        | :? IAnonymousFunctionOperation as lambda -> Some lambda
+        | :? IDelegateCreationOperation as creation ->
+            match creation.Target with
+            | :? IAnonymousFunctionOperation as lambda -> Some lambda
+            | _ -> None
+        | _ -> None
+
+    /// <summary>The value that a lambda returns, when its body is one return.</summary>
+    member private this.Returned(lambda: IAnonymousFunctionOperation) : IOperation option =
+        match lambda.Body with
+        | null -> None
+        | body ->
+            match List.ofSeq body.Operations with
+            | [ :? IReturnOperation as return' ] when not (isNull return'.ReturnedValue) -> Some return'.ReturnedValue
+            | _ -> None
+
+    /// <summary>
+    /// A function argument of one parameter: the function that the lambda applies to its parameter, else the lambda.
+    /// <c>o =&gt; Notional(o)</c> is <c>notional</c>, the same IR as a loop that adds <c>Notional(o)</c>.
+    /// </summary>
+    member private this.FunctionArgument(env: Env, operation: IOperation) : Checked<'Value> =
+        let direct =
+            match this.LambdaOf operation with
+            | Some lambda when lambda.Symbol.Parameters.Length = 1 ->
+                this.Returned lambda
+                |> Option.bind (fun returned -> this.Eta(env, returned, [ lambda.Symbol.Parameters[0] :> ISymbol ]))
+            | _ -> None
+
+        match direct with
+        | Some fn -> fn
+        | None -> this.Value(env, operation)
+
+    /// <summary>
+    /// A call of a functional form of the transform table: <c>Select</c>, <c>Where</c> and <c>Aggregate</c> of LINQ or of an
+    /// SDK list, and <c>FilterMap</c> of an SDK list. They give the IR of the loop forms: <c>List.map</c>,
+    /// <c>List.filter</c>, <c>List.foldl</c> and <c>List.filterMap</c>.
+    /// </summary>
+    member private this.Traversal(env: Env, at, invocation: IInvocationOperation) : Checked<'Value> option =
+        let target = invocation.TargetMethod
+
+        let containing =
+            if isNull target.ContainingType then "" else target.ContainingType.OriginalDefinition.ToDisplayString()
+
+        let ordinal (a: IArgumentOperation) =
+            match a.Parameter with
+            | null -> System.Int32.MaxValue
+            | parameter -> parameter.Ordinal
+
+        let arguments = [ for a in invocation.Arguments |> Seq.sortBy ordinal -> a ]
+
+        // The source list and the other arguments: the instance of an SDK list, or the first argument of LINQ.
+        let parts =
+            match containing with
+            | "Morphir.SDK.CSharp.List<T>" when not target.IsStatic && not (isNull invocation.Instance) -> Some(invocation.Instance, arguments)
+            | "System.Linq.Enumerable" when not (List.isEmpty arguments) -> Some((List.head arguments).Value, List.tail arguments)
+            | _ -> None
+
+        let funcArguments (argument: IArgumentOperation) =
+            match argument.Parameter with
+            | null -> []
+            | parameter ->
+                match parameter.Type with
+                | :? INamedTypeSymbol as func when func.TypeKind = TypeKind.Delegate && func.Name = "Func" -> List.ofSeq func.TypeArguments
+                | _ -> []
+
+        let list (operation: IOperation) =
+            let t = (unwrap operation).Type
+
+            match t with
+            | :? INamedTypeSymbol as named ->
+                match SdkMapping.tryType named with
+                | Some(fq, _) when fq = SdkMapping.sdk "List" "List" -> true
+                | _ -> false
+            | _ -> false
+
+        let unary (fq: FQName) (source: IOperation) (f: IArgumentOperation) (resultElement: ITypeSymbol -> ITypeSymbol -> ITypeSymbol) =
+            match funcArguments f with
+            | [ input; output ] ->
+                Some(
+                    check {
+                        let! elementType = this.Type(at, input)
+                        let! outputType = this.Type(at, output)
+                        let! listType = this.ListOf(at, elementType)
+                        let! resultType = this.Type(at, resultElement input output) |> Checked.bind (fun t -> this.ListOf(at, t))
+                        let! fnType = this.Arrow(at, [ elementType ], outputType)
+                        let! fn = this.FunctionArgument(env, f.Value)
+                        let! xs = this.Value(env, unwrap source)
+                        return! this.Call(at, fq, [ fnType, fn; listType, xs ], resultType)
+                    }
+                )
+            | _ -> None
+
+        match parts with
+        | Some(source, rest) when list source ->
+            match target.Name, rest with
+            | "Select", [ f ] -> unary (SdkMapping.sdk "List" "map") source f (fun _ output -> output)
+            | "Where", [ f ] -> unary (SdkMapping.sdk "List" "filter") source f (fun input _ -> input)
+            | "FilterMap", [ f ] when containing = "Morphir.SDK.CSharp.List<T>" ->
+                match funcArguments f with
+                | [ _; (:? INamedTypeSymbol as maybe) ] when maybe.TypeArguments.Length = 1 ->
+                    unary (SdkMapping.sdk "List" "filterMap") source f (fun _ _ -> maybe.TypeArguments[0])
+                | _ -> None
+            | "Aggregate", [ seed; func ] ->
+                match funcArguments func with
+                | [ stateSymbol; elementSymbol; _ ] -> Some(this.Aggregate(env, at, source, seed.Value, func.Value, stateSymbol, elementSymbol))
+                | _ -> None
+            | _ -> None
+        | _ -> None
+
+    /// <summary>
+    /// <c>Aggregate(seed, (state, x) =&gt; ...)</c>: <c>List.foldl</c> with a function of the element first, then the state.
+    /// </summary>
+    member private this.Aggregate
+        (env: Env, at, source: IOperation, seed: IOperation, func: IOperation, stateSymbol: ITypeSymbol, elementSymbol: ITypeSymbol)
+        : Checked<'Value> =
+        check {
+            let! stateType = this.Type(at, stateSymbol)
+            let! elementType = this.Type(at, elementSymbol)
+            let! listType = this.ListOf(at, elementType)
+            let! fnType = this.Arrow(at, [ elementType; stateType ], stateType)
+            let! stepType = this.Arrow(at, [ stateType ], stateType)
+
+            let! fn =
+                match this.LambdaOf func with
+                | Some lambda when lambda.Symbol.Parameters.Length = 2 ->
+                    let state = lambda.Symbol.Parameters[0]
+                    let element = lambda.Symbol.Parameters[1]
+
+                    let direct =
+                        this.Returned lambda
+                        |> Option.bind (fun returned -> this.Eta(env, returned, [ element :> ISymbol; state :> ISymbol ]))
+
+                    // `var (a, b) = state;` first, and no other use of the state: the state is the tuple pattern (a, b).
+                    let operations = List.ofSeq lambda.Body.Operations
+
+                    let destructured =
+                        match operations with
+                        | (:? IExpressionStatementOperation as first) :: after ->
+                            match first.Operation with
+                            | :? IDeconstructionAssignmentOperation as deconstruction when
+                                (match unwrap deconstruction.Value with
+                                 | :? IParameterReferenceOperation as p -> SymbolEqualityComparer.Default.Equals(p.Parameter, state)
+                                 | _ -> false)
+                                && not (after |> List.exists (references state))
+                                ->
+                                let rec declared (target: IOperation) =
+                                    match target with
+                                    | :? IDeclarationExpressionOperation as declaration -> declared declaration.Expression
+                                    | :? ITupleOperation as tuple ->
+                                        let items = tuple.Elements |> List.ofSeq |> List.map declared
+                                        if items |> List.forall Option.isSome then Some(items |> List.collect Option.get) else None
+                                    | :? ILocalReferenceOperation as local when local.IsDeclaration -> Some [ local.Local ]
+                                    | _ -> None
+
+                                declared deconstruction.Target |> Option.map (fun locals -> locals, after)
+                            | _ -> None
+                        | _ -> None
+
+                    match direct, destructured with
+                    | Some fn, _ -> fn
+                    | None, Some(locals, after) ->
+                        check {
+                            let inner = locals |> List.fold (fun (e: Env) l -> Map.add l.Name Plain e) (Map.add element.Name Plain env)
+                            let! body = this.Statements(inner, stateSymbol, after, at)
+                            let! items = locals |> Checked.traverse (fun l -> this.Type(at, l.Type) |> Checked.bind (fun t -> this.Binder(at, t, nameOf l.Name)))
+                            let! statePattern = builder.PatternTuple(at, stateType, items)
+                            let! step = builder.Lambda(at, stepType, statePattern, body)
+                            let! elementPattern = this.Binder(at, elementType, nameOf element.Name)
+                            return! builder.Lambda(at, fnType, elementPattern, step)
+                        }
+                    | None, None ->
+                        check {
+                            let inner = env |> Map.add state.Name Plain |> Map.add element.Name Plain
+                            let! body = this.Statements(inner, stateSymbol, operations, at)
+                            let! statePattern = this.Binder(at, stateType, nameOf state.Name)
+                            let! step = builder.Lambda(at, stepType, statePattern, body)
+                            let! elementPattern = this.Binder(at, elementType, nameOf element.Name)
+                            return! builder.Lambda(at, fnType, elementPattern, step)
+                        }
+                | _ ->
+                    // A function value of the state, then the element: a lambda of the element, then the state, that calls it.
+                    check {
+                        let! f = this.Value(env, func)
+                        let elementName = freshName func.Syntax [ "item" ]
+                        let stateName = freshName func.Syntax [ "state" ]
+                        let! partialType = this.Arrow(at, [ elementType ], stateType)
+                        let! stateVariable = builder.Variable(at, stateType, stateName)
+                        let! elementVariable = builder.Variable(at, elementType, elementName)
+                        let! partial = builder.Apply(at, partialType, f, stateVariable)
+                        let! applied = builder.Apply(at, stateType, partial, elementVariable)
+                        let! statePattern = this.Binder(at, stateType, stateName)
+                        let! step = builder.Lambda(at, stepType, statePattern, applied)
+                        let! elementPattern = this.Binder(at, elementType, elementName)
+                        return! builder.Lambda(at, fnType, elementPattern, step)
+                    }
+
+            let! initial = this.Value(env, seed)
+            let! xs = this.Value(env, unwrap source)
+            return! this.Call(at, SdkMapping.sdk "List" "foldl", [ fnType, fn; stateType, initial; listType, xs ], stateType)
+        }
 
     /// <summary>
     /// <c>a.Equals(b)</c> on two values of one union of the package: the equality of Morphir. The backend writes this form,
@@ -1377,6 +1614,13 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             | :? IBranchOperation as branch when branch.BranchKind = BranchKind.Continue && flow.Continue.IsSome ->
                 flow.Continue.Value env
             | :? IBlockOperation as block -> this.Flow(env, result, flow, List.ofSeq block.Operations @ rest, endAt)
+            | :? IExpressionStatementOperation as statement when
+                (match statement.Operation with
+                 | :? ISimpleAssignmentOperation as assignment -> assignment.Target :? IDiscardOperation
+                 | _ -> false)
+                ->
+                // `_ = value;` names a value and changes nothing.
+                this.Flow(env, result, flow, rest, endAt)
             | :? IVariableDeclarationGroupOperation as group -> this.Declarations(env, result, flow, group, rest, endAt)
             | :? IExpressionStatementOperation as statement when isChange statement.Operation ->
                 this.Change(env, result, flow, statement.Operation, rest, endAt)
@@ -1414,9 +1658,58 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 }
             | :? ISwitchOperation as switch -> this.SwitchStatement(env, at, result, flow, switch, rest, endAt)
             | :? ILoopOperation as loop -> this.Loop(env, result, flow, loop, rest, endAt)
+            | :? ILocalFunctionOperation ->
+                // Local functions next to each other are one group: they can call each other.
+                let rec take (operations: IOperation list) (found: ILocalFunctionOperation list) =
+                    match operations with
+                    | (:? ILocalFunctionOperation as f) :: tail -> take tail (found @ [ f ])
+                    | other -> found, other
+
+                let functions, after = take statements []
+                this.LocalFunctions(env, result, flow, functions, after, endAt)
             | _ ->
                 let construct = describe "statement" first.Syntax
                 unsupported (slugOf first) at $"The C# {construct} is not in the Morphir subset."
+
+    /// <summary>A group of local functions: a <c>LetRecursion</c> with a definition for each function, and the statements after them.</summary>
+    member private this.LocalFunctions
+        (env: Env, result: ITypeSymbol, flow: Flow<'Value>, functions: ILocalFunctionOperation list, rest: IOperation list, endAt)
+        : Checked<'Value> =
+        let at = locate (List.head functions).Syntax
+        let scope = functions |> List.fold (fun (e: Env) f -> Map.add f.Symbol.Name Plain e) env
+
+        let definition (f: ILocalFunctionOperation) =
+            let symbol = f.Symbol
+            let fat = locate f.Syntax
+
+            if symbol.IsGenericMethod then
+                unsupported "local_function" fat $"The generic local function '{symbol.Name}' is not in the Morphir subset."
+            elif isNull f.Body then
+                unsupported "local_function" fat $"The local function '{symbol.Name}' has no body that Morphir can read."
+            else
+                let parameters = List.ofSeq symbol.Parameters
+                let inner = parameters |> List.fold (fun (e: Env) p -> Map.add p.Name Plain e) scope
+
+                let endOf =
+                    match f.Syntax with
+                    | :? LocalFunctionStatementSyntax as statement when not (isNull statement.Body) ->
+                        CSharpCompiler.locationOfToken compiled statement.Body.CloseBraceToken |> Option.defaultValue fat
+                    | _ -> fat
+
+                check {
+                    let! inputs = parameters |> Checked.traverse (fun p -> this.Type(fat, p.Type) |> Checked.map (fun t -> nameOf p.Name, t))
+                    let! output = this.Type(fat, symbol.ReturnType)
+                    let! body = this.Statements(inner, symbol.ReturnType, List.ofSeq f.Body.Operations, endOf)
+                    let! lowered = builder.ValueDefinition(fat, inputs, output, body)
+                    return nameOf symbol.Name, lowered
+                }
+
+        check {
+            let! definitions = functions |> Checked.traverse definition
+            let! inValue = this.Flow(scope, result, flow, rest, endAt)
+            let! inferred = this.Type(at, result)
+            return! builder.LetRecursion(at, inferred, definitions, inValue)
+        }
 
     /// <summary>
     /// A declaration group. An empty <c>List&lt;T&gt;</c> is a list that a later loop fills; a local that only the next loop
