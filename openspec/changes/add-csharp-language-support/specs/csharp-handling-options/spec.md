@@ -16,12 +16,16 @@ public partial record Quote(double Value);   // NaN is not equal to NaN for this
 
 ### Requirement: Each option has an attribute and a configuration key
 
-Each handling option SHALL be settable with a C# attribute and with a configuration key, with the same values. The two carriers SHALL feed one option record, so one rule has one implementation. The options are: model project, loop lowering, traversal form, tail recursion form, and float equality. The key of a backend option SHALL be in `[codegen.csharp]` of `morphir.toml`, and the key of loop lowering SHALL be in `[frontend.csharp]`, which `morphir compile` gives to the frontend in the `extra` member of the MEP compile options. The key of the model project switch SHALL be the MSBuild property `MorphirModel`, because the analyzer runs in the build, which does not read `morphir.toml`.
+Each handling option SHALL be settable with a C# attribute and with a configuration key, with the same values. The two carriers SHALL feed one option record, so one rule has one implementation. The options are: model project, loop lowering, traversal form, tail recursion form, and float equality.
 
 #### Scenario: Same effect
 
 - **WHEN** one project sets the traversal form with an attribute and a second project sets it with a key
 - **THEN** the generated C# of the two is equal
+
+### Requirement: Each configuration key has one place
+
+The key of a backend option SHALL be in `[codegen.csharp]` of `morphir.toml`. The key of loop lowering SHALL be in `[frontend.csharp]`, which `morphir compile` gives to the frontend in the `extra` member of the MEP compile options. The key of the model project switch SHALL be the MSBuild property `MorphirModel`, because the analyzer runs in the build, which does not read `morphir.toml`.
 
 #### Scenario: Same effect for a frontend option
 

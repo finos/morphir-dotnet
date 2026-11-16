@@ -3,7 +3,7 @@ title: "PRD: C# language support"
 description: "A roadmap for Morphir.Lang.CSharp: a C# frontend, a middle end that the host runs, and a C# backend, all on Roslyn and built into both hosts."
 status: In Progress
 created: 2026-11-15
-last_updated: 2026-11-15
+last_updated: 2026-11-16
 ---
 
 # C# language support
