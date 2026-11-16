@@ -4,7 +4,7 @@ Feature: Refuse what the Morphir subset leaves out
   the source, counted from zero. The cases are written by hand from the rule catalog, not captured from the
   frontend. See the csharp-source-frontend spec.
 
-  Scenario Outline: frontend-csharp-0001 A foreach loop is refused
+  Scenario Outline: frontend-csharp-0001 A foreach loop that changes nothing is refused
     Given the C# package "acme/demo" exposing "Pricing.Totals"
     And the source "Pricing.cs":
       """csharp
@@ -199,6 +199,32 @@ Feature: Refuse what the Morphir subset leaves out
     Then compilation fails with diagnostics:
       """json
       [{"severity":"error","code":"csharp.unsupported_non_partial_equality","location":{"uri":"Pricing.cs","range":{"start":{"line":2,"character":21},"end":{"line":2,"character":26}}}}]
+      """
+
+    Examples:
+      | input        | version |
+      | files        | 4       |
+      | directory    | 4       |
+      | project file | 4       |
+
+  Scenario Outline: frontend-csharp-0009 A loop that writes an array element is refused
+    Given the C# package "acme/demo" exposing "Pricing.Totals"
+    And the source "Pricing.cs":
+      """csharp
+      namespace Acme.Demo.Pricing;
+      public static class Totals
+      {
+          public static int Fill(int[] xs)
+          {
+              for (var i = 0; i < xs.Length; i++) { xs[i] = 0; }
+              return 0;
+          }
+      }
+      """
+    When it is compiled from <input> with IR version <version>
+    Then compilation fails with diagnostics:
+      """json
+      [{"severity":"error","code":"csharp.unsupported_loop","location":{"uri":"Pricing.cs","range":{"start":{"line":5,"character":8},"end":{"line":5,"character":58}}}}]
       """
 
     Examples:

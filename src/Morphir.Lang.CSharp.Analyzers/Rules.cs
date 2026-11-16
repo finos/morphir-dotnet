@@ -58,11 +58,14 @@ public sealed class AdmissionRule
 /// <summary>The catalog of admission rules. The analyzers, the frontend and the generated coverage page read it.</summary>
 public static class Rules
 {
-    /// <summary>A loop. Group 6 of the change lowers the loops that the recognizer accepts.</summary>
+    /// <summary>
+    /// A loop that the loop recognizer refuses. The frontend lowers the other loops to a list function or a recursion.
+    /// <c>{0}</c> is the keyword of the loop and <c>{1}</c> is the reason.
+    /// </summary>
     public static readonly AdmissionRule Loop = new(
         "MORPHIR1001", "loop",
-        "A loop is not in the Morphir subset",
-        "A '{0}' loop is not in the Morphir subset",
+        "A loop with no Morphir form is not in the Morphir subset",
+        "The '{0}' loop is not in the Morphir subset: it {1}",
         "static class M\n{\n    static int F(int[] xs)\n    {\n        foreach (var x in xs) { }\n        return 0;\n    }\n}");
 
     /// <summary>A change of a variable, a field or an element.</summary>

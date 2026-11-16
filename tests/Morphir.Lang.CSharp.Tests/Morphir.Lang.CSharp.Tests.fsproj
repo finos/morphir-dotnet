@@ -36,6 +36,7 @@
         <Compile Include="FrontendTests.fs" />
         <Compile Include="ValueLoweringTests.fs" />
         <Compile Include="FrontendFidelityTests.fs" />
+        <Compile Include="FrontendLoopTests.fs" />
         <Compile Include="FrontendValueClassTests.fs" />
         <Compile Include="FrontendUnionTests.fs" />
         <Compile Include="FrontendDocsTests.fs" />

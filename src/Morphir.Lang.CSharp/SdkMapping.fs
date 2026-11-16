@@ -74,6 +74,8 @@ module internal SdkMapping =
                 | _ -> None
             elif
                 t.OriginalDefinition.ToDisplayString() = "System.Collections.Generic.IReadOnlyList<T>"
+                // The list that a foreach fills: the admission rules and the lowering refuse any other change of it.
+                || t.OriginalDefinition.ToDisplayString() = "System.Collections.Generic.List<T>"
             then
                 Some(sdk "List" "List", [ 0 ])
             else

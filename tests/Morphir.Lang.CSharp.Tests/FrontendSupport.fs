@@ -146,6 +146,18 @@ let rec renderValue (v: Value) : string =
     | Value.Destructure(_, p, subject, inValue) ->
         "(let " + renderPattern p + " = " + renderValue subject + " in " + renderValue inValue + ")"
     | Value.Unit _ -> "()"
+    | Value.LetRecursion(_, definitions, inValue) ->
+        let one (name: Name, definition: Documented<ValueDefinition>) =
+            let inputs = definition.Value.InputTypes |> List.map (fun (n, _) -> simple n) |> join ", "
+
+            let body =
+                match definition.Value.Body with
+                | ExpressionBody(_, b) -> renderValue b
+                | _ -> "?"
+
+            simple name + "(" + inputs + ") = " + body
+
+        "(letrec " + (OrderedMap.toList definitions |> List.map one |> join "; ") + " in " + renderValue inValue + ")"
     | other -> string other
 
 let private findValue (distribution: Distribution) (modulePath: string) (name: string) =

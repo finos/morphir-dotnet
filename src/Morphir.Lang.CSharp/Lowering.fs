@@ -12,6 +12,7 @@ open Microsoft.CodeAnalysis.Operations
 open Morphir.Compilation
 open Morphir.Compilation.Building
 open Morphir.IR
+open Morphir.Lang.CSharp.Analyzers
 
 /// <summary>What a name in scope stands for.</summary>
 type internal Binding =
@@ -27,6 +28,13 @@ type internal Binding =
     /// the pattern binds to a variable.
     /// </summary>
     | FieldOf of record: Name * recordType: ITypeSymbol * field: Name * fieldType: ITypeSymbol
+    /// <summary>
+    /// A local whose value is a computation, not a Morphir variable: the new value of a local that a loop changes, or the
+    /// value of a declaration that only the next loop reads. The key selects the computation in the table of the lowerer.
+    /// </summary>
+    | Computed of key: int
+    /// <summary>An empty list of the type <c>System.Collections.Generic.List&lt;T&gt;</c> that a later <c>foreach</c> fills.</summary>
+    | Builder
 
 /// <summary>A call of the equality or the order of .NET on two values of a type parameter of the method.</summary>
 type internal TypeParameterCall =
@@ -37,6 +45,20 @@ type internal TypeParameterCall =
 
 /// <summary>The names in scope. C# does not allow a local to hide another, so the name is the key.</summary>
 type internal Env = Map<string, Binding>
+
+/// <summary>
+/// What a list of statements gives at its end and at a jump. A method body must end with a return. The body of a loop
+/// ends with the next state: the state of a fold, or the next call of a recursion; a <c>break</c> goes on with the
+/// statements after the loop.
+/// </summary>
+type internal Flow<'Value> = {
+    /// <summary>The value when the end of the statements is reached, or none when the end needs a return.</summary>
+    End: (Env -> Checked<'Value>) option
+    /// <summary>The value of a <c>continue</c> statement.</summary>
+    Continue: (Env -> Checked<'Value>) option
+    /// <summary>The value of a <c>break</c> statement.</summary>
+    Break: (Env -> Checked<'Value>) option
+}
 
 /// <summary>
 /// Lowers a planned package to Morphir IR with one builder: types, patterns and values. A construct outside the subset
@@ -183,6 +205,116 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             |> Seq.tryFind (fun (_, case) -> SymbolEqualityComparer.Default.Equals(case, caseType))
             |> Option.bind (fun (index, case) -> List.tryItem index names |> Option.map (fun fq -> fq, case))
         | _ -> None
+
+    /// <summary>The computations of the <c>Computed</c> bindings, by key.</summary>
+    let computations = Dictionary<int, unit -> Checked<'Value>>()
+
+    let remember (computation: unit -> Checked<'Value>) =
+        let key = computations.Count
+        computations[key] <- computation
+        Computed key
+
+    /// <summary>The shape of each loop: the analyzer runs the same recognizer, so a loop has one answer.</summary>
+    let shapes = Dictionary<ILoopOperation, LoopShape>(HashIdentity.Reference)
+
+    let shapeOf (loop: ILoopOperation) =
+        match shapes.TryGetValue loop with
+        | true, shape -> shape
+        | _ ->
+            let shape = LoopRecognizer.Recognize(loop, System.Threading.CancellationToken.None)
+            shapes[loop] <- shape
+            shape
+
+    /// <summary>The names that the lowering made for each member declaration: the functions and the list parameters of loops.</summary>
+    let madeNames = Dictionary<SyntaxNode, HashSet<Name>>()
+
+    /// <summary>
+    /// A name for a function or a parameter that the lowering makes: the words, and a number when an identifier of the
+    /// member or a name made before has those words.
+    /// </summary>
+    let freshName (at: SyntaxNode) (words: string list) =
+        let scope =
+            at.AncestorsAndSelf()
+            |> Seq.tryFind (fun n -> n :? MemberDeclarationSyntax)
+            |> Option.defaultValue (at.SyntaxTree.GetRoot())
+
+        let made =
+            match madeNames.TryGetValue scope with
+            | true, names -> names
+            | _ ->
+                let names = HashSet<Name>()
+                madeNames[scope] <- names
+                names
+
+        let taken = namesOfMember at
+
+        let rec pick (count: int) =
+            let candidate = if count = 1 then Name words else Name(words @ [ string count ])
+            if Set.contains candidate taken || made.Contains candidate then pick (count + 1) else candidate
+
+        let chosen = pick 1
+        made.Add chosen |> ignore
+        chosen
+
+    /// <summary>The operation without its implicit conversions.</summary>
+    let rec unwrap (operation: IOperation) =
+        match operation with
+        | :? IConversionOperation as conversion when conversion.IsImplicit -> unwrap conversion.Operand
+        | _ -> operation
+
+    /// <summary>Whether an operation, or an operation in it, names the local or the parameter.</summary>
+    let references (symbol: ISymbol) (operation: IOperation) =
+        Seq.append [ operation ] (operation.Descendants())
+        |> Seq.exists (fun o ->
+            match o with
+            | :? ILocalReferenceOperation as local -> SymbolEqualityComparer.Default.Equals(local.Local, symbol)
+            | :? IParameterReferenceOperation as parameter -> SymbolEqualityComparer.Default.Equals(parameter.Parameter, symbol)
+            | _ -> false)
+
+    /// <summary>The local or the parameter that an operation names, with its name and its type.</summary>
+    let variableOf (operation: IOperation) : (ISymbol * string * ITypeSymbol) option =
+        match operation with
+        | :? ILocalReferenceOperation as local when not local.IsDeclaration -> Some(local.Local :> ISymbol, local.Local.Name, local.Local.Type)
+        | :? IParameterReferenceOperation as parameter -> Some(parameter.Parameter :> ISymbol, parameter.Parameter.Name, parameter.Parameter.Type)
+        | _ -> None
+
+    /// <summary>The type of a local or a parameter.</summary>
+    let typeOfSymbol (symbol: ISymbol) : ITypeSymbol =
+        match symbol with
+        | :? ILocalSymbol as local -> local.Type
+        | :? IParameterSymbol as parameter -> parameter.Type
+        | _ -> null
+
+    /// <summary>The single targets of a deconstruction assignment.</summary>
+    let rec deconstructionTargets (target: IOperation) : IOperation list =
+        match target with
+        | :? ITupleOperation as tuple -> tuple.Elements |> List.ofSeq |> List.collect deconstructionTargets
+        | other -> [ other ]
+
+    /// <summary>Whether an operation changes a local or a parameter: an assignment, an increment or a deconstruction into locals that exist.</summary>
+    let isChange (operation: IOperation) =
+        match operation with
+        | :? IDeconstructionAssignmentOperation as deconstruction ->
+            deconstructionTargets deconstruction.Target |> List.exists (fun t -> (variableOf t).IsSome)
+        | :? ISimpleAssignmentOperation
+        | :? ICompoundAssignmentOperation
+        | :? IIncrementOrDecrementOperation -> true
+        | _ -> false
+
+    /// <summary>The operation of an expression statement, or the operation itself.</summary>
+    let statementOperation (operation: IOperation) =
+        match operation with
+        | :? IExpressionStatementOperation as statement -> statement.Operation
+        | other -> other
+
+    /// <summary>The statements of a loop body: the operations of a block, or the one statement.</summary>
+    let statementsOf (body: IOperation) : IOperation list =
+        match body with
+        | :? IBlockOperation as block -> List.ofSeq block.Operations
+        | other -> [ other ]
+
+    let isConstantTrue (operation: IOperation) =
+        not (isNull operation) && operation.ConstantValue.HasValue && (match operation.ConstantValue.Value with :? bool as b -> b | _ -> false)
 
     // ----- types -----
 
@@ -775,6 +907,10 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 let! ft = this.Type(at, fieldType)
                 return! builder.Field(at, ft, subject, field)
             }
+        | Some(Computed key) -> computations[key] ()
+        | Some Builder ->
+            // A list that no loop filled yet is empty.
+            this.Type(at, t) |> Checked.bind (fun inferred -> builder.List(at, inferred, []))
         | _ ->
             this.Type(at, t)
             |> Checked.bind (fun inferred -> builder.Variable(at, inferred, nameOf name))
@@ -862,23 +998,40 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 return! builder.IfThenElse(at, t, condition, trueValue, whenFalse)
             }
         | _ ->
-            let operand = SdkMapping.operandOf left.Type
+            this.Operator(
+                at,
+                kind,
+                (left.Type, fun () -> this.Value(env, left)),
+                (right.Type, fun () -> this.Value(env, right)),
+                binary.Type
+            )
 
-            match SdkMapping.tryBinary kind operand with
-            | None ->
-                unsupportedReference at $"{left.Type.ToDisplayString()} {SdkMapping.operatorText kind} {right.Type.ToDisplayString()}"
-            | Some fq ->
-                let arguments =
-                    // C# `a % b` is Morphir `remainderBy b a`.
-                    if kind = BinaryOperatorKind.Remainder then [ right; left ] else [ left; right ]
+    /// <summary>The SDK call of a binary operator on two operands, each with its type and its lowering.</summary>
+    member private this.Operator
+        (
+            at,
+            kind: BinaryOperatorKind,
+            left: ITypeSymbol * (unit -> Checked<'Value>),
+            right: ITypeSymbol * (unit -> Checked<'Value>),
+            result: ITypeSymbol
+        ) : Checked<'Value> =
+        let leftType, _ = left
+        let rightType, _ = right
 
-                let parameters = [ for a in arguments -> a.Type ]
+        match SdkMapping.tryBinary kind (SdkMapping.operandOf leftType) with
+        | None -> unsupportedReference at $"{leftType.ToDisplayString()} {SdkMapping.operatorText kind} {rightType.ToDisplayString()}"
+        | Some fq ->
+            let arguments =
+                // C# `a % b` is Morphir `remainderBy b a`.
+                if kind = BinaryOperatorKind.Remainder then [ right; left ] else [ left; right ]
 
-                check {
-                    let! lowered = arguments |> Checked.traverse (fun a -> this.Value(env, a))
-                    let! fn = this.Reference(at, fq, parameters, binary.Type)
-                    return! this.Apply(at, fn, parameters, binary.Type, lowered)
-                }
+            let parameters = [ for t, _ in arguments -> t ]
+
+            check {
+                let! lowered = arguments |> Checked.traverse (fun (_, lower) -> lower ())
+                let! fn = this.Reference(at, fq, parameters, result)
+                return! this.Apply(at, fn, parameters, result, lowered)
+            }
 
     member private this.Unary(env: Env, at, unary: IUnaryOperation) : Checked<'Value> =
         match SdkMapping.tryUnary unary.OperatorKind (SdkMapping.operandOf unary.Operand.Type) with
@@ -1197,45 +1350,55 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
     /// <summary>
     /// Lowers a list of statements that ends in a return: declarations become lets, deconstructions become destructures,
-    /// ifs become conditionals and switch statements become pattern matches. A list that ends before a return is refused
-    /// at <c>endAt</c>, the end of the block that holds it.
+    /// ifs become conditionals, switch statements become pattern matches and loops become list functions or recursions.
+    /// A list that ends before a return is refused at <c>endAt</c>, the end of the block that holds it.
     /// </summary>
     member this.Statements(env: Env, result: ITypeSymbol, statements: IOperation list, endAt: Morphir.Compilation.Location) : Checked<'Value> =
+        this.Flow(env, result, { End = None; Continue = None; Break = None }, statements, endAt)
+
+    /// <summary>
+    /// Lowers a list of statements with the given flow: the end of the list, a <c>continue</c> and a <c>break</c> give the
+    /// values of the flow. A <c>return</c> always gives its value.
+    /// </summary>
+    member this.Flow
+        (env: Env, result: ITypeSymbol, flow: Flow<'Value>, statements: IOperation list, endAt: Morphir.Compilation.Location)
+        : Checked<'Value> =
         match statements with
-        | [] -> unsupported "missing_return" endAt "A method body must end with a return."
+        | [] ->
+            match flow.End with
+            | Some finish -> finish env
+            | None -> unsupported "missing_return" endAt "A method body must end with a return."
         | first :: rest ->
             let at = locate first.Syntax
 
             match first with
             | :? IReturnOperation as return' when not (isNull return'.ReturnedValue) -> this.Value(env, return'.ReturnedValue)
-            | :? IBlockOperation as block -> this.Statements(env, result, List.ofSeq block.Operations @ rest, endAt)
-            | :? IVariableDeclarationGroupOperation as group ->
-                let declarators = [ for declaration in group.Declarations do yield! declaration.Declarators ]
-
-                let rec bind (env: Env) (items: IVariableDeclaratorOperation list) : Checked<'Value> =
-                    match items with
-                    | [] -> this.Statements(env, result, rest, endAt)
-                    | declarator :: tail ->
-                        let local = declarator.Symbol
-                        let dat = locate declarator.Syntax
-
-                        match declarator.Initializer with
-                        | null -> unsupported "uninitialized_local" dat "A local variable needs an initial value."
-                        | initializer ->
-                            check {
-                                let! value = this.Value(env, initializer.Value)
-                                let! localType = this.Type(dat, local.Type)
-                                let! definition = builder.ValueDefinition(dat, [], localType, value)
-                                let! inValue = bind (Map.add local.Name Plain env) tail
-                                let! inferred = this.Type(dat, result)
-                                return! builder.LetDefinition(dat, inferred, nameOf local.Name, definition, inValue)
-                            }
-
-                bind env declarators
+            | :? IBranchOperation as branch when branch.BranchKind = BranchKind.Break && flow.Break.IsSome -> flow.Break.Value env
+            | :? IBranchOperation as branch when branch.BranchKind = BranchKind.Continue && flow.Continue.IsSome ->
+                flow.Continue.Value env
+            | :? IBlockOperation as block -> this.Flow(env, result, flow, List.ofSeq block.Operations @ rest, endAt)
+            | :? IVariableDeclarationGroupOperation as group -> this.Declarations(env, result, flow, group, rest, endAt)
+            | :? IExpressionStatementOperation as statement when isChange statement.Operation ->
+                this.Change(env, result, flow, statement.Operation, rest, endAt)
+            | change when isChange change -> this.Change(env, result, flow, change, rest, endAt)
             | :? IExpressionStatementOperation as statement when (statement.Operation :? IDeconstructionAssignmentOperation) ->
-                this.Deconstruction(env, at, result, statement.Operation :?> IDeconstructionAssignmentOperation, rest, endAt)
+                this.Deconstruction(env, at, result, flow, statement.Operation :?> IDeconstructionAssignmentOperation, rest, endAt)
             | :? IConditionalOperation as conditional ->
-                let branch (operation: IOperation) = this.Statements(env, result, [ operation ], locate operation.Syntax)
+                // A branch whose end can be reached goes on with the statements after the if.
+                let branch (operation: IOperation) =
+                    let model = operation.SemanticModel
+
+                    let reachable =
+                        match operation.Syntax with
+                        | :? StatementSyntax as statement when not (isNull model) ->
+                            let analysis = model.AnalyzeControlFlow statement
+                            not (isNull analysis) && analysis.Succeeded && analysis.EndPointIsReachable
+                        | _ -> false
+
+                    if reachable then
+                        this.Flow(env, result, flow, operation :: rest, endAt)
+                    else
+                        this.Flow(env, result, flow, [ operation ], locate operation.Syntax)
 
                 check {
                     let! condition = this.Value(env, conditional.Condition)
@@ -1243,16 +1406,667 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
                     let! whenFalse =
                         match conditional.WhenFalse with
-                        | null -> this.Statements(env, result, rest, endAt)
+                        | null -> this.Flow(env, result, flow, rest, endAt)
                         | other -> branch other
 
                     let! inferred = this.Type(at, result)
                     return! builder.IfThenElse(at, inferred, condition, whenTrue, whenFalse)
                 }
-            | :? ISwitchOperation as switch -> this.SwitchStatement(env, at, result, switch, rest, endAt)
+            | :? ISwitchOperation as switch -> this.SwitchStatement(env, at, result, flow, switch, rest, endAt)
+            | :? ILoopOperation as loop -> this.Loop(env, result, flow, loop, rest, endAt)
             | _ ->
                 let construct = describe "statement" first.Syntax
                 unsupported (slugOf first) at $"The C# {construct} is not in the Morphir subset."
+
+    /// <summary>
+    /// A declaration group. An empty <c>List&lt;T&gt;</c> is a list that a later loop fills; a local that only the next loop
+    /// reads is its initial state; any other local is a let.
+    /// </summary>
+    member private this.Declarations
+        (env: Env, result: ITypeSymbol, flow: Flow<'Value>, group: IVariableDeclarationGroupOperation, rest: IOperation list, endAt)
+        : Checked<'Value> =
+        let declarators = [ for declaration in group.Declarations do yield! declaration.Declarators ]
+
+        // The declarations up to the next loop, and the loop.
+        let rec run (operations: IOperation list) (found: IVariableDeclaratorOperation list) =
+            match operations with
+            | (:? IVariableDeclarationGroupOperation as next) :: tail ->
+                run tail (found @ [ for declaration in next.Declarations do yield! declaration.Declarators ])
+            | (:? ILoopOperation as loop) :: _ -> found, Some loop
+            | _ -> found, None
+
+        let laterDeclarators, nextLoop = run rest []
+
+        let isStateOfNextLoop (local: ILocalSymbol) =
+            match nextLoop with
+            | Some loop -> (shapeOf loop).State |> Seq.exists (fun s -> SymbolEqualityComparer.Default.Equals(s, local))
+            | None -> false
+
+        let rec bind (env: Env) (items: IVariableDeclaratorOperation list) : Checked<'Value> =
+            match items with
+            | [] -> this.Flow(env, result, flow, rest, endAt)
+            | declarator :: tail ->
+                let local = declarator.Symbol
+                let dat = locate declarator.Syntax
+
+                match declarator.Initializer with
+                | null -> unsupported "uninitialized_local" dat "A local variable needs an initial value."
+                | initializer when LoopRecognizer.IsSystemList local.Type && LoopRecognizer.IsEmptyList initializer.Value ->
+                    bind (Map.add local.Name Builder env) tail
+                | initializer when
+                    isStateOfNextLoop local
+                    && not (
+                        (tail @ laterDeclarators)
+                        |> List.exists (fun later -> not (isNull later.Initializer) && references local later.Initializer.Value)
+                    )
+                    ->
+                    let before = env
+                    bind (Map.add local.Name (remember (fun () -> this.Value(before, initializer.Value))) env) tail
+                | initializer ->
+                    check {
+                        let! value = this.Value(env, initializer.Value)
+                        let! localType = this.Type(dat, local.Type)
+                        let! definition = builder.ValueDefinition(dat, [], localType, value)
+                        let! inValue = bind (Map.add local.Name Plain env) tail
+                        let! inferred = this.Type(dat, result)
+                        return! builder.LetDefinition(dat, inferred, nameOf local.Name, definition, inValue)
+                    }
+
+        bind env declarators
+
+    /// <summary>
+    /// Whether the statements after a change can read the new value as a computation: they only change other locals, with
+    /// no read of this local, and jump. Then the change needs no let: <c>sum += p; count++;</c> is <c>(sum + p, count + 1)</c>.
+    /// </summary>
+    member private this.Substitutable(symbol: ISymbol, rest: IOperation list) =
+        rest
+        |> List.forall (fun operation ->
+            match operation with
+            | :? IBranchOperation as branch -> branch.BranchKind = BranchKind.Break || branch.BranchKind = BranchKind.Continue
+            | other when isChange (statementOperation other) -> not (references symbol other)
+            | _ -> false)
+
+    /// <summary>
+    /// A change of a local or a parameter, which only a loop has: the statements after it see the new value, as a
+    /// computation or as a let with the same name.
+    /// </summary>
+    member private this.Change(env: Env, result: ITypeSymbol, flow: Flow<'Value>, operation: IOperation, rest: IOperation list, endAt) =
+        let at = locate operation.Syntax
+
+        let notLocal () =
+            let construct = describe "change" operation.Syntax
+            unsupported "mutation" at $"The C# {construct} changes a value that is not a local or a parameter."
+
+        let single (target: IOperation) (value: unit -> Checked<'Value>) =
+            match variableOf target with
+            | None -> notLocal ()
+            | Some(symbol, name, t) ->
+                if this.Substitutable(symbol, rest) then
+                    this.Flow(Map.add name (remember value) env, result, flow, rest, endAt)
+                else
+                    check {
+                        let! lowered = value ()
+                        let! localType = this.Type(at, t)
+                        let! definition = builder.ValueDefinition(at, [], localType, lowered)
+                        let! inValue = this.Flow(Map.add name Plain env, result, flow, rest, endAt)
+                        let! inferred = this.Type(at, result)
+                        return! builder.LetDefinition(at, inferred, nameOf name, definition, inValue)
+                    }
+
+        let one (t: ITypeSymbol) : Checked<obj> =
+            match t.SpecialType with
+            | SpecialType.System_Int32 -> Checked.pass (box 1)
+            | SpecialType.System_Double -> Checked.pass (box 1.0)
+            | SpecialType.System_Decimal -> Checked.pass (box 1m)
+            | _ -> unsupported "mutation" at $"An increment of '{t.ToDisplayString()}' is not in the Morphir subset."
+
+        match operation with
+        | :? ISimpleAssignmentOperation as assignment -> single assignment.Target (fun () -> this.Value(env, assignment.Value))
+        | :? ICompoundAssignmentOperation as compound ->
+            if not compound.InConversion.IsIdentity || not compound.OutConversion.IsIdentity then
+                unsupported "conversion" at "A compound assignment with a conversion is not in the Morphir subset."
+            else
+                single compound.Target (fun () ->
+                    this.Operator(
+                        at,
+                        compound.OperatorKind,
+                        (compound.Target.Type, fun () -> this.Value(env, compound.Target)),
+                        (compound.Value.Type, fun () -> this.Value(env, compound.Value)),
+                        compound.Type
+                    ))
+        | :? IIncrementOrDecrementOperation as step ->
+            let kind = if step.Kind = OperationKind.Increment then BinaryOperatorKind.Add else BinaryOperatorKind.Subtract
+            let t = step.Target.Type
+
+            single step.Target (fun () ->
+                this.Operator(
+                    at,
+                    kind,
+                    (t, fun () -> this.Value(env, step.Target)),
+                    (t, fun () -> one t |> Checked.bind (fun value -> this.Literal(at, value, t))),
+                    t
+                ))
+        | :? IDeconstructionAssignmentOperation as deconstruction ->
+            let targets = deconstructionTargets deconstruction.Target
+            let variables = targets |> List.map variableOf
+
+            if variables |> List.exists Option.isNone then
+                notLocal ()
+            else
+                let variables = variables |> List.choose id
+
+                match unwrap deconstruction.Value with
+                | :? ITupleOperation as tuple when
+                    tuple.Elements.Length = List.length variables
+                    && variables |> List.forall (fun (symbol, _, _) -> this.Substitutable(symbol, rest))
+                    ->
+                    // The values are all computed before any local changes, as C# does.
+                    let env' =
+                        List.zip variables (List.ofSeq tuple.Elements)
+                        |> List.fold (fun (e: Env) ((_, name, _), value) -> Map.add name (remember (fun () -> this.Value(env, value))) e) env
+
+                    this.Flow(env', result, flow, rest, endAt)
+                | _ ->
+                    check {
+                        let! subject = this.Value(env, deconstruction.Value)
+                        let! valueType = this.Type(at, deconstruction.Value.Type)
+
+                        let! items =
+                            variables
+                            |> Checked.traverse (fun (_, name, t) ->
+                                check {
+                                    let! itemType = this.Type(at, t)
+                                    let! wildcard = builder.PatternWildcard(at, itemType)
+                                    return! builder.PatternAs(at, itemType, wildcard, nameOf name)
+                                })
+
+                        let! pattern = builder.PatternTuple(at, valueType, items)
+                        let env' = variables |> List.fold (fun (e: Env) (_, name, _) -> Map.add name Plain e) env
+                        let! inValue = this.Flow(env', result, flow, rest, endAt)
+                        let! inferred = this.Type(at, result)
+                        return! builder.Destructure(at, inferred, pattern, subject, inValue)
+                    }
+        | _ -> notLocal ()
+
+    // ----- loops -----
+
+    /// <summary>The function type from the argument types to the result type.</summary>
+    member private this.Arrow(at, arguments: 'Type list, result: 'Type) : Checked<'Type> =
+        List.foldBack
+            (fun (argument: 'Type) (tail: Checked<'Type>) -> tail |> Checked.bind (fun t -> builder.TypeFunction(at, argument, t)))
+            arguments
+            (Checked.pass result)
+
+    /// <summary>A call of an SDK function with the types of its arguments and of its result.</summary>
+    member private this.Call(at, fq: FQName, arguments: ('Type * 'Value) list, result: 'Type) : Checked<'Value> =
+        let types = arguments |> List.map fst
+
+        let rec go (current: 'Value) (remaining: ('Type * 'Value) list) =
+            match remaining with
+            | [] -> Checked.pass current
+            | (_, argument) :: tail ->
+                this.Arrow(at, tail |> List.map fst, result)
+                |> Checked.bind (fun inferred -> builder.Apply(at, inferred, current, argument))
+                |> Checked.bind (fun applied -> go applied tail)
+
+        this.Arrow(at, types, result)
+        |> Checked.bind (fun inferred -> builder.Reference(at, inferred, fq))
+        |> Checked.bind (fun fn -> go fn arguments)
+
+    /// <summary>The pattern that binds a name: <c>(as _ name)</c>.</summary>
+    member private this.Binder(at, t: 'Type, name: Name) : Checked<'Pattern> =
+        builder.PatternWildcard(at, t) |> Checked.bind (fun wildcard -> builder.PatternAs(at, t, wildcard, name))
+
+    /// <summary>The SDK list type of an element type.</summary>
+    member private this.ListOf(at, element: 'Type) : Checked<'Type> =
+        builder.TypeReference(at, SdkMapping.sdk "List" "List", [ element ])
+
+    /// <summary>
+    /// The function that a body applies to its parameters as its last arguments, when no other part of the body names
+    /// them: <c>o =&gt; Notional(o)</c> is <c>notional</c>, and <c>(x, acc) =&gt; Add(1, x, acc)</c> is <c>add 1</c>.
+    /// The parameters are in the order of the Morphir function.
+    /// </summary>
+    member private this.Eta(env: Env, operation: IOperation, parameters: ISymbol list) : Checked<'Value> option =
+        let at = locate operation.Syntax
+        let names (symbol: ISymbol) (o: IOperation) = parameters |> List.exists (fun p -> SymbolEqualityComparer.Default.Equals(p, symbol)) && references symbol o
+
+        match unwrap operation with
+        | :? IInvocationOperation as invocation ->
+            let ordinal (a: IArgumentOperation) =
+                match a.Parameter with
+                | null -> System.Int32.MaxValue
+                | parameter -> parameter.Ordinal
+
+            let arguments = [ for a in invocation.Arguments |> Seq.sortBy ordinal -> a.Value ]
+            let count = List.length parameters
+
+            if List.length arguments < count then
+                None
+            else
+                let leading = List.take (List.length arguments - count) arguments
+                let trailing = List.skip (List.length arguments - count) arguments
+
+                let isParameter (argument: IOperation, parameter: ISymbol) =
+                    match variableOf argument with
+                    | Some(symbol, _, _) -> SymbolEqualityComparer.Default.Equals(symbol, parameter)
+                    | None -> false
+
+                let free (o: IOperation) = parameters |> List.forall (fun p -> not (names p o))
+
+                let target = invocation.TargetMethod
+                let parameterTypes = [ for p in target.Parameters -> p.Type ]
+
+                let headOk =
+                    List.zip trailing parameters |> List.forall isParameter
+                    && leading |> List.forall free
+                    && (isNull invocation.Instance || free invocation.Instance)
+
+                if not headOk then
+                    None
+                else
+                    let applyLeading (fn: Checked<'Value>) =
+                        check {
+                            let! f = fn
+                            let! lowered = leading |> Checked.traverse (fun a -> this.Value(env, a))
+                            return! this.Apply(at, f, parameterTypes, target.ReturnType, lowered)
+                        }
+
+                    if target.MethodKind = MethodKind.DelegateInvoke then
+                        Some(applyLeading (this.Value(env, invocation.Instance)))
+                    elif plan.ValueNames.ContainsKey target.OriginalDefinition then
+                        Some(applyLeading (this.Reference(at, plan.ValueNames[target.OriginalDefinition], parameterTypes, target.ReturnType)))
+                    else
+                        match SdkMapping.tryMethod target with
+                        | Some(fq, _) -> Some(applyLeading (this.Reference(at, fq, parameterTypes, target.ReturnType)))
+                        | None -> None
+        | _ -> None
+
+    /// <summary>The value of a list of statements whose end gives a value.</summary>
+    member private this.Ending(env: Env, result: ITypeSymbol, statements: IOperation list, at, finish: Env -> Checked<'Value>) =
+        this.Flow(env, result, { End = Some finish; Continue = None; Break = None }, statements, at)
+
+    /// <summary>
+    /// The statements after a loop that gives a value for locals: the value itself when the statements only return the
+    /// locals, else a let (one local) or a destructure (more locals) and the statements.
+    /// </summary>
+    member private this.After
+        (env: Env, result: ITypeSymbol, flow: Flow<'Value>, at, locals: (string * ITypeSymbol) list, value: 'Value, rest: IOperation list, endAt)
+        : Checked<'Value> =
+        let rec plain (operation: IOperation) =
+            match unwrap operation with
+            | :? IInvocationOperation as invocation when this.IsListIdentity invocation -> plain invocation.Arguments[0].Value
+            | other -> other
+
+        let isLocal (name: string) (operation: IOperation) =
+            match plain operation with
+            | :? ILocalReferenceOperation as local -> local.Local.Name = name
+            | _ -> false
+
+        let returnsOnly =
+            match rest, locals with
+            | [ :? IReturnOperation as return' ], [ name, _ ] when not (isNull return'.ReturnedValue) -> isLocal name return'.ReturnedValue
+            | [ :? IReturnOperation as return' ], _ when not (isNull return'.ReturnedValue) ->
+                match plain return'.ReturnedValue with
+                | :? ITupleOperation as tuple ->
+                    tuple.Elements.Length = List.length locals
+                    && List.forall2 (fun (element: IOperation) (name, _) -> isLocal name element) (List.ofSeq tuple.Elements) locals
+                | _ -> false
+            | _ -> false
+
+        let env' = locals |> List.fold (fun (e: Env) (name, _) -> Map.add name Plain e) env
+
+        if returnsOnly then
+            Checked.pass value
+        else
+            match locals with
+            | [ name, t ] ->
+                check {
+                    let! localType = this.Type(at, t)
+                    let! definition = builder.ValueDefinition(at, [], localType, value)
+                    let! inValue = this.Flow(env', result, flow, rest, endAt)
+                    let! inferred = this.Type(at, result)
+                    return! builder.LetDefinition(at, inferred, nameOf name, definition, inValue)
+                }
+            | _ ->
+                check {
+                    let! types = locals |> Checked.traverse (fun (_, t) -> this.Type(at, t))
+                    let! items = List.zip locals types |> Checked.traverse (fun ((name, _), t) -> this.Binder(at, t, nameOf name))
+                    let! tupleType = builder.TypeTuple(at, types)
+                    let! pattern = builder.PatternTuple(at, tupleType, items)
+                    let! inValue = this.Flow(env', result, flow, rest, endAt)
+                    let! inferred = this.Type(at, result)
+                    return! builder.Destructure(at, inferred, pattern, value, inValue)
+                }
+
+    /// <summary>Whether a call gives its list argument as it is: <c>List&lt;T&gt;.FromEnumerable(xs)</c> or <c>xs.ToList()</c>.</summary>
+    member private this.IsListIdentity(invocation: IInvocationOperation) : bool =
+        let target = invocation.TargetMethod
+        let containing = if isNull target.ContainingType then "" else target.ContainingType.OriginalDefinition.ToDisplayString()
+
+        invocation.Arguments.Length = 1
+        && (match SdkMapping.tryType (target.ReturnType :?> INamedTypeSymbol) with
+            | Some(fq, _) -> fq = SdkMapping.sdk "List" "List"
+            | None -> false)
+        && ((containing = "Morphir.SDK.CSharp.List<T>" && target.Name = "FromEnumerable" && target.IsStatic)
+            || (containing = "System.Linq.Enumerable" && target.Name = "ToList"))
+
+    /// <summary>A loop: a list function, a fold or a recursion, by the shape that the loop recognizer gives.</summary>
+    member private this.Loop(env: Env, result: ITypeSymbol, flow: Flow<'Value>, loop: ILoopOperation, rest: IOperation list, endAt) =
+        let at = locate loop.Syntax
+        let shape = shapeOf loop
+
+        match shape.Form with
+        | LoopForm.Map
+        | LoopForm.Filter
+        | LoopForm.FilterMap -> this.ListLoop(env, result, flow, shape, rest, endAt)
+        | LoopForm.Fold -> this.FoldLoop(env, result, flow, shape, rest, endAt)
+        | LoopForm.Recursion -> this.RecursionLoop(env, result, flow, shape, rest, endAt)
+        | _ ->
+            // The same code and message as the admission analyzer: one recognizer gives one answer.
+            let reason =
+                match shape.Refusal with
+                | null -> "has no Morphir form"
+                | refusal -> refusal.Reason
+
+            Checked.fail [
+                Diagnostic.error (CSharpCodes.unsupported Rules.Loop.Slug) (System.String.Format(Rules.Loop.Message, shape.Keyword, reason))
+                |> Diagnostic.at at
+            ]
+
+    /// <summary>The value of the collection of a <c>foreach</c>, and its element type.</summary>
+    member private this.Collection(env: Env, at, shape: LoopShape) =
+        let foreach' = shape.Loop :?> IForEachLoopOperation
+        let collection = unwrap foreach'.Collection
+        let element = shape.Variable.Type
+
+        check {
+            let! elementType = this.Type(at, element)
+            let! listType = this.ListOf(at, elementType)
+            let! value = this.Value(env, collection)
+            return value, elementType, listType
+        }
+
+    /// <summary>A <c>foreach</c> that fills a list: <c>List.map</c>, <c>List.filter</c> or <c>List.filterMap</c>.</summary>
+    member private this.ListLoop(env: Env, result: ITypeSymbol, flow: Flow<'Value>, shape: LoopShape, rest: IOperation list, endAt) =
+        let at = locate shape.Loop.Syntax
+        let variable = shape.Variable
+        let list = shape.Builder
+
+        match Map.tryFind list.Name env with
+        | Some Builder ->
+            let added = (list.Type :?> INamedTypeSymbol).TypeArguments[0]
+            let inner = Map.add variable.Name Plain env
+            let prelude = List.ofSeq shape.Statements
+
+            let lambda (bodyType: 'Type) (body: Checked<'Value>) =
+                check {
+                    let! elementType = this.Type(at, variable.Type)
+                    let! pattern = this.Binder(at, elementType, nameOf variable.Name)
+                    let! fnType = this.Arrow(at, [ elementType ], bodyType)
+                    let! lowered = body
+                    return! builder.Lambda(at, fnType, pattern, lowered)
+                }
+
+            let direct (operation: IOperation) =
+                if List.isEmpty prelude then this.Eta(env, operation, [ variable :> ISymbol ]) else None
+
+            check {
+                let! source, elementType, listType = this.Collection(env, at, shape)
+                let! addedType = this.Type(at, added)
+                let! addedList = this.ListOf(at, addedType)
+
+                let! traversal =
+                    match shape.Form with
+                    | LoopForm.Map ->
+                        check {
+                            let! fn =
+                                match direct shape.Added with
+                                | Some fn -> fn
+                                | None -> lambda addedType (this.Ending(inner, added, prelude, at, fun e -> this.Value(e, shape.Added)))
+
+                            let! fnType = this.Arrow(at, [ elementType ], addedType)
+                            return! this.Call(at, SdkMapping.sdk "List" "map", [ fnType, fn; listType, source ], addedList)
+                        }
+                    | LoopForm.Filter ->
+                        check {
+                            let! boolType = this.Type(at, shape.Condition.Type)
+
+                            let! fn =
+                                match direct shape.Condition with
+                                | Some fn -> fn
+                                | None -> lambda boolType (this.Ending(inner, shape.Condition.Type, prelude, at, fun e -> this.Value(e, shape.Condition)))
+
+                            let! fnType = this.Arrow(at, [ elementType ], boolType)
+                            return! this.Call(at, SdkMapping.sdk "List" "filter", [ fnType, fn; listType, source ], listType)
+                        }
+                    | _ ->
+                        check {
+                            let! maybeType = builder.TypeReference(at, SdkMapping.sdk "Maybe" "Maybe", [ addedType ])
+
+                            let choose (e: Env) =
+                                check {
+                                    let! condition = this.Value(e, shape.Condition)
+                                    let! value = this.Value(e, shape.Added)
+                                    let! justType = this.Arrow(at, [ addedType ], maybeType)
+                                    let! just = builder.Constructor(at, justType, SdkMapping.sdk "Maybe" "Just")
+                                    let! some = builder.Apply(at, maybeType, just, value)
+                                    let! none = builder.Constructor(at, maybeType, SdkMapping.sdk "Maybe" "Nothing")
+                                    return! builder.IfThenElse(at, maybeType, condition, some, none)
+                                }
+
+                            // The body type is the Maybe of the added type; the C# type of the body does not exist, so the
+                            // statements before the add get the added type, which only the inferred types of lets read.
+                            let! fn = lambda maybeType (this.Ending(inner, added, prelude, at, choose))
+                            let! fnType = this.Arrow(at, [ elementType ], maybeType)
+                            return! this.Call(at, SdkMapping.sdk "List" "filterMap", [ fnType, fn; listType, source ], addedList)
+                        }
+
+                return! this.After(env, result, flow, at, [ list.Name, list.Type ], traversal, rest, endAt)
+            }
+        | _ -> unsupported "list_builder" at $"The list '{list.Name}' must be empty before the loop that adds to it."
+
+    /// <summary>A <c>foreach</c> that changes locals: <c>List.foldl</c>, with a tuple state for two or more locals.</summary>
+    member private this.FoldLoop(env: Env, result: ITypeSymbol, flow: Flow<'Value>, shape: LoopShape, rest: IOperation list, endAt) =
+        let at = locate shape.Loop.Syntax
+        let variable = shape.Variable
+        let state = [ for s in shape.State -> s, s.Name, typeOfSymbol s ]
+        let compilation = compiled.Compilation
+
+        let stateSymbol: ITypeSymbol =
+            match state with
+            | [ _, _, t ] -> t
+            | _ -> compilation.CreateTupleTypeSymbol(System.Collections.Immutable.ImmutableArray.CreateRange [ for _, _, t in state -> t ]) :> ITypeSymbol
+
+        let inner =
+            state |> List.fold (fun (e: Env) (_, name, _) -> Map.add name Plain e) (Map.add variable.Name Plain env)
+
+        let statements = statementsOf shape.Loop.Body
+
+        let stateValue (e: Env) =
+            match state with
+            | [ _, name, t ] -> this.Variable(e, at, name, t)
+            | _ ->
+                check {
+                    let! items = state |> Checked.traverse (fun (_, name, t) -> this.Variable(e, at, name, t))
+                    let! stateType = this.Type(at, stateSymbol)
+                    return! builder.Tuple(at, stateType, items)
+                }
+
+        check {
+            let! source, elementType, listType = this.Collection(env, at, shape)
+            let! stateType = this.Type(at, stateSymbol)
+            let! initial = stateValue env
+
+            let direct =
+                match state, statements with
+                | [ symbol, _, _ ], [ only ] ->
+                    match statementOperation only with
+                    | :? ISimpleAssignmentOperation as assignment when (variableOf assignment.Target |> Option.exists (fun (s, _, _) -> SymbolEqualityComparer.Default.Equals(s, symbol))) ->
+                        this.Eta(env, assignment.Value, [ variable :> ISymbol; symbol ])
+                    | _ -> None
+                | _ -> None
+
+            let! fn =
+                match direct with
+                | Some fn -> fn
+                | None ->
+                    check {
+                        let! statePattern =
+                            match state with
+                            | [ _, name, _ ] -> this.Binder(at, stateType, nameOf name)
+                            | _ ->
+                                check {
+                                    let! items = state |> Checked.traverse (fun (_, name, t) -> this.Type(at, t) |> Checked.bind (fun itemType -> this.Binder(at, itemType, nameOf name)))
+                                    return! builder.PatternTuple(at, stateType, items)
+                                }
+
+                        let! body = this.Ending(inner, stateSymbol, statements, at, stateValue)
+                        let! stepType = this.Arrow(at, [ stateType ], stateType)
+                        let! step = builder.Lambda(at, stepType, statePattern, body)
+                        let! elementPattern = this.Binder(at, elementType, nameOf variable.Name)
+                        let! fnType = this.Arrow(at, [ elementType; stateType ], stateType)
+                        return! builder.Lambda(at, fnType, elementPattern, step)
+                    }
+
+            let! fnType = this.Arrow(at, [ elementType; stateType ], stateType)
+            let! fold = this.Call(at, SdkMapping.sdk "List" "foldl", [ fnType, fn; stateType, initial; listType, source ], stateType)
+            return! this.After(env, result, flow, at, [ for _, name, t in state -> name, t ], fold, rest, endAt)
+        }
+
+    /// <summary>
+    /// A loop that can leave early, or a <c>while</c>, <c>do</c> or <c>for</c> loop: a <c>LetRecursion</c> whose parameters
+    /// are the state, and for a <c>foreach</c> also the rest of the list. The end of the body calls the function again;
+    /// a <c>return</c> and a <c>break</c> are base cases, and the statements after the loop are the base case of the exit.
+    /// </summary>
+    member private this.RecursionLoop(env: Env, result: ITypeSymbol, flow: Flow<'Value>, shape: LoopShape, rest: IOperation list, endAt) =
+        let loop = shape.Loop
+        let at = locate loop.Syntax
+        let functionName = freshName loop.Syntax [ "loop" ]
+        let state = [ for s in shape.State -> s.Name, typeOfSymbol s ]
+        let statements = statementsOf loop.Body
+
+        // The variables of a for initializer get their initial values here.
+        let before: Checked<Env> =
+            match loop with
+            | :? IForLoopOperation as forLoop ->
+                forLoop.Before
+                |> List.ofSeq
+                |> List.fold
+                    (fun (acc: Checked<Env>) operation ->
+                        acc
+                        |> Checked.bind (fun (e: Env) ->
+                            match statementOperation operation with
+                            | :? IVariableDeclarationGroupOperation as group ->
+                                [ for declaration in group.Declarations do yield! declaration.Declarators ]
+                                |> List.fold
+                                    (fun (e: Env) declarator ->
+                                        match declarator.Initializer with
+                                        | null -> e
+                                        | initializer -> let current = e in Map.add declarator.Symbol.Name (remember (fun () -> this.Value(current, initializer.Value))) e)
+                                    e
+                                |> Checked.pass
+                            | :? ISimpleAssignmentOperation as assignment ->
+                                match variableOf assignment.Target with
+                                | Some(_, name, _) -> Checked.pass (Map.add name (remember (fun () -> this.Value(e, assignment.Value))) e)
+                                | None -> unsupported "mutation" at "A for initializer must declare or set a local."
+                            | _ -> unsupported "loop" at "A for initializer must declare or set a local."))
+                    (Checked.pass env)
+            | _ -> Checked.pass env
+
+        check {
+            let! resultType = this.Type(at, result)
+            let! stateTypes = state |> Checked.traverse (fun (_, t) -> this.Type(at, t))
+            let! envBefore = before
+
+            let! cursor =
+                match loop with
+                | :? IForEachLoopOperation ->
+                    check {
+                        let! source, elementType, listType = this.Collection(env, at, shape)
+                        return Some(freshName loop.Syntax [ "remaining" ], source, elementType, listType)
+                    }
+                | _ -> Checked.pass None
+
+            let parameterTypes = stateTypes @ (cursor |> Option.map (fun (_, _, _, listType) -> listType) |> Option.toList)
+            let! functionType = this.Arrow(at, parameterTypes, resultType)
+
+            let applyTo (arguments: 'Value list) =
+                check {
+                    let! fn = builder.Variable(at, functionType, functionName)
+
+                    let rec go (current: 'Value) (remaining: ('Type * 'Value) list) =
+                        match remaining with
+                        | [] -> Checked.pass current
+                        | (_, argument) :: tail ->
+                            this.Arrow(at, tail |> List.map fst, resultType)
+                            |> Checked.bind (fun inferred -> builder.Apply(at, inferred, current, argument))
+                            |> Checked.bind (fun applied -> go applied tail)
+
+                    return! go fn (List.zip parameterTypes arguments)
+                }
+
+            let call (e: Env) =
+                check {
+                    let! values = state |> Checked.traverse (fun (name, t) -> this.Variable(e, at, name, t))
+
+                    let! next =
+                        match cursor with
+                        | Some(name, _, _, listType) -> builder.Variable(at, listType, name) |> Checked.map (fun v -> [ v ])
+                        | None -> Checked.pass []
+
+                    return! applyTo (values @ next)
+                }
+
+            let after (e: Env) = this.Flow(e, result, flow, rest, endAt)
+            let inner = state |> List.fold (fun (e: Env) (name, _) -> Map.add name Plain e) env
+
+            let body (e: Env) (finish: Env -> Checked<'Value>) =
+                this.Flow(e, result, { End = Some finish; Continue = Some finish; Break = Some after }, statements, at)
+
+            let condition (e: Env) (operation: IOperation) (whenTrue: Checked<'Value>) =
+                if isNull operation || isConstantTrue operation then
+                    whenTrue
+                else
+                    check {
+                        let! tested = this.Value(e, operation)
+                        let! yes = whenTrue
+                        let! no = after e
+                        return! builder.IfThenElse(at, resultType, tested, yes, no)
+                    }
+
+            let! functionBody =
+                match loop, cursor with
+                | (:? IWhileLoopOperation as whileLoop), _ when whileLoop.ConditionIsTop ->
+                    condition inner whileLoop.Condition (body inner call)
+                | (:? IWhileLoopOperation as doLoop), _ ->
+                    // A do loop runs its body once, then tests its condition.
+                    body inner (fun e -> condition e doLoop.Condition (call e))
+                | (:? IForLoopOperation as forLoop), _ ->
+                    let step (e: Env) =
+                        this.Flow(e, result, { End = Some call; Continue = None; Break = None }, List.ofSeq forLoop.AtLoopBottom, at)
+
+                    condition inner forLoop.Condition (body inner step)
+                | _, Some(name, _, elementType, listType) ->
+                    check {
+                        let! empty = builder.PatternEmptyList(at, listType)
+                        let! whenEmpty = after inner
+                        let! head = this.Binder(at, elementType, nameOf shape.Variable.Name)
+                        let! tail = this.Binder(at, listType, name)
+                        let! headTail = builder.PatternHeadTail(at, listType, head, tail)
+                        let! whenItem = body (Map.add shape.Variable.Name Plain inner) call
+                        let! subject = builder.Variable(at, listType, name)
+                        return! builder.PatternMatch(at, resultType, subject, [ empty, whenEmpty; headTail, whenItem ])
+                    }
+                | _ -> unsupported "loop" at "This loop is not in the Morphir subset."
+
+            let inputs =
+                [ for name, _ in state -> nameOf name ] @ (cursor |> Option.map (fun (name, _, _, _) -> name) |> Option.toList)
+
+            let! definition = builder.ValueDefinition(at, List.zip inputs parameterTypes, resultType, functionBody)
+            let! initial = state |> Checked.traverse (fun (name, t) -> this.Variable(envBefore, at, name, t))
+            let! start = applyTo (initial @ (cursor |> Option.map (fun (_, source, _, _) -> source) |> Option.toList))
+            return! builder.LetRecursion(at, resultType, [ functionName, definition ], start)
+        }
 
     /// <summary>
     /// A deconstruction declaration such as <c>var (a, b) = t;</c>: a destructure of the tuple with a tuple pattern, and the
@@ -1260,7 +2074,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
     /// no Morphir pattern.
     /// </summary>
     member private this.Deconstruction
-        (env: Env, at, result: ITypeSymbol, deconstruction: IDeconstructionAssignmentOperation, rest: IOperation list, endAt)
+        (env: Env, at, result: ITypeSymbol, flow: Flow<'Value>, deconstruction: IDeconstructionAssignmentOperation, rest: IOperation list, endAt)
         : Checked<'Value> =
         let rec target (env: Env) (operation: IOperation) (valueType: ITypeSymbol) : Checked<'Pattern * Env> =
             let tat = locate operation.Syntax
@@ -1317,7 +2131,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             check {
                 let! subject = this.Value(env, value)
                 let! pattern, env' = target env deconstruction.Target value.Type
-                let! inValue = this.Statements(env', result, rest, endAt)
+                let! inValue = this.Flow(env', result, flow, rest, endAt)
                 let! inferred = this.Type(at, result)
                 return! builder.Destructure(at, inferred, pattern, subject, inValue)
             }
@@ -1328,7 +2142,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
     /// statements after the switch are the last arm.
     /// </summary>
     member private this.SwitchStatement
-        (env: Env, at, result: ITypeSymbol, switch: ISwitchOperation, rest: IOperation list, endAt)
+        (env: Env, at, result: ITypeSymbol, flow: Flow<'Value>, switch: ISwitchOperation, rest: IOperation list, endAt)
         : Checked<'Value> =
         let inputType = switch.Value.Type
 
@@ -1346,7 +2160,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
             let body (armEnv: Env) =
                 if returns section then
-                    this.Statements(armEnv, result, List.ofSeq section.Body, sat)
+                    this.Flow(armEnv, result, { flow with End = None }, List.ofSeq section.Body, sat)
                 else
                     unsupported "missing_return" sat "Each section of a 'switch' statement must end with a return."
 
@@ -1382,7 +2196,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             | [] ->
                 check {
                     let! p = wildcard at
-                    let! value = this.Statements(env, result, rest, endAt)
+                    let! value = this.Flow(env, result, flow, rest, endAt)
                     return [ p, value ]
                 }
             | defaults -> defaults |> Checked.traverse (fun (section, clause) -> arm section clause)

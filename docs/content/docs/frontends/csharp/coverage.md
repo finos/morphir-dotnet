@@ -23,7 +23,7 @@ of its diagnostic. Codes are stable once released.
 
 | Code | Roslyn id | Construct |
 | --- | --- | --- |
-| [`csharp.unsupported_loop`](#csharp-unsupported-loop) | `MORPHIR1001` | A loop is not in the Morphir subset |
+| [`csharp.unsupported_loop`](#csharp-unsupported-loop) | `MORPHIR1001` | A loop with no Morphir form is not in the Morphir subset |
 | [`csharp.unsupported_mutation`](#csharp-unsupported-mutation) | `MORPHIR1002` | A change of a value is not in the Morphir subset |
 | [`csharp.unsupported_dynamic`](#csharp-unsupported-dynamic) | `MORPHIR1003` | dynamic is not in the Morphir subset |
 | [`csharp.unsupported_mutable_property`](#csharp-unsupported-mutable-property) | `MORPHIR1004` | A property with a set accessor is not in the Morphir subset |
@@ -37,7 +37,7 @@ of its diagnostic. Codes are stable once released.
 ## `csharp.unsupported_loop`
 
 - Roslyn id: `MORPHIR1001`
-- Message: A '…' loop is not in the Morphir subset
+- Message: The '…' loop is not in the Morphir subset: it …
 - IRI: `https://morphir.finos.org/rules/csharp/unsupported_loop`
 
 Example:

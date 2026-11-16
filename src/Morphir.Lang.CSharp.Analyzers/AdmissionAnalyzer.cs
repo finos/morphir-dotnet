@@ -95,24 +95,49 @@ public sealed partial class AdmissionAnalyzer : DiagnosticAnalyzer
         }
     }
 
+    /// <summary>
+    /// Reports a loop that the loop recognizer refuses. A loop that it accepts is lowered by the frontend to a list
+    /// function or a recursion, so it gets no diagnostic.
+    /// </summary>
     private static void ReportLoop(OperationAnalysisContext context)
     {
         var loop = (ILoopOperation)context.Operation;
-        var text = loop.LoopKind switch
+        var shape = LoopRecognizer.Recognize(loop, context.CancellationToken);
+        if (shape.Refusal is { } refusal)
         {
-            LoopKind.ForEach => "foreach",
-            LoopKind.For => "for",
-            LoopKind.While => WhileOrDo(loop),
-            _ => "loop",
-        };
-        context.ReportDiagnostic(Diagnostic.Create(Rules.Loop.Descriptor, loop.Syntax.GetLocation(), text));
+            context.ReportDiagnostic(Diagnostic.Create(Rules.Loop.Descriptor, loop.Syntax.GetLocation(), shape.Keyword, refusal.Reason));
+        }
     }
 
-    private static string WhileOrDo(ILoopOperation loop) => loop.Syntax.IsKind(SyntaxKind.DoStatement) ? "do" : "while";
+    /// <summary>
+    /// Whether an operation is in a loop, with no lambda or local function between them. The loop rule decides on a change
+    /// in a loop: the change of a local is the state of the loop, and any other change refuses the loop.
+    /// </summary>
+    private static bool IsInLoop(IOperation operation)
+    {
+        for (var parent = operation.Parent; parent is not null; parent = parent.Parent)
+        {
+            switch (parent)
+            {
+                case ILoopOperation:
+                    return true;
+                case IAnonymousFunctionOperation:
+                case ILocalFunctionOperation:
+                    return false;
+            }
+        }
+
+        return false;
+    }
 
     private static void ReportMutation(OperationAnalysisContext context)
     {
         var operation = context.Operation;
+
+        if (IsInLoop(operation))
+        {
+            return;
+        }
 
         // A member initializer is not a mutation: `new R { X = 1 }` and `r with { X = 1 }` build a new value.
         if (operation.Parent is IObjectOrCollectionInitializerOperation)

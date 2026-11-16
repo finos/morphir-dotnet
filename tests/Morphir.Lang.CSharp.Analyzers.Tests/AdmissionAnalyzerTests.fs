@@ -47,6 +47,41 @@ let tests =
                     onlyRule Rules.Loop "static class M { static int F(int n) { while (n > 0) { } return n; } }"
                 }
 
+                test "a loop that the recognizer accepts gives no diagnostic" {
+                    let source =
+                        "using System.Collections.Generic;\nstatic class M\n{\n    static int Sum(IReadOnlyList<int> xs) { var t = 0; foreach (var x in xs) { t += x; } return t; }\n    static List<int> Twice(IReadOnlyList<int> xs) { var r = new List<int>(); foreach (var x in xs) { r.Add(x * 2); } return r; }\n    static int Fact(int n) { var acc = 1; while (n > 1) { acc *= n; n--; } return acc; }\n    static (int, int) Two(IReadOnlyList<int> xs) { var s = 0; var c = 0; foreach (var x in xs) { (s, c) = (s + x, c + 1); } return (s, c); }\n}"
+
+                    Expect.isEmpty (compileErrors source) "valid C#"
+                    Expect.isEmpty (ids source) "the loops and the changes of their state are accepted"
+                }
+
+                test "a refused loop gives MORPHIR1001 with the reason and no mutation diagnostic" {
+                    let source =
+                        "static class M\n{\n    static int F(int[] a) { var t = 0; for (var i = 0; i < a.Length; i++) { a[i] = t; } return t; }\n}"
+
+                    Expect.isEmpty (compileErrors source) "valid C#"
+                    let found = diagnose source
+                    Expect.equal (found |> List.map (fun (id, _, _) -> id)) [ Rules.Loop.Id ] "only the loop rule"
+                    let _, _, message = List.head found
+                    Expect.equal message "The 'for' loop is not in the Morphir subset: it writes an array element" "the reason"
+                }
+
+                test "a loop that writes a field names the field" {
+                    let source =
+                        "using System.Collections.Generic;\nstatic class M\n{\n    static int counter;\n    static int F(IReadOnlyList<int> xs) { var t = 0; foreach (var x in xs) { t += x; counter++; } return t; }\n}"
+
+                    let loops = diagnose source |> List.filter (fun (id, _, _) -> id = Rules.Loop.Id)
+                    Expect.equal (loops |> List.map (fun (_, _, m) -> m)) [ "The 'foreach' loop is not in the Morphir subset: it writes the field 'counter'" ] "the field"
+                }
+
+                test "a change in a lambda in a loop is a mutation" {
+                    let source =
+                        "using System;\nusing System.Collections.Generic;\nstatic class M\n{\n    static int F(IReadOnlyList<int> xs) { var t = 0; foreach (var x in xs) { Func<int> f = () => { var u = 0; u = x; return u; }; t += f(); } return t; }\n}"
+
+                    Expect.isEmpty (compileErrors source) "valid C#"
+                    Expect.equal (ids source) [ Rules.Mutation.Id ] "the change in the lambda"
+                }
+
                 test "an assignment to a parameter is a mutation" {
                     onlyRule Rules.Mutation "static class M { static int F(int a) { a = 1; return a; } }"
                 }
