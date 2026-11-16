@@ -183,6 +183,16 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
         Check(workspace.ReadText(PublishedIr).Contains($"\"{name}\"", StringComparison.Ordinal), $"The published IR does not name {name}.");
     }
 
+    /// <summary>The frontend lowered a loop to recursion (LOP-1, OPT-1), not to the SDK function of a traversal.</summary>
+    [Then("the published IR has a LetRecursion and does not name the SDK function {string}")]
+    public void ThePublishedIrHasARecursion(string name)
+    {
+        Check(workspace.Exists(PublishedIr), $"No IR is published at {PublishedIr.Path}.");
+        var ir = workspace.ReadText(PublishedIr);
+        Check(ir.Contains("\"LetRecursion\"", StringComparison.Ordinal), "The published IR has no LetRecursion.");
+        Check(!ir.Contains($"\"{name}\"", StringComparison.Ordinal), $"The published IR names {name}.");
+    }
+
     [Then("the compilation report has the diagnostic {string} in {string} with the message {string}")]
     public void ReportDiagnosticWithMessage(string code, string uri, string message)
     {
@@ -234,9 +244,10 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
         _source = (file, package);
     }
 
-    [Given("the morphir.toml of the project sets the key {string} of [codegen.csharp] to {string}")]
-    public void TheMorphirTomlSetsACSharpKey(string key, string value) =>
-        workspace.WriteText(Project.File("morphir.toml"), $"[codegen.csharp]\n{key} = \"{value}\"\n");
+    /// <summary>A key of the C# table of the frontend (<c>[frontend.csharp]</c>) or of the backend (<c>[codegen.csharp]</c>).</summary>
+    [Given("the morphir.toml of the project sets the key {string} of [{word}.csharp] to {string}")]
+    public void TheMorphirTomlSetsACSharpKey(string key, string table, string value) =>
+        workspace.WriteText(Project.File("morphir.toml"), $"[{table}.csharp]\n{key} = \"{value}\"\n");
 
     private WorkspaceDirectory GeneratedCSharp => Project.Directory("generated-csharp");
 

@@ -407,11 +407,12 @@ two steps have the same pattern.
 | Compilation | `Given the C# source file {string} with a loop that sums a list, of the package {string}` |
 | Compilation | `Given the C# source file {string} with a loop that writes a field, of the package {string}` |
 | Compilation | `Then the published IR names the SDK function {string}` |
+| Compilation | `Then the published IR has a LetRecursion and does not name the SDK function {string}` |
 | Compilation | `Then the compilation report has the diagnostic {string} in {string} with the message {string}` |
 | Compilation | `When I compile the C# source file` |
 | Compilation | `Given the C# source file {string} with handling attributes, of the package {string}` |
 | Compilation | `Given the C# source file {string} with a record of a double, of the package {string}` |
-| Compilation | `Given the morphir.toml of the project sets the key {string} of [codegen.csharp] to {string}` |
+| Compilation | `Given the morphir.toml of the project sets the key {string} of [{word}.csharp] to {string}` |
 | Compilation | `When I compile the C# source file with the target {string}` |
 | Compilation | `Then the C# that the compile generated contains {string}` |
 | Compilation | `Then the compile generated no C#` |
