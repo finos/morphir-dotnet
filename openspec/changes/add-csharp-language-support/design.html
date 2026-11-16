@@ -208,6 +208,7 @@ public static TNumber Sum&lt;TNumber&gt;(List&lt;TNumber&gt; items) where TNumbe
 <li>Collections and <code>NaN</code> (EQL-1). Decided in the SDK equality task: collections keep the <code>double</code> comparison, plain records keep their own. See EQL-1.</li>
 <li>The new size limit of the Native AOT <code>morphir</code>. The task that measures the final build sets it.</li>
 <li>SDK value classes (EQL-2). Answered and approved on 2026-11-15. The content of the v4 <code>constraints</code> member for a class waits for <code>finos/morphir</code>.</li>
+<li>The key of the EQL-2 carrier. The v4 attributes draft (<code>docs/spec/draft/attributes.md</code> in <code>finos/morphir</code>) says that the keys of <code>extensions</code> are FQNames, and <code>"morphir-dotnet"</code> is not one. The Rust reference accepts any string key, so no reader refuses it. The fingerprint rules leave out <code>extensions</code>, so a change of a class does not change a node address guard, and other tools can drop the member. A constraint of a type variable in the upstream IR is the lasting carrier. No upstream issue is filed until the product owner asks for one.</li>
 </ul>
 </main>
 </body>
