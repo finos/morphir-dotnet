@@ -1,7 +1,7 @@
 ---
 title: "PRD: C# language support"
 description: "A roadmap for Morphir.Lang.CSharp: a C# frontend, a middle end that the host runs, and a C# backend, all on Roslyn and built into both hosts."
-status: In Progress
+status: Implemented
 created: 2026-11-15
 last_updated: 2026-11-16
 ---
@@ -577,7 +577,7 @@ The closure check of the Native AOT executable allows `Microsoft.CodeAnalysis` a
 
 ## Delivery steps
 
-The order is a builder's call, and the product owner can change it. The product owner decided on 2026-11-15 to deliver steps 1 to 7 in one OpenSpec change, [add-csharp-language-support](../../../../../openspec/changes/add-csharp-language-support/proposal.md), and one pull request. The step order stays, and each step is a task group that lands as its own commit.
+The order is a builder's call, and the product owner can change it. The product owner decided on 2026-11-15 to deliver steps 1 to 7 in one OpenSpec change, [add-csharp-language-support](../../../../../openspec/changes/archive/2026-11-16-add-csharp-language-support/proposal.md), and one pull request ([#664](https://github.com/finos/morphir-dotnet/pull/664)). The step order stays, and each step is a task group that lands as its own commit.
 
 ### Step 0: Spike record
 
