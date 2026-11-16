@@ -771,3 +771,13 @@ MORPHIR_TEST_HOST=tool dotnet exec tests/Morphir.BlackBox.Tests/bin/Release/net1
 MORPHIR_TEST_TARGET=aot MORPHIR_TEST_LANE=published \
   dotnet exec tests/Morphir.BlackBox.Tests/bin/Release/net11.0/Morphir.BlackBox.Tests.dll --treenode-filter "$FILTER"
 ```
+
+**Run again with the loop lowering, 2026-11-16.** The same commands ran on commit `d52a9ea2` plus the commits of this evidence, which has the loop lowering of tasks 6.2 to 6.4 and the handling options. The suite now has 21 cases and 63 variants (case `frontend-csharp-0009` refuses a loop that writes an array element).
+
+| Run | Result |
+| --- | --- |
+| `library` adapter | 63 of 63, qualified |
+| `dotnet-morphir` (tool host, development build) | 63 of 63, qualified, the same models and diagnostics as the library |
+| Native AOT `morphir`, `osx-arm64` (85,103,768 bytes) | 63 of 63, qualified, the same models and diagnostics as `dotnet-morphir` |
+| C# generation feature, native host and `dotnet-morphir` | 9 of 9 on each |
+| C# generation feature, Native AOT | 7 passed, 2 skipped (the rows that need all hosts) |
