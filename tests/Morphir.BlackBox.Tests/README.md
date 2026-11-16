@@ -392,7 +392,12 @@ two steps have the same pattern.
 | Compilation | `Given the C# source file {string} of the package {string}` |
 | Compilation | `Given the C# source file {string} with a foreach loop, of the package {string}` |
 | Compilation | `When I compile the C# source file` |
+| Compilation | `Given the C# source file {string} with handling attributes, of the package {string}` |
+| Compilation | `Given the C# source file {string} with a record of a double, of the package {string}` |
+| Compilation | `Given the morphir.toml of the project sets the key {string} of [codegen.csharp] to {string}` |
 | Compilation | `When I compile the C# source file with the target {string}` |
+| Compilation | `Then the C# that the compile generated contains {string}` |
+| Compilation | `Then the compile generated no C#` |
 | Compilation | `Then the compilation report lists the pass {string} before the backend` |
 | Compilation | `Then the compilation report has no member {string}` |
 | Compilation | `When I compile the project` |

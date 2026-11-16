@@ -161,10 +161,52 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
     {
         var (file, package) = _source ?? throw new InvalidOperationException("The scenario has no C# source file before this step.");
         run.Result = await compilation.CompileAsync(new CompilationOptions { Inputs = [file], Language = "csharp", PackageName = package });
+        // The published IR is the model of the scenario, so that a later step can generate from it.
+        if (workspace.Exists(PublishedIr)) run.Model = PublishedIr;
     }
 
+    /// <summary>A C# model with the handling attributes of each kind: a type, a member and a method (OPT-1).</summary>
+    private const string QuoteWithAttributes = """
+        using Morphir;
+
+        [assembly: MorphirModel]
+
+        namespace Acme.Trading.Quotes;
+
+        [MorphirEquality(FloatEquality.Ieee)]
+        public partial record Quote([MorphirEquality(FloatEquality.Clr)] double Bid, double Ask);
+
+        public static class Pricing
+        {
+            [MorphirEmit(Traversal = TraversalForm.Functional)]
+            public static double Spread(Quote quote) => quote.Ask - quote.Bid;
+        }
+        """;
+
+    [Given("the C# source file {string} with handling attributes, of the package {string}")]
+    public void TheCSharpSourceFileWithHandlingAttributes(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file, QuoteWithAttributes);
+        _source = (file, package);
+    }
+
+    [Given("the C# source file {string} with a record of a double, of the package {string}")]
+    public void TheCSharpSourceFileWithARecordOfADouble(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file, "namespace Acme.Trading.Quotes;\n\npublic record Price(double Value);\n");
+        _source = (file, package);
+    }
+
+    [Given("the morphir.toml of the project sets the key {string} of [codegen.csharp] to {string}")]
+    public void TheMorphirTomlSetsACSharpKey(string key, string value) =>
+        workspace.WriteText(Project.File("morphir.toml"), $"[codegen.csharp]\n{key} = \"{value}\"\n");
+
+    private WorkspaceDirectory GeneratedCSharp => Project.Directory("generated-csharp");
+
     [When("I compile the C# source file with the target {string}")]
-    public async Task CompileTheCSharpSourceFileWithTheTarget(string target)
+    public async Task CompileTheCSharpSourceFileWithATarget(string target)
     {
         var (file, package) = _source ?? throw new InvalidOperationException("The scenario has no C# source file before this step.");
         run.Result = await compilation.CompileAsync(new CompilationOptions
@@ -173,7 +215,7 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
             Language = "csharp",
             PackageName = package,
             Target = target,
-            GenerateOutput = Project.Directory("generated"),
+            GenerateOutput = GeneratedCSharp,
         });
     }
 
@@ -191,6 +233,19 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
     [Then("the compilation report has no member {string}")]
     public void TheCompilationReportHasNoMember(string member) =>
         Report.Check(!Report.Document.TryGetProperty(member, out _), $"The compilation report has the member {member}.");
+
+    [Then("the C# that the compile generated contains {string}")]
+    public void TheGeneratedCSharpContains(string text)
+    {
+        var files = workspace.FilesIn(GeneratedCSharp).Where(name => name.EndsWith(".cs", StringComparison.Ordinal)).ToArray();
+        Check(files.Length > 0, $"The compile generated no C# file in {GeneratedCSharp.Path}.");
+        Check(files.Any(name => workspace.ReadText(GeneratedCSharp.File(name)).Contains(text, StringComparison.Ordinal)),
+            $"No C# file that the compile generated contains '{text}'. The files: {string.Join(", ", files)}.");
+    }
+
+    [Then("the compile generated no C#")]
+    public void TheCompileGeneratedNoCSharp() =>
+        Check(!workspace.Exists(GeneratedCSharp), $"The compile generated files in {GeneratedCSharp.Path}.");
 
     [Then("the compilation report says that the compile succeeded with the frontend {string}")]
     public void TheCompileSucceededWithTheFrontend(string frontend)
