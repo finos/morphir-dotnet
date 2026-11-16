@@ -18,6 +18,24 @@ public sealed class CollectionTests
     }
 
     [Test]
+    public void TheFunctionalFormsOfTheBackendGiveSdkLists()
+    {
+        // The functional profile of the C# backend writes Select, Where, FilterMap and Aggregate on an SDK list. The
+        // methods of the list come before the extension methods of LINQ, so each call gives an SDK value.
+        var numbers = List<int>.FromEnumerable([1, 2, 3, 4]);
+        List<int> doubled = numbers.Select(x => x * 2);
+        List<int> even = numbers.Where(x => x % 2 == 0);
+        List<string> named = numbers.FilterMap(x => x > 2 ? Maybe<string>.Just("n" + x) : Maybe<string>.Nothing);
+        string folded = numbers.Aggregate("", (state, x) => state + x);
+        doubled.ShouldBe(List<int>.FromEnumerable([2, 4, 6, 8]));
+        even.ShouldBe(List<int>.FromEnumerable([2, 4]));
+        named.ShouldBe(List<string>.FromEnumerable(["n3", "n4"]));
+        folded.ShouldBe("1234");
+        numbers.Aggregate(0, (state, x) => state - x).ShouldBe(numbers.Foldl<int>(x => state => state - x, 0));
+        numbers.ShouldBe(List<int>.FromEnumerable([1, 2, 3, 4]));
+    }
+
+    [Test]
     [Category("PlatformSpecific")]
     public void SortedCollectionsUseExplicitMorphirOrderingAndFirstUnionWins()
     {

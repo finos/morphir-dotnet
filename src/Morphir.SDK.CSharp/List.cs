@@ -27,6 +27,24 @@ public sealed class List<T> : IReadOnlyList<T>, IEquatable<List<T>>, IComparable
     public List<T> Filter(Func<T, bool> predicate) => List<T>.FromEnumerable(_items.Where(predicate));
     public List<TResult> FilterMap<TResult>(Func<T, Maybe<TResult>> callback) =>
         List<TResult>.FromEnumerable(_items.Select(callback).Where(maybe => maybe.IsJust).Select(maybe => maybe.Match(value => value, () => throw new InvalidOperationException("FilterMap kept a Nothing."))));
+    /// <summary>
+    /// <c>List.map</c> in the functional form that the C# backend writes. It comes before the <c>Select</c> of LINQ, so the
+    /// result is an SDK list.
+    /// </summary>
+    public List<TResult> Select<TResult>(Func<T, TResult> selector) => Map(selector);
+    /// <summary><c>List.filter</c> in the functional form that the C# backend writes. The result is an SDK list.</summary>
+    public List<T> Where(Func<T, bool> predicate) => Filter(predicate);
+    /// <summary>
+    /// <c>List.foldl</c> in the functional form that the C# backend writes: <c>func state item</c> for each item, in order,
+    /// starting from <paramref name="seed"/>. The order of the arguments of <paramref name="func"/> is the order of LINQ.
+    /// </summary>
+    public TState Aggregate<TState>(TState seed, Func<TState, T, TState> func)
+    {
+        ArgumentNullException.ThrowIfNull(func);
+        var state = seed;
+        foreach (var item in _items) state = func(state, item);
+        return state;
+    }
     /// <summary>Folds from the left: <c>step item state</c> for each item, in order, starting from <paramref name="initial"/>.</summary>
     public TState Foldl<TState>(Func<T, Func<TState, TState>> step, TState initial)
     {
