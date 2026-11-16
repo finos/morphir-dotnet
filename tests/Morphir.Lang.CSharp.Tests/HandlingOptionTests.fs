@@ -245,6 +245,24 @@ let tests =
                 Expect.equal carrier { HandlingOptions.empty with Traversal = Some TraversalForm.Functional } "the same carrier comes back"
             }
 
+            test "Round trip of an option: a loop with the functional traversal is generated in the functional form, with the attribute" {
+                let loops =
+                    "public static class Calc\n{\n    [MorphirEmit(Traversal = TraversalForm.Functional)]\n    public static int Sum(System.Collections.Generic.IReadOnlyList<int> xs)\n    {\n        var t = 0;\n        foreach (var x in xs) { t += x; }\n        return t;\n    }\n}"
+
+                let first = modelOf loops
+                let files = generateWith GenerationOptions.Default first
+                let text = allText files
+
+                Expect.stringContains text "[global::Morphir.MorphirEmit(Traversal = global::Morphir.TraversalForm.Functional)]" "the attribute is written back"
+                Expect.stringContains text ".Aggregate<int>(" "the functional form of the fold, under the default imperative profile"
+                Expect.isFalse (text.Contains "foreach") "no loop form"
+
+                let documents = [ for KeyValue(path, text) in files do if path <> "Morphir.Polyfill.g.cs" then document path text ]
+                let again = model (compile documents)
+                Expect.equal (valueText again "domain.calc" "sum") (valueText (distributionOf first) "domain.calc" "sum") "the same IR"
+                Expect.equal (HandlingCarrier.read (outputOf again "domain.calc" "sum")) { HandlingOptions.empty with Traversal = Some TraversalForm.Functional } "the same carrier"
+            }
+
             test "the backend resolves the options of each value: the command line, the carrier, the key, the profile" {
                 let distribution = distributionOf (modelOf calc)
                 let output = outputOf distribution "domain.calc" "twice"

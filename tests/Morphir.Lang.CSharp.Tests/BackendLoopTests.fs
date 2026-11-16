@@ -195,6 +195,19 @@ let tests =
                   Expect.isFalse (text.Contains "loop(") "no local function"
           }
 
+          test "a tail call is a local recursive function only when the tail recursion option asks for it" {
+              let options =
+                  { GenerationOptions.Default with
+                      CommandLine = { HandlingOptions.empty with TailRecursion = Some TailRecursionForm.LocalFunction } }
+
+              let result = Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, options, CancellationToken.None)
+              let files = result.Sources |> List.map (fun f -> f.RelativePath, f.Text) |> Map.ofList
+              let text = methodText files "Factorial"
+              Expect.stringContains text "int loop(int acc, int k)" "a local function"
+              Expect.isFalse (text.Contains "while") "no loop"
+              Expect.equal (valueOf (throughCSharp files) "factorial") (valueOf original "factorial") "the same IR"
+          }
+
           test "a LetRecursion that is not a tail call is a local recursive function in each profile" {
               for _, profile in profiles do
                   let text = methodText (generateWithProfile profile model) "SumTo"

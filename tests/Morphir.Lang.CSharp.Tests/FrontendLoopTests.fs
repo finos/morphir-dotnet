@@ -187,6 +187,25 @@ let tests =
               Expect.equal (body members "none") "(list )" "an empty list"
           }
 
+          test "Loop option and IR: a fold with MorphirLoop(Recursion) is a LetRecursion and not List.foldl" {
+              let members =
+                  "    [Morphir.MorphirLoop(Morphir.LoopLowering.Recursion)]\n    public static int Total(IReadOnlyList<Order> orders)\n    {\n        var total = 0;\n        foreach (var o in orders) { total += Notional(o); }\n        return total;\n    }"
+
+              Expect.equal
+                  (body members "total")
+                  $"(letrec loop(total, remaining) = (match remaining with [] => total | ((as _ o) :: (as _ remaining)) => ((loop ((morphir.sdk:basics#add total) ({notional} o))) remaining)) in ((loop 0) orders))"
+                  "LetRecursion"
+          }
+
+          test "MorphirLoop(Recursion) on the class applies to its methods, and a list that a loop builds stays a list function" {
+              let text =
+                  "using System.Collections.Generic;\nnamespace Acme.Trading.Loops;\n[Morphir.MorphirLoop(Morphir.LoopLowering.Recursion)]\npublic static class Calc\n{\n    public static int Sum(IReadOnlyList<int> xs) { var t = 0; foreach (var x in xs) { t += x; } return t; }\n    public static List<int> Twice(IReadOnlyList<int> xs) { var r = new List<int>(); foreach (var x in xs) { r.Add(x * 2); } return r; }\n}\n"
+
+              let distribution = model (compileSource text)
+              Expect.stringStarts (valueText distribution "loops.calc" "sum") "(letrec loop(t, remaining) = " "the class attribute"
+              Expect.stringStarts (valueText distribution "loops.calc" "twice") "((morphir.sdk:list#map " "a map has no recursion form of its own"
+          }
+
           test "a loop that writes a field is refused with the name of the field" {
               let members =
                   "    private static int counter;\n    public static int Counted(IReadOnlyList<Order> orders)\n    {\n        var total = 0;\n        foreach (var o in orders) { total += o.Price; counter++; }\n        return total;\n    }"

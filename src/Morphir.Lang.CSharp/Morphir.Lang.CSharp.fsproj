@@ -152,9 +152,9 @@
         <Compile Include="CSharpCompiler.fs" />
         <Compile Include="SdkMapping.fs" />
         <Compile Include="Planning.fs" />
+        <Compile Include="OptionAttributes.fs" />
         <Compile Include="Lowering.fs" />
         <Compile Include="TypeParameterClasses.fs" />
-        <Compile Include="OptionAttributes.fs" />
         <Compile Include="CSharpFrontend.fs" />
     </ItemGroup>
 

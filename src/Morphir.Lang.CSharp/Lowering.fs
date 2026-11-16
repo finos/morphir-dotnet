@@ -225,6 +225,12 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             shapes[loop] <- shape
             shape
 
+    /// <summary>
+    /// The loop lowering of the method that the lowering reads now (OPT-1): <c>[MorphirLoop]</c> on the method, on a type
+    /// that holds it or on the assembly. With <c>Recursion</c>, a fold is a <c>LetRecursion</c>.
+    /// </summary>
+    let mutable loopLowering = LoopLowering.Traversal
+
     /// <summary>The names that the lowering made for each member declaration: the functions and the list parameters of loops.</summary>
     let madeNames = Dictionary<SyntaxNode, HashSet<Name>>()
 
@@ -2052,6 +2058,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
         | LoopForm.Map
         | LoopForm.Filter
         | LoopForm.FilterMap -> this.ListLoop(env, result, flow, shape, rest, endAt)
+        | LoopForm.Fold when loopLowering = LoopLowering.Recursion -> this.RecursionLoop(env, result, flow, shape, rest, endAt)
         | LoopForm.Fold -> this.FoldLoop(env, result, flow, shape, rest, endAt)
         | LoopForm.Recursion -> this.RecursionLoop(env, result, flow, shape, rest, endAt)
         | _ ->
@@ -2516,6 +2523,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
             let parameters = List.ofSeq method'.Parameters
             let env = parameters |> List.fold (fun e p -> Map.add p.Name Plain e) Map.empty
+            loopLowering <- (OptionAttributes.ofMember method').LoopLowering |> Option.defaultValue LoopLowering.Traversal
 
             let body: Checked<'Value> =
                 match declaration.ExpressionBody with
