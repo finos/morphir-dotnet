@@ -48,7 +48,9 @@ let private constructorsOf (distribution: Distribution) (typeName: string) =
 
 [<Tests>]
 let tests =
-    testList
+    // The tests read a file of the repository, so they run on each operating system.
+    testLabel "PlatformSpecific"
+    <| testList
         "C# frontend documentation"
         [ test "the sum type section has the example of the two forms, the older encoding and the fixed form" {
               Expect.equal (List.length (sectionBlocks "### Sum types")) 3 "three C# examples"

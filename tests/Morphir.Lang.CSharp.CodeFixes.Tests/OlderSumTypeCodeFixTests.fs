@@ -116,7 +116,23 @@ let tests =
                   "only the modifier changes"
           }
 
-          test "the fix gives the fixed form of the frontend page for the older encoding of the page" {
+          test "no fix is offered for a closed record or a union" {
+              let source =
+                  "namespace Acme.Trading.Domain;\npublic sealed record Cat(string Name);\npublic sealed record Dog(string Name);\npublic union Pet(Cat, Dog);\n"
+                  + "public closed record Shape;\npublic sealed record Circle(double Radius) : Shape;\n"
+
+              let model = document source
+              Expect.isEmpty (compileErrors model) "valid C# 15"
+              Expect.isEmpty (actions fixer model) "the union and the closed record stay as they are"
+          } ]
+
+[<Tests>]
+let documentation =
+    // The test reads a file of the repository, so it runs on each operating system.
+    testLabel "PlatformSpecific"
+    <| testList
+        "Older sum type code fix: documentation"
+        [ test "the fix gives the fixed form of the frontend page for the older encoding of the page" {
               // The sum type section of docs/content/docs/frontends/csharp/_index.md has the two forms, the older
               // encoding and the fixed form, in this order.
               let page =
@@ -130,14 +146,4 @@ let tests =
               match section.Split("```csharp\n") |> Array.skip 1 |> Array.map (fun block -> block.Substring(0, block.IndexOf "```")) with
               | [| _; older; fixedForm |] -> Expect.equal (fixedText older) fixedForm "the documented result of the fix"
               | blocks -> failtest $"Expected three C# examples, got {blocks.Length}"
-          }
-
-          test "no fix is offered for a closed record or a union" {
-              let source =
-                  "namespace Acme.Trading.Domain;\npublic sealed record Cat(string Name);\npublic sealed record Dog(string Name);\npublic union Pet(Cat, Dog);\n"
-                  + "public closed record Shape;\npublic sealed record Circle(double Radius) : Shape;\n"
-
-              let model = document source
-              Expect.isEmpty (compileErrors model) "valid C# 15"
-              Expect.isEmpty (actions fixer model) "the union and the closed record stay as they are"
           } ]

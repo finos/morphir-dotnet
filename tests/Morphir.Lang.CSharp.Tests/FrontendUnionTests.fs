@@ -71,7 +71,9 @@ let private constructors (distribution: Distribution) (typeName: string) =
 
 [<Tests>]
 let lowering =
-    testList
+    // The tests read a file of the repository, so they run on each operating system.
+    testLabel "PlatformSpecific"
+    <| testList
         "C# frontend unions: lowering"
         [ test "a union of two records is a custom type with one constructor for each case type" {
               Expect.equal
@@ -134,7 +136,9 @@ let lowering =
 
 [<Tests>]
 let refusals =
-    testList
+    // The tests read a file of the repository, so they run on each operating system.
+    testLabel "PlatformSpecific"
+    <| testList
         "C# frontend unions: refusals"
         [ test "the Value property of a union is refused at the expression" {
               let source = input "usage.cs" [ "Default"; "NullArm"; "Missing" ]
