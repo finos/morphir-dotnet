@@ -218,7 +218,9 @@ public sealed partial class CSharpBuildSteps(IPackageDriver packages, IScenarioW
         var root = workspace.Directory("docs");
         packages.WriteNuGetConfig(root, includeNuGetOrg: true, [new PackageSourcePattern(true, "Morphir.*"), new PackageSourcePattern(false, "*")]);
         var folder = root;
-        var text = workspace.ReadText(workspace.CopyFixture("Docs/" + page));
+        // A Windows checkout has CRLF in the page (text=auto), and the blocks are matched with \n.
+        var text = workspace.ReadText(workspace.CopyFixture("Docs/" + page)).Replace("\r\n", "\n");
+        var commands = 0;
         foreach (Match block in Block().Matches(text))
         {
             var body = block.Groups["body"].Value;
@@ -248,6 +250,7 @@ public sealed partial class CSharpBuildSteps(IPackageDriver packages, IScenarioW
                         if (words[0] != "dotnet") throw new InvalidOperationException($"The page {page} has a command that is not dotnet or cd: {lines[index]}");
                         var result = (await packages.DotnetAsync(folder, words[1..])).ShouldExitWith(0);
                         run.Result = result;
+                        commands++;
                         var actual = result.StandardOutput.Trim().Replace("\r\n", "\n");
                         if (output.Length > 0 && actual != string.Join('\n', output))
                             throw new CommandAssertionException($"The output of '{lines[index]}' is not the documented output.", result);
@@ -256,5 +259,7 @@ public sealed partial class CSharpBuildSteps(IPackageDriver packages, IScenarioW
                     break;
             }
         }
+
+        if (commands == 0) throw new InvalidOperationException($"The page {page} has no dotnet command in a bash block.");
     }
 }
