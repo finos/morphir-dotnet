@@ -79,3 +79,20 @@ let diagnoseWithSuppression (source: string) (id: string) =
             )
 
     diagnoseWith true compilation
+
+/// The attribute assembly of the package, as a model project references it.
+let attributes: MetadataReference =
+    MetadataReference.CreateFromFile(typeof<Morphir.MorphirModelAttribute>.Assembly.Location) :> MetadataReference
+
+/// The analyzer diagnostics of a model project source that uses the attributes of the package.
+let diagnoseWithAttributes (source: string) = diagnoseWith true (compile source [ attributes ])
+
+/// The compile errors of a source that uses the attributes of the package.
+let compileErrorsWithAttributes (source: string) =
+    (compile source [ attributes ]).GetDiagnostics()
+    |> Seq.filter (fun d -> d.Severity = DiagnosticSeverity.Error)
+    |> Seq.map (fun d -> d.ToString())
+    |> List.ofSeq
+
+/// The analyzer diagnostics of a source with the attributes of the package, in a project that is not a model project.
+let diagnoseOutsideModelProjectWithAttributes (source: string) = diagnoseWith false (compile source [ attributes ])

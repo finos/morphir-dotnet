@@ -18,7 +18,7 @@ let valid text =
 let generate model language naming =
     Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
         model,
-        { LanguageVersion = language },
+        { Morphir.Lang.CSharp.Backend.GenerationOptions.Default with LanguageVersion = language },
         valid naming,
         CancellationToken.None
     )

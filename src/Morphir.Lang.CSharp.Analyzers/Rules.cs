@@ -129,9 +129,21 @@ public static class Rules
         "The abstract record '{0}' is an older encoding of a sum type. Write 'closed record {0}' with 'sealed record' cases.",
         "public abstract record Shape\n{\n    private Shape() { }\n    public sealed record Circle(double Radius) : Shape;\n    public sealed record Rect(double W, double H) : Shape;\n}");
 
+    /// <summary>
+    /// A record or a union with IEEE equality from a <c>MorphirEquality</c> attribute that is not <c>partial</c>. An
+    /// attribute cannot change how compiled C# compares two records, so the equality members are added to the type, and
+    /// the type must be <c>partial</c>.
+    /// </summary>
+    public static readonly AdmissionRule NonPartialEquality = new(
+        "MORPHIR1010", "non_partial_equality",
+        "A type with IEEE equality must be partial",
+        "The type '{0}' has IEEE equality from a MorphirEquality attribute and is not partial. Add 'partial' to the type, because the equality members are added to it.",
+        "[Morphir.MorphirEquality(Morphir.FloatEquality.Ieee)]\npublic sealed record Quote(double Value);");
+
     /// <summary>The rules, in id order.</summary>
     public static IReadOnlyList<AdmissionRule> All { get; } = ImmutableArray.Create(
-        Loop, Mutation, Dynamic, MutableProperty, OutsideReference, TypeKind, MutableField, Suppression, OlderSumType);
+        Loop, Mutation, Dynamic, MutableProperty, OutsideReference, TypeKind, MutableField, Suppression, OlderSumType,
+        NonPartialEquality);
 
     /// <summary>Finds a rule by its Roslyn id.</summary>
     public static bool TryGetById(string id, out AdmissionRule rule)

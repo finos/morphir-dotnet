@@ -64,10 +64,12 @@ module CSharpFrontend =
                             let! builder = builders.Resolve request.Output.Family
                             let! built = builder.Build(PackageLowering plan)
 
-                            // The current IR carries the class of a type parameter on its type variables (EQL-2).
+                            // The current IR carries the class of a type parameter on its type variables (EQL-2), and
+                            // the backend options of the attributes on the output types and the field types (OPT-1).
                             let model =
                                 match built with
-                                | FamilyModel.V4 distribution -> FamilyModel.V4(TypeParameterClasses.apply plan distribution)
+                                | FamilyModel.V4 distribution ->
+                                    FamilyModel.V4(distribution |> TypeParameterClasses.apply plan |> OptionAttributes.apply plan)
                                 | other -> other
 
                             return {

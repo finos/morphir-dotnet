@@ -10,13 +10,32 @@ open Morphir.Lang.CSharp.Backend
 open Morphir.IR
 open TypeEmission
 
-/// <summary>What the emitters share: the naming, the type catalog, the module layouts and the cancellation token.</summary>
+/// <summary>
+/// The handling options that the model carries (task 6.1), which the backend writes back as attributes: the options of
+/// each value, and the float equality of each field, by type, owner (the type for a record, the constructor for a case)
+/// and field.
+/// </summary>
+type internal Carriers = {
+    Values: Map<FQName, Morphir.Lang.CSharp.HandlingOptions>
+    Fields: Map<FQName * Name * Name, Morphir.Lang.CSharp.FloatEquality>
+}
+
+/// <summary>What the emitters share: the naming, the type catalog, the module layouts, the options and the cancellation token.</summary>
 type internal Context = {
     Naming: Naming
     Catalog: Map<FQName, Declaration>
     Layouts: Map<ModulePath, ModuleLayout>
-    /// <summary>Whether a custom type or record alias has IEEE equality: NaN is not equal to NaN, and the members of Morphir equality are written.</summary>
-    Ieee: FQName -> bool
+    /// <summary>
+    /// The float equality of a field after the precedence order (OPT-1): by type, owner and field. A type that has a field
+    /// with IEEE equality gets the members of Morphir equality.
+    /// </summary>
+    FieldEquality: FQName -> Name -> Name -> Morphir.Lang.CSharp.FloatEquality
+    /// <summary>The float equality of a type with no field, after the precedence order.</summary>
+    TypeEquality: FQName -> Morphir.Lang.CSharp.FloatEquality
+    /// <summary>The effective handling options of each value (OPT-1), for the forms of the plan.</summary>
+    Handling: FQName -> Morphir.Lang.CSharp.EffectiveHandling
+    /// <summary>The options that the model carries.</summary>
+    Carriers: Carriers
     Ct: CancellationToken
 }
 

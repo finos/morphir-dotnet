@@ -18,6 +18,47 @@ type CSharpBackend private () =
     /// <summary>The only language version that the backend writes.</summary>
     static member LanguageVersion = 15
 
+    /// <summary>The handling options that a current-IR model carries (task 6.1). A classic model carries none.</summary>
+    static member private CarriersOf(model: VersionedModel) : Carriers =
+        match model.Distribution with
+        | DistributionModel.V4(Morphir.IR.V4.Library(pkg, _, definition)) ->
+            let fq path name : FQName = { PackagePath = pkg; ModulePath = path; LocalName = name }
+
+            let modules = Morphir.IR.V4.OrderedMap.toList definition.Modules
+
+            let values =
+                [ for path, access in modules do
+                      for name, value in Morphir.IR.V4.OrderedMap.toList access.Value.Values do
+                          let output =
+                              match value.Value.Value.Body with
+                              | Morphir.IR.V4.ExpressionBody(output, _)
+                              | Morphir.IR.V4.NativeBody(output, _)
+                              | Morphir.IR.V4.ExternalBody(output, _) -> Some output
+                              | Morphir.IR.V4.IncompleteBody _ -> None
+
+                          match output |> Option.map Morphir.Lang.CSharp.HandlingCarrier.read with
+                          | Some options when options <> Morphir.Lang.CSharp.HandlingOptions.empty -> fq path name, options
+                          | _ -> () ]
+
+            let carried owner (items: (Name * Morphir.IR.V4.Type) list) typeName =
+                [ for field, t in items do
+                      match (Morphir.Lang.CSharp.HandlingCarrier.read t).FloatEquality with
+                      | Some equality -> (typeName, owner, field), equality
+                      | None -> () ]
+
+            let fields =
+                [ for path, access in modules do
+                      for name, typeDefinition in Morphir.IR.V4.OrderedMap.toList access.Value.Types do
+                          match typeDefinition.Value.Value with
+                          | Morphir.IR.V4.TypeAliasDefinition(_, Morphir.IR.V4.Type.Record(_, items)) -> yield! carried name items (fq path name)
+                          | Morphir.IR.V4.CustomTypeDefinition(_, _, constructors) ->
+                              for constructor, items in Morphir.IR.V4.OrderedMap.toList constructors do
+                                  yield! carried constructor items (fq path name)
+                          | _ -> () ]
+
+            { Values = Map.ofList values; Fields = Map.ofList fields }
+        | _ -> { Values = Map.empty; Fields = Map.empty }
+
     static member private Core
         (
             model: VersionedModel,
@@ -67,7 +108,40 @@ type CSharpBackend private () =
             Checks.validateLayout ct naming catalog pkg modules
 
             let layouts = ModuleLayouts.compute naming pkg (modules |> List.map (fun (path, _, names) -> path, not (List.isEmpty names)))
-            let context: Context = { Naming = naming; Catalog = catalog; Layouts = layouts; Ieee = ieee; Ct = ct }
+            // The precedence order of OPT-1: the command line, the carrier in the model, the types that the caller selects
+            // (GenerateWith), the configured keys, the default.
+            let carriers = CSharpBackend.CarriersOf model
+            let commandLine = options.CommandLine.FloatEquality
+            let configured = options.Configured.FloatEquality
+            let selected name = if ieee name then Some Morphir.Lang.CSharp.FloatEquality.Ieee else None
+
+            let fieldEquality name owner field =
+                commandLine
+                |> Option.orElse (Map.tryFind (name, owner, field) carriers.Fields)
+                |> Option.orElse (selected name)
+                |> Option.orElse configured
+                |> Option.defaultValue Morphir.Lang.CSharp.FloatEquality.Clr
+
+            let typeEquality name =
+                commandLine |> Option.orElse (selected name) |> Option.orElse configured |> Option.defaultValue Morphir.Lang.CSharp.FloatEquality.Clr
+
+            let handling name =
+                Morphir.Lang.CSharp.HandlingOptions.resolve [
+                    options.CommandLine
+                    Map.tryFind name carriers.Values |> Option.defaultValue Morphir.Lang.CSharp.HandlingOptions.empty
+                    options.Configured
+                ]
+
+            let context: Context = {
+                Naming = naming
+                Catalog = catalog
+                Layouts = layouts
+                FieldEquality = fieldEquality
+                TypeEquality = typeEquality
+                Handling = handling
+                Carriers = carriers
+                Ct = ct
+            }
             let publicModules = modules |> List.filter (fun (_, isPublic, _) -> isPublic) |> List.map (fun (path, _, _) -> path) |> Set.ofList
 
             let files =
@@ -85,6 +159,25 @@ type CSharpBackend private () =
         with
         | :? OperationCanceledException when ct.IsCancellationRequested -> result GenerationStatus.Cancelled [] []
         | Refusal diagnostic -> result GenerationStatus.Failure [] [ diagnostic ]
+
+    /// <summary>
+    /// The options of the backend from the language version and the handling options of the command line and of
+    /// <c>[codegen.csharp]</c>, each as keys and words (<c>float-equality</c>, <c>ieee</c>). An unknown key or word fails with
+    /// <c>invalid-backend-option</c>. For C# callers.
+    /// </summary>
+    static member TryCreateOptions
+        (
+            languageVersion: int,
+            commandLine: System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string>>,
+            configured: System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string>>
+        ) : Result<GenerationOptions, GenerationDiagnostic> =
+        let pairs (items: System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string>>) =
+            items |> Seq.map (fun pair -> pair.Key, pair.Value)
+
+        BackendHandling.parse (pairs commandLine)
+        |> Result.bind (fun cli ->
+            BackendHandling.parse (pairs configured)
+            |> Result.map (fun keys -> { LanguageVersion = languageVersion; CommandLine = cli; Configured = keys }))
 
     /// <summary>Generates the C# of a model with the default namespace of its package.</summary>
     static member Generate(model: VersionedModel, options: GenerationOptions, cancellationToken: CancellationToken) : GenerationResult =

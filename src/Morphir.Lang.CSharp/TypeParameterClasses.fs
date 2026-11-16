@@ -10,8 +10,8 @@ open Morphir.IR.V4
 
 /// <summary>
 /// The value classes of the type parameters of a method (EQL-2), and their carrier in the current IR. The first source
-/// that gives a class wins: the .NET constraints of the type parameter, then the type-checked uses in the body. The
-/// explicit statement (a C# attribute or a key in morphir.toml) waits for the option carriers of OPT-1.
+/// that gives a class wins: the explicit statement (the <c>MorphirValueClass</c> attribute on the type parameter), the
+/// .NET constraints of the type parameter, then the type-checked uses in the body.
 /// </summary>
 module internal TypeParameterClasses =
     let private same (a: ISymbol) (b: ISymbol) = SymbolEqualityComparer.Default.Equals(a, b)
@@ -47,6 +47,27 @@ module internal TypeParameterClasses =
     let ofConstraints (parameter: ITypeParameterSymbol) : ValueClass list =
         parameter.ConstraintTypes
         |> Seq.choose (ofConstraint parameter)
+        |> List.ofSeq
+        |> List.distinct
+
+    /// <summary>
+    /// The classes that the <c>MorphirValueClass</c> attributes of a type parameter state, in their order. The class
+    /// values are the values of the <c>ValueClass</c> enum of the attribute assembly.
+    /// </summary>
+    let ofAttributes (parameter: ITypeParameterSymbol) : ValueClass list =
+        parameter.GetAttributes()
+        |> Seq.filter (fun attribute ->
+            not (isNull attribute.AttributeClass)
+            && attribute.AttributeClass.Name = "MorphirValueClassAttribute"
+            && attribute.AttributeClass.ContainingNamespace.Name = "Morphir"
+            && attribute.AttributeClass.ContainingNamespace.ContainingNamespace.IsGlobalNamespace)
+        |> Seq.choose (fun attribute ->
+            if attribute.ConstructorArguments.Length = 1 then
+                match attribute.ConstructorArguments[0].Value with
+                | :? int as value -> List.tryItem value [ Equality; Comparable; Number; Appendable; CompAppend ]
+                | _ -> None
+            else
+                None)
         |> List.ofSeq
         |> List.distinct
 
@@ -123,8 +144,8 @@ module internal TypeParameterClasses =
         List.ofSeq found
 
     /// <summary>
-    /// The classes of each type parameter of a method, in the order of the type parameters: the constraints, else the
-    /// uses in the body.
+    /// The classes of each type parameter of a method, in the order of the type parameters: the attributes, else the
+    /// constraints, else the uses in the body.
     /// </summary>
     let ofMethod (compilation: Compilation) (method': IMethodSymbol) (declaration: MethodDeclarationSyntax) : (string * ValueClass list) list =
         let parameters = List.ofSeq method'.TypeParameters
@@ -135,15 +156,16 @@ module internal TypeParameterClasses =
                  ofUses parameters (model.GetOperation declaration))
 
         [ for parameter in parameters do
-              match ofConstraints parameter with
-              | [] ->
+              match ofAttributes parameter, ofConstraints parameter with
+              | (_ :: _) as stated, _ -> parameter.Name, stated
+              | [], [] ->
                   let classes =
                       uses.Value
                       |> List.choose (fun (used, valueClass) -> if same used parameter then Some valueClass else None)
                       |> List.distinct
 
                   parameter.Name, classes
-              | classes -> parameter.Name, classes ]
+              | [], classes -> parameter.Name, classes ]
 
     /// <summary>The extensions with the carrier of the classes. Other members of the extensions stay.</summary>
     let private withCarrier (classes: ValueClass list) (extensions: DocumentValue option) =

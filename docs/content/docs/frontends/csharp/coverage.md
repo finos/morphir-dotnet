@@ -31,7 +31,7 @@ of its diagnostic. Codes are stable once released.
 | [`csharp.unsupported_type_kind`](#csharp-unsupported-type-kind) | `MORPHIR1006` | This kind of type is not in the Morphir subset |
 | [`csharp.unsupported_mutable_field`](#csharp-unsupported-mutable-field) | `MORPHIR1007` | A field that can change is not in the Morphir subset |
 | [`csharp.unsupported_suppression`](#csharp-unsupported-suppression) | `MORPHIR1008` | A suppression of a Morphir rule is not in the Morphir subset |
-| [`csharp.unsupported_abstract_record`](#csharp-unsupported-abstract-record) | `MORPHIR1009` | An older encoding of a sum type is not in the Morphir subset |
+| [`csharp.unsupported_non_partial_equality`](#csharp-unsupported-non-partial-equality) | `MORPHIR1009` | A type with IEEE equality must be partial |
 
 ## `csharp.unsupported_loop`
 
@@ -153,19 +153,15 @@ static class M
 }
 ```
 
-## `csharp.unsupported_abstract_record`
+## `csharp.unsupported_non_partial_equality`
 
 - Roslyn id: `MORPHIR1009`
-- Message: The abstract record '…' is an older encoding of a sum type. Write 'closed record …' with 'sealed record' cases.
-- IRI: `https://morphir.finos.org/rules/csharp/unsupported_abstract_record`
+- Message: The type '…' has IEEE equality from a MorphirEquality attribute and is not partial. Add 'partial' to the type, because the equality members are added to it.
+- IRI: `https://morphir.finos.org/rules/csharp/unsupported_non_partial_equality`
 
 Example:
 
 ```csharp
-public abstract record Shape
-{
-    private Shape() { }
-    public sealed record Circle(double Radius) : Shape;
-    public sealed record Rect(double W, double H) : Shape;
-}
+[Morphir.MorphirEquality(Morphir.FloatEquality.Ieee)]
+public sealed record Quote(double Value);
 ```

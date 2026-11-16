@@ -44,28 +44,46 @@ module internal Declarations =
 
     let private access (isPublic: bool) : SyntaxKind = if isPublic then SyntaxKind.PublicKeyword else SyntaxKind.InternalKeyword
 
-    let private parameterList (parameters: (TypeSyntax * string option) list) : ParameterListSyntax =
+    let private parameterList (parameters: (TypeSyntax * string option * AttributeListSyntax list) list) : ParameterListSyntax =
         SF.ParameterList(
             SF.SeparatedList<ParameterSyntax>(
                 parameters
-                |> List.map (fun (t, name) ->
+                |> List.map (fun (t, name, attributes) ->
                     match name with
-                    | Some text -> SF.Parameter(Cs.token text).WithType(t)
-                    | None -> SF.Parameter(SF.List<AttributeListSyntax>(), SF.TokenList(), t, Unchecked.defaultof<SyntaxToken>, null))
+                    | Some text -> SF.Parameter(Cs.token text).WithType(t).WithAttributeLists(SF.List<AttributeListSyntax>(attributes))
+                    | None -> SF.Parameter(SF.List<AttributeListSyntax>(attributes), SF.TokenList(), t, Unchecked.defaultof<SyntaxToken>, null))
+            )
+        )
+
+    /// <summary>The attribute <c>MorphirEquality</c> with a value, as the backend writes it back from the carrier (OPT-1).</summary>
+    let equalityAttribute (value: FloatEquality) : AttributeListSyntax =
+        let word =
+            match value with
+            | FloatEquality.Clr -> "Clr"
+            | FloatEquality.Ieee -> "Ieee"
+
+        SF.AttributeList(
+            SF.SingletonSeparatedList(
+                SF.Attribute(
+                    Cs.globalName [ "Morphir"; "MorphirEquality" ],
+                    SF.AttributeArgumentList(SF.SingletonSeparatedList(SF.AttributeArgument(Cs.access (Cs.globalName [ "Morphir"; "FloatEquality" ] :> ExpressionSyntax) word)))
+                )
             )
         )
 
     /// <summary>A positional record, or a record with no members when there is no field. A base type makes it a case.</summary>
     let private record
+        (attributes: AttributeListSyntax list)
         (modifiers: SyntaxKind list)
         (name: string)
         (typeParameters: Name list)
-        (fields: (TypeSyntax * string) list)
+        (fields: (TypeSyntax * string * AttributeListSyntax list) list)
         (baseTypes: TypeSyntax list)
         (members: MemberDeclarationSyntax list)
         : MemberDeclarationSyntax =
         let declaration =
             SF.RecordDeclaration(SyntaxKind.RecordDeclaration, SF.Token SyntaxKind.RecordKeyword, Cs.token name)
+                .WithAttributeLists(SF.List<AttributeListSyntax>(attributes))
                 .WithModifiers(Cs.modifiers modifiers)
                 .WithOpenBraceToken(Unchecked.defaultof<SyntaxToken>)
                 .WithCloseBraceToken(Unchecked.defaultof<SyntaxToken>)
@@ -80,7 +98,7 @@ module internal Declarations =
 
         let declaration =
             if List.isEmpty fields then declaration
-            else declaration.WithParameterList(parameterList (fields |> List.map (fun (t, n) -> t, Some n)))
+            else declaration.WithParameterList(parameterList (fields |> List.map (fun (t, n, a) -> t, Some n, a)))
 
         let declaration =
             match baseTypes with
@@ -98,6 +116,7 @@ module internal Declarations =
             :> MemberDeclarationSyntax
 
     let private union
+        (attributes: AttributeListSyntax list)
         (modifiers: SyntaxKind list)
         (name: string)
         (typeParameters: Name list)
@@ -108,12 +127,12 @@ module internal Declarations =
         let hasBody = not (List.isEmpty members)
 
         SF.UnionDeclaration(
-            SF.List<AttributeListSyntax>(),
+            SF.List<AttributeListSyntax>(attributes),
             Cs.modifiers modifiers,
             SF.Token SyntaxKind.UnionKeyword,
             Cs.token name,
             (if List.isEmpty typeParameters then null else typeParameterList typeParameters),
-            parameterList (cases |> List.map (fun t -> t, None)),
+            parameterList (cases |> List.map (fun t -> t, None, [])),
             (match baseTypes with
              | [] -> null
              | _ -> SF.BaseList(SF.SeparatedList<BaseTypeSyntax>(baseTypes |> List.map (fun b -> SF.SimpleBaseType b :> BaseTypeSyntax)))),
@@ -146,12 +165,23 @@ module internal Declarations =
 
     let private nullable (t: TypeSyntax) : TypeSyntax = SF.NullableType t :> TypeSyntax
 
-    /// <summary>The members of IEEE equality of a record: NaN is not equal to NaN, as in Morphir.</summary>
-    let private recordEquality (self: TypeSyntax) (fields: string list) : MemberDeclarationSyntax list =
+    /// <summary>
+    /// The members of IEEE equality of a record: NaN is not equal to NaN, as in Morphir. A field with plain equality
+    /// (a member attribute, OPT-1) compares with the default equality comparer of its type, as plain C# does.
+    /// </summary>
+    let private recordEquality (self: TypeSyntax) (typed: (string * TypeSyntax * FloatEquality) list) : MemberDeclarationSyntax list =
         let other = "otherValue"
         let morphirValue = sdkType "IMorphirValue"
+        let fields = typed |> List.map (fun (field, _, _) -> field)
 
-        let comparisons = fields |> List.map (fun field -> basicsEqual (Cs.id field) (Cs.access (Cs.id other) field))
+        let comparisons =
+            typed
+            |> List.map (fun (field, t, equality) ->
+                match equality with
+                | FloatEquality.Ieee -> basicsEqual (Cs.id field) (Cs.access (Cs.id other) field)
+                | FloatEquality.Clr ->
+                    let comparer = Cs.access (Cs.globalGeneric [ "System"; "Collections"; "Generic"; "EqualityComparer" ] [ t ] :> ExpressionSyntax) "Default"
+                    Cs.invoke (Cs.access comparer "Equals") [ Cs.id field; Cs.access (Cs.id other) field ])
         let equals = all (is (Cs.id "other") self other :: comparisons)
 
         let payload: ExpressionSyntax =
@@ -200,6 +230,30 @@ module internal Declarations =
           operator SyntaxKind.EqualsEqualsToken false
           operator SyntaxKind.ExclamationEqualsToken true ]
 
+    /// <summary>
+    /// The fields of one owner (a record alias or a case) with their C# type and float equality, whether the owner gets the
+    /// members of IEEE equality, and the attributes that the backend writes back from the carrier: one on the type when
+    /// each field carries the same value, else one on each field that has a carrier.
+    /// </summary>
+    let private equalityOf (context: Context) (typeName: FQName) (owner: Name) (fields: (Name * TypeSyntax) list) =
+        let typed = fields |> List.map (fun (field, t) -> title field, t, context.FieldEquality typeName owner field)
+
+        let ieee =
+            match typed with
+            | [] -> context.TypeEquality typeName = FloatEquality.Ieee
+            | _ -> typed |> List.exists (fun (_, _, equality) -> equality = FloatEquality.Ieee)
+
+        let carried = fields |> List.map (fun (field, _) -> Map.containsKey (typeName, owner, field) context.Carriers.Fields)
+        let values = typed |> List.map (fun (_, _, equality) -> equality) |> List.distinct
+
+        let typeAttributes, fieldAttributes =
+            match carried, values with
+            | [], _ -> [], []
+            | _, [ single ] when List.forall id carried -> [ equalityAttribute single ], List.map (fun _ -> []) typed
+            | _ -> [], List.map2 (fun isCarried (_, _, equality) -> if isCarried then [ equalityAttribute equality ] else []) carried typed
+
+        typed, ieee, typeAttributes, (if List.isEmpty fieldAttributes then List.map (fun _ -> []) typed else fieldAttributes)
+
     /// <summary>The parameters that the declaration binds: for a record alias, the free parameters of its body.</summary>
     let private effectiveParameters (context: Context) (declaration: Declaration) =
         match declaration.Definition with
@@ -230,17 +284,18 @@ module internal Declarations =
 
                 if owner.Name = declaration.Name then
                     let parameters = effectiveParameters context declaration
-                    let ieee = context.Ieee declaration.Name
-                    let fieldNames = fields |> List.map (fst >> title)
+                    let typedFields = fields |> List.map (fun (field, t) -> field, typeOf parameters t)
+                    let typed, ieee, attributes, fieldAttributes = equalityOf context declaration.Name declaration.Name.LocalName typedFields
                     let self = Cs.genericName name (parameters |> List.map (fun p -> Cs.id (generic p) :> TypeSyntax)) :> TypeSyntax
 
                     [ record
+                          attributes
                           [ accessKind; SyntaxKind.SealedKeyword ]
                           name
                           parameters
-                          (fields |> List.map (fun (field, t) -> typeOf parameters t, title field))
+                          (List.map2 (fun (field, t) a -> t, title field, a) typedFields fieldAttributes)
                           (if ieee then [ sdkType "IMorphirValue" ] else [])
-                          (if ieee then recordEquality self fieldNames else []) ]
+                          (if ieee then recordEquality self typed else []) ]
                 else
                     []
             | Alias body ->
@@ -250,12 +305,21 @@ module internal Declarations =
                 let parameters = declaration.Parameters
                 let self = Cs.globalGeneric (ModuleLayouts.qualified context.Layouts declaration.Name) (parameters |> List.map (fun p -> Cs.id (generic p) :> TypeSyntax))
 
-                let ieee = context.Ieee declaration.Name
-
                 if TypeSyntaxes.isUnion declaration then
                     let unionSelf = Cs.genericName name (parameters |> List.map (fun p -> Cs.id (generic p) :> TypeSyntax)) :> TypeSyntax
 
+                    // A union compares its case value: it has IEEE equality when a case has it. It takes the attribute when
+                    // each case carries the same value, because a case of a union has no place for an attribute.
+                    let perCase = cases |> List.map (fun (caseName, fields) -> equalityOf context declaration.Name caseName [ for f, t in fields -> f, typeOf parameters t ])
+                    let ieee = perCase |> List.exists (fun (_, caseIeee, _, _) -> caseIeee)
+
+                    let attributes =
+                        match perCase |> List.map (fun (_, _, typeAttributes, _) -> typeAttributes) |> List.distinctBy (List.map string) with
+                        | [ single ] -> single
+                        | _ -> []
+
                     [ union
+                          attributes
                           [ accessKind ]
                           name
                           parameters
@@ -267,18 +331,20 @@ module internal Declarations =
                     // another type, a value or a module class of the container.
                     let caseAccess = access (declaration.Public && publicCases)
 
-                    record [ accessKind; SyntaxKind.ClosedKeyword ] name parameters [] [] []
+                    record [] [ accessKind; SyntaxKind.ClosedKeyword ] name parameters [] [] []
                     :: (cases
                         |> List.map (fun (caseName, fields) ->
                             let caseId = ModuleLayouts.identifier context.Layouts { declaration.Name with LocalName = caseName }
                             let caseSelf = Cs.genericName caseId (parameters |> List.map (fun p -> Cs.id (generic p) :> TypeSyntax)) :> TypeSyntax
-                            let fieldNames = fields |> List.map (fst >> title)
+                            let typedFields = fields |> List.map (fun (field, t) -> field, typeOf parameters t)
+                            let typed, ieee, attributes, fieldAttributes = equalityOf context declaration.Name caseName typedFields
 
                             record
+                                attributes
                                 [ caseAccess; SyntaxKind.SealedKeyword ]
                                 caseId
                                 parameters
-                                (fields |> List.map (fun (field, t) -> typeOf parameters t, title field))
+                                (List.map2 (fun (field, t) a -> t, title field, a) typedFields fieldAttributes)
                                 (self :: (if ieee then [ sdkType "IMorphirValue" ] else []))
-                                (if ieee then recordEquality caseSelf fieldNames else [])))
+                                (if ieee then recordEquality caseSelf typed else [])))
         )

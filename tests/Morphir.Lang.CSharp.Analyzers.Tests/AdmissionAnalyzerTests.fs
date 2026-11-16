@@ -214,7 +214,8 @@ let tests =
                 test "each rule example gives exactly its own rule" {
                     for rule in Rules.All do
                         if rule.Id <> Rules.OutsideReference.Id then
-                            Expect.isEmpty (compileErrors rule.Example) $"{rule.Id}: valid C#"
-                            let found = ids rule.Example |> List.distinct
+                            // A model project references the attribute assembly, and the example of a rule may use it.
+                            Expect.isEmpty (compileErrorsWithAttributes rule.Example) $"{rule.Id}: valid C#"
+                            let found = diagnoseWithAttributes rule.Example |> List.map (fun (id, _, _) -> id) |> List.distinct
                             Expect.equal found [ rule.Id ] $"{rule.Id}: its example"
                 } ] ]

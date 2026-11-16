@@ -992,6 +992,36 @@ module internal Values =
         && calls |> List.forall (fun (_, (_, otherUses, closures)) -> otherUses = 0 && not closures)
         && calls |> List.exists (fun (name, (tailCalls, _, _)) -> tailCalls |> List.exists (fun called -> called <> name))
 
+    /// <summary>
+    /// The attribute <c>MorphirEmit</c> that the backend writes back for a value whose model carries backend options
+    /// (OPT-1), with the effective value of each option that the carrier has. A value with no carrier gets none.
+    /// </summary>
+    let private emitAttribute (context: Context) (name: FQName) : AttributeListSyntax list =
+        match Map.tryFind name context.Carriers.Values with
+        | None -> []
+        | Some carried ->
+            let effective = context.Handling name
+
+            let argument (property: string) (enumName: string) (memberName: string) =
+                SF.AttributeArgument(SF.NameEquals(Cs.id property), null, Cs.access (Cs.globalName [ "Morphir"; enumName ] :> ExpressionSyntax) memberName)
+
+            let arguments =
+                [ if carried.Traversal.IsSome then
+                      argument "Traversal" "TraversalForm" (match effective.Traversal with
+                                                            | Morphir.Lang.CSharp.TraversalForm.Loop -> "Loop"
+                                                            | Morphir.Lang.CSharp.TraversalForm.Functional -> "Functional")
+                  if carried.TailRecursion.IsSome then
+                      argument "TailRecursion" "TailRecursionForm" (match effective.TailRecursion with
+                                                                    | Morphir.Lang.CSharp.TailRecursionForm.Loop -> "Loop"
+                                                                    | Morphir.Lang.CSharp.TailRecursionForm.LocalFunction -> "LocalFunction") ]
+
+            match arguments with
+            | [] -> []
+            | _ ->
+                [ SF.AttributeList(
+                      SF.SingletonSeparatedList(SF.Attribute(Cs.globalName [ "Morphir"; "MorphirEmit" ], SF.AttributeArgumentList(SF.SeparatedList<AttributeArgumentSyntax>(arguments))))
+                  ) ]
+
     /// <summary>The method of a value definition.</summary>
     let methodOf (context: Context) (checkedValue: Checked) : MemberDeclarationSyntax =
         let scope = Scope(context, checkedValue)
@@ -1007,6 +1037,7 @@ module internal Values =
 
         let declaration =
             SF.MethodDeclaration(output, Cs.token name)
+                .WithAttributeLists(SF.List<AttributeListSyntax>(emitAttribute context top.Name))
                 .WithModifiers(Cs.modifiers [ (if top.Public then SyntaxKind.PublicKeyword else SyntaxKind.InternalKeyword); SyntaxKind.StaticKeyword ])
                 .WithParameterList(SF.ParameterList(SF.SeparatedList<ParameterSyntax>(parameters)))
 

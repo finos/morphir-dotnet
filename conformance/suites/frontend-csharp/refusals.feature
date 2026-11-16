@@ -186,3 +186,23 @@ Feature: Refuse what the Morphir subset leaves out
       | files        | 4       |
       | directory    | 4       |
       | project file | 4       |
+
+  Scenario Outline: frontend-csharp-0027 A type with IEEE equality that is not partial is refused
+    Given the C# package "acme/demo" exposing "Pricing"
+    And the source "Pricing.cs":
+      """csharp
+      namespace Acme.Demo.Pricing;
+      [Morphir.MorphirEquality(Morphir.FloatEquality.Ieee)]
+      public sealed record Quote(double Value);
+      """
+    When it is compiled from <input> with IR version <version>
+    Then compilation fails with diagnostics:
+      """json
+      [{"severity":"error","code":"csharp.unsupported_non_partial_equality","location":{"uri":"Pricing.cs","range":{"start":{"line":2,"character":21},"end":{"line":2,"character":26}}}}]
+      """
+
+    Examples:
+      | input        | version |
+      | files        | 4       |
+      | directory    | 4       |
+      | project file | 4       |

@@ -33,6 +33,7 @@
         <Compile Include="AnalyzerSupport.fs" />
         <Compile Include="ClosureTests.fs" />
         <Compile Include="AdmissionAnalyzerTests.fs" />
+        <Compile Include="EqualityOptionTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

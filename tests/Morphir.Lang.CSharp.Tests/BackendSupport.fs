@@ -108,7 +108,7 @@ let letRec (bindings: (string * ValueDefinition) list) (body: Value) =
 
 /// Generates a model and gives the files, or fails the test with the diagnostics.
 let generate (model: VersionedModel) : Map<string, string> =
-    let result = CSharpBackend.Generate(model, { LanguageVersion = 15 }, CancellationToken.None)
+    let result = CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
 
     match result.Status with
     | GenerationStatus.Success -> result.Sources |> List.map (fun source -> source.RelativePath, source.Text) |> Map.ofList
@@ -116,14 +116,14 @@ let generate (model: VersionedModel) : Map<string, string> =
 
 /// Generates a model with IEEE equality for the types that the predicate selects.
 let generateIeee (model: VersionedModel) (ieee: FQName -> bool) : Map<string, string> =
-    let result = CSharpBackend.GenerateWith(model, { LanguageVersion = 15 }, None, ieee, CancellationToken.None)
+    let result = CSharpBackend.GenerateWith(model, GenerationOptions.Default, None, ieee, CancellationToken.None)
 
     match result.Status with
     | GenerationStatus.Success -> result.Sources |> List.map (fun source -> source.RelativePath, source.Text) |> Map.ofList
     | _ -> failwithf "generation failed: %A" result.Diagnostics
 
 let refuse (model: VersionedModel) : GenerationDiagnostic list =
-    let result = CSharpBackend.Generate(model, { LanguageVersion = 15 }, CancellationToken.None)
+    let result = CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)
     result.Diagnostics
 
 /// The files as source documents. The compiler adds its own polyfill, so the polyfill file of the backend is left out.

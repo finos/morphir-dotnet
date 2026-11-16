@@ -7,13 +7,25 @@ open System
 open System.Globalization
 open System.Text
 
-/// Explicit numeric language version. The installed compiler never selects this value.
+/// <summary>
+/// The options of the backend: the explicit numeric language version, which the installed compiler never selects, and two
+/// carriers of the handling options (OPT-1). The carrier in the model is between them: the command line wins over it, and
+/// it wins over the configured keys. The profile is a handling option (<c>HandlingOptions.Profile</c>).
+/// </summary>
 type GenerationOptions =
     {
         LanguageVersion: int
+        /// <summary>The handling options of the command line (<c>--option</c>). They win over every other carrier.</summary>
+        CommandLine: Morphir.Lang.CSharp.HandlingOptions
+        /// <summary>The handling options of <c>[codegen.csharp]</c> in <c>morphir.toml</c>. The carrier in the model wins over them.</summary>
+        Configured: Morphir.Lang.CSharp.HandlingOptions
     }
 
-    static member Default = { LanguageVersion = 15 }
+    static member Default = {
+        LanguageVersion = 15
+        CommandLine = Morphir.Lang.CSharp.HandlingOptions.empty
+        Configured = Morphir.Lang.CSharp.HandlingOptions.empty
+    }
 
 /// The whole-model outcome. Failure and cancellation never contain sources.
 [<RequireQualifiedAccess>]
@@ -105,6 +117,30 @@ module internal Admission =
                     Message = message
                 }
         )
+
+/// <summary>
+/// The options of the backend for one value, after the precedence order of OPT-1: the command line, the carrier on the
+/// output type of the value, the configured keys, the profile default. The plan of a traversal and of a tail call reads
+/// them (tasks 6.4 and 6.5).
+/// </summary>
+module internal BackendHandling =
+    /// <summary>The effective options of a value with the given output type.</summary>
+    let value (options: GenerationOptions) (output: Morphir.IR.V4.Type) : Morphir.Lang.CSharp.EffectiveHandling =
+        Morphir.Lang.CSharp.HandlingOptions.resolve [ options.CommandLine; Morphir.Lang.CSharp.HandlingCarrier.read output; options.Configured ]
+
+    /// <summary>
+    /// The handling options of a key and word list, as <c>--option</c> and <c>[codegen.csharp]</c> give them. An unknown
+    /// key or word gives the diagnostic <c>invalid-backend-option</c>.
+    /// </summary>
+    let parse (pairs: (string * string) seq) : Result<Morphir.Lang.CSharp.HandlingOptions, GenerationDiagnostic> =
+        pairs
+        |> Seq.fold
+            (fun state (key, word) ->
+                state
+                |> Result.bind (fun options ->
+                    Morphir.Lang.CSharp.HandlingOptions.trySet key word options
+                    |> Result.mapError (fun message -> { Rule = "invalid-backend-option"; Location = "$options/" + key; Message = message })))
+            (Ok Morphir.Lang.CSharp.HandlingOptions.empty)
 
 /// UTF-8 source text, without BOM, with LF newlines and a portable relative path.
 type GeneratedSource = { RelativePath: string; Text: string }

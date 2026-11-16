@@ -72,6 +72,7 @@
         <Compile Include="Planning.fs" />
         <Compile Include="Lowering.fs" />
         <Compile Include="TypeParameterClasses.fs" />
+        <Compile Include="OptionAttributes.fs" />
         <Compile Include="CSharpFrontend.fs" />
         <!-- The type catalog, the lowering and the checks of the backend. -->
         <Compile Include="Backend/Types.fs" />

@@ -160,7 +160,7 @@ let hostSmoke model =
 
 let executeConsumer model language consumer =
     let result =
-        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, { LanguageVersion = language }, CancellationToken.None)
+        Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, { Morphir.Lang.CSharp.Backend.GenerationOptions.Default with LanguageVersion = language }, CancellationToken.None)
 
     Expect.equal result.Status GenerationStatus.Success (sprintf "%A" result.Diagnostics)
     let runtime = typeof<Morphir.SDK.CSharp.Unit>.Assembly.Location
@@ -1530,7 +1530,7 @@ let tests =
             let result =
                 Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(
                     constantModel (),
-                    { LanguageVersion = 99 },
+                    { Morphir.Lang.CSharp.Backend.GenerationOptions.Default with LanguageVersion = 99 },
                     CancellationToken.None
                 )
 
@@ -1547,7 +1547,7 @@ let tests =
             Expect.equal GenerationOptions.Default.LanguageVersion 15 "stable default"
 
             let result =
-                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(constantModel (), { LanguageVersion = 14 }, CancellationToken.None)
+                Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(constantModel (), { Morphir.Lang.CSharp.Backend.GenerationOptions.Default with LanguageVersion = 14 }, CancellationToken.None)
 
             Expect.equal result.Status GenerationStatus.Failure "C# 14 is no longer written"
             Expect.equal (result.Diagnostics |> List.map (fun d -> d.Rule)) [ "unsupported-language" ] "the rule"
@@ -1634,7 +1634,8 @@ let main args =
         let model = make ()
 
         let options = {
-            LanguageVersion = Int32.Parse(args[1], Globalization.CultureInfo.InvariantCulture)
+            Morphir.Lang.CSharp.Backend.GenerationOptions.Default with
+                LanguageVersion = Int32.Parse(args[1], Globalization.CultureInfo.InvariantCulture)
         }
 
         let result = Morphir.Lang.CSharp.Emit.CSharpBackend.Generate(model, options, CancellationToken.None)
@@ -1701,7 +1702,8 @@ let main args =
         && args[0] = "--export-profile"
     then
         let options = {
-            LanguageVersion = Int32.Parse(args[1], Globalization.CultureInfo.InvariantCulture)
+            Morphir.Lang.CSharp.Backend.GenerationOptions.Default with
+                LanguageVersion = Int32.Parse(args[1], Globalization.CultureInfo.InvariantCulture)
         }
 
         let model =

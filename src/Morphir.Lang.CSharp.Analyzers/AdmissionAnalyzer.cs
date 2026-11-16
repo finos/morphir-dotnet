@@ -16,7 +16,7 @@ namespace Morphir.Lang.CSharp.Analyzers;
 /// that is not a Morphir model project.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public sealed class AdmissionAnalyzer : DiagnosticAnalyzer
+public sealed partial class AdmissionAnalyzer : DiagnosticAnalyzer
 {
     private static readonly ImmutableArray<DiagnosticDescriptor> Descriptors =
         Rules.All.Select(rule => rule.Descriptor).ToImmutableArray();
@@ -62,6 +62,7 @@ public sealed class AdmissionAnalyzer : DiagnosticAnalyzer
             start.RegisterSymbolAction(c => ReportTypeShape(c), SymbolKind.NamedType);
             start.RegisterSyntaxNodeAction(ReportSuppression, SyntaxKind.Attribute);
             start.RegisterSymbolAction(c => ReportMembers(c, own), SymbolKind.Property, SymbolKind.Field, SymbolKind.Method);
+            start.RegisterSymbolAction(ReportNonPartialEquality, SymbolKind.NamedType);
         });
     }
 
