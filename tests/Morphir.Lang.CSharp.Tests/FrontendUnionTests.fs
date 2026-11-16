@@ -188,6 +188,8 @@ let refusals =
               let at (code: string) (declaration: string) = "csharp." + code, lineOf source declaration
 
               // Each union after Other shares the case Nothing with Other, and WithBody shares Circle and Rect with Shape.
+              // System.Collections.Generic.List<int> is the Morphir list type (the loop lowering reads it), so WithList has
+              // only the name collision.
               let expected =
                   [ at "name_collision" "union Other"
                     at "unsupported_reference" "union MaybeInt"
@@ -197,7 +199,6 @@ let refusals =
                     at "unsupported_union_case" "union Opt"
                     at "name_collision" "union Opt"
                     at "name_collision" "union Nested"
-                    at "unsupported_reference" "union WithList"
                     at "name_collision" "union WithList"
                     at "unsupported_union_member" "union WithBody"
                     at "name_collision" "union WithBody"
@@ -206,7 +207,7 @@ let refusals =
               Expect.equal
                   (List.sort (located source))
                   (List.sort expected)
-                  "a shared case type, int? and List<int> with no Morphir type, a tuple and T with no name, and a member"
+                  "a shared case type, int? with no Morphir type, a tuple and T with no name, and a member"
           }
 
           test "a type parameter case names the case that has no name" {

@@ -124,8 +124,9 @@ let tests =
               Expect.equal (body members "three") "(list 1 2 3)" "list"
           }
 
-          test "List.FromEnumerable of a value that is not an array is refused" {
-              let members = "    public static Morphir.SDK.CSharp.List<int> Copy(System.Collections.Generic.IReadOnlyList<int> xs) => Morphir.SDK.CSharp.List<int>.FromEnumerable(xs);"
+          test "List.FromEnumerable of a value with no Morphir list type is refused" {
+              // A list (IReadOnlyList<T>) is the list itself (FrontendLoopTests); a HashSet has no Morphir type.
+              let members = "    public static Morphir.SDK.CSharp.List<int> Copy(System.Collections.Generic.HashSet<int> xs) => Morphir.SDK.CSharp.List<int>.FromEnumerable(xs);"
               Expect.contains (codes (compileSource (pricing members))) "csharp.unsupported_reference" "not a list value"
           }
 

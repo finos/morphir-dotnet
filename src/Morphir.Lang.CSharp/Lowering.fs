@@ -1116,6 +1116,8 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     let! inferred = this.Type(at, result)
                     return! builder.List(at, inferred, lowered)
                 }
+            // FromEnumerable of a list that is not an array literal is the list itself.
+            | None when this.IsListIdentity invocation -> this.Value(env, invocation.Arguments[0].Value)
             | None -> unsupportedReference at (target.ToDisplayString())
         elif this.IsListIdentity invocation then
             this.Value(env, invocation.Arguments[0].Value)

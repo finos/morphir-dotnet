@@ -154,8 +154,6 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
         }
     }
 
-    [GeneratedRegex("```csharp\\n(?<body>.*?)\\n```", RegexOptions.Singleline)]
-    private static partial Regex CSharpBlock();
 
     [Given("the first C# code block of the documentation page {string} as the file {string}")]
     public void TheFirstCSharpCodeBlockAsTheFile(string page, string relative)
