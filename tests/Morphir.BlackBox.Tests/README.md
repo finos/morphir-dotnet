@@ -105,6 +105,7 @@ two steps have the same pattern.
 | Generation | `Then the generation report has no artifact` |
 | Generation | `Then the generation report lists the pass {string}` |
 | Generation | `When I generate {string} from the model on the other host` |
+| Generation | `Then the generated files are the files of the fixture {string}` |
 | Generation | `Then the files that both hosts generated are the same` |
 | Generation | `Then the generation report has no written file and has unchanged files` |
 | Generation | `Then the generation report says that it removed only {string}` |

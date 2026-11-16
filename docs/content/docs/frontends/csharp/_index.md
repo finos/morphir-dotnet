@@ -137,7 +137,9 @@ A static method of a static class, and a `const` field, becomes a value. The fro
 
 - literals, parameters and locals, and constants and methods of the package;
 - the operators `+ - * / %`, comparisons, `==` and `!=`, `&&`, `||` and `!`, as calls of the SDK;
-- calls of `Morphir.SDK.CSharp.Basics`;
+- calls of `Morphir.SDK.CSharp.Basics` and `Morphir.SDK.CSharp.Decimal`;
+- `Morphir.SDK.CSharp.List<T>.FromEnumerable` of an array with its items, as a list. The C# backend writes a list value
+  in this form;
 - `new` of a case record (a constructor) or of a plain record (a record value), and `with` (a record update);
 - property access on a record, tuples and collection expressions (`[1, 2, 3]`);
 - `?:`, and `if` statements that return;

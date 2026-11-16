@@ -132,11 +132,27 @@ module internal SdkMapping =
         | _ -> "operator"
 
     /// <summary>
-    /// The SDK value of a static method of <c>Morphir.SDK.CSharp.Basics</c>, with its number of parameters. Only the
-    /// <c>Basics</c> class maps now: its methods have the names of the Morphir SDK operations.
+    /// The SDK value of a static method of <c>Morphir.SDK.CSharp.Basics</c> or <c>Morphir.SDK.CSharp.Decimal</c>, with its
+    /// number of parameters. Only these two classes map now: their methods have the names of the Morphir SDK operations of
+    /// the modules <c>Basics</c> and <c>Decimal</c>. The C# backend writes the operations of <c>Decimal</c> as calls of
+    /// that class, for example <c>Decimal.Mul(a, b)</c>.
     /// </summary>
     let tryMethod (method': IMethodSymbol) : (FQName * int) option =
-        if isSdkAssembly method' && method'.IsStatic && method'.ContainingType.Name = "Basics" then
-            Some(sdk "Basics" method'.Name, method'.Parameters.Length)
+        if isSdkAssembly method' && method'.IsStatic then
+            match method'.ContainingType.Name with
+            | "Basics" -> Some(sdk "Basics" method'.Name, method'.Parameters.Length)
+            | "Decimal" -> Some(sdk "Decimal" method'.Name, method'.Parameters.Length)
+            | _ -> None
         else
             None
+
+    /// <summary>
+    /// True for <c>Morphir.SDK.CSharp.List&lt;T&gt;.FromEnumerable</c>: the C# backend writes a list value as this call
+    /// on an array with its items.
+    /// </summary>
+    let isListFromEnumerable (method': IMethodSymbol) : bool =
+        isSdkAssembly method'
+        && method'.IsStatic
+        && method'.Name = "FromEnumerable"
+        && method'.ContainingType.Name = "List"
+        && method'.ContainingType.ContainingNamespace.ToDisplayString() = "Morphir.SDK.CSharp"

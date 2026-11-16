@@ -16,8 +16,8 @@ let private package =
     | Ok path -> PackageName path
     | Error message -> failwith message
 
-/// The model that the frontend gives for the C# that the backend wrote.
-let private throughCSharp (model: VersionedModel) : Distribution =
+/// The model that the frontend gives, for the package, for the C# that the backend wrote.
+let private throughCSharpIn (package: PackageName) (model: VersionedModel) : Distribution =
     let files = generate model
 
     let documents =
@@ -42,6 +42,102 @@ let private throughCSharp (model: VersionedModel) : Distribution =
                 | _ -> failwith "a V4 model is expected"
             | None ->
                 failwithf "The frontend refused the C# of the backend: %s" (Checked.diagnostics result |> List.map (fun d -> $"{d.CodeOrNull}: {d.Message}") |> String.concat "; ")
+
+/// The model that the frontend gives for the C# that the backend wrote.
+let private throughCSharp (model: VersionedModel) : Distribution = throughCSharpIn package model
+
+/// <summary>
+/// The JSON text of a distribution with no source location, for a comparison. Each <c>source</c> member of the attributes
+/// is removed, and an <c>attributes</c> object that is then empty is removed too. The members of each JSON object are in
+/// ordinal order: the types, the values and the constructors of a module are maps with no order, and the backend writes
+/// them in name order, while the frontend gives them in the order of the source.
+/// </summary>
+let private withoutSourceLocations (distribution: Distribution) : string =
+    let bytes =
+        match Morphir.Json.V4.V4JsonWriter.writeDistribution true distribution with
+        | Ok bytes -> bytes
+        | Error error -> failwithf "The model cannot be written: %A" error
+
+    let rec canonical (node: System.Text.Json.Nodes.JsonNode | null) : System.Text.Json.Nodes.JsonNode | null =
+        match node with
+        | :? System.Text.Json.Nodes.JsonObject as item ->
+            let result = System.Text.Json.Nodes.JsonObject()
+
+            for KeyValue(key, child) in item |> Seq.sortWith (fun a b -> System.String.CompareOrdinal(a.Key, b.Key)) do
+                match key, canonical child with
+                | "attributes", (:? System.Text.Json.Nodes.JsonObject as attributes) ->
+                    attributes.Remove "source" |> ignore
+
+                    if attributes.Count > 0 then
+                        result.Add(key, attributes)
+                | _, copy -> result.Add(key, copy)
+
+            result
+        | :? System.Text.Json.Nodes.JsonArray as items ->
+            let result = System.Text.Json.Nodes.JsonArray()
+
+            for child in items do
+                result.Add(canonical child)
+
+            result
+        | null -> null
+        | other -> other.DeepClone()
+
+    match canonical (System.Text.Json.Nodes.JsonNode.Parse(System.ReadOnlySpan<byte>(bytes))) with
+    | null -> failwith "The written model is not JSON."
+    | root -> root.ToJsonString(System.Text.Json.JsonSerializerOptions(WriteIndented = true))
+
+/// The C# sources of the round trip: each one is a model of the backend after the frontend reads it.
+let private roundTripSources : (string * string) list =
+    [ "the Acme.Trading domain: an enum, a closed record and a static class with a switch",
+      String.concat "\n" [
+          "namespace Acme.Trading.Domain;"
+          "public enum Side { Buy, Sell }"
+          "public closed record Order;"
+          "public sealed record Market(Side Side, decimal Quantity) : Order;"
+          "public sealed record Limit(Side Side, decimal Quantity, decimal Price) : Order;"
+          "public static class Pricing"
+          "{"
+          "    public const decimal Fee = 2.5m;"
+          "    public static decimal Notional(Order order, decimal last) => order switch"
+          "    {"
+          "        Market m => m.Quantity * last,"
+          "        Limit l => l.Quantity * l.Price,"
+          "    };"
+          "}"
+      ]
+      "records, a record update, conditionals, tuples and lists",
+      String.concat "\n" [
+          "namespace Acme.Trading.Book;"
+          "public sealed record Point(int X, int Y);"
+          "public static class Moves"
+          "{"
+          "    public static Point Origin() => new Point(0, 0);"
+          "    public static Point Right(Point p) => p with { X = p.X + 1 };"
+          "    public static string Describe(int n) => n < 0 ? \"negative\" : \"other\";"
+          "    public static (int, int) PairUp(int n) => (n, n + 1);"
+          "    public static IReadOnlyList<int> Three() => [1, 2, 3];"
+          "}"
+      ]
+      "lets, lambdas, calls of a Func and generic functions",
+      String.concat "\n" [
+          "namespace Acme.Trading.Calc;"
+          "using System;"
+          "using Morphir.SDK.CSharp;"
+          "public static class Steps"
+          "{"
+          "    public static int Twice(Func<int, int> f, int x) => f(f(x));"
+          "    public static int AddThree(int x)"
+          "    {"
+          "        var y = x + 1;"
+          "        var z = y + 2;"
+          "        return z;"
+          "    }"
+          "    public static int UseTwice() => Twice(n => n * 2, 3);"
+          "    public static T Id<T>(T value) => value;"
+          "    public static TKey Max<TKey>(TKey a, TKey b) where TKey : IComparable<TKey> => Basics.Max(a, b);"
+          "}"
+      ] ]
 
 let private distributionOf (model: VersionedModel) =
     match model.Distribution with
@@ -105,6 +201,21 @@ let private carriersText (distribution: Distribution) : string list =
 [<Tests>]
 let tests =
     testList "C# backend on Roslyn: IR to C# to IR" [
+        testList "a model that the frontend wrote comes back from the C# of the backend with the same IR, without source locations" [
+            for description, source in roundTripSources do
+                test description {
+                    let first = FrontendSupport.model (FrontendSupport.compileSource source)
+
+                    let model: VersionedModel = {
+                        SourceVersion = SourceFormatVersion.Create "4"
+                        Distribution = DistributionModel.V4 first
+                    }
+
+                    let back = throughCSharpIn FrontendSupport.package model
+                    Expect.equal (withoutSourceLocations back) (withoutSourceLocations first) "the same IR, without source locations"
+                }
+        ]
+
         test "a generic function of each value class comes back with its class in the carrier" {
             let classified = BackendValueClassTests.classified
             let comparable = classified "comparable" [ "comparable" ]

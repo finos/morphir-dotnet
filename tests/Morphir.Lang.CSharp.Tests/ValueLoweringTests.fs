@@ -114,6 +114,21 @@ let tests =
               Expect.equal (body members "three") "(list 1 2 3)" "list"
           }
 
+          test "a call of Morphir.SDK.CSharp.Decimal, as the backend writes a decimal operation, is the SDK function" {
+              let members = "    public static decimal Times(decimal a, decimal b) => Morphir.SDK.CSharp.Decimal.Mul(a, b);"
+              Expect.equal (body members "times") "((morphir.sdk:decimal#mul a) b)" "Decimal.Mul"
+          }
+
+          test "List.FromEnumerable of an array, as the backend writes a list value, is a list" {
+              let members = "    public static Morphir.SDK.CSharp.List<int> Three() => Morphir.SDK.CSharp.List<int>.FromEnumerable(new int[] { 1, 2, 3 });"
+              Expect.equal (body members "three") "(list 1 2 3)" "list"
+          }
+
+          test "List.FromEnumerable of a value that is not an array is refused" {
+              let members = "    public static Morphir.SDK.CSharp.List<int> Copy(System.Collections.Generic.IReadOnlyList<int> xs) => Morphir.SDK.CSharp.List<int>.FromEnumerable(xs);"
+              Expect.contains (codes (compileSource (pricing members))) "csharp.unsupported_reference" "not a list value"
+          }
+
           test "a tuple is a tuple" {
               let members = "    public static (int, int) Pair(int a) => (a, 1);"
               Expect.equal (body members "pair") "(tuple a 1)" "tuple"

@@ -1,0 +1,1002 @@
+{
+  "formatVersion": 4,
+  "distribution": {
+    "Library": {
+      "packageName": "acme/trading",
+      "dependencies": {},
+      "def": {
+        "modules": {
+          "domain": {
+            "Public": {
+              "types": {
+                "side": {
+                  "Public": {
+                    "CustomTypeDefinition": {
+                      "typeParams": [],
+                      "access": "Public",
+                      "constructors": {
+                        "buy": [],
+                        "sell": []
+                      }
+                    }
+                  }
+                },
+                "order": {
+                  "Public": {
+                    "CustomTypeDefinition": {
+                      "typeParams": [],
+                      "access": "Public",
+                      "constructors": {
+                        "market": [
+                          [
+                            "side",
+                            {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 5,
+                                    "startColumn": 29,
+                                    "endLine": 5,
+                                    "endColumn": 33
+                                  }
+                                },
+                                "fqname": "acme/trading:domain#side"
+                              }
+                            }
+                          ],
+                          [
+                            "quantity",
+                            {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 5,
+                                    "startColumn": 40,
+                                    "endLine": 5,
+                                    "endColumn": 47
+                                  }
+                                },
+                                "fqname": "morphir/SDK:decimal#decimal"
+                              }
+                            }
+                          ]
+                        ],
+                        "limit": [
+                          [
+                            "side",
+                            {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 6,
+                                    "startColumn": 28,
+                                    "endLine": 6,
+                                    "endColumn": 32
+                                  }
+                                },
+                                "fqname": "acme/trading:domain#side"
+                              }
+                            }
+                          ],
+                          [
+                            "quantity",
+                            {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 6,
+                                    "startColumn": 39,
+                                    "endLine": 6,
+                                    "endColumn": 46
+                                  }
+                                },
+                                "fqname": "morphir/SDK:decimal#decimal"
+                              }
+                            }
+                          ],
+                          [
+                            "price",
+                            {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 6,
+                                    "startColumn": 57,
+                                    "endLine": 6,
+                                    "endColumn": 64
+                                  }
+                                },
+                                "fqname": "morphir/SDK:decimal#decimal"
+                              }
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              "values": {}
+            }
+          },
+          "domain/pricing": {
+            "Public": {
+              "types": {},
+              "values": {
+                "fee": {
+                  "Public": {
+                    "ExpressionBody": {
+                      "inputTypes": {},
+                      "outputType": {
+                        "Reference": {
+                          "attributes": {
+                            "source": {
+                              "startLine": 10,
+                              "startColumn": 18,
+                              "endLine": 10,
+                              "endColumn": 25
+                            }
+                          },
+                          "fqname": "morphir/SDK:decimal#decimal"
+                        }
+                      },
+                      "body": {
+                        "Literal": {
+                          "attributes": {
+                            "source": {
+                              "startLine": 10,
+                              "startColumn": 32,
+                              "endLine": 10,
+                              "endColumn": 36
+                            },
+                            "inferredType": {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 10,
+                                    "startColumn": 32,
+                                    "endLine": 10,
+                                    "endColumn": 36
+                                  }
+                                },
+                                "fqname": "morphir/SDK:decimal#decimal"
+                              }
+                            }
+                          },
+                          "literal": {
+                            "DecimalLiteral": "2.5"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "notional": {
+                  "Public": {
+                    "ExpressionBody": {
+                      "inputTypes": {
+                        "order": {
+                          "Reference": {
+                            "attributes": {
+                              "source": {
+                                "startLine": 12,
+                                "startColumn": 36,
+                                "endLine": 12,
+                                "endColumn": 41
+                              }
+                            },
+                            "fqname": "acme/trading:domain#order"
+                          }
+                        },
+                        "last": {
+                          "Reference": {
+                            "attributes": {
+                              "source": {
+                                "startLine": 12,
+                                "startColumn": 49,
+                                "endLine": 12,
+                                "endColumn": 56
+                              }
+                            },
+                            "fqname": "morphir/SDK:decimal#decimal"
+                          }
+                        }
+                      },
+                      "outputType": {
+                        "Reference": {
+                          "attributes": {
+                            "source": {
+                              "startLine": 12,
+                              "startColumn": 19,
+                              "endLine": 12,
+                              "endColumn": 26
+                            }
+                          },
+                          "fqname": "morphir/SDK:decimal#decimal"
+                        }
+                      },
+                      "body": {
+                        "PatternMatch": {
+                          "attributes": {
+                            "source": {
+                              "startLine": 12,
+                              "startColumn": 66,
+                              "endLine": 16,
+                              "endColumn": 6
+                            },
+                            "inferredType": {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 12,
+                                    "startColumn": 66,
+                                    "endLine": 16,
+                                    "endColumn": 6
+                                  }
+                                },
+                                "fqname": "morphir/SDK:decimal#decimal"
+                              }
+                            }
+                          },
+                          "value": {
+                            "Variable": {
+                              "attributes": {
+                                "source": {
+                                  "startLine": 12,
+                                  "startColumn": 66,
+                                  "endLine": 12,
+                                  "endColumn": 71
+                                },
+                                "inferredType": {
+                                  "Reference": {
+                                    "attributes": {
+                                      "source": {
+                                        "startLine": 12,
+                                        "startColumn": 66,
+                                        "endLine": 12,
+                                        "endColumn": 71
+                                      }
+                                    },
+                                    "fqname": "acme/trading:domain#order"
+                                  }
+                                }
+                              },
+                              "name": "order"
+                            }
+                          },
+                          "cases": [
+                            {
+                              "pattern": {
+                                "ConstructorPattern": {
+                                  "attributes": {
+                                    "source": {
+                                      "startLine": 14,
+                                      "startColumn": 9,
+                                      "endLine": 14,
+                                      "endColumn": 17
+                                    },
+                                    "inferredType": {
+                                      "Reference": {
+                                        "attributes": {
+                                          "source": {
+                                            "startLine": 14,
+                                            "startColumn": 9,
+                                            "endLine": 14,
+                                            "endColumn": 17
+                                          }
+                                        },
+                                        "fqname": "acme/trading:domain#order"
+                                      }
+                                    }
+                                  },
+                                  "fqname": "acme/trading:domain#market",
+                                  "patterns": [
+                                    {
+                                      "AsPattern": {
+                                        "attributes": {
+                                          "source": {
+                                            "startLine": 14,
+                                            "startColumn": 9,
+                                            "endLine": 14,
+                                            "endColumn": 17
+                                          },
+                                          "inferredType": {
+                                            "Reference": {
+                                              "attributes": {
+                                                "source": {
+                                                  "startLine": 14,
+                                                  "startColumn": 9,
+                                                  "endLine": 14,
+                                                  "endColumn": 17
+                                                }
+                                              },
+                                              "fqname": "acme/trading:domain#side"
+                                            }
+                                          }
+                                        },
+                                        "pattern": {
+                                          "WildcardPattern": {
+                                            "attributes": {
+                                              "source": {
+                                                "startLine": 14,
+                                                "startColumn": 9,
+                                                "endLine": 14,
+                                                "endColumn": 17
+                                              },
+                                              "inferredType": {
+                                                "Reference": {
+                                                  "attributes": {
+                                                    "source": {
+                                                      "startLine": 14,
+                                                      "startColumn": 9,
+                                                      "endLine": 14,
+                                                      "endColumn": 17
+                                                    }
+                                                  },
+                                                  "fqname": "acme/trading:domain#side"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "name": "m-side"
+                                      }
+                                    },
+                                    {
+                                      "AsPattern": {
+                                        "attributes": {
+                                          "source": {
+                                            "startLine": 14,
+                                            "startColumn": 9,
+                                            "endLine": 14,
+                                            "endColumn": 17
+                                          },
+                                          "inferredType": {
+                                            "Reference": {
+                                              "attributes": {
+                                                "source": {
+                                                  "startLine": 14,
+                                                  "startColumn": 9,
+                                                  "endLine": 14,
+                                                  "endColumn": 17
+                                                }
+                                              },
+                                              "fqname": "morphir/SDK:decimal#decimal"
+                                            }
+                                          }
+                                        },
+                                        "pattern": {
+                                          "WildcardPattern": {
+                                            "attributes": {
+                                              "source": {
+                                                "startLine": 14,
+                                                "startColumn": 9,
+                                                "endLine": 14,
+                                                "endColumn": 17
+                                              },
+                                              "inferredType": {
+                                                "Reference": {
+                                                  "attributes": {
+                                                    "source": {
+                                                      "startLine": 14,
+                                                      "startColumn": 9,
+                                                      "endLine": 14,
+                                                      "endColumn": 17
+                                                    }
+                                                  },
+                                                  "fqname": "morphir/SDK:decimal#decimal"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "name": "m-quantity"
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              "body": {
+                                "Apply": {
+                                  "attributes": {
+                                    "source": {
+                                      "startLine": 14,
+                                      "startColumn": 21,
+                                      "endLine": 14,
+                                      "endColumn": 38
+                                    },
+                                    "inferredType": {
+                                      "Reference": {
+                                        "attributes": {
+                                          "source": {
+                                            "startLine": 14,
+                                            "startColumn": 21,
+                                            "endLine": 14,
+                                            "endColumn": 38
+                                          }
+                                        },
+                                        "fqname": "morphir/SDK:decimal#decimal"
+                                      }
+                                    }
+                                  },
+                                  "function": {
+                                    "Apply": {
+                                      "attributes": {
+                                        "source": {
+                                          "startLine": 14,
+                                          "startColumn": 21,
+                                          "endLine": 14,
+                                          "endColumn": 38
+                                        },
+                                        "inferredType": {
+                                          "Function": {
+                                            "attributes": {
+                                              "source": {
+                                                "startLine": 14,
+                                                "startColumn": 21,
+                                                "endLine": 14,
+                                                "endColumn": 38
+                                              }
+                                            },
+                                            "parameterType": {
+                                              "Reference": {
+                                                "attributes": {
+                                                  "source": {
+                                                    "startLine": 14,
+                                                    "startColumn": 21,
+                                                    "endLine": 14,
+                                                    "endColumn": 38
+                                                  }
+                                                },
+                                                "fqname": "morphir/SDK:decimal#decimal"
+                                              }
+                                            },
+                                            "returnType": {
+                                              "Reference": {
+                                                "attributes": {
+                                                  "source": {
+                                                    "startLine": 14,
+                                                    "startColumn": 21,
+                                                    "endLine": 14,
+                                                    "endColumn": 38
+                                                  }
+                                                },
+                                                "fqname": "morphir/SDK:decimal#decimal"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "function": {
+                                        "Reference": {
+                                          "attributes": {
+                                            "source": {
+                                              "startLine": 14,
+                                              "startColumn": 21,
+                                              "endLine": 14,
+                                              "endColumn": 38
+                                            },
+                                            "inferredType": {
+                                              "Function": {
+                                                "attributes": {
+                                                  "source": {
+                                                    "startLine": 14,
+                                                    "startColumn": 21,
+                                                    "endLine": 14,
+                                                    "endColumn": 38
+                                                  }
+                                                },
+                                                "parameterType": {
+                                                  "Reference": {
+                                                    "attributes": {
+                                                      "source": {
+                                                        "startLine": 14,
+                                                        "startColumn": 21,
+                                                        "endLine": 14,
+                                                        "endColumn": 38
+                                                      }
+                                                    },
+                                                    "fqname": "morphir/SDK:decimal#decimal"
+                                                  }
+                                                },
+                                                "returnType": {
+                                                  "Function": {
+                                                    "attributes": {
+                                                      "source": {
+                                                        "startLine": 14,
+                                                        "startColumn": 21,
+                                                        "endLine": 14,
+                                                        "endColumn": 38
+                                                      }
+                                                    },
+                                                    "parameterType": {
+                                                      "Reference": {
+                                                        "attributes": {
+                                                          "source": {
+                                                            "startLine": 14,
+                                                            "startColumn": 21,
+                                                            "endLine": 14,
+                                                            "endColumn": 38
+                                                          }
+                                                        },
+                                                        "fqname": "morphir/SDK:decimal#decimal"
+                                                      }
+                                                    },
+                                                    "returnType": {
+                                                      "Reference": {
+                                                        "attributes": {
+                                                          "source": {
+                                                            "startLine": 14,
+                                                            "startColumn": 21,
+                                                            "endLine": 14,
+                                                            "endColumn": 38
+                                                          }
+                                                        },
+                                                        "fqname": "morphir/SDK:decimal#decimal"
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "fqname": "morphir/SDK:decimal#mul"
+                                        }
+                                      },
+                                      "argument": {
+                                        "Variable": {
+                                          "attributes": {
+                                            "source": {
+                                              "startLine": 14,
+                                              "startColumn": 21,
+                                              "endLine": 14,
+                                              "endColumn": 31
+                                            },
+                                            "inferredType": {
+                                              "Reference": {
+                                                "attributes": {
+                                                  "source": {
+                                                    "startLine": 14,
+                                                    "startColumn": 21,
+                                                    "endLine": 14,
+                                                    "endColumn": 31
+                                                  }
+                                                },
+                                                "fqname": "morphir/SDK:decimal#decimal"
+                                              }
+                                            }
+                                          },
+                                          "name": "m-quantity"
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "argument": {
+                                    "Variable": {
+                                      "attributes": {
+                                        "source": {
+                                          "startLine": 14,
+                                          "startColumn": 34,
+                                          "endLine": 14,
+                                          "endColumn": 38
+                                        },
+                                        "inferredType": {
+                                          "Reference": {
+                                            "attributes": {
+                                              "source": {
+                                                "startLine": 14,
+                                                "startColumn": 34,
+                                                "endLine": 14,
+                                                "endColumn": 38
+                                              }
+                                            },
+                                            "fqname": "morphir/SDK:decimal#decimal"
+                                          }
+                                        }
+                                      },
+                                      "name": "last"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "pattern": {
+                                "ConstructorPattern": {
+                                  "attributes": {
+                                    "source": {
+                                      "startLine": 15,
+                                      "startColumn": 9,
+                                      "endLine": 15,
+                                      "endColumn": 16
+                                    },
+                                    "inferredType": {
+                                      "Reference": {
+                                        "attributes": {
+                                          "source": {
+                                            "startLine": 15,
+                                            "startColumn": 9,
+                                            "endLine": 15,
+                                            "endColumn": 16
+                                          }
+                                        },
+                                        "fqname": "acme/trading:domain#order"
+                                      }
+                                    }
+                                  },
+                                  "fqname": "acme/trading:domain#limit",
+                                  "patterns": [
+                                    {
+                                      "AsPattern": {
+                                        "attributes": {
+                                          "source": {
+                                            "startLine": 15,
+                                            "startColumn": 9,
+                                            "endLine": 15,
+                                            "endColumn": 16
+                                          },
+                                          "inferredType": {
+                                            "Reference": {
+                                              "attributes": {
+                                                "source": {
+                                                  "startLine": 15,
+                                                  "startColumn": 9,
+                                                  "endLine": 15,
+                                                  "endColumn": 16
+                                                }
+                                              },
+                                              "fqname": "acme/trading:domain#side"
+                                            }
+                                          }
+                                        },
+                                        "pattern": {
+                                          "WildcardPattern": {
+                                            "attributes": {
+                                              "source": {
+                                                "startLine": 15,
+                                                "startColumn": 9,
+                                                "endLine": 15,
+                                                "endColumn": 16
+                                              },
+                                              "inferredType": {
+                                                "Reference": {
+                                                  "attributes": {
+                                                    "source": {
+                                                      "startLine": 15,
+                                                      "startColumn": 9,
+                                                      "endLine": 15,
+                                                      "endColumn": 16
+                                                    }
+                                                  },
+                                                  "fqname": "acme/trading:domain#side"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "name": "l-side"
+                                      }
+                                    },
+                                    {
+                                      "AsPattern": {
+                                        "attributes": {
+                                          "source": {
+                                            "startLine": 15,
+                                            "startColumn": 9,
+                                            "endLine": 15,
+                                            "endColumn": 16
+                                          },
+                                          "inferredType": {
+                                            "Reference": {
+                                              "attributes": {
+                                                "source": {
+                                                  "startLine": 15,
+                                                  "startColumn": 9,
+                                                  "endLine": 15,
+                                                  "endColumn": 16
+                                                }
+                                              },
+                                              "fqname": "morphir/SDK:decimal#decimal"
+                                            }
+                                          }
+                                        },
+                                        "pattern": {
+                                          "WildcardPattern": {
+                                            "attributes": {
+                                              "source": {
+                                                "startLine": 15,
+                                                "startColumn": 9,
+                                                "endLine": 15,
+                                                "endColumn": 16
+                                              },
+                                              "inferredType": {
+                                                "Reference": {
+                                                  "attributes": {
+                                                    "source": {
+                                                      "startLine": 15,
+                                                      "startColumn": 9,
+                                                      "endLine": 15,
+                                                      "endColumn": 16
+                                                    }
+                                                  },
+                                                  "fqname": "morphir/SDK:decimal#decimal"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "name": "l-quantity"
+                                      }
+                                    },
+                                    {
+                                      "AsPattern": {
+                                        "attributes": {
+                                          "source": {
+                                            "startLine": 15,
+                                            "startColumn": 9,
+                                            "endLine": 15,
+                                            "endColumn": 16
+                                          },
+                                          "inferredType": {
+                                            "Reference": {
+                                              "attributes": {
+                                                "source": {
+                                                  "startLine": 15,
+                                                  "startColumn": 9,
+                                                  "endLine": 15,
+                                                  "endColumn": 16
+                                                }
+                                              },
+                                              "fqname": "morphir/SDK:decimal#decimal"
+                                            }
+                                          }
+                                        },
+                                        "pattern": {
+                                          "WildcardPattern": {
+                                            "attributes": {
+                                              "source": {
+                                                "startLine": 15,
+                                                "startColumn": 9,
+                                                "endLine": 15,
+                                                "endColumn": 16
+                                              },
+                                              "inferredType": {
+                                                "Reference": {
+                                                  "attributes": {
+                                                    "source": {
+                                                      "startLine": 15,
+                                                      "startColumn": 9,
+                                                      "endLine": 15,
+                                                      "endColumn": 16
+                                                    }
+                                                  },
+                                                  "fqname": "morphir/SDK:decimal#decimal"
+                                                }
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "name": "l-price"
+                                      }
+                                    }
+                                  ]
+                                }
+                              },
+                              "body": {
+                                "Apply": {
+                                  "attributes": {
+                                    "source": {
+                                      "startLine": 15,
+                                      "startColumn": 20,
+                                      "endLine": 15,
+                                      "endColumn": 40
+                                    },
+                                    "inferredType": {
+                                      "Reference": {
+                                        "attributes": {
+                                          "source": {
+                                            "startLine": 15,
+                                            "startColumn": 20,
+                                            "endLine": 15,
+                                            "endColumn": 40
+                                          }
+                                        },
+                                        "fqname": "morphir/SDK:decimal#decimal"
+                                      }
+                                    }
+                                  },
+                                  "function": {
+                                    "Apply": {
+                                      "attributes": {
+                                        "source": {
+                                          "startLine": 15,
+                                          "startColumn": 20,
+                                          "endLine": 15,
+                                          "endColumn": 40
+                                        },
+                                        "inferredType": {
+                                          "Function": {
+                                            "attributes": {
+                                              "source": {
+                                                "startLine": 15,
+                                                "startColumn": 20,
+                                                "endLine": 15,
+                                                "endColumn": 40
+                                              }
+                                            },
+                                            "parameterType": {
+                                              "Reference": {
+                                                "attributes": {
+                                                  "source": {
+                                                    "startLine": 15,
+                                                    "startColumn": 20,
+                                                    "endLine": 15,
+                                                    "endColumn": 40
+                                                  }
+                                                },
+                                                "fqname": "morphir/SDK:decimal#decimal"
+                                              }
+                                            },
+                                            "returnType": {
+                                              "Reference": {
+                                                "attributes": {
+                                                  "source": {
+                                                    "startLine": 15,
+                                                    "startColumn": 20,
+                                                    "endLine": 15,
+                                                    "endColumn": 40
+                                                  }
+                                                },
+                                                "fqname": "morphir/SDK:decimal#decimal"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "function": {
+                                        "Reference": {
+                                          "attributes": {
+                                            "source": {
+                                              "startLine": 15,
+                                              "startColumn": 20,
+                                              "endLine": 15,
+                                              "endColumn": 40
+                                            },
+                                            "inferredType": {
+                                              "Function": {
+                                                "attributes": {
+                                                  "source": {
+                                                    "startLine": 15,
+                                                    "startColumn": 20,
+                                                    "endLine": 15,
+                                                    "endColumn": 40
+                                                  }
+                                                },
+                                                "parameterType": {
+                                                  "Reference": {
+                                                    "attributes": {
+                                                      "source": {
+                                                        "startLine": 15,
+                                                        "startColumn": 20,
+                                                        "endLine": 15,
+                                                        "endColumn": 40
+                                                      }
+                                                    },
+                                                    "fqname": "morphir/SDK:decimal#decimal"
+                                                  }
+                                                },
+                                                "returnType": {
+                                                  "Function": {
+                                                    "attributes": {
+                                                      "source": {
+                                                        "startLine": 15,
+                                                        "startColumn": 20,
+                                                        "endLine": 15,
+                                                        "endColumn": 40
+                                                      }
+                                                    },
+                                                    "parameterType": {
+                                                      "Reference": {
+                                                        "attributes": {
+                                                          "source": {
+                                                            "startLine": 15,
+                                                            "startColumn": 20,
+                                                            "endLine": 15,
+                                                            "endColumn": 40
+                                                          }
+                                                        },
+                                                        "fqname": "morphir/SDK:decimal#decimal"
+                                                      }
+                                                    },
+                                                    "returnType": {
+                                                      "Reference": {
+                                                        "attributes": {
+                                                          "source": {
+                                                            "startLine": 15,
+                                                            "startColumn": 20,
+                                                            "endLine": 15,
+                                                            "endColumn": 40
+                                                          }
+                                                        },
+                                                        "fqname": "morphir/SDK:decimal#decimal"
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          },
+                                          "fqname": "morphir/SDK:decimal#mul"
+                                        }
+                                      },
+                                      "argument": {
+                                        "Variable": {
+                                          "attributes": {
+                                            "source": {
+                                              "startLine": 15,
+                                              "startColumn": 20,
+                                              "endLine": 15,
+                                              "endColumn": 30
+                                            },
+                                            "inferredType": {
+                                              "Reference": {
+                                                "attributes": {
+                                                  "source": {
+                                                    "startLine": 15,
+                                                    "startColumn": 20,
+                                                    "endLine": 15,
+                                                    "endColumn": 30
+                                                  }
+                                                },
+                                                "fqname": "morphir/SDK:decimal#decimal"
+                                              }
+                                            }
+                                          },
+                                          "name": "l-quantity"
+                                        }
+                                      }
+                                    }
+                                  },
+                                  "argument": {
+                                    "Variable": {
+                                      "attributes": {
+                                        "source": {
+                                          "startLine": 15,
+                                          "startColumn": 33,
+                                          "endLine": 15,
+                                          "endColumn": 40
+                                        },
+                                        "inferredType": {
+                                          "Reference": {
+                                            "attributes": {
+                                              "source": {
+                                                "startLine": 15,
+                                                "startColumn": 33,
+                                                "endLine": 15,
+                                                "endColumn": 40
+                                              }
+                                            },
+                                            "fqname": "morphir/SDK:decimal#decimal"
+                                          }
+                                        }
+                                      },
+                                      "name": "l-price"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

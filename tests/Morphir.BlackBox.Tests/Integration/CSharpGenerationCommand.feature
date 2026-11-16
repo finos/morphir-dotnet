@@ -50,6 +50,14 @@ Feature: Generate C# through the existing command
     Then generation exits with 0 and one JSON report
     And the generation report lists the pass "morphir-dotnet.csharp.admission"
 
+  # A pull request runs this scenario on the development build (JIT), and the release and manual workflows run it on
+  # each published target, also on the Native AOT executable. So the Native AOT output is the JIT output.
+  Scenario: The generated C# of the Acme.Trading model is the reviewed C#
+    Given the model fixture "CSharpGeneration/acme-trading/model.json"
+    When I generate "csharp" from the model
+    Then generation exits with 0 and one JSON report
+    And the generated files are the files of the fixture "CSharpGeneration/acme-trading/generated"
+
   @needs-all-hosts
   Scenario: Both hosts write the same C# bytes
     Given the model fixture "WireForms/daily-rate-4.json"

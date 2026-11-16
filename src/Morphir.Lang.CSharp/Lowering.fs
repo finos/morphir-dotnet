@@ -683,6 +683,27 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 let! lowered = lowerArguments ()
                 return! this.Apply(at, fn, parameters, result, lowered)
             }
+        elif SdkMapping.isListFromEnumerable target then
+            // The list value that the C# backend writes: List<T>.FromEnumerable(new T[] { ... }) is the list of the items.
+            let items =
+                match arguments with
+                | [ argument ] ->
+                    match argument with
+                    | :? IConversionOperation as conversion when conversion.IsImplicit -> conversion.Operand
+                    | other -> other
+                    |> function
+                        | :? IArrayCreationOperation as array when not (isNull array.Initializer) -> Some(List.ofSeq array.Initializer.ElementValues)
+                        | _ -> None
+                | _ -> None
+
+            match items with
+            | Some elements ->
+                check {
+                    let! lowered = elements |> Checked.traverse (fun element -> this.Value(env, element))
+                    let! inferred = this.Type(at, result)
+                    return! builder.List(at, inferred, lowered)
+                }
+            | None -> unsupportedReference at (target.ToDisplayString())
         else
             match SdkMapping.tryMethod target with
             | Some(fq, _) ->

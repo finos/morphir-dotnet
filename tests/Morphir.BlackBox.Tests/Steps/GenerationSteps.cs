@@ -53,6 +53,23 @@ public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriv
         Check(different.Length == 0, $"The bytes of these files differ between the hosts: {string.Join(", ", different)}.");
     }
 
+    /// <summary>
+    /// The output directory has the files of the fixture directory, with the same bytes, and no other file apart from the
+    /// files of the command whose names start with a dot.
+    /// </summary>
+    [Then("the generated files are the files of the fixture {string}")]
+    public void TheGeneratedFilesAreTheFilesOfTheFixture(string fixture)
+    {
+        var expected = workspace.CopyFixtureDirectory(fixture, "expected");
+        var reviewed = workspace.FilesIn(expected).ToArray();
+        var generated = workspace.FilesIn(Output).Where(file => !file.StartsWith('.')).ToArray();
+        Check(reviewed.Length > 0, $"The fixture {fixture} has no file.");
+        Check(generated.SequenceEqual(reviewed), $"The command generated the files {string.Join(", ", generated)}, not the files {string.Join(", ", reviewed)} of the fixture.");
+
+        var different = generated.Where(file => !workspace.ReadBytes(Output.File(file)).AsSpan().SequenceEqual(workspace.ReadBytes(expected.File(file)))).ToArray();
+        Check(different.Length == 0, $"These generated files are not the files of the fixture {fixture}: {string.Join(", ", different)}.");
+    }
+
     /// <summary>The exit code, and one generation report on standard output that agrees with it.</summary>
     [Then("generation exits with {int} and one JSON report")]
     public void GenerationExitsWithOneReport(int exitCode) => GenerationReport.Of(run.Result.ShouldExitWith(exitCode));
