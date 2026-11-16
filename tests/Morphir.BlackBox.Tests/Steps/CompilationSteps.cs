@@ -147,13 +147,48 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
         _source = (file, package);
     }
 
-    [Given("the C# source file {string} with a foreach loop, of the package {string}")]
+    [Given("the C# source file {string} with a loop that changes nothing, of the package {string}")]
     public void TheCSharpSourceFileWithALoop(string relative, string package)
     {
         var file = Project.File(relative);
         workspace.WriteText(file,
             "namespace Acme.Demo.Rates;\n\npublic static class Pricing\n{\n    public static int Total(int[] xs)\n    {\n        foreach (var x in xs) { }\n        return 0;\n    }\n}\n");
         _source = (file, package);
+    }
+
+    /// <summary>A C# model with a <c>foreach</c> that sums a list: the frontend lowers it to <c>List.foldl</c> (LOP-1).</summary>
+    [Given("the C# source file {string} with a loop that sums a list, of the package {string}")]
+    public void TheCSharpSourceFileWithASum(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file,
+            "namespace Acme.Demo;\n\npublic static class Totals\n{\n    public static int Sum(IReadOnlyList<int> amounts)\n    {\n        var total = 0;\n        foreach (var amount in amounts) { total += amount; }\n        return total;\n    }\n}\n");
+        _source = (file, package);
+    }
+
+    /// <summary>A C# model with a loop that writes a field: the loop has no Morphir form.</summary>
+    [Given("the C# source file {string} with a loop that writes a field, of the package {string}")]
+    public void TheCSharpSourceFileWithAFieldWrite(string relative, string package)
+    {
+        var file = Project.File(relative);
+        workspace.WriteText(file,
+            "namespace Acme.Demo;\n\npublic static class Totals\n{\n    private static int counter;\n\n    public static int Sum(IReadOnlyList<int> amounts)\n    {\n        var total = 0;\n        foreach (var amount in amounts) { total += amount; counter++; }\n        return total;\n    }\n}\n");
+        _source = (file, package);
+    }
+
+    [Then("the published IR names the SDK function {string}")]
+    public void ThePublishedIrNames(string name)
+    {
+        Check(workspace.Exists(PublishedIr), $"No IR is published at {PublishedIr.Path}.");
+        Check(workspace.ReadText(PublishedIr).Contains($"\"{name}\"", StringComparison.Ordinal), $"The published IR does not name {name}.");
+    }
+
+    [Then("the compilation report has the diagnostic {string} in {string} with the message {string}")]
+    public void ReportDiagnosticWithMessage(string code, string uri, string message)
+    {
+        Report.ShouldHaveDiagnosticIn(code, uri);
+        var messages = Report.Diagnostics.Where(diagnostic => diagnostic.Code == code).Select(diagnostic => diagnostic.Message).ToArray();
+        Check(messages.Contains(message), $"The diagnostic {code} has the messages {string.Join("; ", messages)}, not {message}.");
     }
 
     [When("I compile the C# source file")]

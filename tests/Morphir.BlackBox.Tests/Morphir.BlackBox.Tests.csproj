@@ -89,6 +89,7 @@
     <None Include="../Fixtures/Toolchain/workflows/fsharp-compile-generate/expected/generated/Pricing.fs" Link="Fixtures/Toolchain/fsharp-compile-generate/Pricing.fs" CopyToOutputDirectory="PreserveNewest" />
     <!-- The pages of the documentation whose commands a scenario runs, and the example of the F# pricing tutorial. -->
     <None Include="../../docs/content/docs/backends/csharp/build-integration.md" Link="Fixtures/Docs/backends/csharp/build-integration.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/backends/csharp/_index.md" Link="Fixtures/Docs/backends/csharp/_index.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/cli/compile.md" Link="Fixtures/Docs/cli/compile.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/cli/generate.md" Link="Fixtures/Docs/cli/generate.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/cli/validate.md" Link="Fixtures/Docs/cli/validate.md" CopyToOutputDirectory="PreserveNewest" />

@@ -403,7 +403,11 @@ two steps have the same pattern.
 | Compilation | `When I compile its input files at the IR version {string}` |
 | Compilation | `When I compile the project with the project file {string}` |
 | Compilation | `Given the C# source file {string} of the package {string}` |
-| Compilation | `Given the C# source file {string} with a foreach loop, of the package {string}` |
+| Compilation | `Given the C# source file {string} with a loop that changes nothing, of the package {string}` |
+| Compilation | `Given the C# source file {string} with a loop that sums a list, of the package {string}` |
+| Compilation | `Given the C# source file {string} with a loop that writes a field, of the package {string}` |
+| Compilation | `Then the published IR names the SDK function {string}` |
+| Compilation | `Then the compilation report has the diagnostic {string} in {string} with the message {string}` |
 | Compilation | `When I compile the C# source file` |
 | Compilation | `Given the C# source file {string} with handling attributes, of the package {string}` |
 | Compilation | `Given the C# source file {string} with a record of a double, of the package {string}` |
@@ -445,6 +449,8 @@ two steps have the same pattern.
 | Documentation | `When I run the documented commands of the section in the project directory {string}` |
 | Documentation | `Given the first C# code block of the documentation page {string} as the file {string}` |
 | Documentation | `When I run the documented commands of the section in the directory {string}` |
+| Documentation | `Given the C# block {int} of the section is the source file {string}` |
+| Documentation | `Then the file {string} contains the C# block {int} of the section` |
 | Documentation | `Then the documented compile writes the path of the published IR of the project {string}` |
 | Documentation | `Then the documented generate writes its documented files to {string} of the project {string}` |
 | Tutorial | `Then each marked code block of the tutorial is the file of the example that it names` |
