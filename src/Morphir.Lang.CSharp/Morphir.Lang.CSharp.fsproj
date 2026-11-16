@@ -17,8 +17,12 @@
           No IsTrimmable or IsAotCompatible: Roslyn is neither. The publish gate of src/Morphir/Morphir.csproj accepts the
           Roslyn summary warning and keeps per-site errors for the other packages (tasks.md, group 9).
         -->
-        <!-- Packaging lands with the package of Morphir.Lang.CSharp (tasks.md, group 8). -->
-        <IsPackable>false</IsPackable>
+        <!--
+          One package. The analyzer and attribute assemblies are not packages of their own: their project references are
+          private, and IncludeBundledAssemblies puts their DLLs in lib/ beside this assembly. Group 8 of tasks.md adds the
+          analyzers/ folder, the MSBuild target and the generator to this package.
+        -->
+        <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeBundledAssemblies</TargetsForTfmSpecificBuildOutput>
     </PropertyGroup>
 
     <ItemGroup>
@@ -35,17 +39,24 @@
         <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
         <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
         <ProjectReference Include="..\Morphir.MiddleEnd\Morphir.MiddleEnd.fsproj" />
-        <ProjectReference Include="..\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" />
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" PrivateAssets="all" />
         <!-- The attribute assembly is referenced (for the polyfill source) and embedded (for the fixed reference set). -->
-        <ProjectReference Include="..\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" OutputItemType="EmbeddedReferenceAssembly" />
+        <ProjectReference Include="..\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" OutputItemType="EmbeddedReferenceAssembly" PrivateAssets="all" />
         <!-- The SDK that model code compiles against, built for net10.0 to match the fixed .NET 10 reference assemblies. -->
-        <ProjectReference Include="..\Morphir.SDK.CSharp\Morphir.SDK.CSharp.csproj" ReferenceOutputAssembly="false" OutputItemType="EmbeddedReferenceAssembly" SetTargetFramework="TargetFramework=net10.0" />
+        <ProjectReference Include="..\Morphir.SDK.CSharp\Morphir.SDK.CSharp.csproj" ReferenceOutputAssembly="false" OutputItemType="EmbeddedReferenceAssembly" SetTargetFramework="TargetFramework=net10.0" PrivateAssets="all" />
     </ItemGroup>
 
     <!-- The Native AOT host has no assembly files on disk: embed the reference assemblies as resources. -->
     <Target Name="EmbedReferenceAssemblies" AfterTargets="ResolveProjectReferences" BeforeTargets="AssignTargetPaths">
         <ItemGroup>
             <EmbeddedResource Include="@(EmbeddedReferenceAssembly)" LogicalName="%(Filename)%(Extension)" WithCulture="false" />
+        </ItemGroup>
+    </Target>
+
+    <!-- The bundled assemblies of the package: see TargetsForTfmSpecificBuildOutput above. -->
+    <Target Name="IncludeBundledAssemblies" DependsOnTargets="ResolveReferences">
+        <ItemGroup>
+            <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)" Condition="'%(ReferenceCopyLocalPaths.ReferenceSourceTarget)' == 'ProjectReference' and ('%(Filename)' == 'Morphir.Lang.CSharp.Analyzers' or '%(Filename)' == 'Morphir.Lang.CSharp.Attributes') and '%(Extension)' != '.pdb'" />
         </ItemGroup>
     </Target>
 

@@ -10,9 +10,9 @@ Roslyn Workspaces assembly, and it is a pure function of the model and the optio
 The backend is the `csharp` target of `morphir generate` and of `morphir compile --target csharp`. In code, call
 `CSharpBackend.Generate(model, options, cancellationToken)` of `Morphir.Lang.CSharp.Emit`.
 
-> **Breaking change.** The package `Morphir.CodeGeneration.CSharp` and its text backend are gone, and no package replaces it
-> yet: `Morphir.Lang.CSharp` is published with generation in a build. Until then, generate with the `csharp` target of the
-> CLI. The API of the backend is `CSharpBackend` in `Morphir.Lang.CSharp.Emit`. The new backend writes C# 15 only: a request for
+> **Breaking change.** The package `Morphir.CodeGeneration.CSharp` and its text backend are gone. The package
+> `Morphir.Lang.CSharp` replaces it, and the API of the backend is `CSharpBackend` in `Morphir.Lang.CSharp.Emit`.
+> Generation in a user build (the MSBuild target and the source generator) is not in the package yet. The new backend writes C# 15 only: a request for
 > `language-version=14` fails with the code `unsupported-language`, and the diagnostic names 15. The shape of the output
 > changed: modules are namespaces and static classes (no `...Module` class), a custom type is a `closed record` or a `union`
 > (no `abstract class` with nested cases), and records have the equality of plain C# (no `IMorphirValue` members unless you

@@ -25,7 +25,7 @@
         <IsRoslynComponent>true</IsRoslynComponent>
         <!-- RS2008: release tracking files come with the first published rule. -->
         <NoWarn>$(NoWarn);RS2008</NoWarn>
-        <!-- Packaging lands with the package of Morphir.Lang.CSharp (tasks.md, group 8). -->
+        <!-- Not a package of its own: the Morphir.Lang.CSharp package carries this assembly in lib/. -->
         <IsPackable>false</IsPackable>
         <Description>Roslyn analyzer rules that report the C# constructs outside the Morphir subset.</Description>
     </PropertyGroup>

@@ -25,6 +25,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Lang.CSharp\Morphir.Lang.CSharp.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Analyzers\Morphir.Lang.CSharp.Analyzers.csproj" />
+        <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" />
         <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.SDK.CSharp\Morphir.SDK.CSharp.csproj" />
     </ItemGroup>

@@ -137,6 +137,10 @@ partial class Build : FalloutBuild
         ("Morphir.Configuration.IO", SourceDirectory / "Morphir.Configuration.IO" / "Morphir.Configuration.IO.csproj", true),
         ("Morphir.Models", MorphirModelsProject, true),
         ("Morphir.Compilation", SourceDirectory / "Morphir.Compilation" / "Morphir.Compilation.fsproj", true),
+        ("Morphir.MiddleEnd", SourceDirectory / "Morphir.MiddleEnd" / "Morphir.MiddleEnd.fsproj", true),
+        // One package with the frontend, the middle end passes and the backend for C#. It carries its analyzer and
+        // attribute assemblies in lib/, so neither is a package of its own.
+        ("Morphir.Lang.CSharp", SourceDirectory / "Morphir.Lang.CSharp" / "Morphir.Lang.CSharp.fsproj", true),
         ("Morphir.IR.Pipeline", SourceDirectory / "Morphir.IR.Pipeline" / "Morphir.IR.Pipeline.fsproj", true),
         ("Morphir.IR.Pipeline.Plugins", SourceDirectory / "Morphir.IR.Pipeline.Plugins" / "Morphir.IR.Pipeline.Plugins.fsproj", true),
         ("Morphir.Ion", SourceDirectory / "Morphir.Ion" / "Morphir.Ion.fsproj", true),

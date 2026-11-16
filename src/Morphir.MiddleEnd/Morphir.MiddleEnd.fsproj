@@ -26,8 +26,6 @@
         <Nullable>enable</Nullable>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <!-- Packaging lands with the package of Morphir.Lang.CSharp (tasks.md, group 8). -->
-        <IsPackable>false</IsPackable>
     </PropertyGroup>
 
     <!-- Trimming and AOT analyzers for the frameworks that support them (NETSDK1210, NETSDK1212). -->
