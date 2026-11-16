@@ -30,6 +30,32 @@ let private onlyV4 () =
           Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
     )
 
+/// A guest that selects only the 4.0.0 compileModel tuple and writes the options member of each compileModel request
+/// to stderr, so a test can see the extra options that the host sent.
+let private echoOptions () =
+    let support =
+        { FSharpGuest.support with
+            Tuples = [| FSharpGuest.tuple "4.0.0" |] }
+
+    let handler =
+        Handlers.raw (fun parameters _ ->
+            match parameters with
+            | Some element ->
+                match element.TryGetProperty "options" with
+                | true, options -> eprintfn "fake-guest: options %s" (options.GetRawText())
+                | false, _ -> eprintfn "fake-guest: no options"
+            | None -> eprintfn "fake-guest: no params"
+
+            Task.FromResult(Error(RpcErrors.create ErrorCode.InternalError)))
+
+    Guest(
+        { Claims = FSharpGuest.claims
+          Capabilities =
+            { FSharpGuest.capabilities with
+                ModelTransport = Some support }
+          Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
+    )
+
 /// A guest that supports only an Ion compileModel tuple, so it selects none of the host's JSON tuples and the
 /// agreement is empty. Its compileModel handler writes a line to stderr, so a test can see whether the host sent a
 /// request.
@@ -148,6 +174,7 @@ let run (scenario: string) =
     let guest =
         match scenario with
         | "only-v4" -> onlyV4 ()
+        | "echo-options" -> echoOptions ()
         | "ion-only" -> ionOnly ()
         | "stdout-log" -> stdoutLog output
         | "never-answers" -> neverAnswers ()

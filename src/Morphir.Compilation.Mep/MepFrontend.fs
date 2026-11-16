@@ -398,7 +398,9 @@ type MepFrontend
                           Options =
                             { TypesOnly = false
                               IrVersion = tuple.IrVersion
-                              Extra = Dictionary() }
+                              // The extra options of the request, such as the [frontend.<language>] keys, sit
+                              // beside the named members on the wire.
+                              Extra = request.ExtraOptions }
                           ContextDigest = Sha256Digest.Create(String('0', 64))
                           Output = tuple }
 
