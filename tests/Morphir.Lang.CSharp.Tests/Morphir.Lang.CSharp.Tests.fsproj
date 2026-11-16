@@ -28,6 +28,7 @@
         <ProjectReference Include="..\..\src\Morphir.Lang.CSharp.Attributes\Morphir.Lang.CSharp.Attributes.csproj" />
         <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.SDK.CSharp\Morphir.SDK.CSharp.csproj" />
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -54,9 +55,16 @@
         <Compile Include="HandlingOptionTests.fs" />
         <Compile Include="BackendLoopTests.fs" />
         <Compile Include="ConformanceTests.fs" />
+        <Compile Include="CliAdapterTests.fs" />
         <Compile Include="CoveragePageTests.fs" />
         <Compile Include="PipelineTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
+
+    <!--
+      The CLI entry points of the development build, for the kit test CliAdapterTests.fs: built first, and their paths in
+      the assembly metadata. The test gets its executable from the target of the testing library.
+    -->
+    <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
 
 </Project>

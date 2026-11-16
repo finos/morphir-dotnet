@@ -96,16 +96,21 @@ module CliAdapter =
         Security.SecurityElement.Escape msbuild
 
     /// <summary>
-    /// The default project file: an SDK-style <c>.fsproj</c> whose <c>Compile</c> items are the case documents in
-    /// case order. Documents of other languages have no default project file.
+    /// An SDK-style project file whose <c>Compile</c> items are the case documents in case order, or an error when a
+    /// document has none of <paramref name="extensions"/>.
     /// </summary>
-    let fsharpProjectFile (input: CompileInput) : Result<CliProjectFile, string> =
+    let private msbuildProjectFile
+        (path: string)
+        (extensions: string list)
+        (properties: string list)
+        (input: CompileInput)
+        : Result<CliProjectFile, string> =
         let other =
             input.Documents
             |> List.filter (fun document ->
                 not (
-                    document.Uri.EndsWith(".fs", StringComparison.Ordinal)
-                    || document.Uri.EndsWith(".fsi", StringComparison.Ordinal)
+                    extensions
+                    |> List.exists (fun extension -> document.Uri.EndsWith(extension, StringComparison.Ordinal))
                 )
             )
 
@@ -121,19 +126,44 @@ module CliAdapter =
                 )
                 |> String.concat ""
 
+            let properties =
+                properties
+                |> List.map (fun property -> $"    {property}\n")
+                |> String.concat ""
+
             Ok
                 {
-                    Path = "Conformance.fsproj"
+                    Path = path
                     Text =
                         "<Project Sdk=\"Microsoft.NET.Sdk\">\n"
                         + "  <PropertyGroup>\n"
                         + "    <TargetFramework>net10.0</TargetFramework>\n"
+                        + properties
                         + "  </PropertyGroup>\n"
                         + "  <ItemGroup>\n"
                         + items
                         + "  </ItemGroup>\n"
                         + "</Project>\n"
                 }
+
+    /// <summary>
+    /// The default project file: an SDK-style <c>.fsproj</c> whose <c>Compile</c> items are the case documents in
+    /// case order. Documents of other languages have no default project file.
+    /// </summary>
+    let fsharpProjectFile (input: CompileInput) : Result<CliProjectFile, string> =
+        msbuildProjectFile "Conformance.fsproj" [ ".fs"; ".fsi" ] [] input
+
+    /// <summary>
+    /// The C# project file: an SDK-style <c>.csproj</c> whose <c>Compile</c> items are the case documents in case
+    /// order. The default compile items are off, so that no glob adds the documents again in another order.
+    /// Documents of other languages have no C# project file.
+    /// </summary>
+    let csharpProjectFile (input: CompileInput) : Result<CliProjectFile, string> =
+        msbuildProjectFile
+            "Conformance.csproj"
+            [ ".cs" ]
+            [ "<EnableDefaultCompileItems>false</EnableDefaultCompileItems>" ]
+            input
 
     /// <summary>
     /// Stops a process and every descendant that it started, and waits a bounded time for the process to end.

@@ -23,8 +23,8 @@ let private options = {
     InputKinds = [ "files"; "directory"; "project file" ]
 }
 
-/// The shipped corpus, read once.
-let private suite =
+/// The shipped corpus, read once. CliAdapterTests uses it too.
+let suite =
     lazy
         (let artifacts = [
             for file in Directory.GetFiles(conformanceRoot, "*", SearchOption.AllDirectories) ->
@@ -63,7 +63,8 @@ let private writers = WriterRegistry.Create [ V4IrWriter() :> IIrWriter ]
 /// The library adapter that binds the in-process C# frontend.
 let private adapter = FrontendAdapter.create identity CSharpFrontend.registration writers
 
-let private report =
+/// The report of the library adapter. CliAdapterTests compares the CLI output with it.
+let report =
     lazy
         ((Runner.run suite.Value adapter CancellationToken.None).GetAwaiter().GetResult())
 
