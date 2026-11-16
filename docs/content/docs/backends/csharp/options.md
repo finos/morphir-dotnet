@@ -28,7 +28,11 @@ targets `netstandard2.0`. `morphir compile` has the assembly in its fixed refere
 - A **frontend** option changes the IR that the frontend gives. A loop that the frontend refuses stays refused with each
   value of an option: an option selects between supported handlings, and it does not make refused code accepted.
 - The profile gives the default traversal form: `imperative` writes loops, and `functional` writes `Select`, `Where`,
-  `Aggregate` and `FilterMap`. A tail call is a `while` loop in each profile.
+  `Aggregate` and `FilterMap`. A tail call is a `while` loop in each profile, and `tail-recursion=local-function` makes
+  it a call of a local recursive function. See [Profiles](_index.md#profiles).
+- `[MorphirLoop(LoopLowering.Recursion)]` lowers a `foreach` that changes locals to a `LetRecursion` over the list, not
+  to `List.foldl`. A loop that fills a list stays `List.map`, `List.filter` or `List.filterMap`, and a loop that is
+  already a recursion does not change. See [Loops](../../frontends/csharp/_index.md#loops).
 
 ## The nearest carrier wins
 
@@ -117,6 +121,3 @@ A malformed value fails before any file is written, with exit code 2: `--option 
 ## Not yet
 
 - A `morphir.toml` key for a frontend option (the loop lowering and the class of a type parameter). Use the attribute.
-- The forms of the profiles. The backend checks the values of `profile`, `traversal` and `tail-recursion`, and writes the
-  `MorphirEmit` attribute back, but each form gives the same code until the loop forms are written.
-- The loop lowering. The frontend reads `MorphirLoop`, but it refuses each loop until the loop recognizer is in.

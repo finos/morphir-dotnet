@@ -175,13 +175,167 @@ model keeps the attribute values. See [Handling options](options.md) for the att
 carriers apply. In short: `--option` wins over an attribute, and an attribute wins over a `[codegen.csharp]` key. For
 `language-version` and `namespace`, `--option` wins over the key.
 
-The backend checks the values of `profile`, `traversal` and `tail-recursion`, but the forms give the same output until
-the loop forms of the profiles are written.
+`profile` and `traversal` select the C# form of the list functions, and `tail-recursion` selects the form of a tail
+call. See [Profiles](#profiles).
 
 A repeated option uses its last occurrence. An unknown option, a value of the wrong JSON type, a word that is not a value
 of the option, or a namespace with source syntax fails the invocation with the code `invalid-backend-option` (exit code
 2) before any file is written. `[codegen.csharp]` is a closed table: an unknown key or a word that is not a value fails
 when the configuration loads, with exit code 2, before any file is written.
+
+## Profiles
+
+The profile selects the C# form of the list functions and of the local recursion of the model. The IR is the same in
+each profile: the C# frontend reads the C# of each profile back to the same IR, with source locations left out.
+
+| Morphir IR | `imperative` (the default) | `functional` |
+| --- | --- | --- |
+| `List.map` | A `foreach` that adds each value to a `List<T>` | `Select` |
+| `List.filter` | A `foreach` with an `if` that adds the element | `Where` |
+| `List.filterMap` | A `foreach` with an `if` that adds a value | `FilterMap` |
+| `List.foldl` | A `foreach` that sets accumulator locals | `Aggregate` |
+| `LetRecursion`, tail call | A `while` loop with state locals | A `while` loop with state locals |
+| `LetRecursion`, other | A local recursive function | A local recursive function |
+
+These rules apply:
+
+- `Select`, `Where`, `FilterMap` and `Aggregate` are methods of `Morphir.SDK.CSharp.List<T>`, so each result is an SDK
+  list or the state of the fold. `List.filterMap` has its own form, because `Where` then `Select` is the form of
+  `List.map` over `List.filter`.
+- A fold with two or more state values has a tuple state. The imperative profile writes one tuple assignment, such as
+  `(sum, count) = (sum + x, count + 1);`, so all new values come from the old values.
+- The imperative profile has no loop form for a `List.filterMap` whose function is not `if c then Just e else Nothing`,
+  or for a fold with a tuple state whose initial value or new value is not a tuple. It writes the functional form for
+  them.
+- The option `traversal` changes the form of the list functions of one value or of all values, and the profile gives
+  its default: `loop` for `imperative` and `functional` for `functional`.
+- A tail-recursive `LetRecursion` that the code after it calls once is a `while` loop with no function: the parameters
+  are the state locals, and one tuple assignment gives them their new values. The name of the function does not stay
+  in the C#, so the frontend names the function `loop` when it reads the loop. Any other tail-recursive function is a
+  local function with a `while (true)` loop in it. With `tail-recursion=local-function`, a tail call is a call of a
+  local recursive function, as for a call that is not a tail call.
+
+### Example
+
+With this `morphir.toml` in the project directory:
+
+```toml
+[project]
+name = "acme/demo"
+
+[frontend]
+language = "csharp"
+```
+
+and this source `src/Totals.cs`:
+
+```csharp
+namespace Acme.Demo;
+
+public static class Totals
+{
+    public static IReadOnlyList<int> Doubled(IReadOnlyList<int> amounts)
+    {
+        var result = new List<int>();
+        foreach (var amount in amounts) { result.Add(amount * 2); }
+        return result;
+    }
+
+    public static int Sum(IReadOnlyList<int> amounts)
+    {
+        var total = 0;
+        foreach (var amount in amounts) { total += amount; }
+        return total;
+    }
+
+    public static int Factorial(int n)
+    {
+        var acc = 1;
+        while (n > 1) { acc *= n; n--; }
+        return acc;
+    }
+}
+```
+
+compile the project, then generate C# with the functional profile. Run both commands in the project directory. The
+compile writes the path of the published IR to stdout, and `generate` writes the generated files:
+
+```bash
+$ morphir compile
+/work/demo/.morphir/out/compile.dest/morphir-ir.json
+$ morphir generate --target csharp --output gen --option profile=functional
+Morphir.Polyfill.g.cs
+p_Acme.Demo/m_TotalsModule.g.cs
+```
+
+The file `p_Acme.Demo/m_TotalsModule.g.cs` has the functional forms:
+
+```csharp
+namespace Acme.Demo;
+public static class Totals
+{
+    public static global::Morphir.SDK.CSharp.List<int> Doubled(global::Morphir.SDK.CSharp.List<int> amounts) => amounts.Select<int>(amount => global::Morphir.SDK.CSharp.Basics.Multiply(amount, 2));
+    public static int Factorial(int n)
+    {
+        int acc = 1;
+        int n_2 = n;
+        while (global::Morphir.SDK.CSharp.Basics.GreaterThan(n_2, 1))
+        {
+            (acc, n_2) = (global::Morphir.SDK.CSharp.Basics.Multiply(acc, n_2), global::Morphir.SDK.CSharp.Basics.Subtract(n_2, 1));
+        }
+
+        return acc;
+    }
+
+    public static int Sum(global::Morphir.SDK.CSharp.List<int> amounts) => amounts.Aggregate<int>(0, (total, amount) => global::Morphir.SDK.CSharp.Basics.Add(total, amount));
+}
+```
+
+With no `profile` option, the imperative profile writes loops:
+
+```csharp
+namespace Acme.Demo;
+public static class Totals
+{
+    public static global::Morphir.SDK.CSharp.List<int> Doubled(global::Morphir.SDK.CSharp.List<int> amounts)
+    {
+        global::System.Collections.Generic.List<int> result = new global::System.Collections.Generic.List<int>();
+        foreach (var amount in amounts)
+        {
+            result.Add(global::Morphir.SDK.CSharp.Basics.Multiply(amount, 2));
+        }
+
+        return global::Morphir.SDK.CSharp.List<int>.FromEnumerable(result);
+    }
+
+    public static int Factorial(int n)
+    {
+        int acc = 1;
+        int n_2 = n;
+        while (global::Morphir.SDK.CSharp.Basics.GreaterThan(n_2, 1))
+        {
+            (acc, n_2) = (global::Morphir.SDK.CSharp.Basics.Multiply(acc, n_2), global::Morphir.SDK.CSharp.Basics.Subtract(n_2, 1));
+        }
+
+        return acc;
+    }
+
+    public static int Sum(global::Morphir.SDK.CSharp.List<int> amounts)
+    {
+        int total = 0;
+        foreach (var amount in amounts)
+        {
+            total = global::Morphir.SDK.CSharp.Basics.Add(total, amount);
+        }
+
+        return total;
+    }
+}
+```
+
+In the C# that the frontend reads, `amount => Multiply(amount, 2)` and the loop that adds `amount * 2` give the same IR.
+A method parameter that a loop changes, such as `n`, is also a parameter of the loop, so the backend gives the state
+local the name `n_2`.
 
 ## Checks before the backend
 
@@ -217,7 +371,7 @@ Generated code calls the public `Morphir.SDK.CSharp` API. The declared output re
 | Source module | Admitted runtime calls |
 | --- | --- |
 | Basics | Checked Int32/IEEE Float arithmetic (also generic for `INumber<T>`), conversion and rounding, comparisons, min, max, clamp, Order cases and structural equality |
-| List | singleton, cons, map, filter, filterMap, foldl, append, head, tail and length |
+| List | singleton, cons, map, filter, filterMap and foldl (in the form of the [profile](#profiles)), append, head, tail and length |
 | Maybe | Just and Nothing constructors and patterns, map and andThen |
 | Result | Ok and Err constructors and patterns, map and andThen; the error type first, the value type second |
 | Dict | empty, singleton, fromList, get, insert, update, remove, toList and union |

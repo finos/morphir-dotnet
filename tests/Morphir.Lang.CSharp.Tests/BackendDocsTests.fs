@@ -3,7 +3,9 @@
 module Morphir.Lang.CSharp.Tests.BackendDocsTests
 
 open System.IO
+open System.Text.RegularExpressions
 open Expecto
+open Morphir.IR.Model
 open Morphir.Lang.CSharp.Tests.BackendSupport
 
 let private repositoryRoot =
@@ -19,6 +21,46 @@ let private repositoryRoot =
 
 let private page =
     File.ReadAllText(Path.Combine(repositoryRoot, "docs", "content", "docs", "backends", "csharp", "_index.md")).Replace("\r\n", "\n")
+
+/// The C# blocks of the section "Profiles" of the page: the source, the functional output and the imperative output.
+let private profileBlocks () =
+    let start = page.IndexOf "## Profiles\n"
+    let finish = page.IndexOf("\n## ", start + 1)
+    let section = page.Substring(start, finish - start)
+    [ for m in Regex.Matches(section, "```csharp\n(?<body>.*?)\n```", RegexOptions.Singleline) -> m.Groups["body"].Value ]
+
+[<Tests>]
+let profiles =
+    testList "C# backend documentation: profiles" [
+        test "the example of the profiles is the output of the frontend and the backend for each profile, as written" {
+            match profileBlocks () with
+            | [ source; functional; imperative ] ->
+                // The package of the example is acme/demo, as its morphir.toml names it.
+                let package =
+                    match Morphir.IR.CanonicalNames.parsePath "acme/demo" with
+                    | Ok path -> Morphir.IR.PackageName path
+                    | Error message -> failwith message
+
+                let request =
+                    match Morphir.Compilation.CompileRequest.Parse(Morphir.Lang.CSharp.CSharpFrontend.languageId, null, [ FrontendSupport.document "Totals.cs" source ], package, null, FrontendSupport.v4Target, "") with
+                    | Ok request -> request
+                    | Error failure -> failwithf "%A" failure
+
+                let result =
+                    match FrontendSupport.frontend.CompileAsync(request, System.Threading.CancellationToken.None).GetAwaiter().GetResult() with
+                    | Morphir.Compilation.FrontendOutcome.Completed result -> result
+                    | Morphir.Compilation.FrontendOutcome.Failed failure -> failwith failure.Message
+
+                let distribution = FrontendSupport.model result
+                let model: VersionedModel = { SourceVersion = SourceFormatVersion.Create "4"; Distribution = DistributionModel.V4 distribution }
+                let path = "p_Acme.Demo/m_TotalsModule.g.cs"
+                let functionalFiles = generateWithProfile Morphir.Lang.CSharp.Profile.Functional model
+                let imperativeFiles = generateWithProfile Morphir.Lang.CSharp.Profile.Imperative model
+                Expect.stringContains functionalFiles[path] functional "the functional profile"
+                Expect.stringContains imperativeFiles[path] imperative "the imperative profile"
+            | blocks -> failtest $"The section has {List.length blocks} C# blocks, not 3."
+        }
+    ]
 
 [<Tests>]
 let tests =

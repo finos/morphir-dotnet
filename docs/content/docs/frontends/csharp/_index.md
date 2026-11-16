@@ -219,10 +219,11 @@ A static method of a static class, and a `const` field, becomes a value. The fro
   in this form;
 - `new` of a case record (a constructor) or of a plain record (a record value), and `with` (a record update);
 - property access on a record, tuples and collection expressions (`[1, 2, 3]`);
-- `?:`, and `if` statements that return;
+- `?:`, and `if` statements; a branch that does not return goes on with the statements after the `if`;
 - `switch` statements whose sections each end with a `return`;
 - local variable declarations, as `let`, and the deconstruction of a tuple (`var (a, b) = t;`), as a destructure;
 - lambdas, and calls of a `Func`;
+- loops and local functions (see [Loops](#loops));
 - a `switch` expression on a closed record or a union, with an arm for each case;
 - a conversion of a case value to its union (`Shape s = circle`, `(Shape)circle`, `new Shape(circle)`), as the
   constructor of the case;
@@ -267,6 +268,58 @@ with the words of the source, for example `'lock' statement`. A method body that
 The diagnostics of a run are in document order: the document, then the start and the end of the range. The Roslyn
 id and the message put two diagnostics at one range in a fixed order, so the same input gives the same list each
 time.
+
+## Loops
+
+The frontend lowers a loop by its shape. One loop recognizer in `Morphir.Lang.CSharp.Analyzers` decides for the
+analyzer and for the frontend, so the IDE and `morphir compile` accept and refuse the same loops with the same reasons.
+
+| C# loop | Morphir IR |
+| --- | --- |
+| A `foreach` whose body is `result.Add(f(x))` | `List.map f` |
+| A `foreach` whose body is `if (p(x)) result.Add(x);` | `List.filter` |
+| A `foreach` whose body is `if (p(x)) result.Add(f(x));` | `List.filterMap` with `if p x then Just (f x) else Nothing` |
+| A `foreach` that changes one local | `List.foldl` |
+| A `foreach` that changes two or more locals | `List.foldl` with a tuple of the locals as its state |
+| A `while`, `do` or `for` loop that changes locals | `LetRecursion` whose parameters are the changed locals |
+| A `foreach` with `break`, `return` or `continue` | `LetRecursion` whose parameters are the changed locals and the rest of the list |
+
+These rules apply:
+
+- The list of a map, a filter or a filter map is a local `List<T>` that is empty before the loop: `new List<T>()` or
+  `[]`. The body can declare locals before the add.
+- The state of a loop is each local and parameter that the loop changes and that lives outside the loop, in the order
+  of the first change. The variables of a `for` initializer are state too. A declaration that only the next loop reads
+  is the initial state, so `var total = 0; foreach ...` gives `List.foldl ... 0`.
+- The end of the body of a recursion calls the function again with the new state. A `return` in the loop and a `break`
+  are base cases: a `break`, and the end of a `while` loop, go on with the statements after the loop.
+- A change such as `sum += p;` gives the new value to the statements after it. When a later statement reads the
+  changed local, the change is a `let` with the same name.
+- A lambda that only applies a function to its parameter is that function: the body `result.Add(Notional(o))` gives
+  `List.map notional`.
+
+The frontend reads the functional forms as the same IR as the loops: `Select` is `List.map`, `Where` is
+`List.filter`, `Aggregate(seed, (state, x) => ...)` is `List.foldl` with the element first, and `FilterMap` of
+`Morphir.SDK.CSharp.List<T>` is `List.filterMap`. These methods of LINQ and of the SDK list are read. `Where` then
+`Select` is `List.map` over `List.filter`, not `List.filterMap`. `ToList()` and `List<T>.FromEnumerable` of a list are
+the list.
+
+A local function is a `LetRecursion`, and local functions next to each other are one group, so they can call each
+other. A local function that is called before its declaration gives `csharp.unsupported_local_function`.
+
+A loop with no Morphir form gives `csharp.unsupported_loop` (`MORPHIR1001`), and the message gives the reason:
+
+- the loop writes a field, a property or an array element;
+- the loop reads a field that can change;
+- the loop changes no local and builds no list;
+- the loop builds a list in a `while`, `do` or `for` loop, builds a list and changes a local, builds a list and can
+  leave early, or adds to a list in more than one place.
+
+For example, `foreach (var o in orders) { total += o.Price; counter++; }` gives "The 'foreach' loop is not in the
+Morphir subset: it writes the field 'counter'". A change of a local in a loop is the state of the loop, so the
+admission analyzer does not report it as a mutation.
+
+The C# backend writes each form back by its profile. See [C# generation](../../backends/csharp/_index.md#profiles).
 
 ## Compile
 
