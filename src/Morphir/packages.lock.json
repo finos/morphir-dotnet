@@ -397,17 +397,9 @@
           "FSharp.Core": "[10.1.403, )",
           "Microsoft.CodeAnalysis.CSharp": "[5.12.0, )",
           "Morphir.Compilation": "[1.0.0, )",
-          "Morphir.Lang.CSharp.Analyzers": "[1.0.0, )",
-          "Morphir.Lang.CSharp.Attributes": "[1.0.0, )",
           "Morphir.MiddleEnd": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
-      },
-      "morphir.lang.csharp.analyzers": {
-        "type": "Project"
-      },
-      "morphir.lang.csharp.attributes": {
-        "type": "Project"
       },
       "morphir.mep": {
         "type": "Project",
