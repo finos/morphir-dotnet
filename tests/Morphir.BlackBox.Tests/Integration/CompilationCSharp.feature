@@ -25,3 +25,10 @@ Feature: Compile C# on each host
     Then compilation exits with 1 and one JSON report
     And the compilation report has the diagnostic "csharp.unsupported_loop" in "Rates.cs"
     And no IR is published
+
+  Scenario: The compile of C# with the target csharp runs the pass before the C# backend
+    Given the C# source file "src/Rates.cs" of the package "acme/demo"
+    When I compile the C# source file with the target "csharp"
+    Then compilation exits with 0 and one JSON report
+    And the compilation report lists the pass "morphir-dotnet.csharp.admission" before the backend
+    And the compilation report has no member "passes"

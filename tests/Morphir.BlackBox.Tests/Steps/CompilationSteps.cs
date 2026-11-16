@@ -163,6 +163,35 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
         run.Result = await compilation.CompileAsync(new CompilationOptions { Inputs = [file], Language = "csharp", PackageName = package });
     }
 
+    [When("I compile the C# source file with the target {string}")]
+    public async Task CompileTheCSharpSourceFileWithTheTarget(string target)
+    {
+        var (file, package) = _source ?? throw new InvalidOperationException("The scenario has no C# source file before this step.");
+        run.Result = await compilation.CompileAsync(new CompilationOptions
+        {
+            Inputs = [file],
+            Language = "csharp",
+            PackageName = package,
+            Target = target,
+            GenerateOutput = Project.Directory("generated"),
+        });
+    }
+
+    /// <summary>The passes of the stage before the backend are in <c>generation.passes</c> of the compilation report.</summary>
+    [Then("the compilation report lists the pass {string} before the backend")]
+    public void TheCompilationReportListsThePassBeforeTheBackend(string id)
+    {
+        var ran = Report.Document.TryGetProperty("generation", out var generation) && generation.ValueKind == JsonValueKind.Object
+            && generation.TryGetProperty("passes", out var passes) && passes.TryGetProperty("ran", out var list)
+                ? list.EnumerateArray().Select(item => item.GetString()).ToArray()
+                : [];
+        Report.Check(ran.Contains(id), $"The compilation report lists the passes {string.Join(", ", ran)} before the backend, not {id}.");
+    }
+
+    [Then("the compilation report has no member {string}")]
+    public void TheCompilationReportHasNoMember(string member) =>
+        Report.Check(!Report.Document.TryGetProperty(member, out _), $"The compilation report has the member {member}.");
+
     [Then("the compilation report says that the compile succeeded with the frontend {string}")]
     public void TheCompileSucceededWithTheFrontend(string frontend)
     {

@@ -391,6 +391,9 @@ two steps have the same pattern.
 | Compilation | `Given the C# source file {string} of the package {string}` |
 | Compilation | `Given the C# source file {string} with a foreach loop, of the package {string}` |
 | Compilation | `When I compile the C# source file` |
+| Compilation | `When I compile the C# source file with the target {string}` |
+| Compilation | `Then the compilation report lists the pass {string} before the backend` |
+| Compilation | `Then the compilation report has no member {string}` |
 | Compilation | `When I compile the project` |
 | Compilation | `When I compile the project and install the IR to {string}` |
 | Compilation | `When I generate F# for the project from its last compile` |
