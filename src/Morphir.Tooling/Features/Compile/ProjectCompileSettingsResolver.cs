@@ -329,8 +329,8 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
                 ? new([.. items], Origin(path))
                 : null;
 
-        /// <summary>The scalar members of the table at the path, as JSON text, in ordinal order. No table gives none.</summary>
-        public IReadOnlyList<KeyValuePair<string, string>> ScalarMembers(params string[] path) =>
+        /// <summary>The scalar members of the table at the path, as JSON values, in ordinal order. No table gives none.</summary>
+        public IReadOnlyList<KeyValuePair<string, System.Text.Json.JsonElement>> ScalarMembers(params string[] path) =>
             Find(path) is { } table ? ConfigValueProjections.ScalarMembers(table) : [];
 
         /// <summary>Every <c>frontend.&lt;language&gt;.project_file</c> key that is set, as TOML writes it (a dotted language is quoted).</summary>

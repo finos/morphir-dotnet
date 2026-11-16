@@ -22,19 +22,22 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
         Description = ExtensionDescription.Create("Generates C# source from a Morphir library model.")
     };
 
-    /// <summary>The only language version that the backend writes.</summary>
-    private const int SupportedLanguage = 15;
+    /// <summary>The only language version that the backend writes: the core decides it.</summary>
+    private static int SupportedLanguage => Morphir.Lang.CSharp.Emit.CSharpBackend.LanguageVersion;
 
     public Outcome<ValidatedBackendOptions> ValidateOptions(BackendOptions options)
     {
         // The keys of [codegen.csharp] come first, so that a command-line language version or namespace replaces them. The
-        // handling options of the two stay apart, because the carrier in the model is between them (OPT-1).
+        // handling options of the two stay apart, because the carrier in the model is between them (OPT-1). The core
+        // decides on the handling options and the language version.
         var language = SupportedLanguage;
         NamespaceOverride? naming = null;
         var commandLine = new List<KeyValuePair<string, string>>();
         var configured = new List<KeyValuePair<string, string>>();
-        Outcome<ValidatedBackendOptions> Invalid(string key, bool fromConfiguration) => new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
-            "invalid-backend-option", $"C# accepts numeric 'language-version' {SupportedLanguage}, a string 'namespace', and the string handling options 'profile' (imperative or functional), 'traversal' (loop or functional), 'tail-recursion' (loop or local-function) and 'float-equality' (clr or ieee); received '{key}'{(fromConfiguration ? " from [codegen.csharp]" : "")}."));
+        Outcome<ValidatedBackendOptions> Fail(string code, string message, string? location = null) =>
+            new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation, code, message, location: location));
+        Outcome<ValidatedBackendOptions> Invalid(string key, bool fromConfiguration) => Fail("invalid-backend-option",
+            $"C# accepts numeric 'language-version' {SupportedLanguage}, a string 'namespace', and the string handling options {Morphir.Lang.CSharp.Emit.CSharpBackend.HandlingOptionText}; received '{key}'{(fromConfiguration ? " from [codegen.csharp]" : "")}.");
 
         var entries = options.Configured.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => (pair.Key, pair.Value, FromConfiguration: true))
             .Concat(options.Values.Select(pair => (pair.Key, pair.Value, FromConfiguration: false)));
@@ -44,31 +47,21 @@ public sealed class CSharpGenerationBackend : IGenerationBackend
             {
                 var parsed = NamespaceOverride.TryCreate(value.GetString()!);
                 if (parsed.IsError)
-                    return new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
-                        parsed.ErrorValue.Rule, parsed.ErrorValue.Message, location: parsed.ErrorValue.Location));
+                    return Fail(parsed.ErrorValue.Rule, parsed.ErrorValue.Message, parsed.ErrorValue.Location);
                 naming = parsed.ResultValue;
             }
-            else if (HandlingKeys.Contains(key) && value.ValueKind == JsonValueKind.String)
+            else if (Morphir.Lang.CSharp.Emit.CSharpBackend.HandlingOptionKeys.Contains(key) && value.ValueKind == JsonValueKind.String)
                 (fromConfiguration ? configured : commandLine).Add(new(key, value.GetString()!));
-            else if (key == "language-version" && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out language))
-            {
-                if (language != SupportedLanguage)
-                    return new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
-                        "unsupported-language", $"C# {language} is not supported. Use language-version {SupportedLanguage}, the only version that the backend writes."));
-            }
+            else if (key == "language-version" && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var version))
+                language = version;
             else
                 return Invalid(key, fromConfiguration);
         }
 
-        var created = Morphir.Lang.CSharp.Emit.CSharpBackend.TryCreateOptions(language, commandLine, configured);
-        if (created.IsError)
-            return new Outcome<ValidatedBackendOptions>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
-                created.ErrorValue.Rule, created.ErrorValue.Message, location: created.ErrorValue.Location));
-        return new Outcome<ValidatedBackendOptions>.Success(new Options(created.ResultValue, naming));
+        return Morphir.Lang.CSharp.Emit.CSharpBackend.TryCreateOptions(language, commandLine, configured, out var created, out var failure)
+            ? new Outcome<ValidatedBackendOptions>.Success(new Options(created, naming))
+            : Fail(failure.Rule, failure.Message, failure.Location);
     }
-
-    /// <summary>The handling options of the C# backend (OPT-1), as keys of <c>--option</c>.</summary>
-    private static readonly string[] HandlingKeys = ["profile", "traversal", "tail-recursion", "float-equality"];
 
     public ValueTask<Outcome<GenerationArtifacts>> GenerateAsync(BackendGenerationRequest request, CancellationToken ct)
     {

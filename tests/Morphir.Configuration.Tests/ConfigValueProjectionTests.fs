@@ -111,7 +111,7 @@ let tests =
               for value in every |> List.filter (function ConfigValue.Object _ -> false | _ -> true) do
                   Expect.isEmpty (ConfigValueProjections.TablesWithKey(value, "project_file")) $"{value}"
 
-          testCase "ScalarMembers gives the scalar members of a table as JSON text, in ordinal order"
+          testCase "ScalarMembers gives the scalar members of a table as JSON values, in ordinal order"
           <| fun _ ->
               let table =
                   ConfigValue.Object(
@@ -120,17 +120,20 @@ let tests =
                             "language_version", ConfigValue.Integer 15L
                             "strict", ConfigValue.Boolean false
                             "ratio", ConfigValue.Number 0.5
-                            "spaced", ConfigValue.String "a b"
+                            "quoted", ConfigValue.String "a \"b\""
                             "nested", ConfigValue.Object Map.empty
                             "items", ConfigValue.Array [ ConfigValue.String "a" ] ]
                   )
 
-              let members = ConfigValueProjections.ScalarMembers table |> Seq.map (fun pair -> pair.Key, pair.Value) |> List.ofSeq
+              let members = ConfigValueProjections.ScalarMembers table |> Seq.map (fun pair -> pair.Key, pair.Value.GetRawText()) |> List.ofSeq
 
               Expect.equal
                   members
-                  [ "language_version", "15"; "profile", "\"functional\""; "ratio", "0.5"; "spaced", "\"a b\""; "strict", "false" ]
+                  [ "language_version", "15"; "profile", "\"functional\""; "quoted", "\"a \\u0022b\\u0022\""; "ratio", "0.5"; "strict", "false" ]
                   "the scalars as JSON, and no table or array"
+
+              let quoted = ConfigValueProjections.ScalarMembers table |> Seq.find (fun pair -> pair.Key = "quoted")
+              Expect.equal (quoted.Value.GetString()) "a \"b\"" "the text reads back"
 
               for value in every |> List.filter (function ConfigValue.Object _ -> false | _ -> true) do
                   Expect.isEmpty (ConfigValueProjections.ScalarMembers value) $"{value}" ]

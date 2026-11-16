@@ -27,6 +27,10 @@ type GenerationOptions =
         Configured = Morphir.Lang.CSharp.HandlingOptions.empty
     }
 
+    /// <summary>The language version and the two carriers, with no reflection.</summary>
+    override this.ToString() =
+        $"C# {this.LanguageVersion}, command line [{this.CommandLine}], configured [{this.Configured}]"
+
 /// The whole-model outcome. Failure and cancellation never contain sources.
 [<RequireQualifiedAccess>]
 type GenerationStatus =
@@ -133,13 +137,18 @@ module internal BackendHandling =
     /// key or word gives the diagnostic <c>invalid-backend-option</c>.
     /// </summary>
     let parse (pairs: (string * string) seq) : Result<Morphir.Lang.CSharp.HandlingOptions, GenerationDiagnostic> =
+        let invalid key message = { Rule = "invalid-backend-option"; Location = "$options/" + key; Message = message }
+
         pairs
         |> Seq.fold
             (fun state (key, word) ->
                 state
                 |> Result.bind (fun options ->
-                    Morphir.Lang.CSharp.HandlingOptions.trySet key word options
-                    |> Result.mapError (fun message -> { Rule = "invalid-backend-option"; Location = "$options/" + key; Message = message })))
+                    if List.contains key Morphir.Lang.CSharp.HandlingOptions.backendKeys then
+                        Morphir.Lang.CSharp.HandlingOptions.trySet key word options |> Result.mapError (invalid key)
+                    else
+                        let accepted = Morphir.Lang.CSharp.HandlingOptions.describe Morphir.Lang.CSharp.HandlingOptions.backendKeys
+                        Error(invalid key $"'{key}' is not a handling option of the C# backend. The handling options are {accepted}.")))
             (Ok Morphir.Lang.CSharp.HandlingOptions.empty)
 
 /// UTF-8 source text, without BOM, with LF newlines and a portable relative path.

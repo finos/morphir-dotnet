@@ -180,15 +180,11 @@ public sealed class BackendOptions
     /// The configured options of a <c>[codegen.&lt;target&gt;]</c> table: each scalar key except <c>extension</c>, which
     /// selects the backend, as an option name with <c>-</c> for <c>_</c> (<c>float_equality</c> is <c>float-equality</c>).
     /// </summary>
-    public static ImmutableArray<KeyValuePair<string, JsonElement>> ConfiguredOf(IEnumerable<KeyValuePair<string, string>> tableMembers) =>
+    public static ImmutableArray<KeyValuePair<string, JsonElement>> ConfiguredOf(IEnumerable<KeyValuePair<string, JsonElement>> tableMembers) =>
     [
         .. tableMembers
             .Where(pair => pair.Key != "extension")
-            .Select(pair =>
-            {
-                using var document = JsonDocument.Parse(pair.Value);
-                return new KeyValuePair<string, JsonElement>(pair.Key.Replace('_', '-'), document.RootElement.Clone());
-            })
+            .Select(pair => new KeyValuePair<string, JsonElement>(pair.Key.Replace('_', '-'), pair.Value))
     ];
 }
 

@@ -13,6 +13,14 @@ type Profile =
     /// <summary>Functional forms: <c>Select</c>, <c>Where</c>, <c>Aggregate</c> and the SDK <c>FilterMap</c>.</summary>
     | Functional
 
+    /// <summary>The word of the value in <c>--option</c>, <c>morphir.toml</c> and the carrier in the model.</summary>
+    member this.Word =
+        match this with
+        | Profile.Imperative -> "imperative"
+        | Profile.Functional -> "functional"
+
+    override this.ToString() = this.Word
+
 /// <summary>The form that the backend writes for a list traversal (<c>List.map</c>, <c>List.filter</c>, ...).</summary>
 [<RequireQualifiedAccess>]
 type TraversalForm =
@@ -20,6 +28,14 @@ type TraversalForm =
     | Loop
     /// <summary>The functional form.</summary>
     | Functional
+
+    /// <summary>The word of the value in <c>--option</c>, <c>morphir.toml</c> and the carrier in the model.</summary>
+    member this.Word =
+        match this with
+        | TraversalForm.Loop -> "loop"
+        | TraversalForm.Functional -> "functional"
+
+    override this.ToString() = this.Word
 
 /// <summary>The form that the backend writes for a tail-recursive <c>LetRecursion</c> (PRD, D6).</summary>
 [<RequireQualifiedAccess>]
@@ -29,6 +45,14 @@ type TailRecursionForm =
     /// <summary>A local recursive function. Only this option asks for it.</summary>
     | LocalFunction
 
+    /// <summary>The word of the value in <c>--option</c>, <c>morphir.toml</c> and the carrier in the model.</summary>
+    member this.Word =
+        match this with
+        | TailRecursionForm.Loop -> "loop"
+        | TailRecursionForm.LocalFunction -> "local-function"
+
+    override this.ToString() = this.Word
+
 /// <summary>The equality of a <c>double</c> field in a generated record or union (EQL-1).</summary>
 [<RequireQualifiedAccess>]
 type FloatEquality =
@@ -37,6 +61,14 @@ type FloatEquality =
     /// <summary>IEEE equality: <c>NaN</c> is not equal to <c>NaN</c>, as in Morphir.</summary>
     | Ieee
 
+    /// <summary>The word of the value in <c>--option</c>, <c>morphir.toml</c> and the carrier in the model.</summary>
+    member this.Word =
+        match this with
+        | FloatEquality.Clr -> "clr"
+        | FloatEquality.Ieee -> "ieee"
+
+    override this.ToString() = this.Word
+
 /// <summary>How the frontend lowers a loop that the recognizer accepts (LOP-1). A frontend option: it changes the IR.</summary>
 [<RequireQualifiedAccess>]
 type LoopLowering =
@@ -44,6 +76,14 @@ type LoopLowering =
     | Traversal
     /// <summary>Recursion: a <c>LetRecursion</c>.</summary>
     | Recursion
+
+    /// <summary>The word of the value in <c>--option</c>, <c>morphir.toml</c> and the carrier in the model.</summary>
+    member this.Word =
+        match this with
+        | LoopLowering.Traversal -> "traversal"
+        | LoopLowering.Recursion -> "recursion"
+
+    override this.ToString() = this.Word
 
 /// <summary>
 /// One carrier of the handling options (OPT-1): the command line, an attribute on a member, a type or the assembly, the
@@ -62,6 +102,19 @@ type HandlingOptions = {
     /// <summary>The loop lowering, a frontend option.</summary>
     LoopLowering: LoopLowering option
 }
+    with
+
+    /// <summary>The options that are set, as <c>key=word</c>, with no reflection.</summary>
+    override this.ToString() =
+        let item (key: string) (word: string option) = word |> Option.map (fun w -> key + "=" + w)
+
+        [ item "profile" (this.Profile |> Option.map (fun v -> v.Word))
+          item "traversal" (this.Traversal |> Option.map (fun v -> v.Word))
+          item "tail-recursion" (this.TailRecursion |> Option.map (fun v -> v.Word))
+          item "float-equality" (this.FloatEquality |> Option.map (fun v -> v.Word))
+          item "loop-lowering" (this.LoopLowering |> Option.map (fun v -> v.Word)) ]
+        |> List.choose id
+        |> String.concat " "
 
 /// <summary>The value of each handling option after the precedence order: no option is left unset.</summary>
 type EffectiveHandling = {
@@ -71,6 +124,11 @@ type EffectiveHandling = {
     FloatEquality: FloatEquality
     LoopLowering: LoopLowering
 }
+    with
+
+    /// <summary>Each option as <c>key=word</c>, with no reflection.</summary>
+    override this.ToString() =
+        $"profile={this.Profile.Word} traversal={this.Traversal.Word} tail-recursion={this.TailRecursion.Word} float-equality={this.FloatEquality.Word} loop-lowering={this.LoopLowering.Word}"
 
 /// <summary>
 /// The precedence order and the words of the handling options. One word set serves the command line
@@ -142,34 +200,19 @@ module HandlingOptions =
     let LoopLoweringKey = "loop-lowering"
 
     /// <summary>The words of a profile.</summary>
-    let profileWord (value: Profile) =
-        match value with
-        | Profile.Imperative -> "imperative"
-        | Profile.Functional -> "functional"
+    let profileWord (value: Profile) = value.Word
 
     /// <summary>The word of a traversal form.</summary>
-    let traversalWord (value: TraversalForm) =
-        match value with
-        | TraversalForm.Loop -> "loop"
-        | TraversalForm.Functional -> "functional"
+    let traversalWord (value: TraversalForm) = value.Word
 
     /// <summary>The word of a tail recursion form.</summary>
-    let tailRecursionWord (value: TailRecursionForm) =
-        match value with
-        | TailRecursionForm.Loop -> "loop"
-        | TailRecursionForm.LocalFunction -> "local-function"
+    let tailRecursionWord (value: TailRecursionForm) = value.Word
 
     /// <summary>The word of a float equality.</summary>
-    let floatEqualityWord (value: FloatEquality) =
-        match value with
-        | FloatEquality.Clr -> "clr"
-        | FloatEquality.Ieee -> "ieee"
+    let floatEqualityWord (value: FloatEquality) = value.Word
 
     /// <summary>The word of a loop lowering.</summary>
-    let loopLoweringWord (value: LoopLowering) =
-        match value with
-        | LoopLowering.Traversal -> "traversal"
-        | LoopLowering.Recursion -> "recursion"
+    let loopLoweringWord (value: LoopLowering) = value.Word
 
     let private parseWith (words: 'a list) (toWord: 'a -> string) (text: string) =
         words |> List.tryFind (fun value -> toWord value = text)
@@ -189,6 +232,9 @@ module HandlingOptions =
     /// <summary>The loop lowering of a word, or None.</summary>
     let tryLoopLowering = parseWith [ LoopLowering.Traversal; LoopLowering.Recursion ] loopLoweringWord
 
+    /// <summary>The keys of the handling options of the C# backend. Loop lowering is a frontend option.</summary>
+    let backendKeys = [ ProfileKey; TraversalKey; TailRecursionKey; FloatEqualityKey ]
+
     /// <summary>The accepted words of each key, for messages.</summary>
     let words: (string * string list) list = [
         ProfileKey, [ "imperative"; "functional" ]
@@ -197,6 +243,13 @@ module HandlingOptions =
         FloatEqualityKey, [ "clr"; "ieee" ]
         LoopLoweringKey, [ "traversal"; "recursion" ]
     ]
+
+    /// <summary>The keys with their words for a message, for example <c>'traversal' (loop or functional)</c>.</summary>
+    let describe (keys: string list) =
+        words
+        |> List.filter (fun (key, _) -> List.contains key keys)
+        |> List.map (fun (key, accepted) -> $"'{key}' (" + String.concat " or " accepted + ")")
+        |> String.concat ", "
 
     /// <summary>
     /// Sets one option from its key and word. An unknown key or a word that is not a value of the key gives an error

@@ -125,6 +125,22 @@ let tests =
                 Expect.equal functional.LoopLowering LoopLowering.Traversal "a loop lowers by shape by default"
             }
 
+            test "the options print their words with no reflection printer" {
+                let options = optionsWith [ "float-equality", "ieee"; "profile", "functional" ] [ "traversal", "loop" ]
+
+                Expect.equal (string options) "C# 15, command line [profile=functional float-equality=ieee], configured [traversal=loop]" "the text of the options"
+                Expect.equal (string (HandlingOptions.resolve [])) "profile=imperative traversal=loop tail-recursion=loop float-equality=clr loop-lowering=traversal" "the effective options"
+                Expect.equal (string FloatEquality.Ieee) "ieee" "a value prints its word"
+            }
+
+            test "the backend takes only its own handling options: loop lowering is a frontend option" {
+                match BackendHandling.parse [ "loop-lowering", "recursion" ] with
+                | Ok _ -> failtest "loop lowering is not a backend option"
+                | Error diagnostic ->
+                    Expect.equal diagnostic.Rule "invalid-backend-option" "the rule"
+                    Expect.stringContains diagnostic.Message "'float-equality' (clr or ieee)" "the message names the options"
+            }
+
             test "a word that is not a value of its key names the accepted words" {
                 match HandlingOptions.trySet "float-equality" "maybe" HandlingOptions.empty with
                 | Ok _ -> failtest "the word is not a value"

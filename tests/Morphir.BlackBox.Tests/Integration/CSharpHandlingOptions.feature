@@ -1,8 +1,8 @@
 @integration @needs-compilation @needs-generation
 Feature: C# handling options in compile and generate
   A user selects how Morphir handles a C# model with attributes in the C# source or with keys in morphir.toml. The
-  nearest carrier wins: the command line, an attribute, a key of [codegen.csharp], the default. The frontend keeps the
-  backend options of the attributes in the model, so generate on the compiled IR applies them again.
+  nearest carrier wins: the command line, an attribute, a key of [codegen.csharp], the default. The journey
+  Journeys/CSharpHandlingOptions.feature generates again from the compiled IR.
 
   Scenario: Attributes need no morphir.toml
     Given the C# source file "src/Quote.cs" with handling attributes, of the package "acme/trading"
@@ -10,20 +10,6 @@ Feature: C# handling options in compile and generate
     Then compilation exits with 0 and one JSON report
     And the C# that the compile generated contains "MorphirEquals"
     And the C# that the compile generated contains "[global::Morphir.MorphirEmit(Traversal = global::Morphir.TraversalForm.Functional)]"
-
-  Scenario: Generate on the compiled IR keeps the options of the attributes
-    Given the C# source file "src/Quote.cs" with handling attributes, of the package "acme/trading"
-    When I compile the C# source file
-    And I generate "csharp" from the model
-    Then generation exits with 0 and one JSON report
-    And the first module artifact of the generation report contains "MorphirEquals" and not "MorphirEmit"
-
-  Scenario: The command line wins over the attributes
-    Given the C# source file "src/Quote.cs" with handling attributes, of the package "acme/trading"
-    When I compile the C# source file
-    And I generate "csharp" from the model with the option "float-equality=clr"
-    Then generation exits with 0 and one JSON report
-    And the first module artifact of the generation report contains "record Quote" and not "MorphirEquals"
 
   Scenario: A key of [codegen.csharp] applies to a model with no attribute
     Given the C# source file "src/Price.cs" with a record of a double, of the package "acme/trading"

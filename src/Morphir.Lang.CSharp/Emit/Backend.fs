@@ -110,6 +110,11 @@ type CSharpBackend private () =
             let layouts = ModuleLayouts.compute naming pkg (modules |> List.map (fun (path, _, names) -> path, not (List.isEmpty names)))
             // The precedence order of OPT-1: the command line, the carrier in the model, the types that the caller selects
             // (GenerateWith), the configured keys, the default.
+            // A C# caller can give a record with null carriers: the assembly has no nullness. Null is no option.
+            let orEmpty (layer: Morphir.Lang.CSharp.HandlingOptions) =
+                if obj.ReferenceEquals(layer, null) then Morphir.Lang.CSharp.HandlingOptions.empty else layer
+
+            let options = { options with CommandLine = orEmpty options.CommandLine; Configured = orEmpty options.Configured }
             let carriers = CSharpBackend.CarriersOf model
             let commandLine = options.CommandLine.FloatEquality
             let configured = options.Configured.FloatEquality
@@ -160,24 +165,53 @@ type CSharpBackend private () =
         | :? OperationCanceledException when ct.IsCancellationRequested -> result GenerationStatus.Cancelled [] []
         | Refusal diagnostic -> result GenerationStatus.Failure [] [ diagnostic ]
 
+    /// <summary>The keys of the handling options of the backend, as <c>--option</c> gives them. For C# callers.</summary>
+    static member HandlingOptionKeys: System.Collections.Generic.IReadOnlyList<string> =
+        Array.ofList Morphir.Lang.CSharp.HandlingOptions.backendKeys :> System.Collections.Generic.IReadOnlyList<string>
+
+    /// <summary>The handling options with their words, for a message: <c>'profile' (imperative or functional), ...</c>.</summary>
+    static member HandlingOptionText: string = Morphir.Lang.CSharp.HandlingOptions.describe Morphir.Lang.CSharp.HandlingOptions.backendKeys
+
     /// <summary>
     /// The options of the backend from the language version and the handling options of the command line and of
-    /// <c>[codegen.csharp]</c>, each as keys and words (<c>float-equality</c>, <c>ieee</c>). An unknown key or word fails with
-    /// <c>invalid-backend-option</c>. For C# callers.
+    /// <c>[codegen.csharp]</c>, each as keys and words (<c>float-equality</c>, <c>ieee</c>). A language version other than 15
+    /// fails with <c>unsupported-language</c>, and an unknown key or word with <c>invalid-backend-option</c>. A null list is
+    /// empty. For C# callers.
     /// </summary>
     static member TryCreateOptions
         (
             languageVersion: int,
             commandLine: System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string>>,
-            configured: System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string>>
-        ) : Result<GenerationOptions, GenerationDiagnostic> =
+            configured: System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string>>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] options: byref<GenerationOptions>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure: byref<GenerationDiagnostic>
+        ) : bool =
         let pairs (items: System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string, string>>) =
-            items |> Seq.map (fun pair -> pair.Key, pair.Value)
+            if isNull items then Seq.empty else items |> Seq.map (fun pair -> pair.Key, pair.Value)
 
-        BackendHandling.parse (pairs commandLine)
-        |> Result.bind (fun cli ->
-            BackendHandling.parse (pairs configured)
-            |> Result.map (fun keys -> { LanguageVersion = languageVersion; CommandLine = cli; Configured = keys }))
+        let created =
+            if languageVersion <> CSharpBackend.LanguageVersion then
+                Error
+                    {
+                        Rule = "unsupported-language"
+                        Location = "$options/language-version"
+                        Message = $"C# {languageVersion} is not supported. Use language-version {CSharpBackend.LanguageVersion}, the only version that the backend writes."
+                    }
+            else
+                BackendHandling.parse (pairs commandLine)
+                |> Result.bind (fun cli ->
+                    BackendHandling.parse (pairs configured)
+                    |> Result.map (fun keys -> { LanguageVersion = languageVersion; CommandLine = cli; Configured = keys }))
+
+        match created with
+        | Ok value ->
+            options <- value
+            failure <- Unchecked.defaultof<_>
+            true
+        | Error diagnostic ->
+            options <- Unchecked.defaultof<_>
+            failure <- diagnostic
+            false
 
     /// <summary>Generates the C# of a model with the default namespace of its package.</summary>
     static member Generate(model: VersionedModel, options: GenerationOptions, cancellationToken: CancellationToken) : GenerationResult =
