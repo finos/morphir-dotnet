@@ -6,8 +6,8 @@ Feature: Each probe and each library host gives the same output with Native AOT
 
   # The F# compiler does not run the trim analyzers, so only a publish finds an AOT problem in F# code. The two
   # summary warnings of FSharp.Core are in each F# program that is published with Native AOT. The C# SDK probe has no
-  # F# code, so it has no allowed warning. It ends with exit code 1 when Basics.Equal fails on a plain record, a list of
-  # plain records or a tuple that holds a plain record.
+  # F# code, so it has no allowed warning. It ends with exit code 1 when an SDK equality or hash check of a plain C#
+  # value fails (plain records, plain unions, lists, tuples and Maybe of a plain record).
   Scenario Outline: A program published with Native AOT writes the output of the built program
     When I run the program "<program>"
     Then the exit code is 0
