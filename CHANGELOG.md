@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0-alpha.4] - 2026-11-16
+
 ### Added
 - The C# frontend of `morphir compile`: `morphir-dotnet.csharp` reads C# 15 source files in process, with Roslyn, in every offering. It lowers the C# dialect of the model (static classes and namespaces as modules, records and closed records as types, switch expressions as matches) to the current IR, and refuses code outside the subset with located diagnostics (`csharp.unsupported_*`).
 - Passes: `transform` extensions that change a model between a frontend and a backend. `morphir extension list` shows them with their stage; `morphir generate` and `morphir compile` run them and report the applications under `passes` with `--json`. The first built-in pass, `morphir-dotnet.csharp.admission`, runs the checks of the C# backend before it. See [the middle end](docs/content/docs/pipeline/middle-end.md).
@@ -476,7 +478,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Local publishing workflow for testing packages
 - KeepAChangelog integration for automatic versioning
 
-[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.3...HEAD
+[Unreleased]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.4...HEAD
+[0.5.0-alpha.4]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.3...v0.5.0-alpha.4
 [0.5.0-alpha.3]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.2...v0.5.0-alpha.3
 [0.5.0-alpha.2]: https://github.com/finos/morphir-dotnet/compare/v0.5.0-alpha.1...v0.5.0-alpha.2
 [0.5.0-alpha.1]: https://github.com/finos/morphir-dotnet/compare/v0.4.0-alpha.5...v0.5.0-alpha.1
