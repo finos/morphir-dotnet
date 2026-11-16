@@ -1,0 +1,63 @@
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  this netstandard2.0 library (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK refuses them for
+  netstandard2.0 (NETSDK1207), so this library keeps them local and off.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup>
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!--
+          The Roslyn source generator of Morphir.Lang.CSharp (design.html, BLD-1). netstandard2.0, so that each compiler
+          host can load it. It compiles against Microsoft.CodeAnalysis.CSharp 5.12.0, the Roslyn of .NET SDK 11.0.100: the
+          oldest compiler that the package supports, because the generated code is C# 15. FSharp.Core and the pipeline
+          assemblies go beside it in analyzers/dotnet/cs of the package.
+        -->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <RootNamespace>Morphir.Lang.CSharp.Generator</RootNamespace>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <!-- The closure of the generator is in the output folder: the package and a repository consumer take it from there. -->
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <!-- RS2008: release tracking files come with the first published rule. -->
+        <NoWarn>$(NoWarn);RS2008</NoWarn>
+        <!-- Not a package of its own: the Morphir.Lang.CSharp package carries this assembly in analyzers/dotnet/cs. -->
+        <IsPackable>false</IsPackable>
+        <Description>The Roslyn source generator that writes C# from the *.morphir.json additional files of a project.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Lang.CSharp\Morphir.Lang.CSharp.fsproj" />
+    </ItemGroup>
+
+    <!--
+      The analyzer closure: this assembly and each assembly that it loads, except the assemblies of the compiler, which each
+      host has (Microsoft.CodeAnalysis*, System.Collections.Immutable, System.Reflection.Metadata and
+      System.Text.Encoding.CodePages), and the satellite assemblies. The pack target of Morphir.Lang.CSharp.fsproj puts
+      this set in analyzers/dotnet/cs, and a consumer in the repository calls this target and gives the set to the
+      compiler as Analyzer items, so it builds as a consumer of the package does.
+    -->
+    <PropertyGroup>
+        <MorphirCompilerAssemblies>;Microsoft.CodeAnalysis;Microsoft.CodeAnalysis.CSharp;System.Collections.Immutable;System.Reflection.Metadata;System.Text.Encoding.CodePages;</MorphirCompilerAssemblies>
+    </PropertyGroup>
+
+    <Target Name="MorphirGeneratorClosure" DependsOnTargets="ResolveReferences" Returns="@(MorphirGeneratorClosure)">
+        <ItemGroup>
+            <MorphirGeneratorClosure Include="$(TargetPath)" />
+            <MorphirGeneratorClosure Include="@(ReferenceCopyLocalPaths)" Condition="'%(Extension)' == '.dll' and '%(ReferenceCopyLocalPaths.DestinationSubDirectory)' == '' and !$(MorphirCompilerAssemblies.Contains(';%(Filename);'))" />
+        </ItemGroup>
+    </Target>
+
+</Project>

@@ -84,7 +84,7 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 ## 8. Generation in a user build (BLD-1)
 
 - [ ] 8.1 Add the pipeline function entry point with no file or process access and a test that the CLI, the MSBuild target and the generator give the same bytes. Verify the test.
-- [ ] 8.2 Add `Morphir.Lang.CSharp.Generator` (`netstandard2.0`, oldest supported Roslyn, `FSharp.Core` beside it) with the diagnostic path for an invalid model. Verify with a generator driver test and with a consumer build in the repository.
+- [x] 8.2 Add `Morphir.Lang.CSharp.Generator` (`netstandard2.0`, oldest supported Roslyn, `FSharp.Core` beside it) with the diagnostic path for an invalid model. Verify with a generator driver test and with a consumer build in the repository.
 - [ ] 8.3 Add the SDK matrix check from `spikes/csharp-language-support/source-generator/sdk-matrix.sh` as a build or CI job for SDK 10.0.100, 10.0.403 and 11.0.100. Verify that the job passes and that a generator compiled against Roslyn 5.12 fails the check, as the spike showed.
 - [ ] 8.4 Add the MSBuild target (opt-in, `LangVersion` 15, generated files in the intermediate folder) and the SDK 11 check with a clear error. Verify with a test project build, and with a build under SDK 10 that reports the error.
 - [ ] 8.5 Add the polyfill file emission for targets below `net11.0` and a test with a library and an application that each have their own polyfill file and an exhaustive `switch` across them. Verify with 0 warnings.

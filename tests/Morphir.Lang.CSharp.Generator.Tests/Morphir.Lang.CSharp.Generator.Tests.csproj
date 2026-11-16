@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The tests of the source generator. The project is also a consumer of the generator in the repository: it takes the
+    analyzer closure of the generator, as a consumer of the package does, and its tests call the code that the generator
+    writes from Models/car-rental.morphir.json.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>15</LangVersion>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableMicrosoftTestingExtensions>true</EnableMicrosoftTestingExtensions>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <ProjectReference Include="../../src/Morphir.Lang.CSharp.Generator/Morphir.Lang.CSharp.Generator.csproj" />
+    <ProjectReference Include="../../src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj" />
+    <Content Include="../Fixtures/MorphirIR/*.json;../Fixtures/MorphirIR/*.txt" Link="Fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../examples/car-rental/models/car-rental-v2.json" Link="Fixtures/car-rental-v2.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The generator in the build of this project, as the props of the package give it to a consumer. -->
+  <ItemGroup>
+    <AdditionalFiles Include="Models/car-rental.morphir.json" />
+    <CompilerVisibleProperty Include="MorphirGenerateCSharpFiles;MorphirCSharpNamespace;TargetFrameworkIdentifier;TargetFrameworkVersion" />
+  </ItemGroup>
+  <Target Name="MorphirGeneratorAsAnalyzer" BeforeTargets="CoreCompile" DependsOnTargets="ResolveProjectReferences">
+    <MSBuild Projects="../../src/Morphir.Lang.CSharp.Generator/Morphir.Lang.CSharp.Generator.csproj" Targets="MorphirGeneratorClosure" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="Analyzer" />
+    </MSBuild>
+  </Target>
+</Project>

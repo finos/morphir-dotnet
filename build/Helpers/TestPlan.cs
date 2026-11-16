@@ -192,6 +192,7 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Lang.CSharp.Tests"),
         TestSuite.Expecto("Morphir.Lang.CSharp.Analyzers.Tests"),
         TestSuite.Expecto("Morphir.Lang.CSharp.CodeFixes.Tests"),
+        TestSuite.TUnit("Morphir.Lang.CSharp.Generator.Tests"),
         TestSuite.Expecto("Morphir.Mep.Tests").WithSourceProjects(),
         // HardeningTests, NormalizationTests and PrimitiveTests have tests with a time budget of 5 or 10 seconds.
         TestSuite.Expecto("Morphir.Toolchain.Tests").Alone(),
