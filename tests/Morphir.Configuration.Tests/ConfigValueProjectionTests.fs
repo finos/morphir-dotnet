@@ -111,6 +111,21 @@ let tests =
               for value in every |> List.filter (function ConfigValue.Object _ -> false | _ -> true) do
                   Expect.isEmpty (ConfigValueProjections.TablesWithKey(value, "project_file")) $"{value}"
 
+          testCase "Tables names the child tables of an object, in ordinal order"
+          <| fun _ ->
+              let tables =
+                  ConfigValue.Object(
+                      Map.ofList
+                          [ "fsharp", ConfigValue.Object Map.empty
+                            "csharp", ConfigValue.Object(Map.ofList [ "loop_lowering", ConfigValue.String "recursion" ])
+                            "language", ConfigValue.String "fsharp" ]
+                  )
+
+              Expect.sequenceEqual (ConfigValueProjections.Tables tables) [ "csharp"; "fsharp" ] "only the tables"
+
+              for value in every |> List.filter (function ConfigValue.Object _ -> false | _ -> true) do
+                  Expect.isEmpty (ConfigValueProjections.Tables value) $"{value}"
+
           testCase "ScalarMembers gives the scalar members of a table as JSON values, in ordinal order"
           <| fun _ ->
               let table =

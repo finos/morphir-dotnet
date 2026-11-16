@@ -68,7 +68,20 @@ def amend(schema):
         },
         'additionalProperties': False,
     }
-    # 5. Every [extensions.<name>] table may declare the ABI profile and the SHA-256 of its module (CFG-1). abi is
+    # 5. [frontend.csharp] has the keys of the C# frontend (add-csharp-language-support, OPT-1): the extension and
+    #    the project file of every language table, and the frontend handling option loop_lowering. The table is closed,
+    #    so a key that the frontend does not know fails before compilation. compile gives each key except extension and
+    #    project_file to the frontend as an extra option of the MEP compile options, with '-' for '_'.
+    frontend['properties']['csharp'] = {
+        'type': 'object',
+        'properties': {
+            'extension': dict(extension),
+            'project_file': {'type': 'string', 'minLength': 1},
+            'loop_lowering': {'type': 'string', 'enum': ['traversal', 'recursion']},
+        },
+        'additionalProperties': False,
+    }
+    # 6. Every [extensions.<name>] table may declare the ABI profile and the SHA-256 of its module (CFG-1). abi is
     #    a profile id of the pinned contract; sha256 is 64 lowercase hexadecimal digits.
     entry = schema['definitions']['extension']['properties']
     entry['abi'] = {'type': 'string', 'enum': list(profiles)}
@@ -131,8 +144,8 @@ text = '''namespace Morphir.Configuration
 // Schema SHA-256 b5b2f636b8fbbdcc4dc3636ffe7bcee81776d0dbd73810d9c9391f1ee2813901.
 // Amendments: ir.format_version takes a SemVer string; every [frontend.<language>] table (an object-valued member of
 // [frontend]) has project_file and extension; every [codegen.<target>] table (an object-valued member of [codegen])
-// has extension; [codegen.csharp] has the closed set of keys of the C# backend; every [extensions.<name>] table has abi
-// and sha256.
+// has extension; [frontend.csharp] has the closed set of keys of the C# frontend; [codegen.csharp] has the closed set
+// of keys of the C# backend; every [extensions.<name>] table has abi and sha256.
 module internal ConfigurationSchema =
     type Rule =
         | Reference of string

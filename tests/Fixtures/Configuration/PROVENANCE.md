@@ -43,6 +43,10 @@ applies these amendments to the parsed schema before it generates `src/Morphir.C
   Any other member stays unconstrained, as upstream's `additionalProperties: true` leaves it. It names the backend
   extension that `generate` runs for that target, as `[frontend.<language>].extension` names a frontend extension
   for `compile`. Upstream has no such key yet.
+- `[frontend.csharp]` is a closed table with the keys of the C# frontend: `extension`, `project_file` and the frontend
+  handling option `loop_lowering` (`traversal`, `recursion`). Any other key fails. `compile` gives each key except
+  `extension` and `project_file` to the frontend as an extra member of the MEP `CompileOptions`, with `-` for `_`.
+  morphir-dotnet proposes this key; upstream has no `[frontend.csharp]` table today.
 - `[codegen.csharp]` is a closed table with the keys of the C# backend: `extension`, `namespace` (a nonempty string),
   `language_version` (an integer), and the handling options `profile` (`imperative`, `functional`), `traversal`
   (`loop`, `functional`), `tail_recursion` (`loop`, `local-function`) and `float_equality` (`clr`, `ieee`). Any other

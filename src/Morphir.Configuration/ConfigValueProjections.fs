@@ -125,6 +125,39 @@ type ConfigValueProjections =
             false
 
     /// <summary>
+    /// The names of the child tables of an object value, in ordinal order: <c>csharp</c> and <c>fsharp</c> of
+    /// <c>[frontend]</c>. A member that is not a table is left out. Empty when the value is not an object.
+    /// </summary>
+    static member Tables(value: ConfigValue) : IReadOnlyList<string> =
+        match value with
+        | ConfigValue.Object members ->
+            members
+            |> Map.toArray
+            |> Array.choose (fun (name, child) ->
+                match child with
+                | ConfigValue.Object _ -> Some name
+                | ConfigValue.Null
+                | ConfigValue.String _
+                | ConfigValue.Boolean _
+                | ConfigValue.Integer _
+                | ConfigValue.BigInteger _
+                | ConfigValue.Number _
+                | ConfigValue.Temporal _
+                | ConfigValue.Array _
+                | ConfigValue.SecretReference _ -> None)
+            |> Array.sortWith (fun left right -> String.CompareOrdinal(left, right))
+            :> IReadOnlyList<string>
+        | ConfigValue.Null
+        | ConfigValue.String _
+        | ConfigValue.Boolean _
+        | ConfigValue.Integer _
+        | ConfigValue.BigInteger _
+        | ConfigValue.Number _
+        | ConfigValue.Temporal _
+        | ConfigValue.Array _
+        | ConfigValue.SecretReference _ -> Array.empty :> IReadOnlyList<string>
+
+    /// <summary>
     /// The names of the child tables of an object value that hold <paramref name="key"/>, in ordinal order. Empty
     /// when the value is not an object.
     /// </summary>
