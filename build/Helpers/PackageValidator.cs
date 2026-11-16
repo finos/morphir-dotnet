@@ -214,6 +214,7 @@ public static class PackageValidator
         "build/Morphir.Lang.CSharp.targets",
         "analyzers/dotnet/cs/Morphir.Lang.CSharp.Generator.dll",
         "analyzers/dotnet/cs/Morphir.Lang.CSharp.Analyzers.dll",
+        "analyzers/dotnet/cs/Morphir.Lang.CSharp.CodeFixes.dll",
         "analyzers/dotnet/cs/Morphir.Lang.CSharp.dll",
         "analyzers/dotnet/cs/Morphir.Models.dll",
         "analyzers/dotnet/cs/Morphir.Compilation.dll",
@@ -236,8 +237,8 @@ public static class PackageValidator
     /// source generator and the analyzers with their closure in analyzers/dotnet/cs, and the MSBuild task with its closure
     /// in tasks/netstandard2.0. analyzers/dotnet/cs has no assembly of the compiler (Microsoft.CodeAnalysis*, and the
     /// assemblies that it loads), and tasks/ has no assembly of MSBuild. The code fix assembly
-    /// (analyzers/dotnet/cs/Morphir.Lang.CSharp.CodeFixes.dll, tasks.md 7.4) is allowed; add it to
-    /// <see cref="CSharpLanguageEntries"/> when the package has it.
+    /// (analyzers/dotnet/cs/Morphir.Lang.CSharp.CodeFixes.dll, tasks.md 7.4) is required, and no Workspaces assembly is
+    /// in the package: an IDE gives them.
     /// </summary>
     /// <param name="packagePath">Full path to the .nupkg file</param>
     /// <returns>ValidationResult with success status and any error messages</returns>

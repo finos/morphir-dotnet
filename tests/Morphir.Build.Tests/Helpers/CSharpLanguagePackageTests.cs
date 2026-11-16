@@ -50,16 +50,9 @@ public class CSharpLanguagePackageTests
     }
 
     [Test]
-    public async Task ValidateCSharpLanguagePackage_CompletePackageWithTheCodeFixAssembly_ReturnsSuccess()
-    {
-        var result = Validate([.. PackageValidator.CSharpLanguageEntries, "analyzers/dotnet/cs/Morphir.Lang.CSharp.CodeFixes.dll"]);
-        result.Errors.Should().BeEmpty();
-        await Task.CompletedTask;
-    }
-
-    [Test]
     [Arguments("analyzers/dotnet/cs/Morphir.Lang.CSharp.Generator.dll")]
     [Arguments("analyzers/dotnet/cs/FSharp.Core.dll")]
+    [Arguments("analyzers/dotnet/cs/Morphir.Lang.CSharp.CodeFixes.dll")]
     [Arguments("tasks/netstandard2.0/Morphir.Lang.CSharp.Build.dll")]
     [Arguments("build/Morphir.Lang.CSharp.targets")]
     [Arguments("lib/netstandard2.0/Morphir.Lang.CSharp.dll")]
