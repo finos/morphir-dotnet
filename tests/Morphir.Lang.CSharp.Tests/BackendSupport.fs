@@ -106,6 +106,15 @@ let ifThenElse (c: Value) (a: Value) (b: Value) = Value.IfThenElse(va, c, a, b)
 let letRec (bindings: (string * ValueDefinition) list) (body: Value) =
     Value.LetRecursion(va, ordered [ for n, d in bindings -> name n, ({ Doc = None; Value = d }: Documented<ValueDefinition>) ], body)
 
+/// Generates a model with a profile and gives the files, or fails the test with the diagnostics.
+let generateWithProfile (profile: Morphir.Lang.CSharp.Profile) (model: VersionedModel) : Map<string, string> =
+    let options = { GenerationOptions.Default with CommandLine = { Morphir.Lang.CSharp.HandlingOptions.empty with Profile = Some profile } }
+    let result = CSharpBackend.Generate(model, options, CancellationToken.None)
+
+    match result.Status with
+    | GenerationStatus.Success -> result.Sources |> List.map (fun source -> source.RelativePath, source.Text) |> Map.ofList
+    | _ -> failwithf "generation failed: %A" result.Diagnostics
+
 /// Generates a model and gives the files, or fails the test with the diagnostics.
 let generate (model: VersionedModel) : Map<string, string> =
     let result = CSharpBackend.Generate(model, GenerationOptions.Default, CancellationToken.None)

@@ -52,6 +52,7 @@
         <Compile Include="BackendRoundTripTests.fs" />
         <Compile Include="HandlingCarrierTests.fs" />
         <Compile Include="HandlingOptionTests.fs" />
+        <Compile Include="BackendLoopTests.fs" />
         <Compile Include="ConformanceTests.fs" />
         <Compile Include="CoveragePageTests.fs" />
         <Compile Include="PipelineTests.fs" />
