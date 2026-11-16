@@ -198,6 +198,11 @@ let private carriersText (distribution: Distribution) : string list =
                   yield String.concat "-" (Name.toList name) + " " + String.concat " " found ]
     | _ -> []
 
+let private float (value: float) =
+    match FloatValue.create value None with
+    | Ok v -> Morphir.IR.V4.Value.Literal(va, FloatLiteral v)
+    | Error message -> failwith message
+
 [<Tests>]
 let tests =
     testList "C# backend on Roslyn: IR to C# to IR" [
@@ -308,6 +313,72 @@ let tests =
             Expect.equal (valuesText back) (valuesText original) "the same values"
         }
     
+        test "a custom type with wrapper constructors is a union and comes back with its constructions and matches" {
+            let shape = own "shapes" "shape" []
+
+            let model =
+                library
+                    [ "shapes",
+                      moduleOf
+                          [ "circle", alias [] (recordT [ "radius", floatT ])
+                            "rect", alias [] (recordT [ "w", floatT; "h", floatT ])
+                            "shape", custom [] [ "circle", [ "value", own "shapes" "circle" [] ]; "rect", [ "value", own "shapes" "rect" [] ] ] ]
+                          [ "unit",
+                            definition [] shape (apply (constructor "shapes#circle") (Morphir.IR.V4.Value.Record(va, [ name "radius", float 1.0 ])))
+                            "width",
+                            definition
+                                [ "s", shape ]
+                                floatT
+                                (patternMatch
+                                    (variable "s")
+                                    [ constructorPattern "shapes#circle" [ asPattern "c" ], Morphir.IR.V4.Value.Field(va, variable "c", name "radius")
+                                      constructorPattern "shapes#rect" [ asPattern "r" ], Morphir.IR.V4.Value.Field(va, variable "r", name "w") ])
+                            "is-circle",
+                            definition
+                                [ "s", shape ]
+                                boolT
+                                (patternMatch
+                                    (variable "s")
+                                    [ constructorPattern "shapes#circle" [ WildcardPattern va ], Morphir.IR.V4.Value.Literal(va, BoolLiteral true)
+                                      WildcardPattern va, Morphir.IR.V4.Value.Literal(va, BoolLiteral false) ]) ] ]
+
+            let files = generate model
+            Expect.stringContains files["p_Acme.Geo/m_ShapesModule.g.cs"] "public union Shape(" "the union form"
+
+            let original = distributionOf model
+            let back = throughCSharp model
+            Expect.equal (typeNames back) (typeNames original) "the same types"
+            Expect.equal (valuesText back) (valuesText original) "the same values"
+        }
+
+        test "a custom type that mixes the two shapes is a closed record and comes back with its constructions and matches" {
+            let either = own "mixed" "either" []
+
+            let model =
+                library
+                    [ "geo", moduleOf [ "wrapped", alias [] (recordT [ "n", intT ]) ] []
+                      "mixed",
+                      moduleOf
+                          [ "either", custom [] [ "wrapped", [ "value", own "geo" "wrapped" [] ]; "other", [ "x", intT ] ] ]
+                          [ "make", definition [] either (apply (constructor "mixed#wrapped") (Morphir.IR.V4.Value.Record(va, [ name "n", int 1 ])))
+                            "size",
+                            definition
+                                [ "e", either ]
+                                intT
+                                (patternMatch
+                                    (variable "e")
+                                    [ constructorPattern "mixed#wrapped" [ asPattern "w" ], Morphir.IR.V4.Value.Field(va, variable "w", name "n")
+                                      constructorPattern "mixed#other" [ asPattern "x" ], variable "x" ]) ] ]
+
+            let files = generate model
+            Expect.stringContains files["p_Acme.Geo/m_MixedModule.g.cs"] "public closed record Either" "the closed form"
+
+            let original = distributionOf model
+            let back = throughCSharp model
+            Expect.equal (typeNames back) (typeNames original) "the same types"
+            Expect.equal (valuesText back) (valuesText original) "the same values"
+        }
+
         test "generic records, calls, lets, conditionals, tuples, lists and record operations come back" {
             let sdkAdd = sdkRef "basics#add"
             let sdkLess = sdkRef "basics#less-than"

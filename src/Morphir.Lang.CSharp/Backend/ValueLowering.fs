@@ -971,11 +971,19 @@ module internal ValueLowering =
                             ("No constructor implementation for "
                              + FQName.toString name)
                     | _ ->
-                        Admission.fail
-                            "ambiguous-constructor"
-                            location
-                            ("Multiple constructors share "
-                             + FQName.toString name)
+                        // A wrapper case such as `Circle Circle` has the name of the record alias that it wraps. The
+                        // constructor of the custom type wins: the record alias is a constructor only by its name.
+                        match
+                            candidates
+                            |> List.filter (fun candidate -> not candidate.IsRecord)
+                        with
+                        | [ case ] -> case
+                        | _ ->
+                            Admission.fail
+                                "ambiguous-constructor"
+                                location
+                                ("Multiple constructors share "
+                                 + FQName.toString name)
 
                 let args =
                     candidate.Owner.Parameters
