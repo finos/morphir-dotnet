@@ -13,7 +13,7 @@ Feature: Generate C# from a Morphir model in the build of a C# project
   Scenario: The source generator compiles the code of the CLI into the program
     Given a C# consumer of the model
     When I build and run the C# consumer
-    Then the C# consumer prints "daily rate: 5000"
+    Then the consumer prints "daily rate: 5000"
     When I generate "csharp" from the model
     Then the exit code is 0
     And the files of the source generator in the C# consumer are the files of the output
@@ -21,7 +21,7 @@ Feature: Generate C# from a Morphir model in the build of a C# project
   Scenario: The MSBuild target writes the code of the CLI into the intermediate output folder
     Given a C# consumer of the model that writes the generated files with the MSBuild target
     When I build and run the C# consumer
-    Then the C# consumer prints "daily rate: 5000"
+    Then the consumer prints "daily rate: 5000"
     And the source generator wrote no file in the C# consumer
     When I generate "csharp" from the model
     Then the exit code is 0
@@ -44,7 +44,7 @@ Feature: Generate C# from a Morphir model in the build of a C# project
     Given the model fixture "Models/Shapes/shapes-v4.json"
     And a C# library of the model and a C# consumer that matches on the types of the library
     When I build and run the C# consumer
-    Then the C# consumer prints "circle 2, small, daily rate 5000"
+    Then the consumer prints "circle 2, small, daily rate 5000"
     And the C# library and the C# consumer each have the polyfill file
     And the last build of the C# consumer has no warning
 

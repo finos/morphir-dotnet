@@ -16,6 +16,7 @@ namespace Morphir.Lang.CSharp.Generator.Tests;
 /// The source generator in a Roslyn generator driver: it gives the paths and bytes of the pipeline function, and a
 /// diagnostic for a model that is not valid (csharp-build-generation).
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class GeneratorTests
 {
     private static byte[] Fixture(string name) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));

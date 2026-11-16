@@ -34,6 +34,7 @@ let private decodeV4 (bytes: byte[]) : VersionedModel =
 
 [<Tests>]
 let tests =
+    // The fixtures are files of the repository: see docs/contributing/ci-os-matrix.md.
     testList "CSharpPipeline" [
         test "A current model gives the files of the backend, in the order of their paths" {
             let bytes = fixture "daily-rate-v4.json"
@@ -120,3 +121,4 @@ let tests =
                 "cancellation"
         }
     ]
+    |> testLabel "PlatformSpecific"

@@ -8,6 +8,8 @@ namespace Morphir.BlackBox.Tests.Steps;
 /// The steps of a C# consumer of the package <c>Morphir.Lang.CSharp</c>: a <c>net10.0</c> program with the model of the
 /// scenario as the additional file <c>car-rental.morphir.json</c>. The source generator of the package adds the code of
 /// the model to its compilation, or the MSBuild target of the package writes it into the intermediate output folder.
+/// The build steps are not the steps of <see cref="ConsumerSteps"/>: <see cref="ConsumerProject"/> is an F# project.
+/// The run of the consumer sets <see cref="PackageRun.ConsumerOutput"/>, so <c>Then the consumer prints</c> checks it.
 /// </summary>
 [Binding]
 public sealed partial class CSharpBuildSteps(IPackageDriver packages, IScenarioWorkspace workspace, ScenarioRun run, PackageRun state)
@@ -49,13 +51,6 @@ public sealed partial class CSharpBuildSteps(IPackageDriver packages, IScenarioW
 
     [When("I build the C# consumer and it fails")]
     public Task BuildAndItFails() => Build(succeeds: false);
-
-    [Then("the C# consumer prints {string}")]
-    public void ThePrintedText(string text)
-    {
-        if (state.ConsumerOutput.StandardOutput.Trim() != text)
-            throw new CommandAssertionException($"The C# consumer did not print '{text}'.", state.ConsumerOutput);
-    }
 
     [Then("the files of the source generator in the C# consumer are the files of the output")]
     public void TheGeneratorFilesAreTheOutput() => ShouldBeTheOutput(GeneratorFolder);
@@ -169,8 +164,8 @@ public sealed partial class CSharpBuildSteps(IPackageDriver packages, IScenarioW
     public void TheBuildHasNoWarning()
     {
         var build = _build ?? throw new InvalidOperationException("The scenario did not build the C# consumer before this step.");
-        build.OutputShouldContain(" 0 Warning(s)");
-        build.OutputShouldNotContain("warning ");
+        // A warning line of MSBuild and of the compiler has "warning" and its code in each logger and UI language.
+        build.OutputShouldNotContain(": warning ");
     }
 
     [Then("the C# library and the C# consumer each have the polyfill file")]

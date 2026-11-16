@@ -201,7 +201,6 @@ two steps have the same pattern.
 | C# build generation | `Given a C# consumer of the model that writes the generated files with the MSBuild target` |
 | C# build generation | `When I build and run the C# consumer` |
 | C# build generation | `When I build the C# consumer and it fails` |
-| C# build generation | `Then the C# consumer prints {string}` |
 | C# build generation | `Then the files of the source generator in the C# consumer are the files of the output` |
 | C# build generation | `Then the files of the MSBuild target in the C# consumer are the files of the output` |
 | C# build generation | `Then the source generator wrote no file in the C# consumer` |
