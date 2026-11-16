@@ -147,17 +147,7 @@ module internal TypeParameterClasses =
 
     /// <summary>The extensions with the carrier of the classes. Other members of the extensions stay.</summary>
     let private withCarrier (classes: ValueClass list) (extensions: DocumentValue option) =
-        match ValueClasses.carrier classes, extensions with
-        | carrier, None -> Some carrier
-        | DocumentObject carrier, Some(DocumentObject others) ->
-            let kept =
-                OrderedMap.toList others
-                |> List.filter (fun (key, _) -> key <> ValueClasses.ExtensionKey)
-
-            match OrderedMap.ofList (kept @ OrderedMap.toList carrier) with
-            | Ok merged -> Some(DocumentObject merged)
-            | Error _ -> extensions
-        | _ -> extensions
+        DotnetExtension.withMember ValueClasses.ClassesKey (DocumentArray [ for c in classes -> DocumentString(ValueClasses.word c) ]) extensions
 
     let rec private carry (classes: Map<Name, ValueClass list>) (t: Type) =
         let next = carry classes

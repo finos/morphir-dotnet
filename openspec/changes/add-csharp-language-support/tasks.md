@@ -65,7 +65,7 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 
 ## 6. Loop lowering, matching transforms and options (LOP-1, OPT-1)
 
-- [ ] 6.1 Decide the metadata carrier for a backend option on a definition with a test of the round trip, record the choice in `design.html` and update the open question. Verify that the options of 6.5 read it back.
+- [x] 6.1 Decide the metadata carrier for a backend option on a definition with a test of the round trip, record the choice in `design.html` and update the open question. Verify that the options of 6.5 read it back.
 - [ ] 6.2 Write failing tests for the loop recognizer with the ten-loop probe set (map, filter, filterMap, fold with one and two locals, while, for with an exit, break, outside effects) and implement the single recognizer in `Morphir.Lang.CSharp.Analyzers`. Verify that the result equals `spikes/csharp-language-support/roslyn-loop/expected-output.txt`.
 - [ ] 6.3 Implement loop lowering in the frontend with the same recognizer, the refusals with reasons, and the analyzer diagnostics. Verify that the analyzer and the frontend refuse the same loops with the same reasons.
 - [ ] 6.4 Implement the backend profiles (imperative and functional) for each row of the transform table, including `FilterMap` in the SDK, and the frontend reading of `Select`, `Where`, `Aggregate` and local functions. Write the round-trip tests first for each row and each profile. Verify them, and that `Where` then `Select` reads as `List.map` over `List.filter`.
