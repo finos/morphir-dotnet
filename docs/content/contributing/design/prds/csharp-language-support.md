@@ -1,7 +1,7 @@
 ---
 title: "PRD: C# language support"
 description: "A roadmap for Morphir.Lang.CSharp: a C# frontend, a middle end that the host runs, and a C# backend, all on Roslyn and built into both hosts."
-status: Approved
+status: In Progress
 created: 2026-11-15
 last_updated: 2026-11-15
 ---
@@ -635,14 +635,19 @@ The order is a builder's call, and the product owner can change it. The product 
 
 | Feature | Status | Step | Completion evidence |
 | --- | --- | --- | --- |
-| Spike record | Not started | 0 | The probes are in `spikes/`; the report has the reproduction steps |
-| Frontend thin slice | Not started | 1 | `morphir compile` makes IR from a C# model in both hosts |
-| Upgrade to the current IR | Not started | 2 | A classic model generates C# through the upgrade |
-| Middle-end contracts | Not started | 3 | `morphir extension list` shows the target-side pass; `--json` reports rewrite applications |
-| Backend on Roslyn | Not started | 4 | Generated models compile and run; `Morphir.CodeGeneration.CSharp` is removed |
-| Loop lowering and matching transforms | Not started | 5 | The round-trip tests pass for each row and each profile |
-| Sum type diagnostics and rewriters | Not started | 6 | The IDE offers the fix; the result compiles |
-| Generation in a user build | Not started | 7 | A consumer project builds with the target and with the generator |
+| Spike record | Done | 0 | The probes are in `spikes/csharp-language-support/`; the [spike record](../spikes/csharp-language-support.md) has the reproduction steps |
+| Frontend thin slice | Done | 1 | `morphir compile` makes IR from a C# model in the Native AOT `morphir` and in `dotnet-morphir`: the `frontend-csharp` corpus qualifies on both hosts with equal models and diagnostics (see [Native AOT and dotnet-morphir conformance](#native-aot-and-dotnet-morphir-conformance-2026-11-15)) |
+| Upgrade to the current IR | Done | 2 | A classic model generates C# through the upgrade: `ModelUpgradeTests` and the documented `morphir generate --target csharp` example of the middle-end page |
+| Middle-end contracts | Done | 3 | `morphir extension list` shows the pass `morphir-dotnet.csharp.admission` with its stage; `--json` reports the passes that ran; BDD scenarios for the passes in `compile` and `generate` |
+| Backend on Roslyn | Done | 4 | Generated models compile and run (C# 15, plain records, `closed` and `union` types); the round trip IR to C# to IR passes; `Morphir.CodeGeneration.CSharp` is removed and `Morphir.Lang.CSharp` replaces it |
+| Loop lowering and matching transforms | Done | 5 | The round-trip tests pass for each row of the transform table and each profile; the handling options have their attribute and `morphir.toml` carriers |
+| Sum type diagnostics and rewriters | Done, IDE not tested | 6 | `MORPHIR1009` reports an older sum type encoding; the code fix test gives a `closed record` that compiles; no host loads the code fix or Workspaces assembly. The fix in a real IDE is not tested |
+| Generation in a user build | Done, IDE not tested | 7 | A consumer project builds with the MSBuild target and with the generator on SDK 11.0.100, with the same bytes as the CLI; SDK 10 stops with `MORPHIR2010`. Visual Studio, Rider and VS Code are not tested |
+
+Open items after this change:
+
+- The source generator and the code fix in an IDE (Visual Studio, Rider, VS Code) are not tested.
+- A `net8.0` runtime for generated code is not tested. The polyfill file covers targets below `net11.0`, and the tests use `net10.0`.
 
 ## Testing approach
 

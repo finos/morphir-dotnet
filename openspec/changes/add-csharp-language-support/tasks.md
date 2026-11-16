@@ -96,7 +96,7 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
   - Done (2026-11-16): the publish has one more `IL2104` (`Microsoft.CodeAnalysis`) and no per-site error; the ILC input has no Workspaces or code fix assembly; the size is 85,103,768 bytes on `osx-arm64` and 90,773,848 bytes on `linux-x64`. The limit is 100,000,000 bytes in `.agents/aot-optimization.md` and in `NativeAotHostGate`, and `CheckNativeAotHost` runs in the Linux job of `development.yml`.
 - [x] 9.2 Run the frontend and backend conformance in the Native AOT `morphir` and in `dotnet-morphir`, and verify equal output.
 - [ ] 9.3 Run the full test suites, `dotnet format` and the documentation build. Verify that all pass.
-- [ ] 9.4 Update the Feature Status Tracking table of the PRD and the PRD index with the delivered steps and the open items: the generator in IDEs and a `net8.0` runtime.
+- [x] 9.4 Update the Feature Status Tracking table of the PRD and the PRD index with the delivered steps and the open items: the generator in IDEs and a `net8.0` runtime.
 
 ## Workflow follow-up
 
