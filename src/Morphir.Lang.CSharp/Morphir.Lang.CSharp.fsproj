@@ -67,8 +67,8 @@
         <Compile Include="Embedded.fs" />
         <Compile Include="FixedReferences.fs" />
         <Compile Include="CSharpCompiler.fs" />
-        <Compile Include="Planning.fs" />
         <Compile Include="SdkMapping.fs" />
+        <Compile Include="Planning.fs" />
         <Compile Include="Lowering.fs" />
         <Compile Include="TypeParameterClasses.fs" />
         <Compile Include="CSharpFrontend.fs" />

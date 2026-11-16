@@ -10,9 +10,9 @@ open Microsoft.CodeAnalysis.CSharp.Syntax
 open Morphir.Compilation
 open Morphir.IR
 
-/// <summary>One constructor of a custom type: a case record of a closed record, or an enum member.</summary>
+/// <summary>One constructor of a custom type: a case record of a closed record, an enum member, or a case type of a union.</summary>
 type internal PlannedCase = {
-    /// <summary>The case record symbol, or the enum member symbol.</summary>
+    /// <summary>The case record symbol, the enum member symbol, or the case type of a union.</summary>
     Symbol: ISymbol
     Name: Name
     /// <summary>The fields in constructor order: the Morphir name, the C# member name and the C# type.</summary>
@@ -26,7 +26,7 @@ type internal PlannedCase = {
 type internal PlannedTypeKind =
     /// <summary>A plain record: a type alias of a record type.</summary>
     | RecordAlias of fields: (Name * string * ITypeSymbol) list * locations: Morphir.Compilation.Location list
-    /// <summary>A closed record or an enum: a custom type.</summary>
+    /// <summary>A closed record, an enum or a union: a custom type.</summary>
     | CustomType of constructors: PlannedCase list
 
 /// <summary>A type of a module.</summary>
@@ -69,6 +69,11 @@ type internal Plan = {
     ConstructorNames: Dictionary<ISymbol, FQName * PlannedCase>
     /// <summary>Methods and constants of the package to the name of their value.</summary>
     ValueNames: Dictionary<ISymbol, FQName>
+    /// <summary>
+    /// Unions of the package to the names of their constructors, in the order of the case types. A case type is not a key of
+    /// <c>ConstructorNames</c>: it is a type of its own, and two unions of different modules can have the same case type.
+    /// </summary>
+    UnionCases: Dictionary<ISymbol, FQName list>
 }
 
 /// <summary>Plans the modules of a package from a bound compilation.</summary>
@@ -203,18 +208,31 @@ module internal Planning =
               | _ -> yield refuse "a member that is not a field" ]
 
     /// <summary>
-    /// The type declarations that the frontend does not read and that no admission rule refuses: a union (read from
-    /// group 7), an abstract record, a record that inherits from another record that is not closed, and the members of
-    /// a record or a static class that the model has no place for. Without these refusals the types would be left out.
+    /// The type declarations that the frontend does not read and that no admission rule refuses: an abstract record, a
+    /// record that inherits from another record that is not closed, and the members of a record, a union or a static class
+    /// that the model has no place for. Without these refusals the types or members would be left out.
     /// </summary>
     let private shapeRefusals (compiled: Compiled) (declaration: BaseTypeDeclarationSyntax) (symbol: INamedTypeSymbol) =
         [ if symbol.IsUnion then
-              yield
-                  refusal
-                      compiled
-                      "union"
-                      declaration
-                      $"The union '{symbol.Name}' is not read yet. Write it as a closed record with one sealed record case for each case."
+              // A union is only its cases: a member or an interface would be lost, as on a record.
+              match declaration with
+              | :? TypeDeclarationSyntax as union ->
+                  if not (isNull union.BaseList) then
+                      yield
+                          refusal
+                              compiled
+                              "union_member"
+                              union.BaseList
+                              $"The union '{symbol.Name}' has a base list. A Morphir custom type has only its cases: write computations as functions of a static class."
+
+                  for member' in union.Members do
+                      yield
+                          refusal
+                              compiled
+                              "union_member"
+                              member'
+                              $"The union '{symbol.Name}' has a member. A Morphir custom type has only its cases: write computations as functions of a static class."
+              | _ -> ()
           elif symbol.IsRecord && symbol.TypeKind = TypeKind.Class then
               if symbol.IsAbstract && not symbol.IsClosed then
                   yield
@@ -263,6 +281,77 @@ module internal Planning =
                                   $"The static class '{symbol.Name}' has a member that is not a method or a constant. Write a value as a 'const' or as a static method."
               | _ -> () ]
 
+    let private shortName (t: ITypeSymbol) = t.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
+
+    /// <summary>
+    /// The constructors of a union: one for each case type, with the local name of the Morphir type reference of the case
+    /// and that type as its one argument <c>value</c>. A case with no name (a type parameter, a tuple, a function), a case
+    /// record of a closed record (a constructor, not a type) and a case with no Morphir type are refused.
+    /// </summary>
+    let private unionCases (compiled: Compiled) (declaration: BaseTypeDeclarationSyntax) (symbol: INamedTypeSymbol) (location: Morphir.Compilation.Location) =
+        let caseSyntax =
+            match declaration with
+            | :? TypeDeclarationSyntax as union when not (isNull union.ParameterList) ->
+                [ for parameter in union.ParameterList.Parameters -> (if isNull parameter.Type then (parameter :> SyntaxNode) else (parameter.Type :> SyntaxNode)) ]
+            | _ -> []
+
+        let own = compiled.Compilation.Assembly
+
+        let noName (caseType: ITypeSymbol) (at: Morphir.Compilation.Location) (what: string) =
+            Error(
+                Diagnostic.error
+                    (CSharpCodes.unsupported "union_case")
+                    $"The case '{shortName caseType}' of the union '{symbol.Name}' is {what}, so its constructor has no name. Give the case a record type, for example 'sealed record Some<T>(T Value)'."
+                |> Diagnostic.at at
+            )
+
+        [ for index, caseType in List.indexed (List.ofSeq symbol.UnionCaseTypes) ->
+              let at =
+                  match List.tryItem index caseSyntax with
+                  | Some syntax -> locationOf compiled syntax
+                  | None -> location
+
+              let named =
+                  match caseType with
+                  | :? ITypeParameterSymbol -> noName caseType at "a type parameter"
+                  | :? INamedTypeSymbol as named when named.IsTupleType -> noName caseType at "a tuple"
+                  | :? INamedTypeSymbol as named when named.TypeKind = TypeKind.Delegate -> noName caseType at "a function"
+                  | :? INamedTypeSymbol as named when SymbolEqualityComparer.Default.Equals(named.ContainingAssembly, own) ->
+                      if not (isNull named.BaseType) && named.BaseType.IsClosed then
+                          Error(
+                              Diagnostic.error
+                                  (CSharpCodes.unsupported "union_case")
+                                  $"The case '{shortName caseType}' of the union '{symbol.Name}' is a case of the closed record '{named.BaseType.Name}': it is a constructor, not a type. Use '{named.BaseType.Name}' or a record as the case."
+                              |> Diagnostic.at at
+                          )
+                      else
+                          Ok(Name.fromString named.Name)
+                  | :? INamedTypeSymbol as named ->
+                      match SdkMapping.tryType named with
+                      | Some(fq, _) -> Ok fq.LocalName
+                      | None ->
+                          Error(
+                              Diagnostic.error
+                                  CSharpCodes.unsupportedReference
+                                  $"The C# symbol '{caseType.ToDisplayString()}' has no Morphir mapping. Use a type of this package or a mapped Morphir SDK type."
+                              |> Diagnostic.at at
+                          )
+                  | _ -> noName caseType at "not a named type"
+
+              named
+              |> Result.bind (fun name ->
+                  if Name.isEmpty name then
+                      Error(nameFailure at caseType.Name)
+                  else
+                      Ok
+                          {
+                              Symbol = caseType
+                              Name = name
+                              Fields = [ Name.fromString "value", "Value", caseType ]
+                              FieldLocations = [ at ]
+                              Location = at
+                          }) ]
+
     /// <summary>Plans a package. Exposed modules follow the request: none listed means every public module.</summary>
     let plan
         (package: PackageName)
@@ -274,6 +363,7 @@ module internal Planning =
         let typeNames = newIndex<FQName * PlannedType> ()
         let constructorNames = newIndex<FQName * PlannedCase> ()
         let valueNames = newIndex<FQName>()
+        let unionNames = newIndex<FQName list> ()
         let modules = Dictionary<ModulePath, PlannedModule>()
         let order = ResizeArray<ModulePath>()
 
@@ -435,6 +525,16 @@ module internal Planning =
                                         |> List.ofSeq
 
                                     Some(CustomType members)
+                                | _ when symbol.IsUnion ->
+                                    let cases = unionCases compiled declaration symbol location
+
+                                    for case in cases do
+                                        match case with
+                                        | Error diagnostic -> diagnostics.Add diagnostic
+                                        | Ok _ -> ()
+
+                                    // The cases that convert stay, so that their names are checked against the other constructors.
+                                    Some(CustomType [ for case in cases do match case with Ok planned -> yield planned | Error _ -> () ])
                                 | _ when symbol.IsRecord && symbol.TypeKind = TypeKind.Class ->
                                     match declaration with
                                     | :? RecordDeclarationSyntax as record when symbol.IsClosed ->
@@ -506,10 +606,21 @@ module internal Planning =
                                         for case in constructors do
                                             match constructorsOf.TryGetValue((path, case.Name)) with
                                             | true, (first, firstType) ->
+                                                let message =
+                                                    let caseText (planned: PlannedCase) =
+                                                        match planned.Symbol with
+                                                        | :? ITypeSymbol as caseType when symbol.IsUnion || firstType.IsUnion -> shortName caseType
+                                                        | other -> other.Name
+
+                                                    if symbol.IsUnion && comparer.Equals(firstType, symbol) then
+                                                        $"The cases '{caseText first}' and '{caseText case}' of the union '{symbol.Name}' give one constructor name. The constructors of a module must have different Morphir names."
+                                                    elif symbol.IsUnion && firstType.IsUnion then
+                                                        $"The unions '{firstType.Name}' and '{symbol.Name}' of one module both have the case '{caseText case}'. The constructors of a module must have different Morphir names: put one of the unions in another module."
+                                                    else
+                                                        $"The constructors '{caseText first}' of '{firstType.Name}' and '{caseText case}' of '{symbol.Name}' have the same Morphir name in one module."
+
                                                 diagnostics.Add(
-                                                    Diagnostic.error
-                                                        CSharpCodes.nameCollision
-                                                        $"The constructors '{first.Symbol.Name}' of '{firstType.Name}' and '{case.Symbol.Name}' of '{symbol.Name}' have the same Morphir name in one module."
+                                                    Diagnostic.error CSharpCodes.nameCollision message
                                                     |> Diagnostic.at case.Location
                                                     |> Diagnostic.withRelated (
                                                         ({ Location = first.Location; Message = "The first declaration." }: RelatedInformation)
@@ -518,8 +629,14 @@ module internal Planning =
                                             | _ ->
                                                 constructorsOf[(path, case.Name)] <- (case, symbol)
 
-                                                constructorNames[case.Symbol.OriginalDefinition] <-
-                                                    (FQName.fqName package path case.Name, case)
+                                                // A case type of a union is a type of its own, not a constructor symbol.
+                                                if not symbol.IsUnion then
+                                                    constructorNames[case.Symbol.OriginalDefinition] <-
+                                                        (FQName.fqName package path case.Name, case)
+
+                                        if symbol.IsUnion then
+                                            unionNames[symbol.OriginalDefinition] <-
+                                                [ for case in constructors -> FQName.fqName package path case.Name ]
                                     | RecordAlias _ -> ()
             | _ -> ()
 
@@ -605,6 +722,7 @@ module internal Planning =
                 TypeNames = typeNames
                 ConstructorNames = constructorNames
                 ValueNames = valueNames
+                UnionCases = unionNames
             }
 
         Checked.ofDiagnostics planned (List.ofSeq diagnostics)

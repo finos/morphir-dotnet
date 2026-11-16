@@ -22,6 +22,11 @@ type internal Binding =
     /// constructor applied to them.
     /// </summary>
     | CaseFields of constructor: FQName * fields: (string * Name * ITypeSymbol) list * caseType: ITypeSymbol
+    /// <summary>
+    /// A local bound by a positional or a property pattern on a case of a union: it is the field of the case value, which
+    /// the pattern binds to a variable.
+    /// </summary>
+    | FieldOf of record: Name * recordType: ITypeSymbol * field: Name * fieldType: ITypeSymbol
 
 /// <summary>A call of the equality or the order of .NET on two values of a type parameter of the method.</summary>
 type internal TypeParameterCall =
@@ -148,6 +153,37 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
         pick 1
 
+    /// <summary>Whether a type is the <c>IUnion</c> interface of C# 15, which reaches the state of a union with no case.</summary>
+    let isUnionInterface (t: ITypeSymbol) =
+        not (isNull t)
+        && t.Name = "IUnion"
+        && not (isNull t.ContainingNamespace)
+        && t.ContainingNamespace.ToDisplayString() = "System.Runtime.CompilerServices"
+
+    let unionInterfaceRefusal (at: Morphir.Compilation.Location) : Checked<'a> =
+        unsupported
+            "union_interface"
+            at
+            "The interface 'IUnion' reaches the state of a union with no case. A Morphir custom type has no such state: match the cases of the union."
+
+    /// <summary>A union of the package, as it is used: a constructed type has the type arguments of its use.</summary>
+    let unionOf (t: ITypeSymbol) =
+        match t with
+        | :? INamedTypeSymbol as named when named.IsUnion && plan.UnionCases.ContainsKey named.OriginalDefinition -> Some named
+        | _ -> None
+
+    /// <summary>The constructor of the case of a union that a case type gives, and the case type of this use.</summary>
+    let unionCase (unionType: ITypeSymbol) (caseType: ITypeSymbol) : (FQName * ITypeSymbol) option =
+        match unionOf unionType with
+        | Some union when not (isNull caseType) ->
+            let names = plan.UnionCases[union.OriginalDefinition]
+
+            union.UnionCaseTypes
+            |> Seq.indexed
+            |> Seq.tryFind (fun (_, case) -> SymbolEqualityComparer.Default.Equals(case, caseType))
+            |> Option.bind (fun (index, case) -> List.tryItem index names |> Option.map (fun fq -> fq, case))
+        | _ -> None
+
     // ----- types -----
 
     member this.Type(at: Morphir.Compilation.Location, t: ITypeSymbol) : Checked<'Type> =
@@ -165,6 +201,8 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 builder.TypeUnit at
             elif named.OriginalDefinition.ToDisplayString() = "Morphir.SDK.CSharp.Unit" then
                 builder.TypeUnit at
+            elif isUnionInterface named then
+                unionInterfaceRefusal at
             elif named.TypeKind = TypeKind.Delegate && named.Name = "Func" then
                 // Func<A, B, R> is the curried function A -> B -> R.
                 let arguments = List.ofSeq named.TypeArguments
@@ -263,6 +301,25 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 return p, env
             }
 
+        | :? IDeclarationPatternOperation as declaration when (unionCase pattern.InputType declaration.MatchedType).IsSome ->
+            // `Circle c` on a Shape: the constructor Circle with the case value bound to c.
+            let fq, caseType = (unionCase pattern.InputType declaration.MatchedType).Value
+            let symbol = declaration.DeclaredSymbol
+
+            check {
+                let! t = this.Type(at, pattern.InputType)
+                let! ct = this.Type(at, caseType)
+                let! w = builder.PatternWildcard(at, ct)
+
+                if isNull symbol then
+                    let! ctor = builder.PatternConstructor(at, t, fq, [ w ])
+                    return ctor, env
+                else
+                    let! bound = builder.PatternAs(at, ct, w, nameOf symbol.Name)
+                    let! ctor = builder.PatternConstructor(at, t, fq, [ bound ])
+                    return ctor, Map.add symbol.Name Plain env
+            }
+
         | :? IDeclarationPatternOperation as declaration ->
             let matched = declaration.MatchedType
 
@@ -309,6 +366,19 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             | None, _ ->
                 unsupported "pattern" at $"The declaration pattern on '{matched.ToDisplayString()}' is not a case of a custom type."
 
+        | :? ITypePatternOperation as typePattern when (unionCase pattern.InputType typePattern.MatchedType).IsSome ->
+            let fq, caseType = (unionCase pattern.InputType typePattern.MatchedType).Value
+
+            check {
+                let! t = this.Type(at, pattern.InputType)
+                let! ct = this.Type(at, caseType)
+                let! w = builder.PatternWildcard(at, ct)
+                let! ctor = builder.PatternConstructor(at, t, fq, [ w ])
+                return ctor, env
+            }
+
+        | :? ITypePatternOperation as typePattern when isUnionInterface typePattern.MatchedType -> unionInterfaceRefusal at
+
         | :? ITypePatternOperation as typePattern ->
             match this.CaseOf typePattern.MatchedType with
             | Some(fq, case) ->
@@ -328,6 +398,16 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 }
             | None -> unsupported "pattern" at $"The type pattern '{typePattern.MatchedType.ToDisplayString()}' is not a case of a custom type."
 
+        | :? IConstantPatternOperation as constant when
+            (unionOf pattern.InputType).IsSome
+            && constant.Value.ConstantValue.HasValue
+            && isNull constant.Value.ConstantValue.Value
+            ->
+            unsupported
+                "union_null"
+                at
+                $"A 'null' arm on the union '{pattern.InputType.Name}' reaches the state with no case. A Morphir custom type has no such state: remove the arm."
+
         | :? IConstantPatternOperation as constant ->
             this.ConstantPattern(at, constant.Value, pattern.InputType) |> Checked.map (fun p -> p, env)
 
@@ -346,6 +426,9 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                 let! p = builder.PatternTuple(at, t, elements)
                 return p, env'
             }
+
+        | :? IRecursivePatternOperation as recursive when (unionCase pattern.InputType recursive.MatchedType).IsSome ->
+            this.UnionCasePattern(env, at, recursive)
 
         | :? IRecursivePatternOperation as recursive ->
             match this.CaseOf recursive.MatchedType with
@@ -404,6 +487,93 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
         | _ -> unsupported "pattern" at "This kind of pattern is not in the Morphir subset."
 
+    /// <summary>
+    /// A positional or a property pattern on a case of a union, such as <c>Circle(var radius)</c> or <c>Rect { W: var w }</c>:
+    /// the constructor of the case with the case value bound to a variable, and each local of a subpattern stands for a
+    /// field of that value. A subpattern that tests a value has no Morphir form, so only <c>var</c>, a declaration and a
+    /// discard are accepted.
+    /// </summary>
+    member private this.UnionCasePattern(env: Env, at: Morphir.Compilation.Location, recursive: IRecursivePatternOperation) : Checked<'Pattern * Env> =
+        let fq, caseType = (unionCase recursive.InputType recursive.MatchedType).Value
+
+        let refuse () : Checked<'Pattern * Env> =
+            unsupported
+                "pattern"
+                at
+                $"Only 'var', a declaration and a discard can stand in a pattern on the case '{caseType.Name}' of a union. Write '{caseType.Name} c' and read the fields of c."
+
+        let fields =
+            match caseType with
+            | :? INamedTypeSymbol as named ->
+                match plan.TypeNames.TryGetValue named.OriginalDefinition with
+                | true, (_, { Kind = RecordAlias(fields, _) }) -> Some [ for name, member', fieldType in fields -> member', name, fieldType ]
+                | _ -> None
+            | _ -> None
+
+        match fields with
+        | None -> refuse ()
+        | Some fields ->
+            let positional = List.ofSeq recursive.DeconstructionSubpatterns
+
+            let bound: (IPatternOperation * (string * Name * ITypeSymbol)) list option =
+                if not positional.IsEmpty then
+                    if positional.Length = fields.Length then Some(List.zip positional fields) else None
+                else
+                    recursive.PropertySubpatterns
+                    |> List.ofSeq
+                    |> List.map (fun property ->
+                        match property.Member with
+                        | :? IMemberReferenceOperation as reference ->
+                            fields
+                            |> List.tryFind (fun (member', _, _) -> member' = reference.Member.Name)
+                            |> Option.map (fun field -> property.Pattern, field)
+                        | _ -> None)
+                    |> fun items -> if List.forall Option.isSome items then Some(List.choose id items) else None
+
+            let variable =
+                match recursive.DeclaredSymbol with
+                | null -> caseVariable recursive.Syntax caseType.Name "Value"
+                | symbol -> nameOf symbol.Name
+
+            let locals =
+                bound
+                |> Option.bind (fun items ->
+                    let lowered =
+                        items
+                        |> List.map (fun (subpattern, (_, name, fieldType)) ->
+                            match subpattern with
+                            | :? IDiscardPatternOperation -> Some None
+                            | :? IDeclarationPatternOperation as declaration when
+                                isNull declaration.DeclaredSymbol
+                                || SymbolEqualityComparer.Default.Equals(declaration.NarrowedType, fieldType)
+                                ->
+                                match declaration.DeclaredSymbol with
+                                | null -> Some None
+                                | symbol -> Some(Some(symbol.Name, FieldOf(variable, caseType, name, fieldType)))
+                            | _ -> None)
+
+                    if List.forall Option.isSome lowered then Some(lowered |> List.choose id |> List.choose id) else None)
+
+            match locals with
+            | None -> refuse ()
+            | Some locals ->
+                check {
+                    let! t = this.Type(at, recursive.InputType)
+                    let! ct = this.Type(at, caseType)
+                    let! w = builder.PatternWildcard(at, ct)
+                    let! value = builder.PatternAs(at, ct, w, variable)
+                    let! ctor = builder.PatternConstructor(at, t, fq, [ value ])
+
+                    let env' =
+                        let withLocals = locals |> List.fold (fun e (local, binding) -> Map.add local binding e) env
+
+                        match recursive.DeclaredSymbol with
+                        | null -> withLocals
+                        | symbol -> Map.add symbol.Name Plain withLocals
+
+                    return ctor, env'
+                }
+
     // ----- values -----
 
     member private this.Literal(at: Morphir.Compilation.Location, value: obj, t: ITypeSymbol) : Checked<'Value> =
@@ -444,7 +614,7 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     this.Type(at, fieldType)
                     |> Checked.bind (fun inferred -> builder.Variable(at, inferred, variable))
                 | None -> unsupportedReference at memberName
-            | Plain -> unsupportedReference at memberName
+            | _ -> unsupportedReference at memberName
         | _ ->
             check {
                 let! subject = this.Value(env, target)
@@ -482,6 +652,27 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
             | :? IFieldReferenceOperation as field when isPackageConstant ->
                 this.Reference(at, plan.ValueNames[field.Field.OriginalDefinition], [], field.Type)
+
+            | :? IPropertyReferenceOperation as property when not (isNull property.Instance) && property.Property.ContainingType.IsUnion ->
+                unsupported
+                    "union_value"
+                    at
+                    $"The property '{property.Property.Name}' of the union '{property.Property.ContainingType.Name}' reaches the state with no case. A Morphir custom type has no such state: match the cases of the union."
+
+            | :? IDefaultValueOperation as default' when (unionOf default'.Type).IsSome ->
+                unsupported
+                    "union_default"
+                    at
+                    $"The default of the union '{default'.Type.Name}' is the state with no case. A Morphir custom type has no such state: give a case."
+
+            | :? IIsPatternOperation as isPattern -> this.IsPattern(env, at, isPattern)
+
+            | :? IIsTypeOperation as isType ->
+                // `x is T` with a type that is not a pattern: the operand is lowered first, so a refusal in it is the reason.
+                this.Value(env, isType.ValueOperand)
+                |> Checked.bind (fun _ ->
+                    let construct = describe "expression" operation.Syntax
+                    unsupported "type_test" at $"The C# {construct} is not in the Morphir subset.")
 
             | :? IPropertyReferenceOperation as property when not (isNull property.Instance) ->
                 let owner = property.Property.ContainingType.OriginalDefinition
@@ -577,6 +768,13 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
                 return! this.Apply(at, constructor, [ for _, _, fieldType in fields -> fieldType ], caseType, arguments)
             }
+        | Some(FieldOf(record, recordType, field, fieldType)) ->
+            check {
+                let! rt = this.Type(at, recordType)
+                let! subject = builder.Variable(at, rt, record)
+                let! ft = this.Type(at, fieldType)
+                return! builder.Field(at, ft, subject, field)
+            }
         | _ ->
             this.Type(at, t)
             |> Checked.bind (fun inferred -> builder.Variable(at, inferred, nameOf name))
@@ -586,7 +784,12 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
         let target = conversion.Type
         let sourceType = source.Type
 
-        if conversion.Conversion.IsIdentity || conversion.Conversion.IsReference then
+        if (unionCase target sourceType).IsSome then
+            let fq, caseType = (unionCase target sourceType).Value
+            this.UnionConstruction(env, at, fq, caseType, target, source)
+        elif isUnionInterface target then
+            unionInterfaceRefusal at
+        elif conversion.Conversion.IsIdentity || conversion.Conversion.IsReference then
             this.Value(env, source)
         elif
             conversion.Conversion.IsNumeric
@@ -602,6 +805,39 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
             unsupported "conversion" at $"The conversion from '{sourceType.ToDisplayString()}' to '{target.ToDisplayString()}' is not in the Morphir subset."
         else
             this.Value(env, source)
+
+    /// <summary>The constructor of a case of a union applied to the case value: <c>Shape s = circle</c> is <c>Circle circle</c>.</summary>
+    member private this.UnionConstruction(env: Env, at, fq: FQName, caseType: ITypeSymbol, unionType: ITypeSymbol, value: IOperation) : Checked<'Value> =
+        check {
+            let! constructorType = this.Function(at, [ caseType ], unionType)
+            let! constructor = builder.Constructor(at, constructorType, fq)
+            let! lowered = this.Value(env, value)
+            return! this.Apply(at, constructor, [ caseType ], unionType, [ lowered ])
+        }
+
+    /// <summary>
+    /// <c>x is P</c>: a pattern match that gives <c>True</c> for the pattern and <c>False</c> for any other value. A pattern
+    /// that binds a name is refused, because the name is in scope after the test and Morphir has no such scope.
+    /// </summary>
+    member private this.IsPattern(env: Env, at, isPattern: IIsPatternOperation) : Checked<'Value> =
+        check {
+            let! subject = this.Value(env, isPattern.Value)
+            let! pattern, env' = this.Pattern(env, isPattern.Pattern)
+
+            if env'.Count <> env.Count then
+                return!
+                    unsupported
+                        "type_test"
+                        at
+                        "An 'is' pattern that binds a name is not in the Morphir subset. Use a 'switch' expression with one arm for each case."
+            else
+                let! inputType = this.Type(at, isPattern.Value.Type)
+                let! boolType = this.Type(at, isPattern.Type)
+                let! otherwise = builder.PatternWildcard(at, inputType)
+                let! yes = builder.Literal(at, boolType, LiteralValue.Bool true)
+                let! no = builder.Literal(at, boolType, LiteralValue.Bool false)
+                return! builder.PatternMatch(at, boolType, subject, [ pattern, yes; otherwise, no ])
+        }
 
     member private this.Binary(env: Env, at, binary: IBinaryOperation) : Checked<'Value> =
         let kind = binary.OperatorKind
@@ -712,6 +948,15 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     let! lowered = lowerArguments ()
                     return! this.Apply(at, fn, parameters, result, lowered)
                 }
+            | None when (this.UnionEquality invocation).IsSome ->
+                let unionType, a, b = (this.UnionEquality invocation).Value
+
+                check {
+                    let! fn = this.Reference(at, SdkMapping.sdk "Basics" "equal", [ unionType; unionType ], result)
+                    let! left = this.Value(env, a)
+                    let! right = this.Value(env, b)
+                    return! this.Apply(at, fn, [ unionType; unionType ], result, [ left; right ])
+                }
             | None ->
                 match this.TypeParameterCall invocation with
                 | Some(TypeParameterEquality(typeParameter, a, b)) ->
@@ -723,6 +968,23 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     }
                 | Some(TypeParameterOrder(typeParameter, a, b)) -> this.OrderAsInt(env, at, typeParameter, a, b, result)
                 | None -> unsupportedReference at (target.ToDisplayString())
+
+    /// <summary>
+    /// <c>a.Equals(b)</c> on two values of one union of the package: the equality of Morphir. The backend writes this form,
+    /// because a plain union has no <c>==</c> (CS0019).
+    /// </summary>
+    member private this.UnionEquality(invocation: IInvocationOperation) : (ITypeSymbol * IOperation * IOperation) option =
+        let rec unwrap (operation: IOperation) =
+            match operation with
+            | :? IConversionOperation as conversion when conversion.IsImplicit -> unwrap conversion.Operand
+            | _ -> operation
+
+        match invocation.TargetMethod.Name, invocation.Instance, List.ofSeq invocation.Arguments with
+        | "Equals", instance, [ argument ] when not invocation.TargetMethod.IsStatic && not (isNull instance) && (unionOf instance.Type).IsSome ->
+            let other = unwrap argument.Value
+
+            if SymbolEqualityComparer.Default.Equals(other.Type, instance.Type) then Some(instance.Type, instance, other) else None
+        | _ -> None
 
     /// <summary>
     /// The equality or the order of two values of a type parameter of the method (EQL-2): <c>a.Equals(b)</c> and
@@ -835,6 +1097,24 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
 
     member private this.Creation(env: Env, at, creation: IObjectCreationOperation) : Checked<'Value> =
         let created = creation.Type
+
+        match unionOf created with
+        | Some union ->
+            // `new Shape(circle)` is the constructor of the case; `new Shape()` is the state with no case.
+            let case =
+                match List.ofSeq creation.Arguments, creation.Constructor with
+                | [ argument ], constructor when not (isNull constructor) && constructor.Parameters.Length = 1 ->
+                    unionCase union constructor.Parameters[0].Type |> Option.map (fun found -> found, argument.Value)
+                | _ -> None
+
+            match case with
+            | Some((fq, caseType), value) -> this.UnionConstruction(env, at, fq, caseType, created, value)
+            | None ->
+                unsupported
+                    "union_default"
+                    at
+                    $"A '{union.Name}' with no case value is the state with no case. A Morphir custom type has no such state: give a case."
+        | None ->
 
         match this.CaseOf created with
         | Some(fq, case) ->
@@ -1161,8 +1441,9 @@ type internal Lowerer<'Type, 'Pattern, 'Value, 'ValueDefinition, 'TypeDefinition
                     |> Checked.traverse (fun (p, parameterAt) ->
                         this.Type(parameterAt, p.Type) |> Checked.map (fun t -> nameOf p.Name, t))
 
+                // The body is lowered also when a type is refused, so that each refusal of the method is reported.
                 let! output = this.Type(returnAt, method'.ReturnType)
-                let! lowered = body
+                and! lowered = body
                 return! builder.ValueDefinition(at, inputs, output, lowered)
             }
         | (:? IFieldSymbol as field), (:? VariableDeclaratorSyntax as declarator) ->

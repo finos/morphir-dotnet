@@ -8,8 +8,8 @@ description: "Compile a subset of C# 15 into a Morphir IR model, with Roslyn."
 The C# frontend compiles C# source documents into a Morphir IR model. It runs on Roslyn, the C# compiler, so a model
 has the types that C# binds. It writes the current IR (version 4) only.
 
-The frontend accepts a subset of C# 15: records, `closed record` hierarchies, enums and static classes with pure
-methods. It refuses every other construct with an error diagnostic. The [coverage reference](coverage/) lists each
+The frontend accepts a subset of C# 15: records, `closed record` hierarchies, unions, enums and static classes with
+pure methods. It refuses every other construct with an error diagnostic. The [coverage reference](coverage/) lists each
 refused construct, with its code, its Roslyn id and an example.
 
 ## Status
@@ -72,6 +72,7 @@ when the request gives no list.
 | --- | --- |
 | `record R(int X, string Y)` | a type alias of a record with the fields `x` and `y` |
 | `closed record T` with `sealed record` cases | a custom type; each case is a constructor and its fields are the arguments |
+| `union U(A, B)` | a custom type with the constructors `A` and `B`; each has the case type as its one argument `value` |
 | `enum` | a custom type with constructors that have no arguments |
 | `int`, `double`, `bool`, `string`, `char`, `decimal` | `Int`, `Float`, `Bool`, `String`, `Char`, `Decimal` of the SDK |
 | `(int, string)` | a tuple |
@@ -89,11 +90,17 @@ The frontend refuses a type that it cannot give in full, so no type or field is 
 
 | Code | C# |
 | --- | --- |
-| `csharp.unsupported_union` | A `union`. Write a `closed record` with one `sealed record` case for each case. |
 | `csharp.unsupported_abstract_record` | An `abstract record`. Write a `closed record`. |
 | `csharp.unsupported_record_inheritance` | A record that inherits from a record that is not closed. Its inherited fields have no place in a Morphir record. |
 | `csharp.unsupported_record_member` | A record member that is not a field: a computed property, a method, a field, or a property of a positional record outside its parameters. |
 | `csharp.unsupported_static_member` | A member of a static class that is not a method, a constant or a nested type, for example a static property or a `static readonly` field. |
+| `csharp.unsupported_union_member` | A member or a base list of a `union`. A custom type has only its cases. |
+| `csharp.unsupported_union_case` | A case of a `union` with no name (a type parameter, a tuple or a function), or a case record of a `closed record`. |
+
+A union converts to a custom type when each case type is a Morphir type reference: a record, a custom type, a
+different union or an SDK type. The constructor has the local name of that reference: `union Amount(int, string)`
+has the constructors `Int` and `String`. The constructors of a module must have different names, so two unions of one
+module with the case `Circle`, or `union Lists(List<int>, List<string>)`, give `csharp.name_collision`.
 
 ### Value classes of type parameters
 
@@ -146,7 +153,21 @@ A static method of a static class, and a `const` field, becomes a value. The fro
 - `switch` statements whose sections each end with a `return`;
 - local variable declarations, as `let`, and the deconstruction of a tuple (`var (a, b) = t;`), as a destructure;
 - lambdas, and calls of a `Func`;
-- a `switch` expression on a closed record, with an arm for each case.
+- a `switch` expression on a closed record or a union, with an arm for each case;
+- a conversion of a case value to its union (`Shape s = circle`, `(Shape)circle`, `new Shape(circle)`), as the
+  constructor of the case;
+- `x is P` with a pattern that binds no name, as a match that gives `True` or `False`;
+- `a.Equals(b)` on two values of one union, as `Basics.equal`.
+
+A pattern `Circle c` on a union is the constructor pattern `Circle` with `c` bound to the case value, so `c.Radius`
+is a field of the record. A positional or a property pattern on a case, such as `Circle(var radius)`, binds the case
+value to a variable (`circle-value`) and each local to a field of it. Only `var`, a declaration and a discard can stand
+in such a pattern.
+
+A Morphir custom type has no state with no case, so the frontend refuses the C# that reaches the state of a union with
+no case: `default` and `new Shape()` (`csharp.unsupported_union_default`), a `null` arm
+(`csharp.unsupported_union_null`), the `Value` property (`csharp.unsupported_union_value`) and the interface `IUnion`
+(`csharp.unsupported_union_interface`).
 
 A `switch` that misses a case is an error: Morphir has no partial match. A `switch` on an enum that names every member
 is complete, and each member is a constructor pattern. An arm of a `switch` binds a case record to a local, and the

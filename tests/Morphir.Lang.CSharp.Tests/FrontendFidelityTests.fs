@@ -252,11 +252,6 @@ let declarations =
               Expect.contains (refusal types "") "csharp.unsupported_abstract_record" "use a closed record"
           }
 
-          test "a union is refused until the frontend reads unions" {
-              let types = "public sealed record Circle(double R);\npublic sealed record Rect(double W);\npublic union Shape(Circle, Rect);"
-              Expect.contains (refusal types "") "csharp.unsupported_union" "not dropped"
-          }
-
           test "a static property of a static class is refused" {
               let members = "    public static int Rate => 40;"
               Expect.contains (refusal "" members) "csharp.unsupported_static_member" "not dropped"
