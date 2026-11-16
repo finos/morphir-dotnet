@@ -39,3 +39,23 @@ Feature: Generate C# from a Morphir model in the build of a C# project
       | consumer                                                                     |
       | a C# consumer of the model                                                   |
       | a C# consumer of the model that writes the generated files with the MSBuild target |
+
+  Scenario: A library and an application each have their own polyfill file, and a match across them is exhaustive
+    Given the model fixture "Models/Shapes/shapes-v4.json"
+    And a C# library of the model and a C# consumer that matches on the types of the library
+    When I build and run the C# consumer
+    Then the C# consumer prints "circle 2, small, daily rate 5000"
+    And the C# library and the C# consumer each have the polyfill file
+    And the last build of the C# consumer has no warning
+
+  Scenario Outline: The compiler checks a match on a type of the library as exhaustive
+    Given the model fixture "Models/Shapes/shapes-v4.json"
+    And a C# library of the model and a C# consumer that matches on the types of the library
+    And the match of the C# consumer has no arm for the case "<case>"
+    When I build the C# consumer and it fails
+    Then the output contains "CS8509"
+
+    Examples:
+      | case  |
+      | Rect  |
+      | Large |

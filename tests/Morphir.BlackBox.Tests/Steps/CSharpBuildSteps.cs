@@ -22,6 +22,9 @@ public sealed class CSharpBuildSteps(IPackageDriver packages, IScenarioWorkspace
 
     private WorkspaceDirectory Consumer => workspace.Directory("csharp consumer");
 
+    // The result of the last build of the consumer.
+    private CommandResult? _build;
+
     [Given("the packed packages of C# generation in the feed of the workspace")]
     public void ThePackedPackagesInTheFeed()
     {
@@ -69,7 +72,7 @@ public sealed class CSharpBuildSteps(IPackageDriver packages, IScenarioWorkspace
     private async Task Build(bool succeeds)
     {
         var result = await packages.DotnetAsync(Consumer, ["build", ProjectFile, "-c", "Release", "--nologo"]);
-        run.Result = result;
+        run.Result = _build = result;
         if (succeeds && result.ExitCode != 0) throw new CommandAssertionException("The build of the C# consumer failed.", result);
         if (!succeeds && result.ExitCode == 0) throw new CommandAssertionException("The build of the C# consumer did not fail.", result);
     }
@@ -96,29 +99,107 @@ public sealed class CSharpBuildSteps(IPackageDriver packages, IScenarioWorkspace
         }
     }
 
-    private void Write(bool targetWritesFiles)
+    private void Write(bool targetWritesFiles) =>
+        WriteProject(Consumer, ProjectFile, "Exe", targetWritesFiles ? "<MorphirGenerateCSharpFiles>true</MorphirGenerateCSharpFiles>" : "", "", run.Model,
+            """System.Console.WriteLine($"daily rate: {Car.Rental.Inventory.DailyRate()}");""" + "\n");
+
+    private void WriteProject(WorkspaceDirectory folder, string projectFile, string outputType, string properties, string items, WorkspaceFile model, string program)
     {
-        var files = targetWritesFiles ? "<MorphirGenerateCSharpFiles>true</MorphirGenerateCSharpFiles>" : "";
         var references = string.Concat(Packages.Where(id => id is "Morphir.Lang.CSharp" or "Morphir.SDK.CSharp")
             .Select(id => $"""<PackageReference Include="{id}" Version="[{state.VersionOf(id)}]" />"""));
-        workspace.WriteText(Consumer.File(ProjectFile), $"""
+        workspace.WriteText(folder.File(projectFile), $"""
             <Project Sdk="Microsoft.NET.Sdk">
               <PropertyGroup>
-                <OutputType>Exe</OutputType>
+                <OutputType>{outputType}</OutputType>
                 <TargetFramework>net10.0</TargetFramework>
                 <Nullable>enable</Nullable>
                 <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
                 <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-                {files}
+                {properties}
               </PropertyGroup>
               <ItemGroup>
                 {references}
+                {items}
                 <AdditionalFiles Include="car-rental.morphir.json" />
               </ItemGroup>
             </Project>
             """);
-        workspace.WriteBytes(Consumer.File("car-rental.morphir.json"), workspace.ReadBytes(run.Model));
-        workspace.WriteText(Consumer.File("Program.cs"), """System.Console.WriteLine($"daily rate: {Car.Rental.Inventory.DailyRate()}");""" + "\n");
-        packages.WriteNuGetConfig(Consumer, includeNuGetOrg: true);
+        workspace.WriteBytes(folder.File("car-rental.morphir.json"), workspace.ReadBytes(model));
+        if (program.Length > 0) workspace.WriteText(folder.File("Program.cs"), program);
+        packages.WriteNuGetConfig(folder, includeNuGetOrg: true);
+    }
+
+    // ---- A library and an application, each with its own polyfill file ----------------------------------------
+
+    private WorkspaceDirectory Library => workspace.Directory("csharp library");
+
+    /// <summary>The arms of the match of the application, by case: the union Shape and the closed record Size.</summary>
+    private readonly List<(string Case, string Arm)> _arms =
+    [
+        ("Circle", "Circle circle => $\"circle {circle.Radius}\""),
+        ("Rect", "Rect rect => $\"rect {rect.Width}x{rect.Height}\""),
+        ("Small", "Small => \"small\""),
+        ("Large", "Large => \"large\""),
+    ];
+
+    /// <summary>
+    /// The library: the model of the scenario (the shapes model), with its own polyfill file. The application (the C#
+    /// consumer): the daily rate model, with its own polyfill file, a reference to the library, and a switch with no
+    /// discard arm on the union Shape and on the closed record Size of the library.
+    /// </summary>
+    [Given("a C# library of the model and a C# consumer that matches on the types of the library")]
+    public void ALibraryAndAnApplication()
+    {
+        WriteProject(Library, "Library.csproj", "Library", "", "", run.Model, "");
+        WriteProject(Consumer, ProjectFile, "Exe", "", """<ProjectReference Include="../csharp library/Library.csproj" />""",
+            workspace.CopyFixture("Models/daily-rate-v4.json", "daily-rate.json"), "");
+        WriteMatch();
+    }
+
+    [Given("the match of the C# consumer has no arm for the case {string}")]
+    public void TheMatchHasNoArm(string name)
+    {
+        if (_arms.RemoveAll(arm => arm.Case == name) != 1) throw new InvalidOperationException($"The match has no arm for the case {name}.");
+        WriteMatch();
+    }
+
+    [Then("the last build of the C# consumer has no warning")]
+    public void TheBuildHasNoWarning()
+    {
+        var build = _build ?? throw new InvalidOperationException("The scenario did not build the C# consumer before this step.");
+        build.OutputShouldContain(" 0 Warning(s)");
+        build.OutputShouldNotContain("warning ");
+    }
+
+    [Then("the C# library and the C# consumer each have the polyfill file")]
+    public void EachHasThePolyfillFile()
+    {
+        foreach (var folder in new[] { Library, Consumer })
+        {
+            if (!workspace.Exists(folder.File([.. GeneratorFolder.TrimEnd('/').Split('/'), "Morphir.Polyfill.g.cs"])))
+                throw new CommandAssertionException($"{folder} has no file {GeneratorFolder}Morphir.Polyfill.g.cs.", run.Result);
+        }
+    }
+
+    private void WriteMatch()
+    {
+        string Arms(params string[] cases) =>
+            string.Join(",\n", _arms.Where(arm => cases.Contains(arm.Case)).Select(arm => "    " + arm.Arm));
+        workspace.WriteText(Consumer.File("Program.cs"), $$"""
+            using Acme.Shapes.Shapes;
+
+            Shape shape = new Circle(2);
+            Size size = new Small();
+            var text = shape switch
+            {
+            {{Arms("Circle", "Rect")}}
+            };
+            var name = size switch
+            {
+            {{Arms("Small", "Large")}}
+            };
+            System.Console.WriteLine($"{text}, {name}, daily rate {Car.Rental.Inventory.DailyRate()}");
+
+            """);
     }
 }

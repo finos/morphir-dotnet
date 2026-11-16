@@ -205,6 +205,10 @@ two steps have the same pattern.
 | C# build generation | `Then the files of the source generator in the C# consumer are the files of the output` |
 | C# build generation | `Then the files of the MSBuild target in the C# consumer are the files of the output` |
 | C# build generation | `Then the source generator wrote no file in the C# consumer` |
+| C# build generation | `Given a C# library of the model and a C# consumer that matches on the types of the library` |
+| C# build generation | `Given the match of the C# consumer has no arm for the case {string}` |
+| C# build generation | `Then the last build of the C# consumer has no warning` |
+| C# build generation | `Then the C# library and the C# consumer each have the polyfill file` |
 | System.Text.Json plugin | `Given a System.Text.Json consumer` |
 | System.Text.Json plugin | `Given the context of the consumer has the name {string}` |
 | System.Text.Json plugin | `Given the context of the consumer has the metadata:` |
