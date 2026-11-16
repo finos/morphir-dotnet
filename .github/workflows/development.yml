@@ -228,6 +228,13 @@ jobs:
               if: matrix.os == 'ubuntu-latest'
               shell: bash
               run: ./build.sh --target TestAot --configuration ${{ env.CONFIGURATION }} --skip Restore Compile
+            # The shipped Native AOT morphir: its publish fails on a trim or AOT error, and CheckNativeAotHost then checks
+            # that no IDE-only assembly (Roslyn Workspaces, the C# code fixes) is in it and that it is not larger than the
+            # limit of .agents/aot-optimization.md. Without it, only the CLI release of finos/morphir publishes this host.
+            - name: Check the Native AOT morphir
+              if: matrix.os == 'ubuntu-latest'
+              shell: bash
+              run: ./build.sh --target CheckNativeAotHost --rid linux-x64 --configuration ${{ env.CONFIGURATION }} --skip Restore Compile
             - name: Pack packages for build testing
               shell: bash
               run: ./build.sh --target PackAll --configuration ${{ env.CONFIGURATION }} --skip Restore Compile

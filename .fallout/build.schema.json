@@ -29,6 +29,7 @@
         "Check",
         "CheckBuildMachine",
         "CheckMorphirup",
+        "CheckNativeAotHost",
         "CI",
         "CIGate",
         "CILint",

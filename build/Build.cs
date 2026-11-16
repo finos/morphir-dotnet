@@ -315,6 +315,39 @@ partial class Build : FalloutBuild
             TargetSettings.PublishExecutable, ExecutablesDir, "Native AOT"));
 
     /// <summary>
+    /// Publish the Native AOT executable (PublishExecutable, whose publish fails on a trim or AOT error) and check it with
+    /// NativeAotHostGate: no IDE-only assembly in the input of ILC, and a size not above the limit.
+    /// Requires: --rid parameter. The Linux test job of development.yml runs it for linux-x64.
+    /// </summary>
+    Target CheckNativeAotHost => _ => _
+        .DependsOn(PublishExecutable)
+        .Description("Publish the Native AOT executable and check its closure and its size (requires --rid parameter)")
+        .Executes(() =>
+        {
+            var executable = ExecutablesDir / Rid / (Rid.StartsWith("win-", StringComparison.Ordinal) ? "morphir.exe" : "morphir");
+            var response = RootDirectory / "src" / "Morphir" / "obj" / Configuration.ToString() / CurrentTargetFramework / Rid / "native" / "morphir.ilc.rsp";
+            if (!File.Exists(response))
+            {
+                throw new Exception($"The ILC response file of the publish is not at {response}.");
+            }
+
+            var bytes = new FileInfo(executable).Length;
+            var problems = Morphir.Build.Helpers.NativeAotHostGate.Problems(File.ReadAllLines(response), bytes,
+                Morphir.Build.Helpers.NativeAotHostGate.SizeLimitBytes);
+            foreach (var problem in problems)
+            {
+                Serilog.Log.Error(problem);
+            }
+
+            if (problems.Count > 0)
+            {
+                throw new Exception("The Native AOT morphir did not pass its gate. See the errors above.");
+            }
+
+            Serilog.Log.Information($"✓ The Native AOT morphir for {Rid} is {bytes:N0} bytes (limit {Morphir.Build.Helpers.NativeAotHostGate.SizeLimitBytes:N0}) and has no IDE-only assembly");
+        });
+
+    /// <summary>
     /// Publish the legacy release asset: a single-file executable without AOT (managed .NET runtime) with trimming.
     /// Releases ship this as morphir-{rid}[.exe] and morphir-{rid}-v{version}.tar.gz (LegacyAsset.TrimmedSingleFile).
     /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)

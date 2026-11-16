@@ -96,6 +96,16 @@ public class DevelopmentWorkflowTests
         ((YamlMappingNode)Development()["on"]["workflow_dispatch"]["inputs"]).Children.Keys.Select(key => key.ToString())
             .Should().Equal("os");
 
+    [Test]
+    public void TheLinuxTestJobPublishesTheNativeAotHostThroughItsGate()
+    {
+        // A pull request finds a trim or AOT error of the shipped morphir, an IDE-only assembly in it, or a size above
+        // the limit. Without this step, only the release build of finos/morphir finds them.
+        var step = Steps(Job(Development(), "test")).Should().ContainSingle(step => Run(step).Contains("--target CheckNativeAotHost")).Subject;
+        Value(step, "if").Should().Be("matrix.os == 'ubuntu-latest'");
+        Run(step).Should().Contain("--rid linux-x64");
+    }
+
     private static YamlMappingNode Development() => Read("development.yml");
 
     private static YamlMappingNode Read(string name)
