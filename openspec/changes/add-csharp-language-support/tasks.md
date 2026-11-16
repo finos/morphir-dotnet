@@ -28,8 +28,8 @@ Tracking: [PRD: C# language support](../../../docs/content/contributing/design/p
 - [x] 3.2 Add the walk that gives each node of a current-IR module its address. Verify with tests for `body/apply/argument`, `type-exp/record/field/<name>`, tuple elements, match cases and `let` definitions, and that the `LetDefinition` and `LetRecursion` of one name give the same address.
 - [x] 3.3 Add the `IIrUpgrade` contract, the chain join with a "no path" diagnostic, and the classic to current IR step as the conversion that the repository lacks. Write the tests first: `3.0.0` to current, already current, no path, node without a target form, determinism, input unchanged, and the application list for a removed unreachable case. Verify the tests.
 - [x] 3.4 Make `morphir generate` upgrade a model when the selected backend claims the current IR only, and keep the F# backend on classic models. Add tests for both in `Morphir.Tooling.Tests` (no registered backend reads the current IR only before group 5, so the tests use a recording backend; a black-box scenario with the C# backend lands with group 5). Verify that the existing F# generation tests pass unchanged and that `--target csharp` accepts a classic model.
-- [ ] 3.5 Document the upgrade steps and the application list in `docs/` and verify that a documented example command runs as written.
-  - Open: the upgrade and the application list are documented, but the page has an F# fragment and no command, and no test runs a documented example.
+- [x] 3.5 Document the upgrade steps and the application list in `docs/` and verify that a documented example command runs as written.
+  - The section "The current IR" of `docs/content/docs/pipeline/middle-end.md` has a `morphir generate --target csharp --json` command on a classic model with its report. The black-box feature `Integration/MiddleEndDocumentation.feature` runs it as written and compares the report.
 
 ## 4. Middle-end contracts (MID-1)
 

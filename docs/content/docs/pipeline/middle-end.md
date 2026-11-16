@@ -36,6 +36,49 @@ backend. A backend that reads
 the classic model directly, such as the F# backend, gets the model as it was loaded. The report names the model as it was
 loaded.
 
+In this example, `model.json` is a classic model of IR version 3 with the module `inventory` and the value `daily-rate`
+(`tests/Fixtures/MorphirIR/daily-rate-v3.json` in the repository). The C# backend reads the current IR only, so the
+command upgrades the model, runs the passes before the backend on the upgraded model, and then generates:
+
+```bash
+$ morphir generate --input model.json --target csharp --output gen --json
+{
+  "success": true,
+  "exitCode": 0,
+  "target": "csharp",
+  "backend": "morphir.csharp",
+  "input": "/work/model.json",
+  "output": "/work/gen",
+  "sourceVersion": "3",
+  "family": "Classic",
+  "distributionKind": "Library",
+  "representation": "Json",
+  "artifacts": [
+    "Morphir.Polyfill.g.cs",
+    "p_Car.Rental/m_InventoryModule.g.cs"
+  ],
+  "written": [
+    "Morphir.Polyfill.g.cs",
+    "p_Car.Rental/m_InventoryModule.g.cs"
+  ],
+  "unchanged": [],
+  "removed": [],
+  "diagnostics": [],
+  "failureKind": null,
+  "passes": {
+    "ran": [
+      "morphir-dotnet.csharp.admission"
+    ],
+    "applications": [],
+    "lookups": []
+  }
+}
+```
+
+`sourceVersion` and `family` name the model as it was loaded. `passes.ran` names the pass that ran on the upgraded model.
+The application list is empty: the step from the classic IR keeps every node at its path, so it moves or replaces no
+node, and the admission pass changes no module.
+
 The step from the classic IR keeps every node and every name. A classic attribute that carries data moves to the
 `extensions` of the node, under the key `classic`. A value that the current IR cannot hold, such as a float literal that is
 not finite, is the error `ir.upgrade_unrepresentable`. The message and the `location` member of the diagnostic data give the
