@@ -196,6 +196,15 @@ two steps have the same pattern.
 | Myriad plugin | `Given the daily rate of the module {string} of the model is the string {string}` |
 | Myriad plugin | `When the daily rate of the car rental model changes to {int} cents` |
 | Myriad plugin | `When the model of the consumer changes to the invalid input {string}` |
+| C# build generation | `Given the packed packages of C# generation in the feed of the workspace` |
+| C# build generation | `Given a C# consumer of the model` |
+| C# build generation | `Given a C# consumer of the model that writes the generated files with the MSBuild target` |
+| C# build generation | `When I build and run the C# consumer` |
+| C# build generation | `When I build the C# consumer and it fails` |
+| C# build generation | `Then the C# consumer prints {string}` |
+| C# build generation | `Then the files of the source generator in the C# consumer are the files of the output` |
+| C# build generation | `Then the files of the MSBuild target in the C# consumer are the files of the output` |
+| C# build generation | `Then the source generator wrote no file in the C# consumer` |
 | System.Text.Json plugin | `Given a System.Text.Json consumer` |
 | System.Text.Json plugin | `Given the context of the consumer has the name {string}` |
 | System.Text.Json plugin | `Given the context of the consumer has the metadata:` |
