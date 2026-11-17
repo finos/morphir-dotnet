@@ -38,7 +38,8 @@ let private single (folder: string) (name: string) =
 
 /// A net11.0 project reference would load the net11.0 build, so this builds Morphir.Files for netstandard2.0 and runs
 /// NetStandardHost, a net11.0 program that references that build by path. The host reads files, content and a property
-/// as the net11.0 tests do, and publishes the tree, which runs the members of Polyfill.fs.
+/// as the net11.0 tests do, and publishes the tree, which runs the members of Polyfill.fs, the last time while another handle
+/// holds an output file open for a short time.
 [<Tests>]
 let tests =
     testTask "A netstandard2.0 model library uses virtual file trees" {
@@ -96,7 +97,10 @@ let tests =
               "unchanged "
               // The second replaces the changed file and leaves the other one alone.
               "written data/schema.bin"
+              "unchanged docs/readme.txt"
+              // The third waits for a short-lived handle on the changed file, then replaces it.
+              "written data/schema.bin"
               "unchanged docs/readme.txt" ]
-            "The host lists both locations and publishes the tree twice"
+            "The host lists both locations and publishes the tree three times"
     }
     |> testLabel "PlatformSpecific"

@@ -46,6 +46,7 @@
     <ItemGroup>
         <Compile Include="Property.fs" />
         <Compile Include="File.fs" />
+        <Compile Include="FileReplacement.fs" />
         <Compile Include="FileTree.fs" />
         <Compile Include="FileProviders.fs" />
     </ItemGroup>

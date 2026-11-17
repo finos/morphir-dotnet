@@ -804,6 +804,19 @@ module VFileTree =
 
         attempt 0
 
+    /// <summary>
+    /// Moves a staged file over its destination. On Windows, while another process holds the destination open
+    /// (a virus scanner or a search indexer does, just after a file is written), the move waits a bounded time
+    /// (<see cref="T:Morphir.Files.FileReplacement"/>). Before each further attempt it checks again that the output
+    /// root and the directories on the way to the location are not symbolic links, because the wait gives time for
+    /// one to appear; if one has, the move fails without writing through it.
+    /// </summary>
+    let private replaceStaged (root: string) (location: string) (staged: string) (destination: string): unit =
+        let noLink () = not (isSymbolicLink (fullRoot root) || linkInPath root location)
+
+        if not (FileReplacement.Replace(Action(fun () -> System.IO.File.Move(staged, destination, true)), Func<bool>(noLink))) then
+            raise (System.IO.IOException $"A symbolic link appeared on the way to {location} while its replacement waited")
+
     /// <summary>Writes a file's content to a path, keeping bytes and streams byte for byte.</summary>
     let private writeContent (path: string) (content: VFileContent option): unit =
         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName path) |> ignore
@@ -912,7 +925,7 @@ module VFileTree =
                         for location in changed do
                             let destination = System.IO.Path.Combine(root, location)
                             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName destination) |> ignore
-                            System.IO.File.Move(System.IO.Path.Combine(stage, location), destination, true)
+                            replaceStaged root location (System.IO.Path.Combine(stage, location)) destination
 
                         let removed =
                             match options.Manifest with
@@ -924,7 +937,7 @@ module VFileTree =
                                 if not (System.IO.File.Exists manifestPath) || System.IO.File.ReadAllText manifestPath <> text then
                                     let staged = System.IO.Path.Combine(stage, fileName)
                                     System.IO.File.WriteAllText(staged, text)
-                                    System.IO.File.Move(staged, manifestPath, true)
+                                    replaceStaged root fileName staged manifestPath
 
                                 let current = located |> List.map fst
 
