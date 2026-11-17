@@ -104,12 +104,16 @@ module internal BclExtensions =
                     path
 
     type File with
-        /// netstandard2.0 has no overwriting move: the destination is deleted first, so the move is not atomic.
+        /// <summary>
+        /// netstandard2.0 has no overwriting move. An existing destination is replaced with File.Replace, which keeps
+        /// the old file when the replacement fails, so failed output never replaces good output. Otherwise the file
+        /// moves, and a move onto an existing destination without overwrite fails as File.Move does.
+        /// </summary>
         static member Move(source: string, destination: string, overwrite: bool) =
             if overwrite && File.Exists destination then
-                File.Delete destination
-
-            File.Move(source, destination)
+                File.Replace(source, destination, null)
+            else
+                File.Move(source, destination)
 
     type DirectoryInfo with
         /// <summary>
