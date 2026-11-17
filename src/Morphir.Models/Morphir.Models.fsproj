@@ -122,6 +122,7 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="IR/Trees/ClassicTreeWriter.fs" />
         <Compile Include="IR/Trees/ClassicTreeReader.fs" />
         <Compile Include="IR/Trees/DocumentTreeStore.fs" />
+        <Compile Include="IR/Trees/StoredModel.fs" />
     </ItemGroup>
 
     <ItemGroup>

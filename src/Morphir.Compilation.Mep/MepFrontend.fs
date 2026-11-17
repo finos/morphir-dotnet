@@ -108,8 +108,10 @@ type MepFrontend
           EnvelopeVersion = SemanticVersion.Create "0.1.0-draft.1"
           IrVersion = SemanticVersion.Create version }
 
-    /// The host offer: JSON compileModel tuples, 4.0.0 first, and bounds that fit in one 64 MiB frame.
-    static let offer: ModelTransportSupport =
+    /// The host offer: JSON compileModel tuples, 4.0.0 first, and bounds that fit in one 64 MiB frame. A function,
+    /// not a value: the type then has no static field, whose F# init check throws (FailStaticInit) when a second
+    /// thread reads it while the first one initializes it, as two concurrent first compiles did.
+    static let offer () : ModelTransportSupport =
         { Tuples = [| jsonTuple "4.0.0"; jsonTuple "3.0.0" |]
           Limits =
             { MaxEncodedBytes = 60 * 1024 * 1024
@@ -214,7 +216,7 @@ type MepFrontend
     let read (tuple: ModelTransportTuple) (bytes: ReadOnlyMemory<byte>) : Result<FamilyModel, string> =
         // The envelope was admitted against the agreed depth limit, so the reader uses the same limit, not the
         // JsonDocument default of 64.
-        let limits = agreed |> Option.map _.Limits |> Option.defaultValue offer.Limits
+        let limits = agreed |> Option.map _.Limits |> Option.defaultValue (offer ()).Limits
         use document = JsonDocument.Parse(bytes, JsonDocumentOptions(MaxDepth = limits.MaxDepth))
 
         if tuple.IrVersion.Value = "4.0.0" then
@@ -273,7 +275,7 @@ type MepFrontend
                   Host = options.Host
                   Environment = environment }
 
-            let! started = MepGuestProcess.StartAsync(guestOptions, offer, cancellation)
+            let! started = MepGuestProcess.StartAsync(guestOptions, offer (), cancellation)
             return! MepFrontend.FromSessionAsync(options, FrontendTransport.Mep, Result.map (fun guest -> guest :> IMepGuestSession) started)
         }
 
@@ -327,7 +329,7 @@ type MepFrontend
     /// <summary>Initializes an owned WASM channel and reuses the ordinary frontend model validation.</summary>
     static member ConnectChannelCheckedAsync(options: MepFrontendOptions, channel: ISingleMessageChannel, cancellation: CancellationToken) : Task<Checked<IFrontend>> =
         task {
-            let! started = MepChannelGuest.StartCheckedAsync(channel, options.Host, offer, options.Deadline, cancellation)
+            let! started = MepChannelGuest.StartCheckedAsync(channel, options.Host, offer (), options.Deadline, cancellation)
             let result = match started with MepChannelStart.Started guest -> Ok guest | MepChannelStart.Failed error -> Error error
             match! MepFrontend.FromSessionAsync(options, FrontendTransport.Wasm, result) with
             | Ok frontend -> return Checked.pass (frontend :> IFrontend)
@@ -431,7 +433,7 @@ type MepFrontend
 
                                 return FrontendOutcome.Completed(Checked.fail converted)
                             | Ok(CompileModelResult.Compiled(model, diagnostics, modules)) ->
-                                let limits = agreed |> Option.map _.Limits |> Option.defaultValue offer.Limits
+                                let limits = agreed |> Option.map _.Limits |> Option.defaultValue (offer ()).Limits
 
                                 match ModelTransport.admit tuple limits model with
                                 | Error refused -> return protocol $"the model envelope is refused ({refused.Code}): {refused}"

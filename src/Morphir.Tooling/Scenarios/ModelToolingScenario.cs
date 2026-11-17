@@ -23,6 +23,9 @@ public class ModelToolingScenario : IMorphirCliScenario
             modelCommand.Subcommands.Add(new ModelVerifyCommand());
             rootCommand.Subcommands.Add(modelCommand);
         });
+        // model convert reads its store and output from the application's services.
+        builder.ConfigureHostedCommands((rootCommand, services) =>
+            rootCommand.Subcommands.Single(command => command.Name == "model").Subcommands.Add(new Features.ModelConvert.ModelConvertCommand(services)));
     }
 
     /// <summary>

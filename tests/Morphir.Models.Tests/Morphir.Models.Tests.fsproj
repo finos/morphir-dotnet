@@ -55,6 +55,7 @@
         <Compile Include="IR/Trees/V4StoreTests.fs" />
         <Compile Include="IR/Trees/ClassicStoreTests.fs" />
         <Compile Include="IR/Trees/RefusalTests.fs" />
+        <Compile Include="IR/Trees/StoredModelTests.fs" />
         <Compile Include="IR/Trees/ArchitectureTests.fs" />
         <Compile Include="IR/Classic/AccessControlledTests.fs" />
         <Compile Include="IR/Classic/TypeTests.fs" />
