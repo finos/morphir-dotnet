@@ -44,29 +44,122 @@ public sealed class ConfigurationTransactionTests
     }
 
     // A virus scanner or a search indexer opens a file that was just written, without delete sharing, for a short
-    // time. While it holds the file, Windows refuses to replace it ("Unable to remove the file to be replaced").
-    // The replacement waits for such a handle; the edit was rolled back instead.
+    // time. While it holds the file, Windows refuses to replace it ("Unable to remove the file to be replaced"), and
+    // the edit was rolled back. Other systems replace a file that another handle holds open, so these tests only
+    // mean something on Windows. The handle is released from the retry hook, so no timing decides the outcome.
     [Test]
     [Category("PlatformSpecific")]
-    public async Task ReplacementWaitsForAShortLivedHandleWithoutDeleteSharing()
+    [RunOn(OS.Windows)]
+    public void ReplacementWaitsForAShortLivedHandleWithoutDeleteSharing()
     {
         using var directory = new TestDirectory();
         var target = directory.PathFor("morphir.toml");
         File.WriteAllText(target, "value = 1\n");
-        var observed = ConfigurationTransaction.Observe(target);
-        var plan = new ConfigurationTransactionPlan([observed], [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]);
-        var scanner = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        Task release = Task.CompletedTask;
-        var result = new ConfigurationTransaction(fault: (phase, _) =>
+        var plan = OneEdit(target, "value = 2\n");
+        FileStream? scanner = null;
+        var retries = 0;
+        try
         {
-            if (phase == ConfigurationTransactionPhase.BeforeInstall)
-                release = Task.Delay(TimeSpan.FromMilliseconds(300)).ContinueWith(_ => scanner.Dispose(), TaskScheduler.Default);
-        }).Apply(plan);
-        await release;
-        scanner.Dispose();
-        result.Status.Should().Be(ConfigurationTransactionStatus.Written, result.Code);
+            var result = new ConfigurationTransaction(fault: (phase, _) =>
+            {
+                if (phase == ConfigurationTransactionPhase.BeforeInstall) scanner = HoldWithoutDeleteSharing(target);
+                if (phase == ConfigurationTransactionPhase.BeforeInstallRetry && retries++ == 0) scanner!.Dispose();
+            }).Apply(plan);
+            result.Status.Should().Be(ConfigurationTransactionStatus.Written, result.Code);
+        }
+        finally { scanner?.Dispose(); }
+        retries.Should().Be(1, "the first replacement met the handle and the second did not");
         File.ReadAllText(target).Should().Be("value = 2\n");
         Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
+    }
+
+    // Another writer changes the target after this transaction staged its files and before it installs them. The
+    // transaction never touched the target, so it reports a conflict, keeps the other writer's bytes and removes
+    // its own files; it used to keep them and ask for recovery.
+    [Test]
+    [Category("PlatformSpecific")]
+    public void ATargetChangedAfterStagingIsAConflictThatKeepsTheOtherWritersBytes()
+    {
+        using var directory = new TestDirectory();
+        var target = directory.PathFor("morphir.toml");
+        File.WriteAllText(target, "value = 1\n");
+        var plan = OneEdit(target, "value = 2\n");
+        var result = new ConfigurationTransaction(fault: (phase, _) =>
+        {
+            if (phase == ConfigurationTransactionPhase.BeforeInstall) File.WriteAllText(target, "value = 3\n");
+        }).Apply(plan);
+        result.Status.Should().Be(ConfigurationTransactionStatus.Conflict, result.Code);
+        result.Code.Should().Be("config.edit_conflict");
+        File.ReadAllText(target).Should().Be("value = 3\n");
+        Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
+        result.Artifacts.Should().BeEmpty();
+    }
+
+    // A scanner's handle shares writing, so another writer can change the file in place during the wait. That is a
+    // concurrent edit: the transaction reports a conflict and keeps the other writer's bytes.
+    [Test]
+    [Category("PlatformSpecific")]
+    [RunOn(OS.Windows)]
+    public void ATargetChangedWhileTheReplacementWaitsIsAConflictThatKeepsTheOtherWritersBytes()
+    {
+        using var directory = new TestDirectory();
+        var target = directory.PathFor("morphir.toml");
+        File.WriteAllText(target, "value = 1\n");
+        var plan = OneEdit(target, "value = 2\n");
+        FileStream? scanner = null;
+        ConfigurationTransactionResult result;
+        try
+        {
+            result = new ConfigurationTransaction(fault: (phase, _) =>
+            {
+                if (phase == ConfigurationTransactionPhase.BeforeInstall) scanner = HoldWithoutDeleteSharing(target);
+                if (phase == ConfigurationTransactionPhase.BeforeInstallRetry && scanner is { CanRead: true })
+                {
+                    // Without the check before the next attempt, that attempt would overwrite this change.
+                    RewriteInPlace(target, "value = 3\n");
+                    scanner.Dispose();
+                }
+            }).Apply(plan);
+        }
+        finally { scanner?.Dispose(); }
+        result.Status.Should().Be(ConfigurationTransactionStatus.Conflict);
+        result.Code.Should().Be("config.edit_conflict");
+        File.ReadAllText(target).Should().Be("value = 3\n");
+        Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
+        result.Artifacts.Should().BeEmpty();
+    }
+
+    // The restore of a rollback replaces the target as well. A change made while it waits is kept, and the target
+    // is left for recovery.
+    [Test]
+    [Category("PlatformSpecific")]
+    [RunOn(OS.Windows)]
+    public void ARollbackRestoreKeepsATargetChangedWhileItWaits()
+    {
+        using var directory = new TestDirectory();
+        var target = directory.PathFor("morphir.toml");
+        File.WriteAllText(target, "value = 1\n");
+        var plan = OneEdit(target, "value = 2\n");
+        FileStream? scanner = null;
+        ConfigurationTransactionResult result;
+        try
+        {
+            result = new ConfigurationTransaction(fault: (phase, _) =>
+            {
+                if (phase == ConfigurationTransactionPhase.AfterInstall) throw new IOException("injected replacement fault");
+                if (phase == ConfigurationTransactionPhase.BeforeRollback) scanner = HoldWithoutDeleteSharing(target);
+                if (phase == ConfigurationTransactionPhase.BeforeInstallRetry && scanner is { CanRead: true })
+                {
+                    // Without the check before the next attempt, that attempt would overwrite this change.
+                    RewriteInPlace(target, "value = 3\n");
+                    scanner.Dispose();
+                }
+            }).Apply(plan);
+        }
+        finally { scanner?.Dispose(); }
+        result.Status.Should().Be(ConfigurationTransactionStatus.RecoveryRequired);
+        result.UnresolvedPaths.Should().Contain(target);
+        File.ReadAllText(target).Should().Be("value = 3\n");
     }
 
     [Test]
@@ -77,17 +170,41 @@ public sealed class ConfigurationTransactionTests
         using var directory = new TestDirectory();
         var target = directory.PathFor("morphir.toml");
         File.WriteAllText(target, "value = 1\n");
-        var observed = ConfigurationTransaction.Observe(target);
-        var plan = new ConfigurationTransactionPlan([observed], [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]);
+        var plan = OneEdit(target, "value = 2\n");
+        var retries = 0;
         var clock = Stopwatch.StartNew();
         ConfigurationTransactionResult result;
-        using (new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            result = new ConfigurationTransaction().Apply(plan);
+        using (HoldWithoutDeleteSharing(target))
+            result = new ConfigurationTransaction(fault: (phase, _) =>
+            {
+                if (phase == ConfigurationTransactionPhase.BeforeInstallRetry) retries++;
+            }).Apply(plan);
         clock.Stop();
         result.Status.Should().Be(ConfigurationTransactionStatus.RolledBack);
-        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15), "the replacement waits for a bounded time");
+        result.Code.Should().Be("config.edit_rolled_back");
+        retries.Should().Be(9, "the replacement is tried 10 times");
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5), "the replacement waits about 2.6 seconds in all");
         File.ReadAllText(target).Should().Be("value = 1\n");
         Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
+    }
+
+    private static ConfigurationTransactionPlan OneEdit(string target, string content)
+    {
+        var observed = ConfigurationTransaction.Observe(target);
+        return new([observed], [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes(content))]);
+    }
+
+    // As a scanner does: it reads, and shares reading and writing but not deletion.
+    private static FileStream HoldWithoutDeleteSharing(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+    // The scanner's sharing lets another writer change the file in place while the scanner holds it.
+    private static void RewriteInPlace(string path, string content)
+    {
+        using var writer = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+        writer.SetLength(0);
+        writer.Write(Encoding.UTF8.GetBytes(content));
+        writer.Flush(true);
     }
 
     [Test]
