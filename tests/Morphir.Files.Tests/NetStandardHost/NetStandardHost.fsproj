@@ -1,0 +1,36 @@
+<!--
+  A net11.0 program that loads the netstandard2.0 build of Morphir.Files, as a compiler host loads it through
+  Morphir.Models. It references that assembly by path, not by project, because a project reference from net11.0 would
+  pick the net11.0 build. "A netstandard2.0 model library uses virtual file trees" in NetStandardTests.fs builds
+  Morphir.Files for netstandard2.0, passes the assembly as MorphirFilesAssembly, builds this project and runs it, all
+  under an artifacts path in a temporary folder.
+
+  This project is not in Morphir.slnx: a solution build would build it before any netstandard2.0 Morphir.Files.dll
+  exists at a path it can name. It has no lock file, so its restore writes nothing into the repository.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <Reference Include="Morphir.Files" HintPath="$(MorphirFilesAssembly)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <Target Name="RequireMorphirFilesAssembly" BeforeTargets="ResolveAssemblyReferences">
+        <Error Condition="'$(MorphirFilesAssembly)' == '' or !Exists('$(MorphirFilesAssembly)')"
+               Text="Set MorphirFilesAssembly to the netstandard2.0 Morphir.Files.dll. Got '$(MorphirFilesAssembly)'." />
+    </Target>
+
+</Project>

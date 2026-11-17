@@ -1,6 +1,9 @@
 namespace Morphir.Files
 
 open System
+#if NETSTANDARD2_0
+open Morphir.Compat
+#endif
 
 /// <summary>
 /// Configuration for a file tree (project-level settings).

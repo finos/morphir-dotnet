@@ -7,6 +7,8 @@
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <GenerateProgramFile>false</GenerateProgramFile>
         <IsPackable>false</IsPackable>
+        <!-- NetStandardHost is a project of its own that NetStandardTests.fs builds. -->
+        <DefaultItemExcludes>$(DefaultItemExcludes);NetStandardHost/**</DefaultItemExcludes>
     </PropertyGroup>
 
     <ItemGroup>
@@ -23,6 +25,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Files\Morphir.Files.fsproj" />
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -31,6 +34,7 @@
         <Compile Include="ContentTests.fs" />
         <Compile Include="FileTreeTests.fs" />
         <Compile Include="PublicationTests.fs" />
+        <Compile Include="NetStandardTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
