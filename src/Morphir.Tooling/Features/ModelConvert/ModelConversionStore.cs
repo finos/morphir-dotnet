@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Text.Json;
 using Morphir.Files;
+using Morphir.IR.Files;
 using Morphir.IR.Trees;
 
 namespace Morphir.Tooling.Features.ModelConvert;
@@ -63,9 +64,11 @@ public interface IModelConversionStore
 /// </summary>
 /// <remarks>
 /// A file whose top level has a <c>$schema</c> member is in a compaction envelope (<c>ir/name-compaction</c>). An
-/// envelope of a declared schema is a compacted input, refused with <c>model.unsupported_context</c> until compacted
-/// files are read; any other <c>$schema</c> is refused with <c>context.undeclared_schema</c>, and the input is not
-/// called compacted.
+/// envelope of a declared schema is a compacted input, refused with <c>model.unsupported_context</c> until
+/// <c>convert</c> expands compacted files (add-model-convert 7.5); any other <c>$schema</c> is refused with
+/// <c>context.undeclared_schema</c>, and the input is not called compacted. The tree store already expands a compacted
+/// tree file, so a tree's compacted files are found before the store reads it, and a tree that has one is refused
+/// whether or not the store reads it.
 /// </remarks>
 public sealed class DiskModelConversionStore : IModelConversionStore
 {
@@ -77,38 +80,48 @@ public sealed class DiskModelConversionStore : IModelConversionStore
     private const string TreeManifest = "manifest.json";
 
     /// <summary>
-    /// The envelope schema URLs that this version declares: <c>ir-context</c> 0.1.0-draft.1 of the parent's
-    /// <c>ir/name-compaction</c>. The model store's own list replaces this one when compacted files are read
-    /// (add-model-convert 7.2).
+    /// The envelope schema URLs that this version declares: those of the model store's reader of Morphir files
+    /// (<c>ir-context</c> 0.1.0-draft.1 of the parent's <c>ir/name-compaction</c>).
     /// </summary>
-    private static readonly string[] DeclaredSchemas = ["https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json"];
+    private static readonly string[] DeclaredSchemas = [.. MorphirFile.declaredSchemas.Select(url => url.OriginalString)];
 
     /// <inheritdoc />
     public ValueTask<bool> HasEnvelopeAsync(ModelSource source, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         var file = source.Layout == ModelLayout.DocumentTree ? Path.Combine(source.FullPath, TreeManifest) : source.FullPath;
+        return ValueTask.FromResult(TopLevelSchemaOf(file) is not null);
+    }
+
+    /// <summary>
+    /// The <c>$schema</c> at the top level of the JSON file at <paramref name="file"/>, or null when it has none, cannot
+    /// be read or is not JSON. A <c>$schema</c> that is not a string is given as the empty string, which no declared
+    /// schema equals.
+    /// </summary>
+    private static string? TopLevelSchemaOf(string file)
+    {
         try
         {
             using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1, FileOptions.SequentialScan);
-            return ValueTask.FromResult(HasTopLevelSchema(stream));
+            return TopLevelSchema(stream);
         }
         catch (Exception error) when (IsFileSystemFailure(error) || error is JsonException)
         {
-            return ValueTask.FromResult(false);
+            return null;
         }
     }
 
     /// <summary>
-    /// Whether the JSON object on <paramref name="stream"/> has a <c>$schema</c> member at its top level. The text is
-    /// read token by token in blocks, and no value is decoded.
+    /// The <c>$schema</c> member at the top level of the JSON object on <paramref name="stream"/>, as
+    /// <see cref="TopLevelSchemaOf"/> gives it. The text is read token by token in blocks, and no other value is decoded.
     /// </summary>
-    private static bool HasTopLevelSchema(Stream stream)
+    private static string? TopLevelSchema(Stream stream)
     {
         var buffer = new byte[64 * 1024];
         var held = stream.ReadAtLeast(buffer.AsSpan(0, 3), 3, throwOnEndOfStream: false);
         if (held == 3 && buffer.AsSpan(0, 3).SequenceEqual((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF])) held = 0;
         var state = new JsonReaderState(new JsonReaderOptions { MaxDepth = MaxDepth });
+        var atSchema = false;
         while (true)
         {
             var read = stream.Read(buffer, held, buffer.Length - held);
@@ -117,10 +130,11 @@ public sealed class DiskModelConversionStore : IModelConversionStore
             var reader = new Utf8JsonReader(block, final, state);
             while (reader.Read())
             {
-                if (reader.CurrentDepth == 0 && reader.TokenType != JsonTokenType.StartObject) return false;
-                if (reader.CurrentDepth == 1 && reader.TokenType == JsonTokenType.PropertyName && reader.ValueTextEquals(SchemaMember)) return true;
+                if (atSchema) return reader.TokenType == JsonTokenType.String ? reader.GetString() ?? "" : "";
+                if (reader.CurrentDepth == 0 && reader.TokenType != JsonTokenType.StartObject) return null;
+                if (reader.CurrentDepth == 1 && reader.TokenType == JsonTokenType.PropertyName && reader.ValueTextEquals(SchemaMember)) atSchema = true;
             }
-            if (final) return false;
+            if (final) return atSchema ? "" : null;
             state = reader.CurrentState;
             var consumed = (int)reader.BytesConsumed;
             block[consumed..].CopyTo(buffer);
@@ -180,24 +194,70 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         if (loaded.IsError)
             return ModelRead.Refused(null, ConvertDiagnostic.Failure(ModelConvertCodes.ReadFailed, "The directory cannot be read: " + TreeLoadErrorModule.describe(loaded.ErrorValue) + ".", source.Given));
         var files = loaded.ResultValue;
+        var compactedFiles = CompactedTreeFiles(source.FullPath);
         if (StoredModel.TryOfTreeRead(DocumentTreeStore.Read(ReadOptionsModule.defaults, files), out var model, out var notices, out var problems))
-            return new ModelRead(model, ModelConvertNames.Plain, [], [.. notices.Select(notice => ConvertDiagnostic.Of(notice, source.Given))]);
-        return RefusedTree(source, problems);
+            return compactedFiles.Count == 0
+                ? new ModelRead(model, ModelConvertNames.Plain, [], [.. notices.Select(notice => ConvertDiagnostic.Of(notice, source.Given))])
+                : RefusedTree(source, [], compactedFiles);
+        return RefusedTree(source, problems, compactedFiles);
     }
 
     /// <summary>
-    /// The refusal of a tree. An enveloped file is not a tree file to the store, which refuses it; for each file that
-    /// the store's errors name and that is in an envelope, the envelope is the reason to report, once for the file.
-    /// The errors that name no enveloped file are kept. The input is compacted when a file is in a declared envelope,
-    /// and its encoding is not stated when the only envelopes are undeclared.
+    /// The tree files below <paramref name="root"/> in an envelope of a declared schema, each as its path from the root
+    /// with <c>/</c> and its schema, in ordinal order of the path. A tree file is the manifest, a module file or a type
+    /// or value file. The tree store expands such a file; this version of <c>convert</c> refuses it.
     /// </summary>
-    private static ModelRead RefusedTree(ModelSource source, IReadOnlyList<ConversionProblem> problems)
+    private static IReadOnlyList<(string File, string Schema)> CompactedTreeFiles(string root)
+    {
+        IEnumerable<string> candidates;
+        try
+        {
+            candidates = [.. Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories)];
+        }
+        catch (Exception error) when (IsFileSystemFailure(error))
+        {
+            // The store reports a tree that cannot be read.
+            return [];
+        }
+        var found = new List<(string File, string Schema)>();
+        foreach (var path in candidates)
+        {
+            var file = Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/');
+            if (!IsTreeFileName(file)) continue;
+            if (TopLevelSchemaOf(path) is { } schema && IsDeclared(schema)) found.Add((file, schema));
+        }
+        found.Sort((left, right) => string.CompareOrdinal(left.File, right.File));
+        return found;
+    }
+
+    /// <summary>Whether the file at <paramref name="file"/> (a path from a tree's root) is a file of the tree.</summary>
+    private static bool IsTreeFileName(string file)
+    {
+        var name = file[(file.LastIndexOf('/') + 1)..];
+        return file == TreeManifest || name == "module.json"
+            || name.EndsWith(".type.json", StringComparison.Ordinal) || name.EndsWith(".value.json", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The refusal of a tree. Each file of <paramref name="compactedFiles"/> is reported once, as compacted. For each
+    /// other file that the store's errors name and that is in an envelope, the envelope is the reason to report, once
+    /// for the file. The errors that name no enveloped file are kept. The input is compacted when a file is in a
+    /// declared envelope, and its encoding is not stated when the only envelopes are undeclared.
+    /// </summary>
+    private static ModelRead RefusedTree(
+        ModelSource source, IReadOnlyList<ConversionProblem> problems, IReadOnlyList<(string File, string Schema)> compactedFiles)
     {
         var envelopes = new Dictionary<string, string?>(StringComparer.Ordinal);
         var reported = new HashSet<string>(StringComparer.Ordinal);
         var diagnostics = new List<ConvertDiagnostic>();
-        var compacted = false;
+        var compacted = compactedFiles.Count > 0;
         var undeclared = false;
+        foreach (var (file, schema) in compactedFiles)
+        {
+            envelopes[file] = schema;
+            reported.Add(file);
+            diagnostics.Add(Compacted(ModelConvertPaths.Join(source.Given, file), schema));
+        }
         foreach (var problem in problems)
         {
             if (problem.File is { } file && EnvelopeOfTreeFile(source.FullPath, file, envelopes) is { } schema)

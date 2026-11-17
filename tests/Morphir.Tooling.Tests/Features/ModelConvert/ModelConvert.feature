@@ -115,6 +115,14 @@ Feature: Model convert
     And the report states the input encoding "compacted"
     And nothing is at the output
 
+  Scenario: A tree with a compacted file is refused although the store expands it
+    Given a v4 document tree with a compacted type file
+    When I convert the model to a single file
+    Then the conversion fails with exit code 1 and the diagnostic "model.unsupported_context"
+    And the compacted file is named once
+    And the report states the input encoding "compacted"
+    And nothing is at the output
+
   Scenario: A compacted file of a tree is reported beside the tree's other errors
     Given a v4 document tree with a compacted type file and a missing definition file
     When I convert the model to a single file

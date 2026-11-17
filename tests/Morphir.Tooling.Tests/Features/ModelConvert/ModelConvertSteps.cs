@@ -76,6 +76,13 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     [Given("a single-file model that is not JSON")]
     public void SingleFileThatIsNotJson() => PlaceFile(FixtureCatalog.Models.Malformed);
 
+    [Given("a v4 document tree with a compacted type file")]
+    public void V4TreeWithACompactedTypeFile()
+    {
+        V4TreeWithVersionAndCreated();
+        WrapTreeFile(EnvelopedTreeFile, EnvelopeSchema);
+    }
+
     [Given("a v4 document tree with a compacted type file and a missing definition file")]
     public void V4TreeWithACompactedTypeFileAndAMissingDefinitionFile()
     {
