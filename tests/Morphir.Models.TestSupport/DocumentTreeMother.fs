@@ -202,6 +202,48 @@ let v3Specs: StoredTree =
 let v3PrivateAndDocumentedMembers: StoredTree =
     classicTreeOf (withNumberedSlots DistributionMother.v3PrivateAndDocumentedMembers)
 
+/// <summary>The value of <see cref="v3Library"/> that <see cref="v3LibraryWithANonFiniteFloat"/> changes.</summary>
+let defaultCurrency =
+    Own(ValueDef(modulePath "pricing/models", name "default-currency"))
+
+/// <summary>
+/// <see cref="v3Library"/> with the body of its value <c>default-currency</c> the float literal NaN, which classic JSON
+/// cannot spell, so a writer refuses it.
+/// </summary>
+let v3LibraryWithANonFiniteFloat: StoredTree =
+    match v3Library with
+    | ClassicTree tree ->
+        let toNaN (document: TreeDocument<_, _, ClassicValueDocument<JsonElement, JsonElement>>) =
+            match document with
+            | ValueDoc(ClassicValueDocument.DefinedValue controlled) ->
+                let withNaN
+                    (definition: Morphir.IR.Classic.ValueDefinition<JsonElement, JsonElement>)
+                    =
+                    match definition.Body with
+                    | Morphir.IR.Classic.Value.Literal(attribute, _) ->
+                        { definition with
+                            Body =
+                                Morphir.IR.Classic.Value.Literal(
+                                    attribute,
+                                    Morphir.IR.Classic.FloatLiteral nan
+                                )
+                        }
+                    | _ -> failwith "The value default-currency of v3Library is a literal."
+
+                ValueDoc(
+                    ClassicValueDocument.DefinedValue
+                        { controlled with
+                            Value = Morphir.IR.Classic.Documented.map withNaN controlled.Value
+                        }
+                )
+            | other -> other
+
+        ClassicTree
+            { tree with
+                Documents = Map.change defaultCurrency (Option.map toNaN) tree.Documents
+            }
+    | V4Tree _ -> failwith "v3Library is a classic tree."
+
 /// <summary>
 /// One tree of files for each refusal of a read, each named for what is wrong with it. Each is a tree that the store
 /// writes when it is asked for, with one change. The files of <see cref="acmeDemo"/> are <c>manifest.json</c>,
@@ -319,3 +361,206 @@ module Invalid =
             billingModuleFile
             "types"
             $"""{{ "invoice": {(nonNull definition).ToJsonString()} }}"""
+
+    /// <summary>The files of <see cref="acmeDemo"/> without <c>manifest.json</c>.</summary>
+    let noManifest () : VFileTree =
+        acmeFiles ()
+        |> Driver.withoutFile "manifest.json"
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with a type file in the YAML profile, <c>invoice.type.yaml</c>, beside the JSON files of
+    /// <c>billing</c>.
+    /// </summary>
+    let yamlFileBesideTheJsonProfile () : VFileTree =
+        acmeFiles ()
+        |> Driver.withFile
+            (billing
+             + "invoice.type.yaml")
+            "formatVersion: 4\nname: invoice\n"
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with a copy of the module file of <c>billing</c> directly in the package directory,
+    /// <c>pkg/acme/demo/module.json</c>, which is no module's directory.
+    /// </summary>
+    let moduleFileInThePackageDirectory () : VFileTree =
+        acmeFiles ()
+        |> Driver.copied billingModuleFile "pkg/acme/demo/module.json"
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with a JSON file in the directory of <c>billing</c> that is no module, type or value file,
+    /// <c>notes.json</c>.
+    /// </summary>
+    let unknownJsonFileInAModule () : VFileTree =
+        acmeFiles ()
+        |> Driver.withFile
+            (billing
+             + "notes.json")
+            """{ "note": "Not a tree file." }"""
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with the directory of <c>billing</c> spelled <c>Billing</c>, which is no escaped stem: a
+    /// stem has no capital letter.
+    /// </summary>
+    let moduleDirectoryThatIsNotAStem () : VFileTree =
+        acmeFiles ()
+        |> Driver.moved billing "pkg/acme/demo/Billing/"
+
+    /// <summary><see cref="acmeDemo"/> with a type file of <c>invoice</c> whose content cannot be read.</summary>
+    let unreadableTypeFile () : VFileTree =
+        acmeFiles ()
+        |> Driver.withUnreadableFile invoiceTypeFile
+
+    /// <summary><see cref="acmeDemo"/> with a module file of <c>billing</c> whose text is not JSON.</summary>
+    let moduleFileThatIsNotJson () : VFileTree =
+        acmeFiles ()
+        |> Driver.withText billingModuleFile (fun _ -> "{ \"formatVersion\": 4, \"path\": ")
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with a module file of <c>billing</c> whose <c>fileNames</c> maps <c>invoice</c> to a cut
+    /// stem whose digest is not the name's.
+    /// </summary>
+    let fileNamesWithAStemOfAnotherName () : VFileTree =
+        acmeFiles ()
+        |> Driver.withMember billingModuleFile "fileNames" """{ "invoice": "invoice__00000000" }"""
+
+    /// <summary><see cref="acmeDemo"/> with a manifest whose path budget, 10, is under the minimum of 64.</summary>
+    let pathBudgetUnderTheMinimum () : VFileTree =
+        acmeFiles ()
+        |> Driver.withMember "manifest.json" "pathBudget" "10"
+
+    /// <summary><see cref="acmeDemo"/> with a manifest that lists its dependency <c>morphir/sdk</c> twice.</summary>
+    let dependencyListedTwice () : VFileTree =
+        acmeFiles ()
+        |> Driver.withMember "manifest.json" "dependencies" """[ "morphir/sdk", "morphir/sdk" ]"""
+
+    /// <summary><see cref="acmeDemo"/> with a manifest that lists its own package, <c>acme/demo</c>, as a dependency.</summary>
+    let ownPackageAsADependency () : VFileTree =
+        acmeFiles ()
+        |> Driver.withMember "manifest.json" "dependencies" """[ "morphir/sdk", "acme/demo" ]"""
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with the type file of <c>invoice</c>, a type of the package definition, holding a
+    /// <c>spec</c> rather than its <c>def</c>.
+    /// </summary>
+    let definitionFileHoldingASpec () : VFileTree =
+        acmeFiles ()
+        |> Driver.withoutMember invoiceTypeFile "def"
+        |> Driver.withMember
+            invoiceTypeFile
+            "spec"
+            """{ "TypeAliasSpecification": { "typeParams": [], "typeExp": "morphir/SDK:basics#int" } }"""
+
+    /// <summary><see cref="acmeDemo"/> with the type file of <c>invoice</c> holding neither <c>def</c> nor <c>spec</c>.</summary>
+    let nodeFileWithNeitherDefNorSpec () : VFileTree =
+        acmeFiles ()
+        |> Driver.withoutMember invoiceTypeFile "def"
+
+    let private v3Files () = written v3Library
+
+    let private v3Pricing = "pkg/my-org/finance/pricing/models/"
+
+    /// <summary>The module file of <c>pricing/models</c> in <see cref="v3Library"/> and <see cref="v3Specs"/>.</summary>
+    let v3PricingModuleFile =
+        v3Pricing
+        + "module.json"
+
+    /// <summary>The type file of <c>invoice</c> in <see cref="v3Library"/> and <see cref="v3Specs"/>.</summary>
+    let v3InvoiceTypeFile =
+        v3Pricing
+        + "invoice.type.json"
+
+    /// <summary>The value file of <c>default-currency</c> in <see cref="v3Library"/> and <see cref="v3Specs"/>.</summary>
+    let v3DefaultCurrencyValueFile =
+        v3Pricing
+        + "default-currency.value.json"
+
+    /// <summary><see cref="v3Library"/> with a manifest that says the string <c>"3"</c>, a release of major 3.</summary>
+    let v3ManifestSayingTheString3 () : VFileTree =
+        v3Files ()
+        |> Driver.withMember "manifest.json" "formatVersion" "\"3\""
+
+    /// <summary><see cref="v3Library"/> with a manifest that says the number <c>3.1</c>, of major 3.</summary>
+    let v3ManifestSayingTheNumber31 () : VFileTree =
+        v3Files ()
+        |> Driver.withMember "manifest.json" "formatVersion" "3.1"
+
+    /// <summary><see cref="v3Specs"/> with an <c>access</c> in a module file, which a module specification has not.</summary>
+    let v3ModuleSpecificationWithAccess () : VFileTree =
+        written v3Specs
+        |> Driver.withMember v3PricingModuleFile "access" "\"Public\""
+
+    /// <summary>
+    /// <see cref="v3Library"/> with a module file that states its path in <c>module</c>, the v4 alias that a v3 module
+    /// file does not accept.
+    /// </summary>
+    let v3ModuleFileWithTheV4ModuleAlias () : VFileTree =
+        v3Files ()
+        |> Driver.withoutMember v3PricingModuleFile "path"
+        |> Driver.withMember v3PricingModuleFile "module" "\"pricing/models\""
+
+    /// <summary>
+    /// <see cref="v3Library"/> with the type file of <c>invoice</c> holding a <c>def</c> whose type definition is no
+    /// classic type definition.
+    /// </summary>
+    let v3PayloadThatIsNotClassicJson () : VFileTree =
+        v3Files ()
+        |> Driver.withMember
+            v3InvoiceTypeFile
+            "def"
+            """{ "access": "Public", "value": { "doc": "", "value": [ "NotATypeDefinition", [] ] } }"""
+
+    /// <summary><see cref="v3Library"/> with a module file that states no <c>formatVersion</c>.</summary>
+    let v3ModuleFileWithoutFormatVersion () : VFileTree =
+        v3Files ()
+        |> Driver.withoutMember v3PricingModuleFile "formatVersion"
+
+    /// <summary><see cref="v3Library"/> with a module file that states <c>formatVersion</c> twice.</summary>
+    let v3ModuleFileWithTwoFormatVersions () : VFileTree =
+        v3Files ()
+        |> Driver.withText
+            v3PricingModuleFile
+            (fun text ->
+                "{ \"formatVersion\": \"3.1.0\","
+                + text.Substring(
+                    text.IndexOf '{'
+                    + 1
+                )
+            )
+
+    /// <summary>
+    /// <see cref="v3Specs"/> with an <c>access</c> in the <c>spec</c> of the value <c>default-currency</c>, which a
+    /// specification has not.
+    /// </summary>
+    let v3SpecWithAccess () : VFileTree =
+        let files = written v3Specs
+        let spec = (Driver.jsonAt v3DefaultCurrencyValueFile files)["spec"]
+        let withAccess = (nonNull spec).AsObject()
+        withAccess["access"] <- Nodes.JsonValue.Create "Public"
+
+        files
+        |> Driver.withMember v3DefaultCurrencyValueFile "spec" (withAccess.ToJsonString())
+
+    /// <summary>
+    /// <see cref="v3Library"/> with a member beside <c>access</c> and <c>value</c> in the <c>def</c> of the type
+    /// <c>invoice</c>.
+    /// </summary>
+    let v3DefinitionWithAnotherMember () : VFileTree =
+        let files = v3Files ()
+
+        let definition =
+            (nonNull (Driver.jsonAt v3InvoiceTypeFile files).["def"]).AsObject()
+
+        definition["since"] <- Nodes.JsonValue.Create "3.0.0"
+
+        files
+        |> Driver.withMember v3InvoiceTypeFile "def" (definition.ToJsonString())
+
+    /// <summary><see cref="v3Library"/> with no file for the type <c>invoice</c>, which its module file lists.</summary>
+    let v3ModuleListingAMissingType () : VFileTree =
+        v3Files ()
+        |> Driver.withoutFile v3InvoiceTypeFile
+
+    /// <summary><see cref="v3Library"/> with a copy of the type file of <c>invoice</c> at the root of the tree.</summary>
+    let v3TypeFileOutsideTheTree () : VFileTree =
+        v3Files ()
+        |> Driver.copied v3InvoiceTypeFile "invoice.type.json"

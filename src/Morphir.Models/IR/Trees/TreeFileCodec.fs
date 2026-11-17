@@ -74,7 +74,7 @@ module internal TreeFileCodec =
             budget
         else
             fail
-                "invalid_path_budget"
+                "invalid_type"
                 location
                 $"A path budget is a whole number of characters, at least {MinimumPathBudget}."
 
@@ -129,7 +129,10 @@ module internal TreeFileCodec =
                 json.WriteEndObject()
             )
 
-    /// The package, the path budget and the dependencies of a manifest file.
+    /// <summary>
+    /// The package, the path budget and the dependencies of a manifest file. A dependency that names the own package
+    /// is <c>invalid_distribution_shape</c>, and one listed twice is <c>duplicate_member</c>, each at its index.
+    /// </summary>
     let manifestMembers (values: Members) =
         let package = PackageName(required "$" [ "package" ] path values)
         let budget = required "$" [ "pathBudget" ] pathBudgetOf values
@@ -138,6 +141,23 @@ module internal TreeFileCodec =
             optional "$" [ "dependencies" ] (listOf path) values
             |> Option.defaultValue []
             |> List.map PackageName
+
+        dependencies
+        |> List.iteri (fun index dependency ->
+            let here = itemAt (memberAt "$" "dependencies") index
+            let (PackageName dependencyPath) = dependency
+
+            if dependency = package then
+                fail
+                    "invalid_distribution_shape"
+                    here
+                    $"The dependency '{CanonicalNames.pathToString dependencyPath}' is the distribution's own package."
+            elif List.contains dependency (List.take index dependencies) then
+                fail
+                    "duplicate_member"
+                    here
+                    $"The dependency '{CanonicalNames.pathToString dependencyPath}' is listed more than once."
+        )
 
         package, budget, dependencies
 
@@ -286,11 +306,16 @@ module internal TreeFileCodec =
                 json.WriteEndObject()
             )
 
-    /// Reads a type or value file: its name and exactly one of def and spec.
+    /// <summary>
+    /// Reads a type or value file: its name and exactly one of <c>def</c> and <c>spec</c>, the one its role calls
+    /// for: <c>def</c> in a package definition (<paramref name="holdsDefinitions"/>), <c>spec</c> in a package
+    /// specification. Both, neither, or the other one is <c>invalid_distribution_shape</c>.
+    /// </summary>
     let readNode
         (checkVersion: Members -> unit)
         (defined: string -> JsonElement -> 'document)
         (specified: string -> JsonElement -> 'document)
+        (holdsDefinitions: bool)
         root
         =
         guarded (fun () ->
@@ -305,9 +330,23 @@ module internal TreeFileCodec =
                         "invalid_distribution_shape"
                         (memberAt "$" "spec")
                         "A node file has exactly one of def and spec."
-                | true, false -> required "$" [ "def" ] defined values
-                | false, true -> required "$" [ "spec" ] specified values
-                | false, false -> fail "missing_member" "$" "A node file has def or spec."
+                | true, false when holdsDefinitions -> required "$" [ "def" ] defined values
+                | false, true when not holdsDefinitions -> required "$" [ "spec" ] specified values
+                | true, false ->
+                    fail
+                        "invalid_distribution_shape"
+                        (memberAt "$" "def")
+                        "A node file of a package specification holds spec, and this one holds def."
+                | false, true ->
+                    fail
+                        "invalid_distribution_shape"
+                        (memberAt "$" "spec")
+                        "A node file of a package definition holds def, and this one holds spec."
+                | false, false ->
+                    fail
+                        "invalid_distribution_shape"
+                        "$"
+                        "A node file has exactly one of def and spec, and this one has neither."
 
             nodeName, document
         )

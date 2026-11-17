@@ -129,17 +129,29 @@ module internal TreeFileSource =
         contentBytes limit location file
         |> Result.bind (decode location read)
 
-    /// Whether a manifest states a classic v3 format version.
+    /// <summary>
+    /// Whether a manifest states a format version of major 3, which the v3 rules read: the string <c>"3"</c> or one
+    /// that starts with <c>"3."</c>, or a number from 3 up to 4, such as <c>3</c> or <c>3.1</c>. The v3 reader refuses
+    /// every one of them but <c>"3.1.0"</c>, and none is sent to the v4 reader.
+    /// </summary>
     let isClassicManifest (root: JsonElement) =
         let mutable version = Unchecked.defaultof<JsonElement>
+        let mutable number = 0.0
 
         root.ValueKind = JsonValueKind.Object
         && root.TryGetProperty("formatVersion", &version)
         && (
             match version.ValueKind with
             | JsonValueKind.String ->
-                (nonNull (version.GetString())).StartsWith("3.", StringComparison.Ordinal)
-            | JsonValueKind.Number -> version.GetRawText() = "3"
+                let text = nonNull (version.GetString())
+
+                text = "3"
+                || text.StartsWith("3.", StringComparison.Ordinal)
+            | JsonValueKind.Number ->
+                version.TryGetDouble(&number)
+                && number
+                   >= 3.0
+                && number < 4.0
             | _ -> false
         )
 

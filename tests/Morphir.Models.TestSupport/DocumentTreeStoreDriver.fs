@@ -108,6 +108,39 @@ let moved (fromPrefix: string) (toPrefix: string) (files: VFileTree) : VFileTree
     )
     |> ofTexts
 
+/// <summary>The same files without one top-level member of the file at a location.</summary>
+let withoutMember (location: string) (memberName: string) (files: VFileTree) : VFileTree =
+    let root = jsonAt location files
+
+    root.Remove memberName
+    |> ignore
+
+    texts files
+    |> Map.add location (root.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
+    |> Map.toList
+    |> ofTexts
+
+/// <summary>
+/// The same files with the text of the file at a location changed by <paramref name="change"/>, for a spelling that
+/// a JSON object cannot hold, such as a repeated member or text that is not JSON.
+/// </summary>
+let withText (location: string) (change: string -> string) (files: VFileTree) : VFileTree =
+    withFile location (change (texts files).[location]) files
+
+/// <summary>
+/// The same files with the file at a location replaced by one whose content cannot be read: opening it fails, as a
+/// file that disappears or is locked does.
+/// </summary>
+let withUnreadableFile (location: string) (files: VFileTree) : VFileTree =
+    let unreadable =
+        VFile.ofStream
+            location
+            (StreamSource(fun () -> raise (System.IO.IOException "The file cannot be read.")))
+
+    VFileTree.toFileMap files
+    |> Map.add location unreadable
+    |> VFileTree.fromFileMap
+
 /// <summary>The same files with a copy of the file at <paramref name="location"/> at <paramref name="copy"/>.</summary>
 let copied (location: string) (copy: string) (files: VFileTree) : VFileTree =
     withFile copy ((texts files)[location]) files

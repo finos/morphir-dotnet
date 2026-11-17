@@ -23,23 +23,31 @@ open Morphir.IR
 /// <c>"formatVersion": "3.1.0"</c> around the classic v3 JSON of each entry.
 /// </para>
 /// <para>
-/// A refused write or read gives every error it finds and no tree. The codes of the tree: those of
+/// A refused write or read gives every error it finds and no tree. Where the parent's v3 or v4 tree page names a
+/// diagnostic for a rule, both versions use it, with the file in <c>File</c> and the member's JSON location at the
+/// start of the message: <c>version_mismatch</c>, a file of a v3 tree, the manifest included, that does not say
+/// <c>"3.1.0"</c>; <c>missing_format_version</c>; <c>unknown_member</c>; <c>missing_member</c>, a required member,
+/// or a name that a module file lists with no file, at the missing file's path; <c>invalid_type</c>, a member of
+/// the wrong type, a path budget under 64, or a payload that is not the JSON of its kind;
+/// <c>invalid_distribution_shape</c>, a dependency that is the own package, a node file without exactly the one of
+/// <c>def</c> and <c>spec</c> that its role calls for, a v3 wrapper with another member or a <c>spec</c> with an
+/// <c>access</c>, a v4 module with annotations, which a 4.0.0 module file cannot hold, or a path that no cut fits in
+/// the budget; <c>duplicate_member</c>, a dependency listed twice; and <c>invalid_access</c>.
+/// </para>
+/// <para>
+/// The <c>tree.</c> codes are for the rules that the parent names no diagnostic for: those of
 /// <c>V4DocumentTree.join</c> and <c>ClassicDocumentTree.join</c>; <c>tree.stem_collision</c>, two documents whose
-/// files would have one path on a file system that ignores case; <c>invalid_distribution_shape</c>, a v4 module with
-/// annotations, which a 4.0.0 module file cannot hold, or a path that no cut fits in the budget;
-/// <c>tree.missing_manifest</c>; <c>tree.ambiguous_profile</c>, a JSON and a YAML manifest, which it names;
-/// <c>tree.unsupported_profile</c>, a YAML file, which this store does not read; <c>tree.v3_version</c>, a v3
-/// manifest whose <c>formatVersion</c> is not <c>"3.1.0"</c>; <c>version_mismatch</c>, another file of a v3 tree
-/// that does not say <c>"3.1.0"</c>; <c>tree.outside_package</c>, a file below <c>pkg/</c> of another package;
+/// files would have one path on a file system that ignores case; <c>tree.missing_manifest</c>;
+/// <c>tree.ambiguous_profile</c>, a JSON and a YAML manifest, which it names; <c>tree.unsupported_profile</c>, a YAML
+/// file, which this store does not read; <c>tree.outside_package</c>, a file below <c>pkg/</c> of another package;
 /// <c>tree.outside_tree</c>, a module, type or value file outside <c>pkg/</c> and <c>deps/</c>;
 /// <c>tree.versioned_dependency</c>, a dependency segment that carries a version, named once by its directory;
 /// <c>tree.misplaced_file</c>; <c>tree.unknown_file</c>; <c>tree.invalid_stem</c>; <c>tree.path_mismatch</c>, a
-/// module file whose path is not its directory's; <c>tree.name_mismatch</c>, a file whose stem does not spell
-/// its name; <c>tree.duplicate_document</c>; <c>tree.missing_file</c>, a name that a module file lists with no file,
-/// naming the module file, the name and the file looked for; <c>tree.over_budget</c>, a path longer than the
-/// manifest's budget; <c>tree.too_many_files</c>; <c>tree.file_too_large</c>; <c>tree.unreadable_file</c>;
-/// <c>invalid_json</c>; and <c>tree.unsupported_option</c>. A codec error keeps the codec's rule as its code, such as
-/// <c>unknown_member</c>.
+/// module file whose path is not its directory's; <c>tree.name_mismatch</c>, a file whose stem does not spell its
+/// name; <c>tree.duplicate_document</c>; <c>tree.over_budget</c>, a path longer than the manifest's budget;
+/// <c>tree.too_many_files</c>; <c>tree.file_too_large</c>; <c>tree.unreadable_file</c>; and
+/// <c>tree.unsupported_option</c>. <c>invalid_json</c> is a file that is not JSON, and <c>invalid_file_name</c> a
+/// <c>fileNames</c> entry that is not the cut stem of its name. Any other codec error keeps the codec's rule.
 /// </para>
 /// </remarks>
 [<RequireQualifiedAccess>]

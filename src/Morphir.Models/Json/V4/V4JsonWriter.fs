@@ -1718,6 +1718,9 @@ module V4JsonWriter =
     /// Runs a write, giving its bytes or the error it raised.
     let internal writeWith (indented: bool) (write: Utf8JsonWriter -> unit) = run indented write
 
+    /// Stops a write that <c>writeWith</c> runs with an error of its own, which the write then gives.
+    let internal failWith (error: V4WriteError) : 'a = raise (V4WriteFailure error)
+
     /// Writes a type definition with its access as the key: { "Public": { doc, variant } }.
     let internal typeDefinitionNode (json: Utf8JsonWriter) location definition =
         accessControlled json (documentedTypeDefinition json) location definition

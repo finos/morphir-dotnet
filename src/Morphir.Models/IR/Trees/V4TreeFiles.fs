@@ -251,9 +251,12 @@ module internal V4TreeFiles =
                     V4JsonWriter.valueSpecificationNode json (memberAt "$" "spec") specification
             )
 
-    /// <summary>Reads a type file: its name, and a <c>DefinedType</c> for <c>def</c> or a <c>SpecifiedType</c> for
-    /// <c>spec</c>.</summary>
-    let readType (root: JsonElement) : Result<Name * V4TypeDocument, V4JsonError> =
+    /// <summary>Reads a type file: its name, and a <c>DefinedType</c> for <c>def</c> in a package definition or a
+    /// <c>SpecifiedType</c> for <c>spec</c> in a package specification.</summary>
+    let readType
+        (holdsDefinitions: bool)
+        (root: JsonElement)
+        : Result<Name * V4TypeDocument, V4JsonError> =
         TreeFileCodec.readNode
             checkVersion
             (fun location element ->
@@ -262,11 +265,15 @@ module internal V4TreeFiles =
             (fun location element ->
                 SpecifiedType(V4JsonDistributions.typeSpecification location element)
             )
+            holdsDefinitions
             root
 
-    /// <summary>Reads a value file: its name, and a <c>DefinedValue</c> for <c>def</c> or a <c>SpecifiedValue</c>
-    /// for <c>spec</c>.</summary>
-    let readValue (root: JsonElement) : Result<Name * V4ValueDocument, V4JsonError> =
+    /// <summary>Reads a value file: its name, and a <c>DefinedValue</c> for <c>def</c> in a package definition or a
+    /// <c>SpecifiedValue</c> for <c>spec</c> in a package specification.</summary>
+    let readValue
+        (holdsDefinitions: bool)
+        (root: JsonElement)
+        : Result<Name * V4ValueDocument, V4JsonError> =
         TreeFileCodec.readNode
             checkVersion
             (fun location element ->
@@ -275,4 +282,5 @@ module internal V4TreeFiles =
             (fun location element ->
                 SpecifiedValue(V4JsonDistributions.valueSpecification location element)
             )
+            holdsDefinitions
             root

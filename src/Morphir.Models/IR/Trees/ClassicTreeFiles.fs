@@ -33,11 +33,14 @@ type internal ClassicModuleFile =
 /// <c>$meta</c> (decision 0014), and a writer never writes one.
 /// </summary>
 /// <remarks>
-/// A file whose <c>formatVersion</c> is not the string <c>"3.1.0"</c> is refused with <c>version_mismatch</c>, and a
-/// manifest with <c>tree.v3_version</c>. A v3 manifest has no member beside <c>formatVersion</c>,
-/// <c>distribution</c>, <c>package</c>, <c>pathBudget</c> and <c>dependencies</c>; a module specification has no
-/// <c>access</c>, and a module file has no <c>module</c> alias for <c>path</c>: each is an <c>unknown_member</c>. A
-/// payload that is not the classic JSON of its kind is <c>invalid_type</c>.
+/// The codes are the parent's (its "Validation Rules"). A file whose <c>formatVersion</c> is not the string
+/// <c>"3.1.0"</c>, the manifest included, is refused with <c>version_mismatch</c> at <c>#/formatVersion</c>. A v3
+/// manifest has no member beside <c>formatVersion</c>, <c>distribution</c>, <c>package</c>, <c>pathBudget</c> and
+/// <c>dependencies</c>; a module specification has no <c>access</c>, and a module file has no <c>module</c> alias for
+/// <c>path</c>: each is an <c>unknown_member</c>. A <c>def</c> wrapper has only <c>access</c> and <c>value</c>, a
+/// documented entry only <c>doc</c> and <c>value</c>, and a <c>spec</c> no <c>access</c>: anything else is
+/// <c>invalid_distribution_shape</c> at <c>#/def</c> or <c>#/spec</c>. A payload that is not the classic JSON of its
+/// kind is <c>invalid_type</c>.
 /// </remarks>
 module internal ClassicTreeFiles =
     open V4JsonDecoding
@@ -46,8 +49,8 @@ module internal ClassicTreeFiles =
     [<Literal>]
     let FormatVersion = "3.1.0"
 
-    /// The format version check of a v3 tree file: the string "3.1.0", or the rule's error.
-    let private checkVersionWith (rule: string) (values: Members) =
+    /// The format version check of a v3 tree file: the string "3.1.0", or version_mismatch.
+    let private checkVersion (values: Members) =
         match
             values
             |> List.filter (fun (key, _) -> key = "formatVersion")
@@ -60,7 +63,7 @@ module internal ClassicTreeFiles =
             ()
         | [ _, element ] ->
             fail
-                rule
+                "version_mismatch"
                 (memberAt "$" "formatVersion")
                 $"Every file of a v3 tree says \"formatVersion\": \"{FormatVersion}\", and this one says {element.GetRawText()}."
         | _ ->
@@ -68,8 +71,6 @@ module internal ClassicTreeFiles =
                 "duplicate_format_version"
                 (memberAt "$" "formatVersion")
                 "The member 'formatVersion' appears more than once."
-
-    let private checkVersion = checkVersionWith "version_mismatch"
 
     let private fileMembers = TreeFileCodec.fileMembers checkVersion
 
@@ -97,22 +98,77 @@ module internal ClassicTreeFiles =
         | :? InvalidOperationException as problem -> fail "invalid_type" location problem.Message
         | :? FormatException as problem -> fail "invalid_type" location problem.Message
 
+    let private shape location message =
+        fail "invalid_distribution_shape" location message
+
+    /// A documented entry, { "doc", "value" }, has no other member. An entry without a doc is the bare entry, as the
+    /// classic writer writes it.
+    let private checkDocumented location (element: JsonElement) =
+        let mutable doc = Unchecked.defaultof<JsonElement>
+
+        if
+            element.ValueKind = JsonValueKind.Object
+            && element.TryGetProperty("doc", &doc)
+        then
+            for key, _ in members location element do
+                if
+                    key
+                    <> "doc"
+                    && key
+                       <> "value"
+                then
+                    shape
+                        location
+                        $"A documented entry has doc and value, and this one also has '{key}'."
+
+    /// A def wrapper, { "access", "value" }, has no other member, and its value is a documented entry.
+    let private checkDefinition location (element: JsonElement) =
+        if element.ValueKind = JsonValueKind.Object then
+            for key, item in members location element do
+                match key with
+                | "access" -> ()
+                | "value" -> checkDocumented location item
+                | other ->
+                    shape
+                        location
+                        $"A def payload has access and value, and this one also has '{other}'."
+
+    /// A spec payload is a documented entry with no access.
+    let private checkSpecification location (element: JsonElement) =
+        let mutable access = Unchecked.defaultof<JsonElement>
+
+        if
+            element.ValueKind = JsonValueKind.Object
+            && element.TryGetProperty("access", &access)
+        then
+            shape location "A spec payload has no access."
+
+        checkDocumented location element
+
     let private typeDocument holdsDefinitions location element =
         if holdsDefinitions then
+            checkDefinition location element
+
             ClassicTypeDocument.DefinedType(
                 payload ClassicJsonDecoder.typeDefinitionEntry location element
             )
         else
+            checkSpecification location element
+
             ClassicTypeDocument.SpecifiedType(
                 payload ClassicJsonDecoder.typeSpecificationEntry location element
             )
 
     let private valueDocument holdsDefinitions location element =
         if holdsDefinitions then
+            checkDefinition location element
+
             ClassicValueDocument.DefinedValue(
                 payload ClassicJsonDecoder.valueDefinitionEntry location element
             )
         else
+            checkSpecification location element
+
             ClassicValueDocument.SpecifiedValue(
                 payload ClassicJsonDecoder.valueSpecificationEntry location element
             )
@@ -135,11 +191,11 @@ module internal ClassicTreeFiles =
 
     /// <summary>
     /// Reads a manifest file. Its <c>formatVersion</c> is <c>"3.1.0"</c>, or the file is refused with
-    /// <c>tree.v3_version</c>; the manifest records the single-file label of its kind.
+    /// <c>version_mismatch</c>; the manifest records the single-file label of its kind.
     /// </summary>
     let readManifest (root: JsonElement) : Result<ClassicManifestFile, V4JsonError> =
         TreeFileCodec.guarded (fun () ->
-            let values = TreeFileCodec.fileMembers (checkVersionWith "tree.v3_version") root
+            let values = fileMembers root
 
             closed
                 "$"
@@ -227,57 +283,43 @@ module internal ClassicTreeFiles =
                 values
         )
 
-    /// A payload written by the classic writer into the file's JSON, or the writer's error.
+    /// A payload written by the classic writer into the file's JSON. The writer's error stops the write, which gives
+    /// it as its error.
     let private writePayload
         (memberName: string)
         (write: ClassicWireProfile -> Utf8JsonWriter -> 'a -> Result<unit, ClassicWriteError>)
         (entry: 'a)
-        (failure: ClassicWriteError option ref)
         (json: Utf8JsonWriter)
         =
         json.WritePropertyName memberName
 
         match write ClassicWireProfile.v3 json entry with
         | Ok() -> ()
-        | Error error -> failure.Value <- Some error
-
-    /// A node file, or the classic writer's error of its payload.
-    let private writeNodeWith name (body: ClassicWriteError option ref -> Utf8JsonWriter -> unit) =
-        let failure = ref None
-        let written = TreeFileCodec.writeNode formatVersion name (body failure)
-
-        match failure.Value with
-        | Some error ->
-            Error
+        | Error error ->
+            V4JsonWriter.failWith
                 {
                     Rule = error.Rule
                     Location = error.Location
                     Message = error.Message
                 }
-        | None -> written
 
     /// <summary>Writes a type file: <c>formatVersion</c>, <c>name</c>, then <c>def</c> or <c>spec</c>.</summary>
     let writeType
         (name: Name)
         (document: ClassicTypeDocument<JsonElement>)
         : Result<byte array, V4WriteError> =
-        writeNodeWith
+        TreeFileCodec.writeNode
+            formatVersion
             name
-            (fun failure json ->
+            (fun json ->
                 match document with
                 | ClassicTypeDocument.DefinedType definition ->
-                    writePayload
-                        "def"
-                        ClassicJsonWriter.writeTypeDefinitionEntry
-                        definition
-                        failure
-                        json
+                    writePayload "def" ClassicJsonWriter.writeTypeDefinitionEntry definition json
                 | ClassicTypeDocument.SpecifiedType specification ->
                     writePayload
                         "spec"
                         ClassicJsonWriter.writeTypeSpecificationEntry
                         specification
-                        failure
                         json
             )
 
@@ -286,40 +328,43 @@ module internal ClassicTreeFiles =
         (name: Name)
         (document: ClassicValueDocument<JsonElement, JsonElement>)
         : Result<byte array, V4WriteError> =
-        writeNodeWith
+        TreeFileCodec.writeNode
+            formatVersion
             name
-            (fun failure json ->
+            (fun json ->
                 match document with
                 | ClassicValueDocument.DefinedValue definition ->
-                    writePayload
-                        "def"
-                        ClassicJsonWriter.writeValueDefinitionEntry
-                        definition
-                        failure
-                        json
+                    writePayload "def" ClassicJsonWriter.writeValueDefinitionEntry definition json
                 | ClassicValueDocument.SpecifiedValue specification ->
                     writePayload
                         "spec"
                         ClassicJsonWriter.writeValueSpecificationEntry
                         specification
-                        failure
                         json
             )
 
-    /// <summary>Reads a type file: its name, and a <c>DefinedType</c> for <c>def</c> or a <c>SpecifiedType</c> for
-    /// <c>spec</c>.</summary>
+    /// <summary>Reads a type file: its name, and a <c>DefinedType</c> for <c>def</c> in a package definition or a
+    /// <c>SpecifiedType</c> for <c>spec</c> in a package specification.</summary>
     let readType
+        (holdsDefinitions: bool)
         (root: JsonElement)
         : Result<Name * ClassicTypeDocument<JsonElement>, V4JsonError> =
-        TreeFileCodec.readNode checkVersion (typeDocument true) (typeDocument false) (root.Clone())
+        TreeFileCodec.readNode
+            checkVersion
+            (typeDocument true)
+            (typeDocument false)
+            holdsDefinitions
+            (root.Clone())
 
-    /// <summary>Reads a value file: its name, and a <c>DefinedValue</c> for <c>def</c> or a <c>SpecifiedValue</c>
-    /// for <c>spec</c>.</summary>
+    /// <summary>Reads a value file: its name, and a <c>DefinedValue</c> for <c>def</c> in a package definition or a
+    /// <c>SpecifiedValue</c> for <c>spec</c> in a package specification.</summary>
     let readValue
+        (holdsDefinitions: bool)
         (root: JsonElement)
         : Result<Name * ClassicValueDocument<JsonElement, JsonElement>, V4JsonError> =
         TreeFileCodec.readNode
             checkVersion
             (valueDocument true)
             (valueDocument false)
+            holdsDefinitions
             (root.Clone())

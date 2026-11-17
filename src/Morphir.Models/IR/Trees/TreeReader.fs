@@ -13,10 +13,10 @@ open Morphir.Json.V4
 type internal TreeFileReaders<'moduleDoc, 'typ, 'value> = {
     /// <summary>Reads a module file, of a package definition when the flag is set.</summary>
     Module: bool -> JsonElement -> Result<TreeModuleFile<'moduleDoc, 'typ, 'value>, V4JsonError>
-    /// <summary>Reads a type file: its name and its document.</summary>
-    Type: JsonElement -> Result<Name * 'typ, V4JsonError>
-    /// <summary>Reads a value file: its name and its document.</summary>
-    Value: JsonElement -> Result<Name * 'value, V4JsonError>
+    /// <summary>Reads a type file, of a package definition when the flag is set: its name and its document.</summary>
+    Type: bool -> JsonElement -> Result<Name * 'typ, V4JsonError>
+    /// <summary>Reads a value file, of a package definition when the flag is set: its name and its document.</summary>
+    Value: bool -> JsonElement -> Result<Name * 'value, V4JsonError>
     /// <summary>The names of a module document's types and of its values, in document order.</summary>
     Listed: 'moduleDoc -> Name list * Name list
 }
@@ -242,7 +242,7 @@ module internal TreeReader =
     /// The documents of a tree from its files other than the manifest, or every error found: files out of place, paths
     /// over the manifest's path budget, files that do not decode, a module file whose path is not its directory's, a
     /// node file whose stem does not spell its name, a document in two places, and a name that a module file lists
-    /// with no file. A package metadata file is ignored with a notice. Errors that several files share, such as a
+    /// with no file (<c>missing_member</c> at the missing file's path). A package metadata file is ignored with a notice. Errors that several files share, such as a
     /// versioned dependency directory, are given once.
     /// </summary>
     let private readDocuments
@@ -365,14 +365,22 @@ module internal TreeReader =
 
                 match kind with
                 | TypeNode ->
-                    readFile options.MaxFileBytes location file readers.Type
+                    readFile
+                        options.MaxFileBytes
+                        location
+                        file
+                        (readers.Type(holds (scope (Module modulePath))))
                     |> one
                     |> Result.bind (fun (nodeName, document) -> named nodeName (TypeDoc document))
                     |> Result.map (fun (nodeName, document) ->
                         scope (TypeDef(modulePath, nodeName)), location, document
                     )
                 | ValueNode ->
-                    readFile options.MaxFileBytes location file readers.Value
+                    readFile
+                        options.MaxFileBytes
+                        location
+                        file
+                        (readers.Value(holds (scope (Module modulePath))))
                     |> one
                     |> Result.bind (fun (nodeName, document) -> named nodeName (ValueDoc document))
                     |> Result.map (fun (nodeName, document) ->
@@ -463,9 +471,9 @@ module internal TreeReader =
                                 && not (present.Contains expected)
                             then
                                 error
-                                    "tree.missing_file"
-                                    (Some location)
-                                    $"The module file lists the {kind} '{CanonicalNames.nameToString listed}', and the tree has no file for it: {expected}."
+                                    "missing_member"
+                                    (Some expected)
+                                    $"The module file {location} lists the {kind} '{CanonicalNames.nameToString listed}', and the tree has no file for it."
                 ]
             )
 

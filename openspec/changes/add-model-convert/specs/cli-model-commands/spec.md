@@ -52,7 +52,7 @@ When the input is a directory holding a tree manifest, `morphir model verify` SH
 
 #### Scenario: A broken tree rule is an error
 - **WHEN** a tree's module file lists a value that has no file
-- **THEN** the command exits 1 with the `tree.missing_file` diagnostic naming the module file and the value
+- **THEN** the command exits 1 with the `missing_member` diagnostic at the missing file's path, naming the module file and the value
 
 #### Scenario: A schema version that contradicts the manifest
 - **WHEN** a user runs `morphir model verify --schema-version=3` on a v4 tree
