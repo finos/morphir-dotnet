@@ -121,7 +121,7 @@ Write the result as JSON instead of text, by the convention of [Machine output](
 | `Errors` | Each error; see below |
 | `exitCode` | The exit code of the run |
 | `layout` | `single-file` or `document-tree`; absent when the command line does not parse |
-| `filesChecked` | The number of files checked: 1 for a single file, each JSON or YAML file of a tree (a YAML file is counted, and the store refuses it), and 0 when none was read |
+| `filesChecked` | The number of files checked: 1 for a single file, each JSON or YAML file of a tree (a YAML file counts, and the store refuses it with `tree.unsupported_profile`), and 0 when none was read |
 | `compactedFiles` | The files that were compacted; empty for a plain model |
 
 Each error has `Path`, the JSON location of the error in its file as a JSON Pointer (`""` is the whole file, and

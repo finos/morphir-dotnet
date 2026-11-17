@@ -36,12 +36,41 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
     [Given("the section {string} of the documentation page {string}")]
     public void TheSectionOfTheDocumentationPage(string section, string page)
     {
-        var text = Page(page);
-        var start = text.IndexOf($"## {section}\n", StringComparison.Ordinal);
-        if (start < 0) throw new InvalidOperationException($"The page {page} has no section {section}.");
-        var end = text.IndexOf("\n## ", start + 1, StringComparison.Ordinal);
-        _section = end < 0 ? text[start..] : text[start..end];
+        _section = Section(Page(page), section) ?? throw new InvalidOperationException($"The page {page} has no section {section}.");
         _commands = Parse(_section);
+    }
+
+    /// <summary>
+    /// The section of a page whose heading line, at any level, is <paramref name="section"/>. It ends at the next
+    /// heading of the same or a higher level, so a deeper heading is part of it. A line in a fenced code block, such
+    /// as a <c>#</c> comment of a bash block, is no heading.
+    /// </summary>
+    private static string? Section(string text, string section)
+    {
+        var lines = text.Split('\n');
+        int? start = null;
+        var level = 0;
+        var fenced = false;
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            if (line.TrimStart().StartsWith("```", StringComparison.Ordinal)) fenced = !fenced;
+            if (fenced || !line.StartsWith('#')) continue;
+            var hashes = line.TakeWhile(character => character == '#').Count();
+            if (line.Length <= hashes || line[hashes] != ' ') continue;
+            if (start is null)
+            {
+                if (line[(hashes + 1)..] != section) continue;
+                start = index;
+                level = hashes;
+            }
+            else if (hashes <= level)
+            {
+                return string.Join('\n', lines[start.Value..index]);
+            }
+        }
+
+        return start is null ? null : string.Join('\n', lines[start.Value..]);
     }
 
     [Then("the page documents these commands")]

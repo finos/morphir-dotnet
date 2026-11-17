@@ -121,13 +121,12 @@ $ morphir validate --input model.json --json=document
 }
 ```
 
-Logs go to stderr only, so `morphir validate --input model.json --json=document | jq .exitCode` prints `0`.
-
 Give the mode only after `=`. A bare `--json` never takes the next argument, so `morphir model verify --json model.json`
 verifies `model.json`. A command without a positional argument refuses `--json document` with exit code 2 and
 suggests `--json=document`. A mode that is not `stream` or `document` fails with exit code 2 and names both. A parse
 or usage error in a JSON mode still ends with one `completed` record (or the one document) whose report states the
-error. Logs and human-readable diagnostics go to stderr in every mode, so stdout holds only the JSON. A consumer
+error. Logs and human-readable diagnostics go to stderr in every mode, so stdout holds only the JSON:
+`morphir validate --input model.json --json=document | jq .exitCode` prints `0` for the model above. A consumer
 ignores event types and members that it does not know. When a page names a member of a command's JSON output, it is
 a member of the report: of the document, and of the `report` of the `completed` record.
 
@@ -139,13 +138,19 @@ lines stay `morphir/command-event` (see [extension worker](./extension-worker/))
 
 ## Exit Codes
 
-All Morphir CLI commands use consistent exit codes:
+The commands share a general split of exit codes:
 
-- **0**: Success - the operation completed successfully
-- **1**: The input failed - a model that is not valid, a file that is missing or not JSON, a source error. An unknown command, such as `morphir ir`, also exits 1
-- **2**: A usage, configuration or setup error - a command line that does not parse, a bad option value
+- **0**: Success.
+- **1**: The command ran, and its input failed: a model that is not valid, or a source or model error.
+- **2**: A usage, configuration or I/O error: a command line that does not parse, a bad option value, or an input or
+  configuration that cannot be read.
+- **130**: The command was cancelled, in a command that supports cancellation (for example `compile`, `generate` and
+  `validate`).
 
-These exit codes are designed for CI/CD integration and scripting. Each command's page lists its own exit codes.
+The exact codes differ by command, so read each command's page for them. For example,
+[`model verify`](./model-verify/#exit-codes) reports a file that is missing or not JSON as a model that is not valid,
+with exit code 1, where `validate` gives 2 for an input that it cannot read, and a `config` key that is not found
+exits 1. An unknown command, such as `morphir ir`, exits 1.
 
 ## Configuration
 

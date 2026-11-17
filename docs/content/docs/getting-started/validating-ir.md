@@ -61,8 +61,8 @@ Error: unsupported-version: ...\bad-ir.json at $.formatVersion: Expected a class
 
 ## Check against the JSON schema
 
-`morphir model verify <file-or-tree>` checks a model against the JSON schema of IR formats 1 to 4, as a single file
-or a document tree. See the [model verify reference]({{< relref "/docs/cli/model-verify" >}}).
+`morphir model verify <file-or-tree>` checks a model against the JSON schema of IR formats 1 to 4, or a document
+tree. See the [model verify reference]({{< relref "/docs/cli/model-verify" >}}).
 
 ## Next steps
 

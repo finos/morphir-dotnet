@@ -212,7 +212,7 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
 - **`tree.missing_manifest`** (exit code 1): the directory has no `manifest.json` at its root. Give the root directory
   of the tree, the directory that holds `manifest.json`.
 - **`missing_member`** (exit code 1): a file of the tree lacks a required member, or a module file lists a type or a
-  value that has no file in the tree. The error names its file in `file`, the missing file for a listed name. Add the
+  value that has no file in the tree. `file` names the file that lacks the member, or the missing file of a listed name. Add the
   member, or write the missing file or remove the name from the module file.
 - **`verify.schema_version_conflict`** (exit code 2): `--schema-version` contradicts the version that the manifest
   states, or is not 3 or 4 on a directory with no readable manifest. Leave out `--schema-version`: a tree takes its
