@@ -75,6 +75,30 @@ public sealed class ModelConvertSteps : IAsyncDisposable
         Place(file);
     }
 
+    /// <summary>
+    /// The plain twin of the mother's deeply nested classic single file just past the depth of a plain single file
+    /// (2,060 tuple types, about 4,140 levels).
+    /// </summary>
+    [Given("a plain v3 single-file model nested just past the depth limit")]
+    public void ADeeplyNestedPlainSingleFile()
+    {
+        var file = Workspace.File("models", "deep.json");
+        Workspace.WriteText(file, Morphir.Models.TestSupport.NamePositionMother.deeplyNestedCompactedFile(2060).Item2);
+        Place(file);
+    }
+
+    /// <summary>
+    /// The mother's compacted classic single file nested deeper than a read of a tree accepts (512 levels) and less
+    /// deeply than the writers go (1,000): 300 tuple types, about 620 levels.
+    /// </summary>
+    [Given("a compacted v3 single-file model nested deeper than a tree reads")]
+    public void ACompactedSingleFileDeeperThanATreeReads()
+    {
+        var file = Workspace.File("models", "deep.json");
+        Workspace.WriteBytes(file, Morphir.Models.TestSupport.NamePositionMother.deeplyNestedCompactedFile(300).Item1);
+        Place(file);
+    }
+
     /// <summary>The parent's type file whose envelope schema URL no version of morphir declares, as a single file.</summary>
     [Given("a single-file model in an envelope whose schema this version does not declare")]
     public void SingleFileInAnUndeclaredEnvelope() => PlaceFile(FixtureCatalog.Context.Example("undeclared-schema").File);
@@ -389,9 +413,15 @@ public sealed class ModelConvertSteps : IAsyncDisposable
 
     private static void IsPlain(string file)
     {
-        using var document = JsonDocument.Parse(File.ReadAllBytes(file));
+        using var document = JsonDocument.Parse(File.ReadAllBytes(file), new JsonDocumentOptions { MaxDepth = 4096 });
         document.RootElement.TryGetProperty("$schema", out _).Should().BeFalse($"{file} is written plain");
     }
+
+    /// <summary>The diagnostic with the code is at the output, or at a file below it.</summary>
+    [Then("the diagnostic {string} is at the output")]
+    public void TheDiagnosticIsAtTheOutput(string code) =>
+        Report.Diagnostics.Should().Contain(diagnostic => diagnostic.Code == code && diagnostic.Location != null
+            && (diagnostic.Location == Output.Path || diagnostic.Location.StartsWith(ModelConvertPathsInTest.Join(Output.Path, ""), StringComparison.Ordinal)));
 
     [Then("the report states no input encoding")]
     public void TheReportStatesNoInputEncoding() => Report.InputEncoding.Should().BeNull();

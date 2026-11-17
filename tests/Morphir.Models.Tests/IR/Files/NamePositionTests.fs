@@ -269,6 +269,54 @@ let tests =
             }
         ]
 
+        testList "A model deeper than its writer goes is refused when it is written" [
+            // The plain twin of a deeply nested classic file, read on a stack that holds it. The classic attributes
+            // stay JSON elements of the document, so the document is not disposed.
+            let readModel tuples =
+                let _, text = Mother.deeplyNestedCompactedFile tuples
+
+                onStack (64 * 1024 * 1024) (fun () ->
+                    let document = JsonDocument.Parse(text, JsonDocumentOptions(MaxDepth = 4096))
+                    let mutable model = Unchecked.defaultof<StoredModel>
+                    let mutable problems = Unchecked.defaultof<Collections.Generic.IReadOnlyList<ConversionProblem>>
+
+                    if StoredModel.TryReadSingleFile(document.RootElement, &model, &problems) then
+                        model
+                    else
+                        failtestf "The deep model did not read: %A" (List.ofSeq problems))
+
+            let codesOf (problems: Collections.Generic.IReadOnlyList<ConversionProblem>) = [ for p in problems -> p.Code ]
+
+            test "A single file deeper than the classic writer goes is depth_limit_exceeded" {
+                let model = readModel 2000
+                let mutable bytes = Unchecked.defaultof<byte array>
+                let mutable problems = Unchecked.defaultof<Collections.Generic.IReadOnlyList<ConversionProblem>>
+
+                Expect.isFalse (model.TryWriteSingleFile(false, &bytes, &problems)) "the write is refused"
+                Expect.equal (codesOf problems) [ "depth_limit_exceeded" ] "a refusal, not an exception"
+            }
+
+            test "A tree file deeper than a read of a tree accepts is refused when it is written" {
+                let model = readModel 300
+                let mutable converted = Unchecked.defaultof<StoredModel>
+                let mutable problems = Unchecked.defaultof<Collections.Generic.IReadOnlyList<ConversionProblem>>
+                Expect.isTrue (model.TryConvert(ModelLayout.DocumentTree, &converted, &problems)) "the model splits"
+
+                match DocumentTreeStore.write WriteOptions.defaults converted.Tree with
+                | Ok _ -> failtest "The tree has a file that a read of a tree does not accept."
+                | Error errors ->
+                    match errors with
+                    | [ e ] ->
+                        Expect.equal e.Code "depth_limit_exceeded" "the named diagnostic"
+                        Expect.isTrue (e.File |> Option.exists (fun file -> file.EndsWith(".type.json", StringComparison.Ordinal))) "it names the type file"
+                    | other -> failtestf "Expected one error, got %A" other
+
+                // The same model is written as a single file: the classic writer goes deeper than a tree reads.
+                let mutable bytes = Unchecked.defaultof<byte array>
+                Expect.isTrue (model.TryWriteSingleFile(false, &bytes, &problems)) "the single file is written"
+            }
+        ]
+
         test "Context bytes count toward the file size limit" {
             let files = MorphirFileMother.tree 4 MorphirFileMother.ValueFileOnly
             let location = "pkg/my-org/billing/invoicing/line-total.value.json"

@@ -177,9 +177,10 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         {
             // A file in an envelope is refused by the reader of Morphir files, which tells a file nested too deeply
             // (depth_limit_exceeded) from one that is not JSON.
-            return EnvelopeOfText(content) is { } envelope
-                ? ReadCompactedSingleFile(source, bytes, envelope)
-                : ModelRead.Refused(null, ConvertDiagnostic.Failure("invalid_json", error.Message, source.Given));
+            if (EnvelopeOfText(content) is { } envelope) return ReadCompactedSingleFile(source, bytes, envelope);
+            return ModelRead.Refused(null, IsJsonAtAnyDepth(content.Span)
+                ? ConvertDiagnostic.Failure(DepthLimitExceeded, $"The file is nested more than {MaxDepth} levels deep.", source.Given)
+                : ConvertDiagnostic.Failure("invalid_json", error.Message, source.Given));
         }
 
         using (document)
@@ -206,6 +207,29 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         return expanded.IsOk
             ? ReadPlainSingleFile(source, expanded.ResultValue, encoding)
             : ModelRead.Refused(encoding, [.. expanded.ErrorValue.Select(error => ConvertDiagnostic.Failure(error.Code, error.Message, source.Given))]);
+    }
+
+    /// <summary>The code of a file nested more deeply than a reader reads or a writer writes.</summary>
+    private const string DepthLimitExceeded = "depth_limit_exceeded";
+
+    /// <summary>
+    /// Whether <paramref name="content"/> is JSON once no limit of depth applies: after a parse with a limit failed,
+    /// it failed on the depth. A reader keeps no stack per level.
+    /// </summary>
+    private static bool IsJsonAtAnyDepth(ReadOnlySpan<byte> content)
+    {
+        try
+        {
+            var reader = new Utf8JsonReader(content, new JsonReaderOptions { MaxDepth = int.MaxValue });
+            while (reader.Read())
+            {
+            }
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     /// <summary>The top-level <c>$schema</c> of JSON text that does not parse whole, if its start shows one.</summary>

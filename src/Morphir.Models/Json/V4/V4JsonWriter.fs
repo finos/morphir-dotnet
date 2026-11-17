@@ -1629,24 +1629,29 @@ module V4JsonWriter =
                 (at "$" "formatVersion")
                 $"The v4 writer does not write format version {Versioning.version other}."
 
+    /// <summary>The deepest nesting of JSON that the writer writes: the default of System.Text.Json.</summary>
+    [<Literal>]
+    let MaxWriteDepth = 1000
+
     let private run
         (indented: bool)
         (write: Utf8JsonWriter -> unit)
         : Result<byte array, V4WriteError> =
         let buffer = ArrayBufferWriter<byte>()
 
-        try
-            use json =
-                new Utf8JsonWriter(
-                    buffer,
-                    JsonWriterOptions(
-                        Indented = indented,
-                        IndentSize = 2,
-                        NewLine = "\n",
-                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                    )
+        use json =
+            new Utf8JsonWriter(
+                buffer,
+                JsonWriterOptions(
+                    Indented = indented,
+                    IndentSize = 2,
+                    NewLine = "\n",
+                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                    MaxDepth = MaxWriteDepth
                 )
+            )
 
+        try
             write json
             json.Flush()
             Ok(buffer.WrittenSpan.ToArray())
@@ -1659,7 +1664,8 @@ module V4JsonWriter =
                     Location = "$"
                     Message = "The model is nested too deeply to write."
                 }
-        | :? InvalidOperationException as failure ->
+        // The writer's own refusal of a nesting deeper than it goes; any other InvalidOperationException is a bug.
+        | :? InvalidOperationException as failure when json.CurrentDepth >= MaxWriteDepth ->
             Error
                 {
                     Rule = "depth_limit_exceeded"

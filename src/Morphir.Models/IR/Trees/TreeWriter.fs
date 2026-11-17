@@ -4,6 +4,8 @@ namespace Morphir.IR.Trees
 open Morphir.Compat
 #endif
 
+open System
+open System.Text.Json
 open Morphir.IR
 open Morphir.Json.V4
 
@@ -36,8 +38,29 @@ module internal TreeWriter =
     let locations: Morphir.Files.Property<Map<DocumentAddress, string>> =
         Morphir.Files.Property.create "morphir.document-tree.locations"
 
+    /// Whether written bytes are within the nesting that a read of a tree accepts (<c>V4JsonDecoding.MaxDepth</c>), so
+    /// a store never writes a file that it cannot read back. A reader keeps no stack per level.
+    let private readable (bytes: byte array) =
+        try
+            let mutable reader =
+                Utf8JsonReader(ReadOnlySpan<byte>(bytes), JsonReaderOptions(MaxDepth = V4JsonDecoding.MaxDepth))
+
+            while reader.Read() do
+                ()
+
+            true
+        with :? JsonException ->
+            false
+
     let private encoded path (written: Result<byte array, V4WriteError>) =
         match written with
+        | Ok bytes when not (readable bytes) ->
+            Error(
+                error
+                    "depth_limit_exceeded"
+                    (Some path)
+                    $"The file would be nested more than {V4JsonDecoding.MaxDepth} levels deep, which a read of a tree does not accept."
+            )
         | Ok bytes -> Ok(path, TreeFileCodec.toText bytes)
         | Error e -> Error(error e.Rule (Some path) $"{e.Location}: {e.Message}")
 

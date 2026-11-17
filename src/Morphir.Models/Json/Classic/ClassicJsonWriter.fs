@@ -833,11 +833,16 @@ module ClassicJsonWriter =
                     $"A {kind} distribution is not written at format version {ClassicWireProfile.label profile}: {supportedSet ()}."
             }
 
+    /// <summary>The deepest nesting of JSON that the writer writes: the default of System.Text.Json.</summary>
+    [<Literal>]
+    let MaxWriteDepth = 1000
+
     /// <summary>
     /// Writes a distribution with <paramref name="profile"/>: a <c>Library</c> with a Library profile (1, 2, 3), a
     /// <c>Specs</c> with a Specs profile (3.1.0). Members and lists are written in a fixed order, so equal models
     /// give equal bytes. A distribution of the other kind is refused with <c>unsupported-distribution</c>, naming
-    /// the requested version and the supported set, and a non-finite float literal is refused.
+    /// the requested version and the supported set, and a non-finite float literal is refused. A model nested deeper
+    /// than <see cref="MaxWriteDepth"/> JSON levels is refused with <c>depth_limit_exceeded</c>.
     /// </summary>
     let write
         (profile: ClassicWireProfile)
@@ -849,13 +854,13 @@ module ClassicJsonWriter =
         let document (tag: string) package dependencies (writeContents: Writer<'ta, 'va> -> unit) =
             let buffer = ArrayBufferWriter<byte>()
 
-            try
-                use json =
-                    new Utf8JsonWriter(
-                        buffer,
-                        JsonWriterOptions(Indented = indented, IndentSize = 2)
-                    )
+            use json =
+                new Utf8JsonWriter(
+                    buffer,
+                    JsonWriterOptions(Indented = indented, IndentSize = 2, MaxDepth = MaxWriteDepth)
+                )
 
+            try
                 let w = {
                     Profile = profile
                     Json = json
@@ -883,8 +888,22 @@ module ClassicJsonWriter =
                 json.WriteEndObject()
                 json.Flush()
                 Ok(buffer.WrittenSpan.ToArray())
-            with ClassicWriteFailure error ->
-                Error error
+            with
+            | ClassicWriteFailure error -> Error error
+            // A model nested deeper than the writer goes: the writer's own refusal, or a stack that cannot hold the
+            // recursion. Any other InvalidOperationException is a bug, and is not caught.
+            | :? InvalidOperationException as failure when json.CurrentDepth >= MaxWriteDepth ->
+                Error {
+                    Rule = "depth_limit_exceeded"
+                    Location = "$"
+                    Message = $"The model is nested more than {MaxWriteDepth} levels deep, which the classic writer does not write: {failure.Message}"
+                }
+            | :? InsufficientExecutionStackException ->
+                Error {
+                    Rule = "depth_limit_exceeded"
+                    Location = "$"
+                    Message = "The model is nested too deeply to write."
+                }
 
         match distribution, profile.Distribution with
         | Library(package, dependencies, definition), ClassicProfileDistribution.Library tag ->
