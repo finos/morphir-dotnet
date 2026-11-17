@@ -1,0 +1,142 @@
+using System.CommandLine;
+using System.CommandLine.Parsing;
+
+namespace Morphir.Tooling.Cli;
+
+/// <summary>
+/// Option values only with an equals sign (adopt-streaming-json, decision JSON-3). An option with an optional value,
+/// such as <c>--json[=stream|document]</c>, would take the next argument as its value in System.CommandLine, so
+/// <c>--json model.json</c> would lose the command's input. The CLI instead rewrites a bare flag to
+/// <c>--flag=&lt;default&gt;</c> before parsing; the option then always carries its value inline.
+/// </summary>
+/// <remarks>
+/// <para>The rewrite runs after response-file expansion and never after <c>--</c>. System.CommandLine expands
+/// response files inside its tokenizer, after which no step sees the arguments, so <see cref="Parse"/> expands them
+/// first with the configuration's own <see cref="ParserConfiguration.ResponseFileTokenReplacer"/>, in the
+/// tokenizer's order: in place, nested, and not after <c>--</c>. A response file that cannot be read is left as its
+/// <c>@</c> argument, and the parser reports it as before.</para>
+/// <para>The rewrite is opt-in per command: <see cref="Parse"/> rewrites only the flags of options made by
+/// <see cref="CreateOption"/> (as <see cref="JsonOutputOption.Create"/> is) on the command that the arguments
+/// name, so a command with a boolean <c>--json</c> keeps its meaning.</para>
+/// </remarks>
+public static class OptionValueRewrite
+{
+    private const string DoubleDash = "--";
+
+    /// <summary>
+    /// Rewrites each argument that is exactly a flag of <paramref name="bareDefaults"/> to
+    /// <c>flag=&lt;default&gt;</c>, up to the first <c>--</c>. Response files must already be expanded.
+    /// </summary>
+    /// <param name="args">The arguments, after response-file expansion.</param>
+    /// <param name="bareDefaults">Each flag with the value that a bare flag means, for example
+    /// <c>{"--json": "stream"}</c>.</param>
+    public static string[] Apply(string[] args, IReadOnlyDictionary<string, string> bareDefaults)
+    {
+        if (bareDefaults.Count == 0) return args;
+        var rewritten = new string[args.Length];
+        var afterDoubleDash = false;
+        for (var i = 0; i < args.Length; i++)
+        {
+            var arg = args[i];
+            afterDoubleDash |= arg == DoubleDash;
+            rewritten[i] = !afterDoubleDash && bareDefaults.TryGetValue(arg, out var value) ? $"{arg}={value}" : arg;
+        }
+        return rewritten;
+    }
+
+    /// <summary>
+    /// The hint for an unrecognized argument that names one of <paramref name="modes"/>, as when a user writes
+    /// <c>--json document</c> on a command without positional arguments: <c>--json=document</c>. Null for any
+    /// other argument.
+    /// </summary>
+    public static string? HintFor(string unrecognizedToken, string flag, IReadOnlyCollection<string> modes) =>
+        modes.Contains(unrecognizedToken, StringComparer.Ordinal) ? $"{flag}={unrecognizedToken}" : null;
+
+    /// <summary>
+    /// A new option with an optional value from <paramref name="values"/>, given only as
+    /// <c>name=&lt;value&gt;</c>; a bare flag means <paramref name="bareDefault"/>.
+    /// </summary>
+    public static Option<string> CreateOption(string name, string bareDefault, IReadOnlyList<string> values, string description)
+    {
+        var option = new OptionalValueOption(name, bareDefault)
+        {
+            Arity = ArgumentArity.ZeroOrOne,
+            Description = description,
+        };
+        option.AcceptOnlyFromAmong([.. values]);
+        return option;
+    }
+
+    /// <summary>
+    /// Parses <paramref name="args"/> with <paramref name="root"/>: expands response files, rewrites the bare flags
+    /// of the command that the arguments name, then parses. The entry point of every host parses through this.
+    /// </summary>
+    public static ParseResult Parse(Command root, IReadOnlyList<string> args, ParserConfiguration? configuration = null)
+    {
+        configuration ??= new ParserConfiguration();
+        var expanded = ExpandResponseFiles(args, configuration.ResponseFileTokenReplacer);
+        // The first parse finds the command. An optional value never consumes a subcommand's name, because these
+        // options are on the command they belong to, so the command it finds is the one that the rewrite targets.
+        var first = root.Parse(expanded, configuration);
+        var bareDefaults = BareDefaultsOf(first.CommandResult);
+        if (bareDefaults.Count == 0) return first;
+        var rewritten = Apply(expanded, bareDefaults);
+        return rewritten.SequenceEqual(expanded) ? first : root.Parse(rewritten, configuration);
+    }
+
+    /// <summary>Whether <paramref name="option"/> was made by <see cref="CreateOption"/>.</summary>
+    internal static bool HasBareDefault(Option option) => option is OptionalValueOption;
+
+    /// <summary>
+    /// The bare defaults of the parsed command: its own options made by <see cref="CreateOption"/> and the
+    /// recursive ones of its ancestors, each by its name and aliases.
+    /// </summary>
+    private static Dictionary<string, string> BareDefaultsOf(CommandResult command)
+    {
+        var defaults = new Dictionary<string, string>(StringComparer.Ordinal);
+        var own = true;
+        for (SymbolResult? symbol = command; symbol is not null; symbol = symbol.Parent)
+        {
+            if (symbol is not CommandResult result) continue;
+            foreach (var option in result.Command.Options)
+            {
+                if (option is not OptionalValueOption optional || !(own || option.Recursive)) continue;
+                defaults.TryAdd(option.Name, optional.BareDefault);
+                foreach (var alias in option.Aliases) defaults.TryAdd(alias, optional.BareDefault);
+            }
+            own = false;
+        }
+        return defaults;
+    }
+
+    /// <summary>
+    /// Expands response files as System.CommandLine's tokenizer does: each <c>@name</c> argument before <c>--</c> is
+    /// replaced in place by the tokens of its file, which are expanded in turn. An argument whose file cannot be read
+    /// is kept, for the parser to report.
+    /// </summary>
+    private static string[] ExpandResponseFiles(IReadOnlyList<string> args, TryReplaceToken? replacer)
+    {
+        if (replacer is null) return [.. args];
+        var expanded = new List<string>(args.Count);
+        var pending = new Stack<string>(args.Reverse());
+        var afterDoubleDash = false;
+        while (pending.TryPop(out var arg))
+        {
+            afterDoubleDash |= arg == DoubleDash;
+            if (!afterDoubleDash && arg.Length > 1 && arg[0] == '@'
+                && replacer(arg[1..], out var replacement, out _) && replacement is not null)
+            {
+                for (var i = replacement.Count - 1; i >= 0; i--) pending.Push(replacement[i]);
+                continue;
+            }
+            expanded.Add(arg);
+        }
+        return [.. expanded];
+    }
+
+    /// <summary>An option whose bare flag <see cref="Parse"/> rewrites to <c>name=<see cref="BareDefault"/></c>.</summary>
+    private sealed class OptionalValueOption(string name, string bareDefault) : Option<string>(name)
+    {
+        public string BareDefault { get; } = bareDefault;
+    }
+}

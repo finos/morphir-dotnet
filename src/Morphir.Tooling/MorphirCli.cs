@@ -281,7 +281,7 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
         await _host.StartAsync(cancellationToken);
         try
         {
-            var result = _rootCommand.Parse(_args);
+            var result = Cli.OptionValueRewrite.Parse(_rootCommand, _args);
             return result.Errors.Count > 0 && result.CommandResult.Command is IMorphirParseErrorHandler handler
                 ? handler.HandleParseErrors(result)
                 : await result.InvokeAsync(cancellationToken: cancellationToken);
@@ -301,7 +301,7 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
         _host.Start();
         try
         {
-            return Invoke(_rootCommand.Parse(_args));
+            return Invoke(Cli.OptionValueRewrite.Parse(_rootCommand, _args));
         }
         finally
         {
