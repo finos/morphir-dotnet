@@ -662,7 +662,10 @@
         }
       },
       "morphir.testsupport": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "YamlDotNet": "[16.3.0, )"
+        }
       },
       "morphir.toolchain": {
         "type": "Project",

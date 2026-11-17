@@ -10,6 +10,17 @@
     <RootNamespace>Morphir.TestSupport</RootNamespace>
   </PropertyGroup>
 
+  <!-- The kit's YAML spellings, translated to JSON by FixtureCatalog. Tests only: the product reads JSON. -->
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+
+  <!-- The files that FixtureCatalog owns, embedded under their path below tests/Fixtures; see Fixtures/FixtureCatalog.cs. -->
+  <ItemGroup>
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/kit/*.feature" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/kit/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIR/*.json;../Fixtures/MorphirIR/*.txt" LogicalName="Morphir.TestSupport.Fixtures/MorphirIR/%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- The child process of ChildProcess tests and of ConsoleInterrupt: see ProcessHelper. -->
   <Import Project="build/Morphir.ProcessHelper.targets" />
 

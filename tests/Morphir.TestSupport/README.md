@@ -194,6 +194,23 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 
 Add an interface in the change that has its first two scenarios, not before.
 
+## The fixture catalog
+
+`FixtureCatalog` (namespace `Morphir.TestSupport.Fixtures`) is the one owner of the files below `tests/Fixtures`
+that tests reach by intent. Each `FixtureEntry` has its intent, its path below `tests/Fixtures`, its SHA-256 and the
+`PROVENANCE.md` that has its row. The files are embedded in this assembly, so a test reads them with
+`FixtureCatalog.ReadBytes` or `FixtureCatalog.ReadText` without knowing where the repository is.
+
+- `FixtureCatalog.Kit` holds the pinned kit files of finos/morphir (`tests/Fixtures/MorphirTrees/PROVENANCE.md`) as
+  reference data. `FixtureCatalog.Kit.DocumentTree` gives each tree case as a `KitTreeCase`: its id, its title, its
+  tree files as JSON, its canonical single file and its diagnostic. `KitTreeCaseReader` reads them and raises on a
+  step form it does not know; `YamlToJson` translates the kit's YAML spellings and refuses what the kit's YAML
+  profile forbids.
+- `FixtureCatalog.Models` holds the IR fixtures of `tests/Fixtures/MorphirIR` by intent, for example `V3Library`.
+- `FixtureCatalog.ExistingOwners` lists, as a `FixtureOwner` each, the folders that test projects owned before the
+  catalog. `FixtureCatalog.UnownedFiles` gives the files that have no owner, and
+  `tests/Morphir.Build.Tests/Helpers/FixtureOwnershipTests.cs` fails on each.
+
 ## A test outside the black-box project
 
 A conformance test judges the output of an executable with the kit library in the test process, so it stays in a

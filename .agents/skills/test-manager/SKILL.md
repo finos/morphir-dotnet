@@ -59,6 +59,19 @@ More rules for each test:
 - A test starts no PowerShell. For a child process that only has to read, write or wait, use the `ProcessHelper` of `tests/Morphir.TestSupport`, not a shell. A PowerShell script of the build or of CI is tested in PowerShell, with Pester. The exception is a delivered install script (`scripts/install-morphirup.ps1`): users run it in PowerShell, and the end-to-end scenarios of `InstallScriptDriver` run it and `install-morphirup.sh` with the same steps. `TestShellRulesTests` in `tests/Morphir.Build.Tests/Helpers` checks this. **Partial:** it finds the program names `powershell` and `pwsh` in a string literal, not a name inside a longer command string, and it allows each named file as a whole: `build/Build.Testing.cs` (runs Pester) and the install-script driver with its unit tests.
 - A new test project is in `Morphir.slnx` and in `TestPlan.Suites`. A group of the black-box project is in `TestPlan.Suites` from the change that adds its first test with no lane.
 
+## Test data: object mothers and the fixture catalog
+
+A test never builds a model, a tree or a file by hand, and never reads a fixture path itself. Two patterns give it its data:
+
+- **Object mothers** are the only source of models, trees and files. Each case has a name for what it represents, and is built on a test-data builder. `DistributionMother` (F#, `tests/Morphir.Models.TestSupport`) has cases such as `v4LibraryWithOneModule`, `v4LibraryWithDependency` and `v3Library`, on the builder of `tests/Morphir.Models.TestSupport/DistributionBuilder.fs` (`aV4Library |> withModule … |> withDependency …`). The FsCheck generators beside it use the same builder. Before you write a model, find the case in the mother. When none fits, add a named case to the mother, or use the builder for the one variation that a test needs. Do not add a JSON file for it.
+- **The fixture catalog** is the one owner of files on disk. `FixtureCatalog` (C#, `tests/Morphir.TestSupport`) serves each file by intent: the pinned kit cases as reference data (`FixtureCatalog.Kit`, whose `DocumentTree` gives each tree case's files, canonical single file and diagnostic) and the repository's IR fixtures (`FixtureCatalog.Models`, for example `V3Library`). Each file has exactly one owner and a row with its SHA-256 in the `PROVENANCE.md` of its folder. A new file below `tests/Fixtures` gets an entry in the catalog and its row in the same change. `FixtureOwnershipTests` in `tests/Morphir.Build.Tests/Helpers` fails on a file with no owner and names it. `FixtureCatalog.ExistingOwners` lists the folders that test projects owned before the catalog; do not add a folder to it.
+
+Rules for the data of a test:
+
+- A feature file names a case by intent, never by a path or inline JSON: `Given a v3 Library model with a dependency`. Its step maps the phrase to a mother case, and a black-box step writes the case into the workspace of the scenario.
+- Exact bytes appear in a test only where a contract defines them (the kit, or a policy of the parent repository finos/morphir), and then the test reads them from `FixtureCatalog`. It does not paste them.
+- The kit is reference data. A test reads its cases through `FixtureCatalog.Kit`; it does not run the kit or use its step grammar.
+
 ## Black-box tests
 
 Rules for `tests/Morphir.BlackBox.Tests` (the reasons are in `tests/Morphir.BlackBox.Tests/README.md`):
@@ -110,3 +123,4 @@ Check a diff against these rules. Report each finding as `path:line: rule N: pro
 | R10 | A test that needs a product assembly and an artifact is split. | None: a reviewer must check it. |
 | R11 | A unit test that uses the operating system has the `PlatformSpecific` marker. A black-box test has no marker. | None for the unit test. |
 | R12 | When the rules of this skill change, `docs/contributing/ci-os-matrix.md` and `tests/Morphir.BlackBox.Tests/README.md` change in the same change. | None: a reviewer must check it. |
+| R13 | A test gets its models, trees and files from an object mother case and files on disk only from `FixtureCatalog`. A feature file names a case by intent, with no path and no inline JSON. A new file below `tests/Fixtures` has a catalog entry and a provenance row. | For a file with no owner: `FixtureOwnershipTests` in `tests/Morphir.Build.Tests/Helpers`. None for the phrases of a feature file: a reviewer must check them. |

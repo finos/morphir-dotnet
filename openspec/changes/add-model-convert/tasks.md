@@ -19,9 +19,9 @@ All work is on `feat/model-convert`. Milestones end with a commit that builds an
 ## 3. Test structure foundation (milestone 1)
 
 - [x] 3.1 Create the F# `tests/Morphir.Models.TestSupport` library with `DistributionMother` (named cases and a test-data builder) and the FsCheck generators that share the builder; verify an Expecto test builds every named case and a generated case.
-- [ ] 3.2 Add `FixtureCatalog` to `tests/Morphir.TestSupport`, owning every file it serves with a provenance entry and hash; pin the kit's tree cases (`document-tree.feature` and the tree cases of `distributions.feature` and `versions.feature`) from one finos/morphir commit as reference data with `PROVENANCE.md`, and translate YAML spellings to JSON with a test-only parser; verify hash checks pass and a YAML case and its JSON twin (`document-tree-0006`) load equal.
-- [ ] 3.3 Add the guard test that fails on any file under `tests/Fixtures` without a `FixtureCatalog` owner, and verify it fails on a planted unowned file (scenario "An unowned fixture fails a guard test").
-- [ ] 3.4 Update the `test-manager` skill and AGENTS.md with the object-mother and fixture-catalog pattern and the `model verify` example, and verify the skill review scenarios of `test-authoring-guidance` ("The skill gives the pattern", "A feature file names a case by intent", "A test that starts the CLI for one capability").
+- [x] 3.2 Add `FixtureCatalog` to `tests/Morphir.TestSupport`, owning every file it serves with a provenance entry and hash; pin the kit's tree cases (`document-tree.feature` and the tree cases of `distributions.feature` and `versions.feature`) from one finos/morphir commit as reference data with `PROVENANCE.md`, and translate YAML spellings to JSON with a test-only parser; verify hash checks pass and a YAML case and its JSON twin (`document-tree-0006`) load equal.
+- [x] 3.3 Add the guard test that fails on any file under `tests/Fixtures` without a `FixtureCatalog` owner, and verify it fails on a planted unowned file (scenario "An unowned fixture fails a guard test").
+- [x] 3.4 Update the `test-manager` skill and AGENTS.md with the object-mother and fixture-catalog pattern and the `model verify` example, and verify the skill review scenarios of `test-authoring-guidance` ("The skill gives the pattern", "A feature file names a case by intent", "A test that starts the CLI for one capability").
 
 ## 4. Document trees in the model layer (milestone 1)
 
@@ -148,7 +148,7 @@ Every scenario of this change and the test that proves it. Unchanged scenarios o
 | test-driver-contract | A target without the capability skips the test | `tests/Morphir.TestSupport.Tests/Drivers` (6.2) |
 | test-authoring-guidance | A test that starts the CLI for one capability | skill review check (3.4) |
 | test-authoring-guidance | A feature file names a case by intent | skill review check (3.4) |
-| test-authoring-guidance | An unowned fixture fails a guard test | fixture guard test (3.3) |
+| test-authoring-guidance | An unowned fixture fails a guard test | `FixtureOwnershipTests.AnUnownedFixtureFailsAGuardTest` (3.3) |
 | test-authoring-guidance | The skill gives the pattern | skill review check (3.4) |
 | test-authoring-guidance | the other scenarios of "The skill classifies a test in a fixed order" | existing, unchanged |
 

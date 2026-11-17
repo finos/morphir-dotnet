@@ -319,6 +319,20 @@ Where a test goes
 - The guard tests in `tests/Morphir.Build.Tests/Helpers/BlackBoxRulesTests.cs` check the rules of the black-box
   project that a program can check.
 
+Where test data comes from
+- Models, trees and files come from object mothers: named cases on a test-data builder, such as
+  `DistributionMother.v3Library` in `tests/Morphir.Models.TestSupport`. Use an existing case, or add a named case to
+  the mother; do not add a JSON file for a model.
+- Files on disk come only through `FixtureCatalog` in `tests/Morphir.TestSupport`, by intent
+  (`FixtureCatalog.Kit.DocumentTree`, `FixtureCatalog.Models.V3Library`). Each file has one owner and a row with its
+  SHA-256 in the `PROVENANCE.md` of its folder. `FixtureOwnershipTests` in `tests/Morphir.Build.Tests/Helpers`
+  fails on a file below `tests/Fixtures` with no owner.
+- A feature file names a case by intent (`Given a v3 Library model with a dependency`), never a path or inline JSON.
+  Exact bytes appear only where a contract (the kit, a policy of finos/morphir) defines them, read from the catalog.
+- Example: a new test that starts the CLI to check `morphir model verify` on a model file is an integration test in
+  `tests/Morphir.BlackBox.Tests/Integration/`. Its scenario names the model by intent, and its step gets the model
+  from a mother case or the catalog.
+
 Unit testing (TUnit)
 - Place unit tests in tests/csharp.unit or equivalent.
 - Cover smart constructors, ADT exhaustiveness, and edge cases.

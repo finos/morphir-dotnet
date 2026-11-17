@@ -34,7 +34,7 @@ A black-box test reaches the product only through a built artifact. Ask: does th
 
 | Test | Answer | Why |
 | --- | --- | --- |
-| Starts `morphir ir verify` and reads the exit code and the output | Black-box | Only the command line |
+| Starts `morphir model verify` on a model file and reads the exit code and the output | Black-box: an integration test in `tests/Morphir.BlackBox.Tests` | Only the command line |
 | Calls `CSharpGenerator.Generate` and compares the result | Unit | A product type in the test process |
 | Compiles F# in memory with the frontend library | Unit | A product type in the test process, also when it is slow |
 | Reads a fixture file and parses it with a product parser | Unit | A fixture is not an artifact of the build |
@@ -58,7 +58,7 @@ Hard cases:
 - **A command that runs two times** is one capability, so it is integration. Example: generate, change the model, generate again.
 - **A journey on a published executable** is a journey. The target is where the test runs. It does not change the class. A journey with no lane runs on the development build in a pull request and on each published target in the release and manual workflows. If the journey cannot run on the development build, it gets the lane `@lane @published`, also when the published executable is the Native AOT executable.
 - **`--help` of one command** is smoke if it proves only that the artifact starts. A check of the options that the help text shows is integration.
-- **One command on one input.** `ir verify` on one model, with a check of the exit code and the text, checks the capability. It is integration, not smoke.
+- **One command on one input.** `model verify` on one model, with a check of the exit code and the text, checks the capability. It is integration, not smoke.
 - **Three different commands for one goal** are three capabilities, so the test is a journey.
 - **A shipped library that the CLI does not reach** gets a small host program below `tests/` that calls the library and exits with 0 when its checks hold. The checks of the test are in the black-box project: a run of the host is smoke (`Smoke/LibraryHosts.feature`), and its Native AOT publish is smoke with `@lane @native-aot` (`Smoke/NativeAot.feature`). When the CLI reaches the library for the behavior, test it through the CLI and add no host.
 - **An end-to-end test on the development build.** A property that the delivered form must have can be a check of the build output (for example the runtime configuration file of an executable). It is end-to-end with no lane, and a pull request runs it on each operating system.

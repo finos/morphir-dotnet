@@ -40,6 +40,15 @@ group on its class (`[Category("smoke")]`), and gets its drivers from the base c
 A test that needs a product assembly in the test process is not a black-box test. It stays in the test project of
 its library. A test that needs both an artifact and a product assembly is two tests.
 
+## Test data
+
+A scenario names its model, tree or file by intent (`Given a v3 Library model with a dependency`), never by a path
+or inline JSON. Its step gets the case from an object mother, or from `FixtureCatalog` of `tests/Morphir.TestSupport`
+when the exact bytes come from a contract (the pinned kit cases, `FixtureCatalog.Kit`), and writes it into the
+workspace. Each file below `tests/Fixtures` has one owner in the catalog and a provenance row;
+`FixtureOwnershipTests` in `tests/Morphir.Build.Tests/Helpers` fails on a file with no owner. The fixtures that this
+project links today (`Fixtures/Models/`) keep working; a new one comes through the catalog.
+
 ## Tags
 
 | Tag | Meaning |

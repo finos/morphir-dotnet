@@ -84,3 +84,11 @@ build/notices/native/*.txt text eol=lf
 # Their bytes must equal the release notices' copies in build/notices: LF on every checkout.
 src/Morphir.Extensions.Wasm/Kernel/LICENSE text eol=lf
 src/Morphir.Extensions.Wasm/Kernel/NOTICE text eol=lf
+# Document-tree kit data from finos/morphir, checked by SHA-256 (tests/Fixtures/MorphirTrees/PROVENANCE.md).
+tests/Fixtures/MorphirTrees/** -text
+# The IR fixtures that FixtureCatalog serves are checked by SHA-256, so their bytes are the same on every checkout.
+tests/Fixtures/MorphirIR/greeting-example-v3.json -text
+tests/Fixtures/MorphirIR/constant-folding-v3.json text eol=lf
+tests/Fixtures/MorphirIR/constant-folding-v4.json text eol=lf
+tests/Fixtures/MorphirIR/daily-rate-mismatch-v3.json text eol=lf
+tests/Fixtures/MorphirIR/malformed-model.txt text eol=lf
