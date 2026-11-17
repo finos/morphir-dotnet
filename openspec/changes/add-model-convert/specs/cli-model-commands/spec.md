@@ -78,8 +78,8 @@ When the input is a directory holding a tree manifest, `morphir model verify` SH
 - **THEN** the command exits 1 with the `context.unknown_alias` diagnostic naming the file and the alias
 
 ### Requirement: The IR command group is removed
-The CLI SHALL NOT offer an `ir` command group or an alias for it. `ir` SHALL be treated as any other unknown command, including routing to an external `morphir-ir` tool when one is on the search path. The changelog SHALL state the rename.
+The CLI SHALL NOT offer an `ir` command group or an alias for it. `ir` SHALL be treated as any other unknown command: it fails with a non-zero exit code and names `ir`, as an unknown command does today (only the commands that route to an external tool, such as `mck`, start one). The changelog SHALL state the rename.
 
 #### Scenario: The former command is unknown
-- **WHEN** no `morphir-ir` tool is on the search path and a user runs `morphir ir verify model.json`
+- **WHEN** a user runs `morphir ir verify model.json`
 - **THEN** the command fails with a non-zero exit code, names `ir` as unknown, and verifies nothing
