@@ -37,7 +37,10 @@ type ReadOptions = {
 
 /// <summary>What a read found besides the tree.</summary>
 type ReadReport = {
-    /// <summary>Content that the read dropped, such as the manifest's <c>version</c> and <c>created</c>.</summary>
+    /// <summary>
+    /// Content that the read dropped: the manifest's <c>version</c> and <c>created</c>, and each package metadata
+    /// file that it ignored.
+    /// </summary>
     Notices: TreeNotice list
     /// <summary>The documents whose files were compacted. A plain tree has none.</summary>
     CompactedFiles: DocumentAddress list

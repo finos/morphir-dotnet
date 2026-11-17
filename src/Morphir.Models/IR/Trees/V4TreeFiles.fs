@@ -311,6 +311,14 @@ module internal V4TreeFiles =
                     $"'{stem}' is not the cut stem of '{key}': a cut stem is a prefix of the escaped name, '__' and the first eight hex digits of its SHA-256."
         )
 
+    /// A module's doc: a string, or an array of strings that are its lines (the schema's ModuleManifestFile).
+    let private moduleDocOf location (element: JsonElement) =
+        match element.ValueKind with
+        | JsonValueKind.Array ->
+            listOf text location element
+            |> String.concat "\n"
+        | _ -> text location element
+
     /// <summary>
     /// Reads a module file. A module of a package definition (<paramref name="holdsDefinitions"/>) with no
     /// <c>access</c> is public, the default of the parent's "access (module manifest)"; a module of a package
@@ -384,7 +392,7 @@ module internal V4TreeFiles =
                 Path = modulePath
                 Document = {
                     Access = access
-                    Doc = optional "$" [ "doc" ] text values
+                    Doc = optional "$" [ "doc" ] moduleDocOf values
                     Annotations = []
                     TypeNames = typeNames
                     ValueNames = valueNames

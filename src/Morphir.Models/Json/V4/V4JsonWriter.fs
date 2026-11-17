@@ -1749,7 +1749,3 @@ module V4JsonWriter =
     /// Writes a doc member when there is a doc.
     let internal docMember (json: Utf8JsonWriter) location (text: string option) =
         doc json location text
-
-    /// Writes text, refusing a lone surrogate.
-    let internal textNode (json: Utf8JsonWriter) location (text: string) =
-        stringValue json location text

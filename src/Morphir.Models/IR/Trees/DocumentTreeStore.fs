@@ -86,8 +86,10 @@ module DocumentTreeStore =
     /// them in. A JSON file is part of the tree, a <c>.yaml</c> or <c>.yml</c> file is refused as this store reads
     /// the JSON profile only, and any other file is ignored. The tree read must join (<c>V4DocumentTree.join</c>).
     /// A v4 manifest's <c>version</c> and <c>created</c> are dropped with a notice each; its <c>layout</c> and
-    /// <c>pathBudget</c> describe the tree and are dropped silently. A refused read gives every error it finds and
-    /// no tree. C# calls this <c>Read</c>.
+    /// <c>pathBudget</c> describe the tree and are dropped silently. A package metadata file,
+    /// <c>package.json</c> in a package directory of <c>pkg/</c> or <c>deps/</c>, is ignored with an
+    /// <c>IgnoredFile</c> notice. Only the files of the tree count against the path budget. A refused read gives
+    /// every error it finds and no tree. C# calls this <c>Read</c>.
     /// </summary>
     [<CompiledName("Read")>]
     let read

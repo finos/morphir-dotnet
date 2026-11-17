@@ -97,17 +97,21 @@ let private nameOf address =
     | Dependency(_, TypeDef(_, n)) -> n
     | other -> failtestf "%O has no name" other
 
-/// The kit's v4 tree cases: those whose manifest says formatVersion 4. The v3 cases belong to the classic store.
-let private v4KitCases =
-    FixtureCatalog.Kit.DocumentTree
-    |> Seq.filter (fun kitCase ->
-        match kitCase.Files.TryGetValue "manifest" with
-        | true, manifest ->
-            use document = JsonDocument.Parse manifest
-            document.RootElement.GetProperty("formatVersion").ValueKind = JsonValueKind.Number
-        | _ -> false
-    )
-    |> List.ofSeq
+/// Whether a kit file says formatVersion 4, the integer, rather than a v3 release string.
+let private isV4Json (text: string) =
+    use document = JsonDocument.Parse text
+    document.RootElement.GetProperty("formatVersion").ValueKind = JsonValueKind.Number
+
+/// The kit's v4 tree cases, pinned: 0003 to 0009. The v3 cases, 0011 to 0017, belong to the classic store.
+let private v4KitTreeIds = [ for number in 3..9 -> $"document-tree-%04d{number}" ]
+
+/// The kit's v4 file spellings, pinned: 0001 and 0002. 0010 is v3 and belongs to the classic store.
+let private v4KitSpellingIds = [ "document-tree-0001"; "document-tree-0002" ]
+
+let private kitSpelling (id: string) =
+    FixtureCatalog.Kit.FileSpellings
+    |> Seq.tryFind (fun spelling -> spelling.Id = id)
+    |> Option.defaultWith (fun () -> failtestf "The pinned kit has no file spelling '%s'" id)
 
 let private kitFiles (kitCase: KitTreeCase) =
     [
@@ -490,6 +494,82 @@ let tests =
                     "The code"
             }
 
+            test "A module doc spelled as lines is read as one doc" {
+                let moduleFile = "pkg/acme/demo/billing/module.json"
+
+                let files =
+                    written Mother.acmeDemo
+                    |> Driver.withModuleDocLines moduleFile [ "Invoices"; "and their totals." ]
+
+                let read, _ = readBack files
+                let billing = Own(Module(modulePath "billing"))
+
+                Expect.equal
+                    (v4ModuleOf read billing).Doc
+                    (Some "Invoices\nand their totals.")
+                    "The lines are joined with line breaks"
+
+                Expect.equal
+                    (string (nonNull (Driver.jsonAt moduleFile (written read)).["doc"]))
+                    "Invoices\nand their totals."
+                    "The doc is written back as a string"
+            }
+
+            test "A package metadata file is ignored with a notice" {
+                let files =
+                    written Mother.acmeDemo
+                    |> Driver.withPackageMetadata "pkg/acme/demo"
+                    |> Driver.withPackageMetadata "deps/morphir/sdk/@"
+
+                let read, report = readBack files
+
+                Expect.equal read Mother.acmeDemo "The model is unchanged"
+
+                Expect.equal
+                    report.Notices
+                    [
+                        IgnoredFile "deps/morphir/sdk/@/package.json"
+                        IgnoredFile "pkg/acme/demo/package.json"
+                    ]
+                    "Each ignored file is named"
+
+                for KeyValue(location, _) in Driver.texts (written read) do
+                    Expect.isFalse
+                        (location.EndsWith "package.json")
+                        $"{location} is not a package metadata file"
+            }
+
+            test "Module metadata is refused as an unknown member" {
+                let moduleFile = "pkg/acme/demo/billing/module.json"
+
+                let errors =
+                    written Mother.acmeDemo
+                    |> Driver.withModuleMetadata moduleFile
+                    |> Driver.read
+                    |> refusal
+
+                Expect.equal
+                    (errors
+                     |> List.map (fun e -> e.Code, e.File))
+                    [ "unknown_member", Some moduleFile ]
+                    "The module file is refused for its metadata member"
+            }
+
+            test "A long file outside the tree does not count against the budget" {
+                let notes =
+                    "notes/"
+                    + String('n', Mother.defaultBudget)
+                    + ".json"
+
+                let read, report =
+                    written Mother.acmeDemo
+                    |> Driver.withUnrelatedFile notes
+                    |> readBack
+
+                Expect.equal read Mother.acmeDemo "The model is unchanged"
+                Expect.isEmpty report.Notices "A file outside the tree is not part of it"
+            }
+
             test "The same tree from two sources" {
                 use sandbox = Morphir.TestSupport.TestSandbox.Create("morphir-tree-sources-")
                 let root = sandbox.PathOf "tree"
@@ -562,8 +642,26 @@ let tests =
             |> testLabel "PlatformSpecific"
 
             testList "Kit tree cases are met" [
-                for kitCase in v4KitCases do
-                    test $"{kitCase.Id} {kitCase.Title}" {
+                test "the v4 tree cases are the pinned ones" {
+                    let inCatalog =
+                        FixtureCatalog.Kit.DocumentTree
+                        |> Seq.filter (fun kitCase ->
+                            match kitCase.Files.TryGetValue "manifest" with
+                            | true, manifest -> isV4Json manifest
+                            | _ -> false
+                        )
+                        |> Seq.map (fun kitCase -> kitCase.Id)
+                        |> List.ofSeq
+
+                    Expect.sequenceEqual
+                        inCatalog
+                        v4KitTreeIds
+                        "The kit's v4 tree cases are 0003 to 0009"
+                }
+
+                for id in v4KitTreeIds do
+                    test id {
+                        let kitCase = FixtureCatalog.Kit.Case id
                         let read, _ = readBack (kitFiles kitCase)
 
                         Expect.equal
@@ -611,57 +709,66 @@ let tests =
             ]
 
             testList "Kit file spellings are met" [
-                for spelling in FixtureCatalog.Kit.FileSpellings do
-                    let isV4 =
-                        use document = JsonDocument.Parse spelling.CanonicalJson
-                        document.RootElement.GetProperty("formatVersion").ValueKind = JsonValueKind.Number
+                test "the v4 file spellings are the pinned ones" {
+                    let inCatalog =
+                        FixtureCatalog.Kit.FileSpellings
+                        |> Seq.filter (fun spelling -> isV4Json spelling.CanonicalJson)
+                        |> Seq.map (fun spelling -> spelling.Id)
+                        |> List.ofSeq
 
-                    if isV4 then
-                        test $"{spelling.Id} {spelling.Title}" {
-                            match spelling.LogicalPath with
-                            | "manifest" ->
-                                let manifest =
-                                    decoded V4TreeFiles.readManifest spelling.CanonicalJson
+                    Expect.sequenceEqual
+                        inCatalog
+                        v4KitSpellingIds
+                        "The kit's v4 file spellings are 0001 and 0002"
+                }
 
+                for id in v4KitSpellingIds do
+                    test id {
+                        let spelling = kitSpelling id
+
+                        match spelling.LogicalPath with
+                        | "manifest" ->
+                            let manifest = decoded V4TreeFiles.readManifest spelling.CanonicalJson
+
+                            Expect.equal
+                                (compact (
+                                    bytesText (
+                                        V4TreeFiles.writeManifest
+                                            manifest.PathBudget
+                                            manifest.Manifest
+                                    )
+                                ))
+                                (compact spelling.CanonicalJson)
+                                "The manifest is written in its canonical spelling"
+
+                            for accepted in spelling.AcceptedSpellings do
                                 Expect.equal
-                                    (compact (
-                                        bytesText (
-                                            V4TreeFiles.writeManifest
-                                                manifest.PathBudget
-                                                manifest.Manifest
-                                        )
-                                    ))
-                                    (compact spelling.CanonicalJson)
-                                    "The manifest is written in its canonical spelling"
+                                    (decoded V4TreeFiles.readManifest accepted)
+                                    manifest
+                                    "An accepted spelling reads as the same manifest"
+                        | "module" ->
+                            let moduleFile =
+                                decoded (V4TreeFiles.readModule true) spelling.CanonicalJson
 
-                                for accepted in spelling.AcceptedSpellings do
-                                    Expect.equal
-                                        (decoded V4TreeFiles.readManifest accepted)
-                                        manifest
-                                        "An accepted spelling reads as the same manifest"
-                            | "module" ->
-                                let moduleFile =
-                                    decoded (V4TreeFiles.readModule true) spelling.CanonicalJson
+                            Expect.equal
+                                (compact (
+                                    bytesText (
+                                        V4TreeFiles.writeModule
+                                            moduleFile.Path
+                                            moduleFile.Document
+                                            moduleFile.FileNames
+                                    )
+                                ))
+                                (compact spelling.CanonicalJson)
+                                "The module is written in its canonical spelling"
 
+                            for accepted in spelling.AcceptedSpellings do
                                 Expect.equal
-                                    (compact (
-                                        bytesText (
-                                            V4TreeFiles.writeModule
-                                                moduleFile.Path
-                                                moduleFile.Document
-                                                moduleFile.FileNames
-                                        )
-                                    ))
-                                    (compact spelling.CanonicalJson)
-                                    "The module is written in its canonical spelling"
-
-                                for accepted in spelling.AcceptedSpellings do
-                                    Expect.equal
-                                        (decoded (V4TreeFiles.readModule true) accepted)
-                                        moduleFile
-                                        "An accepted spelling reads as the same module"
-                            | other -> failtestf "The kit names no tree file '%s'" other
-                        }
+                                    (decoded (V4TreeFiles.readModule true) accepted)
+                                    moduleFile
+                                    "An accepted spelling reads as the same module"
+                        | other -> failtestf "The kit names no tree file '%s'" other
+                    }
             ]
         ]
     ]

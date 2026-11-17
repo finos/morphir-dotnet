@@ -76,3 +76,45 @@ let withMember
     |> Map.add location (root.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
     |> Map.toList
     |> ofTexts
+
+/// <summary>The same files with one more file, of the given text, at a location.</summary>
+let private withFile (location: string) (text: string) (files: VFileTree) : VFileTree =
+    texts files
+    |> Map.add location text
+    |> Map.toList
+    |> ofTexts
+
+/// <summary>
+/// The same files with the doc of the module file at a location spelled as an array of lines, which the parent's
+/// schema accepts beside a string (<c>ModuleManifestFile</c>, <c>doc</c>).
+/// </summary>
+let withModuleDocLines (location: string) (lines: string list) (files: VFileTree) : VFileTree =
+    let doc = JsonArray()
+
+    for line in lines do
+        doc.Add(JsonValue.Create line)
+
+    withMember location "doc" (doc.ToJsonString()) files
+
+/// <summary>
+/// The same files with a package metadata file, <c>package.json</c>, in a package directory such as
+/// <c>pkg/acme/demo</c> or <c>deps/morphir/sdk/@</c>: the optional file of the parent's v4 tree page, "Package
+/// Metadata", which is not part of the model.
+/// </summary>
+let withPackageMetadata (packageDirectory: string) (files: VFileTree) : VFileTree =
+    withFile
+        (packageDirectory
+         + "/package.json")
+        """{ "formatVersion": 4, "version": "1.2.0", "description": "Package metadata that the model has no place for." }"""
+        files
+
+/// <summary>
+/// The same files with a <c>metadata</c> member in the module file at a location: the parent's v4 tree page shows
+/// one under "Module Metadata", and the 4.0.0 schema of a module file has no such member.
+/// </summary>
+let withModuleMetadata (location: string) (files: VFileTree) : VFileTree =
+    withMember location "metadata" """{ "tags": [ "domain" ], "deprecated": false }""" files
+
+/// <summary>The same files with a JSON file at a location that is not part of the tree, such as notes beside it.</summary>
+let withUnrelatedFile (location: string) (files: VFileTree) : VFileTree =
+    withFile location """{ "note": "Not part of the tree." }""" files

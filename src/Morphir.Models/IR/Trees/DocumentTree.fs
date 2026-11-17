@@ -27,12 +27,18 @@ type DocumentTree<'manifest, 'moduleDoc, 'typ, 'value> = {
 type TreeNotice =
     /// <summary>A manifest member with no place in the single-file model, such as <c>version</c> or <c>created</c>.</summary>
     | DroppedManifestMember of name: string
+    /// <summary>
+    /// A file that a read ignored, by its physical path: a package metadata file (<c>package.json</c>), which the
+    /// parent's v4 tree page describes and which is not part of the model.
+    /// </summary>
+    | IgnoredFile of path: string
 
     /// <summary>The notice as text.</summary>
     override this.ToString() =
         match this with
         | DroppedManifestMember name ->
             $"The manifest member '{name}' has no place in the model and was dropped."
+        | IgnoredFile path -> $"The file '{path}' is not part of the model and was ignored."
 
 /// <summary>Why a tree does not join: a stable dotted code, the document it concerns if any, and a message.</summary>
 type TreeError =

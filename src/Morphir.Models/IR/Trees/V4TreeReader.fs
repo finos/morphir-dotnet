@@ -22,8 +22,15 @@ module internal V4TreeReader =
         | TypeNode
         | ValueNode
 
+    /// The optional package metadata file of the parent's v4 tree page ("Package Metadata"), which is not part of
+    /// the model.
+    [<Literal>]
+    let private PackageMetadataFile = "package.json"
+
     /// Where a file of a module is: its scope, its module, and what it is.
     type private Placed =
+        /// A package metadata file directly below a package directory, which a read ignores with a notice.
+        | PackageMetadata
         | ModuleFile of DocumentAddress
         | NodeFile of
             scope: (ModuleDocumentAddress -> DocumentAddress) *
@@ -89,6 +96,7 @@ module internal V4TreeReader =
             (moduleDirectories: string list)
             =
             match moduleDirectories with
+            | [] when name = PackageMetadataFile -> Ok(Some PackageMetadata)
             | [] ->
                 Error [
                     error
@@ -194,16 +202,6 @@ module internal V4TreeReader =
         let ownStems = stems ownPath
         let holds = V4DocumentTree.holdsDefinitions manifest.Kind
 
-        let overBudget =
-            files
-            |> List.filter (fun (location, _) -> location.Length > manifestFile.PathBudget)
-            |> List.map (fun (location, _) ->
-                error
-                    "tree.over_budget"
-                    (Some location)
-                    $"The path has {location.Length} characters, and the manifest's path budget is {manifestFile.PathBudget}."
-            )
-
         let placed =
             files
             |> List.map (fun (location, file) ->
@@ -215,11 +213,38 @@ module internal V4TreeReader =
             valuesOf placed
             |> List.choose id
 
+        // Only the files of the tree count against the budget, not a file that the read ignores.
+        let overBudget =
+            found
+            |> List.filter (fun (location, _, where) ->
+                (match where with
+                 | PackageMetadata -> false
+                 | ModuleFile _
+                 | NodeFile _ -> true)
+                && location.Length > manifestFile.PathBudget
+            )
+            |> List.map (fun (location, _, _) ->
+                error
+                    "tree.over_budget"
+                    (Some location)
+                    $"The path has {location.Length} characters, and the manifest's path budget is {manifestFile.PathBudget}."
+            )
+
+        let ignored =
+            found
+            |> List.choose (fun (location, _, where) ->
+                match where with
+                | PackageMetadata -> Some(TreeNotice.IgnoredFile location)
+                | ModuleFile _
+                | NodeFile _ -> None
+            )
+
         let modules =
             found
             |> List.choose (fun (location, file, where) ->
                 match where with
                 | ModuleFile address -> Some(location, file, address)
+                | PackageMetadata
                 | NodeFile _ -> None
             )
             |> List.map (fun (location, file, address) ->
@@ -262,6 +287,7 @@ module internal V4TreeReader =
                 match where with
                 | NodeFile(scope, modulePath, stem, kind) ->
                     Some(location, file, scope, modulePath, stem, kind)
+                | PackageMetadata
                 | ModuleFile _ -> None
             )
             |> List.map (fun (location, file, scope, modulePath, stem, kind) ->
@@ -372,7 +398,9 @@ module internal V4TreeReader =
                 Ok(
                     V4Tree tree,
                     {
-                        Notices = manifestFile.Dropped
+                        Notices =
+                            manifestFile.Dropped
+                            @ ignored
                         CompactedFiles = []
                     }
                 )
