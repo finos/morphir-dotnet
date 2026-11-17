@@ -93,7 +93,11 @@ module DocumentTreeStore =
     /// manifest's <c>version</c> and <c>created</c> are dropped with a notice each; its <c>layout</c> and
     /// <c>pathBudget</c> describe the tree and are dropped silently. A package metadata file, <c>package.json</c> in a
     /// package directory of <c>pkg/</c> or <c>deps/</c>, is ignored with an <c>IgnoredFile</c> notice. Only the files
-    /// of the tree count against the path budget. A refused read gives every error it finds and no tree. C# calls
+    /// of the tree count against the path budget. A compacted file, an envelope with a name context
+    /// (<c>ir/name-compaction</c>), is read through <c>MorphirFile</c>: its context is checked and its document
+    /// expanded for the IR family of its own <c>formatVersion</c> before it is decoded, and the report lists its
+    /// documents in <c>CompactedFiles</c> (the manifest first, then by file); a refused context is an error of the
+    /// file, with the parent's <c>context.</c> code. A refused read gives every error it finds and no tree. C# calls
     /// this <c>Read</c>.
     /// </summary>
     [<CompiledName("Read")>]
@@ -104,24 +108,22 @@ module DocumentTreeStore =
         TreeFileSource.discover options files
         |> Result.bind (fun ((manifestLocation, manifestFile), others) ->
             TreeFileSource.contentBytes options.MaxFileBytes manifestLocation manifestFile
+            |> TreeFileSource.one
             |> Result.bind (fun bytes ->
                 TreeFileSource.decode
                     manifestLocation
                     (fun root -> Ok(TreeFileSource.isClassicManifest root))
                     bytes
-                |> Result.map (fun classic -> classic, bytes)
+                |> Result.map (fun (classic, compacted) -> classic, compacted, bytes)
             )
-            |> TreeFileSource.one
-            |> Result.bind (fun (classic, bytes) ->
+            |> Result.bind (fun (classic, compacted, bytes) ->
                 if classic then
                     TreeFileSource.decode manifestLocation ClassicTreeFiles.readManifest bytes
-                    |> TreeFileSource.one
-                    |> Result.bind (fun manifest ->
-                        ClassicTreeReader.readClassic options manifest others
+                    |> Result.bind (fun (manifest, _) ->
+                        ClassicTreeReader.readClassic compacted options manifest others
                     )
                 else
                     TreeFileSource.decode manifestLocation V4TreeFiles.readManifest bytes
-                    |> TreeFileSource.one
-                    |> Result.bind (fun manifest -> V4TreeReader.readV4 options manifest others)
+                    |> Result.bind (fun (manifest, _) -> V4TreeReader.readV4 compacted options manifest others)
             )
         )

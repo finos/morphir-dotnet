@@ -29,6 +29,8 @@ type internal TreeFound<'moduleDoc, 'typ, 'value> = {
     Locations: Map<DocumentAddress, string>
     /// <summary>A notice for each file the read ignored.</summary>
     Ignored: TreeNotice list
+    /// <summary>The documents whose files were compacted, by the location of their file.</summary>
+    Compacted: (string * DocumentAddress) list
 }
 
 /// <summary>
@@ -306,8 +308,7 @@ module internal TreeReader =
             )
             |> List.map (fun (location, file, address) ->
                 readFile options.MaxFileBytes location file (readers.Module(holds address))
-                |> one
-                |> Result.bind (fun moduleFile ->
+                |> Result.bind (fun (moduleFile, compacted) ->
                     match address with
                     | Own(Module path)
                     | Dependency(_, Module path) when
@@ -323,11 +324,13 @@ module internal TreeReader =
                                 (Some location)
                                 $"The module file states the path '{CanonicalNames.pathToString stated}', and its directory is the module '{CanonicalNames.pathToString expected}'."
                         ]
-                    | _ -> Ok(address, location, moduleFile)
+                    | _ -> Ok((address, location, moduleFile), compacted)
                 )
             )
 
-        let moduleFiles = valuesOf modules
+        let moduleFiles =
+            valuesOf modules
+            |> List.map fst
 
         let cutStems =
             moduleFiles
@@ -370,10 +373,11 @@ module internal TreeReader =
                         location
                         file
                         (readers.Type(holds (scope (Module modulePath))))
-                    |> one
-                    |> Result.bind (fun (nodeName, document) -> named nodeName (TypeDoc document))
-                    |> Result.map (fun (nodeName, document) ->
-                        scope (TypeDef(modulePath, nodeName)), location, document
+                    |> Result.bind (fun ((nodeName, document), compacted) ->
+                        named nodeName (TypeDoc document)
+                        |> Result.map (fun (nodeName, document) ->
+                            (scope (TypeDef(modulePath, nodeName)), location, document), compacted
+                        )
                     )
                 | ValueNode ->
                     readFile
@@ -381,10 +385,11 @@ module internal TreeReader =
                         location
                         file
                         (readers.Value(holds (scope (Module modulePath))))
-                    |> one
-                    |> Result.bind (fun (nodeName, document) -> named nodeName (ValueDoc document))
-                    |> Result.map (fun (nodeName, document) ->
-                        scope (ValueDef(modulePath, nodeName)), location, document
+                    |> Result.bind (fun ((nodeName, document), compacted) ->
+                        named nodeName (ValueDoc document)
+                        |> Result.map (fun (nodeName, document) ->
+                            (scope (ValueDef(modulePath, nodeName)), location, document), compacted
+                        )
                     )
             )
 
@@ -408,8 +413,24 @@ module internal TreeReader =
              |> List.map (fun (address, location, moduleFile) ->
                  address, location, ModuleDoc moduleFile.Document
              ))
-            @ valuesOf nodes
+            @ (valuesOf nodes
+               |> List.map fst)
             @ inlineDocuments
+
+        // A compacted module file holds its inline documents too, so they are listed with it.
+        let compactedModules =
+            valuesOf modules
+            |> List.filter snd
+            |> List.map (fun ((_, location, _), _) -> location)
+            |> Set.ofList
+
+        let compacted =
+            (valuesOf nodes
+             |> List.filter snd
+             |> List.map (fun ((address, location, _), _) -> location, address))
+            @ (documents
+               |> List.filter (fun (_, location, _) -> compactedModules.Contains location)
+               |> List.map (fun (address, location, _) -> location, address))
 
         let duplicates =
             documents
@@ -501,6 +522,7 @@ module internal TreeReader =
                         |> Map.ofList
                         |> Map.add Manifest ManifestFile
                     Ignored = ignored
+                    Compacted = compacted
                 }
 
     /// The errors of a join of what a read found, each at the file of its document, or at the file its logical path
@@ -531,6 +553,7 @@ module internal TreeReader =
     /// report has the manifest's <paramref name="notices"/>, then one for each file the read ignored.
     /// </summary>
     let readTree
+        (manifestCompacted: bool)
         (options: ReadOptions)
         (pathBudget: int)
         (own: PackageName)
@@ -554,7 +577,11 @@ module internal TreeReader =
                         Notices =
                             notices
                             @ found.Ignored
-                        CompactedFiles = []
+                        CompactedFiles =
+                            (if manifestCompacted then [ Manifest ] else [])
+                            @ (found.Compacted
+                               |> List.sortBy fst
+                               |> List.map snd)
                     }
                 )
             | Error errors -> Error(joinErrors own found errors)

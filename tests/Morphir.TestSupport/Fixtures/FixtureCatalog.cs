@@ -153,8 +153,80 @@ public static class FixtureCatalog
         public static Rfc8785Vectors Vectors => Read.Value;
     }
 
+    /// <summary>
+    /// The name-context data of finos/morphir (<c>ir-context</c> 0.1.0-draft.1), pinned as reference data below
+    /// <c>tests/Fixtures/MorphirContext</c>: the parent defines the envelope, its refusals and the expected expansions.
+    /// </summary>
+    public static class Context
+    {
+        private const string Provenance = "MorphirContext/PROVENANCE.md";
+
+        /// <summary>The directory of the envelope examples below <c>tests/Fixtures</c>.</summary>
+        public const string ExamplesDirectory = "MorphirContext/examples/";
+
+        private static FixtureEntry ExampleFile(string path, string sha256) =>
+            new($"the name-context example {path}", ExamplesDirectory + path, sha256, Provenance);
+
+        /// <summary>The index of the examples: each case's file, IR version, file kind, expected outcome and twin.</summary>
+        public static FixtureEntry Cases { get; } = ExampleFile("cases.json", "af1a59afdfbd8ae17c7724512f9ce8739df81fcafd6f78128a58e77d71dfa2dc");
+
+        /// <summary>Each example file and expanded twin, by its path below <see cref="ExamplesDirectory"/>.</summary>
+        public static IReadOnlyList<FixtureEntry> ExampleFiles { get; } =
+        [
+            ExampleFile("expanded/v3-manifest.json", "c2c8a7f3bd68e78f24e2c95c430461b1448c2994e2c5ad1bf873c0bc93a80ef3"),
+            ExampleFile("expanded/v3-module.json", "240f7695b3e8dea2f03c9201d218ba5933129deca7583ff80918206800828c21"),
+            ExampleFile("expanded/v3-single-file.json", "6095ee94f276efb07075adbbc41242ea8494f686a05faf38c9a556e90c41c738"),
+            ExampleFile("expanded/v3-type.json", "116f2e287b96d097c602994ca14c30aa1d3238cd3c945f233ccdde5ea13f787b"),
+            ExampleFile("expanded/v3-value.json", "a0c2faf84b7479ded2e595d1734c1035c4f865a93b930bd45302a01d3c354a99"),
+            ExampleFile("expanded/v4-manifest.json", "1f67490668d233d8b2e6a53cc4d312ee725eef837effdec1b899d6e767c1d0a9"),
+            ExampleFile("expanded/v4-module.json", "8469e9cb66313616c859419bbf1d0514ed77026ffa3dd6a4b1c4fba2214b5e5e"),
+            ExampleFile("expanded/v4-single-file.json", "ed8dc46dfb35e75ad2f3bd6afeeea52f20cdef6e869c6226b186cfd39c8c9e5f"),
+            ExampleFile("expanded/v4-type.json", "7802da9f3c6d409d3f20e4f1b7f969de7ba7b69b021e2cf4a15e48313fab8f7e"),
+            ExampleFile("expanded/v4-value.json", "a33aa101c97101bb3ed38d1a560b1735eee9acd285e00410f6d88c6fb193de2d"),
+            ExampleFile("invalid/context-after-document.json", "eb748071304c955bb0cd9e3a2d158894c889d749797cb0d9a4317c1ed5697d36"),
+            ExampleFile("invalid/duplicate-entry.json", "10e58f219400543684d371f1a427875d56289d2b22a60cfa0e42b0d6b7aba440"),
+            ExampleFile("invalid/name-too-long.json", "42c85f4a0caae1b875c3afd671b0596294808549037a853ec596cd5aa92008fb"),
+            ExampleFile("invalid/too-many-entries.json", "f86c270d0a61607d62dbd356039b687bec9c493b2be5e35fc0078ae3987d757c"),
+            ExampleFile("invalid/undeclared-schema.json", "49bbc95d6d8599edcbfbd81033f65a33d81b50a7365ae2d108132003ff329f08"),
+            ExampleFile("invalid/unknown-alias.json", "1bd3db99eec20dd4626bd5e348e0b9219ecc89ba92cd39e8e95f2b4a0df5a693"),
+            ExampleFile("invalid/unknown-critical.json", "fb950b9b9463e46ceab12c1ae6c9a9d3c048518bc0f8cf3667c2cae872521e4b"),
+            ExampleFile("valid/v3-manifest.json", "2c1608b66f23df6b6fe50d91f4e520bd74b7f4a24d92dffefc8e3902656ca95b"),
+            ExampleFile("valid/v3-module.json", "1667174463458a1e047ded1adeedf2d616a95fd053d72f38848d39d031562513"),
+            ExampleFile("valid/v3-single-file.json", "ef822e3859dcf730e3f6fef365c19fe4f65937e8edfcc7990a348dd434ceb93e"),
+            ExampleFile("valid/v3-type.json", "e536f0ee95f6f42c708cc03fa5d8fd0db2bbb595b2dc614b559ab6ed4ea8241c"),
+            ExampleFile("valid/v3-value.json", "56b7151ea22b625f30a23c6374d48ee396fc7e305173cc7f8357bd808bb1bf52"),
+            ExampleFile("valid/v4-manifest.json", "a146a74881ceec07a1246bae075ce52cde1b0595308e45191d3920e7398cf52c"),
+            ExampleFile("valid/v4-module.json", "c3ce4d01b7f2590fdfe55af5ce48891d126adfe06bdd2bd806878b31f3eb65ae"),
+            ExampleFile("valid/v4-single-file.json", "a1583d61b731a0734d8b866747432f3ff08b642473feb91d7afc5ed017f1f589"),
+            ExampleFile("valid/v4-type.json", "db101eda5e41ff38e2f009098226e4d7cc15392f4b1307272d10e3654f8c9143"),
+            ExampleFile("valid/v4-value.json", "94ec9bae07b361f6dabb7da1103e3aa122f20982a1d003738a9fd65599404a2e"),
+        ];
+
+        /// <summary>The pinned files.</summary>
+        public static IReadOnlyList<FixtureEntry> Files { get; } = [Cases, .. ExampleFiles];
+
+        private static readonly Lazy<ContextExampleIndex> Index = new(() => ContextExampleIndex.Read(ReadText(Cases), ExampleFiles, ExamplesDirectory));
+
+        /// <summary>The envelope's schema URL, as the index states it.</summary>
+        public static string SchemaUrl => Index.Value.SchemaUrl;
+
+        /// <summary>The most entries one table may hold, as the index states it.</summary>
+        public static int MaxTableEntries => Index.Value.MaxTableEntries;
+
+        /// <summary>The most UTF-8 bytes one expanded spelling may have, as the index states it.</summary>
+        public static int MaxSpellingBytes => Index.Value.MaxSpellingBytes;
+
+        /// <summary>Every example of the index, in its order.</summary>
+        public static IReadOnlyList<ContextExample> Examples => Index.Value.Examples;
+
+        /// <summary>The example with this id, such as <c>v4-type</c>.</summary>
+        public static ContextExample Example(string id) =>
+            Examples.FirstOrDefault(example => example.Id == id)
+            ?? throw new KeyNotFoundException($"The pinned context examples have no case '{id}'. They are {string.Join(", ", Examples.Select(example => example.Id))}.");
+    }
+
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, Rfc8785.Text];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, Rfc8785.Text, .. Context.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

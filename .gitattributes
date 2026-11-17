@@ -94,3 +94,5 @@ tests/Fixtures/MorphirIR/daily-rate-mismatch-v3.json text eol=lf
 tests/Fixtures/MorphirIR/malformed-model.txt text eol=lf
 # RFC 8785 as the RFC Editor publishes it, the source of the JCS test vectors (tests/Fixtures/Rfc8785/PROVENANCE.md).
 tests/Fixtures/Rfc8785/** -text
+# Morphir file context data from finos/morphir, checked by SHA-256 (tests/Fixtures/MorphirContext/PROVENANCE.md).
+tests/Fixtures/MorphirContext/** -text

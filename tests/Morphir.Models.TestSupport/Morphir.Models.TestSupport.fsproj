@@ -18,6 +18,8 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Models\Morphir.Models.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.Files\Morphir.Files.fsproj" />
+        <!-- FixtureCatalog: the parent's name-context examples that MorphirFileMother serves as trees of files. -->
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -26,6 +28,7 @@
         <Compile Include="Generators.fs" />
         <Compile Include="DocumentTreeStoreDriver.fs" />
         <Compile Include="DocumentTreeMother.fs" />
+        <Compile Include="MorphirFileMother.fs" />
     </ItemGroup>
 
 </Project>

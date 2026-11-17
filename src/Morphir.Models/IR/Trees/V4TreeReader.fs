@@ -16,6 +16,7 @@ module internal V4TreeReader =
     }
 
     let readV4
+        (manifestCompacted: bool)
         (options: ReadOptions)
         (manifestFile: V4ManifestFile)
         (files: (string * Morphir.Files.VFile) list)
@@ -23,6 +24,7 @@ module internal V4TreeReader =
         let manifest = manifestFile.Manifest
 
         TreeReader.readTree
+            manifestCompacted
             options
             manifestFile.PathBudget
             manifest.Package

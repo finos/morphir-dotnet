@@ -76,6 +76,28 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void TheContextExamplesOfTheParentAreRead()
+    {
+        FixtureCatalog.Context.SchemaUrl.Should().Be("https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json");
+        FixtureCatalog.Context.MaxTableEntries.Should().Be(16384);
+        FixtureCatalog.Context.MaxSpellingBytes.Should().Be(1024);
+
+        var examples = FixtureCatalog.Context.Examples;
+        examples.Should().HaveCount(17);
+        examples.Where(example => example.IsValid).Should().HaveCount(10)
+            .And.OnlyContain(example => example.Expanded != null && example.File.RelativePath.StartsWith("MorphirContext/examples/valid/"));
+        examples.Where(example => !example.IsValid).Select(example => example.Expected).Should().BeEquivalentTo(
+            "context.undeclared_schema", "context.unknown_alias", "context.duplicate_entry", "context.unknown_critical",
+            "context.too_many_entries", "context.name_too_long", "context.after_document");
+
+        var v3Type = FixtureCatalog.Context.Example("v3-type");
+        (v3Type.Ir, v3Type.Kind).Should().Be((3, "type"));
+        JsonNode.Parse(FixtureCatalog.ReadText(v3Type.File))!["$schema"]!.GetValue<string>().Should().Be(FixtureCatalog.Context.SchemaUrl);
+        JsonNode.Parse(FixtureCatalog.ReadText(v3Type.Expanded!))!.AsObject().ContainsKey("$schema").Should().BeFalse();
+        FixtureCatalog.All.Should().Contain(FixtureCatalog.Context.Files);
+    }
+
+    [Test]
     public void TheReaderOfRfc8785RefusesATextWithoutItsVectors()
     {
         var act = () => Rfc8785Reader.Read("Appendix B.  Number Serialization Samples\n");

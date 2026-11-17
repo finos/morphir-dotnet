@@ -111,6 +111,10 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="Json/V4/V4JsonWriter.fs" />
         <!-- The document-tree store maps trees to files with the v4 codecs, so it comes after them. -->
         <Compile Include="IR/Trees/TreeStoreTypes.fs" />
+        <!-- Morphir files, plain or compacted with a name context; the store reads every tree file through them. -->
+        <Compile Include="IR/Files/NameContext.fs" />
+        <Compile Include="IR/Files/ContextExpansion.fs" />
+        <Compile Include="IR/Files/MorphirFile.fs" />
         <Compile Include="IR/Trees/TreeFileCodec.fs" />
         <Compile Include="IR/Trees/V4TreeFiles.fs" />
         <Compile Include="IR/Trees/ClassicTreeFiles.fs" />
