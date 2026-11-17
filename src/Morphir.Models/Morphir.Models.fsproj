@@ -87,6 +87,7 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="IR/Trees/TreeStems.fs" />
         <Compile Include="IR/Trees/DocumentAddress.fs" />
         <Compile Include="IR/Trees/DocumentTree.fs" />
+        <Compile Include="IR/Trees/TreeJoin.fs" />
         <Compile Include="IR/Trees/V4DocumentTree.fs" />
         <Compile Include="IR/Trees/ClassicDocumentTree.fs" />
         <Compile Include="IR/DSL/Names.fs" />

@@ -81,9 +81,9 @@ let private packageOf distribution =
 
 let private kindOf distribution =
     match distribution with
-    | Library _ -> LibraryKind
-    | Specs _ -> SpecsKind
-    | Application _ -> ApplicationKind
+    | Library _ -> V4DistributionKind.LibraryKind
+    | Specs _ -> V4DistributionKind.SpecsKind
+    | Application _ -> V4DistributionKind.ApplicationKind
 
 /// The orders that join keeps, which model equality does not see: the dependencies in order, and the types and
 /// values of each module in order, by package and module path. Module order is left out, because join sorts
@@ -196,9 +196,9 @@ let tests =
             testList "holdsDefinitions" [
                 for kind, own, dependency in
                     [
-                        LibraryKind, true, false
-                        SpecsKind, false, false
-                        ApplicationKind, true, true
+                        V4DistributionKind.LibraryKind, true, false
+                        V4DistributionKind.SpecsKind, false, false
+                        V4DistributionKind.ApplicationKind, true, true
                     ] do
                     test $"{kind}" {
                         let basics = Module(modulePath "basics")
@@ -257,7 +257,7 @@ let tests =
                 Expect.equal
                     tree.Manifest
                     {
-                        Kind = LibraryKind
+                        Kind = V4DistributionKind.LibraryKind
                         Package = packageName "acme/demo"
                         Dependencies = [ packageName "morphir/sdk" ]
                         EntryPoints = []

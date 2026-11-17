@@ -215,108 +215,35 @@ module ClassicDocumentTree =
         | Specs(package, dependencies, specification) ->
             tree ClassicDistributionKind.SpecsKind package dependencies (splitSpecification specification)
 
-    let private error code address message : TreeError = {
-        Code = code
-        Address = address
-        Message = message
+    let private family<'ta, 'va>
+        : TreeJoin.TreeFamily<ClassicModuleDocument, ClassicTypeDocument<'ta>, ClassicValueDocument<'ta, 'va>> = {
+        TypeNames = fun m -> m.TypeNames
+        ValueNames = fun m -> m.ValueNames
+        IsDefinedType =
+            function
+            | ClassicTypeDocument.DefinedType _ -> true
+            | ClassicTypeDocument.SpecifiedType _ -> false
+        IsDefinedValue =
+            function
+            | ClassicValueDocument.DefinedValue _ -> true
+            | ClassicValueDocument.SpecifiedValue _ -> false
+        ModuleFault =
+            fun holds m ->
+                match holds, m.Access with
+                | true, None ->
+                    Some "a module definition has an access, and this module document has none"
+                | false, Some _ ->
+                    Some "a module specification has no access, and this module document has one"
+                | _ -> None
     }
-
-    let private errorsOf (result: Result<'a, TreeError list>) =
-        match result with
-        | Error errors -> errors
-        | Ok _ -> []
-
-    /// Every value of a list of results, or every error when there is one.
-    let private collect
-        (results: Result<'a, TreeError list> list)
-        : Result<'a list, TreeError list> =
-        match
-            results
-            |> List.collect errorsOf
-        with
-        | [] ->
-            Ok(
-                results
-                |> List.choose (
-                    function
-                    | Ok value -> Some value
-                    | Error _ -> None
-                )
-            )
-        | errors -> Error errors
-
-    let private nameText (name: Name) = CanonicalNames.nameToString name
-
-    /// The case of a document as text, for messages.
-    let private describe
-        (document: TreeDocument<ClassicModuleDocument, ClassicTypeDocument<'ta>, ClassicValueDocument<'ta, 'va>>)
-        =
-        match document with
-        | ModuleDoc _ -> "a module document"
-        | TypeDoc(ClassicTypeDocument.DefinedType _) -> "a type definition"
-        | TypeDoc(ClassicTypeDocument.SpecifiedType _) -> "a type specification"
-        | ValueDoc(ClassicValueDocument.DefinedValue _) -> "a value definition"
-        | ValueDoc(ClassicValueDocument.SpecifiedValue _) -> "a value specification"
-
-    /// <summary>
-    /// The errors of documents that do not fit their address or their package. The case must match the address. A
-    /// type or value must be a definition where <c>holdsDefinitions</c> says so, and a specification elsewhere. A
-    /// module definition has an access, and a module specification has none. No document is at the manifest
-    /// address. Every rule about the case of a document is here, so the readers of <c>joinPackage</c> leave a
-    /// document that does not fit to this check.
-    /// </summary>
-    let private documentErrors (tree: ClassicDocumentTree<'ta, 'va>) : TreeError list =
-        let kind = tree.Manifest.Kind
-
-        tree.Documents
-        |> Map.toList
-        |> List.choose (fun (address, document) ->
-            let holds = holdsDefinitions kind address
-            let wanted = if holds then "a definition" else "a specification"
-
-            let fault =
-                match address, document with
-                | Manifest, _ -> Some "the manifest of a tree is not one of its documents"
-                | (Own(Module _) | Dependency(_, Module _)), ModuleDoc m ->
-                    match holds, m.Access with
-                    | true, None ->
-                        Some "a module definition has an access, and this module document has none"
-                    | false, Some _ ->
-                        Some
-                            "a module specification has no access, and this module document has one"
-                    | _ -> None
-                | (Own(TypeDef _) | Dependency(_, TypeDef _)), TypeDoc t ->
-                    match holds, t with
-                    | true, ClassicTypeDocument.DefinedType _
-                    | false, ClassicTypeDocument.SpecifiedType _ -> None
-                    | _ ->
-                        Some $"its package holds {wanted}, and the document is {describe document}"
-                | (Own(ValueDef _) | Dependency(_, ValueDef _)), ValueDoc v ->
-                    match holds, v with
-                    | true, ClassicValueDocument.DefinedValue _
-                    | false, ClassicValueDocument.SpecifiedValue _ -> None
-                    | _ ->
-                        Some $"its package holds {wanted}, and the document is {describe document}"
-                | _ ->
-                    Some
-                        $"the address needs another kind of document, and the document is {describe document}"
-
-            fault
-            |> Option.map (fun reason ->
-                error
-                    "tree.mismatched_document"
-                    (Some address)
-                    $"The document at {address} does not fit: {reason}."
-            )
-        )
 
     /// How the modules of one package are made of its documents. A reader gives none for a document that
     /// documentErrors reports.
-    type private PackageShape<'ta, 'va, 'typ, 'value, 'moduleOf> = {
-        TypeOf: ClassicTypeDocument<'ta> -> 'typ option
-        ValueOf: ClassicValueDocument<'ta, 'va> -> 'value option
-        ModuleOf: ClassicModuleDocument -> (Map<Name, 'typ> -> Map<Name, 'value> -> 'moduleOf) option
-    }
+    type private PackageShape<'ta, 'va, 'typ, 'value, 'moduleOf> =
+        TreeJoin.PackageShape<ClassicModuleDocument, ClassicTypeDocument<'ta>, ClassicValueDocument<'ta, 'va>, 'typ, 'value, Map<Name, 'typ>, Map<Name, 'value>, 'moduleOf>
+
+    /// A classic map is keyed by name, so it always builds.
+    let private mapOf entries : Result<Map<'k, 'v>, 'k> = Ok(Map.ofList entries)
 
     let private definitions<'ta, 'va>
         : PackageShape<'ta, 'va, AccessControlled<Documented<Classic.Type.TypeDefinition<'ta>>>, AccessControlled<Documented<Classic.ValueDefinition<'ta, 'va>>>, AccessControlled<Classic.Module.ModuleDefinition<'ta, 'va>>> = {
@@ -328,6 +255,8 @@ module ClassicDocumentTree =
             function
             | ClassicValueDocument.DefinedValue v -> Some v
             | ClassicValueDocument.SpecifiedValue _ -> None
+        TypeMap = mapOf
+        ValueMap = mapOf
         ModuleOf =
             fun m ->
                 m.Access
@@ -351,6 +280,8 @@ module ClassicDocumentTree =
             function
             | ClassicValueDocument.SpecifiedValue v -> Some v
             | ClassicValueDocument.DefinedValue _ -> None
+        TypeMap = mapOf
+        ValueMap = mapOf
         ModuleOf =
             fun m ->
                 match m.Access with
@@ -363,155 +294,9 @@ module ClassicDocumentTree =
                 | Some _ -> None
     }
 
-    /// The result for a document that does not fit. documentErrors reports it, and join always includes those
-    /// errors, so the package fails here with no error of its own and the error is not reported twice.
-    let private reportedByDocumentErrors<'a> : Result<'a, TreeError list> = Error []
-
     /// The modules of one package, or every error of its documents in the ordinal order of their logical paths.
-    let private joinPackage
-        (shape: PackageShape<'ta, 'va, 'typ, 'value, 'moduleOf>)
-        (scope: ModuleDocumentAddress -> DocumentAddress)
-        (logicalPath: DocumentAddress -> string)
-        (documents: PackageDocuments<'ta, 'va>)
-        : Result<Map<ModulePath, 'moduleOf>, TreeError list> =
-        let byAddress = Map.ofList documents
-
-        let byLogicalPath (addressOf: 'a -> ModuleDocumentAddress) (items: 'a list) =
-            items
-            |> List.sortWith (fun a b ->
-                System.String.CompareOrdinal(
-                    logicalPath (scope (addressOf a)),
-                    logicalPath (scope (addressOf b))
-                )
-            )
-
-        /// The members of one kind that a module document lists, each read from its own document.
-        let members
-            (path: ModulePath)
-            (what: string)
-            (addressOf: Name -> ModuleDocumentAddress)
-            (read: TreeDocument<ClassicModuleDocument, ClassicTypeDocument<'ta>, ClassicValueDocument<'ta, 'va>> -> 'item option)
-            (names: Name list)
-            : Result<Map<Name, 'item>, TreeError list> =
-            let repeated =
-                names
-                |> List.countBy id
-                |> List.filter (fun (_, count) -> count > 1)
-                |> List.map (fun (name, _) ->
-                    error
-                        "tree.duplicate_name"
-                        (Some(scope (Module path)))
-                        $"The document of {scope (Module path)} lists the {what} '{nameText name}' more than once."
-                )
-
-            let entries =
-                names
-                |> List.distinct
-                |> List.map (fun name ->
-                    let address = addressOf name
-
-                    match Map.tryFind address byAddress with
-                    | None ->
-                        Error [
-                            error
-                                "tree.missing_definition"
-                                (Some(scope address))
-                                $"The document of {scope (Module path)} lists the {what} '{nameText name}', and the tree has no document for it."
-                        ]
-                    | Some document ->
-                        match read document with
-                        | Some value -> Ok(name, value)
-                        | None -> reportedByDocumentErrors
-                )
-                |> collect
-
-            match repeated, entries with
-            | [], Ok entries -> Ok(Map.ofList entries)
-            | _ ->
-                Error(
-                    repeated
-                    @ errorsOf entries
-                )
-
-        let readType document =
-            match document with
-            | TypeDoc t -> shape.TypeOf t
-            | ModuleDoc _
-            | ValueDoc _ -> None
-
-        let readValue document =
-            match document with
-            | ValueDoc v -> shape.ValueOf v
-            | ModuleDoc _
-            | TypeDoc _ -> None
-
-        let moduleDocuments =
-            documents
-            |> List.choose (fun (address, document) ->
-                match address, document with
-                | Module path, ModuleDoc m -> Some(path, m)
-                | _ -> None
-            )
-            |> byLogicalPath (
-                fst
-                >> Module
-            )
-
-        let modules =
-            moduleDocuments
-            |> List.map (fun (path, m) ->
-                let types =
-                    members path "type" (fun name -> TypeDef(path, name)) readType m.TypeNames
-
-                let values =
-                    members path "value" (fun name -> ValueDef(path, name)) readValue m.ValueNames
-
-                match shape.ModuleOf m, types, values with
-                | Some make, Ok types, Ok values -> Ok(path, make types values)
-                // A module document that does not fit is reported by documentErrors.
-                | _ ->
-                    Error(
-                        errorsOf types
-                        @ errorsOf values
-                    )
-            )
-            |> collect
-
-        let listed =
-            moduleDocuments
-            |> List.collect (fun (path, m) ->
-                (m.TypeNames
-                 |> List.map (fun name -> TypeDef(path, name)))
-                @ (m.ValueNames
-                   |> List.map (fun name -> ValueDef(path, name)))
-            )
-            |> Set.ofList
-
-        let unlisted =
-            documents
-            |> List.map fst
-            |> List.filter (fun address ->
-                match address with
-                | Module _ -> false
-                | TypeDef _
-                | ValueDef _ -> not (Set.contains address listed)
-            )
-            |> byLogicalPath id
-            |> List.map (fun address ->
-                error
-                    "tree.unlisted_definition"
-                    (Some(scope address))
-                    $"The tree has a document for {scope address}, and no module document lists it."
-            )
-
-        // Each module path is one key of the documents, so no module is made twice.
-        match modules, unlisted with
-        | Ok modules, [] -> Ok(Map.ofList modules)
-        | _ ->
-            Error(
-                errorsOf modules
-                @ unlisted
-            )
+    let private joinPackage shape scope logicalPath documents =
+        TreeJoin.joinPackage family shape mapOf scope logicalPath documents
 
     /// The errors of the manifest itself, and of documents that belong to no package of it.
     let private manifestErrors
@@ -519,17 +304,6 @@ module ClassicDocumentTree =
         (logicalPath: DocumentAddress -> string)
         =
         let manifest = tree.Manifest
-
-        let repeatedDependencies =
-            manifest.Dependencies
-            |> List.countBy id
-            |> List.filter (fun (_, count) -> count > 1)
-            |> List.map (fun (PackageName package, _) ->
-                error
-                    "tree.duplicate_dependency"
-                    (Some Manifest)
-                    $"The manifest lists the dependency '{CanonicalNames.pathToString package}' more than once."
-            )
 
         let mismatchedLabel =
             let wanted = singleFileVersionOf manifest.Kind
@@ -548,39 +322,13 @@ module ClassicDocumentTree =
                     | ClassicDistributionKind.SpecsKind -> "Specs"
 
                 [
-                    error
+                    TreeJoin.error
                         "tree.mismatched_label"
                         (Some Manifest)
                         $"The manifest of a {kind} tree records the single-file formatVersion {text manifest.SingleFileVersion}, and a {kind} joins to {text wanted}."
                 ]
 
-        let undeclared =
-            tree.Documents
-            |> Map.keys
-            |> List.ofSeq
-            |> List.choose (fun address ->
-                match address with
-                | Dependency(package, _) when not (List.contains package manifest.Dependencies) ->
-                    Some(package, address)
-                | Manifest
-                | Own _
-                | Dependency _ -> None
-            )
-            |> List.groupBy fst
-            |> List.map (fun (PackageName path, documents) ->
-                error
-                    "tree.undeclared_dependency"
-                    (Some(
-                        documents
-                        |> List.map snd
-                        |> List.minBy logicalPath
-                    ))
-                    $"The tree has documents of the dependency '{CanonicalNames.pathToString path}', and the manifest does not list it."
-            )
-
-        repeatedDependencies
-        @ mismatchedLabel
-        @ undeclared
+        TreeJoin.manifestErrors manifest.Dependencies mismatchedLabel tree.Documents logicalPath
 
     /// <summary>
     /// Joins a tree into a model. Types, values, modules and dependencies are maps in a classic model, so their
@@ -593,56 +341,30 @@ module ClassicDocumentTree =
         let manifest = tree.Manifest
         let logicalPath = DocumentAddress.logicalPath manifest.Package
         let documents = Map.toList tree.Documents
-
-        let own =
-            documents
-            |> List.choose (fun (address, document) ->
-                match address with
-                | Own inner -> Some(inner, document)
-                | Manifest
-                | Dependency _ -> None
-            )
-
-        let ofDependency package =
-            documents
-            |> List.choose (fun (address, document) ->
-                match address with
-                | Dependency(p, inner) when p = package -> Some(inner, document)
-                | Manifest
-                | Own _
-                | Dependency _ -> None
-            )
+        let own = TreeJoin.ownDocuments documents
 
         let dependencies =
-            manifest.Dependencies
-            |> List.distinct
-            |> List.map (fun package ->
-                joinPackage
-                    specifications
-                    (fun inner -> Dependency(package, inner))
-                    logicalPath
-                    (ofDependency package)
-                |> Result.map (fun modules ->
-                    package, ({ Modules = modules }: Classic.Package.PackageSpecification<'ta>)
+            TreeJoin.joinDependencies
+                (fun package ->
+                    joinPackage
+                        specifications
+                        (fun inner -> Dependency(package, inner))
+                        logicalPath
+                        (TreeJoin.dependencyDocuments package documents)
+                    |> Result.map (fun modules ->
+                        ({ Modules = modules }: Classic.Package.PackageSpecification<'ta>)
+                    )
                 )
-            )
-            |> collect
-            |> Result.map Map.ofList
+                mapOf
+                manifest.Dependencies
 
         let assemble ownResult build =
-            match
-                manifestErrors tree logicalPath
-                @ documentErrors tree,
-                ownResult,
+            TreeJoin.assemble
+                (manifestErrors tree logicalPath
+                 @ TreeJoin.documentErrors family (holdsDefinitions manifest.Kind) tree.Documents)
+                ownResult
                 dependencies
-            with
-            | [], Ok ownModules, Ok dependencyMap -> Ok(build ownModules dependencyMap)
-            | found, _, _ ->
-                Error(
-                    found
-                    @ errorsOf ownResult
-                    @ errorsOf dependencies
-                )
+                build
 
         match manifest.Kind with
         | ClassicDistributionKind.LibraryKind ->
