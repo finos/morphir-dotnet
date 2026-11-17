@@ -367,6 +367,53 @@ public class BlackBoxRulesTests
         Only(violations).Should().Be("Steps/OtherSteps.cs:1: step-table: the step 'Then the exit code is {int}' is also in Steps/CliSteps.cs. Reuse the step.");
     }
 
+    // A feature file states intents only (test-driver-contract): the steps name the case, the layout and the
+    // compaction, and the driver builds the command line.
+
+    private const string ConversionFeature = "Integration/ModelConversion.feature";
+
+    private static string Scenario(params string[] lines) =>
+        "@integration @needs-model-conversion\nFeature: Convert\n  Scenario: One\n" + string.Concat(lines.Select(line => "    " + line + "\n"));
+
+    private static string IntentRule(string step, string what) =>
+        $"{ConversionFeature}:4: intents-only: '{step}' has {what}. A feature file states intents only: its steps name the case, the layout and the compaction, and the driver builds the command line.";
+
+    [Test]
+    public void AFeatureThatStatesIntentsOnlyPasses() =>
+        BlackBoxRules.IntentViolations(ConversionFeature, Scenario(
+            "Given the tree of the kit case \"document-tree-0003\"",
+            "When I convert the written model to a single file",
+            "Then the conversion fails with the exit code 1 and the diagnostic \"tree.ambiguous_profile\"",
+            "And the conversion report has a notice \"tree.dropped_manifest_member\" that names \"version\"",
+            "And the conversion report states the layouts \"document-tree\" and \"single-file\"")).Should().BeEmpty();
+
+    [Test]
+    [Arguments("When I run the command \"morphir model convert\"", "a command line: morphir model")]
+    [Arguments("When I run the command \"dotnet-morphir model convert\"", "a command line: dotnet-morphir model")]
+    [Arguments("When I convert the model with \"--layout=document-tree\"", "an option: --layout")]
+    [Arguments("Given the model fixture \"Models/valid-ir-v3.json\"", "a fixture path: Models/valid-ir-v3.json")]
+    [Arguments("Given the model file \"model.json\"", "a fixture path: model.json")]
+    [Arguments("Given the model { \"formatVersion\": 4 }", "inline JSON: { \"")]
+    [Arguments("Given the model [\"Library\"]", "inline JSON: [\"")]
+    public void AStepThatGoesPastTheIntentIsFound(string step, string what) =>
+        Only(BlackBoxRules.IntentViolations(ConversionFeature, Scenario(step))).Should().Be(IntentRule(step, what));
+
+    [Test]
+    public void ADocStringIsFoundAndItsTextIsNotReadAsSteps() =>
+        Only(BlackBoxRules.IntentViolations(ConversionFeature, Scenario("Given the model:", "  \"\"\"", "  { \"formatVersion\": 4 }", "  --compact", "  \"\"\"")))
+            .Should().Be(IntentRule("Given the model:", "a doc string, which holds the data of the case"));
+
+    [Test]
+    public void AnOptionInATableIsFound() =>
+        Only(BlackBoxRules.IntentViolations(ConversionFeature, Scenario("| --compact=names |")))
+            .Should().Be(IntentRule("| --compact=names |", "an option: --compact"));
+
+    [Test]
+    public void TheDescriptionOfAFeatureIsNotAStep() =>
+        BlackBoxRules.IntentViolations(ConversionFeature,
+            "@integration\nFeature: Convert\n  The command morphir model convert --input a.json writes tests/Fixtures/a.json.\n  Scenario: One\n    When I convert the model to a single file\n")
+            .Should().BeEmpty();
+
     // Each pull request test has one run that supports it.
 
     private static PullRequestRun Run(string lane, string name, params (string Host, string[] Capabilities)[] hosts) =>
@@ -538,6 +585,17 @@ public class BlackBoxRulesTests
             "README.md",
             File.ReadAllText(Path.Combine(ProjectDirectory, "README.md")),
             ProjectFiles(".cs").Where(file => file.File.StartsWith("Steps/", StringComparison.Ordinal))).Should().BeEmpty();
+
+    [Test]
+    public void EachModelConversionFeatureStatesIntentsOnly()
+    {
+        var features = ProjectFiles(".feature")
+            .Where(file => Path.GetFileName(file.File).StartsWith("ModelConversion", StringComparison.Ordinal))
+            .ToArray();
+
+        features.Select(file => file.File).Should().Contain(["Integration/ModelConversion.feature", "Integration/ModelConversionKitCases.feature"]);
+        features.SelectMany(file => BlackBoxRules.IntentViolations(file.File, file.Text)).Select(violation => violation.ToString()).Should().BeEmpty();
+    }
 
     [Test]
     public void EachPullRequestTestHasOneRunThatSupportsIt() =>

@@ -32,6 +32,27 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
         _ => throw new ArgumentOutOfRangeException(nameof(version), version, "The catalog has a valid model of the versions 1 to 4."),
     });
 
+    /// <summary>
+    /// A valid single-file model, as <see cref="AValidModel"/> gives it, in the file <paramref name="name"/> of the work
+    /// area: for a documentation page that names its model file.
+    /// </summary>
+    [Given("a valid IR v{int} model in the file {string}")]
+    public void AValidModelInTheFile(int version, string name)
+    {
+        AValidModel(version);
+        var model = workspace.File(name);
+        workspace.WriteBytes(model, workspace.ReadBytes(run.Model));
+        run.Model = model;
+    }
+
+    /// <summary>A single-file v4 Library with two modules, <see cref="FixtureCatalog.Models.V4ConstantFolding"/>.</summary>
+    [Given("a valid IR v4 model with two modules")]
+    public void AValidV4ModelWithTwoModules() => TheCatalogModel(FixtureCatalog.Models.V4ConstantFolding);
+
+    /// <summary>A v4 tree whose manifest has <c>version</c> and <c>created</c>, <see cref="FixtureCatalog.Trees.AcmeDemoTree"/>.</summary>
+    [Given("a v4 tree whose manifest has a version and a created date")]
+    public void AV4TreeWithAVersionAndACreatedDate() => TheCatalogTree(FixtureCatalog.Trees.AcmeDemoTree);
+
     /// <summary>A single-file v4 model with one type node whose tag no type node has, and where that node is.</summary>
     [Given("an IR v4 model with an unknown tag in one type node")]
     public void AV4ModelWithAnUnknownTypeTag()
@@ -43,7 +64,7 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
     /// <summary>
     /// The document tree that the document-tree store writes from a mother case of a Library with a dependency, pinned
     /// in <see cref="FixtureCatalog.Trees"/>, in the directory <c>model</c> of the workspace. <c>model convert</c>
-    /// writes through the same store; a run on what it wrote itself is task 6.3 of add-model-convert.
+    /// writes through the same store; <c>ModelConversion.feature</c> verifies the trees that it wrote itself.
     /// </summary>
     [Given("the tree that the store writes from a v{int} Library with a dependency")]
     public void TheWrittenTree(int version) => TheCatalogTree(version switch
@@ -61,7 +82,9 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
         {
             "an unknown tag in one type node" => FixtureCatalog.Trees.WrittenV4WithAnUnknownTypeTag,
             "no file for one value" => FixtureCatalog.Trees.WrittenV4WithAMissingValueFile,
-            _ => throw new ArgumentOutOfRangeException(nameof(fault), fault, "Use 'an unknown tag in one type node' or 'no file for one value'."),
+            "a second manifest in the YAML profile" => FixtureCatalog.Trees.WrittenV4WithASecondManifestInTheYamlProfile,
+            _ => throw new ArgumentOutOfRangeException(nameof(fault), fault,
+                "Use 'an unknown tag in one type node', 'no file for one value' or 'a second manifest in the YAML profile'."),
         };
         TheCatalogTree(faulty.Tree);
         run.Fault = faulty.Fault;

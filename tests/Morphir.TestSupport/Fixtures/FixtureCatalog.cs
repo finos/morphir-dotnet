@@ -175,6 +175,10 @@ public static class FixtureCatalog
             AcmeDemoFile("pkg/acme/demo/billing/total.value.json", "4d912bf97b7298f07ae90213193eb13c9cae225cf3301536144130581c072f3a"),
         ];
 
+        /// <summary><see cref="AcmeDemo"/> as a tree: a v4 tree whose manifest has <c>version</c> and <c>created</c>.</summary>
+        public static FixtureTree AcmeDemoTree { get; } =
+            FixtureTree.Below("the acme/demo v4 tree, whose manifest has a version and a created date", AcmeDemoDirectory, AcmeDemo);
+
         private const string WrittenProvenance = "MorphirTrees/PROVENANCE.md";
 
         private const string WrittenV4Directory = "MorphirTrees/written-v4-library-with-dependency/";
@@ -258,6 +262,16 @@ public static class FixtureCatalog
             WrittenV4LibraryWithDependency.Without(Pricing + "default-currency.value.json",
                 "the written v4 tree with no file for one value"),
             new FixtureFault(Pricing + "default-currency.value.json", null, [Pricing + "module.json", "default-currency"]));
+
+        /// <summary>
+        /// <see cref="WrittenV4LibraryWithDependency"/> with its manifest also at <c>manifest.yaml</c>, the manifest of the
+        /// YAML profile (JSON is YAML, so the bytes are the same): a tree of two profiles, which a reader refuses with
+        /// <c>tree.ambiguous_profile</c>, naming both manifests and no one file.
+        /// </summary>
+        public static FaultyFixtureTree WrittenV4WithASecondManifestInTheYamlProfile { get; } = new(
+            WrittenV4LibraryWithDependency.With("manifest.yaml", WrittenV4Files.Single(file => file.RelativePath == WrittenV4Directory + "manifest.json"),
+                "the written v4 tree with a second manifest in the YAML profile"),
+            new FixtureFault(null, null, ["manifest.json", "manifest.yaml"]));
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>

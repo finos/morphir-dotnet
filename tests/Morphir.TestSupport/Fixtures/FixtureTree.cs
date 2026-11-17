@@ -53,6 +53,12 @@ public sealed class FixtureTree
             ? new FixtureTree(intent, Files.Select(file => file.Location == location ? new FixtureTreeFile(location, entry) : file))
             : throw new ArgumentException($"The tree '{Intent}' has no file at {location}.", nameof(location));
 
+    /// <summary>The same files and one more: <paramref name="entry"/> at <paramref name="location"/>, which none of them is at.</summary>
+    public FixtureTree With(string location, FixtureEntry entry, string intent) =>
+        Files.All(file => file.Location != location)
+            ? new FixtureTree(intent, [.. Files, new FixtureTreeFile(location, entry)])
+            : throw new ArgumentException($"The tree '{Intent}' already has a file at {location}.", nameof(location));
+
     public override string ToString() => Intent;
 }
 
@@ -84,6 +90,19 @@ public static class FixtureTrees
         var directory = workspace.MakeDirectory(segments);
         foreach (var file in tree.Files)
             workspace.WriteBytes(directory.File(file.Location.Split('/')), FixtureCatalog.ReadBytes(file.Entry));
+        return directory;
+    }
+
+    /// <summary>
+    /// Writes the files of a kit tree (each logical path, such as <c>pkg/my-org/my-project/domain/module</c>, with its
+    /// JSON text) below the directory <paramref name="segments"/> of the work area, each with the extension of the
+    /// JSON profile, and returns the directory.
+    /// </summary>
+    public static WorkspaceDirectory WriteKitTree(this IScenarioWorkspace workspace, IReadOnlyDictionary<string, string> files, params string[] segments)
+    {
+        var directory = workspace.MakeDirectory(segments);
+        foreach (var (logicalPath, json) in files)
+            workspace.WriteText(directory.File((logicalPath + KitSpellingTrees.JsonExtension).Split('/')), json);
         return directory;
     }
 }

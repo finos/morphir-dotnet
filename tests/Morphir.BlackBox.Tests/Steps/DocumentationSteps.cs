@@ -103,6 +103,26 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
         RunEach(arguments => WorkAreaPath().Replace(arguments, match => workspace.Directory(match.Groups[1].Value).Path + "/"));
 
     /// <summary>
+    /// Runs each documented command of the host as the page writes it, with the work area as the working directory, so
+    /// a relative path of the page is a path of the work area. A report then names each path as the page does, and
+    /// <see cref="EachCommandGivesItsDocumentedOutput"/> compares the paths of a report too.
+    /// </summary>
+    [When("I run each documented command of the host as written in the work area")]
+    public async Task RunEachCommandAsWrittenInTheWorkArea()
+    {
+        _asWritten = true;
+        _ran.Clear();
+        foreach (var command in Commands.Where(command => command.Host == HostCommand))
+        {
+            var result = await cli.RunCommandLineAsync(command.Arguments, new CliRunOptions { Timeout = TimeSpan.FromSeconds(180), WorkingDirectory = workspace.Work.Path });
+            _ran.Add((command, result));
+            run.Result = result;
+        }
+
+        if (_ran.Count == 0) throw new InvalidOperationException($"The page documents no command of the host {HostCommand}.");
+    }
+
+    /// <summary>
     /// Runs each documented command of the host in the work area, with the variables of the documented
     /// <c>export</c> lines of the section. <c>$PWD</c> in a value is the work area.
     /// </summary>
@@ -232,6 +252,9 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
 
     private string? _section;
 
+    // The documented commands ran as written, so the paths of a report are the paths of the page.
+    private bool _asWritten;
+
     [Given("the morphir.toml of the section in the project directory {string}")]
     public void TheMorphirTomlOfTheSection(string directory)
     {
@@ -347,13 +370,17 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
     /// The JSON text without the members that the page shows with an example path: <c>output</c>,
     /// <c>sources.root</c> and <c>generation.output</c> of a compile report, <c>input</c>, which must be the
     /// model of the scenario when the scenario has one, and <c>FilePath</c> (the same rule) and <c>Timestamp</c> of a
-    /// verification report.
+    /// verification report. A command that ran as written keeps its paths, which are the paths of the page.
     /// </summary>
     private string Normalize(string json, CommandResult? result)
     {
         var node = JsonNode.Parse(json)!;
         var report = node["report"]?.AsObject() ?? (node is JsonObject root && (root.ContainsKey("success") || root.ContainsKey("exitCode")) ? root : null);
-        if (report is not null)
+        if (report is not null && _asWritten)
+        {
+            report.Remove("Timestamp");
+        }
+        else if (report is not null)
         {
             report.Remove("output");
             report["sources"]?.AsObject().Remove("root");

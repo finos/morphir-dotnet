@@ -178,6 +178,40 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void ATreeOfAFileSpellingHoldsTheFileAndADefinitionForEachNameThatItLists()
+    {
+        var manifest = KitSpellingTrees.Canonical(FixtureCatalog.Kit.FileSpellings[0]);
+        manifest.Files.Keys.Should().Equal("manifest");
+        manifest.SpelledFile.Should().Be("manifest");
+
+        var module = KitSpellingTrees.Canonical(FixtureCatalog.Kit.FileSpellings[1]);
+        const string directory = "pkg/my-org/my-project/my-org/domain/";
+        module.Files.Keys.Should().BeEquivalentTo(
+            "manifest", directory + "module", directory + "user.type", directory + "user-_id.type", directory + "get-user.value");
+        module.SpelledFile.Should().Be(directory + "module");
+        module.Files["manifest"].Should().Be(FixtureCatalog.Kit.FileSpellings[0].CanonicalJson, "the module's tree has the manifest of its format version");
+        JsonNode.Parse(module.Files[directory + "user-_id.type"])!["name"]!.GetValue<string>().Should().Be("user-ID");
+        JsonNode.Parse(module.Files[directory + "get-user.value"])!["name"]!.GetValue<string>().Should().Be("get-user");
+
+        var accepted = KitSpellingTrees.Accepted(FixtureCatalog.Kit.FileSpellings[1]);
+        accepted.Files[directory + "module"].Should().Be(FixtureCatalog.Kit.FileSpellings[1].AcceptedSpellings[0]);
+        FluentActions.Invoking(() => KitSpellingTrees.Accepted(FixtureCatalog.Kit.FileSpellings[0])).Should().Throw<InvalidOperationException>();
+    }
+
+    [Test]
+    public void TheWrittenTreeWithASecondManifestHasBothProfilesOfTheSameManifest()
+    {
+        var faulty = FixtureCatalog.Trees.WrittenV4WithASecondManifestInTheYamlProfile;
+        var files = faulty.Tree.Files.ToDictionary(file => file.Location, file => file.Entry);
+
+        files.Keys.Should().BeEquivalentTo(FixtureCatalog.Trees.WrittenV4LibraryWithDependency.Files.Select(file => file.Location).Append("manifest.yaml"));
+        files["manifest.yaml"].Should().Be(files["manifest.json"]);
+        faulty.Fault.File.Should().BeNull();
+        faulty.Fault.Names.Should().Equal("manifest.json", "manifest.yaml");
+        FluentActions.Invoking(() => faulty.Tree.With("manifest.yaml", files["manifest.json"], "twice")).Should().Throw<ArgumentException>();
+    }
+
+    [Test]
     public void TheTreeCasesAndTheFileSpellingsCoverEveryCaseOfTheFeature()
     {
         var feature = FixtureCatalog.ReadText(FixtureCatalog.Kit.DocumentTreeFeature);

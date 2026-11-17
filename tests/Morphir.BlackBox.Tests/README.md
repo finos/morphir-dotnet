@@ -468,6 +468,7 @@ two steps have the same pattern.
 | Documentation | `Then the file {string} contains the C# block {int} of the section` |
 | Documentation | `Then the documented compile writes the path of the published IR of the project {string}` |
 | Documentation | `Then the documented generate writes its documented files to {string} of the project {string}` |
+| Documentation | `When I run each documented command of the host as written in the work area` |
 | Tutorial | `Then each marked code block of the tutorial is the file of the example that it names` |
 | Tutorial | `Then the first F# code block of the page {string} is the file {string} of the example` |
 | Tutorial | `Given a copy of the example of the tutorial` |
@@ -554,6 +555,40 @@ two steps have the same pattern.
 | Model | `Given an IR v4 model with an unknown tag in one type node` |
 | Model | `Given the tree that the store writes from a v{int} Library with a dependency` |
 | Model | `Given the tree that the store writes from a v4 Library with a dependency, with {string}` |
+| Model | `Given a valid IR v{int} model in the file {string}` |
+| Model | `Given a valid IR v4 model with two modules` |
+| Model | `Given a v4 tree whose manifest has a version and a created date` |
+| Model conversion | `Given the tree of the kit case {string}` |
+| Model conversion | `Given the tree of the kit case {string} with the rejected document of the kit case {string} as its type file` |
+| Model conversion | `Given a tree with the file of the kit case {string}` |
+| Model conversion | `Given a tree with the accepted file spelling of the kit case {string}` |
+| Model conversion | `Given the output is a directory that holds a file` |
+| Model conversion | `When I convert the model to a single file` |
+| Model conversion | `When I convert the model to a document tree` |
+| Model conversion | `When I convert the model without changing its layout or its encoding` |
+| Model conversion | `When I convert the written model to a single file` |
+| Model conversion | `When I convert the written model to a document tree` |
+| Model conversion | `When I verify the written tree as JSON` |
+| Model conversion | `Then the conversion succeeds` |
+| Model conversion | `Then the conversion fails with the exit code {int} and the diagnostic {string}` |
+| Model conversion | `Then the conversion report states the layouts {string} and {string}` |
+| Model conversion | `Then the conversion report states the IR version {string}` |
+| Model conversion | `Then the diagnostic {string} names the input as {string}` |
+| Model conversion | `Then the diagnostic {string} names the place of the fault` |
+| Model conversion | `Then the diagnostic {string} names the output` |
+| Model conversion | `Then the file in the output is unchanged` |
+| Model conversion | `Then nothing is at the output` |
+| Model conversion | `Then the conversion report lists every file of the written tree` |
+| Model conversion | `Then the stream has one fileWritten record for each written file` |
+| Model conversion | `Then the conversion report has {int} notices` |
+| Model conversion | `Then the stream has the notices of the conversion report` |
+| Model conversion | `Then the conversion report has a notice {string} that names {string}` |
+| Model conversion | `Then the written single file says the format version {int}` |
+| Model conversion | `Then every file of the written tree says the format version {string}` |
+| Model conversion | `Then the written single file is the canonical spelling of the kit case` |
+| Model conversion | `Then the written tree has the files of the kit case` |
+| Model conversion | `Then the written tree has the file of the kit case in its canonical spelling` |
+| Model conversion | `Then the conversion fails with the diagnostic of the kit case at the rejected file` |
 | Extension list | `When I list the extensions as JSON` |
 | Extension list | `When I list the extensions as JSON on the other host` |
 | Extension list | `Then the extension list names the host of the run` |
