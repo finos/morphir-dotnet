@@ -45,10 +45,10 @@ Up to four agents, each on its own task list, all committing to `feat/model-conv
 | --- | --- | --- |
 | **A, files and model** | 1, 2, 3, then 13, 11, 12, 14, 15, then 22, 23, 25, 26 | wave 1 |
 | **B, test structure** | 4, 5, then 16 (drivers), 19 (black-box features), 24-tests | wave 1 |
-| **C, CLI** | 6, 7, 8, 9, then 17, 18, then 27 | wave 1 |
+| **C, CLI** | 6, 7, 8, 9, then 17, 17b (after A's 15), 18, then 27 | wave 1 |
 | **D, parent repository** | 10, 20, 21 (finos/morphir branch `feat/model-file-context`) | wave 1 |
 
-Waves: wave 1 = tasks 1-10 in parallel. Milestone 1 = tasks 11-19 (A after 3; B after 5; C after 9). Milestone 2 = tasks 20, 22, 23 (A after D's 20). Milestone 3 = tasks 21, 24, 25, 26 (A after D's 21). Task 27 closes.
+Waves: wave 1 = tasks 1-10 in parallel. Milestone 1 = tasks 11-19 and 17b (A after 3; B after 5; C after 9). Milestone 2 = tasks 20, 22, 23 (A after D's 20). Milestone 3 = tasks 21, 24, 25, 26 (A after D's 21). Task 27 closes.
 
 ---
 
@@ -410,6 +410,23 @@ Waves: wave 1 = tasks 1-10 in parallel. Milestone 1 = tasks 11-19 (A after 3; B 
 - [ ] **Step 4:** Run. Expected: PASS, including "A valid v3 model is valid" and "A file without a format version is not valid".
 - [ ] **Step 5:** Commit `feat!: morphir model replaces morphir ir`.
 
+### Task 17b (agent C): model verify checks v4 files and document trees
+
+**Files:**
+- Create: `src/Morphir.Tooling/Infrastructure/Schemas/{morphir-ir-v4.json,morphir-ir-v4-document-tree-files.json}` (copied unchanged from finos/morphir `website/static/schemas/` at one commit; add to `Schemas/PROVENANCE.md` with SHA-256)
+- Modify: `src/Morphir.Tooling/Features/VerifyIR/{VerifyIR.cs,VersionDetector.cs}` (move to `Features/ModelVerify/`), `Infrastructure/JsonSchema/SchemaLoader.cs` (load v4 and tree-file schemas; select a `$defs` entry by file kind)
+- Modify: `tests/Morphir.BlackBox.Tests/Integration/ModelVerification.feature`, `Steps/VerificationSteps.cs`, `tests/Morphir.TestSupport/Drivers/ModelVerificationDriver.cs` (accept a directory), `docs/content/docs/cli/model-verify.md`
+
+**Interfaces:**
+- Consumes: `DocumentTreeStore.read`, `VFileTree.loadFromDisk`, the `tree.*` codes (Tasks 14, 15).
+- Produces: verification report members added: `layout` (`single-file` | `document-tree`), `filesChecked` (int), `compactedFiles` (list, empty until Task 23); each error gains `file` (tree-relative path, absent for single files) beside its JSON path. Version detection: integer `formatVersion` 1 to 4, or `"3.1.0"` → v3. New diagnostic `verify.schema_version_conflict` (exit 2).
+
+- [ ] **Step 1: Write failing scenarios** in `ModelVerification.feature` ("Given a valid IR v4 model", "Given the tree that model convert wrote from a v4 Library with a dependency", mother-built trees through `FixtureCatalog`): "A valid v4 model is valid", "An invalid v4 model names its error", "A valid v4 tree is valid" (counts every file), "A valid v3 tree is valid", "An error inside one tree file names the file", "A broken tree rule is an error" (`tree.missing_file`), "A schema version that contradicts the manifest" (exit 2, names 3 and 4).
+- [ ] **Step 2:** Run: `dotnet test tests/Morphir.BlackBox.Tests --treenode-filter "/*/*/ModelVerificationFeature/*"`. Expected: FAIL.
+- [ ] **Step 3:** Implement: a directory input loads a `VFileTree`; v4 files are schema-checked per kind (manifest → `DistributionManifestFile`, `module.json` → `ModuleManifestFile`, `*.type.json` → `TypeDefinitionFile`, `*.value.json` → `ValueDefinitionFile`), then `DocumentTreeStore.read` runs on the whole tree; all errors are collected, not first-only.
+- [ ] **Step 4:** Run the feature, the existing v1 to v3 scenarios and `ModelVerificationBudgetTests`. Expected: PASS, existing behaviour unchanged.
+- [ ] **Step 5:** Update `model-verify.md` (v4, trees, `--schema-version=4`); commit `feat: model verify checks v4 models and document trees`.
+
 ### Task 18 (agent C): The convert command
 
 **Files:**
@@ -479,7 +496,7 @@ Waves: wave 1 = tasks 1-10 in parallel. Milestone 1 = tasks 11-19 (A after 3; B 
 ### Task 23: Context refusals and convert expansion
 
 **Files:**
-- Modify: `ContextExpansion.fs`, `ModelConvertCommand.cs` (remove `model.unsupported_context`)
+- Modify: `ContextExpansion.fs`, `ModelConvertCommand.cs` (remove `model.unsupported_context`), `Features/ModelVerify/` (expand before checking; fill `compactedFiles`), `ModelVerification.feature` ("A compacted tree is verified after expansion", "An invalid context fails verification" with `context.unknown_alias`)
 - Create: `tests/Morphir.BlackBox.Tests/Integration/ModelConversionCompaction.feature` (reading scenarios)
 - Test: `tests/Morphir.Models.Tests/IR/Files/ContextRefusalTests.fs`
 

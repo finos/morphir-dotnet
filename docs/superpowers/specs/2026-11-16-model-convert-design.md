@@ -81,7 +81,13 @@ morphir model convert --input <file-or-directory> --output <path>
 - `--json` follows the CLI-wide convention of the companion change `adopt-streaming-json` (below). A bare `--json` streams JSON Lines to stdout: one compact object per line with an `event` member, flushed when the event occurs (`stageStarted`, `diagnostics`, `fileWritten`, `stageCompleted`), ending with exactly one `{"event":"completed","report":{…}}`. `--json=document` writes only the report, as one document. The report holds success, input and output paths, the layouts, the IR version, the compaction mode and policy, the files written and all diagnostics. Stderr stays human-readable in every mode, and nothing but JSON goes to stdout.
 - An option value is given only with `=`. A bare `--json` or `--compact` never takes the next argument, so `--json document` is a usage error that suggests `--json=document`, and on commands with positional arguments `--json model.json` keeps `model.json` as the input.
 - Exit codes follow the existing commands: 0 on success, 1 when the model is refused, 2 for usage errors.
-- `morphir model verify` is today's `ir verify`, unchanged apart from the name.
+- `morphir model verify` is today's `ir verify` for v1 to v3 single files, and it also checks every form `convert` writes:
+  - IR v4 single files, against the parent's `morphir-ir-v4.json` (pinned), with `--schema-version=4`;
+  - v4 trees: each file against its kind in the parent's `morphir-ir-v4-document-tree-files.json`, then the document-tree store for the tree rules and every document;
+  - v3 trees: through the store, since the parent publishes no v3 tree-file schema;
+  - compacted files (milestone 2): the context refusals, then the same checks on the expanded documents.
+
+  Errors name the tree-relative file and the JSON path in it. A tree's version comes from its manifest, and a contradicting `--schema-version` exits 2.
 
 ## How it is built
 

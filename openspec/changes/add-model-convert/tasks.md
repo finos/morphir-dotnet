@@ -35,6 +35,8 @@ All work is on `feat/model-convert`. Milestones end with a commit that builds an
 - [ ] 5.1 Replace the `ir` group with `model` and `ir verify` with `model verify` (no alias), update `ModelVerificationDriver`, the `@needs-model-verification` description and `ModelVerification.feature` (now intent phrases from the fixture catalog), and verify the `cli-model-commands` scenarios, including "The former command is unknown".
 - [ ] 5.2 Update the docs pages and CHANGELOG for the rename, and verify the documented commands run as written in the black-box docs checks.
 - [ ] 5.3 Draft the companion finos/morphir change (`tools/cli-release.ts` packaged-input check, `INSTALLING.md`, `docs/getting-started/morphir-cli.md`) on a parent branch, to land with the pin move that brings the rename; verify `bun test` for `tools/` passes there with a `model verify` stub.
+- [ ] 5.4 Pin the parent's `morphir-ir-v4.json` and `morphir-ir-v4-document-tree-files.json` schemas into `src/Morphir.Tooling/Infrastructure/Schemas` with provenance, make `model verify` detect and check IR v4 single files and accept `--schema-version=4`, and verify "A valid v4 model is valid" and "An invalid v4 model names its error".
+- [ ] 5.5 Make `model verify` check a document tree after group 4 lands: each v4 file against its file-kind schema, the tree rules and every document through the document-tree store (v3 trees through the store alone, as the parent publishes no v3 tree-file schema), errors naming file and JSON path, the report's layout and file count, and a `--schema-version` that contradicts the manifest exiting 2; verify the tree scenarios of `cli-model-commands` in `ModelVerification.feature`, including on trees `model convert` wrote.
 
 ## 6. The convert command (milestone 1)
 
@@ -52,6 +54,7 @@ Depends on `adopt-streaming-json` group 2 for the `--json` convention.
 - [ ] 7.3 Implement envelope reading and expansion in the store and for single files (typed name positions only; classic arrays for v3 and canonical strings for v4; no relabel; context bytes counted toward limits), and verify the reading scenarios of `model-name-compaction`.
 - [ ] 7.4 Implement the context refusals (undeclared URL, unknown alias, duplicate entry, unknown `critical` path, entry limit, name-length limit, context after the document), and verify each scenario.
 - [ ] 7.5 Replace the `model.unsupported_context` refusal with expansion in `convert`, write `ModelConversionCompaction.feature` (reading part), update the docs and CHANGELOG, add the milestone 2 note, and verify "A compacted tree becomes a plain single file" and the docs commands.
+- [ ] 7.6 Make `model verify` expand compacted single files and tree files before checking them, list the compacted files in its report, and apply the context refusals; verify "A compacted tree is verified after expansion" and "An invalid context fails verification".
 
 ## 8. Write compacted files (milestone 3)
 
@@ -124,6 +127,15 @@ Every scenario of this change and the test that proves it. Unchanged scenarios o
 | cli-model-commands | A valid v3 model is valid | `ModelVerification.feature` |
 | cli-model-commands | A file without a format version is not valid | `ModelVerification.feature` |
 | cli-model-commands | The former command is unknown | `ModelVerification.feature` |
+| cli-model-commands | A valid v4 model is valid | `ModelVerification.feature` (5.4) |
+| cli-model-commands | An invalid v4 model names its error | `ModelVerification.feature` (5.4) |
+| cli-model-commands | A valid v4 tree is valid | `ModelVerification.feature` (5.5) |
+| cli-model-commands | A valid v3 tree is valid | `ModelVerification.feature` (5.5) |
+| cli-model-commands | An error inside one tree file names the file | `ModelVerification.feature` (5.5) |
+| cli-model-commands | A broken tree rule is an error | `ModelVerification.feature` (5.5) |
+| cli-model-commands | A schema version that contradicts the manifest | `ModelVerification.feature` (5.5) |
+| cli-model-commands | A compacted tree is verified after expansion | `ModelVerification.feature` (7.6) |
+| cli-model-commands | An invalid context fails verification | `ModelVerification.feature` (7.6) |
 | ir-model-writing | Version-specific spelling | existing writer tests, unchanged |
 | ir-model-writing | Unsupported output version | existing writer tests, extended (4.4) |
 | ir-model-writing | A classic Specs distribution at 3.1.0 | `Morphir.Models.Tests`: classic writer (4.4) |

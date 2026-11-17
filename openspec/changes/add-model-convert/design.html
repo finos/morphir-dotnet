@@ -48,6 +48,7 @@ svg line, svg path { stroke: var(--muted); fill: none; }
   <ul>
   <li><a href="#cli-1">CLI-1. A model group replaces the IR group</a></li>
   <li><a href="#cli-2">CLI-2. One convert command with two output axes</a></li>
+  <li><a href="#ver-1">VER-1. Verify checks every stored form</a></li>
   <li><a href="#conv-1">CONV-1. Convert through the typed model</a></li>
   <li><a href="#files-1">FILES-1. Extract Morphir.Files for every target</a></li>
   <li><a href="#tree-1">TREE-1. Three layers: address, document tree, store</a></li>
@@ -91,6 +92,19 @@ svg line, svg path { stroke: var(--muted); fill: none; }
 morphir model convert --input morphir-ir.json --output compacted.json --compact
 morphir model convert --input compacted-tree --output plain.json --layout single-file</code></pre>
 <p>Option values are given only with <code>=</code>. A probe of System.CommandLine 2.0.15 showed that an optional value takes the next token greedily (<code>--json model.json</code> took <code>model.json</code> as the value). <code>convert</code> has no positional argument, but the rule matches the CLI-wide <code>--json[=stream|document]</code> rule of <code>adopt-streaming-json</code>, which rewrites a bare flag before parsing. Machine output follows that change from milestone 1, with a <code>fileWritten</code> event per file. <em>Alternatives:</em> a <code>--compact-names</code> flag (no room for further compactions); <code>migrate</code> (wrong meaning).</p>
+
+<h3 id="ver-1">VER-1. Verify checks every stored form</h3>
+<p>Observed: <code>ir verify</code> validates single files against embedded v1, v2 and v3 JSON Schemas only. It defaults to v3 when <code>formatVersion</code> is missing, and <code>--schema-version</code> accepts 1 to 3. A model that <code>convert</code> writes must be verifiable, so <code>model verify</code> gains three inputs:</p>
+<table>
+<thead><tr><th>Input</th><th>Checks</th><th>Milestone</th></tr></thead>
+<tbody>
+<tr><td>IR v4 single file</td><td>the parent's <code>morphir-ir-v4.json</code>, pinned with provenance beside the v1 to v3 schemas; <code>--schema-version=4</code></td><td>1</td></tr>
+<tr><td>v4 document tree</td><td>each file against its kind in <code>morphir-ir-v4-document-tree-files.json</code> (<code>DistributionManifestFile</code>, <code>ModuleManifestFile</code>, <code>TypeDefinitionFile</code>, <code>ValueDefinitionFile</code>), then <code>DocumentTreeStore.read</code> for the tree rules and every document</td><td>1</td></tr>
+<tr><td>v3 document tree</td><td><code>DocumentTreeStore.read</code> only; the parent publishes no v3 tree-file schema. When it does, the schema is pinned and added without a spec change.</td><td>1</td></tr>
+<tr><td>compacted single file or tree</td><td>the context refusals, then the checks above on the expanded documents; the report lists compacted files</td><td>2</td></tr>
+</tbody>
+</table>
+<p>Verify reuses the store rather than a second tree walker, so a tree that <code>convert</code> accepts is exactly a tree that <code>verify</code> accepts. Errors carry the tree-relative file path and the JSON path inside it. For a tree the version comes from the manifest, and a <code>--schema-version</code> that contradicts it exits 2. <em>Alternative:</em> schema checks only (would miss the cross-file rules such as a listed value with no file; rejected).</p>
 
 <h3 id="conv-1">CONV-1. Convert through the typed model</h3>
 <p>The single file is decoded with the existing codecs, split into typed documents, and written per document; a tree is read back into the same typed model. The input is checked, there is one source of truth, and later commands can reuse the reader and writer. Equality is semantic, which is what the kit checks.</p>

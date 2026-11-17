@@ -17,6 +17,7 @@ It also renames the `ir` command group to `model`, because a Morphir model is mo
 ## What Changes
 
 - **BREAKING:** the `morphir ir` command group is replaced by `morphir model`. `morphir ir verify` becomes `morphir model verify` with the same behavior; there is no `ir` alias (pre-1.0).
+- `morphir model verify` checks every stored form of a model: single files at IR versions 1 to 3 as today, plus IR v4 single files, v3 and v4 document trees (per-file schemas where the parent publishes them, the tree rules, and each document), and compacted files after expansion.
 - New command `morphir model convert`: converts a model between a single file and a document tree, in both directions, for IR 3.1.0 and IR 4 in the JSON profile, keeping the IR version. `--layout document-tree|single-file` chooses the layout and `--compact[=<mode>]` the encoding (mode `names`); option values are given only with `=`.
 - Name compaction: every file of a model, single file or tree file, can carry a Morphir-file envelope (a schema URL, a file-local naming table, the document). The command reads compacted files (expanding them) and writes them under the parent's named policy, in RFC 8785 canonical JSON.
 - New model-layer types for document trees: typed document addresses, a document tree of decoded typed documents with `split` and `join`, and a store that is the only code mapping a tree to files.
@@ -33,7 +34,7 @@ It also renames the `ir` command group to `model`, because a Morphir model is mo
 - `model-document-trees`: typed document addresses, the document tree of a model, `split` and `join`, and the storage rules that map a tree to and from files.
 - `model-name-compaction`: the Morphir-file envelope, reading compacted files, writing them under a named policy, and canonical bytes.
 - `cli-model-conversion`: the `morphir model convert` command.
-- `cli-model-commands`: the `morphir model` command group and `morphir model verify`, replacing `morphir ir`.
+- `cli-model-commands`: the `morphir model` command group and `morphir model verify`, replacing `morphir ir`, including verification of IR v4 single files, document trees and compacted files.
 
 ### Modified Capabilities
 
