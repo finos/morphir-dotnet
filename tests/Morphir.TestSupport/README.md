@@ -41,6 +41,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `IExtensionDriver` (`ExtensionDriver`) | The `extension list` and `extension runtimes` commands, with `ExtensionListOptions`. Their reports are `ExtensionListReport` and `ExtensionRuntimesReport`. |
 | `IExtensionInstallDriver` (`ExtensionInstallDriver`) | The `extension install` command, with `ExtensionInstallOptions`: it writes a NuGet folder feed with a layout A extension package, installs into the extension home of the scenario with `--home` and `--no-probe`, and reads that home. Its report is `ExtensionInstallationReport`, the installed catalog, lock and store files and the NuGet provenance of a lock: the command writes no JSON report. |
 | `IModelValidationDriver` (`ModelValidationDriver`) | The `validate` command, with `ValidationOptions`. Its report is `ValidationReport`. |
+| `IModelConversionDriver` (`ModelConversionDriver`) | The `model convert` command, with `ConversionOptions`: the input and the output as a `ModelLocation` (a `WorkspaceFile` or a `WorkspaceDirectory`), the target `ModelLayout`, and the compaction as a `CompactionArgument`. Its report is `ConversionReport`. |
 | `ExtensionArtifacts` | The files of the extension guests of the development build (`BuiltExtension`), from the assembly metadata that `build/Morphir.ExtensionArtifacts.targets` writes. Only the development build has them (`@needs-built-extensions`). |
 | `CliRunOptions.WithoutDynamicCode` | Runs an assembly host with the dynamic-code switch of the runtime off, as in a Native AOT executable, from a copy of its runtime configuration in the workspace (`@needs-host-without-dynamic-code`). |
 | `ExtensionPlatform` | The platform of this machine as the extension reports name it, for example `osx-arm64`, and the platform with no WASM runtime (`win-x64`). |
@@ -72,7 +73,7 @@ that the command wrote in the work area. Two layers check it:
   `GenerationReport` reads the field `success`, and fails when the field disagrees with the exit code.
 - The reports of the other command families derive from `JsonCommandReport`: one JSON object (a document, or the
   `report` of a stream), a field `exitCode` that agrees with the exit code, and the list `diagnostics` as
-  `ReportDiagnostic` items. `CompilationReport` and `ValidationReport` also read `success`; `ConfigurationReport` and
+  `ReportDiagnostic` items. `CompilationReport`, `ValidationReport` and `ConversionReport` also read `success`; `ConfigurationReport` and
   `MigrationReport` read `outcome`. A path in a configuration or migration report has the form of `ReportPath`.
 
 Each failure is a `CommandAssertionException`. Its message has the command line, the exit code and both streams.
@@ -189,7 +190,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs` | The test needs that `DriverCapability`. `@needs-built-programs`: the build output and the project files of the programs of the repository; only the development build has them. |
 | `@needs-development-packages` | The test packs a project of the development build (`IPackageDriver`). Only the target `dev` has it. |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-model-conversion`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
 | `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form` | The test needs an installed packaged offering; a Native AOT executable of a release (`aot`, `native-aot`); a target whose form is known (each target except `executable`). |
 | `@needs-wasm-guests` | The test runs a WASM guest. Each platform except Windows x64 has it: there the host refuses each guest (#609). `DriverCapabilities.Of` takes the platform; the default is this machine. |
 
@@ -220,8 +221,8 @@ that tests reach by intent. Each `FixtureEntry` has its intent, its path below `
   profile forbids.
 - `FixtureCatalog.Models` holds the IR fixtures of `tests/Fixtures/MorphirIR` by intent, for example `V3Library`.
 - `FixtureCatalog.Trees` holds document trees written by hand for this repository, each file at its location in the
-  tree: `AcmeDemo` is the v4 tree of `tests/Fixtures/MorphirTrees/acme-demo`, which "The same tree from two
-  sources" reads from a directory and from resources that `tests/Morphir.Models.Tests` embeds.
+  tree: `FixtureCatalog.Trees.AcmeDemo` is the v4 tree of `tests/Fixtures/MorphirTrees/acme-demo`, which "The same
+  tree from two sources" reads from a directory and from resources that `tests/Morphir.Models.Tests` embeds.
 - `FixtureCatalog.ExistingOwners` lists, as a `FixtureOwner` each, the folders that test projects owned before the
   catalog. `FixtureCatalog.UnownedFiles` gives the files that have no owner, and
   `tests/Morphir.Build.Tests/Helpers/FixtureOwnershipTests.cs` fails on each.

@@ -86,7 +86,8 @@ public abstract class JsonCommandReport
     protected string DescribeDiagnostics() =>
         Diagnostics.Count == 0 ? "no diagnostic" : string.Join("; ", Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}"));
 
-    private static ReportDiagnostic Diagnostic(JsonElement item)
+    /// <summary>Reads one item of a list of diagnostics: <c>code</c>, <c>message</c>, <c>severity</c> and <c>location</c>.</summary>
+    protected static ReportDiagnostic Diagnostic(JsonElement item)
     {
         string? Field(JsonElement element, string name) =>
             element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
