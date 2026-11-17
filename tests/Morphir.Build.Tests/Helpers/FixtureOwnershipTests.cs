@@ -13,6 +13,7 @@ namespace Morphir.Build.Tests.Helpers;
 /// <see cref="FixtureCatalog.ExistingOwners"/> that a test project owned before the catalog. A file with neither
 /// fails here, so a new fixture comes in through the catalog with its provenance entry and hash.
 /// </summary>
+[Category("PlatformSpecific")]
 public class FixtureOwnershipTests
 {
     private static readonly string Root = TestFixture.GetRepositoryRoot();

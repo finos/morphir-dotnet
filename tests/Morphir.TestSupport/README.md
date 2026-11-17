@@ -203,7 +203,9 @@ that tests reach by intent. Each `FixtureEntry` has its intent, its path below `
 
 - `FixtureCatalog.Kit` holds the pinned kit files of finos/morphir (`tests/Fixtures/MorphirTrees/PROVENANCE.md`) as
   reference data. `FixtureCatalog.Kit.DocumentTree` gives each tree case as a `KitTreeCase`: its id, its title, its
-  tree files as JSON, its canonical single file and its diagnostic. `KitTreeCaseReader` reads them and raises on a
+  tree files as JSON, its canonical single file and its diagnostic. `FixtureCatalog.Kit.FileSpellings` gives each
+  case that pins one manifest file's spelling as a `KitFileSpelling`: its id, its title, the file's name in a tree,
+  its canonical JSON and the other spellings a reader accepts. `KitTreeCaseReader` reads both and raises on a
   step form it does not know; `YamlToJson` translates the kit's YAML spellings and refuses what the kit's YAML
   profile forbids.
 - `FixtureCatalog.Models` holds the IR fixtures of `tests/Fixtures/MorphirIR` by intent, for example `V3Library`.

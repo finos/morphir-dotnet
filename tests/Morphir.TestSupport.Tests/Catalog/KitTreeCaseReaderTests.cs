@@ -110,16 +110,59 @@ public class KitTreeCaseReaderTests
     }
 
     [Test]
-    public void ACaseWithNoTreeAndNoDiagnosticIsNotATreeCase()
+    public void ACaseWithNoTreeAndNoDiagnosticIsAFileSpelling()
     {
-        // document-tree-0001 pins one tree file's spelling: there is no tree to convert.
+        // document-tree-0002 pins one tree file's spelling: there is no tree to convert.
         const string feature = """
             Feature: Document tree
 
-              Scenario: document-tree-9006 A manifest file
+              @node:ModuleManifestFile
+              Scenario: document-tree-9006 A module manifest
+                Then its canonical YAML spelling is:
+                  ```yaml
+                  path: a
+                  ```
+                And a reader of JSON accepts { "module": "a" }
+            """;
+
+        var read = KitTreeCaseReader.ReadFeature("example.feature", feature.Replace("```", "\"\"\""));
+
+        read.Trees.Should().BeEmpty();
+        var spelling = read.FileSpellings.Should().ContainSingle().Subject;
+        spelling.Should().BeEquivalentTo(new { Id = "document-tree-9006", Title = "A module manifest", LogicalPath = "module", CanonicalJson = """{"path":"a"}""" });
+        spelling.AcceptedSpellings.Should().Equal("""{ "module": "a" }""");
+    }
+
+    [Test]
+    public void AFileSpellingWithoutAManifestNodeTagRaises()
+    {
+        const string feature = """
+            Feature: Document tree
+
+              @node:Distribution
+              Scenario: document-tree-9007 Which file
                 Then its canonical JSON spelling is { "formatVersion": 4 }
             """;
 
-        KitTreeCaseReader.Read("example.feature", feature).Should().BeEmpty();
+        Reading(feature).Should().Throw<FormatException>().WithMessage("*document-tree-9007*node tag*Distribution*");
+    }
+
+    [Test]
+    public void AnAcceptedSpellingInATreeCaseRaises()
+    {
+        const string feature = """
+            Feature: Document tree
+
+              Scenario: document-tree-9008 A tree and an accepted spelling
+                Given the tree file "manifest" in set "s":
+                  ```json
+                  { "formatVersion": 4 }
+                  ```
+                Then the "s" tree reads back as the canonical form
+                And its canonical JSON spelling is { "formatVersion": 4 }
+                And a reader of JSON accepts { "formatVersion": "4.0.0" }
+            """;
+
+        Reading(feature.Replace("```", "\"\"\"")).Should().Throw<FormatException>().WithMessage("*document-tree-9008*accepted spelling*");
     }
 }

@@ -46,3 +46,27 @@ public sealed record KitTreeCase(
     /// <summary>The JSON document that a reader refuses with <see cref="Diagnostic"/>.</summary>
     public string? RejectedDocument { get; init; }
 }
+
+/// <summary>
+/// One case of the kit's <c>document-tree.feature</c> that pins the spelling of one tree file and has no tree, such
+/// as <c>document-tree-0001</c>.
+/// </summary>
+/// <param name="Id">The kit id.</param>
+/// <param name="Title">The rest of the scenario title.</param>
+/// <param name="LogicalPath">The file's name in a tree, with no extension: <c>manifest</c> for the distribution
+/// manifest, <c>module</c> for a module manifest (the last segment of <c>pkg/&lt;package&gt;/&lt;module&gt;/module</c>).</param>
+/// <param name="CanonicalJson">The file as a writer writes it: the kit's canonical JSON spelling, or its canonical YAML
+/// spelling translated to JSON when the case gives only that.</param>
+/// <param name="AcceptedSpellings">Other JSON spellings that a reader accepts as the same file, such as
+/// <c>document-tree-0002</c>'s <c>module</c> for <c>path</c>.</param>
+public sealed record KitFileSpelling(
+    string Id,
+    string Title,
+    string LogicalPath,
+    string CanonicalJson,
+    IReadOnlyList<string> AcceptedSpellings);
+
+/// <summary>The cases of one kit feature file, as <see cref="KitTreeCaseReader"/> reads them.</summary>
+/// <param name="Trees">The cases with a tree or a diagnostic.</param>
+/// <param name="FileSpellings">The cases that pin the spelling of one tree file.</param>
+public sealed record KitFeature(IReadOnlyList<KitTreeCase> Trees, IReadOnlyList<KitFileSpelling> FileSpellings);

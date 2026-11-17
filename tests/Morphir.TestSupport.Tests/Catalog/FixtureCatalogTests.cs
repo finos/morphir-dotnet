@@ -7,7 +7,9 @@ using Morphir.TestSupport.Fixtures;
 
 namespace Morphir.TestSupport.Tests.Catalog;
 
-/// <summary>The files that <see cref="FixtureCatalog"/> serves, and the kit tree cases it reads from them.</summary>
+/// <summary>The files that <see cref="FixtureCatalog"/> serves, and the kit cases it reads from them.</summary>
+/// <remarks>The hashes are of the checked-out bytes, whose line endings depend on the checkout.</remarks>
+[Category("PlatformSpecific")]
 public class FixtureCatalogTests
 {
     private static string Sha256Of(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
@@ -95,6 +97,47 @@ public class FixtureCatalogTests
         rejected.CanonicalSingleFile.Should().BeNull();
         rejected.Diagnostic.Should().Be("version_mismatch");
         JsonNode.Parse(rejected.RejectedDocument!)!["formatVersion"]!.GetValue<string>().Should().Be("4.0.0");
+    }
+
+    [Test]
+    public void TheFileSpellingCasesOfTheKitAreRead()
+    {
+        var spellings = FixtureCatalog.Kit.FileSpellings;
+        var feature = FixtureCatalog.ReadText(FixtureCatalog.Kit.DocumentTreeFeature);
+
+        spellings.Select(spelling => (spelling.Id, spelling.LogicalPath)).Should().Equal(
+            ("document-tree-0001", "manifest"), ("document-tree-0002", "module"), ("document-tree-0010", "manifest"));
+        spellings.Select(spelling => spelling.Title).Should().Equal("Manifest file", "Module manifest, names only", "v3 manifest");
+
+        // The canonical JSON is the kit's own spelling, kept as written.
+        foreach (var spelling in spellings)
+            feature.Should().Contain($"And its canonical JSON spelling is {spelling.CanonicalJson}\n", $"{spelling.Id} keeps the kit's canonical JSON");
+
+        var v4Manifest = JsonNode.Parse(spellings[0].CanonicalJson)!;
+        v4Manifest["formatVersion"]!.GetValue<int>().Should().Be(4);
+        v4Manifest["pathBudget"]!.GetValue<int>().Should().Be(4000);
+        JsonNode.Parse(spellings[2].CanonicalJson)!["formatVersion"]!.GetValue<string>().Should().Be("3.1.0");
+        JsonNode.Parse(spellings[1].CanonicalJson)!["path"]!.GetValue<string>().Should().Be("my-org/domain");
+
+        // document-tree-0002: a reader also accepts the module manifest's older member name, module for path.
+        spellings[0].AcceptedSpellings.Should().BeEmpty();
+        spellings[2].AcceptedSpellings.Should().BeEmpty();
+        var accepted = JsonNode.Parse(spellings[1].AcceptedSpellings.Should().ContainSingle().Subject)!.AsObject();
+        accepted["module"]!.GetValue<string>().Should().Be("my-org/domain");
+        accepted.ContainsKey("path").Should().BeFalse();
+    }
+
+    [Test]
+    public void TheTreeCasesAndTheFileSpellingsCoverEveryCaseOfTheFeature()
+    {
+        var feature = FixtureCatalog.ReadText(FixtureCatalog.Kit.DocumentTreeFeature);
+        var ids = feature.Split('\n').Select(line => line.Trim())
+            .Where(line => line.StartsWith("Scenario:", StringComparison.Ordinal))
+            .Select(line => line["Scenario:".Length..].Trim().Split(' ')[0]);
+
+        FixtureCatalog.Kit.DocumentTree.Select(kitCase => kitCase.Id)
+            .Concat(FixtureCatalog.Kit.FileSpellings.Select(spelling => spelling.Id))
+            .Should().BeEquivalentTo(ids).And.HaveCount(17);
     }
 
     [Test]

@@ -37,14 +37,21 @@ public static class FixtureCatalog
         /// <summary>The pinned kit files.</summary>
         public static IReadOnlyList<FixtureEntry> Files { get; } = [DocumentTreeFeature, DistributionsFeature, VersionsFeature];
 
-        private static readonly Lazy<IReadOnlyList<KitTreeCase>> TreeCases =
-            new(() => KitTreeCaseReader.Read(DocumentTreeFeature.RelativePath, ReadText(DocumentTreeFeature)));
+        private static readonly Lazy<KitFeature> DocumentTreeCases =
+            new(() => KitTreeCaseReader.ReadFeature(DocumentTreeFeature.RelativePath, ReadText(DocumentTreeFeature)));
 
         /// <summary>
         /// Each case of <c>document-tree.feature</c> with a tree or a diagnostic, in the kit's order. The cases that pin
-        /// only one tree file's spelling (<c>document-tree-0001</c>, <c>-0002</c>, <c>-0010</c>) have neither.
+        /// only one tree file's spelling are <see cref="FileSpellings"/>.
         /// </summary>
-        public static IReadOnlyList<KitTreeCase> DocumentTree => TreeCases.Value;
+        public static IReadOnlyList<KitTreeCase> DocumentTree => DocumentTreeCases.Value.Trees;
+
+        /// <summary>
+        /// Each case of <c>document-tree.feature</c> that pins the spelling of one tree file and has no tree
+        /// (<c>document-tree-0001</c>, <c>-0002</c>, <c>-0010</c>), in the kit's order. With <see cref="DocumentTree"/>
+        /// it covers every case of the feature.
+        /// </summary>
+        public static IReadOnlyList<KitFileSpelling> FileSpellings => DocumentTreeCases.Value.FileSpellings;
 
         /// <summary>The tree case with this kit id.</summary>
         public static KitTreeCase Case(string id) =>

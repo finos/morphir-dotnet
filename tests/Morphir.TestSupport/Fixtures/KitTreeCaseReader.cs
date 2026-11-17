@@ -14,19 +14,31 @@ namespace Morphir.TestSupport.Fixtures;
 /// </summary>
 public static partial class KitTreeCaseReader
 {
+    /// <summary>The cases of the feature text that have a tree or a diagnostic.</summary>
+    public static IReadOnlyList<KitTreeCase> Read(string feature, string text) => ReadFeature(feature, text).Trees;
+
     /// <summary>
-    /// The cases of the feature text that have a tree or a diagnostic. A case that pins one tree file's spelling and
-    /// has neither (such as <c>document-tree-0001</c>) is read, checked and left out.
+    /// Every case of the feature text: those with a tree or a diagnostic, and those that pin the spelling of one tree
+    /// file (such as <c>document-tree-0001</c>). A scenario that is neither raises.
     /// </summary>
-    public static IReadOnlyList<KitTreeCase> Read(string feature, string text)
+    public static KitFeature ReadFeature(string feature, string text)
     {
         var cases = new List<KitTreeCase>();
+        var spellings = new List<KitFileSpelling>();
         Draft? current = null;
+        var tags = new List<string>();
         var lines = text.Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
 
         for (var index = 0; index < lines.Length; index++)
         {
             var line = lines[index].Trim();
+            if (line.StartsWith('@'))
+            {
+                tags.AddRange(line.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+                continue;
+            }
+
+            if (line.StartsWith("Feature:", StringComparison.Ordinal)) tags.Clear();
             if (line.StartsWith("\"\"\"", StringComparison.Ordinal))
                 throw new FormatException($"{feature}:{index + 1}: a doc string that follows no step that takes one.");
             if (line.StartsWith("Scenario Outline:", StringComparison.Ordinal) || line.StartsWith("Scenario Template:", StringComparison.Ordinal)
@@ -36,11 +48,13 @@ public static partial class KitTreeCaseReader
 
             if (line.StartsWith("Scenario:", StringComparison.Ordinal))
             {
-                Finish(current, cases);
+                current?.Build(cases, spellings);
                 var title = line["Scenario:".Length..].Trim();
                 var separator = title.IndexOf(' ');
                 if (separator <= 0) throw new FormatException($"{feature}:{index + 1}: a scenario title starts with its kit id: '{title}'.");
-                current = new Draft(feature, title[..separator], title[(separator + 1)..]);
+                var node = tags.Where(tag => tag.StartsWith("@node:", StringComparison.Ordinal)).Select(tag => tag["@node:".Length..]).LastOrDefault();
+                current = new Draft(feature, title[..separator], title[(separator + 1)..], node);
+                tags.Clear();
                 continue;
             }
 
@@ -80,17 +94,25 @@ public static partial class KitTreeCaseReader
                 current.CanonicalYaml = DocString("yaml");
             else if ((match = CanonicalJson().Match(step)).Success)
                 current.CanonicalJson = Json(current.Id, match.Groups[1].Value);
-            else if (AcceptedJson().IsMatch(step))
-                Json(current.Id, AcceptedJson().Match(step).Groups[1].Value); // An accepted spelling of one tree file: checked, not kept.
+            else if ((match = AcceptedJson().Match(step)).Success)
+                current.Accepted.Add(Json(current.Id, match.Groups[1].Value));
             else if ((match = RejectedJson().Match(step)).Success)
                 current.Reject(Json(current.Id, match.Groups[1].Value), match.Groups[2].Value);
             else
                 throw new FormatException($"{current.Id}: the tree case reader does not know the step '{step}'.");
         }
 
-        Finish(current, cases);
-        return cases;
+        current?.Build(cases, spellings);
+        return new KitFeature(cases, spellings);
     }
+
+    // The name in a tree of the one file whose spelling a case pins, by the case's node tag.
+    private static string FileOf(string id, string? node) => node switch
+    {
+        "DistributionManifestFile" => "manifest",
+        "ModuleManifestFile" => "module",
+        _ => throw new FormatException($"{id}: a case that pins one tree file's spelling has the node tag of a manifest file, not '{node ?? "none"}'."),
+    };
 
     private static string Content(string id, string kind, List<string> body)
     {
@@ -111,12 +133,7 @@ public static partial class KitTreeCaseReader
         }
     }
 
-    private static void Finish(Draft? draft, List<KitTreeCase> cases)
-    {
-        if (draft?.Build() is { } built) cases.Add(built);
-    }
-
-    private sealed class Draft(string feature, string id, string title)
+    private sealed class Draft(string feature, string id, string title, string? node)
     {
         private readonly Dictionary<string, string> files = new(StringComparer.Ordinal);
         private readonly List<string> order = [];
@@ -129,6 +146,7 @@ public static partial class KitTreeCaseReader
         public string Id => id;
         public string? CanonicalYaml { get; set; }
         public string? CanonicalJson { get; set; }
+        public List<string> Accepted { get; } = [];
 
         public void AddFile(string fileSet, string path, bool isReadOnly, string json)
         {
@@ -153,20 +171,29 @@ public static partial class KitTreeCaseReader
             diagnostic = code;
         }
 
-        public KitTreeCase? Build()
+        public void Build(List<KitTreeCase> cases, List<KitFileSpelling> spellings)
         {
             if (files.Count > 0 && !readsBack) throw new FormatException($"{id}: a scenario with tree files reads back the tree as the canonical form, and this one does not.");
             if (readsBack && CanonicalYaml is null && CanonicalJson is null) throw new FormatException($"{id}: a tree that reads back as the canonical form has a canonical spelling.");
             if (CanonicalYaml is not null && CanonicalJson is not null && YamlToJson.Compacted(CanonicalJson) != CanonicalYaml)
                 throw new FormatException($"{id} in {feature}: its canonical YAML and JSON spellings disagree.");
-            if (files.Count == 0 && diagnostic is null) return null;
 
+            var canonical = CanonicalJson ?? CanonicalYaml;
+            if (files.Count == 0 && diagnostic is null)
+            {
+                // A case that pins the spelling of one tree file.
+                if (canonical is null) throw new FormatException($"{id}: the scenario has no tree, no diagnostic and no canonical spelling.");
+                spellings.Add(new KitFileSpelling(id, title, FileOf(id, node), canonical, [.. Accepted]));
+                return;
+            }
+
+            if (Accepted.Count > 0) throw new FormatException($"{id}: the tree case reader knows an accepted spelling only in a case that pins one tree file's spelling.");
             var tree = order.ToDictionary(path => path, path => files[path], StringComparer.Ordinal);
-            return new KitTreeCase(id, title, tree, files.Count > 0 ? CanonicalJson ?? CanonicalYaml : null, diagnostic)
+            cases.Add(new KitTreeCase(id, title, tree, files.Count > 0 ? canonical : null, diagnostic)
             {
                 ReadOnly = readOnly == true,
                 RejectedDocument = rejected,
-            };
+            });
         }
     }
 

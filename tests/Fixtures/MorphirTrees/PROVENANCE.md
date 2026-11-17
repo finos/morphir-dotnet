@@ -20,7 +20,7 @@ Copied unchanged from `spec/ir/mck/` in [finos/morphir](https://github.com/finos
 
 ## The tree cases
 
-`FixtureCatalog.Kit.DocumentTree` lists the 14 cases with a tree or a diagnostic. `document-tree-0001`, `-0002` and `-0010` pin the spelling of a single manifest file and have neither, so the reader checks them and leaves them out.
+`FixtureCatalog.Kit.DocumentTree` lists the 14 cases with a tree or a diagnostic. `FixtureCatalog.Kit.FileSpellings` lists the other 3, `document-tree-0001`, `-0002` and `-0010`, which pin the spelling of a single manifest file: each with the file's name in a tree (`manifest` or `module`, from its `@node` tag), its canonical JSON and the other JSON spellings a reader accepts (0002's `module` for `path`). Together they cover all 17 cases of the feature.
 
 | Cases | What the catalog gives |
 | --- | --- |
