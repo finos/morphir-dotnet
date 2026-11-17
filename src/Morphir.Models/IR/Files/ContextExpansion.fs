@@ -16,7 +16,9 @@ open Morphir.IR.Trees
 /// <c>{"$name": "&lt;id&gt;"}</c>, and it is resolved only at a typed name position: a place that the IR's JSON reads as
 /// a name, a package path, a module path or an FQName. Each position resolves through its own table, and the spelling
 /// is written as the document's version writes that position: the entry's text exactly as the table writes it in v4
-/// and in the envelope members of a v3 tree file, classic word arrays in a classic v3 slot. A classic attribute slot that holds a type (an array) is a
+/// and in the envelope members of a v3 tree file, classic word arrays in a classic v3 slot. A classic slot takes only
+/// an entry whose word arrays read back as its text, and refuses any other (<c>context.invalid_entry</c>), so the
+/// classic form never stands for a different name. A classic attribute slot that holds a type (an array) is a
 /// type, with its positions. Anything else, a string literal, documentation, an attribute object, extension data, a
 /// document literal, stays as written, even when it looks like a reference. The document's
 /// <c>formatVersion</c> is not touched.
@@ -941,35 +943,64 @@ module internal ContextExpansion =
         writeClassicName writer fqName.LocalName
         writer.WriteEndArray()
 
+    /// How a reference resolved.
+    type private Resolution =
+        | Resolved
+        /// The position's table has no such id.
+        | Unknown
+        /// The entry's spelling cannot be held by the classic slot: its word arrays read back as another spelling.
+        | Unholdable of spelling: string * readBack: string
+
     /// <summary>
-    /// Writes the spelling of an id at a position, or gives false when the position's table has no such id. A v4
-    /// position gets the entry's text exactly as the table writes it, never a reprint of its value, and a classic
-    /// position gets the value's word arrays.
+    /// Writes the spelling of an id at a position. A v4 position gets the entry's text exactly as the table writes it,
+    /// never a reprint of its value. A classic position gets the value's word arrays, but only when they read back as
+    /// that text: a word list cannot hold every spelling of the grammar (<c>FR2052A</c> reads as <c>f</c>, <c>r</c>,
+    /// <c>2052</c>, <c>a</c>, which reads back as <c>FR-2052-a</c>), and the classic form must keep the name. Nothing
+    /// is written for an unknown id or an unholdable spelling.
     /// </summary>
     let private resolve (context: FileContext) (writer: Utf8JsonWriter) (table, spelling) (id: string) =
-        let write (entries: Map<string, TableEntry<'v>>) (classic: Utf8JsonWriter -> 'v -> unit) =
+        let write (entries: Map<string, TableEntry<'v>>) (print: 'v -> string) (classic: Utf8JsonWriter -> 'v -> unit) =
             match Map.tryFind id entries with
             | Some entry ->
                 match spelling with
-                | CanonicalString -> writer.WriteStringValue entry.Spelling
-                | ClassicArrays -> classic writer entry.Value
+                | CanonicalString ->
+                    writer.WriteStringValue entry.Spelling
+                    Resolved
+                | ClassicArrays ->
+                    let readBack = print entry.Value
 
-                true
-            | None -> false
+                    if readBack = entry.Spelling then
+                        classic writer entry.Value
+                        Resolved
+                    else
+                        Unholdable(entry.Spelling, readBack)
+            | None -> Unknown
 
         match table with
-        | NamesTable -> write context.Names writeClassicName
-        | PackagePathsTable -> write context.PackagePaths writeClassicPath
-        | ModulePathsTable -> write context.ModulePaths writeClassicPath
-        | FqNamesTable -> write context.FqNames writeClassicFqName
+        | NamesTable -> write context.Names CanonicalNames.nameToString writeClassicName
+        | PackagePathsTable -> write context.PackagePaths CanonicalNames.pathToString writeClassicPath
+        | ModulePathsTable -> write context.ModulePaths CanonicalNames.pathToString writeClassicPath
+        | FqNamesTable -> write context.FqNames CanonicalNames.fqNameToString writeClassicFqName
 
-    let rec private walk context (unknown: ResizeArray<Table * string>) (writer: Utf8JsonWriter) (shape: Shape) (element: JsonElement) =
+    /// What expansion found wrong: ids that their position's table does not define, and entries that a classic slot
+    /// cannot hold, each with its spelling and what its word arrays read back as.
+    type private Problems = {
+        Unknown: ResizeArray<Table * string>
+        Unholdable: ResizeArray<Table * string * string * string>
+    }
+
+    let rec private walk context (problems: Problems) (writer: Utf8JsonWriter) (shape: Shape) (element: JsonElement) =
         RuntimeHelpers.EnsureSufficientExecutionStack()
 
         match shape.Reference, referenceId element with
         | Some reference, Some id ->
-            if not (resolve context writer reference id) then
-                unknown.Add((fst reference, id))
+            match resolve context writer reference id with
+            | Resolved -> ()
+            | Unknown ->
+                problems.Unknown.Add((fst reference, id))
+                element.WriteTo writer
+            | Unholdable(spelling, readBack) ->
+                problems.Unholdable.Add((fst reference, id, spelling, readBack))
                 element.WriteTo writer
         | _ ->
             match element.ValueKind with
@@ -980,7 +1011,7 @@ module internal ContextExpansion =
                     writer.WritePropertyName property.Name
 
                     match shape.Member element property.Name property.Value with
-                    | Some inner -> walk context unknown writer inner property.Value
+                    | Some inner -> walk context problems writer inner property.Value
                     | None -> property.Value.WriteTo writer
 
                 writer.WriteEndObject()
@@ -990,7 +1021,7 @@ module internal ContextExpansion =
                 element.EnumerateArray()
                 |> Seq.iteri (fun index item ->
                     match shape.Item element index with
-                    | Some inner -> walk context unknown writer inner item
+                    | Some inner -> walk context problems writer inner item
                     | None -> item.WriteTo writer
                 )
 
@@ -998,8 +1029,11 @@ module internal ContextExpansion =
             | _ -> element.WriteTo writer
 
     /// <summary>
-    /// The plain document of a compacted one: each reference at a typed name position replaced by its spelling, or
-    /// <c>context.unknown_alias</c> for each id that its position's table does not define.
+    /// The plain document of a compacted one: each reference at a typed name position replaced by its spelling. It is
+    /// refused with <c>context.unknown_alias</c> for each id that its position's table does not define, and with
+    /// <c>context.invalid_entry</c> for each entry referenced at a classic slot whose word arrays do not read back as
+    /// its spelling. That check is made here, not when the table is read, since one table can feed both kinds of
+    /// position.
     /// </summary>
     let expand (family: IrFamily) (file: string) (context: FileContext) (document: JsonElement) : Result<JsonElement, StoreError list> =
         let root =
@@ -1007,24 +1041,39 @@ module internal ContextExpansion =
             | IrFamily.V4 -> V4.root ()
             | IrFamily.Classic3 -> Classic.root ()
 
-        let unknown = ResizeArray<Table * string>()
+        let problems = {
+            Unknown = ResizeArray()
+            Unholdable = ResizeArray()
+        }
+
         use buffer = new MemoryStream()
 
         do
             use writer = new Utf8JsonWriter(buffer)
-            walk context unknown writer root document
+            walk context problems writer root document
 
-        if unknown.Count > 0 then
-            unknown
-            |> Seq.distinct
-            |> Seq.map (fun (table, id) ->
-                StoreErrors.error
-                    "context.unknown_alias"
-                    (Some file)
-                    $"The reference to '{id}' is at a position of context.{tableName table}, which does not define '{id}'."
-            )
-            |> List.ofSeq
-            |> Error
+        if problems.Unknown.Count > 0 || problems.Unholdable.Count > 0 then
+            let unknown =
+                problems.Unknown
+                |> Seq.distinct
+                |> Seq.map (fun (table, id) ->
+                    StoreErrors.error
+                        "context.unknown_alias"
+                        (Some file)
+                        $"The reference to '{id}' is at a position of context.{tableName table}, which does not define '{id}'."
+                )
+
+            let unholdable =
+                problems.Unholdable
+                |> Seq.distinct
+                |> Seq.map (fun (table, id, spelling, readBack) ->
+                    StoreErrors.error
+                        "context.invalid_entry"
+                        (Some file)
+                        $"context.{tableName table}.{id} is '{spelling}', and a classic v3 slot cannot hold it: its word arrays read back as '{readBack}'."
+                )
+
+            Seq.append unknown unholdable |> List.ofSeq |> Error
         else
             // A classic spelling is deeper than the reference it replaces, so a document within the limit can expand
             // past it.

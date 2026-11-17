@@ -70,4 +70,54 @@ let tests =
             for reject in corpus.Rejects |> Seq.filter (fun reject -> reject.ValidAsName) ->
                 test reject.Input { expandsToItsSpelling (Mother.withNameSpelling reject.Input) }
         ]
+
+        testList "A spelling whose word arrays read back as another name is refused at a classic slot" [
+            let cases = [
+                Mother.ClassicName, "FR2052A"
+                Mother.ClassicName, "value-A"
+                Mother.ClassicName, "US-FR"
+                Mother.ClassicName, "a-US"
+                Mother.ClassicPackagePath, "US/FR2052A/data-tables"
+                Mother.ClassicModulePath, "US/FR2052A/data-tables"
+                Mother.ClassicFqName, "morphir/SDK:FR2052A#int"
+                Mother.ClassicFqName, "US/FR2052A:data-tables#value-A"
+            ]
+
+            for slot, spelling in cases ->
+                test $"{slot} '{spelling}'" {
+                    let file = Mother.inClassicSlot slot spelling
+
+                    let result =
+                        MorphirFile.readEnvelope ContextLimits.draft1 file.File (ReadOnlyMemory file.Bytes)
+                        |> Result.bind (MorphirFile.expand IrFamily.Classic3 file.File)
+
+                    match refusal result with
+                    | [ error ] ->
+                        Expect.equal error.Code "context.invalid_entry" "the code"
+                        Expect.equal error.File (Some file.File) "the file"
+                        Expect.stringContains error.Message $"{file.Entry} is '{spelling}'" "the entry and its spelling"
+                        Expect.stringContains error.Message "classic v3 slot cannot hold" "the reason"
+                    | errors -> failtestf "Expected one context.invalid_entry, got %A" errors
+                }
+        ]
+
+        testList "The same spellings expand to exactly their text at a v4 position" [
+            for spelling in [ "FR2052A"; "value-A"; "US-FR"; "a-US" ] do
+                yield test $"names '{spelling}'" { expandsToItsSpelling (Mother.withNameSpelling spelling) }
+
+            yield test "packagePaths 'US/FR2052A/data-tables'" {
+                expandsToItsSpelling (Mother.withPackagePathSpelling "US/FR2052A/data-tables")
+            }
+
+            yield test "modulePaths 'US/FR2052A/data-tables'" {
+                expandsToItsSpelling (Mother.withModulePathSpelling "US/FR2052A/data-tables")
+            }
+
+            for spelling in [ "morphir/SDK:FR2052A#int"; "US/FR2052A:data-tables#value-A" ] do
+                yield test $"fqNames '{spelling}'" { expandsToItsSpelling (Mother.withFqNameSpelling spelling) }
+        ]
+
+        test "A v3 tree file's envelope member expands to exactly its text" {
+            expandsToItsSpelling (Mother.withTreeManifestPackagePathSpelling "US/FR2052A/data-tables")
+        }
     ]

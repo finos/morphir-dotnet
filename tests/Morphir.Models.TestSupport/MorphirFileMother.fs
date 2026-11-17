@@ -207,5 +207,54 @@ let withClassicNameSpelling (spelling: string) (words: string seq) : RespelledFi
 
     respelled "v3-type" "names" "u" spelling array
 
+/// <summary>
+/// The v3 manifest whose <c>packagePaths</c> entry for its package is <paramref name="spelling"/>. The package is an
+/// envelope member of a tree file, which holds a canonical string, so it expands to exactly that text.
+/// </summary>
+let withTreeManifestPackagePathSpelling (spelling: string) : RespelledFile =
+    respelled "v3-manifest" "packagePaths" "p" spelling (JsonValue.Create spelling)
+
+/// <summary>A classic v3 slot that a context entry's references fill, by the table it resolves through.</summary>
+type ClassicSlot =
+    /// <summary>A record field's name in the classic type file (<c>context.names.u</c>).</summary>
+    | ClassicName
+    /// <summary>The package of the classic single file's distribution (<c>context.packagePaths.p</c>).</summary>
+    | ClassicPackagePath
+    /// <summary>The path of the classic single file's module (<c>context.modulePaths.v</c>).</summary>
+    | ClassicModulePath
+    /// <summary>The field types of the classic type file (<c>context.fqNames.i</c>).</summary>
+    | ClassicFqName
+
+/// <summary>A pinned classic example with the entry that fills one classic slot spelled anew.</summary>
+type ClassicSlotFile = {
+    /// <summary>The example's file name, which diagnostics name.</summary>
+    File: string
+    /// <summary>The file's bytes: the example with the entry's spelling replaced.</summary>
+    Bytes: byte array
+    /// <summary>The entry, as a diagnostic names it, such as <c>context.names.u</c>.</summary>
+    Entry: string
+}
+
+/// <summary>
+/// The classic example whose entry for <paramref name="slot"/> is <paramref name="spelling"/>. Every reference to the
+/// entry is at a classic slot, which holds word arrays; use it for a spelling that a reader must refuse there.
+/// </summary>
+let inClassicSlot (slot: ClassicSlot) (spelling: string) : ClassicSlotFile =
+    let exampleId, table, id =
+        match slot with
+        | ClassicName -> "v3-type", "names", "u"
+        | ClassicPackagePath -> "v3-single-file", "packagePaths", "p"
+        | ClassicModulePath -> "v3-single-file", "modulePaths", "v"
+        | ClassicFqName -> "v3-type", "fqNames", "i"
+
+    // The expansion is not used: the file is refused.
+    let file = respelled exampleId table id spelling (JsonValue.Create spelling)
+
+    {
+        File = file.File
+        Bytes = file.Bytes
+        Entry = $"context.{table}.{id}"
+    }
+
 /// <summary>The parent's naming conformance corpus, in its shipped style.</summary>
 let namingCorpus () : NamingConformance = FixtureCatalog.Context.Naming.Corpus
