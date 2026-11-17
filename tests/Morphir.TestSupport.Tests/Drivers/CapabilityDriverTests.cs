@@ -114,8 +114,8 @@ public class CapabilityDriverTests
         report.Layout.Should().Be("single-file");
         report.FilesChecked.Should().Be(1);
         report.SchemaVersion.Should().Be("4");
-        report.Errors.Should().OnlyContain(error => error.File == null && error.Code == null);
-        report.ShouldHaveAnErrorAt(faulty.Fault).Path.Should().Be(faulty.Fault.JsonPointer);
+        report.Errors.Should().OnlyContain(error => error.File == null, "a single file has no file of a tree");
+        report.ShouldHaveAnErrorAt(faulty.Fault, "unknown_node").Path.Should().Be(faulty.Fault.JsonPointer);
     }
 
     [Test]

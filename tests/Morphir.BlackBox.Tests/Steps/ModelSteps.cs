@@ -41,10 +41,11 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
     }
 
     /// <summary>
-    /// The document tree that the store, and so <c>model convert</c>, writes from a mother case of a Library with a
-    /// dependency, from <see cref="FixtureCatalog.Trees"/>, in the directory <c>model</c> of the workspace.
+    /// The document tree that the document-tree store writes from a mother case of a Library with a dependency, pinned
+    /// in <see cref="FixtureCatalog.Trees"/>, in the directory <c>model</c> of the workspace. <c>model convert</c>
+    /// writes through the same store; a run on what it wrote itself is task 6.3 of add-model-convert.
     /// </summary>
-    [Given("the tree that model convert wrote from a v{int} Library with a dependency")]
+    [Given("the tree that the store writes from a v{int} Library with a dependency")]
     public void TheWrittenTree(int version) => TheCatalogTree(version switch
     {
         3 => FixtureCatalog.Trees.WrittenV3LibraryWithDependency,
@@ -53,7 +54,7 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
     });
 
     /// <summary>The written v4 tree with one fault, and where the fault is.</summary>
-    [Given("the tree that model convert wrote from a v4 Library with a dependency, with {string}")]
+    [Given("the tree that the store writes from a v4 Library with a dependency, with {string}")]
     public void TheWrittenTreeWithAFault(string fault)
     {
         var faulty = fault switch

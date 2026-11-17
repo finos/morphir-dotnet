@@ -14,7 +14,7 @@ The CLI SHALL offer a `model` command group holding `verify` and `convert`. `mor
 - **THEN** the help lists `verify` and `convert` with a one-line description each
 
 ### Requirement: Model verify keeps the behavior of the former IR verify
-For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL accept the same inputs and options, write the same report, and exit with the same codes as `morphir ir verify` did, with two changes: the JSON report SHALL state the exit code of the run in a member `exitCode` (0 valid, 1 not valid, 2 a command line that does not parse) beside `IsValid`, which keeps its name, and a JSON mode SHALL write its report also with `--quiet`, which then suppresses only the text and the log.
+For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL accept the same inputs and options, write the same report, and exit with the same codes as `morphir ir verify` did, apart from the changes that the requirements "The verify report states its exit code and its input" and "Model verify lists real errors and refuses unknown versions" state.
 
 #### Scenario: A valid v3 model is valid
 - **WHEN** a user runs `morphir model verify` on a valid IR v3 file
@@ -24,6 +24,9 @@ For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL ac
 - **WHEN** a user runs `morphir model verify` on a file with no `formatVersion`
 - **THEN** the command exits 1 and names the missing member
 
+### Requirement: The verify report states its exit code and its input
+The JSON report of `morphir model verify` SHALL state the exit code of the run in a member `exitCode` (0 valid, 1 not valid, 2 a command line that does not parse) beside `IsValid`, which keeps its name. It SHALL add the members `layout` (`single-file` for a file), `filesChecked` (1 for a file that was read, 0 when none was) and `compactedFiles` (empty for a plain file). A JSON mode SHALL write its report also with `--quiet`, which then suppresses only the text and the log.
+
 #### Scenario: The report states its exit code
 - **WHEN** a user runs `morphir model verify --json=document` on a file that is not valid, and on a command line with an unknown option
 - **THEN** the reports have `exitCode` 1 and 2, the exit codes of the runs, and `IsValid` false
@@ -32,6 +35,17 @@ For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL ac
 - **WHEN** a user runs `morphir model verify --quiet --json` on a file that is not valid
 - **THEN** standard output is the JSON report, and the command exits 1
 
+### Requirement: Model verify lists real errors and refuses unknown versions
+`morphir model verify` SHALL list the errors of the subschemas that fail only: an error of a branch of an `anyOf` or a `oneOf` that another branch satisfies is not an error of the model. A `--schema-version` other than 1, 2, 3 or 4 SHALL be a usage error with exit code 2.
+
+#### Scenario: An error of a branch that another branch satisfies is not listed
+- **WHEN** a model has an error, and a member whose value one branch of an `anyOf` accepts and another refuses
+- **THEN** the report lists the error and no error of that member
+
+#### Scenario: A schema version that no IR has is a usage error
+- **WHEN** a user runs `morphir model verify --schema-version=7` on a model
+- **THEN** the command exits 2, and the report states the exit code 2
+
 ### Requirement: Model verify checks an IR v4 single file
 `morphir model verify` SHALL validate a single-file IR v4 model against the parent's published IR v4 JSON Schema, detecting version 4 from `formatVersion`, and `--schema-version` SHALL accept `4`.
 
@@ -39,8 +53,11 @@ For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL ac
 - **WHEN** a user runs `morphir model verify` on a valid single-file IR v4 model
 - **THEN** the command exits 0 and reports schema version v4
 
+### Requirement: Model verify decodes an IR v4 single file
+After the schema, `morphir model verify` SHALL decode a single-file IR v4 model with the v4 reader, as the documents of a tree are decoded, and report the reader's error with its JSON path. The parent's schema checks a module's types and values only in the `{ "access", "value" }` wrapper; the decode checks them in every spelling that the reader accepts.
+
 #### Scenario: An invalid v4 model names its error
-- **WHEN** a v4 model has a type node with an unknown tag
+- **WHEN** a v4 model in the flattened module spelling has a type node with an unknown tag
 - **THEN** the command exits 1 and the error names the JSON path of that node
 
 ### Requirement: Model verify checks a document tree

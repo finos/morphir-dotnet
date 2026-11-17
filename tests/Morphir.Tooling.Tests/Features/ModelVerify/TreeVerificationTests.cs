@@ -115,6 +115,23 @@ public class TreeVerificationTests
             "the store refuses the path budget too");
     }
 
+    /// <summary>
+    /// The <c>formatVersion</c> 4 of the manifest is the first branch of the schema's <c>anyOf</c> (<c>const 4</c>) and
+    /// fails the second (a string); the manifest's other error is listed and the branch that failed is not.
+    /// </summary>
+    [Test]
+    public async Task AnErrorOfABranchThatAnotherBranchSatisfiesIsNotListed()
+    {
+        var files = WithText(Written(DocumentTreeMother.acmeDemo), "manifest.json",
+            text => text.Replace("\"pathBudget\": 4000", "\"pathBudget\": \"4000\"", StringComparison.Ordinal));
+
+        var result = await Verify(files);
+
+        result.Errors.Should().Contain(error => error.File == "manifest.json" && error.Path == "/pathBudget");
+        result.Errors.Should().NotContain(error => error.Path == "/formatVersion",
+            "formatVersion 4 satisfies the anyOf of FormatVersion, so its failing string branch is no error");
+    }
+
     [Test]
     public async Task AV3TreeIsNotCheckedAgainstTheV4TreeFileSchemas()
     {
@@ -254,5 +271,15 @@ public class TreeVerificationTests
     public void TheJsonLocationOfAStoreMessageIsAJsonPointer(string storeMessage, string pointer, string message)
     {
         StoreLocation.Split(storeMessage).Should().Be((pointer, message));
+    }
+
+    [Test]
+    [Arguments("$", "")]
+    [Arguments("$.distribution.Library.def.modules.inventory.values.daily-rate", "/distribution/Library/def/modules/inventory/values/daily-rate")]
+    [Arguments("$.modules[\"a b\"][0]", "/modules/a b/0")]
+    [Arguments("not a location", "not a location")]
+    public void AJsonLocationIsAJsonPointer(string location, string pointer)
+    {
+        StoreLocation.Pointer(location).Should().Be(pointer);
     }
 }

@@ -273,6 +273,16 @@ public static class StoreLocation
             : ("", message);
     }
 
+    /// <summary>
+    /// The JSON Pointer of a JSON location of the store or of <c>V4Json</c>, such as <c>$.def.value</c>, or the
+    /// location unchanged when it is not one.
+    /// </summary>
+    public static string Pointer(string location)
+    {
+        var (pointer, rest) = Split(location + ": ");
+        return rest.Length == 0 ? pointer : location;
+    }
+
     private static void Append(StringBuilder pointer, string token) =>
         pointer.Append('/').Append(token.Replace("~", "~0", StringComparison.Ordinal).Replace("/", "~1", StringComparison.Ordinal));
 }

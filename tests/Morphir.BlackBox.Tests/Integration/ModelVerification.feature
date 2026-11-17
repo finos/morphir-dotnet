@@ -173,7 +173,7 @@ Feature: Verify a Morphir model
     And an error of the verification report names the place of the fault
 
   Scenario: A valid v4 tree is valid
-    Given the tree that model convert wrote from a v4 Library with a dependency
+    Given the tree that the store writes from a v4 Library with a dependency
     When I verify the model as JSON
     Then the exit code is 0
     And the verification report says that the model is valid
@@ -182,7 +182,7 @@ Feature: Verify a Morphir model
     And the verification report counts every file of the tree
 
   Scenario: A valid v3 tree is valid
-    Given the tree that model convert wrote from a v3 Library with a dependency
+    Given the tree that the store writes from a v3 Library with a dependency
     When I verify the model as JSON
     Then the exit code is 0
     And the verification report says that the model is valid
@@ -191,28 +191,28 @@ Feature: Verify a Morphir model
     And the verification report counts every file of the tree
 
   Scenario: An error inside one tree file names the file
-    Given the tree that model convert wrote from a v4 Library with a dependency, with "an unknown tag in one type node"
+    Given the tree that the store writes from a v4 Library with a dependency, with "an unknown tag in one type node"
     When I verify the model as JSON
     Then the exit code is 1
     And the verification report says that the model is not valid
     And an error of the verification report names the place of the fault
 
   Scenario: The text of an error inside one tree file names the file
-    Given the tree that model convert wrote from a v4 Library with a dependency, with "an unknown tag in one type node"
+    Given the tree that the store writes from a v4 Library with a dependency, with "an unknown tag in one type node"
     When I verify the model
     Then the exit code is 1
     And the output contains "Layout: document-tree"
     And the output names the file of the fault
 
   Scenario: A broken tree rule is an error
-    Given the tree that model convert wrote from a v4 Library with a dependency, with "no file for one value"
+    Given the tree that the store writes from a v4 Library with a dependency, with "no file for one value"
     When I verify the model as JSON
     Then the exit code is 1
     And the verification report says that the model is not valid
     And an error of the verification report has the code "missing_member" and names the place of the fault
 
   Scenario: A schema version that contradicts the manifest
-    Given the tree that model convert wrote from a v4 Library with a dependency
+    Given the tree that the store writes from a v4 Library with a dependency
     When I verify the model with the schema version 3 as JSON
     Then the exit code is 2
     And the verification report says that the model is not valid

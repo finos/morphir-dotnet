@@ -550,8 +550,8 @@ two steps have the same pattern.
 | Model | `Given an IR model whose format version is a string` |
 | Model | `Given a model file that is not JSON` |
 | Model | `Given an IR v4 model with an unknown tag in one type node` |
-| Model | `Given the tree that model convert wrote from a v{int} Library with a dependency` |
-| Model | `Given the tree that model convert wrote from a v4 Library with a dependency, with {string}` |
+| Model | `Given the tree that the store writes from a v{int} Library with a dependency` |
+| Model | `Given the tree that the store writes from a v4 Library with a dependency, with {string}` |
 | Extension list | `When I list the extensions as JSON` |
 | Extension list | `When I list the extensions as JSON on the other host` |
 | Extension list | `Then the extension list names the host of the run` |

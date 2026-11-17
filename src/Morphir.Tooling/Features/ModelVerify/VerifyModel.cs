@@ -106,7 +106,8 @@ internal partial class VerifyModelJsonContext : JsonSerializerContext;
 
 /// <summary>
 /// Verifies a model: a directory is a document tree (<see cref="TreeVerification"/>), and any other path a single
-/// file, checked against the schema of its IR version.
+/// file, checked against the schema of its IR version. A v4 single file is also decoded with
+/// <c>V4Json.readDistribution</c>, as a tree's documents are, and the decoder's error is an error of the report.
 /// </summary>
 public static class VerifyModelHandler
 {
@@ -132,13 +133,18 @@ public static class VerifyModelHandler
                 version,
                 ct);
 
-            // 4. Return pure result (no side effects)
+            // 4. A v4 model is also decoded, which checks what the parent's v4 schema leaves open.
+            var errors = validationResult.Errors;
+            if (version == "4")
+                errors = [.. errors, .. await Infrastructure.JsonSchema.SchemaValidator.DecodeV4Async(jsonContent, ct)];
+
+            // 5. Return pure result (no side effects)
             return new VerifyModelResult(
-                IsValid: validationResult.IsValid,
+                IsValid: errors.Count == 0,
                 SchemaVersion: version,
                 DetectionMethod: DetectionMethod(command),
                 FilePath: command.FilePath,
-                Errors: validationResult.Errors,
+                Errors: errors,
                 Timestamp: DateTime.UtcNow
             )
             {

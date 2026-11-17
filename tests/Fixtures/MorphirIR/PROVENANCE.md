@@ -23,10 +23,10 @@ hand in this repository. The four files of `model verify` (`empty-library-v1.jso
 `no-format-version.json`, `string-format-version.json`) have the bytes of the models that `ir verify` tests read
 before the catalog; the unit tests of `tests/Morphir.Tooling.Tests/TestData` keep their own copies.
 `daily-rate-unknown-type-tag-v4.json` is `daily-rate-v4.json` with the output type of `daily-rate` spelled
-`{"Struct":{}}`, a type node with a tag that no type node has, and with its module in the wrapper
-`{"access": "Public", "value": {...}}`. The parent's `morphir-ir-v4.json` checks the types and values of a module
-only in that spelling, so `model verify` finds the node there (`FixtureCatalog.Models.V4WithAnUnknownTypeTag` gives its
-JSON Pointer).
+`{"Struct":{}}`, a type node with a tag that no type node has, in the same flattened module spelling. The parent's
+`morphir-ir-v4.json` checks the types and values of a module only in the wrapper `{"access": ..., "value": {...}}`, so
+the schema alone accepts the file; `model verify` finds the node by decoding the model
+(`FixtureCatalog.Models.V4WithAnUnknownTypeTag` gives its JSON Pointer).
 
 | File | Intent | SHA-256 |
 | --- | --- | --- |
@@ -41,4 +41,4 @@ JSON Pointer).
 | `empty-library-v2.json` | a v2 Library with no modules | `c13b52cff9d1fc3939e21d672ffc458d3a62991db343f7158bfffb0c103cc6a3` |
 | `no-format-version.json` | a model with no format version | `fd1150056eed9943ac2944d91c00ae4a83a0faa3a486d88a582b4754904a268e` |
 | `string-format-version.json` | a model whose format version is a string | `a772afcac09350b2792fc894010e4cab06e0ee19bcc7225d717f3a0e037e0562` |
-| `daily-rate-unknown-type-tag-v4.json` | a v4 Library with an unknown tag in one type node | `19de3b7d9bd17650ebc50302803c12b85791362555626803ac3a4866f4da196a` |
+| `daily-rate-unknown-type-tag-v4.json` | a v4 Library with an unknown tag in one type node | `7d25e4f44621846ab7264439d0ca457a1c4e9e1fcb66faf1f515000e95ee992b` |

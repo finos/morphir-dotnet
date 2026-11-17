@@ -74,21 +74,47 @@ public class SchemaValidator
     }
 
     private static Task<EvaluationResults> EvaluateOnLargeStack(
-        global::Json.Schema.JsonSchema schema, JsonElement model, CancellationToken ct)
+        global::Json.Schema.JsonSchema schema, JsonElement model, CancellationToken ct) =>
+        OnLargeStack(() => schema.Evaluate(model, new EvaluationOptions
+        {
+            // The tree of results, so an error below a subschema that holds (a branch of an anyOf or a
+            // oneOf that another branch satisfies) is told from an error of the model.
+            OutputFormat = OutputFormat.Hierarchical,
+            RequireFormatValidation = false  // Don't require format validation
+        }), "Morphir IR schema evaluation", ct);
+
+    /// <summary>
+    /// Decodes a single-file IR v4 model with <c>V4Json.readDistribution</c>, the reader of every v4 spelling, and
+    /// gives its error with the JSON location as a JSON Pointer and the reader's rule as the code; or none. The
+    /// parent's <c>morphir-ir-v4.json</c> checks the types and values of a module only in the wrapper
+    /// <c>{ "access", "value" }</c>, so the decode is what checks them in the canonical and flattened spellings
+    /// (see <c>Schemas/PROVENANCE.md</c>). It runs on the stack of schema evaluation, as decoding recurses for each
+    /// level of the model.
+    /// </summary>
+    public static async Task<List<Features.ModelVerify.ValidationError>> DecodeV4Async(string jsonContent, CancellationToken ct)
+    {
+        using var jsonDocument = JsonDocument.Parse(jsonContent, ModelDocumentOptions);
+        var root = jsonDocument.RootElement;
+        var read = await OnLargeStack(() => Morphir.Json.V4.V4Json.readDistribution(root), "Morphir IR v4 decoding", ct);
+        if (read.IsOk) return [];
+
+        var error = read.ErrorValue;
+        return [new Features.ModelVerify.ValidationError(Features.ModelVerify.StoreLocation.Pointer(error.Location), error.Message)
+        {
+            Code = error.Rule,
+        }];
+    }
+
+    /// <summary>Runs <paramref name="work"/> on a thread with the stack of <see cref="EvaluationStackSize"/>.</summary>
+    private static Task<T> OnLargeStack<T>(Func<T> work, string name, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        var completion = new TaskCompletionSource<EvaluationResults>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
             try
             {
-                completion.SetResult(schema.Evaluate(model, new EvaluationOptions
-                {
-                    // The tree of results, so an error below a subschema that holds (a branch of an anyOf or a
-                    // oneOf that another branch satisfies) is told from an error of the model.
-                    OutputFormat = OutputFormat.Hierarchical,
-                    RequireFormatValidation = false  // Don't require format validation
-                }));
+                completion.SetResult(work());
             }
             catch (Exception error)
             {
@@ -97,7 +123,7 @@ public class SchemaValidator
         }, EvaluationStackSize)
         {
             IsBackground = true,
-            Name = "Morphir IR schema evaluation",
+            Name = name,
         };
         thread.Start();
         return completion.Task;

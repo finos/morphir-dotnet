@@ -57,7 +57,17 @@ schema leaves the `def` and `spec` of a type or value file open
 (`additionalProperties: true`), and `morphir-ir-v4.json` checks the types and
 values of a module only in the wrapper `{ "access", "value" }`, not in the
 canonical `{ "Public": {...} }` or the flattened `{ "access", "types", "values" }`
-spellings. A tree's documents are decoded by the store, so a bad node in a tree
-file is found; a single file in those spellings is checked by the schema only.
+spellings. `model verify` decodes every document so that these gaps are
+covered: a tree through the document-tree store, and a single v4 file through
+`V4Json.readDistribution` after the schema pass. A test of
+`tests/Morphir.Tooling.Tests` (`VerifyModelHandlerTests`) pins that the schema
+alone accepts `FixtureCatalog.Models.V4DailyRateUnknownTypeTag`, a module in the
+flattened spelling with a type node of an unknown tag.
+
+Parent issue to raise in finos/morphir: `morphir-ir-v4.json` (`PackageDefinition.modules`,
+lines 873 to 885 at `9776c701`) applies `ModuleDefinition` only to the `value` member
+of the legacy wrapper, so the canonical and flattened module spellings, which its own
+`AccessControlled` description names as canonical and accepted, have unchecked types
+and values. When the parent fixes it, pin the new schema here.
 Copy the files again only from finos/morphir, and update the commit, the blobs
 and the hashes here.

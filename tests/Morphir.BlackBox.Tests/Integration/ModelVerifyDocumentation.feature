@@ -17,7 +17,7 @@ Feature: The commands of the model verify page give their documented output
 
   Scenario: The documented command of a tree gives its documented output
     Given the section "Document trees" of the documentation page "cli/model-verify.md"
-    And the tree that model convert wrote from a v4 Library with a dependency, with "no file for one value"
+    And the tree that the store writes from a v4 Library with a dependency, with "no file for one value"
     Then the page documents these commands
       | command                                     |
       | morphir model verify model/ --json=document |

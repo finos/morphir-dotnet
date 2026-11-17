@@ -226,7 +226,7 @@ that tests reach by intent. Each `FixtureEntry` has its intent, its path below `
   tree: `FixtureCatalog.Trees.AcmeDemo` is the v4 tree of `tests/Fixtures/MorphirTrees/acme-demo`, which "The same
   tree from two sources" reads from a directory and from resources that `tests/Morphir.Models.Tests` embeds.
   It also holds the trees that the document-tree store wrote from mother cases, as `FixtureTree`s:
-  `WrittenV4LibraryWithDependency` and `WrittenV3LibraryWithDependency` (the trees that `model convert` writes), and
+  `WrittenV4LibraryWithDependency` and `WrittenV3LibraryWithDependency` (the store is the writer of `model convert`), and
   the faulty trees `WrittenV4WithAnUnknownTypeTag` and `WrittenV4WithAMissingValueFile`, each a `FaultyFixtureTree`
   with its `FixtureFault` (the file, the JSON Pointer and the words of the fault). A tree that differs in one file is
   another tree, `FixtureTree.Without` that file or `FixtureTree.WithFile` another entry. `FixtureTrees.WriteTree` writes a tree into a

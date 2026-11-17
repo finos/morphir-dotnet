@@ -96,17 +96,18 @@ public static class FixtureCatalog
 
         /// <summary>
         /// <see cref="V4DailyRate"/> with the output type of its value spelled as a node with the tag <c>Struct</c>,
-        /// which no type node has. Its module is in the wrapper <c>{ "access", "value" }</c>: the parent's v4 schema
-        /// checks the types and values of a module only in that spelling.
+        /// which no type node has, in the flattened module spelling of <see cref="V4DailyRate"/>. The parent's v4
+        /// schema checks a module's types and values only in the wrapper <c>{ "access", "value" }</c>, so the schema
+        /// alone accepts this file, and <c>model verify</c> finds the node by decoding it.
         /// </summary>
         public static FixtureEntry V4DailyRateUnknownTypeTag { get; } = new(
             "a v4 Library with an unknown tag in one type node", "MorphirIR/daily-rate-unknown-type-tag-v4.json",
-            "19de3b7d9bd17650ebc50302803c12b85791362555626803ac3a4866f4da196a", Provenance);
+            "7d25e4f44621846ab7264439d0ca457a1c4e9e1fcb66faf1f515000e95ee992b", Provenance);
 
         /// <summary><see cref="V4DailyRateUnknownTypeTag"/> and the JSON location of its unknown tag.</summary>
         public static FaultyFixtureModel V4WithAnUnknownTypeTag { get; } = new(
             V4DailyRateUnknownTypeTag,
-            new FixtureFault(null, "/distribution/Library/def/modules/inventory/value/values/daily-rate/ExpressionBody/outputType", []));
+            new FixtureFault(null, "/distribution/Library/def/modules/inventory/values/daily-rate/ExpressionBody/outputType", []));
 
         /// <summary>Text that is not JSON.</summary>
         public static FixtureEntry Malformed { get; } = new(
@@ -219,26 +220,25 @@ public static class FixtureCatalog
                 "ca2b3a89a1a982fe7a59c6c491920ee365fde3ef5fdc555e451290e9fde43039");
 
         /// <summary>
-        /// The files of the trees that the document-tree store wrote from cases of the distribution mother, as
-        /// <c>model convert</c> writes them. <c>WrittenTreeTests</c> in <c>tests/Morphir.Models.Tests</c> fails when the
-        /// store writes other bytes.
+        /// The files of the trees that the document-tree store wrote from cases of the distribution mother.
+        /// <c>WrittenTreeTests</c> in <c>tests/Morphir.Models.Tests</c> fails when the store writes other bytes.
         /// </summary>
         public static IReadOnlyList<FixtureEntry> Written { get; } = [.. WrittenV4Files, .. WrittenV3Files, WrittenV4UnknownTypeTagFile];
 
         /// <summary>
         /// The tree of <c>DistributionMother.v4LibraryWithDependency</c> (<c>my-org/finance</c>, module
-        /// <c>pricing/models</c>, dependency <c>morphir/SDK</c>) as the store writes it, which is the tree that
-        /// <c>model convert</c> writes from that model: <c>DocumentTreeMother.v4LibraryWithDependency</c>.
+        /// <c>pricing/models</c>, dependency <c>morphir/SDK</c>) as the document-tree store writes it, the store that
+        /// <c>model convert</c> writes through: <c>DocumentTreeMother.v4LibraryWithDependency</c>.
         /// </summary>
         public static FixtureTree WrittenV4LibraryWithDependency { get; } =
-            FixtureTree.Below("the tree that model convert wrote from a v4 Library with a dependency", WrittenV4Directory, WrittenV4Files);
+            FixtureTree.Below("the tree that the store writes from a v4 Library with a dependency", WrittenV4Directory, WrittenV4Files);
 
         /// <summary>
         /// The classic tree of <c>DistributionMother.v3LibraryWithDependency</c>, with numbered attribute slots, as the
         /// store writes it, every file saying <c>"3.1.0"</c>: <c>DocumentTreeMother.v3LibraryWithDependency</c>.
         /// </summary>
         public static FixtureTree WrittenV3LibraryWithDependency { get; } =
-            FixtureTree.Below("the tree that model convert wrote from a v3 Library with a dependency", WrittenV3Directory, WrittenV3Files);
+            FixtureTree.Below("the tree that the store writes from a v3 Library with a dependency", WrittenV3Directory, WrittenV3Files);
 
         /// <summary>
         /// <see cref="WrittenV4LibraryWithDependency"/> with the type expression of <c>invoice</c> spelled as a node

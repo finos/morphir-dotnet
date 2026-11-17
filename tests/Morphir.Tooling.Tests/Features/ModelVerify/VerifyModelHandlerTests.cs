@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Morphir.TestSupport;
+using Morphir.TestSupport.Fixtures;
 using Morphir.Tooling.Features.ModelVerify;
 using Morphir.Tooling.Infrastructure.JsonSchema;
 
@@ -149,6 +151,55 @@ public class VerifyModelHandlerTests
             "error message should indicate file not found");
         result.Errors[0].Expected.Should().Be("Existing file");
         result.Errors[0].Found.Should().Be("File not found");
+    }
+
+    /// <summary>
+    /// The parent's v4 schema checks the types and values of a module only in the wrapper <c>{ "access", "value" }</c>
+    /// (see <c>Schemas/PROVENANCE.md</c>): in the flattened spelling that morphir-dotnet writes, a type node with an
+    /// unknown tag passes the schema. When this test fails, the parent's schema closed the gap.
+    /// </summary>
+    [Test]
+    public async Task TheV4SchemaAloneAcceptsAnUnknownTypeTagInAFlattenedModule()
+    {
+        var json = FixtureCatalog.ReadText(FixtureCatalog.Models.V4DailyRateUnknownTypeTag);
+
+        var result = await _validator.ValidateAsync(json, "4", CancellationToken.None);
+
+        result.IsValid.Should().BeTrue("the pinned v4 schema does not check the values of a flattened module");
+    }
+
+    [Test]
+    public async Task AV4ModelIsDecodedSoAnUnknownTypeTagInAFlattenedModuleIsAnError()
+    {
+        await using var sandbox = TestSandbox.Create("morphir-verify-v4-");
+        var faulty = FixtureCatalog.Models.V4WithAnUnknownTypeTag;
+        var path = sandbox.PathOf("model.json");
+        await File.WriteAllBytesAsync(path, FixtureCatalog.ReadBytes(faulty.Entry));
+
+        var result = await VerifyModelHandler.Handle(new VerifyModel(path), _validator, CancellationToken.None);
+
+        result.IsValid.Should().BeFalse();
+        result.ExitCode.Should().Be(1);
+        result.SchemaVersion.Should().Be("4");
+        var error = result.Errors.Should().ContainSingle().Which;
+        error.Path.Should().Be(faulty.Fault.JsonPointer);
+        error.Code.Should().Be("unknown_node");
+        error.File.Should().BeNull("a single file has no file of a tree");
+    }
+
+    [Test]
+    public async Task AValidV4ModelDecodesWithNoError()
+    {
+        await using var sandbox = TestSandbox.Create("morphir-verify-v4-");
+        var path = sandbox.PathOf("model.json");
+        await File.WriteAllBytesAsync(path, FixtureCatalog.ReadBytes(FixtureCatalog.Models.V4ConstantFolding));
+
+        var result = await VerifyModelHandler.Handle(new VerifyModel(path), _validator, CancellationToken.None);
+
+        result.Errors.Should().BeEmpty();
+        result.IsValid.Should().BeTrue();
+        result.Layout.Should().Be(ModelLayouts.SingleFile);
+        result.FilesChecked.Should().Be(1);
     }
 
     [Test]

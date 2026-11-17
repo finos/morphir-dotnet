@@ -36,7 +36,7 @@ A v4 document tree written by hand for this repository, not kit data. Its own `a
 
 ## The written trees: `written-v4-library-with-dependency/`, `written-v3-library-with-dependency/` and `written-v4-unknown-type-tag/`
 
-Trees that the document-tree store of `src/Morphir.Models` wrote, with its default options (path budget 4000, no compaction), from cases of the mothers of `tests/Morphir.Models.TestSupport`. `model convert` writes a tree through the same store, so each is the tree that `model convert` writes from its model. They are on disk for the tests that need a tree as files, such as the black-box scenarios of `model verify` in `tests/Morphir.BlackBox.Tests/Integration/ModelVerification.feature`, which cannot build a tree with the store. `FixtureCatalog.Trees` in `tests/Morphir.TestSupport` serves them as `FixtureTree`s.
+Trees that the document-tree store of `src/Morphir.Models` wrote, with its default options (path budget 4000, no compaction), from cases of the mothers of `tests/Morphir.Models.TestSupport`. `model convert` writes a tree through the same store; a check of the trees that `model convert` itself writes is task 6.3 of `add-model-convert`. They are on disk for the tests that need a tree as files, such as the black-box scenarios of `model verify` in `tests/Morphir.BlackBox.Tests/Integration/ModelVerification.feature`, which cannot build a tree with the store. `FixtureCatalog.Trees` in `tests/Morphir.TestSupport` serves them as `FixtureTree`s.
 
 | Directory | Mother case |
 | --- | --- |
