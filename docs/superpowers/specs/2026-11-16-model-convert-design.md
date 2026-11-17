@@ -167,7 +167,7 @@ A `Library` round trip therefore returns the original label, and no relabel noti
 
 A v4 tree manifest may carry `version`, `created` and `layout`, and the typed v4 distribution has no place for them. **Builder's call:**
 
-- `layout` describes the tree being converted away, so it is dropped.
+- `layout` and `pathBudget` describe the tree being converted away, so they are dropped. Writing a tree uses a path budget of 4000 (the default profile) unless the caller gives another.
 - `version` and `created` are dropped with a notice in the result that names each one.
 
 Either way nothing is lost without the result saying so. The anti-goal reads "refuse or report, never drop in silence".

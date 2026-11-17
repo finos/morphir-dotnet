@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>adopt-streaming-json: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: var(--fg); font: 14px system-ui, sans-serif; }
+svg rect { fill: var(--panel); stroke: var(--line); }
+svg line, svg path { stroke: var(--muted); fill: none; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>adopt-streaming-json: design</h1>
+<p class="meta">OpenSpec change adopt-streaming-json | 2026-11-17 | proposed. See <a href="proposal.md">proposal.md</a> and <a href="tasks.md">tasks.md</a>.</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a>
+  <ul>
+  <li><a href="#json-1">JSON-1. Stream by default, one option with a mode</a></li>
+  <li><a href="#json-2">JSON-2. The record shape is compile's</a></li>
+  <li><a href="#json-3">JSON-3. Values only with an equals sign</a></li>
+  <li><a href="#json-4">JSON-4. One writer, reports unchanged</a></li>
+  <li><a href="#json-5">JSON-5. Consumers move in the same step</a></li>
+  </ul></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>Observed: every command with machine output binds <code>--json</code> as a <code>bool</code> option and writes one report (<code>CompileReport</code>, <code>ConfigurationReport</code>, <code>ExtensionListReport</code> and others). Several detect the mode by scanning tokens for <code>--json</code> or <code>--json=true</code>, so a parse error can still be reported as JSON. Only <code>compile</code> has <code>--json-lines</code>: compact records with an <code>event</code> member (<code>stageStarted</code>, <code>diagnostics</code>, <code>stageCompleted</code>), flushed as they occur, ending with <code>{"event":"completed","report":{…}}</code>; combining the two flags exits 2. <code>Morphir.Conformance</code>'s CLI adapter drives <code>compile --json-lines</code>. The parent's release qualification parses <code>--json</code> output. The parser is System.CommandLine 2.0.15.</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> one flag, streaming by default, one report shape per command in both modes, no ambiguity with positional arguments.</p>
+<p><strong>Non-goals:</strong> new events for commands that have none today (beyond those <code>add-model-convert</code> adds for <code>convert</code>); changing any report's members; <code>morphirup</code>'s <code>--json</code>; the MEP wire protocol.</p>
+
+<h2 id="decisions">Decisions</h2>
+<p>Worked example: <code>morphir validate --input model.json --json</code> before and after.</p>
+<pre><code class="language-console">before: {"success":true,"exitCode":0,"input":"model.json",…}            (indented, one document)
+after:  {"event":"completed","report":{"success":true,"exitCode":0,…}}   (one line)
+        --json=document gives the "before" document</code></pre>
+
+<h3 id="json-1">JSON-1. Stream by default, one option with a mode</h3>
+<p>A streaming command emits output as it happens, and tools such as <code>claude -p --output-format stream-json</code>, <code>codex exec --json</code>, <code>cargo --message-format=json</code> and <code>go test -json</code> put that stream on stdout. A single <code>--json[=stream|document]</code> option removes the pair of flags that exclude each other, and a bare <code>--json</code> streams. <em>Alternatives:</em> keep <code>--json</code> and <code>--json-lines</code> (two flags that cannot be set together; rejected); an <code>--output-format</code> option (replaces the established <code>--json</code>; rejected); stream only on <code>convert</code> (one flag with two meanings; rejected).</p>
+
+<h3 id="json-2">JSON-2. The record shape is compile's</h3>
+<p>Compile's records become the shape for every command:</p>
+<ul>
+<li>each line is one compact UTF-8 object with an <code>event</code> member;</li>
+<li>exactly one final <code>completed</code> record holds the full report under <code>report</code>;</li>
+<li>the streamed diagnostics, taken together, equal the report's;</li>
+<li>unknown events and members are ignored.</li>
+</ul>
+<p>A command with no events writes only the <code>completed</code> line. That line is also a valid JSON document, so a whole-output parser can still read it (under <code>report</code>).</p>
+
+<h3 id="json-3">JSON-3. Values only with an equals sign</h3>
+<p>A probe of System.CommandLine 2.0.15 with an optional-value <code>--json</code> and a positional input gave:</p>
+<table>
+<thead><tr><th>Arguments</th><th>Plain optional value</th><th>With the bare-flag rewrite</th></tr></thead>
+<tbody>
+<tr><td><code>--json model.json</code></td><td>mode <code>model.json</code>, input missing</td><td>mode <code>stream</code>, input <code>model.json</code></td></tr>
+<tr><td><code>--json=document model.json</code></td><td>mode <code>document</code>, input <code>model.json</code></td><td>same</td></tr>
+<tr><td><code>--json document</code>, no positional</td><td>mode <code>document</code></td><td>unrecognized argument <code>document</code></td></tr>
+<tr><td><code>--json=bogus</code></td><td colspan="2">refused: must be one of <code>stream</code>, <code>document</code></td></tr>
+</tbody>
+</table>
+<p>So the CLI rewrites a bare <code>--json</code> to <code>--json=stream</code> before parsing. The rewrite runs after response-file expansion and never applies after <code>--</code>. The option then always carries its value inline. An unrecognized argument that names a mode gets the hint <code>--json=&lt;mode&gt;</code>. System.CommandLine also splits on <code>:</code>, so <code>--json:document</code> is accepted quietly but not documented. The same rule serves <code>--compact[=&lt;mode&gt;]</code> in <code>add-model-convert</code>. <em>Alternative:</em> allow <code>--json document</code> (breaks commands whose positional argument could be the word; rejected).</p>
+
+<h3 id="json-4">JSON-4. One writer, reports unchanged</h3>
+<p>A shared JSON output writer in <code>Morphir.Tooling</code> takes a command's events and its report and writes either form. It extends compile's existing JSON Lines writer rather than adding a second one, and it uses each command's existing source-generated JSON context for AOT. Report types do not change. Parse errors still pick the output mode by scanning tokens, now for <code>--json</code>, <code>--json=stream</code> and <code>--json=document</code>.</p>
+
+<h3 id="json-5">JSON-5. Consumers move in the same step</h3>
+<p>In this repository:</p>
+<ul>
+<li><code>CliAdapter.fs</code> drives <code>compile --json</code>;</li>
+<li><code>WorkerSessions.fs</code> and <code>WasmHost/Worker.fs</code> read the new output;</li>
+<li><code>JsonOutputAssertions</code> and <code>JsonCommandReport</code> read either form, so no step parses stdout itself.</li>
+</ul>
+<p>In finos/morphir, <code>tools/cli-release.ts</code> reads the <code>completed</code> line, landing with the pin move that carries this change. The in-flight <code>establish-morphir-compatibility-kit</code> change adopts the convention for <code>mck run</code> when it is next revised.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>External scripts that parse <code>--json</code> as one document break.</td><td>The project is pre-1.0 and the CHANGELOG states the change. <code>--json=document</code> restores the old output exactly, and the <code>completed</code> line of an eventless command still parses as one document.</td></tr>
+<tr><td>The bare-flag rewrite mishandles <code>--</code>, response files or a value that happens to be a mode name.</td><td><code>JsonOutput.feature</code> and parser unit tests pin each case from the probe table.</td></tr>
+<tr><td><code>--json=true</code> in existing scripts stops working.</td><td>It fails as an unknown mode that lists <code>stream</code> and <code>document</code>.</td></tr>
+<tr><td>Streaming changes timing in tests that read stdout at exit.</td><td>All black-box report checks go through <code>JsonOutputAssertions</code>, which reads the stream to the end.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ul>
+<li>Users who need one document add <code>=document</code>. <code>compile --json-lines</code> users drop <code>-lines</code>.</li>
+<li>The parent's <code>tools/cli-release.ts</code> change lands with the pin move.</li>
+<li>Rollback: revert the change. Reports are unchanged, so only the writer and parsing revert.</li>
+</ul>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>When <code>morphirup</code> adopts the convention is decided in its own change.</li>
+</ul>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-model-convert: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+svg text { fill: var(--fg); font: 14px system-ui, sans-serif; }
+svg rect { fill: var(--panel); stroke: var(--line); }
+svg line, svg path { stroke: var(--muted); fill: none; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-model-convert: design</h1>
+<p class="meta">OpenSpec change add-model-convert | 2026-11-17 | proposed. Design record: <code>docs/superpowers/specs/2026-11-16-model-convert-design.md</code>. See <a href="proposal.md">proposal.md</a> and <a href="tasks.md">tasks.md</a>.</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a>
+  <ul>
+  <li><a href="#cli-1">CLI-1. A model group replaces the IR group</a></li>
+  <li><a href="#cli-2">CLI-2. One convert command with two output axes</a></li>
+  <li><a href="#conv-1">CONV-1. Convert through the typed model</a></li>
+  <li><a href="#files-1">FILES-1. Extract Morphir.Files for every target</a></li>
+  <li><a href="#tree-1">TREE-1. Three layers: address, document tree, store</a></li>
+  <li><a href="#tree-2">TREE-2. Version labels and members follow the tree specs</a></li>
+  <li><a href="#cmp-1">CMP-1. Whole-file compaction now, bounded reading later</a></li>
+  <li><a href="#cmp-2">CMP-2. The envelope is identified by a schema URL</a></li>
+  <li><a href="#cmp-3">CMP-3. Canonical bytes are RFC 8785 JSON</a></li>
+  <li><a href="#test-1">TEST-1. Every scenario has a test, built on drivers and mothers</a></li>
+  <li><a href="#test-2">TEST-2. The kit is reference data</a></li>
+  <li><a href="#rel-1">REL-1. One branch, inspectable milestones</a></li>
+  </ul></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>Observed today in morphir-dotnet:</p>
+<ul>
+<li><code>Morphir.Models</code> reads and writes single-file models: <code>ClassicJson</code>/<code>ClassicJsonWriter</code> for classic versions 1 to 3 (the writer writes integer versions only and refuses <code>Specs</code>) and <code>V4Json</code>/<code>V4JsonWriter</code> for IR 4. It targets <code>net11.0;net10.0;netstandard2.0</code>, because the C# source generator and the MSBuild task load it into a compiler host, and it makes no file-system calls.</li>
+<li><code>VFile</code>, <code>VFileTree</code> and <code>PropertyBag</code> live in <code>Morphir.IR.Pipeline</code> (<code>net11.0;net10.0</code> only). The draft Ion tree reader in <code>Morphir.Ion</code> reads trees through <code>VFileTree</code> and owns <code>TreeStems.fs</code> (escaping, truncation, dependency directories), with its own private file-kind types.</li>
+<li><code>morphir ir verify</code> is the only <code>ir</code> command. <code>compile</code> refuses <code>ir.layout = "document-tree"</code>; <code>generate</code> and <code>validate</code> refuse JSON trees.</li>
+<li>Unknown commands route to an external <code>morphir-&lt;name&gt;</code> tool on the search path.</li>
+</ul>
+<p>The parent repository specifies v3 (3.1.0 only) and v4 document trees, ships 17 kit tree cases, and proposes <code>ir/name-compaction</code> in its <code>add-bounded-model-access</code> change. Constraints: no Rust code changes; the kit is due for a redesign and must not shape this work; Native AOT with zero trim or AOT warnings; each milestone about five hours of review.</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> a model layer that splits, joins, stores and compacts models with one source of truth per concern; a store boundary that keeps file paths and bytes out of the model; tests that trace one to one to the specs.</p>
+<p><strong>Non-goals:</strong> the YAML profile and writing Ion trees; changing a model's IR version; tree support in <code>compile</code>, <code>generate</code> and <code>validate</code> (the library is shaped for it); bounded or paged reading, snapshots and access sessions; the daemon's VFS manager; MoonBit; moving v3 decorator sidecars.</p>
+
+<h2 id="decisions">Decisions</h2>
+<p>The worked example throughout: package <code>acme/demo</code>, module <code>Billing</code> with type <code>Invoice</code> and value <code>total</code>, and dependency <code>morphir/sdk</code> with module <code>Basics</code>, stored as <code>morphir-ir.json</code>.</p>
+
+<h3 id="cli-1">CLI-1. A model group replaces the IR group</h3>
+<p>A model is the IR plus decorators, metadata and later additions, so the group is <code>morphir model</code> with <code>verify</code> and <code>convert</code>. <code>ir verify</code> becomes <code>model verify</code> unchanged. No alias: the project is pre-1.0 and the changelog states the rename. <code>ir</code> then behaves as any unknown command, including tool routing. The parent's release qualification runs <code>morphir ir verify</code> (<code>tools/cli-release.ts</code>), so a companion finos/morphir change updates it with the pin move that brings the rename. <em>Alternative:</em> keep <code>ir</code> as an alias. Rejected: it keeps two names for one thing and nothing older needs protecting.</p>
+
+<h3 id="cli-2">CLI-2. One convert command with two output axes</h3>
+<p>A layout change keeps the version and the content, so it is a conversion, not a migration; <code>project migrate</code> and <code>workspace migrate</code> stay as they are. The output has two independent axes: layout (<code>--layout</code>, default the input's) and encoding (<code>--compact[=&lt;mode&gt;]</code>, default plain). A run that changes neither exits 2.</p>
+<pre><code class="language-console">morphir model convert --input morphir-ir.json --output tree --layout document-tree
+morphir model convert --input morphir-ir.json --output compacted.json --compact
+morphir model convert --input compacted-tree --output plain.json --layout single-file</code></pre>
+<p>Option values are given only with <code>=</code>. A probe of System.CommandLine 2.0.15 showed that an optional value takes the next token greedily (<code>--json model.json</code> took <code>model.json</code> as the value). <code>convert</code> has no positional argument, but the rule matches the CLI-wide <code>--json[=stream|document]</code> rule of <code>adopt-streaming-json</code>, which rewrites a bare flag before parsing. Machine output follows that change from milestone 1, with a <code>fileWritten</code> event per file. <em>Alternatives:</em> a <code>--compact-names</code> flag (no room for further compactions); <code>migrate</code> (wrong meaning).</p>
+
+<h3 id="conv-1">CONV-1. Convert through the typed model</h3>
+<p>The single file is decoded with the existing codecs, split into typed documents, and written per document; a tree is read back into the same typed model. The input is checked, there is one source of truth, and later commands can reuse the reader and writer. Equality is semantic, which is what the kit checks.</p>
+<table>
+<thead><tr><th>Alternative</th><th>Why not</th></tr></thead>
+<tbody>
+<tr><td>Move JSON nodes without decoding (#214's first idea)</td><td>Tree files are their own format (per-file <code>formatVersion</code>, name lists, <code>fileNames</code>, access, dependency directories); it would duplicate schema knowledge, need position-based surgery on v3 arrays, could write invalid trees, and nothing else could reuse it.</td></tr>
+<tr><td>Port the Rust tree code line by line</td><td>Its structure does not fit the .NET typed models, and the Rust CLI is being retired. It stays a reference for edge cases only.</td></tr>
+</tbody>
+</table>
+
+<h3 id="files-1">FILES-1. Extract Morphir.Files for every target</h3>
+<p>.NET has no general virtual file system in the base library. The repository already has one: <code>VFile</code>/<code>VFileTree</code>, documented as the primary multi-file abstraction. <code>Morphir.Models</code> cannot reference it today because of its <code>netstandard2.0</code> target. <code>Property.fs</code>, <code>File.fs</code> and <code>FileTree.fs</code> (about 1,640 lines) move to a new <code>Morphir.Files</code> targeting <code>$(MorphirLibraryTargetFrameworks);netstandard2.0</code>. <code>Morphir.IR.Pipeline</code> keeps the processor and builder and references it.</p>
+<p>A trial <code>netstandard2.0</code> build of those three files gave 82 errors, all in them, from fewer than 20 gaps: <code>ReadOnlyMemory</code>, <code>ImmutableDictionary</code>, <code>HashCode</code>, the three-argument <code>File.Move</code>, <code>ReadAtLeast</code>, <code>DirectoryInfo.LinkTarget</code>, <code>OperatingSystem.IsWindows</code>, <code>Path.TrimEndingDirectorySeparator</code>, <code>Convert.ToHexString</code> and char overloads; about 34 were inference cascades. They are closed with the <code>Polyfill.fs</code> and <code>#if NETSTANDARD2_0</code> pattern of <code>Morphir.Models</code>. <code>System.Memory</code> and <code>System.Collections.Immutable</code> come from the compiler and MSBuild hosts.</p>
+<p><code>VFileTree</code> implements Microsoft's <code>IFileProvider</code> (read view, no-op <code>Watch</code>) and can be built from any provider. Physical, embedded and composite providers become sources (embedded kit fixtures, for example), and anything that accepts a provider can read a tree. <em>Alternatives:</em> <code>System.IO.Abstractions</code> (third-party, models a mutable disk; rejected); extracting for <code>net11.0;net10.0</code> only (then tree code needs a home outside <code>Morphir.Models</code>; rejected); porting all of <code>Morphir.IR.Pipeline</code> (pulls the pipeline into the compiler host; rejected).</p>
+
+<h3 id="tree-1">TREE-1. Three layers: address, document tree, store</h3>
+<svg viewBox="0 0 760 250" role="img" aria-labelledby="layers-title">
+<title id="layers-title">Layers: single file and VFileTree at the edges, DocumentTree in the middle</title>
+<rect x="10" y="20" width="200" height="60" rx="6"/><text x="30" y="47">single-file model</text><text x="30" y="67">ClassicJson / V4Json</text>
+<rect x="280" y="20" width="200" height="60" rx="6"/><text x="300" y="47">DocumentTree</text><text x="300" y="67">decoded typed documents</text>
+<rect x="550" y="20" width="200" height="60" rx="6"/><text x="570" y="47">DocumentTreeStore</text><text x="570" y="67">paths, codecs, envelope</text>
+<rect x="550" y="160" width="200" height="60" rx="6"/><text x="570" y="187">VFileTree</text><text x="570" y="207">Morphir.Files</text>
+<rect x="280" y="160" width="200" height="60" rx="6"/><text x="300" y="187">disk, embedded, zip</text><text x="300" y="207">Morphir.Tooling, providers</text>
+<path d="M210 50 H280"/><text x="222" y="40">split</text>
+<path d="M280 60 H210"/><text x="226" y="78">join</text>
+<path d="M480 50 H550"/><text x="488" y="40">write</text>
+<path d="M550 60 H480"/><text x="494" y="78">read</text>
+<path d="M650 80 V160"/>
+<path d="M550 190 H480"/>
+</svg>
+<p>Only the store sees <code>Morphir.Files</code>. All three layers live in <code>Morphir.Models</code>:</p>
+<pre><code class="language-fsharp">type ModuleDocumentAddress =
+    | Module of ModulePath
+    | TypeDef of ModulePath * Name
+    | ValueDef of ModulePath * Name
+
+type DocumentAddress =
+    | Manifest
+    | Own of ModuleDocumentAddress                         // pkg/…; the manifest names the package
+    | Dependency of PackageName * ModuleDocumentAddress   // deps/&lt;package&gt;/@/…
+
+type DocumentTree&lt;'manifest, 'module, 'typ, 'value&gt; =
+    { Manifest: 'manifest
+      Documents: Map&lt;DocumentAddress, TreeDocument&lt;'module, 'typ, 'value&gt;&gt; }
+
+module DocumentTree =
+    val split : Distribution -&gt; DocumentTree
+    val join  : DocumentTree -&gt; Result&lt;Distribution, TreeError&gt;
+
+module DocumentTreeStore =
+    val read  : ReadOptions  -&gt; VFileTree -&gt; Result&lt;DocumentTree * ReadReport, StoreError&gt;
+    val write : WriteOptions -&gt; DocumentTree -&gt; VFileTree</code></pre>
+<p>In the example, <code>Own (TypeDef (Billing, Invoice))</code> is the address; <code>pkg/acme/demo/billing/invoice.type.json</code> is only what the store writes for it. <code>Dependency (morphir/sdk, Module Basics)</code> becomes <code>deps/morphir/sdk/@/basics/module.json</code>. The address has no version, since the v4 model carries none; the store writes the bare <code>@</code> and refuses a versioned segment (decision 0015). It maps one to one onto the daemon's <code>morphir://</code> URIs. The tree holds decoded, typed documents: <code>convert</code> decodes every document to check it anyway, and bounded reading is a separate later reader (<a href="#cmp-1">CMP-1</a>). <code>TreeStems.fs</code> moves from <code>Morphir.Ion</code> into the store, with shims for <code>SHA256.HashData</code> and <code>Convert.ToHexString</code>, and the Ion reader uses it from there. <em>Alternatives:</em> expose <code>VFileTree</code> to the model (couples the domain to storage); lazy encoded documents (adds caching and late error rules now; rejected as 10B).</p>
+
+<h3 id="tree-2">TREE-2. Version labels and members follow the tree specs</h3>
+<p>Every v3 tree file says <code>"3.1.0"</code>. A v3 <code>Library</code> tree joins to <code>"formatVersion": 3</code> (kit cases <code>document-tree-0011</code>, <code>0012</code>, <code>0014</code>, <code>0015</code>, <code>0017</code>); a <code>Specs</code> tree stays <code>"3.1.0"</code> (<code>document-tree-0013</code>). A Library round trip returns the original label without a notice. A declared 3.1.0 <code>Specs</code> writer is added, as <code>ir-model-writing</code> requires new versions to be added by declaring a writer. A v4 manifest's <code>layout</code> and <code>pathBudget</code> are dropped (they describe the tree; writing uses a budget of 4000), and <code>version</code> and <code>created</code> are dropped with a notice naming each. Everything else the model cannot carry is refused. <code>$meta</code> is ignored and never written (decision 0014).</p>
+
+<h3 id="cmp-1">CMP-1. Whole-file compaction now, bounded reading later</h3>
+<p>Milestones 2 and 3 meet the correctness part of <code>ir/name-compaction</code>: exact round trip, typed name positions only, the refusals, deterministic output, and the table-size and name-length limits. A context after the document is refused, not spilled. Resolving one name without building the document, bounded spill and byte pass-through stay with bounded model access. The parent spec marks that split and records tasks 2.2 and 2.3 as partly done. Compaction applies to every file kind and both layouts, so a v3 or v4 single file can be compacted and stay one file. In the store it is a write option, and reading reports which files were compacted. <em>Alternative:</em> all of <code>ir/name-compaction</code> now (several days per milestone, and it would decide the bounded reader early; rejected as 3B).</p>
+
+<h3 id="cmp-2">CMP-2. The envelope is identified by a schema URL</h3>
+<p>The envelope is identified by a <code>$schema</code> URL under <code>https://morphir.finos.org/schemas/&lt;family&gt;/&lt;version&gt;/&lt;document&gt;.schema.json</code> instead of <code>contextVersion</code>, matching the project's move to schema URLs. The parent edits <code>ir/name-compaction</code> and completes task 1.1 (grammar, tables <code>names</code>, <code>packagePaths</code>, <code>modulePaths</code> and <code>fqNames</code>, <code>{"$name": …}</code>, <code>critical</code>, a JSON Schema under <code>website/static/schemas</code>, valid and invalid examples) before .NET reads it. .NET pins those examples and moves the pin when the parent merges. .NET never defines the envelope or policy itself.</p>
+
+<h3 id="cmp-3">CMP-3. Canonical bytes are RFC 8785 JSON</h3>
+<p>Parent task 1.4 forbids expectations produced by an implementation, and the policy's "alias only when it saves space" rule needs a byte count that does not depend on the host. <code>Utf8JsonWriter</code> escapes non-ASCII by default (<code>é</code> as six bytes), so two hosts could disagree. Compacted files are therefore written in RFC 8785 JCS (sorted keys, raw non-ASCII, the JCS number form, no whitespace), and the policy counts the UTF-8 bytes of that form. The parent's fixed cases (a v3 and a v4 single file, v3 and v4 files of each tree kind, a name used once, a non-ASCII name, alias allocation, ties, table order, look-alike literals, a loss case) are worked out by hand and reviewed there. A small AOT-safe JCS writer in <code>Morphir.Models</code> is tested against the RFC's examples. Plain tree files keep the typed writers' output. <em>Alternative:</em> semantic expectations with name-only sizes (simpler, but output deterministic only up to formatting; rejected as 4B).</p>
+
+<h3 id="test-1">TEST-1. Every scenario has a test, built on drivers and mothers</h3>
+<p>Each OpenSpec scenario has a test with the same name. It is a Gherkin scenario where the <code>test-manager</code> skill gives integration or journey, and an Expecto or TUnit test for laws and corpus loops. <a href="tasks.md">tasks.md</a> ends with the traceability table.</p>
+<table>
+<thead><tr><th>Layer</th><th>Where</th><th>What</th></tr></thead>
+<tbody>
+<tr><td>Black-box Gherkin, <code>@integration</code>, <code>@needs-model-conversion</code></td><td><code>tests/Morphir.BlackBox.Tests/Integration/</code></td><td><code>ModelConversion.feature</code>, <code>ModelConversionKitCases.feature</code>, <code>ModelConversionCompaction.feature</code>, <code>ModelVerification.feature</code> (renamed to <code>model verify</code>, with intent phrases)</td></tr>
+<tr><td>In-process Gherkin</td><td><code>tests/Morphir.Tooling.Tests/Features/ModelConvert/</code></td><td>events flushed before the next stage; <code>fileWritten</code> per file; streamed diagnostics equal the report's</td></tr>
+<tr><td>Expecto laws and units</td><td><code>tests/Morphir.Models.Tests</code>, <code>tests/Morphir.Files.Tests</code></td><td><code>join (split d) = d</code>, <code>read (write t) = t</code>, <code>expand (compact f) = f</code>, determinism, address-to-path bijection, JCS vectors, <code>IFileProvider</code> contract, architecture checks (only the store refers to <code>Morphir.Files</code>; addresses hold only Morphir names)</td></tr>
+</tbody>
+</table>
+<p>Drivers: <code>IModelConversionDriver</code>/<code>ModelConversionDriver</code> with <code>ConversionOptions</code> and <code>ConversionReport</code> (<code>tests/Morphir.TestSupport/Drivers</code>, with driver tests); the updated <code>ModelVerificationDriver</code>; <code>JsonOutputAssertions</code>; an in-process <code>ModelConvertCommandDriver</code> with a controllable fake store; <code>DocumentTreeStoreDriver</code>. Object mothers live in a new F# <code>tests/Morphir.Models.TestSupport</code>: <code>DistributionMother</code> with named cases and a test-data builder, <code>DocumentTreeMother</code> and <code>MorphirFileMother</code> (including one invalid shape per refusal), and the FsCheck generators that share the builder. A C# <code>FixtureCatalog</code> in <code>tests/Morphir.TestSupport</code> is the only owner of files on disk, with provenance and hashes. A guard test fails on an unowned fixture.</p>
+
+<h3 id="test-2">TEST-2. The kit is reference data</h3>
+<p>The parent kit is tied to the Rust implementation (runner, step grammar, adapter protocol, CI gates) and is due for a redesign. This work uses none of that. The kit's tree cases are pinned from one commit as data, and <code>ModelConversionKitCases.feature</code> has one .NET-owned scenario per case, named with its kit id. YAML spellings are translated to JSON by <code>FixtureCatalog</code> with a test-only parser. The parent's compaction contract is published as plain spec artifacts, not kit cases, so the parent's Rust gates are untouched.</p>
+
+<h3 id="rel-1">REL-1. One branch, inspectable milestones</h3>
+<p>All work is on <code>feat/model-convert</code>. Each milestone ends with a commit that builds and passes its tests, and a note saying what to try. The maintainer decides after each milestone whether it ships as its own pull request. Order: step zero (<code>Morphir.Files</code>), milestone 1 (plain trees, <code>model</code> group), milestone 2 (read compacted files, after the parent's task 1.1), milestone 3 (write compacted files, after the parent's task 1.4). <code>adopt-streaming-json</code> lands before milestone 1's command or with it.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>The <code>netstandard2.0</code> port of <code>Morphir.Files</code> changes behavior on the modern targets.</td><td>The moved tests run unchanged on <code>net11.0</code>; shims are compiled only under <code>NETSTANDARD2_0</code>; existing pipeline tests must pass untouched.</td></tr>
+<tr><td>Extra assemblies (<code>Morphir.Files</code>, <code>FileProviders.Abstractions</code>, <code>Microsoft.Extensions.Primitives</code>) conflict in the analyzer package or an MSBuild host.</td><td>The C# generator's package and build tests load the generator in the compiler host; a conflict fails step zero, not a later milestone.</td></tr>
+<tr><td>The <code>ir</code> rename breaks the parent's release qualification.</td><td>The companion finos/morphir change lands with the pin move that brings the rename.</td></tr>
+<tr><td>Milestones 2 and 3 wait on parent tasks 1.1 and 1.4.</td><td>Milestone 1 does not depend on them. The parent edits are small, and they are drafted on a parent branch that the .NET pin follows until it merges.</td></tr>
+<tr><td>Hand-derived expected bytes contain a mistake.</td><td>They are reviewed in the parent PR. When .NET disagrees, the case is rechecked by hand; the implementation's output is never copied in.</td></tr>
+<tr><td>The typed round trip loses something the single file had.</td><td>Content the model cannot carry is refused with a named diagnostic or dropped with a named notice. The round-trip laws run over the kit models and the repository's IR fixtures.</td></tr>
+<tr><td>Kit data changes shape in the redesign.</td><td>Only <code>FixtureCatalog</code>'s source changes; the scenarios are .NET-owned.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ul>
+<li>Users replace <code>morphir ir verify</code> with <code>morphir model verify</code>; the changelog states it. There is no alias to remove later.</li>
+<li>Code that used <code>VFile</code>, <code>VFileTree</code> or <code>PropertyBag</code> from <code>Morphir.IR.Pipeline</code> references <code>Morphir.Files</code>. The builder chooses whether the namespace changes; consumers inside the repository are updated in step zero.</li>
+<li>Rollback: each milestone is one or more commits on the branch and can be reverted alone. Step zero can be reverted only together with the later milestones.</li>
+</ul>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>The exact schema URL and policy id (working names <code>ir-context/0.1.0-draft.1</code> and <code>morphir.compact/0.1.0-draft.1</code>) are fixed by the parent edit.</li>
+<li>Whether a bare <code>--compact</code> widens when a second mode arrives is decided then.</li>
+<li>The namespace of <code>Morphir.Files</code> (keep <code>Morphir.IR.Pipeline</code> or move to <code>Morphir.Files</code>) is the builder's call in step zero.</li>
+</ul>
+
+</main>
+</body>
+</html>
