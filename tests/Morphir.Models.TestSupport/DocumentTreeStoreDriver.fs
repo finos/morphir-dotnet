@@ -77,12 +77,40 @@ let withMember
     |> Map.toList
     |> ofTexts
 
-/// <summary>The same files with one more file, of the given text, at a location.</summary>
-let private withFile (location: string) (text: string) (files: VFileTree) : VFileTree =
+/// <summary>The same files with one more file, of the given text, at a location, or that file replaced.</summary>
+let withFile (location: string) (text: string) (files: VFileTree) : VFileTree =
     texts files
     |> Map.add location text
     |> Map.toList
     |> ofTexts
+
+/// <summary>The same files without the file at a location.</summary>
+let withoutFile (location: string) (files: VFileTree) : VFileTree =
+    texts files
+    |> Map.remove location
+    |> Map.toList
+    |> ofTexts
+
+/// <summary>
+/// The same files with every file whose location starts with <paramref name="fromPrefix"/> moved to start with
+/// <paramref name="toPrefix"/> instead, such as a directory renamed.
+/// </summary>
+let moved (fromPrefix: string) (toPrefix: string) (files: VFileTree) : VFileTree =
+    texts files
+    |> Map.toList
+    |> List.map (fun (location, text) ->
+        if location.StartsWith(fromPrefix, System.StringComparison.Ordinal) then
+            toPrefix
+            + location.Substring fromPrefix.Length,
+            text
+        else
+            location, text
+    )
+    |> ofTexts
+
+/// <summary>The same files with a copy of the file at <paramref name="location"/> at <paramref name="copy"/>.</summary>
+let copied (location: string) (copy: string) (files: VFileTree) : VFileTree =
+    withFile copy ((texts files)[location]) files
 
 /// <summary>
 /// The same files with the doc of the module file at a location spelled as an array of lines, which the parent's

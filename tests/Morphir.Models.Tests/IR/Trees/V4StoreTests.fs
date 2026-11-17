@@ -19,6 +19,7 @@ open Morphir.Json.V4
 open Morphir.Models.TestSupport
 open Morphir.Models.TestSupport.DistributionBuilder
 open Morphir.TestSupport.Fixtures
+open Morphir.IR.Tests.Trees.StoreTestKit
 
 module Driver = DocumentTreeStoreDriver
 module Mother = DocumentTreeMother
@@ -44,11 +45,6 @@ let private expectRoundTrip tree =
     Expect.isEmpty report.Notices "A written tree has nothing to report"
     Expect.isEmpty report.CompactedFiles "A plain tree has no compacted file"
 
-let private refusal (result: Result<'a, StoreError list>) =
-    match result with
-    | Ok value -> failtestf "Expected a refusal, got %A" value
-    | Result.Error errors -> errors
-
 let private v4TreeOf tree =
     match tree with
     | V4Tree v4 -> v4
@@ -64,17 +60,6 @@ let private addressesOf tree =
     :: ((v4TreeOf tree).Documents
         |> Map.toList
         |> List.map fst)
-
-/// JSON text with no whitespace and members in document order, so two spellings compare by content and order.
-let private compact (text: string) =
-    use document = JsonDocument.Parse text
-    use buffer = new MemoryStream()
-
-    do
-        use writer = new Utf8JsonWriter(buffer)
-        document.RootElement.WriteTo writer
-
-    Encoding.UTF8.GetString(buffer.ToArray())
 
 let private v4ModuleOf (tree: StoredTree) address =
     match Map.tryFind address (v4TreeOf tree).Documents with
@@ -97,41 +82,12 @@ let private nameOf address =
     | Dependency(_, TypeDef(_, n)) -> n
     | other -> failtestf "%O has no name" other
 
-/// Whether a kit file says formatVersion 4, the integer, rather than a v3 release string.
-let private isV4Json (text: string) =
-    use document = JsonDocument.Parse text
-    document.RootElement.GetProperty("formatVersion").ValueKind = JsonValueKind.Number
-
-/// The kit's v4 tree cases, pinned: 0003 to 0009. The v3 cases, 0011 to 0017, belong to the classic store.
-let private v4KitTreeIds = [ for number in 3..9 -> $"document-tree-%04d{number}" ]
-
-/// The kit's v4 file spellings, pinned: 0001 and 0002. 0010 is v3 and belongs to the classic store.
-let private v4KitSpellingIds = [ "document-tree-0001"; "document-tree-0002" ]
-
-let private kitSpelling (id: string) =
-    FixtureCatalog.Kit.FileSpellings
-    |> Seq.tryFind (fun spelling -> spelling.Id = id)
-    |> Option.defaultWith (fun () -> failtestf "The pinned kit has no file spelling '%s'" id)
-
-let private kitFiles (kitCase: KitTreeCase) =
-    [
-        for KeyValue(logicalPath, text) in kitCase.Files ->
-            logicalPath
-            + ".json",
-            text
-    ]
-    |> Driver.ofTexts
-
 let private canonicalDistribution (kitCase: KitTreeCase) =
     use document = JsonDocument.Parse(nonNull kitCase.CanonicalSingleFile)
 
     match V4Json.readDistribution document.RootElement with
     | Ok read -> read.Distribution
     | Result.Error error -> failtestf "The canonical file of %s does not read: %A" kitCase.Id error
-
-let private kitBudget (kitCase: KitTreeCase) =
-    use document = JsonDocument.Parse kitCase.Files["manifest"]
-    document.RootElement.GetProperty("pathBudget").GetInt32()
 
 let private decoded (read: JsonElement -> Result<'a, V4JsonError>) (text: string) =
     use document = JsonDocument.Parse text
@@ -474,26 +430,6 @@ let tests =
                         "The reason"
             }
 
-            test "A classic tree is not yet stored" {
-                let classic: ClassicDocumentTree<JsonElement, JsonElement> = {
-                    Manifest = {
-                        Kind = ClassicDistributionKind.LibraryKind
-                        Package = packageName "my-org/finance"
-                        Dependencies = []
-                        SingleFileVersion = Integer3
-                    }
-                    Documents = Map.empty
-                }
-
-                let errors = refusal (Driver.write (ClassicTree classic))
-
-                Expect.equal
-                    (errors
-                     |> List.map (fun e -> e.Code))
-                    [ "tree.classic_not_supported" ]
-                    "The code"
-            }
-
             test "A module doc spelled as lines is read as one doc" {
                 let moduleFile = "pkg/acme/demo/billing/module.json"
 
@@ -645,11 +581,7 @@ let tests =
                 test "the v4 tree cases are the pinned ones" {
                     let inCatalog =
                         FixtureCatalog.Kit.DocumentTree
-                        |> Seq.filter (fun kitCase ->
-                            match kitCase.Files.TryGetValue "manifest" with
-                            | true, manifest -> isV4Json manifest
-                            | _ -> false
-                        )
+                        |> Seq.filter isV4Case
                         |> Seq.map (fun kitCase -> kitCase.Id)
                         |> List.ofSeq
 
@@ -682,28 +614,9 @@ let tests =
                                 | Result.Error errors ->
                                     failtestf "Expected the tree to be written, got %A" errors
 
-                            let writtenFiles =
-                                Driver.texts files
-                                |> Map.toList
-                                |> List.map (fun (location, text) ->
-                                    location.Substring(
-                                        0,
-                                        location.Length
-                                        - ".json".Length
-                                    ),
-                                    compact text
-                                )
-
-                            let kit =
-                                [
-                                    for KeyValue(logicalPath, text) in kitCase.Files ->
-                                        logicalPath, compact text
-                                ]
-                                |> List.sortBy fst
-
                             Expect.sequenceEqual
-                                writtenFiles
-                                kit
+                                (writtenAsKitFiles files)
+                                (kitFilesCompacted kitCase)
                                 "The tree is written back to the kit's files"
                     }
             ]

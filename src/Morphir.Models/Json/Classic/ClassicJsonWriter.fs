@@ -732,6 +732,64 @@ module ClassicJsonWriter =
 
         w.Json.WriteEndObject()
 
+    // The entries of a module's types and values without their names, with attributes from JSON as they are: the def
+    // and spec payloads of the files of a classic v3 document tree, which ClassicTreeFiles writes into its own JSON.
+
+    let private entry
+        (profile: ClassicWireProfile)
+        (json: Utf8JsonWriter)
+        (body: Writer<JsonElement, JsonElement> -> unit)
+        : Result<unit, ClassicWriteError> =
+        let raw (element: JsonElement) (json: Utf8JsonWriter) = element.WriteTo json
+
+        try
+            body
+                {
+                    Profile = profile
+                    Json = json
+                    TypeAttribute = raw
+                    ValueAttribute = raw
+                }
+
+            Ok()
+        with ClassicWriteFailure error ->
+            Error error
+
+    /// Writes the entry of a module definition's types: { "access", "value": { "doc", "value" } }.
+    let internal writeTypeDefinitionEntry
+        profile
+        json
+        (definition: AccessControlled<Documented<Type.TypeDefinition<JsonElement>>>)
+        =
+        entry profile json (fun w -> access w (documented w (typeDefinition w)) definition)
+
+    /// Writes the entry of a module definition's values: { "access", "value": { "doc", "value": { … } } }.
+    let internal writeValueDefinitionEntry
+        profile
+        json
+        (definition: AccessControlled<Documented<ValueDefinition<JsonElement, JsonElement>>>)
+        =
+        entry
+            profile
+            json
+            (fun w -> access w (documented w (valueDefinition w "$.def.value")) definition)
+
+    /// Writes the entry of a module specification's types: { "doc", "value" }.
+    let internal writeTypeSpecificationEntry
+        profile
+        json
+        (specification: Documented<Type.TypeSpecification<JsonElement>>)
+        =
+        entry profile json (fun w -> documented w (typeSpecification w) specification)
+
+    /// Writes the entry of a module specification's values: { "doc", "value": { "inputs", "output" } }.
+    let internal writeValueSpecificationEntry
+        profile
+        json
+        (specification: Documented<ValueSpecification<JsonElement>>)
+        =
+        entry profile json (fun w -> documented w (valueSpecification w) specification)
+
     /// The kinds the declared profiles write, with their versions: for example "a Library at 1, 2 and 3, and a
     /// Specs at 3.1.0".
     let private supportedSet () =

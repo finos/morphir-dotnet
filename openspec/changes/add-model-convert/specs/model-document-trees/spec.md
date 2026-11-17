@@ -78,23 +78,39 @@ Reading a tree file SHALL ignore a top-level `$meta` member. Writing SHALL never
 - **THEN** the model equals the one read without that member, and a written tree holds no `$meta`
 
 ### Requirement: An invalid tree is refused with a named diagnostic
-Reading a tree SHALL refuse, with a diagnostic that names the file and the rule, a directory holding both a JSON and a YAML manifest, a v3 manifest whose version is not `"3.1.0"`, an unknown member, a path over the path budget, a missing module or definition file, a file outside `pkg/` and `deps/` that claims to be part of the tree, and a dependency version segment that carries a version. A refused read SHALL give no model.
+Reading a tree SHALL refuse, with a diagnostic that has a stable code and names the file, a directory holding both a JSON and a YAML manifest, a v3 manifest whose version is not `"3.1.0"`, an unknown member, a path over the path budget, a missing module or definition file, a file outside `pkg/` and `deps/` that claims to be part of the tree, and a dependency version segment that carries a version. A refused read SHALL give every error it finds and no model.
 
 #### Scenario: Ambiguous profile
 - **WHEN** a tree directory holds `manifest.json` and `manifest.yaml`
-- **THEN** reading is refused as ambiguous and names both files
+- **THEN** reading is refused with `tree.ambiguous_profile`, naming both files
+
+#### Scenario: A v3 manifest of another release
+- **WHEN** a v3 tree's manifest says `"formatVersion": "3.0.0"`
+- **THEN** reading is refused with `tree.v3_version`, naming `manifest.json`, the release it says and `"3.1.0"`
+
+#### Scenario: Unknown member
+- **WHEN** a v3 tree's manifest has a `version` member, which only a v4 manifest may carry
+- **THEN** reading is refused with `unknown_member`, naming `manifest.json` and the member
+
+#### Scenario: Path over the budget
+- **WHEN** a tree file's path is longer than the path budget its manifest says
+- **THEN** reading is refused with `tree.over_budget`, naming each such file and the budget
 
 #### Scenario: Missing definition file
 - **WHEN** a module file lists type `Invoice` and the tree holds no file for it
-- **THEN** reading is refused with a diagnostic naming the module file and `Invoice`
+- **THEN** reading is refused with `tree.missing_file`, naming the module file, `Invoice` and the file it looked for
+
+#### Scenario: A file outside the tree
+- **WHEN** a type file is at the root of the tree, beside `pkg/`
+- **THEN** reading is refused with `tree.outside_tree`, naming that file
 
 #### Scenario: Versioned dependency segment
 - **WHEN** a tree holds `deps/morphir/sdk/@3.0.0/basics/module.json`
-- **THEN** reading is refused with a diagnostic naming that directory
+- **THEN** reading is refused with `tree.versioned_dependency`, naming that directory, `deps/morphir/sdk/@3.0.0/`, once
 
 ### Requirement: Trees are read and written through virtual file trees
 Reading and writing a document tree SHALL work on a virtual file tree, so the same tree can come from or go to the disk, embedded resources, an archive or memory. The model code SHALL make no file-system calls of its own.
 
 #### Scenario: The same tree from two sources
-- **WHEN** one tree is read from a directory on disk and from an embedded-resource provider holding the same files
+- **WHEN** one tree is read from a directory on disk and from an embedded-resource provider holding the same files, or a v3 tree from a directory on disk and from a file provider over memory
 - **THEN** both reads give the same model and the same diagnostics

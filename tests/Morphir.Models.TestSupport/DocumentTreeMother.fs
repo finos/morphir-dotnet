@@ -1,14 +1,19 @@
 /// <summary>
 /// The named document trees that store tests share. Each case is the split of a model named for the intent a test
 /// needs: most are cases of <see cref="DistributionMother"/>, and the cases of the path budget and of a case-only
-/// collision are built here, since they need the logical paths of <c>DocumentAddress</c>.
+/// collision are built here, since they need the logical paths of <c>DocumentAddress</c>. The classic cases hold
+/// numbered attribute slots, and <see cref="Invalid"/> has one tree of files for each refusal of a read.
 /// </summary>
 module Morphir.Models.TestSupport.DocumentTreeMother
 
+open System.Text.Json
+open Morphir.Files
 open Morphir.IR
 open Morphir.IR.Trees
 open Morphir.IR.V4
 open Morphir.Models.TestSupport.DistributionBuilder
+
+module Driver = DocumentTreeStoreDriver
 
 /// <summary>The stored tree of a v4 model: its split.</summary>
 let treeOf (distribution: Distribution) : StoredTree =
@@ -152,3 +157,165 @@ let pathOverTheBudget: BudgetCase =
         defaultBudget
         + 1
     )
+
+/// <summary>A classic model as <c>ClassicJson</c> reads it: attributes are JSON values.</summary>
+type JsonClassicModel = Morphir.IR.Classic.Distribution.Distribution<JsonElement, JsonElement>
+
+/// <summary>
+/// The classic model with each attribute slot holding its own JSON object, <c>{"slot": n}</c>, numbered in the
+/// order of the model, so a store or a join that moves, swaps or drops one attribute gives other bytes.
+/// </summary>
+let withNumberedSlots
+    (distribution: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>>)
+    : JsonClassicModel =
+    let counter = ref 0
+
+    let next () =
+        counter.Value <-
+            counter.Value
+            + 1
+
+        use document = JsonDocument.Parse($"{{\"slot\":{counter.Value}}}")
+        document.RootElement.Clone()
+
+    Morphir.IR.Classic.Attributes.mapDistribution
+        (fun () -> next ())
+        (fun _ -> next ())
+        distribution
+
+/// <summary>The stored tree of a classic model: its split.</summary>
+let classicTreeOf (distribution: JsonClassicModel) : StoredTree =
+    ClassicTree(ClassicDocumentTree.split distribution)
+
+/// <summary>The classic library of <c>DistributionMother.v3Library</c>, with numbered attribute slots.</summary>
+let v3Library: StoredTree =
+    classicTreeOf (withNumberedSlots DistributionMother.v3Library)
+
+/// <summary>The classic Specs of <c>DistributionMother.v3Specs</c>, with numbered attribute slots.</summary>
+let v3Specs: StoredTree =
+    classicTreeOf (withNumberedSlots DistributionMother.v3Specs)
+
+/// <summary>
+/// The classic library of <c>DistributionMother.v3PrivateAndDocumentedMembers</c>, with numbered attribute slots:
+/// a private module, private members, docs and a dependency with two modules.
+/// </summary>
+let v3PrivateAndDocumentedMembers: StoredTree =
+    classicTreeOf (withNumberedSlots DistributionMother.v3PrivateAndDocumentedMembers)
+
+/// <summary>
+/// One tree of files for each refusal of a read, each named for what is wrong with it. Each is a tree that the store
+/// writes when it is asked for, with one change. The files of <see cref="acmeDemo"/> are <c>manifest.json</c>,
+/// <c>pkg/acme/demo/billing/module.json</c>, <c>…/invoice.type.json</c>, <c>…/total.value.json</c> and the
+/// files of <c>morphir/sdk</c> below <c>deps/morphir/sdk/@/</c>.
+/// </summary>
+module Invalid =
+    let private written tree =
+        match Driver.write tree with
+        | Ok files -> files
+        | Result.Error errors -> failwithf "The mother's tree is not written: %A" errors
+
+    let private acmeFiles () = written acmeDemo
+
+    let private billing = "pkg/acme/demo/billing/"
+
+    /// <summary>The module file of <c>billing</c> in <see cref="acmeDemo"/>.</summary>
+    let billingModuleFile =
+        billing
+        + "module.json"
+
+    /// <summary>The type file of <c>invoice</c> in <see cref="acmeDemo"/>.</summary>
+    let invoiceTypeFile =
+        billing
+        + "invoice.type.json"
+
+    /// <summary><see cref="acmeDemo"/> with a YAML manifest, <c>manifest.yaml</c>, beside its JSON one.</summary>
+    let bothManifestProfiles () : VFileTree =
+        acmeFiles ()
+        |> Driver.withFile
+            "manifest.yaml"
+            "formatVersion: 4\ndistribution: Library\npackage: acme/demo\npathBudget: 4000\n"
+
+    /// <summary><see cref="v3Library"/> with a manifest that says the release <c>"3.0.0"</c>, not <c>"3.1.0"</c>.</summary>
+    let v3ManifestOfAnotherRelease () : VFileTree =
+        written v3Library
+        |> Driver.withMember "manifest.json" "formatVersion" "\"3.0.0\""
+
+    /// <summary>
+    /// <see cref="v3Library"/> with a <c>version</c> member in its manifest, which a v4 manifest may carry and a v3
+    /// manifest may not.
+    /// </summary>
+    let v3ManifestWithAV4Member () : VFileTree =
+        written v3Library
+        |> Driver.withMember "manifest.json" "version" "\"1.2.0\""
+
+    /// <summary>
+    /// <see cref="pathAtTheBudget"/>, whose two long paths have 4000 characters, with a manifest that says a path
+    /// budget of 3999.
+    /// </summary>
+    let pathOverTheManifestBudget () : VFileTree =
+        written pathAtTheBudget.Tree
+        |> Driver.withMember
+            "manifest.json"
+            "pathBudget"
+            (string (
+                defaultBudget
+                - 1
+            ))
+
+    /// <summary><see cref="acmeDemo"/> with no file for the type <c>invoice</c>, which its module file lists.</summary>
+    let moduleListingAMissingType () : VFileTree =
+        acmeFiles ()
+        |> Driver.withoutFile invoiceTypeFile
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with a copy of the type file of <c>invoice</c> at the root of the tree, beside
+    /// <c>pkg/</c>, where it claims to be part of the tree.
+    /// </summary>
+    let typeFileOutsideTheTree () : VFileTree =
+        acmeFiles ()
+        |> Driver.copied invoiceTypeFile "invoice.type.json"
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with the files of its dependency below <c>deps/morphir/sdk/@3.0.0/</c>, a version
+    /// segment that carries a version, rather than the bare <c>@</c>.
+    /// </summary>
+    let versionedDependencySegment () : VFileTree =
+        acmeFiles ()
+        |> Driver.moved "deps/morphir/sdk/@/" "deps/morphir/sdk/@3.0.0/"
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with a copy of the module file of <c>billing</c> below the directory of another
+    /// package, <c>pkg/acme/other/</c>.
+    /// </summary>
+    let fileBelowAnotherPackage () : VFileTree =
+        acmeFiles ()
+        |> Driver.copied billingModuleFile "pkg/acme/other/billing/module.json"
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with the type file of <c>invoice</c> naming the type <c>total</c>, whose stem is not the
+    /// file's.
+    /// </summary>
+    let typeFileWithAnotherName () : VFileTree =
+        acmeFiles ()
+        |> Driver.withMember invoiceTypeFile "name" "\"total\""
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with the module file of <c>billing</c> stating the path <c>invoices</c>, which is not its
+    /// directory's.
+    /// </summary>
+    let moduleFileWithAnotherPath () : VFileTree =
+        acmeFiles ()
+        |> Driver.withMember billingModuleFile "path" "\"invoices\""
+
+    /// <summary>
+    /// <see cref="acmeDemo"/> with the type <c>invoice</c> both in its own file and inline in the module file of
+    /// <c>billing</c>, which holds it inline as its only type.
+    /// </summary>
+    let typeInTwoPlaces () : VFileTree =
+        let definition = (Driver.jsonAt invoiceTypeFile (acmeFiles ()))["def"]
+
+        acmeFiles ()
+        |> Driver.withMember
+            billingModuleFile
+            "types"
+            $"""{{ "invoice": {(nonNull definition).ToJsonString()} }}"""

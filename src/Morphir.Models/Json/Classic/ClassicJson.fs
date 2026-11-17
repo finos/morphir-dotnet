@@ -746,6 +746,27 @@ module internal ClassicJsonDecoder =
             Doc = optionalDoc location element
         }
 
+    // The entries of a module's types and values without their names: the def and spec payloads of the files of a
+    // classic v3 document tree, read as the entries of a v3 module list are.
+
+    /// The entry of a module definition's types: { "access", "value": { "doc", "value" } }.
+    let typeDefinitionEntry location element =
+        let ctx = { Version = 3; ForGeneration = false }
+        access ctx location (fun location -> documented true location (typeDefinition ctx)) element
+
+    /// The entry of a module definition's values: { "access", "value": { "doc", "value": { … } } }.
+    let valueDefinitionEntry location element =
+        let ctx = { Version = 3; ForGeneration = false }
+        access ctx location (fun location -> documented true location (definition ctx)) element
+
+    /// The entry of a module specification's types: { "doc", "value" }.
+    let typeSpecificationEntry location element =
+        documented true location (typeSpecification { Version = 3; ForGeneration = false }) element
+
+    /// The entry of a module specification's values: { "doc", "value": { "inputs", "output" } }.
+    let valueSpecificationEntry location element =
+        documented true location (valueSpecification { Version = 3; ForGeneration = false }) element
+
     /// Module lists keep version 1's objects, and later versions' pairs.
     let private modulesOf (ctx: ClassicContext) location key decodeModule (modules: JsonElement) =
         if ctx.Version = 1 then

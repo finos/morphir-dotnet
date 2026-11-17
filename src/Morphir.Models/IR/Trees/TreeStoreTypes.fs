@@ -98,7 +98,24 @@ module ReadOptions =
             * 1024L
     }
 
-/// The helpers of the store's modules: a store error, and the property that a written tree carries.
+/// <summary>
+/// What the module file of a tree holds, for the module, type and value documents of one IR version: the module's
+/// path, its document, the stems that the path budget cut, and the types and values it holds inline.
+/// </summary>
+type internal TreeModuleFile<'moduleDoc, 'typ, 'value> = {
+    /// <summary>The module path that the file states.</summary>
+    Path: ModulePath
+    /// <summary>The module document: access, doc, and the names of the types and values in document order.</summary>
+    Document: 'moduleDoc
+    /// <summary>Each name whose stem was cut for the path budget, with its stem, in document order.</summary>
+    FileNames: (Name * string) list
+    /// <summary>The types that the file holds inline rather than in files of their own, in document order.</summary>
+    InlineTypes: (Name * 'typ) list
+    /// <summary>The values that the file holds inline, in document order.</summary>
+    InlineValues: (Name * 'value) list
+}
+
+/// The helper of the store's modules: a store error.
 module internal StoreErrors =
     /// <summary>A store error.</summary>
     let error code file message : StoreError = {
@@ -106,9 +123,3 @@ module internal StoreErrors =
         File = file
         Message = message
     }
-
-/// The property that a written tree carries: the physical path of each document.
-module internal StoreProperties =
-    /// <summary>The physical path of each document of a tree that a store wrote.</summary>
-    let locations: Morphir.Files.Property<Map<DocumentAddress, string>> =
-        Morphir.Files.Property.create "morphir.document-tree.locations"

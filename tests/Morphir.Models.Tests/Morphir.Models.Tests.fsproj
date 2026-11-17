@@ -51,7 +51,11 @@
         <Compile Include="IR/Trees/DocumentAddressTests.fs" />
         <Compile Include="IR/Trees/V4DocumentTreeTests.fs" />
         <Compile Include="IR/Trees/ClassicDocumentTreeTests.fs" />
+        <Compile Include="IR/Trees/StoreTestKit.fs" />
         <Compile Include="IR/Trees/V4StoreTests.fs" />
+        <Compile Include="IR/Trees/ClassicStoreTests.fs" />
+        <Compile Include="IR/Trees/RefusalTests.fs" />
+        <Compile Include="IR/Trees/ArchitectureTests.fs" />
         <Compile Include="IR/Classic/AccessControlledTests.fs" />
         <Compile Include="IR/Classic/TypeTests.fs" />
         <Compile Include="IR/Classic/LiteralTests.fs" />

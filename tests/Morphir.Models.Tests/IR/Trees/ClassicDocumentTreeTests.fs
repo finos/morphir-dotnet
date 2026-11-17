@@ -60,15 +60,7 @@ let private readFromJson (distribution: TypedModel) : JsonModel =
 
 /// The model with each attribute slot holding its own JSON object, {"slot": n}, so a join that moves, swaps or
 /// drops one attribute gives other bytes.
-let private withNumberedSlots (distribution: TypedModel) : JsonModel =
-    let counter = ref 0
-
-    let next () =
-        counter.Value <- counter.Value + 1
-        use document = JsonDocument.Parse($"{{\"slot\":{counter.Value}}}")
-        document.RootElement.Clone()
-
-    Classic.Attributes.mapDistribution (fun () -> next ()) (fun _ -> next ()) distribution
+let private withNumberedSlots: TypedModel -> JsonModel = DocumentTreeMother.withNumberedSlots
 
 /// The bytes of the joined model, written with the profile its manifest records, or the errors of the join.
 let private roundTripBytes (distribution: JsonModel) =
