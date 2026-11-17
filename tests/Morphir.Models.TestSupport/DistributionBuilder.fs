@@ -6,7 +6,8 @@
 /// <remarks>
 /// The classic DSLs of Morphir.Models are computation expressions over one version, and no v4 DSL exists, so the
 /// builder makes both models from the model constructors themselves. A shape is the same for both versions, which
-/// is what lets one builder serve the v4 and the classic cases and the generators of both.
+/// is what lets one builder serve the v4 and the classic cases and the generators of both. Access, documentation
+/// and type parameters are part of the shapes, so a test or a law can see a conversion that loses them.
 /// </remarks>
 module Morphir.Models.TestSupport.DistributionBuilder
 
@@ -16,6 +17,8 @@ open Morphir.IR
 type TypeExpr =
     /// <summary>The unit type.</summary>
     | UnitType
+    /// <summary>A type variable, such as a type parameter of the type being defined.</summary>
+    | VariableOf of Name
     /// <summary>A reference to a named type with its arguments.</summary>
     | Named of FQName * TypeExpr list
     /// <summary>A record, with its fields in order.</summary>
@@ -25,12 +28,25 @@ type TypeExpr =
     /// <summary>A function from one type to another.</summary>
     | FunctionOf of TypeExpr * TypeExpr
 
-/// <summary>A type definition with no type parameters.</summary>
+/// <summary>Whether a definition is visible outside its package.</summary>
+type Visibility =
+    /// <summary>Visible outside the package.</summary>
+    | PublicAccess
+    /// <summary>Visible only inside the package.</summary>
+    | PrivateAccess
+
+/// <summary>A type definition.</summary>
 type TypeShape =
-    /// <summary>An alias of a type expression.</summary>
-    | Alias of TypeExpr
-    /// <summary>A custom type: its public constructors in order, each with its named arguments.</summary>
-    | Custom of (Name * (Name * TypeExpr) list) list
+    /// <summary>An alias of a type expression, with its type parameters.</summary>
+    | Alias of parameters: Name list * aliased: TypeExpr
+    /// <summary>
+    /// A custom type with its type parameters, the visibility of its constructors, and its constructors in order,
+    /// each with its named arguments. A custom type with private constructors is opaque in a specification.
+    /// </summary>
+    | Custom of
+        parameters: Name list *
+        constructorAccess: Visibility *
+        constructors: (Name * (Name * TypeExpr) list) list
 
 /// <summary>A literal that both versions can spell.</summary>
 type LiteralShape =
@@ -48,12 +64,28 @@ type ValueShape =
     /// <summary>A one-input function that returns its input.</summary>
     | Identity of parameter: Name * parameterType: TypeExpr
 
-/// <summary>The types and values of one module, in the order they were added.</summary>
+/// <summary>A named type or value of a module, with its visibility and documentation.</summary>
+type Entry<'shape> = {
+    /// <summary>The name.</summary>
+    Name: Name
+    /// <summary>The definition.</summary>
+    Shape: 'shape
+    /// <summary>The visibility.</summary>
+    Access: Visibility
+    /// <summary>The documentation.</summary>
+    Doc: string option
+}
+
+/// <summary>The types and values of one module, in the order they were added, with its visibility and doc.</summary>
 type ModuleBuilder = {
     /// <summary>The types in order.</summary>
-    Types: (Name * TypeShape) list
+    Types: Entry<TypeShape> list
     /// <summary>The values in order.</summary>
-    Values: (Name * ValueShape) list
+    Values: Entry<ValueShape> list
+    /// <summary>The visibility of the module.</summary>
+    Access: Visibility
+    /// <summary>The documentation of the module.</summary>
+    Doc: string option
 }
 
 /// <summary>Marks a library builder for the v4 model.</summary>
@@ -71,8 +103,8 @@ type LibraryBuilder<'model> = {
     Package: PackageName
     /// <summary>The modules in order.</summary>
     Modules: (ModulePath * ModuleBuilder) list
-    /// <summary>The dependencies in order, each with its one module.</summary>
-    Dependencies: (PackageName * ModuleBuilder) list
+    /// <summary>The dependencies in order, each with its modules in order.</summary>
+    Dependencies: (PackageName * (ModulePath * ModuleBuilder) list) list
 }
 
 /// <summary>A builder of a v4 library.</summary>
@@ -103,8 +135,15 @@ let modulePath (text: string) : ModulePath = ModulePath(path text)
 let fqName (package: string) (moduleName: string) (localName: string) : FQName =
     FQName.fqName (packageName package) (modulePath moduleName) (name localName)
 
-/// <summary>The module of each dependency: <c>withDependency</c> gives a dependency exactly one module.</summary>
+/// <summary>The module that <c>withDependency</c> gives a dependency.</summary>
 let dependencyModule: ModulePath = modulePath "api"
+
+/// <summary>An alias with no type parameters.</summary>
+let alias (aliased: TypeExpr) : TypeShape = Alias([], aliased)
+
+/// <summary>A custom type with no type parameters and public constructors.</summary>
+let custom (constructors: (Name * (Name * TypeExpr) list) list) : TypeShape =
+    Custom([], PublicAccess, constructors)
 
 /// <summary>The SDK types that constants have.</summary>
 module Sdk =
@@ -135,8 +174,13 @@ module Sdk =
         | TextValue _ -> string
         | WholeValue _ -> int
 
-/// <summary>A module with no types and no values.</summary>
-let emptyModuleBuilder: ModuleBuilder = { Types = []; Values = [] }
+/// <summary>A public module with no types, no values and no documentation.</summary>
+let emptyModuleBuilder: ModuleBuilder = {
+    Types = []
+    Values = []
+    Access = PublicAccess
+    Doc = None
+}
 
 /// <summary>Starts a v4 library of a package, with no modules and no dependencies.</summary>
 let aV4Library (package: PackageName) : V4LibraryBuilder = {
@@ -152,7 +196,7 @@ let aV3Library (package: PackageName) : V3LibraryBuilder = {
     Dependencies = []
 }
 
-/// <summary>Adds a module, built from an empty module by <paramref name="build"/>.</summary>
+/// <summary>Adds a module, built from an empty public module by <paramref name="build"/>.</summary>
 let withModule
     (path: ModulePath)
     (build: ModuleBuilder -> ModuleBuilder)
@@ -165,37 +209,110 @@ let withModule
                 @ [ path, build emptyModuleBuilder ]
     }
 
-/// <summary>Adds a public type.</summary>
+let private entry access entryName shape = {
+    Name = entryName
+    Shape = shape
+    Access = access
+    Doc = None
+}
+
+/// <summary>Adds a public type with no documentation.</summary>
 let withType (typeName: Name) (shape: TypeShape) (moduleBuilder: ModuleBuilder) : ModuleBuilder = {
     moduleBuilder with
         Types =
             moduleBuilder.Types
-            @ [ typeName, shape ]
+            @ [ entry PublicAccess typeName shape ]
 }
 
-/// <summary>Adds a public value.</summary>
+/// <summary>Adds a private type with no documentation.</summary>
+let withPrivateType (typeName: Name) (shape: TypeShape) (moduleBuilder: ModuleBuilder) : ModuleBuilder = {
+    moduleBuilder with
+        Types =
+            moduleBuilder.Types
+            @ [ entry PrivateAccess typeName shape ]
+}
+
+/// <summary>Adds a public value with no documentation.</summary>
 let withValue (valueName: Name) (shape: ValueShape) (moduleBuilder: ModuleBuilder) : ModuleBuilder = {
     moduleBuilder with
         Values =
             moduleBuilder.Values
-            @ [ valueName, shape ]
+            @ [ entry PublicAccess valueName shape ]
+}
+
+/// <summary>Adds a private value with no documentation.</summary>
+let withPrivateValue (valueName: Name) (shape: ValueShape) (moduleBuilder: ModuleBuilder) : ModuleBuilder = {
+    moduleBuilder with
+        Values =
+            moduleBuilder.Values
+            @ [ entry PrivateAccess valueName shape ]
+}
+
+let private documentEntry (what: string) (entryName: Name) (doc: string) (entries: Entry<'shape> list) =
+    if
+        entries
+        |> List.exists (fun e -> e.Name = entryName)
+        |> not
+    then
+        invalidOp $"The module has no {what} %A{entryName} to document."
+
+    entries
+    |> List.map (fun e -> if e.Name = entryName then { e with Doc = Some doc } else e)
+
+/// <summary>Documents a type that the module already has.</summary>
+let withTypeDoc (typeName: Name) (doc: string) (moduleBuilder: ModuleBuilder) : ModuleBuilder = {
+    moduleBuilder with
+        Types = documentEntry "type" typeName doc moduleBuilder.Types
+}
+
+/// <summary>Documents a value that the module already has.</summary>
+let withValueDoc (valueName: Name) (doc: string) (moduleBuilder: ModuleBuilder) : ModuleBuilder = {
+    moduleBuilder with
+        Values = documentEntry "value" valueName doc moduleBuilder.Values
+}
+
+/// <summary>Documents the module.</summary>
+let withModuleDoc (doc: string) (moduleBuilder: ModuleBuilder) : ModuleBuilder = { moduleBuilder with Doc = Some doc }
+
+/// <summary>Makes the module private to its package.</summary>
+let asPrivateModule (moduleBuilder: ModuleBuilder) : ModuleBuilder = {
+    moduleBuilder with
+        Access = PrivateAccess
 }
 
 /// <summary>
-/// Adds a dependency with one module, <see cref="dependencyModule"/>, built from an empty module by
-/// <paramref name="build"/>. A library depends on its specification; an application links its definition.
+/// Adds a module to a dependency, and adds the dependency if the library has none for that package yet. A
+/// library depends on the specification of a dependency, so its private members and modules are left out; an
+/// application links the whole definition.
 /// </summary>
+let withDependencyModule
+    (package: PackageName)
+    (path: ModulePath)
+    (build: ModuleBuilder -> ModuleBuilder)
+    (library: LibraryBuilder<'model>)
+    : LibraryBuilder<'model> =
+    let added = path, build emptyModuleBuilder
+
+    let dependencies =
+        if
+            library.Dependencies
+            |> List.exists (fun (p, _) -> p = package)
+        then
+            library.Dependencies
+            |> List.map (fun (p, modules) -> if p = package then p, modules @ [ added ] else p, modules)
+        else
+            library.Dependencies
+            @ [ package, [ added ] ]
+
+    { library with Dependencies = dependencies }
+
+/// <summary>Adds a dependency module at <see cref="dependencyModule"/>: the shorthand for a one-module dependency.</summary>
 let withDependency
     (package: PackageName)
     (build: ModuleBuilder -> ModuleBuilder)
     (library: LibraryBuilder<'model>)
     : LibraryBuilder<'model> =
-    {
-        library with
-            Dependencies =
-                library.Dependencies
-                @ [ package, build emptyModuleBuilder ]
-    }
+    withDependencyModule package dependencyModule build library
 
 /// Builds a v4 OrderedMap, refusing a key that repeats: test data with a repeated name is a bug.
 let private orderedMap (what: string) (entries: ('k * 'v) list) =
@@ -213,6 +330,15 @@ let private uniqueMap (what: string) (entries: ('k * 'v) list) =
     | Some(key, _) -> invalidOp $"The {what} %A{key} appears more than once."
     | None -> Map.ofList entries
 
+/// The public entries, which are all that a specification has.
+let private publicOnly (entries: Entry<'shape> list) =
+    entries
+    |> List.filter (fun e -> e.Access = PublicAccess)
+
+let private publicModules (modules: (ModulePath * ModuleBuilder) list) =
+    modules
+    |> List.filter (fun (_, m) -> m.Access = PublicAccess)
+
 /// The v4 model of the shapes.
 module private ToV4 =
     open System.Numerics
@@ -223,10 +349,16 @@ module private ToV4 =
 
         match expression with
         | UnitType -> Type.Unit none
+        | VariableOf variable -> Type.Variable(none, variable)
         | Named(target, arguments) -> Type.Reference(none, target, List.map typ arguments)
         | RecordOf fields -> Type.Record(none, fields |> List.map (fun (n, t) -> n, typ t))
         | TupleOf elements -> Type.Tuple(none, List.map typ elements)
         | FunctionOf(input, output) -> Type.Function(none, typ input, typ output)
+
+    let private access (visibility: Visibility) : Access =
+        match visibility with
+        | PublicAccess -> Public
+        | PrivateAccess -> Private
 
     let private constructors (cases: (Name * (Name * TypeExpr) list) list) : Constructors =
         cases
@@ -239,19 +371,21 @@ module private ToV4 =
         | TextValue text -> StringLiteral text
         | WholeValue number -> IntegerLiteral(BigInteger number)
 
-    let private documented value : Documented<_> = { Doc = None; Value = value }
+    let private documented doc value : Documented<_> = { Doc = doc; Value = value }
 
-    let private isPublic value : AccessControlled<_> = { Access = Public; Value = value }
+    let private controlled visibility value : AccessControlled<_> = { Access = access visibility; Value = value }
 
     let typeDefinition (shape: TypeShape) : TypeDefinition =
         match shape with
-        | Alias expression -> TypeAliasDefinition([], typ expression)
-        | Custom cases -> CustomTypeDefinition([], Public, constructors cases)
+        | Alias(parameters, aliased) -> TypeAliasDefinition(parameters, typ aliased)
+        | Custom(parameters, constructorAccess, cases) ->
+            CustomTypeDefinition(parameters, access constructorAccess, constructors cases)
 
     let typeSpecification (shape: TypeShape) : TypeSpecification =
         match shape with
-        | Alias expression -> TypeAliasSpecification([], [], typ expression)
-        | Custom cases -> CustomTypeSpecification([], [], constructors cases)
+        | Alias(parameters, aliased) -> TypeAliasSpecification([], parameters, typ aliased)
+        | Custom(parameters, PublicAccess, cases) -> CustomTypeSpecification([], parameters, constructors cases)
+        | Custom(parameters, PrivateAccess, _) -> OpaqueTypeSpecification([], parameters)
 
     let valueDefinition (shape: ValueShape) : ValueDefinition =
         match shape with
@@ -286,45 +420,45 @@ module private ToV4 =
     let moduleDefinition (m: ModuleBuilder) : ModuleDefinition = {
         Types =
             m.Types
-            |> List.map (fun (n, shape) -> n, isPublic (documented (typeDefinition shape)))
+            |> List.map (fun e -> e.Name, controlled e.Access (documented e.Doc (typeDefinition e.Shape)))
             |> orderedMap "type"
         Values =
             m.Values
-            |> List.map (fun (n, shape) -> n, isPublic (documented (valueDefinition shape)))
+            |> List.map (fun e -> e.Name, controlled e.Access (documented e.Doc (valueDefinition e.Shape)))
             |> orderedMap "value"
-        Doc = None
+        Doc = m.Doc
     }
 
     let moduleSpecification (m: ModuleBuilder) : ModuleSpecification = {
         Annotations = []
         Types =
-            m.Types
-            |> List.map (fun (n, shape) -> n, documented (typeSpecification shape))
+            publicOnly m.Types
+            |> List.map (fun e -> e.Name, documented e.Doc (typeSpecification e.Shape))
             |> orderedMap "type"
         Values =
-            m.Values
-            |> List.map (fun (n, shape) -> n, documented (valueSpecification shape))
+            publicOnly m.Values
+            |> List.map (fun e -> e.Name, documented e.Doc (valueSpecification e.Shape))
             |> orderedMap "value"
-        Doc = None
+        Doc = m.Doc
     }
 
     let packageDefinition (modules: (ModulePath * ModuleBuilder) list) : PackageDefinition = {
         Modules =
             modules
-            |> List.map (fun (p, m) -> p, isPublic (moduleDefinition m))
+            |> List.map (fun (p, m) -> p, controlled m.Access (moduleDefinition m))
             |> orderedMap "module"
     }
 
     let packageSpecification (modules: (ModulePath * ModuleBuilder) list) : PackageSpecification = {
         Modules =
-            modules
+            publicModules modules
             |> List.map (fun (p, m) -> p, moduleSpecification m)
             |> orderedMap "module"
     }
 
     let dependencies (make: (ModulePath * ModuleBuilder) list -> 'd) (library: LibraryBuilder<_>) =
         library.Dependencies
-        |> List.map (fun (package, m) -> package, make [ dependencyModule, m ])
+        |> List.map (fun (package, modules) -> package, make modules)
         |> orderedMap "dependency"
 
 /// The classic model of the shapes: type attributes are unit, and each value carries its type.
@@ -336,10 +470,21 @@ module private ToClassic =
     let rec typ (expression: TypeExpr) : Type<unit> =
         match expression with
         | UnitType -> Type.Unit()
+        | VariableOf variable -> Type.Variable((), variable)
         | Named(target, arguments) -> Type.Reference((), target, List.map typ arguments)
         | RecordOf fields -> Type.Record((), fields |> List.map (fun (n, t) -> { Name = n; Type = typ t }))
         | TupleOf elements -> Type.Tuple((), List.map typ elements)
         | FunctionOf(input, output) -> Type.Function((), typ input, typ output)
+
+    let private controlled (visibility: Visibility) value =
+        match visibility with
+        | PublicAccess -> public' value
+        | PrivateAccess -> private' value
+
+    let private documented (doc: string option) value =
+        match doc with
+        | Some text -> withDocumentation text value
+        | None -> withoutDocumentation value
 
     let private constructors (cases: (Name * (Name * TypeExpr) list) list) : Type.Constructors<unit> =
         cases
@@ -354,13 +499,15 @@ module private ToClassic =
 
     let typeDefinition (shape: TypeShape) : Type.TypeDefinition<unit> =
         match shape with
-        | Alias expression -> Type.TypeAliasDefinition([], typ expression)
-        | Custom cases -> Type.CustomTypeDefinition([], public' (constructors cases))
+        | Alias(parameters, aliased) -> Type.TypeAliasDefinition(parameters, typ aliased)
+        | Custom(parameters, constructorAccess, cases) ->
+            Type.CustomTypeDefinition(parameters, controlled constructorAccess (constructors cases))
 
     let typeSpecification (shape: TypeShape) : Type.TypeSpecification<unit> =
         match shape with
-        | Alias expression -> Type.TypeAliasSpecification([], typ expression)
-        | Custom cases -> Type.CustomTypeSpecification([], constructors cases)
+        | Alias(parameters, aliased) -> Type.TypeAliasSpecification(parameters, typ aliased)
+        | Custom(parameters, PublicAccess, cases) -> Type.CustomTypeSpecification(parameters, constructors cases)
+        | Custom(parameters, PrivateAccess, _) -> Type.OpaqueTypeSpecification parameters
 
     let valueDefinition (shape: ValueShape) : ValueDefinition<unit, Type<unit>> =
         match shape with
@@ -395,40 +542,40 @@ module private ToClassic =
     let moduleDefinition (m: ModuleBuilder) : Module.ModuleDefinition<unit, Type<unit>> =
         Module.moduleDefinition
             (m.Types
-             |> List.map (fun (n, shape) -> n, public' (withoutDocumentation (typeDefinition shape)))
+             |> List.map (fun e -> e.Name, controlled e.Access (documented e.Doc (typeDefinition e.Shape)))
              |> uniqueMap "type")
             (m.Values
-             |> List.map (fun (n, shape) -> n, public' (withoutDocumentation (valueDefinition shape)))
+             |> List.map (fun e -> e.Name, controlled e.Access (documented e.Doc (valueDefinition e.Shape)))
              |> uniqueMap "value")
-            None
+            m.Doc
 
     let moduleSpecification (m: ModuleBuilder) : Module.ModuleSpecification<unit> =
         Module.moduleSpecification
-            (m.Types
-             |> List.map (fun (n, shape) -> n, withoutDocumentation (typeSpecification shape))
+            (publicOnly m.Types
+             |> List.map (fun e -> e.Name, documented e.Doc (typeSpecification e.Shape))
              |> uniqueMap "type")
-            (m.Values
-             |> List.map (fun (n, shape) -> n, withoutDocumentation (valueSpecification shape))
+            (publicOnly m.Values
+             |> List.map (fun e -> e.Name, documented e.Doc (valueSpecification e.Shape))
              |> uniqueMap "value")
-            None
+            m.Doc
 
     let packageDefinition (modules: (ModulePath * ModuleBuilder) list) : Package.PackageDefinition<unit, Type<unit>> =
         Package.packageDefinition (
             modules
-            |> List.map (fun (p, m) -> p, public' (moduleDefinition m))
+            |> List.map (fun (p, m) -> p, controlled m.Access (moduleDefinition m))
             |> uniqueMap "module"
         )
 
     let packageSpecification (modules: (ModulePath * ModuleBuilder) list) : Package.PackageSpecification<unit> =
         Package.packageSpecification (
-            modules
+            publicModules modules
             |> List.map (fun (p, m) -> p, moduleSpecification m)
             |> uniqueMap "module"
         )
 
     let dependencies (library: V3LibraryBuilder) =
         library.Dependencies
-        |> List.map (fun (package, m) -> package, packageSpecification [ dependencyModule, m ])
+        |> List.map (fun (package, modules) -> package, packageSpecification modules)
         |> uniqueMap "dependency"
 
 /// <summary>Builds a v4 <c>Library</c>.</summary>
@@ -439,7 +586,10 @@ let buildV4 (library: V4LibraryBuilder) : Morphir.IR.V4.Distribution =
         ToV4.packageDefinition library.Modules
     )
 
-/// <summary>Builds a v4 <c>Specs</c>: the public interface of the library and its dependencies.</summary>
+/// <summary>
+/// Builds a v4 <c>Specs</c>: the public interface of the library and its dependencies. Private members and
+/// modules are left out, and a custom type with private constructors is opaque.
+/// </summary>
 let buildV4Specs (library: V4LibraryBuilder) : Morphir.IR.V4.Distribution =
     Morphir.IR.V4.Specs(
         library.Package,
@@ -471,7 +621,8 @@ let buildV3 (library: V3LibraryBuilder) : Morphir.IR.Classic.Distribution.Distri
     )
 
 /// <summary>
-/// Builds a classic <c>Specs</c>. The classic writer refuses it today: a Specs distribution needs format 3.1.0.
+/// Builds a classic <c>Specs</c>, the public interface as <c>buildV4Specs</c> makes it. The classic writer refuses
+/// it today: a Specs distribution needs format 3.1.0.
 /// </summary>
 let buildV3Specs
     (library: V3LibraryBuilder)

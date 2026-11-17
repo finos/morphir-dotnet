@@ -42,14 +42,14 @@ let private invoiceType = Named(fqName "my-org/finance" "pricing/models" "invoic
 
 /// A module with an alias, a custom type, a constant and a function.
 let private pricingModule =
-    withType (name "invoice") (Alias(RecordOf [ name "amount", Sdk.int; name "currency", Sdk.string ]))
-    >> withType (name "status") (Custom [ name "open", []; name "paid", [ name "amount", Sdk.int ] ])
+    withType (name "invoice") (alias (RecordOf [ name "amount", Sdk.int; name "currency", Sdk.string ]))
+    >> withType (name "status") (custom [ name "open", []; name "paid", [ name "amount", Sdk.int ] ])
     >> withValue (name "default-currency") (Constant(TextValue "USD"))
     >> withValue (name "same-invoice") (Identity(name "invoice", invoiceType))
 
 /// The one module of each dependency in these cases.
 let private sdkBasics =
-    withType (name "money") (Alias Sdk.int)
+    withType (name "money") (alias Sdk.int)
     >> withValue (name "zero") (Constant(WholeValue 0L))
 
 let private financeV4 =
@@ -99,6 +99,48 @@ let v3Specs: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Class
     |> withDependency Sdk.package sdkBasics
     |> buildV3Specs
 
+/// A public module and a private one. The public module has a documented generic alias, a private type, a custom
+/// type whose constructors are private, a documented value and a private value.
+let private withPrivateAndDocumentedMembers (start: PackageName -> LibraryBuilder<'model>) =
+    let pair = Named(fqName "my-org/finance" "accounts" "pair", [ Sdk.int; Sdk.string ])
+
+    start finance
+    |> withModule
+        (modulePath "accounts")
+        (withModuleDoc "Accounts and their balances."
+         >> withType (name "pair") (Alias([ name "a"; name "b" ], TupleOf [ VariableOf(name "a"); VariableOf(name "b") ]))
+         >> withTypeDoc (name "pair") "Two values, of the types a and b."
+         >> withPrivateType (name "ledger-key") (alias Sdk.string)
+         >> withType
+             (name "balance")
+             (Custom([ name "currency" ], PrivateAccess, [ name "balance", [ name "amount", Sdk.int ] ]))
+         >> withValue (name "opening-balance") (Constant(WholeValue 0L))
+         >> withValueDoc (name "opening-balance") "The balance of a new account, in cents. Zéro."
+         >> withPrivateValue (name "same-pair") (Identity(name "pair", pair)))
+    |> withModule
+        (modulePath "accounts/internal")
+        (asPrivateModule
+         >> withModuleDoc "Helpers that the package keeps to itself."
+         >> withValue (name "audit") (Constant(BoolValue true)))
+    |> withDependencyModule Sdk.package (modulePath "basics") sdkBasics
+    |> withDependencyModule
+        Sdk.package
+        (modulePath "string/format")
+        (withValue (name "pad") (Constant(TextValue " ")))
+
+/// <summary>
+/// A v4 library with private members, a private module, private constructors, a generic type and documentation on
+/// a module, a type and a value, and a dependency with two modules, one of them nested.
+/// </summary>
+let privateAndDocumentedMembers: Distribution =
+    withPrivateAndDocumentedMembers aV4Library
+    |> buildV4
+
+/// <summary>The classic library of <c>privateAndDocumentedMembers</c>.</summary>
+let v3PrivateAndDocumentedMembers: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
+    withPrivateAndDocumentedMembers aV3Library
+    |> buildV3
+
 /// <summary>A v4 library with one module that has no types and no values.</summary>
 let emptyModule: Distribution =
     aV4Library finance
@@ -111,7 +153,7 @@ let noModules: Distribution = aV4Library finance |> buildV4
 /// <summary>A v4 library that spells <see cref="Names.repeated"/> once, as the name of its one type.</summary>
 let nameUsedOnce: Distribution =
     aV4Library (packageName "my-org/settlement")
-    |> withModule (modulePath "ledger") (withType Names.repeated (Alias Sdk.string))
+    |> withModule (modulePath "ledger") (withType Names.repeated (alias Sdk.string))
     |> buildV4
 
 /// <summary>
@@ -120,7 +162,7 @@ let nameUsedOnce: Distribution =
 /// </summary>
 let nameUsedOften: Distribution =
     let record =
-        Alias(RecordOf [ Names.repeated, Sdk.string; name "amount", Sdk.int ])
+        alias (RecordOf [ Names.repeated, Sdk.string; name "amount", Sdk.int ])
 
     let types =
         [
@@ -147,7 +189,7 @@ let nameUsedOften: Distribution =
 /// <summary>A classic library whose one type is named <see cref="Names.nonAscii"/>, a name with an <c>é</c>.</summary>
 let nonAsciiName: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     aV3Library (packageName "my-org/menu")
-    |> withModule (modulePath "drinks") (withType Names.nonAscii (Alias Sdk.string))
+    |> withModule (modulePath "drinks") (withType Names.nonAscii (alias Sdk.string))
     |> buildV3
 
 /// <summary>
@@ -160,8 +202,8 @@ let collidingStems: Distribution =
     aV4Library finance
     |> withModule
         pricing
-        (withType Names.invoiceLine (Alias Sdk.int)
-         >> withType Names.invoiceLineAsOneWord (Alias Sdk.string))
+        (withType Names.invoiceLine (alias Sdk.int)
+         >> withType Names.invoiceLineAsOneWord (alias Sdk.string))
     |> buildV4
 
 /// <summary>
@@ -174,6 +216,6 @@ let windowsReservedStems: Distribution =
     |> withModule
         (modulePath "aux")
         (Names.windowsDevices
-         |> List.map (fun device -> withType device (Alias Sdk.string))
+         |> List.map (fun device -> withType device (alias Sdk.string))
          |> List.reduce (>>))
     |> buildV4

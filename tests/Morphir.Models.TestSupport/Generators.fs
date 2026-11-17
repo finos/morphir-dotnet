@@ -66,15 +66,24 @@ let private modulePaths = [
 
 let private leafTypes = [ UnitType; Sdk.bool; Sdk.int; Sdk.string ]
 
-/// A type expression no deeper than `depth`.
-let rec private typeExpr (depth: int) : Gen<TypeExpr> =
+/// A type expression no deeper than `depth`, which may use the type variables in scope.
+let rec private typeExpr (variables: Name list) (depth: int) : Gen<TypeExpr> =
+    let leaf =
+        match variables with
+        | [] -> Gen.elements leafTypes
+        | _ ->
+            Gen.frequency [
+                2, Gen.elements leafTypes
+                1, Gen.map VariableOf (Gen.elements variables)
+            ]
+
     if depth <= 0 then
-        Gen.elements leafTypes
+        leaf
     else
-        let inner = typeExpr (depth - 1)
+        let inner = typeExpr variables (depth - 1)
 
         Gen.frequency [
-            3, Gen.elements leafTypes
+            3, leaf
             1, Gen.map Sdk.list inner
             1,
             gen {
@@ -91,24 +100,50 @@ let rec private typeExpr (depth: int) : Gen<TypeExpr> =
             1, Gen.map2 (fun input output -> FunctionOf(input, output)) inner inner
         ]
 
-let private typeShape: Gen<TypeShape> =
-    Gen.oneof [
-        Gen.map Alias (typeExpr 2)
-        gen {
-            let! constructors = someDistinctNames 3
-
-            let! cases =
-                constructors
-                |> List.map (fun constructor -> gen {
-                    let! arguments = distinctNames 2
-                    let! types = Gen.listOfLength arguments.Length (typeExpr 1)
-                    return constructor, List.zip arguments types
-                })
-                |> Gen.sequence
-
-            return Custom cases
-        }
+/// Mostly public, sometimes private.
+let private visibility: Gen<Visibility> =
+    Gen.frequency [
+        3, Gen.constant PublicAccess
+        1, Gen.constant PrivateAccess
     ]
+
+/// Mostly no documentation, sometimes a line, several lines or non-ASCII text.
+let private doc: Gen<string option> =
+    Gen.frequency [
+        2, Gen.constant None
+        1, Gen.elements [ Some "Documented."; Some "A first line.\nA second line."; Some "Prix en €, déjà vu." ]
+    ]
+
+/// Up to two type parameters.
+let private typeParameters: Gen<Name list> =
+    Gen.frequency [
+        2, Gen.constant []
+        1, Gen.elements [ [ name "a" ]; [ name "a"; name "b" ]; [ name "key"; name "value" ] ]
+    ]
+
+let private typeShape: Gen<TypeShape> = gen {
+    let! parameters = typeParameters
+
+    return!
+        Gen.oneof [
+            Gen.map (fun aliased -> Alias(parameters, aliased)) (typeExpr parameters 2)
+            gen {
+                let! constructorAccess = visibility
+                let! constructors = someDistinctNames 3
+
+                let! cases =
+                    constructors
+                    |> List.map (fun constructor -> gen {
+                        let! arguments = distinctNames 2
+                        let! types = Gen.listOfLength arguments.Length (typeExpr parameters 1)
+                        return constructor, List.zip arguments types
+                    })
+                    |> Gen.sequence
+
+                return Custom(parameters, constructorAccess, cases)
+            }
+        ]
+}
 
 let private literalShape: Gen<LiteralShape> =
     Gen.oneof [
@@ -120,24 +155,55 @@ let private literalShape: Gen<LiteralShape> =
 let private valueShape: Gen<ValueShape> =
     Gen.oneof [
         Gen.map Constant literalShape
-        Gen.map2 (fun parameter parameterType -> Identity(parameter, parameterType)) canonicalName (typeExpr 2)
+        Gen.map2 (fun parameter parameterType -> Identity(parameter, parameterType)) canonicalName (typeExpr [] 2)
     ]
 
+/// Adds a generated entry: public or private, with or without documentation.
+let private addEntry withPublic withPrivate withDoc (entryName: Name) shape access entryDoc =
+    let added =
+        match access with
+        | PublicAccess -> withPublic entryName shape
+        | PrivateAccess -> withPrivate entryName shape
+
+    match entryDoc with
+    | Some text -> added >> withDoc entryName text
+    | None -> added
+
 let private moduleBuilder: Gen<ModuleBuilder -> ModuleBuilder> = gen {
+    let! moduleAccess = visibility
+    let! moduleDoc = doc
     let! typeNames = distinctNames 4
-    let! types = Gen.listOfLength typeNames.Length typeShape
+    let! types = Gen.listOfLength typeNames.Length (Gen.zip3 typeShape visibility doc)
     let! valueNames = distinctNames 4
-    let! values = Gen.listOfLength valueNames.Length valueShape
+    let! values = Gen.listOfLength valueNames.Length (Gen.zip3 valueShape visibility doc)
 
     let addTypes =
         List.zip typeNames types
-        |> List.fold (fun build (n, shape) -> build >> withType n shape) id
+        |> List.fold
+            (fun build (n, (shape, access, entryDoc)) ->
+                build
+                >> addEntry withType withPrivateType withTypeDoc n shape access entryDoc
+            )
+            id
 
     let addValues =
         List.zip valueNames values
-        |> List.fold (fun build (n, shape) -> build >> withValue n shape) id
+        |> List.fold
+            (fun build (n, (shape, access, entryDoc)) ->
+                build
+                >> addEntry withValue withPrivateValue withValueDoc n shape access entryDoc
+            )
+            id
 
-    return addTypes >> addValues
+    let setModule =
+        (match moduleAccess with
+         | PublicAccess -> id
+         | PrivateAccess -> asPrivateModule)
+        >> (match moduleDoc with
+            | Some text -> withModuleDoc text
+            | None -> id)
+
+    return setModule >> addTypes >> addValues
 }
 
 /// Up to `most` distinct items of a pool.
@@ -146,7 +212,17 @@ let private distinctOf (most: int) (pool: string list) : Gen<string list> = gen 
     return List.truncate most picked
 }
 
-/// A library builder: up to three modules and up to two dependencies, none of them the package itself.
+/// One to three modules at distinct paths, nested ones among them.
+let private modulesOfDependency: Gen<(string * (ModuleBuilder -> ModuleBuilder)) list> = gen {
+    let! first = Gen.elements modulePaths
+    let! others = distinctOf 2 (modulePaths |> List.filter ((<>) first))
+    let paths = first :: others
+    let! modules = Gen.listOfLength paths.Length moduleBuilder
+    return List.zip paths modules
+}
+
+/// A library builder: up to three modules, and up to two dependencies of one to three modules each, none of them
+/// the package itself.
 let private library (start: PackageName -> LibraryBuilder<'model>) : Gen<LibraryBuilder<'model>> = gen {
     let! package = Gen.elements packages
     let! paths = distinctOf 3 modulePaths
@@ -157,7 +233,7 @@ let private library (start: PackageName -> LibraryBuilder<'model>) : Gen<Library
         |> List.filter ((<>) package)
         |> distinctOf 2
 
-    let! dependencies = Gen.listOfLength dependencyPackages.Length moduleBuilder
+    let! dependencies = Gen.listOfLength dependencyPackages.Length modulesOfDependency
 
     let withModules builder =
         List.zip paths modules
@@ -165,7 +241,14 @@ let private library (start: PackageName -> LibraryBuilder<'model>) : Gen<Library
 
     let withDependencies builder =
         List.zip dependencyPackages dependencies
-        |> List.fold (fun b (p, build) -> b |> withDependency (packageName p) build) builder
+        |> List.fold
+            (fun b (p, dependencyModules) ->
+                dependencyModules
+                |> List.fold
+                    (fun inner (m, build) -> inner |> withDependencyModule (packageName p) (modulePath m) build)
+                    b
+            )
+            builder
 
     return
         start (packageName package)
@@ -219,8 +302,18 @@ let v4Distribution: Gen<Morphir.IR.V4.Distribution> =
 let v3LibraryBuilder: Gen<V3LibraryBuilder> = library aV3Library
 
 /// <summary>
-/// A classic <c>Library</c>. Only libraries are generated, because the classic writer refuses a Specs
+/// A classic <c>Library</c>, the input of a property that writes classic JSON: the classic writer refuses a Specs
 /// distribution until its format 3.1.0 writer exists.
 /// </summary>
 let v3Distribution: Gen<Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>>> =
     Gen.map buildV3 v3LibraryBuilder
+
+/// <summary>
+/// A classic distribution: mostly a <c>Library</c>, and also <c>Specs</c>, for laws such as the 3.1.0 round trip
+/// that must see both.
+/// </summary>
+let v3AnyDistribution: Gen<Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>>> =
+    Gen.frequency [
+        3, v3Distribution
+        1, Gen.map buildV3Specs v3LibraryBuilder
+    ]
