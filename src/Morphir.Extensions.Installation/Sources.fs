@@ -6,6 +6,27 @@ open System
 open Morphir.Toolchain
 open Morphir.Mep
 
+/// The patterns of the recorded NuGet spellings. Module values, not class `static let` values: F# initialises the
+/// class `static let` values of a file in one initialiser, which starts the type initialiser of each class whose
+/// fields it writes. With two such classes in the file, two threads that parse a feed and a package key for the first
+/// time could wait for each other; the CLR breaks that deadlock by letting one thread see a class before its patterns
+/// are set (FailStaticInit). A Regex is safe to share between threads.
+module private SourcePatterns =
+    let nuGetFeedUrl =
+        Text.RegularExpressions.Regex(@"^https://[^/?#@\s]+(?:/[^?#\s]*)?/index\.json$", Text.RegularExpressions.RegexOptions.CultureInvariant)
+
+    let nuGetFeedFolder =
+        Text.RegularExpressions.Regex(@"^(?:/|[A-Z]:\\|\\\\(?!\?\\))", Text.RegularExpressions.RegexOptions.CultureInvariant)
+
+    let nuGetPackageId =
+        Text.RegularExpressions.Regex(@"^[a-z0-9_]+(?:[.-][a-z0-9_]+)*$", Text.RegularExpressions.RegexOptions.CultureInvariant)
+
+    let nuGetPackageVersion =
+        Text.RegularExpressions.Regex(
+            @"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.[1-9][0-9]*)?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?$",
+            Text.RegularExpressions.RegexOptions.CultureInvariant
+        )
+
 /// A GitHub repository, <c>owner/repo</c>, parsed once at the boundary.
 [<Sealed>]
 type GitHubRepository private (owner: string, name: string) =
@@ -56,12 +77,6 @@ type GitHubRepository private (owner: string, name: string) =
 /// part of it.
 [<Sealed>]
 type NuGetFeed private (text: string) =
-    static let url =
-        Text.RegularExpressions.Regex(@"^https://[^/?#@\s]+(?:/[^?#\s]*)?/index\.json$", Text.RegularExpressions.RegexOptions.CultureInvariant)
-
-    static let folder =
-        Text.RegularExpressions.Regex(@"^(?:/|[A-Z]:\\|\\\\(?!\?\\))", Text.RegularExpressions.RegexOptions.CultureInvariant)
-
     /// The feed as the extension family spells it.
     member _.Text = text
 
@@ -81,8 +96,8 @@ type NuGetFeed private (text: string) =
     static member Parse(text: string | null) : Result<NuGetFeed, InstallationFailure> =
         match text with
         | null -> Parsing.refuse "extension.invalid_source" "The NuGet feed is empty."
-        | text when url.IsMatch text -> Ok(NuGetFeed text)
-        | text when folder.IsMatch text && not (text.StartsWith(@"\\?\", StringComparison.Ordinal)) ->
+        | text when SourcePatterns.nuGetFeedUrl.IsMatch text -> Ok(NuGetFeed text)
+        | text when SourcePatterns.nuGetFeedFolder.IsMatch text && not (text.StartsWith(@"\\?\", StringComparison.Ordinal)) ->
             Ok(NuGetFeed text)
         | text ->
             Parsing.refuse
@@ -93,15 +108,6 @@ type NuGetFeed private (text: string) =
 /// normalized form with no build metadata.
 [<Sealed>]
 type NuGetPackageKey private (id: string, version: NuGet.Versioning.NuGetVersion) =
-    static let recordedId =
-        Text.RegularExpressions.Regex(@"^[a-z0-9_]+(?:[.-][a-z0-9_]+)*$", Text.RegularExpressions.RegexOptions.CultureInvariant)
-
-    static let recordedVersion =
-        Text.RegularExpressions.Regex(
-            @"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.[1-9][0-9]*)?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?$",
-            Text.RegularExpressions.RegexOptions.CultureInvariant
-        )
-
     /// The lower-case package id.
     member _.Id = id
     /// The normalized version text, without build metadata.
@@ -129,9 +135,9 @@ type NuGetPackageKey private (id: string, version: NuGet.Versioning.NuGetVersion
     /// Parses a recorded id, which must be lower case, and a recorded version, which must be normalized.
     static member Parse(id: string | null, version: string | null) : Result<NuGetPackageKey, InstallationFailure> =
         match id, version with
-        | NonNull id, _ when id.Length > 100 || not (recordedId.IsMatch id) ->
+        | NonNull id, _ when id.Length > 100 || not (SourcePatterns.nuGetPackageId.IsMatch id) ->
             Parsing.refuse "extension.invalid_source" $"Not a lower-case NuGet package id: {id}"
-        | NonNull id, NonNull version when recordedVersion.IsMatch version ->
+        | NonNull id, NonNull version when SourcePatterns.nuGetPackageVersion.IsMatch version ->
             let mutable parsed: NuGet.Versioning.NuGetVersion | null = null
 
             match NuGet.Versioning.NuGetVersion.TryParse(version, &parsed), parsed with

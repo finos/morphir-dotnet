@@ -56,4 +56,13 @@ let tests =
 
                 Expect.isEmpty [ for field in fields -> field.Name ] $"the static fields of {offerType.Name}"
         }
+
+        // The same rule for every source file of the assembly: no file initialiser starts the initialiser of a type
+        // of its file while the file has a second route in (TypeInitialisation of Morphir.TestSupport).
+        test "No source file of the assembly has a static initialiser that two threads can deadlock on" {
+            let contended =
+                Morphir.TestSupport.TypeInitialisation.ContendedFiles typeof<MepFrontend>.Assembly |> List.ofSeq
+
+            Expect.equal contended [] "the contended files"
+        }
     ]

@@ -22,6 +22,7 @@
     <Compile Include="FrontendAdapter.fs" />
     <Compile Include="CliAdapter.fs" />
     <Compile Include="WasmHost/Model.fs" />
+    <Compile Include="WasmHost/ResultSyntax.fs" />
     <Compile Include="WasmHost/CorpusJson.fs" />
     <Compile Include="WasmHost/CaseIds.fs" />
     <Compile Include="WasmHost/FeatureWriter.fs" />
@@ -36,6 +37,7 @@
     <Compile Include="GuestKit/Kit.fs" />
     <Compile Include="GuestKit/IrComparison.fs" />
     <Compile Include="GuestKit/ModelTier.fs" />
+    <Compile Include="GuestKit/WorkerSessionLimits.fs" />
     <Compile Include="GuestKit/WorkerSessions.fs" />
   </ItemGroup>
   <ItemGroup>

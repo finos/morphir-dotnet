@@ -40,6 +40,7 @@
         <Compile Include="GuestKitProvenanceTests.fs" />
         <Compile Include="GuestKitTests.fs" />
         <Compile Include="GuestKitWorkerTests.fs" />
+        <Compile Include="TypeInitialisationTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

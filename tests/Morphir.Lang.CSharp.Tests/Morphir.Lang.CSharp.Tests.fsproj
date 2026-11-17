@@ -58,6 +58,7 @@
         <Compile Include="CliAdapterTests.fs" />
         <Compile Include="CoveragePageTests.fs" />
         <Compile Include="PipelineTests.fs" />
+        <Compile Include="TypeInitialisationTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

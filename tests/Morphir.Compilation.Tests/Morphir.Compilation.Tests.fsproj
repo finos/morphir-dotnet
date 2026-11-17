@@ -25,6 +25,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Compilation\Morphir.Compilation.fsproj" />
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -39,6 +40,7 @@
         <Compile Include="FrontendContractTests.fs" />
         <Compile Include="DocumentationExampleTests.fs" />
         <Compile Include="TextParsingTests.fs" />
+        <Compile Include="TypeInitialisationTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

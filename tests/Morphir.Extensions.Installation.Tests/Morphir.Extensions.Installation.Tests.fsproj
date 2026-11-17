@@ -34,6 +34,7 @@
     <Compile Include="SourceProviderTests.fs" />
     <Compile Include="NuGetProviderTests.fs" />
     <Compile Include="NamedLockTests.fs" />
+    <Compile Include="TypeInitialisationTests.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
