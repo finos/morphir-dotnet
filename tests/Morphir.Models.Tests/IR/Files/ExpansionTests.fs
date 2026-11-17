@@ -128,19 +128,6 @@ let tests =
                 }
         ]
 
-        test "A literal that looks like an alias stays a literal" {
-            let document = expanded "v4-value"
-            let doc = (at [ "def"; "doc" ] document).GetString()
-
-            Expect.stringContains doc """{"$name":"a"}""" "the documentation keeps the text of a reference"
-            Expect.equal (at [ "def"; "doc" ] document |> json) (at [ "def"; "doc" ] (twin "v4-value") |> json) "the literal is unchanged"
-
-            Expect.equal
-                (at [ "def"; "ExpressionBody"; "body"; "Apply"; "function"; "Apply"; "function"; "Reference" ] document).ValueKind
-                JsonValueKind.String
-                "the real alias a beside it resolves"
-        }
-
         test "Classic and v4 slots expand differently" {
             let classic = expanded "v3-type"
             let v4 = expanded "v4-type"

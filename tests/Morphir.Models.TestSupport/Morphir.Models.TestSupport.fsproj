@@ -29,6 +29,7 @@
         <Compile Include="DocumentTreeStoreDriver.fs" />
         <Compile Include="DocumentTreeMother.fs" />
         <Compile Include="MorphirFileMother.fs" />
+        <Compile Include="NamePositionMother.fs" />
     </ItemGroup>
 
 </Project>

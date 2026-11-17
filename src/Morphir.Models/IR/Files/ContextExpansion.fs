@@ -16,8 +16,9 @@ open Morphir.IR.Trees
 /// <c>{"$name": "&lt;id&gt;"}</c>, and it is resolved only at a typed name position: a place that the IR's JSON reads as
 /// a name, a package path, a module path or an FQName. Each position resolves through its own table, and the spelling
 /// is written as the document's version writes that position: a canonical string in v4 and in the envelope members of
-/// a v3 tree file, classic word arrays in a classic v3 slot. Anything else, a string literal, documentation, an
-/// attribute, a document literal, stays as written, even when it looks like a reference. The document's
+/// a v3 tree file, classic word arrays in a classic v3 slot. A classic attribute slot that holds a type (an array) is a
+/// type, with its positions. Anything else, a string literal, documentation, an attribute object, extension data, a
+/// document literal, stays as written, even when it looks like a reference. The document's
 /// <c>formatVersion</c> is not touched.
 /// </summary>
 /// <remarks>
@@ -616,11 +617,13 @@ module internal ContextExpansion =
             union (mapOf entryPoint) (listOf entryPoint)
 
         let private distribution () =
-            let body =
+            // A Library or Specs depends on package specifications; an Application links its dependencies, so they
+            // are package definitions (V4JsonDistributions.distribution).
+            let body dependency =
                 members (
                     function
                     | "packageName" -> Some packagePath
-                    | "dependencies" -> Some(mapOf (packageSpecification ()))
+                    | "dependencies" -> Some(mapOf dependency)
                     | "def" -> Some(packageDefinition ())
                     | "spec" -> Some(packageSpecification ())
                     | "entryPoints" -> Some(entryPoints ())
@@ -630,13 +633,21 @@ module internal ContextExpansion =
             members (
                 function
                 | "Library"
-                | "Specs"
-                | "Application" -> Some body
+                | "Specs" -> Some(body (packageSpecification ()))
+                | "Application" -> Some(body (packageDefinition ()))
                 | _ -> None
             )
 
-        /// A v4 single file, or a manifest, module, type or value file of a v4 tree.
+        /// <summary>
+        /// A v4 single file, or a manifest, module, type or value file of a v4 tree. A module file's inline entries
+        /// are definitions in the own package of a Library or an Application and specifications elsewhere
+        /// (<c>V4DocumentTree.holdsDefinitions</c>), which a file alone does not tell, so they have both shapes, as
+        /// a type or value file's <c>def</c> and <c>spec</c> do.
+        /// </summary>
         let root () =
+            let typeEntry = union (accessControlled (typeDefinition ())) (typeSpecification ())
+            let valueEntry = union (accessControlled (valueDefinition ())) (valueSpecification ())
+
             members (
                 function
                 | "distribution" -> Some(distribution ())
@@ -645,8 +656,8 @@ module internal ContextExpansion =
                 | "entryPoints" -> Some(entryPoints ())
                 | "path"
                 | "module" -> Some modulePath
-                | "types" -> Some(union (listOf name) (mapOf (accessControlled (typeDefinition ()))))
-                | "values" -> Some(union (listOf name) (mapOf (accessControlled (valueDefinition ()))))
+                | "types" -> Some(union (listOf name) (mapOf typeEntry))
+                | "values" -> Some(union (listOf name) (mapOf valueEntry))
                 | "name" -> Some name
                 | "def" -> Some(union (accessControlled (typeDefinition ())) (accessControlled (valueDefinition ())))
                 | "spec" -> Some(union (typeSpecification ()) (valueSpecification ()))
@@ -670,8 +681,22 @@ module internal ContextExpansion =
         let private tagged (pick: string -> int -> Shape option) =
             itemsOf (fun array index -> if index = 0 then None else pick (tagOf array) index)
 
-        let rec private typ () : Shape =
-            tagged (fun tag index ->
+        /// An attribute slot: a type when it is an array (the parent's v3 schema types attributes as an object or a
+        /// Type, and a typed model holds each value's type there), opaque when it is an object.
+        let rec private attributes (slot: JsonElement) =
+            if slot.ValueKind = JsonValueKind.Array then Some(typ ()) else None
+
+        /// A tagged node of a type, a pattern or a value: item 1 is its attribute slot.
+        and private node (pick: string -> int -> Shape option) =
+            itemsOf (fun array index ->
+                match index with
+                | 0 -> None
+                | 1 -> attributes array[1]
+                | _ -> pick (tagOf array) index
+            )
+
+        and private typ () : Shape =
+            node (fun tag index ->
                 match tag, index with
                 | "Variable", 2 -> Some name
                 | "Reference", 2 -> Some fqName
@@ -693,7 +718,7 @@ module internal ContextExpansion =
             )
 
         let rec private pattern () : Shape =
-            tagged (fun tag index ->
+            node (fun tag index ->
                 match tag, index with
                 | "AsPattern", 2 -> Some(pattern ())
                 | "AsPattern", 3 -> Some name
@@ -705,7 +730,7 @@ module internal ContextExpansion =
             )
 
         let rec private value () : Shape =
-            tagged (fun tag index ->
+            node (fun tag index ->
                 match tag, index with
                 | ("Constructor"
                   | "Reference"),
@@ -744,9 +769,10 @@ module internal ContextExpansion =
                 | "inputTypes" ->
                     Some(
                         listOf (
-                            itemsOf (fun _ index ->
+                            itemsOf (fun input index ->
                                 match index with
                                 | 0 -> Some name
+                                | 1 -> attributes input[1]
                                 | 2 -> Some(typ ())
                                 | _ -> None
                             )
@@ -999,7 +1025,17 @@ module internal ContextExpansion =
             |> List.ofSeq
             |> Error
         else
-            use expanded =
-                JsonDocument.Parse(ReadOnlyMemory(buffer.ToArray()), JsonDocumentOptions(MaxDepth = Morphir.Json.V4.V4JsonDecoding.MaxDepth))
+            // A classic spelling is deeper than the reference it replaces, so a document within the limit can expand
+            // past it.
+            let maxDepth = Morphir.Json.V4.V4JsonDecoding.MaxDepth
 
-            Ok(expanded.RootElement.Clone())
+            try
+                use expanded = JsonDocument.Parse(ReadOnlyMemory(buffer.ToArray()), JsonDocumentOptions(MaxDepth = maxDepth))
+                Ok(expanded.RootElement.Clone())
+            with :? JsonException ->
+                Error [
+                    StoreErrors.error
+                        "depth_limit_exceeded"
+                        (Some file)
+                        $"The expanded document is nested more than {maxDepth} levels deep."
+                ]
