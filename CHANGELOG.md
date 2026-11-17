@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING:** `morphir compile --json` streams: it writes the compile events as JSON Lines (`stageStarted`, `diagnostics`, `stageCompleted`) and ends with one `{"event":"completed","report":{...}}` record that holds the report. `--json=document` writes the report alone, as `--json` did before. `--json-lines` is removed and fails as an unknown option with exit code 2; use `--json`. A mode is given only after `=`: `--json document` fails with exit code 2 and suggests `--json=document`, and the help shows `--json[=stream|document]`. The conformance `cli` adapter drives `compile --json`.
 - `VFile`, `VFileTree` and `PropertyBag` moved from `Morphir.IR.Pipeline` to the new package `Morphir.Files`, in the namespace `Morphir.Files`. Code that uses them adds `open Morphir.Files` (F#) or `using Morphir.Files;` (C#). `Morphir.IR.Pipeline` depends on `Morphir.Files` and keeps `MorphirProcessor`, so a pipeline also opens `Morphir.IR.Pipeline`.
 
+### Fixed
+- `ProjectPath.join` keeps an absolute Windows path written with backslashes. `morphir project migrate C:\work\orders` and `config --file C:\work\morphir.toml` no longer read the path as relative to the invocation directory (which `project migrate` reported as `migration.io`).
+
 ## [0.5.0-alpha.4] - 2026-11-16
 
 ### Added
