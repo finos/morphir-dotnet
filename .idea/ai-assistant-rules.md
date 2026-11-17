@@ -270,13 +270,13 @@ var result = new VerifyIRResult(...);
 Console.WriteLine(JsonSerializer.Serialize(result));
 
 // ❌ BAD: Log messages to stdout
-Console.WriteLine("Processing file..."); // Breaks: morphir verify file.json | jq .
+Console.WriteLine("Processing file..."); // Breaks: morphir model verify file.json | jq .
 ```
 
 **Why**:
 - Stdout = command output (JSON, formatted data)
 - Stderr = diagnostics and logging
-- Enables: `./morphir ir verify file.json --json | jq .`
+- Enables: `./morphir model verify file.json --json | jq .`
 
 See AGENTS.md Section 5 for complete rationale.
 

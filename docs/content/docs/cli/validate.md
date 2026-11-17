@@ -157,14 +157,14 @@ morphir.type-validator: not run (turned-off)
 
 A configuration with an error stops the command with exit code 2 before any analyzer runs.
 
-## validate and ir verify
+## validate and model verify
 
-- [`morphir ir verify`](ir-verify.md) checks that a JSON file has the shape of the Morphir IR JSON schema. Use it to
-  check a file that another tool wrote.
+- [`morphir model verify`](model-verify.md) checks that a JSON file has the shape of the Morphir IR JSON schema. Use
+  it to check a file that another tool wrote.
 - `morphir validate` decodes the model and checks what it means, for example the types of its values. Use it before
   you generate code from a model.
 
-A model that passes `ir verify` can still have a type mismatch. A model that `validate` cannot read gives exit code 2.
+A model that passes `model verify` can still have a type mismatch. A model that `validate` cannot read gives exit code 2.
 
 ## External analyzers
 

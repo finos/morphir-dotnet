@@ -6,7 +6,7 @@ using Morphir.TestSupport.Drivers;
 namespace Morphir.TestSupport.Tests.Drivers;
 
 /// <summary>
-/// The drivers of the <c>ir verify</c> and <c>generate</c> commands and their report types (design DRV-1 and
+/// The drivers of the <c>model verify</c> and <c>generate</c> commands and their report types (design DRV-1 and
 /// ASRT-1 of the change consolidate-black-box-tests). The command line tests use a recording CLI driver; the report
 /// tests run the real commands of the development build.
 /// </summary>
@@ -54,13 +54,13 @@ public class CapabilityDriverTests
         await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Document });
         await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream.Then("--no-such-option") });
 
-        cli.Commands[0].Should().Equal("ir", "verify", model.Path);
+        cli.Commands[0].Should().Equal("model", "verify", model.Path);
         // The --json argument comes before the path, so the path is the argument after a bare --json.
-        cli.Commands[1].Should().Equal("ir", "verify", "--json", model.Path, "--schema-version", "3");
-        cli.Commands[2].Should().Equal("ir", "verify", model.Path, "--quiet");
-        cli.Commands[3].Should().Equal("ir", "verify", "--json=document", model.Path);
+        cli.Commands[1].Should().Equal("model", "verify", "--json", model.Path, "--schema-version", "3");
+        cli.Commands[2].Should().Equal("model", "verify", model.Path, "--quiet");
+        cli.Commands[3].Should().Equal("model", "verify", "--json=document", model.Path);
         // An unknown option ends the command line, so the parser cannot take it as the path.
-        cli.Commands[4].Should().Equal("ir", "verify", "--json", model.Path, "--no-such-option");
+        cli.Commands[4].Should().Equal("model", "verify", "--json", model.Path, "--no-such-option");
         model.Path.Should().Contain(" ");
     }
 
@@ -104,6 +104,8 @@ public class CapabilityDriverTests
         report.DetectionMethod.Should().Be("auto");
         report.FilePath.Should().EndWith("valid ir.json");
         report.Errors.Should().BeEmpty();
+        report.ExitCode.Should().Be(0);
+        report.ShouldStateTheExitCode(0);
         report.ShouldBeValid();
         ((Action)(() => report.ShouldBeInvalid())).Should().Throw<CommandAssertionException>().WithMessage("*IsValid is true*");
     }
@@ -120,6 +122,8 @@ public class CapabilityDriverTests
         result.ShouldExitWith(1);
         report.IsValid.Should().BeFalse();
         report.Errors.Should().ContainSingle().Which.Message.Should().Contain("formatVersion");
+        report.ExitCode.Should().Be(1);
+        ((Action)(() => report.ShouldStateTheExitCode(2))).Should().Throw<CommandAssertionException>().WithMessage("*exit code 1, not 2*");
         report.ShouldBeInvalid();
         ((Action)(() => report.ShouldBeValid())).Should().Throw<CommandAssertionException>()
             .WithMessage("*IsValid is false*").WithMessage("*formatVersion*").WithMessage("*command: *");
@@ -131,6 +135,23 @@ public class CapabilityDriverTests
         var read = () => VerificationReport.Of(Result(0, "{ \"success\": true }"));
 
         read.Should().Throw<CommandAssertionException>().WithMessage("*IsValid*");
+    }
+
+    [Test]
+    public void AVerificationReportThatStatesNoExitCodeFailsTheExitCodeCheck()
+    {
+        var report = VerificationReport.Of(Result(1, "{ \"IsValid\": false }"));
+
+        report.ExitCode.Should().BeNull();
+        ((Action)(() => report.ShouldStateTheExitCode(1))).Should().Throw<CommandAssertionException>().WithMessage("*exit code null, not 1*");
+    }
+
+    [Test]
+    public void AVerificationReportWhoseExitCodeIsNotTheExitCodeOfTheRunFails()
+    {
+        var report = VerificationReport.Of(Result(1, "{ \"IsValid\": false, \"exitCode\": 2 }"));
+
+        ((Action)(() => report.ShouldStateTheExitCode(2))).Should().Throw<CommandAssertionException>().WithMessage("*the run exits with 1*");
     }
 
     [Test]

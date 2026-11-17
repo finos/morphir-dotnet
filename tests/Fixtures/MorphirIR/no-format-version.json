@@ -1,0 +1,13 @@
+{
+  "distribution": [
+    "Library",
+    [
+      ["test"],
+      ["package"]
+    ],
+    [],
+    {
+      "modules": []
+    }
+  ]
+}

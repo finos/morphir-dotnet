@@ -107,14 +107,14 @@ Error: File does not exist: morphir-ir.json
 
 2. **Use absolute path:**
    ```bash
-   morphir ir verify /full/path/to/morphir-ir.json
+   morphir model verify /full/path/to/morphir-ir.json
    ```
 
 3. **Check current directory:**
    ```bash
    pwd
    cd /path/to/ir/files
-   morphir ir verify morphir-ir.json
+   morphir model verify morphir-ir.json
    ```
 
 ### Malformed JSON Errors
@@ -150,7 +150,7 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
 
 1. **Explicitly specify version:**
    ```bash
-   morphir ir verify --schema-version 3 morphir-ir.json
+   morphir model verify --schema-version 3 morphir-ir.json
    ```
 
 2. **Check formatVersion field** (for v2/v3):
@@ -173,15 +173,15 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
 2. **Check schema documentation** - [Schema Specifications](/docs/spec/schemas/)
 3. **Validate against different versions:**
    ```bash
-   morphir ir verify --schema-version 1 morphir-ir.json
-   morphir ir verify --schema-version 2 morphir-ir.json
-   morphir ir verify --schema-version 3 morphir-ir.json
+   morphir model verify --schema-version 1 morphir-ir.json
+   morphir model verify --schema-version 2 morphir-ir.json
+   morphir model verify --schema-version 3 morphir-ir.json
    ```
 
 4. **Compare with known-good IR:**
    ```bash
    # Validate a reference file
-   morphir ir verify reference-morphir-ir.json
+   morphir model verify reference-morphir-ir.json
    ```
 
 5. **Check for common issues:**
@@ -281,12 +281,12 @@ If a commit fails after some replacements, inspect the reported restored/unresol
 
 1. **Use `--quiet` mode** to reduce output overhead:
    ```bash
-   morphir ir verify --quiet morphir-ir.json
+   morphir model verify --quiet morphir-ir.json
    ```
 
 2. **Validate in parallel** (for multiple files):
    ```bash
-   find . -name "*.json" | xargs -P 4 -I {} morphir ir verify --quiet {}
+   find . -name "*.json" | xargs -P 4 -I {} morphir model verify --quiet {}
    ```
 
 3. **Phase 2 improvements** (coming soon):
@@ -310,7 +310,7 @@ If a commit fails after some replacements, inspect the reported restored/unresol
 
 3. **Increase available memory** (if using Docker):
    ```bash
-   docker run --memory 2g morphir-cli ir verify morphir-ir.json
+   docker run --memory 2g morphir-cli model verify morphir-ir.json
    ```
 
 ## CI/CD Integration Issues
@@ -325,7 +325,7 @@ If a commit fails after some replacements, inspect the reported restored/unresol
 # GitHub Actions
 - name: Validate IR
   run: |
-    morphir ir verify morphir-ir.json
+    morphir model verify morphir-ir.json
     if [ $? -ne 0 ]; then
       echo "Validation failed"
       exit 1
@@ -338,7 +338,7 @@ Or use `set -e` in bash scripts:
 #!/bin/bash
 set -e  # Exit on any error
 
-morphir ir verify morphir-ir.json
+morphir model verify morphir-ir.json
 echo "Validation succeeded!"
 ```
 
@@ -350,12 +350,12 @@ echo "Validation succeeded!"
 
 1. **Verify JSON format:**
    ```bash
-   morphir ir verify --json=document morphir-ir.json | jq .
+   morphir model verify --json=document morphir-ir.json | jq .
    ```
 
 2. **Save to file:**
    ```bash
-   morphir ir verify --json=document morphir-ir.json > validation-result.json
+   morphir model verify --json=document morphir-ir.json > validation-result.json
    ```
 
 3. **Check for extra output:**
@@ -377,7 +377,7 @@ Permission denied: /app/morphir-ir.json
 RUN chmod +r /app/*.json
 
 # Or when running
-docker run -v $(pwd):/app:ro morphir-cli ir verify /app/morphir-ir.json
+docker run -v $(pwd):/app:ro morphir-cli model verify /app/morphir-ir.json
 ```
 
 ## Error Message Reference
@@ -640,7 +640,7 @@ See [morphir generate](../generate/) for the complete command contract.
 
 - [CLI Reference](../cli/) - Complete command documentation
 - [Management Commands](./management/) - Dist, tool, and extension management
-- [morphir ir verify](./ir-verify/) - Detailed verification command reference
+- [morphir model verify](./model-verify/) - Detailed verification command reference
 - [Schema Specifications](/docs/spec/schemas/) - IR schema documentation
 
 ## Project migration blocks or cannot write

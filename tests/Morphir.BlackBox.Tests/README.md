@@ -528,6 +528,17 @@ two steps have the same pattern.
 | Tool routing | `Then the tool alone with the arguments {string} exits with {int}` |
 | Model verification | `When I verify the model with the schema version {int} as JSON` |
 | Model verification | `Then the verification report has the detection method {string}` |
+| Model verification | `When I verify the model in quiet mode as JSON` |
+| Model verification | `When I ask for the help of the model commands` |
+| Model verification | `When I verify the model with the former command, and no morphir-ir is on the search path` |
+| Model verification | `Then the help lists the command {string} with a description` |
+| Model verification | `Then the command fails and names {string} as an unknown command` |
+| Model verification | `Then the model was not verified` |
+| Model verification | `Then the verification report states the exit code {int}` |
+| Model | `Given a valid IR v{int} model` |
+| Model | `Given an IR model with no format version` |
+| Model | `Given an IR model whose format version is a string` |
+| Model | `Given a model file that is not JSON` |
 | Extension list | `When I list the extensions as JSON` |
 | Extension list | `When I list the extensions as JSON on the other host` |
 | Extension list | `Then the extension list names the host of the run` |

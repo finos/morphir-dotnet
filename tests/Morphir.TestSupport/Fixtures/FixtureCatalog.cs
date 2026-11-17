@@ -99,9 +99,32 @@ public static class FixtureCatalog
             "a model file that is not JSON", "MorphirIR/malformed-model.txt",
             "e2579a145407c34c0a22f779fcd001d07fe56f3860645e0915f90e4543665bd1", Provenance);
 
+        /// <summary>A v1 Library with no modules, the smallest valid model of format version 1.</summary>
+        public static FixtureEntry V1EmptyLibrary { get; } = new(
+            "a v1 Library with no modules", "MorphirIR/empty-library-v1.json",
+            "adb360f70001e3f19a84fba55f323c08e6d446266710d8d6128afe04389fdc95", Provenance);
+
+        /// <summary>A v2 Library with no modules, the smallest valid model of format version 2.</summary>
+        public static FixtureEntry V2EmptyLibrary { get; } = new(
+            "a v2 Library with no modules", "MorphirIR/empty-library-v2.json",
+            "c13b52cff9d1fc3939e21d672ffc458d3a62991db343f7158bfffb0c103cc6a3", Provenance);
+
+        /// <summary>A Library with no member <c>formatVersion</c>, which no schema accepts.</summary>
+        public static FixtureEntry NoFormatVersion { get; } = new(
+            "a model with no format version", "MorphirIR/no-format-version.json",
+            "fd1150056eed9943ac2944d91c00ae4a83a0faa3a486d88a582b4754904a268e", Provenance);
+
+        /// <summary>A model whose <c>formatVersion</c> is the string <c>"3"</c>, not a number.</summary>
+        public static FixtureEntry StringFormatVersion { get; } = new(
+            "a model whose format version is a string", "MorphirIR/string-format-version.json",
+            "a772afcac09350b2792fc894010e4cab06e0ee19bcc7225d717f3a0e037e0562", Provenance);
+
         /// <summary>The model fixtures.</summary>
         public static IReadOnlyList<FixtureEntry> All { get; } =
-            [V3Library, V3DailyRate, V4DailyRate, V3DailyRateTypeMismatch, V3ConstantFolding, V4ConstantFolding, Malformed];
+        [
+            V3Library, V3DailyRate, V4DailyRate, V3DailyRateTypeMismatch, V3ConstantFolding, V4ConstantFolding, Malformed,
+            V1EmptyLibrary, V2EmptyLibrary, NoFormatVersion, StringFormatVersion,
+        ];
     }
 
     /// <summary>

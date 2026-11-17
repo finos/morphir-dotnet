@@ -68,7 +68,7 @@ public abstract record TypeExpr
 - **NO log messages to stdout** - stderr only!
 - Use Serilog: `standardErrorFromLevel: LogEventLevel.Verbose`
 - Test with `--json` flag: stdout must be valid JSON only
-- Rationale: Scriptability (`morphir verify file.json --json | jq`)
+- Rationale: Scriptability (`morphir model verify file.json --json | jq`)
 
 ## Architecture & Testing
 

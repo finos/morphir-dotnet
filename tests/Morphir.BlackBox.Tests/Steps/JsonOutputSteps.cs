@@ -52,7 +52,7 @@ public sealed class JsonOutputSteps(
     {
         switch (command)
         {
-            case "validate" or "generate" or "ir verify":
+            case "validate" or "generate" or "model verify":
                 workspace.WriteText(Model, FixtureCatalog.ReadText(FixtureCatalog.Models.V3DailyRate));
                 break;
             case "config show":
@@ -114,7 +114,7 @@ public sealed class JsonOutputSteps(
     [When("I run {string} with a bare JSON flag right before its input")]
     public async Task RunWithTheFlagBeforeTheInput(string command)
     {
-        if (command is not ("project migrate" or "workspace migrate" or "ir verify"))
+        if (command is not ("project migrate" or "workspace migrate" or "model verify"))
             throw new InvalidOperationException($"'{command}' has no positional input.");
         run.Result = await Run(command, JsonOutputArgument.Stream);
     }
@@ -183,8 +183,8 @@ public sealed class JsonOutputSteps(
             case "workspace migrate":
                 MigrationReport.Of(result).ShouldHaveOutcome("blocked").ShouldHaveDiagnostic("workspace.migrate_usage");
                 break;
-            case "ir verify":
-                var verified = VerificationReport.Of(result).ShouldBeInvalid();
+            case "model verify":
+                var verified = VerificationReport.Of(result).ShouldBeInvalid().ShouldStateTheExitCode(2);
                 Check(verified.Errors.Any(error => error.Message.Contains(UnknownOption, StringComparison.Ordinal)), $"No error of the verification report names {UnknownOption}.");
                 break;
             default:
@@ -195,7 +195,7 @@ public sealed class JsonOutputSteps(
     }
 
     /// <summary>
-    /// The document equals the report of the completed record. The time that <c>ir verify</c> states
+    /// The document equals the report of the completed record. The time that <c>model verify</c> states
     /// (<c>Timestamp</c>) is the time of its run, so it is left out of the comparison.
     /// </summary>
     [Then("the document is the report of the completed record")]
@@ -225,7 +225,7 @@ public sealed class JsonOutputSteps(
     {
         var (named, input) = command switch
         {
-            "ir verify" => (VerificationReport.Of(run.Result).FilePath, Model.Name),
+            "model verify" => (VerificationReport.Of(run.Result).FilePath, Model.Name),
             "project migrate" => (MigrationReport.Of(run.Result).Text("source", "path"), "classic project/morphir.json"),
             "workspace migrate" => (MigrationReport.Of(run.Result).Text("rootPath"), "classic repository"),
             _ => throw new InvalidOperationException($"'{command}' has no positional input."),
@@ -272,7 +272,7 @@ public sealed class JsonOutputSteps(
         "extension runtimes" => extensions.RuntimesAsync(json),
         "project migrate" => migration.MigrateProjectAsync(json, [Project.Path, "--dry-run", "--discovery-boundary", Root.Path], Machine),
         "workspace migrate" => migration.MigrateWorkspaceAsync(json, [Repository.Path, "--dry-run", "--discovery-boundary", Root.Path], Machine),
-        "ir verify" => verification.VerifyAsync(Model, new VerificationOptions { Json = json }),
+        "model verify" => verification.VerifyAsync(Model, new VerificationOptions { Json = json }),
         _ => throw new InvalidOperationException($"The JSON output scenarios have no command '{command}'."),
     };
 

@@ -11,7 +11,7 @@ namespace Morphir.TestSupport.Drivers;
 /// </summary>
 public enum DriverCapability
 {
-    /// <summary>The <c>ir verify</c> command.</summary>
+    /// <summary>The <c>model verify</c> command.</summary>
     ModelVerification,
 
     /// <summary>The <c>generate</c> command.</summary>

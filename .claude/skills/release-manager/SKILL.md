@@ -235,7 +235,7 @@ Packages published to NuGet:
 Verify:
 1. Tool installation: dotnet tool install -g Morphir.Tool --version {version}
 2. Basic commands work: dotnet-morphir --version
-3. Key functionality: dotnet-morphir ir verify [test-file]
+3. Key functionality: dotnet-morphir model verify [test-file]
 
 Report results in release tracking issue #{issue-number}
 ```

@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Morphir.TestSupport.Drivers;
 
-/// <summary>The options of <c>ir verify</c>.</summary>
+/// <summary>The options of <c>model verify</c>.</summary>
 public sealed record VerificationOptions
 {
     /// <summary>The schema version to check against. Without it, the command detects the version.</summary>
@@ -20,18 +20,18 @@ public sealed record VerificationOptions
     public bool Quiet { get; init; }
 }
 
-/// <summary>The <c>ir verify</c> command as an intent: verify a Morphir IR file against its schema.</summary>
+/// <summary>The <c>model verify</c> command as an intent: verify a Morphir model file against its schema.</summary>
 public interface IModelVerificationDriver
 {
     Task<CommandResult> VerifyAsync(WorkspaceFile model, VerificationOptions? options = null, CancellationToken cancellation = default);
 }
 
-/// <summary>Builds the command line of <c>ir verify</c> and gives it to the CLI driver.</summary>
+/// <summary>Builds the command line of <c>model verify</c> and gives it to the CLI driver.</summary>
 public sealed class ModelVerificationDriver(ICliDriver cli) : IModelVerificationDriver
 {
     public Task<CommandResult> VerifyAsync(WorkspaceFile model, VerificationOptions? options = null, CancellationToken cancellation = default)
     {
-        var arguments = new List<string> { "ir", "verify" };
+        var arguments = new List<string> { "model", "verify" };
         if (options?.Json is { } json) arguments.AddRange(json.Words);
         arguments.Add(model.Path);
         if (options?.SchemaVersion is { } version)
@@ -50,7 +50,8 @@ public sealed class ModelVerificationDriver(ICliDriver cli) : IModelVerification
 public sealed record VerificationError(string Path, string Message, string? Expected, string? Found);
 
 /// <summary>
-/// The JSON report of <c>ir verify --json</c>. It states validity in the field <c>IsValid</c>. The meaning of the
+/// The JSON report of <c>model verify --json</c>. It states validity in the field <c>IsValid</c> and the exit code of
+/// the run in <c>exitCode</c>, so a usage failure (2) is told from a model that is not valid (1). The meaning of the
 /// report belongs here, not to the general checks of a command result.
 /// </summary>
 public sealed class VerificationReport
@@ -82,6 +83,9 @@ public sealed class VerificationReport
 
     public IReadOnlyList<VerificationError> Errors { get; }
 
+    /// <summary>The exit code that the report states (<c>exitCode</c>), or null when it states none.</summary>
+    public int? ExitCode { get; private init; }
+
     /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static VerificationReport Of(CommandResult result)
     {
@@ -100,7 +104,20 @@ public sealed class VerificationReport
         return new VerificationReport(result, isValid.GetBoolean(), Text(document, "SchemaVersion"), Text(document, "DetectionMethod"), errors)
         {
             FilePath = Text(document, "FilePath"),
+            ExitCode = document.TryGetProperty("exitCode", out var exitCode) && exitCode.ValueKind == JsonValueKind.Number && exitCode.TryGetInt32(out var code)
+                ? code
+                : null,
         };
+    }
+
+    /// <summary>The report states <paramref name="exitCode"/>, and it is the exit code of the run.</summary>
+    public VerificationReport ShouldStateTheExitCode(int exitCode)
+    {
+        if (ExitCode != exitCode)
+            throw new CommandAssertionException($"The verification report states the exit code {ExitCode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"}, not {exitCode}.", _result);
+        if (_result.ExitCode != exitCode)
+            throw new CommandAssertionException($"The verification report states the exit code {exitCode}, and the run exits with {_result.ExitCode}.", _result);
+        return this;
     }
 
     public VerificationReport ShouldBeValid() =>

@@ -40,8 +40,8 @@ Feature: The WASM runtime of the host
     And the command of the copy wrote its result with no word of the engine
 
     Examples:
-      | command                                     |
-      | --version                                   |
-      | --help                                      |
-      | extension list --json                       |
-      | ir verify Models/valid-ir-v3.json --json    |
+      | command                                       |
+      | --version                                     |
+      | --help                                        |
+      | extension list --json                         |
+      | model verify Models/daily-rate-v3.json --json |

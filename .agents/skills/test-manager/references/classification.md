@@ -51,7 +51,7 @@ A unit test that uses the real file system, paths, line endings, processes or an
 | The delivered form itself? | The layout of a packed package. A tool that installs and starts. A built assembly that must be invariant-globalization. | end-to-end |
 | One user goal with two or more capabilities? | Verify a model, then generate C# from it (`Journeys/ModelToCSharp.feature`). | journey |
 | Only that an artifact starts and does one basic function? | `--version` on each host (`Smoke/Version.feature`). | smoke |
-| Otherwise | `ir verify` with each option (`Integration/ModelVerification.feature`). `generate` with a rerun (`Integration/Generation.feature`). | integration |
+| Otherwise | `model verify` with each option (`Integration/ModelVerification.feature`). `generate` with a rerun (`Integration/Generation.feature`). | integration |
 
 Hard cases:
 

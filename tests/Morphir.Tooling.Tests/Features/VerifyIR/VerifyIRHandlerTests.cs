@@ -37,6 +37,7 @@ public class VerifyIRHandlerTests
         result.FilePath.Should().Be("TestData/valid-ir-v3.json");
         result.Errors.Should().BeEmpty("valid IR should have no errors");
         result.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        result.ExitCode.Should().Be(0, "the report states the exit code of a valid model");
     }
 
     [Test]
@@ -55,6 +56,7 @@ public class VerifyIRHandlerTests
         result.IsValid.Should().BeFalse("invalid IR should fail validation");
         result.Errors.Should().NotBeEmpty("invalid IR should have errors");
         result.Errors.Should().Contain(e => e.Message.Contains("formatVersion"));
+        result.ExitCode.Should().Be(1, "the report states the exit code of a model that is not valid");
     }
 
     [Test]
@@ -147,5 +149,17 @@ public class VerifyIRHandlerTests
             "error message should indicate file not found");
         result.Errors[0].Expected.Should().Be("Existing file");
         result.Errors[0].Found.Should().Be("File not found");
+    }
+
+    [Test]
+    public void TheJsonReportKeepsIsValidAndStatesTheExitCode()
+    {
+        var usage = new VerifyIRResult(false, "unknown", "none", "", [], DateTime.UnixEpoch) { ExitCode = 2 };
+
+        using var json = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(usage, VerifyIRResult.JsonInfo));
+
+        json.RootElement.GetProperty("IsValid").GetBoolean().Should().BeFalse("the release check of finos/morphir reads IsValid");
+        json.RootElement.GetProperty("exitCode").GetInt32().Should().Be(2, "a usage failure is told from a model that is not valid");
+        new VerifyIRResult(true, "3", "auto", "m.json", [], DateTime.UnixEpoch).ExitCode.Should().Be(0);
     }
 }

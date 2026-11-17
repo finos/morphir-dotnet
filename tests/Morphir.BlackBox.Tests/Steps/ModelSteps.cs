@@ -1,6 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using System.Text.Json.Nodes;
+using Morphir.TestSupport.Fixtures;
 
 namespace Morphir.BlackBox.Tests.Steps;
 
@@ -19,6 +20,33 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
 
     [Given("no model file {string}")]
     public void NoModelFile(string name) => run.Model = workspace.File(name);
+
+    /// <summary>A valid single-file model of a classic format version, from <see cref="FixtureCatalog.Models"/>.</summary>
+    [Given("a valid IR v{int} model")]
+    public void AValidModel(int version) => TheCatalogModel(version switch
+    {
+        1 => FixtureCatalog.Models.V1EmptyLibrary,
+        2 => FixtureCatalog.Models.V2EmptyLibrary,
+        3 => FixtureCatalog.Models.V3DailyRate,
+        _ => throw new ArgumentOutOfRangeException(nameof(version), version, "The catalog has a valid model of the versions 1, 2 and 3."),
+    });
+
+    [Given("an IR model with no format version")]
+    public void AModelWithNoFormatVersion() => TheCatalogModel(FixtureCatalog.Models.NoFormatVersion);
+
+    [Given("an IR model whose format version is a string")]
+    public void AModelWhoseFormatVersionIsAString() => TheCatalogModel(FixtureCatalog.Models.StringFormatVersion);
+
+    [Given("a model file that is not JSON")]
+    public void AModelFileThatIsNotJson() => TheCatalogModel(FixtureCatalog.Models.Malformed);
+
+    /// <summary>Writes the bytes of a catalog entry to <c>model.json</c> of the workspace, as the model of the scenario.</summary>
+    private void TheCatalogModel(FixtureEntry entry)
+    {
+        var model = workspace.File("model.json");
+        workspace.WriteBytes(model, FixtureCatalog.ReadBytes(entry));
+        run.Model = model;
+    }
 
     [When("I replace {string} with {string} in the model")]
     public void ReplaceInTheModel(string text, string replacement)

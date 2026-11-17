@@ -24,10 +24,12 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 
 - [morphirup](./morphirup/) - The standalone toolchain manager. This build makes plan-only setups and checks a project's request and lock; it acquires and installs nothing yet
 
-### IR Management
+### Model commands
 
-- **[morphir ir verify](./ir-verify/)** - Validate Morphir IR JSON files against official schemas
-- **morphir ir detect-version** _(coming in Phase 2)_ - Detect the schema version of an IR file
+The `model` group holds the commands that act on a Morphir model. It replaces the `ir` group, which was removed with
+no alias.
+
+- **[morphir model verify](./model-verify/)** - Validate a Morphir model file against the official IR JSON schemas
 
 ### Project Management
 
@@ -56,8 +58,8 @@ For help with any command, use the `--help` flag:
 
 ```bash
 morphir --help
-morphir ir --help
-morphir ir verify --help
+morphir model --help
+morphir model verify --help
 ```
 
 ## Common Workflows
@@ -68,19 +70,19 @@ The most common workflow is validating Morphir IR JSON files to ensure they conf
 
 ```bash
 # Validate a single file with auto-detection
-morphir ir verify path/to/morphir-ir.json
+morphir model verify path/to/morphir-ir.json
 
 # Validate with explicit schema version
-morphir ir verify --schema-version 3 path/to/morphir-ir.json
+morphir model verify --schema-version 3 path/to/morphir-ir.json
 
 # Get one JSON report for CI/CD (see Machine output below)
-morphir ir verify --json=document path/to/morphir-ir.json
+morphir model verify --json=document path/to/morphir-ir.json
 
-# Quiet mode (only errors)
-morphir ir verify --quiet path/to/morphir-ir.json
+# Quiet mode (only the exit code)
+morphir model verify --quiet path/to/morphir-ir.json
 ```
 
-See the [morphir ir verify](./ir-verify/) documentation for complete details.
+See the [morphir model verify](./model-verify/) documentation for complete details.
 
 ## Machine output
 
@@ -101,7 +103,7 @@ $ morphir validate --input model.json --json=document | jq .exitCode
 0
 ```
 
-Give the mode only after `=`. A bare `--json` never takes the next argument, so `morphir ir verify --json model.json`
+Give the mode only after `=`. A bare `--json` never takes the next argument, so `morphir model verify --json model.json`
 verifies `model.json`. A command without a positional argument refuses `--json document` with exit code 2 and
 suggests `--json=document`. A mode that is not `stream` or `document` fails with exit code 2 and names both. A parse
 or usage error in a JSON mode still ends with one `completed` record (or the one document) whose report states the

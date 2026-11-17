@@ -38,9 +38,9 @@ Feature: Every command writes its machine output by one JSON convention
       | workspace migrate |
 
     @needs-model-verification
-    Examples: ir verify
-      | command   |
-      | ir verify |
+    Examples: model verify
+      | command      |
+      | model verify |
 
   Scenario Outline: Unknown mode
     Given the input of "<command>"
@@ -76,9 +76,9 @@ Feature: Every command writes its machine output by one JSON convention
       | workspace migrate |
 
     @needs-model-verification
-    Examples: ir verify
-      | command   |
-      | ir verify |
+    Examples: model verify
+      | command      |
+      | model verify |
 
   Scenario Outline: Every line parses
     Given the input of "<command>"
@@ -114,9 +114,9 @@ Feature: Every command writes its machine output by one JSON convention
       | workspace migrate |
 
     @needs-model-verification
-    Examples: ir verify
-      | command   |
-      | ir verify |
+    Examples: model verify
+      | command      |
+      | model verify |
 
   Scenario Outline: A usage error still ends with completed
     Given the input of "<command>"
@@ -153,9 +153,9 @@ Feature: Every command writes its machine output by one JSON convention
       | workspace migrate |
 
     @needs-model-verification
-    Examples: ir verify
-      | command   |
-      | ir verify |
+    Examples: model verify
+      | command      |
+      | model verify |
 
   Scenario Outline: A command with nothing to stream
     Given the input of "<command>"
@@ -191,9 +191,9 @@ Feature: Every command writes its machine output by one JSON convention
       | workspace migrate |
 
     @needs-model-verification
-    Examples: ir verify
-      | command   |
-      | ir verify |
+    Examples: model verify
+      | command      |
+      | model verify |
 
   Scenario Outline: The two modes carry one report
     Given the input of "<command>"
@@ -228,9 +228,9 @@ Feature: Every command writes its machine output by one JSON convention
       | workspace migrate |
 
     @needs-model-verification
-    Examples: ir verify
-      | command   |
-      | ir verify |
+    Examples: model verify
+      | command      |
+      | model verify |
 
   Scenario Outline: A document is pipeable
     Given the input of "<command>"
@@ -258,6 +258,11 @@ Feature: Every command writes its machine output by one JSON convention
       | project migrate   |
       | workspace migrate |
 
+    @needs-model-verification
+    Examples: model verify
+      | command      |
+      | model verify |
+
   Scenario Outline: The next argument stays the command's
     Given the input of "<command>"
     When I run "<command>" with a bare JSON flag right before its input
@@ -272,9 +277,9 @@ Feature: Every command writes its machine output by one JSON convention
       | workspace migrate |
 
     @needs-model-verification
-    Examples: ir verify
-      | command   |
-      | ir verify |
+    Examples: model verify
+      | command      |
+      | model verify |
 
   Scenario Outline: A separated mode is refused with a hint
     Given the input of "<command>"
@@ -337,9 +342,9 @@ Feature: Every command writes its machine output by one JSON convention
       | workspace migrate |
 
     @needs-model-verification
-    Examples: ir verify
-      | command   |
-      | ir verify |
+    Examples: model verify
+      | command      |
+      | model verify |
 
   Scenario Outline: A log line goes to stderr
     Given the input of "<command>" that makes it write a log line

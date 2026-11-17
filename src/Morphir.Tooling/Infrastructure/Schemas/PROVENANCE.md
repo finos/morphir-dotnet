@@ -1,6 +1,6 @@
 # Morphir IR schemas
 
-`ir verify` embeds the `.json` files (see `Morphir.Tooling.csproj`); each
+`model verify` embeds the `.json` files (see `Morphir.Tooling.csproj`); each
 `.yaml` file is the source of its `.json` file, and the two must state the same
 schema. They come from `website/static/schemas/` of
 [finos/morphir](https://github.com/finos/morphir), Apache License 2.0.

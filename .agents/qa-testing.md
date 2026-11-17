@@ -184,7 +184,7 @@ When filing a bug:
    - Build packages: `./build.sh PackAll`
    - Publish locally: `./build.sh PublishLocalAll`
    - Install tool: `dotnet tool install -g Morphir.Tool --add-source artifacts/local-feed`
-   - Run commands: `dotnet-morphir --version`, `dotnet-morphir ir verify [file]`
+   - Run commands: `dotnet-morphir --version`, `dotnet-morphir model verify [file]`
 6. Verify backwards compatibility
 7. Check for performance regressions
 8. Document any issues

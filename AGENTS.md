@@ -160,7 +160,7 @@ CLI Tool Logging Requirements
 - Test all commands with `--json` flag to ensure stdout contains only valid JSON
 
 Rationale: CLI tools that write to stdout break scriptability and JSON parsing.
-Users expect to pipe command output (e.g., `morphir ir verify file.json --json | jq`)
+Users expect to pipe command output (e.g., `morphir model verify file.json --json | jq`)
 without log noise contaminating the structured output. Following Unix philosophy:
 stdout = data, stderr = diagnostics.
 

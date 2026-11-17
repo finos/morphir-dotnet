@@ -242,8 +242,9 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
 
     /// <summary>
     /// The JSON text without the members that the page shows with an example path: <c>output</c>,
-    /// <c>sources.root</c> and <c>generation.output</c> of a compile report, and <c>input</c>, which must be the
-    /// model of the scenario when the scenario has one.
+    /// <c>sources.root</c> and <c>generation.output</c> of a compile report, <c>input</c>, which must be the
+    /// model of the scenario when the scenario has one, and <c>FilePath</c> (the same rule) and <c>Timestamp</c> of a
+    /// verification report.
     /// </summary>
     private string Normalize(string json, CommandResult? result)
     {
@@ -257,6 +258,15 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
             if (result is not null && report["input"] is { } input && run.HasModel)
                 Check(input.GetValue<string>() == run.Model.Path, $"The input of the report is {input}, not the model {run.Model.Path}.", result);
             report.Remove("input");
+
+            // A verification report (model verify) names its file in FilePath and the time of its run in Timestamp.
+            if (report.ContainsKey("IsValid"))
+            {
+                if (result is not null && report["FilePath"] is { } file && run.HasModel)
+                    Check(file.GetValue<string>() == run.Model.Path, $"The file of the report is {file}, not the model {run.Model.Path}.", result);
+                report.Remove("FilePath");
+                report.Remove("Timestamp");
+            }
         }
 
         return node.ToJsonString();

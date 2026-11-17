@@ -9,38 +9,30 @@ using Serilog;
 namespace Morphir.Tooling.Scenarios;
 
 /// <summary>
-/// Scenario for Morphir IR (Intermediate Representation) tooling commands.
-/// Includes commands for IR verification, validation, and manipulation.
+/// The <c>model</c> command group: the commands that act on a Morphir model, the IR together with its decorators,
+/// metadata and later additions. It replaced the <c>ir</c> group, which has no alias: <c>morphir ir</c> is an unknown
+/// command.
 /// </summary>
-public class IrToolingScenario : IMorphirCliScenario
+public class ModelToolingScenario : IMorphirCliScenario
 {
     public void Configure(MorphirCliBuilder builder)
     {
         builder.AddCommand(rootCommand =>
         {
-            var irCommand = new Command("ir", "Morphir IR utilities");
-
-            // Add verify subcommand
-            irCommand.Subcommands.Add(new IrVerifyCommand());
-
-            rootCommand.Subcommands.Add(irCommand);
-        });
-
-        // Register IR-specific services (if any needed in the future)
-        builder.ConfigureServices(services =>
-        {
-            // Future: Add IR-specific services here
-            // services.AddSingleton<IrTypeChecker>();
-            // services.AddSingleton<IrOptimizer>();
+            var modelCommand = new Command("model", "Commands that act on a Morphir model");
+            modelCommand.Subcommands.Add(new ModelVerifyCommand());
+            rootCommand.Subcommands.Add(modelCommand);
         });
     }
 
     /// <summary>
-    /// <c>ir verify</c>: schema validation of a Morphir IR JSON file. The result goes to stdout as text, as the one
-    /// <c>completed</c> record of <c>--json</c>, or as one JSON document with <c>--json=document</c>; <c>--quiet</c>
-    /// writes nothing. A parse error is a result with exit code 2, in the JSON mode that the tokens ask for.
+    /// <c>model verify</c>: schema validation of a Morphir IR JSON file. The result goes to stdout as text, as the one
+    /// <c>completed</c> record of <c>--json</c>, or as one JSON document with <c>--json=document</c>. <c>--quiet</c>
+    /// suppresses the text and the log; a JSON mode is still written, as it is the result that the caller asked for.
+    /// The report states the exit code (<c>exitCode</c>). A parse error is a result with exit code 2, in the JSON
+    /// mode that the tokens ask for.
     /// </summary>
-    private sealed class IrVerifyCommand : Command, IMorphirParseErrorHandler
+    private sealed class ModelVerifyCommand : Command, IMorphirParseErrorHandler
     {
         /// <summary>The exit code of arguments that do not parse.</summary>
         private const int UsageExitCode = 2;
@@ -56,10 +48,10 @@ public class IrToolingScenario : IMorphirCliScenario
 
         private readonly Option<bool> _quiet = new("--quiet")
         {
-            Description = "Suppress output, return only exit code (0 = valid, 1 = invalid)"
+            Description = "Write no text and no log, only the exit code (0 = valid, 1 = invalid); a --json report is still written"
         };
 
-        public IrVerifyCommand() : base("verify", "Verify Morphir IR JSON against schema")
+        public ModelVerifyCommand() : base("verify", "Verify a Morphir model against the schema of its IR version")
         {
             Arguments.Add(_filePath);
             Options.Add(_schemaVersion);
@@ -101,7 +93,7 @@ public class IrToolingScenario : IMorphirCliScenario
 
                 await host.StopAsync();
 
-                return result.IsValid ? 0 : 1;
+                return result.ExitCode;
             });
         }
 
@@ -121,32 +113,30 @@ public class IrToolingScenario : IMorphirCliScenario
                 DetectionMethod: "none",
                 FilePath: "",
                 Errors: [.. messages.Select(message => new Features.VerifyIR.ValidationError(Path: "$", Message: message, Expected: "Valid arguments"))],
-                Timestamp: DateTime.UtcNow);
+                Timestamp: DateTime.UtcNow)
+            {
+                ExitCode = UsageExitCode,
+            };
             JsonReportOutput.Write(Infrastructure.ConsoleOutputHelper.Stdout, mode, usage, Features.VerifyIR.VerifyIRResult.JsonInfo);
             return UsageExitCode;
         }
     }
 
     /// <summary>
-    /// Formats the output for the IR verify command.
+    /// Writes the result of <c>model verify</c>. A JSON mode always writes its report, also with <c>--quiet</c>;
+    /// <c>--quiet</c> alone writes nothing.
     /// </summary>
     private static void FormatVerifyOutput(
         Features.VerifyIR.VerifyIRResult result,
         JsonOutputMode mode,
         bool quiet)
     {
-        if (quiet)
-        {
-            // Quiet mode: no output, only exit code
-            return;
-        }
-
         if (mode != JsonOutputMode.None)
         {
             // Source-generated: the trimmed executable disables reflection-based serialization.
             JsonReportOutput.Write(Infrastructure.ConsoleOutputHelper.Stdout, mode, result, Features.VerifyIR.VerifyIRResult.JsonInfo);
         }
-        else
+        else if (!quiet)
         {
             // Human-readable output
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Validation Result: {(result.IsValid ? "✓ VALID" : "✗ INVALID")}");

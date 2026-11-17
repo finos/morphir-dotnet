@@ -34,7 +34,7 @@ A black-box test reaches the product only through a built artifact. Ask: does th
 
 | Test | Answer | Why |
 | --- | --- | --- |
-| Starts `morphir ir verify` and reads the exit code and the output | Black-box | Only the command line |
+| Starts `morphir model verify` on a model file and reads the exit code and the output | Black-box: an integration test in `tests/Morphir.BlackBox.Tests` | Only the command line |
 | Calls `CSharpGenerator.Generate` and compares the result | Unit | A product type in the test process |
 | Compiles F# in memory with the frontend library | Unit | A product type in the test process, also when it is slow |
 | Reads a fixture file and parses it with a product parser | Unit | A fixture is not an artifact of the build |
@@ -51,14 +51,14 @@ A unit test that uses the real file system, paths, line endings, processes or an
 | The delivered form itself? | The layout of a packed package. A tool that installs and starts. A built assembly that must be invariant-globalization. | end-to-end |
 | One user goal with two or more capabilities? | Verify a model, then generate C# from it (`Journeys/ModelToCSharp.feature`). | journey |
 | Only that an artifact starts and does one basic function? | `--version` on each host (`Smoke/Version.feature`). | smoke |
-| Otherwise | `ir verify` with each option (`Integration/ModelVerification.feature`). `generate` with a rerun (`Integration/Generation.feature`). | integration |
+| Otherwise | `model verify` with each option (`Integration/ModelVerification.feature`). `generate` with a rerun (`Integration/Generation.feature`). | integration |
 
 Hard cases:
 
 - **A command that runs two times** is one capability, so it is integration. Example: generate, change the model, generate again.
 - **A journey on a published executable** is a journey. The target is where the test runs. It does not change the class. A journey with no lane runs on the development build in a pull request and on each published target in the release and manual workflows. If the journey cannot run on the development build, it gets the lane `@lane @published`, also when the published executable is the Native AOT executable.
 - **`--help` of one command** is smoke if it proves only that the artifact starts. A check of the options that the help text shows is integration.
-- **One command on one input.** `ir verify` on one model, with a check of the exit code and the text, checks the capability. It is integration, not smoke.
+- **One command on one input.** `model verify` on one model, with a check of the exit code and the text, checks the capability. It is integration, not smoke.
 - **Three different commands for one goal** are three capabilities, so the test is a journey.
 - **A shipped library that the CLI does not reach** gets a small host program below `tests/` that calls the library and exits with 0 when its checks hold. The checks of the test are in the black-box project: a run of the host is smoke (`Smoke/LibraryHosts.feature`), and its Native AOT publish is smoke with `@lane @native-aot` (`Smoke/NativeAot.feature`). When the CLI reaches the library for the behavior, test it through the CLI and add no host.
 - **An end-to-end test on the development build.** A property that the delivered form must have can be a check of the build output (for example the runtime configuration file of an executable). It is end-to-end with no lane, and a pull request runs it on each operating system.
@@ -72,6 +72,6 @@ Hard cases:
 | To publish a program with Native AOT in the test (a library host or a probe) | `@lane @native-aot` |
 | An executable that a release publishes or packs, also its Native AOT executable, when the test cannot run on the development build | `@lane @published` |
 | One entry point (`morphir` of `src/Morphir`, `morphir` of `src/Morphir.Managed`, `dotnet-morphir` of `src/Morphir.Tool`) | `@host-native`, `@host-managed` or `@host-tool` |
-| A driver capability | The tag of the capability: `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing`, `@needs-development-packages`, `@needs-built-programs`, `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form`, `@needs-wasm-guests` |
+| A driver capability | The tag of the capability: `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-model-conversion`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing`, `@needs-development-packages`, `@needs-built-programs`, `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form`, `@needs-wasm-guests` |
 
 A test with a lane does not run in the run of its group. The lane decides where it runs. Do not give a test a lane that it does not need: a test with no lane runs in a pull request on each operating system, and also on each published target in the release and manual workflows.

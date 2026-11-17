@@ -670,7 +670,7 @@ dotnet publish -c Release -r linux-x64 /p:PublishAot=true
 ./bin/Release/net10.0/linux-x64/publish/morphir --help
 
 # Test IR verification (example)
-./bin/Release/net10.0/linux-x64/publish/morphir ir verify tests/TestData/valid-ir-v3.json
+./bin/Release/net10.0/linux-x64/publish/morphir model verify tests/TestData/valid-ir-v3.json
 
 echo "AOT build tests passed!"
 ```

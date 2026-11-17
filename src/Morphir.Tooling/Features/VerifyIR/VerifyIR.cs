@@ -22,6 +22,14 @@ public record VerifyIRResult(
     DateTime Timestamp
 )
 {
+    /// <summary>
+    /// The exit code of the run that wrote the report: 0 for a valid model, 1 for one that is not valid, 2 for
+    /// arguments that do not parse. The report states it, so a usage failure is told from a model that is not valid.
+    /// The member <c>IsValid</c> keeps its name: the release check of finos/morphir reads it.
+    /// </summary>
+    [JsonPropertyName("exitCode")]
+    public int ExitCode { get; init; } = IsValid ? 0 : 1;
+
     /// <summary>The source-generated contract of the result, for the shared JSON output writer.</summary>
     public static JsonTypeInfo<VerifyIRResult> JsonInfo => VerifyIRJsonContext.Default.VerifyIRResult;
 }

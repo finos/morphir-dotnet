@@ -188,9 +188,9 @@ who published them.
 
 ## Validating IR
 
-### ir verify rejects the IR that compile wrote
+### model verify rejects the IR that compile wrote
 
-**What you see.** `morphir ir verify` reports errors for a file that `compile` wrote. For format 4 it says:
+**What you see.** `morphir model verify` reports errors for a file that `compile` wrote. For format 4 it says:
 
 ```text
 Validation Result: ✗ INVALID
@@ -203,7 +203,7 @@ Schema Version: v3 (auto)
 
 For a file compiled with `--ir-version 3`, it reports a very long list of errors.
 
-**Why.** `ir verify` checks against the JSON schema of IR formats 1, 2 and 3. It doesn't know format 4, and its
+**Why.** `model verify` checks against the JSON schema of IR formats 1, 2 and 3. It doesn't know format 4, and its
 schema doesn't match the format 3 that `compile` writes.
 
 **What to do.** Use `morphir validate --input <file>` instead, as

@@ -14,7 +14,7 @@ The CLI SHALL offer a `model` command group holding `verify` and `convert`. `mor
 - **THEN** the help lists `verify` and `convert` with a one-line description each
 
 ### Requirement: Model verify keeps the behavior of the former IR verify
-For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL accept the same inputs and options, write the same report, and exit with the same codes as `morphir ir verify` did.
+For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL accept the same inputs and options, write the same report, and exit with the same codes as `morphir ir verify` did, with two changes: the JSON report SHALL state the exit code of the run in a member `exitCode` (0 valid, 1 not valid, 2 a command line that does not parse) beside `IsValid`, which keeps its name, and a JSON mode SHALL write its report also with `--quiet`, which then suppresses only the text and the log.
 
 #### Scenario: A valid v3 model is valid
 - **WHEN** a user runs `morphir model verify` on a valid IR v3 file
@@ -23,6 +23,14 @@ For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL ac
 #### Scenario: A file without a format version is not valid
 - **WHEN** a user runs `morphir model verify` on a file with no `formatVersion`
 - **THEN** the command exits 1 and names the missing member
+
+#### Scenario: The report states its exit code
+- **WHEN** a user runs `morphir model verify --json=document` on a file that is not valid, and on a command line with an unknown option
+- **THEN** the reports have `exitCode` 1 and 2, the exit codes of the runs, and `IsValid` false
+
+#### Scenario: JSON output is written in quiet mode
+- **WHEN** a user runs `morphir model verify --quiet --json` on a file that is not valid
+- **THEN** standard output is the JSON report, and the command exits 1
 
 ### Requirement: Model verify checks an IR v4 single file
 `morphir model verify` SHALL validate a single-file IR v4 model against the parent's published IR v4 JSON Schema, detecting version 4 from `formatVersion`, and `--schema-version` SHALL accept `4`.
