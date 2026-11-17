@@ -113,7 +113,7 @@ Every scenario of this change and the test that proves it. Unchanged scenarios o
 | model-name-compaction | Expand after compact | `Morphir.Models.Tests`: compaction law (8.3) |
 | model-name-compaction | A name used once stays spelled out | `Morphir.Models.Tests`: policy (8.3) |
 | model-name-compaction | Compaction that would be a loss is not applied | `Morphir.Models.Tests`: policy (8.3) |
-| model-name-compaction | A non-ASCII name is measured as UTF-8 | `Morphir.Models.Tests`: JCS and policy (8.2, 8.3) |
+| model-name-compaction | Non-ASCII content is measured as UTF-8 | `Morphir.Models.Tests`: JCS and policy (8.2, 8.3) |
 | model-name-compaction | The parent's fixed cases match byte for byte | `Morphir.Models.Tests`: fixed cases (8.3) |
 | cli-model-conversion | A directory is read as a tree | `ModelConversion.feature` |
 | cli-model-conversion | The IR version is kept | `ModelConversion.feature` |

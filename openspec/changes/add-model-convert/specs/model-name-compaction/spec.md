@@ -69,19 +69,19 @@ For every file the system writes compacted, expanding it SHALL give a document e
 Writing a compacted file SHALL follow one named writer policy that the parent contract defines, and the result SHALL name the policy. A name SHALL get an alias only when that makes the file smaller after the table's own size, so a name used once stays spelled out. Alias ids, table order and tie breaks SHALL follow the policy.
 
 #### Scenario: A name used once stays spelled out
-- **WHEN** a file uses a fully qualified name once and the policy is applied
+- **WHEN** a v4 file uses a fully qualified name once, at a string position, and the policy is applied
 - **THEN** the written file spells that name in place and its table has no entry for it
 
 #### Scenario: Compaction that would be a loss is not applied
 - **WHEN** no name in a file saves more than its table entry costs
-- **THEN** the written file is the plain file, and the result says no alias was worth its cost
+- **THEN** the written file is the plain document in canonical JSON, with no envelope, and the result says no alias was worth its cost
 
 ### Requirement: Compacted output has one canonical byte form
 A compacted file SHALL be written in RFC 8785 canonical JSON. Every size comparison of the policy SHALL use the UTF-8 byte length of that form. Writing the same document twice SHALL give identical bytes, and the bytes SHALL equal the parent contract's fixed expected bytes for each of its cases.
 
-#### Scenario: A non-ASCII name is measured as UTF-8
-- **WHEN** a file holds a name with `é` and the policy weighs aliasing it
-- **THEN** the name is counted with `é` as two bytes, and the written file holds `é` unescaped
+#### Scenario: Non-ASCII content is measured as UTF-8
+- **WHEN** a file holds a documentation string with `é` and the policy weighs the file's size
+- **THEN** `é` is counted as two bytes, and the written file holds `é` unescaped
 
 #### Scenario: The parent's fixed cases match byte for byte
 - **WHEN** each fixed case of the parent policy is written
