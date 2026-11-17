@@ -8,6 +8,7 @@ Feature: Verify a Morphir model
     When I ask for the help of the model commands
     Then the exit code is 0
     And the help lists the command "verify" with a description
+    And the help lists the command "convert" with a description
 
   Scenario: A valid v3 model is valid
     Given a valid IR v3 model

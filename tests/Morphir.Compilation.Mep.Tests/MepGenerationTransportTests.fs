@@ -4,6 +4,7 @@
 /// needs. The decision is in F#, with an exhaustive match on the model family, so C# callers do not test cases.
 module Morphir.Compilation.Mep.Tests.MepGenerationTransportTests
 
+open System.Reflection
 open Expecto
 open Morphir.Compilation.Mep
 open Morphir.IR.Model
@@ -42,5 +43,17 @@ let tests =
                   ModelFamily.V4, "3", None
                   ModelFamily.V4, "4.1.0", None ] do
                 Expect.equal (tupleOf family version) expected $"{family} {version}"
+        }
+
+        // A class `static let` value is a static field behind an F# init check. When two threads start the type
+        // initialisers of two types that need each other, the CLR breaks the deadlock by letting one thread see a type
+        // whose initialiser has not finished, and the init check then throws (FailStaticInit). Offers made by functions
+        // leave the types without a static field, so concurrent first use has no initialiser to meet.
+        test "The offer types have no static field for concurrent first use to meet" {
+            for offerType in [ typeof<MepGenerationTransport>; typeof<MepFrontend> ] do
+                let fields =
+                    offerType.GetFields(BindingFlags.Static ||| BindingFlags.Public ||| BindingFlags.NonPublic ||| BindingFlags.DeclaredOnly)
+
+                Expect.isEmpty [ for field in fields -> field.Name ] $"the static fields of {offerType.Name}"
         }
     ]

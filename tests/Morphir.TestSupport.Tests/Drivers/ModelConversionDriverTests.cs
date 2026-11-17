@@ -2,13 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 using FluentAssertions;
 using Morphir.TestSupport.Drivers;
+using Morphir.TestSupport.Fixtures;
 
 namespace Morphir.TestSupport.Tests.Drivers;
 
 /// <summary>
 /// The model-conversion capability (add-model-convert, test-driver-contract): the driver of <c>model convert</c>, its
-/// report type and its capability tag. The command line tests use a recording CLI driver. The command does not exist
-/// yet, so the report tests read reports in the form that cli-model-conversion gives them.
+/// report type and its capability tag. The command line tests use a recording CLI driver. The report tests read
+/// reports in the form that cli-model-conversion gives them, and the reports of the real command of the development
+/// build.
 /// </summary>
 public class ModelConversionDriverTests
 {
@@ -208,6 +210,77 @@ public class ModelConversionDriverTests
     {
         ModelLayout.SingleFile.Name().Should().Be("single-file");
         ModelLayout.DocumentTree.Name().Should().Be("document-tree");
+    }
+
+    // --- The reports of the real command ---------------------------------------------------------------------------
+
+    private static CliDriver Cli(IScenarioWorkspace workspace) =>
+        new(new TestTarget.DevelopmentBuild(), MorphirHost.Native,
+            CliArtifacts.OfDevelopmentBuild(typeof(ModelConversionDriverTests).Assembly).PathOf(MorphirHost.Native), workspace);
+
+    [Test]
+    public async Task ARealConversionReportListsEachWrittenFileWithItsEvent()
+    {
+        await using var workspace = Workspace();
+        var model = workspace.File("acme demo", "morphir-ir.json");
+        workspace.WriteBytes(model, FixtureCatalog.ReadBytes(FixtureCatalog.Models.V4ConstantFolding));
+        var tree = workspace.Directory("acme demo", "tree");
+
+        var result = await new ModelConversionDriver(Cli(workspace)).ConvertAsync(model, tree, new ConversionOptions { Layout = ModelLayout.DocumentTree });
+        var report = ConversionReport.Of(result).ShouldSucceed();
+
+        result.ShouldExitWith(0);
+        report.ExitCode.Should().Be(0);
+        report.Input.Should().Be(model.Path);
+        report.Output.Should().Be(tree.Path);
+        report.InputLayout.Should().Be(ModelLayout.SingleFile.Name());
+        report.OutputLayout.Should().Be(ModelLayout.DocumentTree.Name());
+        report.InputEncoding.Should().Be("plain");
+        report.OutputEncoding.Should().Be("plain");
+        report.IrVersion.Should().Be("4");
+        report.CompactMode.Should().BeNull();
+        report.CompactPolicy.Should().BeNull();
+        report.Diagnostics.Should().BeEmpty();
+        report.Notices.Should().BeEmpty();
+        report.FilesWritten.Should().Contain(tree.Path + "/manifest.json");
+        report.FilesWritten.Should().OnlyContain(path => File.Exists(path));
+        report.FileWrittenEvents().Should().Equal(report.FilesWritten);
+    }
+
+    [Test]
+    public async Task ARealConversionReportOfNothingToDoHasItsDiagnostic()
+    {
+        await using var workspace = Workspace();
+        var model = workspace.File("morphir-ir.json");
+        workspace.WriteBytes(model, FixtureCatalog.ReadBytes(FixtureCatalog.Models.V4DailyRate));
+        var output = workspace.File("out", "morphir-ir.json");
+
+        var result = await new ModelConversionDriver(Cli(workspace)).ConvertAsync(model, output, new ConversionOptions { Json = JsonOutputArgument.Document });
+        var report = ConversionReport.Of(result);
+
+        result.ShouldExitWith(2);
+        report.Success.Should().BeFalse();
+        report.ExitCode.Should().Be(2);
+        report.FilesWritten.Should().BeEmpty();
+        report.ShouldHaveDiagnostic("model.nothing_to_do");
+        report.ShouldHaveDiagnosticThatNames("plain single file");
+        workspace.Exists(output).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task ARealConversionReportOfASeparatedModeSuggestsTheEqualsSign()
+    {
+        await using var workspace = Workspace();
+        var model = workspace.File("morphir-ir.json");
+        workspace.WriteBytes(model, FixtureCatalog.ReadBytes(FixtureCatalog.Models.V4DailyRate));
+
+        var result = await new ModelConversionDriver(Cli(workspace)).ConvertAsync(model, workspace.Directory("tree"),
+            new ConversionOptions { Layout = ModelLayout.DocumentTree, Compact = CompactionArgument.Separated("names") });
+        var report = ConversionReport.Of(result);
+
+        result.ShouldExitWith(2);
+        report.Success.Should().BeFalse();
+        report.ShouldHaveDiagnosticThatNames("--compact=names");
     }
 
     // Scenario: A target without the capability skips the test
