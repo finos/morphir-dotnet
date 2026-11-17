@@ -89,6 +89,34 @@ let v4Application: Distribution =
         }
     ]
 
+/// <summary>
+/// <c>v4Specs</c> with an annotation on each module: <c>my-org/finance:pricing/models</c> and the
+/// <c>morphir/SDK</c> dependency's module.
+/// </summary>
+let v4SpecsWithModuleAnnotations: Distribution =
+    v4Specs
+    |> withV4ModuleAnnotations [
+        {
+            Name = fqName "morphir/SDK" "annotations" "stable"
+            Arguments = []
+        }
+    ]
+
+/// <summary>
+/// The worked example of the model-convert design: package <c>acme/demo</c>, module <c>billing</c> with the types
+/// <c>invoice</c> and <see cref="Names.invoiceLine"/> and the value <c>total</c>, and dependency
+/// <c>morphir/sdk</c> with module <c>basics</c>.
+/// </summary>
+let acmeDemo: Distribution =
+    aV4Library (packageName "acme/demo")
+    |> withModule
+        (modulePath "billing")
+        (withType (name "invoice") (alias (RecordOf [ name "amount", Sdk.int ]))
+         >> withType Names.invoiceLine (alias Sdk.int)
+         >> withValue (name "total") (Constant(WholeValue 0L)))
+    |> withDependencyModule (packageName "morphir/sdk") (modulePath "basics") sdkBasics
+    |> buildV4
+
 /// <summary>A classic library with the module of <c>v4LibraryWithOneModule</c>.</summary>
 let v3Library: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     buildV3 financeV3

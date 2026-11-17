@@ -259,8 +259,28 @@ let private library (start: PackageName -> LibraryBuilder<'model>) : Gen<Library
 /// <summary>A v4 library builder, for a test that varies a generated library before it builds it.</summary>
 let v4LibraryBuilder: Gen<V4LibraryBuilder> = library aV4Library
 
-/// <summary>A v4 <c>Library</c>.</summary>
-let v4Library: Gen<Morphir.IR.V4.Distribution> = Gen.map buildV4 v4LibraryBuilder
+/// Mostly no module annotations, sometimes one: they reach the module specifications of a v4 model only.
+let private moduleAnnotations: Gen<Morphir.IR.V4.Annotation list> =
+    Gen.frequency [
+        3, Gen.constant []
+        1,
+        Gen.constant [
+            {
+                Name = FQName.fqName (packageName "morphir/SDK") (modulePath "annotations") (name "stable")
+                Arguments = []
+            }
+        ]
+    ]
+
+/// A built v4 distribution whose module specifications may carry annotations.
+let private annotated (build: V4LibraryBuilder -> Morphir.IR.V4.Distribution) : Gen<Morphir.IR.V4.Distribution> =
+    Gen.map2
+        (fun builder annotations -> build builder |> withV4ModuleAnnotations annotations)
+        v4LibraryBuilder
+        moduleAnnotations
+
+/// <summary>A v4 <c>Library</c>; the modules of its dependencies may carry annotations.</summary>
+let v4Library: Gen<Morphir.IR.V4.Distribution> = annotated buildV4
 
 let private entryPoint (package: PackageName) : Gen<Morphir.IR.V4.EntryPoint> = gen {
     let! kind =
@@ -294,7 +314,7 @@ let private v4Application: Gen<Morphir.IR.V4.Distribution> = gen {
 let v4Distribution: Gen<Morphir.IR.V4.Distribution> =
     Gen.frequency [
         3, v4Library
-        1, Gen.map buildV4Specs v4LibraryBuilder
+        1, annotated buildV4Specs
         1, v4Application
     ]
 

@@ -612,6 +612,35 @@ let buildV4Application
         entryPoints
     )
 
+/// <summary>
+/// Gives every module specification of a built v4 distribution the annotations: the own modules of a
+/// <c>Specs</c>, and the modules of each <c>Library</c> or <c>Specs</c> dependency. A module definition has no
+/// annotations, so the modules of a definition are left as they are. The hook is v4 only, because a classic module
+/// has no annotations; shapes carry none, so the hook works on the built model.
+/// </summary>
+let withV4ModuleAnnotations
+    (annotations: Morphir.IR.V4.Annotation list)
+    (distribution: Morphir.IR.V4.Distribution)
+    : Morphir.IR.V4.Distribution =
+    let annotate (specification: Morphir.IR.V4.PackageSpecification) : Morphir.IR.V4.PackageSpecification = {
+        Modules =
+            Morphir.IR.V4.OrderedMap.toList specification.Modules
+            |> List.map (fun (path, m) -> path, { m with Annotations = annotations })
+            |> orderedMap "module"
+    }
+
+    let annotateAll dependencies =
+        Morphir.IR.V4.OrderedMap.toList dependencies
+        |> List.map (fun (package, specification) -> package, annotate specification)
+        |> orderedMap "dependency"
+
+    match distribution with
+    | Morphir.IR.V4.Library(package, dependencies, definition) ->
+        Morphir.IR.V4.Library(package, annotateAll dependencies, definition)
+    | Morphir.IR.V4.Specs(package, dependencies, specification) ->
+        Morphir.IR.V4.Specs(package, annotateAll dependencies, annotate specification)
+    | Morphir.IR.V4.Application _ -> distribution
+
 /// <summary>Builds a classic <c>Library</c>, the shape that <c>ClassicJsonWriter.writeTyped</c> writes.</summary>
 let buildV3 (library: V3LibraryBuilder) : Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     Morphir.IR.Classic.Distribution.Library(

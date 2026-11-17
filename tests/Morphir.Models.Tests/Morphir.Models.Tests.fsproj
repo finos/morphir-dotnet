@@ -31,6 +31,8 @@
         <Compile Include="IR/CanonicalNamesTests.fs" />
         <Compile Include="IR/VersionedModelTests.fs" />
         <Compile Include="IR/Trees/TreeStemsTests.fs" />
+        <Compile Include="IR/Trees/DocumentAddressTests.fs" />
+        <Compile Include="IR/Trees/V4DocumentTreeTests.fs" />
         <Compile Include="IR/Classic/AccessControlledTests.fs" />
         <Compile Include="IR/Classic/TypeTests.fs" />
         <Compile Include="IR/Classic/LiteralTests.fs" />
