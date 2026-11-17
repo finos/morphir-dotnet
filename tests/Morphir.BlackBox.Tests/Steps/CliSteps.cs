@@ -29,6 +29,13 @@ public sealed partial class CliSteps(ICliDriver cli, ScenarioRun run)
     [Then("standard output is empty")]
     public void StandardOutputIsEmpty() => run.Result.StandardOutputShouldBeEmpty();
 
+    [Then("standard error is empty")]
+    public void StandardErrorIsEmpty()
+    {
+        if (run.Result.StandardError.Length != 0)
+            throw new CommandAssertionException("Standard error is not empty.", run.Result);
+    }
+
     [Then("standard error contains {string}")]
     public void StandardErrorContains(string text) => run.Result.StandardErrorShouldContain(text);
 

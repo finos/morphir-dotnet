@@ -1,0 +1,258 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+using FluentAssertions;
+using Microsoft.FSharp.Collections;
+using Microsoft.FSharp.Core;
+using Morphir.Files;
+using Morphir.IR.Trees;
+using Morphir.Models.TestSupport;
+using Morphir.TestSupport.Fixtures;
+using Morphir.Tooling.Features.ModelVerify;
+using Morphir.Tooling.Infrastructure.JsonSchema;
+
+namespace Morphir.Tooling.Tests.Features.ModelVerify;
+
+/// <summary>
+/// The checks of a document tree by <c>model verify</c> (design VER-1), on trees in memory: the trees that the store
+/// writes from the mother cases and the kit's tree cases verify, the parent's tree-file schemas find an error of a
+/// file's kind, the store's diagnostics pass through with their codes and files, and a <c>--schema-version</c> that
+/// contradicts the manifest is refused. The black-box scenarios of <c>ModelVerification.feature</c> run the command on
+/// trees on disk.
+/// </summary>
+public class TreeVerificationTests
+{
+    private const string TreePath = "/model";
+
+    private static readonly SchemaValidator Validator = new(new SchemaLoader());
+
+    private static Task<VerifyModelResult> Verify(VFileTree tree, int? schemaVersion = null) =>
+        TreeVerification.VerifyAsync(tree, TreePath, schemaVersion, Validator, CancellationToken.None);
+
+    private static VFileTree Written(StoredTree tree)
+    {
+        var written = DocumentTreeStoreDriver.write(tree);
+        if (written.IsError) throw new InvalidOperationException($"The mother's tree is not written: {string.Join("; ", written.ErrorValue)}");
+        return written.ResultValue;
+    }
+
+    private static VFileTree Texts(IEnumerable<(string Location, string Text)> files) =>
+        DocumentTreeStoreDriver.ofTexts(ListModule.OfSeq(files.Select(file => Tuple.Create(file.Location, file.Text))));
+
+    private static VFileTree WithText(VFileTree tree, string location, Func<string, string> change) =>
+        DocumentTreeStoreDriver.withText(location, FuncConvert.FromFunc(change), tree);
+
+    /// <summary>The valid trees of the mother that the store writes, by name.</summary>
+    private static readonly Dictionary<string, Func<StoredTree>> WrittenTreeCases = new()
+    {
+        ["acmeDemo"] = () => DocumentTreeMother.acmeDemo,
+        ["v4LibraryWithDependency"] = () => DocumentTreeMother.v4LibraryWithDependency,
+        ["privateAndDocumentedMembers"] = () => DocumentTreeMother.privateAndDocumentedMembers,
+        ["v4Application"] = () => DocumentTreeMother.v4Application,
+        ["windowsReservedStems"] = () => DocumentTreeMother.windowsReservedStems,
+        ["emptyModule"] = () => DocumentTreeMother.emptyModule,
+        ["noModules"] = () => DocumentTreeMother.noModules,
+        ["dependencyWithoutModules"] = () => DocumentTreeMother.dependencyWithoutModules,
+        ["pathAtTheBudget"] = () => DocumentTreeMother.pathAtTheBudget.Tree,
+        ["pathOverTheBudget"] = () => DocumentTreeMother.pathOverTheBudget.Tree,
+        ["v3Library"] = () => DocumentTreeMother.v3Library,
+        ["v3Specs"] = () => DocumentTreeMother.v3Specs,
+        ["v3PrivateAndDocumentedMembers"] = () => DocumentTreeMother.v3PrivateAndDocumentedMembers,
+        ["v3LibraryWithDependency"] = () => DocumentTreeMother.v3LibraryWithDependency,
+    };
+
+    /// <summary>The names of <see cref="WrittenTreeCases"/>, so a test is named by its case.</summary>
+    public static IEnumerable<Func<string>> WrittenTrees() => WrittenTreeCases.Keys.Select(name => (Func<string>)(() => name));
+
+    [Test]
+    [MethodDataSource(nameof(WrittenTrees))]
+    public async Task EachTreeThatTheStoreWritesIsValid(string name)
+    {
+        var tree = WrittenTreeCases[name]();
+        var files = Written(tree);
+
+        var result = await Verify(files);
+
+        result.Errors.Should().BeEmpty($"the store wrote {name}, and the parent's schemas and the store accept it");
+        result.IsValid.Should().BeTrue();
+        result.Layout.Should().Be(ModelLayouts.DocumentTree);
+        result.FilesChecked.Should().Be(VFileTreeModule.fileCount(files));
+        result.SchemaVersion.Should().Be(tree.IsV4Tree ? "4" : "3");
+        result.DetectionMethod.Should().Be("manifest");
+        result.ExitCode.Should().Be(0);
+        result.CompactedFiles.Should().BeEmpty();
+    }
+
+    /// <summary>The kit's tree cases that a reader reads back: each has a tree and no diagnostic.</summary>
+    public static IEnumerable<Func<string>> KitTrees() =>
+        FixtureCatalog.Kit.DocumentTree
+            .Where(kitCase => kitCase.Diagnostic is null && kitCase.Files.Count > 0)
+            .Select(kitCase => (Func<string>)(() => kitCase.Id));
+
+    [Test]
+    [MethodDataSource(nameof(KitTrees))]
+    public async Task EachTreeOfTheKitIsValid(string id)
+    {
+        var kitCase = FixtureCatalog.Kit.Case(id);
+
+        var result = await Verify(Texts(kitCase.Files.Select(file => (file.Key + ".json", file.Value))));
+
+        result.Errors.Should().BeEmpty($"{id} is a tree of the kit that a reader reads back");
+        result.FilesChecked.Should().Be(kitCase.Files.Count);
+    }
+
+    [Test]
+    public async Task ATreeFileThatBreaksTheSchemaOfItsKindNamesTheFileAndTheMember()
+    {
+        var files = WithText(Written(DocumentTreeMother.acmeDemo), "manifest.json",
+            text => text.Replace("\"pathBudget\": 4000", "\"pathBudget\": \"4000\"", StringComparison.Ordinal));
+
+        var result = await Verify(files);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(error => error.File == "manifest.json" && error.Path == "/pathBudget" && error.Code == null,
+            "the schema of a distribution manifest has a whole number pathBudget");
+        result.Errors.Should().Contain(error => error.File == "manifest.json" && error.Code == "invalid_type",
+            "the store refuses the path budget too");
+    }
+
+    [Test]
+    public async Task AV3TreeIsNotCheckedAgainstTheV4TreeFileSchemas()
+    {
+        // A v3 module file has no v4 file-kind schema: the parent publishes none for v3. The store accepts its classic
+        // spelling, which the v4 ModuleManifestFile schema would refuse (formatVersion "3.1.0").
+        var result = await Verify(Written(DocumentTreeMother.v3Library));
+
+        result.Errors.Should().BeEmpty();
+        result.SchemaVersion.Should().Be("3");
+    }
+
+    /// <summary>The invalid trees of the mother, each a refusal of the store, by name.</summary>
+    private static readonly Dictionary<string, Func<VFileTree>> InvalidTreeCases = new()
+    {
+        ["moduleListingAMissingType"] = DocumentTreeMother.Invalid.moduleListingAMissingType,
+        ["moduleListingAMissingValue"] = DocumentTreeMother.Invalid.moduleListingAMissingValue,
+        ["typeFileWithAnUnknownTypeTag"] = DocumentTreeMother.Invalid.typeFileWithAnUnknownTypeTag,
+        ["bothManifestProfiles"] = DocumentTreeMother.Invalid.bothManifestProfiles,
+        ["typeFileOutsideTheTree"] = DocumentTreeMother.Invalid.typeFileOutsideTheTree,
+        ["versionedDependencySegment"] = DocumentTreeMother.Invalid.versionedDependencySegment,
+        ["typeFileWithAnotherName"] = DocumentTreeMother.Invalid.typeFileWithAnotherName,
+        ["noManifest"] = DocumentTreeMother.Invalid.noManifest,
+        ["moduleFileThatIsNotJson"] = DocumentTreeMother.Invalid.moduleFileThatIsNotJson,
+        ["unreadableTypeFile"] = DocumentTreeMother.Invalid.unreadableTypeFile,
+        ["pathBudgetUnderTheMinimum"] = DocumentTreeMother.Invalid.pathBudgetUnderTheMinimum,
+        ["dependencyListedTwice"] = DocumentTreeMother.Invalid.dependencyListedTwice,
+        ["v3ManifestOfAnotherRelease"] = DocumentTreeMother.Invalid.v3ManifestOfAnotherRelease,
+        ["v3ModuleListingAMissingType"] = DocumentTreeMother.Invalid.v3ModuleListingAMissingType,
+        ["v3PayloadThatIsNotClassicJson"] = DocumentTreeMother.Invalid.v3PayloadThatIsNotClassicJson,
+    };
+
+    /// <summary>The names of <see cref="InvalidTreeCases"/>, so a test is named by its case.</summary>
+    public static IEnumerable<Func<string>> InvalidTrees() => InvalidTreeCases.Keys.Select(name => (Func<string>)(() => name));
+
+    [Test]
+    [MethodDataSource(nameof(InvalidTrees))]
+    public async Task EachRefusalOfTheStoreIsAnErrorWithItsCodeAndFile(string name)
+    {
+        var files = InvalidTreeCases[name]();
+        var read = DocumentTreeStoreDriver.read(files);
+        read.IsError.Should().BeTrue($"{name} is a refusal of the store");
+
+        var result = await Verify(files);
+
+        result.IsValid.Should().BeFalse();
+        result.ExitCode.Should().Be(1);
+        foreach (var error in read.ErrorValue)
+        {
+            var (pointer, message) = StoreLocation.Split(error.Message);
+            result.Errors.Should().ContainSingle(
+                reported => reported.Code == error.Code && reported.File == OptionModule.ToObj(error.File)
+                    && reported.Path == pointer && reported.Message == message,
+                $"{name}: the store's {error.Code} is an error of the report with its file and its JSON location");
+        }
+    }
+
+    [Test]
+    public async Task AnErrorInsideOneTreeFileNamesTheFileAndItsJsonLocation()
+    {
+        var result = await Verify(DocumentTreeMother.Invalid.typeFileWithAnUnknownTypeTag());
+
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            File = DocumentTreeMother.Invalid.financeInvoiceTypeFile,
+            Path = "/def/Public/TypeAliasDefinition/typeExp",
+            Code = "unknown_node",
+        });
+    }
+
+    [Test]
+    public async Task AModuleFileThatListsAValueWithNoFileIsMissingMemberAtTheMissingFile()
+    {
+        var result = await Verify(DocumentTreeMother.Invalid.moduleListingAMissingValue());
+
+        var error = result.Errors.Should().ContainSingle().Which;
+        error.Code.Should().Be("missing_member");
+        error.File.Should().Be(DocumentTreeMother.Invalid.financeDefaultCurrencyValueFile);
+        error.Message.Should().Contain("pkg/my-org/finance/pricing/models/module.json").And.Contain("'default-currency'");
+    }
+
+    [Test]
+    [Arguments(3, "4")]
+    [Arguments(1, "4")]
+    [Arguments(4, "3")]
+    public async Task ASchemaVersionThatContradictsTheManifestIsRefusedWithExitCode2(int given, string manifest)
+    {
+        var tree = manifest == "4" ? DocumentTreeMother.v4LibraryWithDependency : DocumentTreeMother.v3LibraryWithDependency;
+
+        var result = await Verify(Written(tree), given);
+
+        result.ExitCode.Should().Be(2);
+        result.IsValid.Should().BeFalse();
+        result.SchemaVersion.Should().Be(manifest);
+        result.FilesChecked.Should().Be(0, "nothing is checked");
+        var error = result.Errors.Should().ContainSingle().Which;
+        error.Code.Should().Be(TreeVerification.SchemaVersionConflict);
+        error.File.Should().Be("manifest.json");
+        error.Path.Should().Be("/formatVersion");
+        error.Message.Should().Contain($"--schema-version={given}").And.Contain($"IR version {manifest}");
+    }
+
+    [Test]
+    public async Task ASchemaVersionThatAgreesWithTheManifestIsManual()
+    {
+        var result = await Verify(Written(DocumentTreeMother.v4LibraryWithDependency), 4);
+
+        result.IsValid.Should().BeTrue();
+        result.DetectionMethod.Should().Be("manual");
+        result.SchemaVersion.Should().Be("4");
+    }
+
+    [Test]
+    public async Task ATreeWithNoManifestHasTheStoresDiagnosticAndNoVersion()
+    {
+        var result = await Verify(DocumentTreeMother.Invalid.noManifest());
+
+        result.SchemaVersion.Should().Be("unknown");
+        result.Errors.Should().ContainSingle(error => error.Code == "tree.missing_manifest");
+    }
+
+    [Test]
+    public async Task ATreeWithNoManifestAndAVersionThatNoTreeHasIsRefused()
+    {
+        var result = await Verify(DocumentTreeMother.Invalid.noManifest(), 2);
+
+        result.ExitCode.Should().Be(2);
+        result.Errors.Should().ContainSingle().Which.Code.Should().Be(TreeVerification.SchemaVersionConflict);
+    }
+
+    [Test]
+    [Arguments("$.def.Public.TypeAliasDefinition.typeExp: The object is not a node.", "/def/Public/TypeAliasDefinition/typeExp", "The object is not a node.")]
+    [Arguments("$: Unknown member.", "", "Unknown member.")]
+    [Arguments("$.types[2]: Not a name.", "/types/2", "Not a name.")]
+    [Arguments("$.fileNames[\"a/b~c\"]: Not a stem.", "/fileNames/a~1b~0c", "Not a stem.")]
+    [Arguments("The module file lists the value 'x', and the tree has no file for it.", "", "The module file lists the value 'x', and the tree has no file for it.")]
+    [Arguments("$ is not a location: at all", "", "$ is not a location: at all")]
+    public void TheJsonLocationOfAStoreMessageIsAJsonPointer(string storeMessage, string pointer, string message)
+    {
+        StoreLocation.Split(storeMessage).Should().Be((pointer, message));
+    }
+}

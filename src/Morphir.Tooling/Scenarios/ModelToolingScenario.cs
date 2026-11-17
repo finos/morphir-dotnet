@@ -26,7 +26,8 @@ public class ModelToolingScenario : IMorphirCliScenario
     }
 
     /// <summary>
-    /// <c>model verify</c>: schema validation of a Morphir IR JSON file. The result goes to stdout as text, as the one
+    /// <c>model verify</c>: schema validation of a Morphir model, a single IR JSON file or the directory of a document
+    /// tree, at IR versions 1 to 4. The result goes to stdout as text, as the one
     /// <c>completed</c> record of <c>--json</c>, or as one JSON document with <c>--json=document</c>. <c>--quiet</c>
     /// suppresses the text and the log; a JSON mode is still written, as it is the result that the caller asked for.
     /// The report states the exit code (<c>exitCode</c>). A parse error is a result with exit code 2, in the JSON
@@ -37,12 +38,12 @@ public class ModelToolingScenario : IMorphirCliScenario
         /// <summary>The exit code of arguments that do not parse.</summary>
         private const int UsageExitCode = 2;
 
-        private readonly Argument<FileInfo> _filePath = new("file-path") { Description = "Path to the Morphir IR JSON file to verify" };
-
-        private readonly Option<int?> _schemaVersion = new("--schema-version")
+        private readonly Argument<FileInfo> _filePath = new("model-path")
         {
-            Description = "Schema version to validate against (1, 2, or 3). Auto-detected if not specified."
+            Description = "Path to the Morphir model to verify: an IR JSON file, or the directory of a document tree"
         };
+
+        private readonly Option<int?> _schemaVersion = CreateSchemaVersionOption();
 
         private readonly Option<string> _json = JsonOutputOption.Create();
 
@@ -50,6 +51,24 @@ public class ModelToolingScenario : IMorphirCliScenario
         {
             Description = "Write no text and no log, only the exit code (0 = valid, 1 = invalid); a --json report is still written"
         };
+
+        /// <summary>
+        /// <c>--schema-version</c>: 1 to 4. Another number does not parse, so it is a usage error with exit code 2 and
+        /// not a model that is not valid.
+        /// </summary>
+        private static Option<int?> CreateSchemaVersionOption()
+        {
+            var option = new Option<int?>("--schema-version")
+            {
+                Description = "Schema version to validate against (1, 2, 3 or 4). Detected from the file, or from the manifest of a tree, if not given."
+            };
+            option.Validators.Add(result =>
+            {
+                if (result.GetValueOrDefault<int?>() is { } version and not (>= 1 and <= 4))
+                    result.AddError($"Schema version must be 1, 2, 3 or 4, not {version}.");
+            });
+            return option;
+        }
 
         public ModelVerifyCommand() : base("verify", "Verify a Morphir model against the schema of its IR version")
         {
@@ -78,7 +97,7 @@ public class ModelToolingScenario : IMorphirCliScenario
                 var mediator = host.Services.GetRequiredService<IMediator>();
 
                 // Create and send command
-                var command = new Features.VerifyIR.VerifyIR(
+                var command = new Features.ModelVerify.VerifyModel(
                     FilePath: filePath.FullName,
                     SchemaVersion: schemaVersion,
                     JsonOutput: mode != JsonOutputMode.None,
@@ -86,7 +105,7 @@ public class ModelToolingScenario : IMorphirCliScenario
                 );
 
                 // Execute command via mediator
-                var result = await mediator.InvokeAsync<Features.VerifyIR.VerifyIRResult>(command);
+                var result = await mediator.InvokeAsync<Features.ModelVerify.VerifyModelResult>(command);
 
                 // Format output
                 FormatVerifyOutput(result, mode, quiet);
@@ -107,17 +126,17 @@ public class ModelToolingScenario : IMorphirCliScenario
                 return UsageExitCode;
             }
 
-            var usage = new Features.VerifyIR.VerifyIRResult(
+            var usage = new Features.ModelVerify.VerifyModelResult(
                 IsValid: false,
                 SchemaVersion: "unknown",
                 DetectionMethod: "none",
                 FilePath: "",
-                Errors: [.. messages.Select(message => new Features.VerifyIR.ValidationError(Path: "$", Message: message, Expected: "Valid arguments"))],
+                Errors: [.. messages.Select(message => new Features.ModelVerify.ValidationError(Path: "$", Message: message, Expected: "Valid arguments"))],
                 Timestamp: DateTime.UtcNow)
             {
                 ExitCode = UsageExitCode,
             };
-            JsonReportOutput.Write(Infrastructure.ConsoleOutputHelper.Stdout, mode, usage, Features.VerifyIR.VerifyIRResult.JsonInfo);
+            JsonReportOutput.Write(Infrastructure.ConsoleOutputHelper.Stdout, mode, usage, Features.ModelVerify.VerifyModelResult.JsonInfo);
             return UsageExitCode;
         }
     }
@@ -127,14 +146,14 @@ public class ModelToolingScenario : IMorphirCliScenario
     /// <c>--quiet</c> alone writes nothing.
     /// </summary>
     private static void FormatVerifyOutput(
-        Features.VerifyIR.VerifyIRResult result,
+        Features.ModelVerify.VerifyModelResult result,
         JsonOutputMode mode,
         bool quiet)
     {
         if (mode != JsonOutputMode.None)
         {
             // Source-generated: the trimmed executable disables reflection-based serialization.
-            JsonReportOutput.Write(Infrastructure.ConsoleOutputHelper.Stdout, mode, result, Features.VerifyIR.VerifyIRResult.JsonInfo);
+            JsonReportOutput.Write(Infrastructure.ConsoleOutputHelper.Stdout, mode, result, Features.ModelVerify.VerifyModelResult.JsonInfo);
         }
         else if (!quiet)
         {
@@ -142,6 +161,12 @@ public class ModelToolingScenario : IMorphirCliScenario
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Validation Result: {(result.IsValid ? "✓ VALID" : "✗ INVALID")}");
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"File: {result.FilePath}");
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Schema Version: v{result.SchemaVersion} ({result.DetectionMethod})");
+            if (result.Layout == Features.ModelVerify.ModelLayouts.DocumentTree)
+            {
+                Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Layout: {result.Layout}");
+                Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Files Checked: {result.FilesChecked}");
+            }
+
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Timestamp: {result.Timestamp:yyyy-MM-dd HH:mm:ss UTC}");
 
             if (!result.IsValid && result.Errors.Count > 0)
@@ -152,6 +177,12 @@ public class ModelToolingScenario : IMorphirCliScenario
 
                 foreach (var error in result.Errors)
                 {
+                    if (error.File != null)
+                        Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  File: {error.File}");
+
+                    if (error.Code != null)
+                        Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Code: {error.Code}");
+
                     Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Path: {error.Path}");
                     Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"  Message: {error.Message}");
 

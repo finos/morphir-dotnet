@@ -20,16 +20,20 @@ public sealed record VerificationOptions
     public bool Quiet { get; init; }
 }
 
-/// <summary>The <c>model verify</c> command as an intent: verify a Morphir model file against its schema.</summary>
+/// <summary>
+/// The <c>model verify</c> command as an intent: verify a Morphir model against the schema of its IR version. The model
+/// is a single file or a document tree in a directory; a <see cref="WorkspaceFile"/> and a
+/// <see cref="WorkspaceDirectory"/> convert to a <see cref="ModelLocation"/>.
+/// </summary>
 public interface IModelVerificationDriver
 {
-    Task<CommandResult> VerifyAsync(WorkspaceFile model, VerificationOptions? options = null, CancellationToken cancellation = default);
+    Task<CommandResult> VerifyAsync(ModelLocation model, VerificationOptions? options = null, CancellationToken cancellation = default);
 }
 
 /// <summary>Builds the command line of <c>model verify</c> and gives it to the CLI driver.</summary>
 public sealed class ModelVerificationDriver(ICliDriver cli) : IModelVerificationDriver
 {
-    public Task<CommandResult> VerifyAsync(WorkspaceFile model, VerificationOptions? options = null, CancellationToken cancellation = default)
+    public Task<CommandResult> VerifyAsync(ModelLocation model, VerificationOptions? options = null, CancellationToken cancellation = default)
     {
         var arguments = new List<string> { "model", "verify" };
         if (options?.Json is { } json) arguments.AddRange(json.Words);
@@ -46,8 +50,19 @@ public sealed class ModelVerificationDriver(ICliDriver cli) : IModelVerification
     }
 }
 
-/// <summary>One error of a verification report.</summary>
-public sealed record VerificationError(string Path, string Message, string? Expected, string? Found);
+/// <summary>
+/// One error of a verification report: the JSON location in its file (<c>Path</c>), the message, what the schema
+/// expected and what it found, the file of a document tree it is in (<c>file</c>, the path from the root of the tree,
+/// absent for a single file), and the stable code of a diagnostic (<c>code</c>, absent for a schema error).
+/// </summary>
+public sealed record VerificationError(string Path, string Message, string? Expected, string? Found)
+{
+    /// <summary>The file of a document tree, as a path from its root with <c>/</c>, or null for a single file.</summary>
+    public string? File { get; init; }
+
+    /// <summary>The stable code of the diagnostic, such as <c>missing_member</c>, or null for a schema error.</summary>
+    public string? Code { get; init; }
+}
 
 /// <summary>
 /// The JSON report of <c>model verify --json</c>. It states validity in the field <c>IsValid</c> and the exit code of
@@ -86,6 +101,15 @@ public sealed class VerificationReport
     /// <summary>The exit code that the report states (<c>exitCode</c>), or null when it states none.</summary>
     public int? ExitCode { get; private init; }
 
+    /// <summary>How the model is stored (<c>layout</c>): <c>single-file</c> or <c>document-tree</c>, or null when the report states none.</summary>
+    public string? Layout { get; private init; }
+
+    /// <summary>The number of files that the command checked (<c>filesChecked</c>), or null when the report states none.</summary>
+    public int? FilesChecked { get; private init; }
+
+    /// <summary>The files that were compacted (<c>compactedFiles</c>); empty when the report lists none.</summary>
+    public IReadOnlyList<string> CompactedFiles { get; private init; } = [];
+
     /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static VerificationReport Of(CommandResult result)
     {
@@ -99,14 +123,21 @@ public sealed class VerificationReport
 
         var errors = document.TryGetProperty("Errors", out var list) && list.ValueKind == JsonValueKind.Array
             ? list.EnumerateArray().Select(error => new VerificationError(
-                Text(error, "Path") ?? "", Text(error, "Message") ?? "", Text(error, "Expected"), Text(error, "Found"))).ToArray()
+                Text(error, "Path") ?? "", Text(error, "Message") ?? "", Text(error, "Expected"), Text(error, "Found"))
+            {
+                File = Text(error, "file"),
+                Code = Text(error, "code"),
+            }).ToArray()
             : [];
         return new VerificationReport(result, isValid.GetBoolean(), Text(document, "SchemaVersion"), Text(document, "DetectionMethod"), errors)
         {
             FilePath = Text(document, "FilePath"),
-            ExitCode = document.TryGetProperty("exitCode", out var exitCode) && exitCode.ValueKind == JsonValueKind.Number && exitCode.TryGetInt32(out var code)
-                ? code
-                : null,
+            ExitCode = Integer(document, "exitCode"),
+            Layout = Text(document, "layout"),
+            FilesChecked = Integer(document, "filesChecked"),
+            CompactedFiles = document.TryGetProperty("compactedFiles", out var compacted) && compacted.ValueKind == JsonValueKind.Array
+                ? [.. compacted.EnumerateArray().Where(file => file.ValueKind == JsonValueKind.String).Select(file => file.GetString()!)]
+                : [],
         };
     }
 
@@ -128,6 +159,28 @@ public sealed class VerificationReport
 
     public VerificationReport ShouldBeInvalid() =>
         IsValid ? throw new CommandAssertionException("The verification report says that the model is valid: IsValid is true.", _result) : this;
+
+    /// <summary>
+    /// The error of the report at <paramref name="fault"/>: in its file (none for a single file), at its JSON location
+    /// when it has one, naming each of its words, and with <paramref name="code"/> when one is given.
+    /// </summary>
+    public VerificationError ShouldHaveAnErrorAt(Fixtures.FixtureFault fault, string? code = null)
+    {
+        var match = Errors.FirstOrDefault(error =>
+            error.File == fault.File
+            && (fault.JsonPointer is null || error.Path == fault.JsonPointer)
+            && (code is null || error.Code == code)
+            && fault.Names.All(name => error.Message.Contains(name, StringComparison.Ordinal)));
+        return match ?? throw new CommandAssertionException(
+            $"The verification report has no error{(code is null ? "" : $" {code}")} in {fault.File ?? "the single file"}"
+            + $"{(fault.JsonPointer is null ? "" : $" at {fault.JsonPointer}")} that names {string.Join(", ", fault.Names)}. Its errors: "
+            + string.Join("; ", Errors.Select(error => $"[{error.Code ?? "schema"}] {error.File ?? "-"} {error.Path}: {error.Message}")), _result);
+    }
+
+    private static int? Integer(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number)
+            ? number
+            : null;
 
     private static string? Text(JsonElement element, string name) =>
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String

@@ -1,7 +1,7 @@
 using FluentAssertions;
-using Morphir.Tooling.Features.VerifyIR;
+using Morphir.Tooling.Features.ModelVerify;
 
-namespace Morphir.Tooling.Tests.Features.VerifyIR;
+namespace Morphir.Tooling.Tests.Features.ModelVerify;
 
 public class VersionDetectionTests
 {
@@ -51,6 +51,29 @@ public class VersionDetectionTests
 
         // Assert
         version.Should().Be("3", "formatVersion 3 should be detected as version 3");
+    }
+
+    [Test]
+    public void DetectVersion_ShouldDetectV4_WhenFormatVersionIs4()
+    {
+        var version = VersionDetector.DetectVersion("""{ "formatVersion": 4, "distribution": { "Library": { "packageName": "a/b" } } }""");
+
+        version.Should().Be("4", "formatVersion 4 should be detected as version 4");
+    }
+
+    [Test]
+    [Arguments("\"3.1.0\"", "3")]
+    [Arguments("\"4.0.0\"", "4")]
+    [Arguments("\"4.12.3\"", "4")]
+    [Arguments("\"3.0.0\"", "3")]
+    [Arguments("\"4\"", "3")]
+    [Arguments("5", "3")]
+    [Arguments("3.5", "3")]
+    public void DetectVersion_ReadsTheReleasesOfV3AndV4(string formatVersion, string expected)
+    {
+        var version = VersionDetector.DetectVersion($$"""{ "formatVersion": {{formatVersion}} }""");
+
+        version.Should().Be(expected, $"formatVersion {formatVersion} is version {expected}, or the default 3");
     }
 
     [Test]

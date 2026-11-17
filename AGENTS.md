@@ -405,30 +405,30 @@ When implementing features:
 
 ```bash
 # 1. RED: Write failing unit tests
-# Example: tests/Morphir.Tooling.Tests/Features/VerifyIR/VerifyIRHandlerTests.cs
+# Example: tests/Morphir.Tooling.Tests/Features/ModelVerify/VerifyModelHandlerTests.cs
 [Test]
 public async Task Handle_ShouldReturnValid_WhenIRIsValid()
 {
     // Arrange
-    var command = new VerifyIR("valid-ir.json");
+    var command = new VerifyModel("valid-ir.json");
 
     // Act
-    var result = await VerifyIRHandler.Handle(command, validator, ct);
+    var result = await VerifyModelHandler.Handle(command, validator, ct);
 
     // Assert
     result.IsValid.Should().BeTrue();
 }
 
 # Run: dotnet test
-# Expect: Test fails because VerifyIRHandler doesn't exist
+# Expect: Test fails because VerifyModelHandler does not exist
 
 # 2. GREEN: Implement minimal code
-public static class VerifyIRHandler
+public static class VerifyModelHandler
 {
-    public static Task<VerifyIRResult> Handle(VerifyIR command, ...)
+    public static Task<VerifyModelResult> Handle(VerifyModel command, ...)
     {
         // Minimal implementation to pass test
-        return Task.FromResult(new VerifyIRResult(IsValid: true, ...));
+        return Task.FromResult(new VerifyModelResult(IsValid: true, ...));
     }
 }
 
@@ -436,17 +436,17 @@ public static class VerifyIRHandler
 # Expect: Test passes (green)
 
 # 3. REFACTOR: Improve implementation
-public static class VerifyIRHandler
+public static class VerifyModelHandler
 {
-    public static async Task<VerifyIRResult> Handle(
-        VerifyIR command,
+    public static async Task<VerifyModelResult> Handle(
+        VerifyModel command,
         SchemaValidator validator,
         CancellationToken ct)
     {
         var jsonContent = await File.ReadAllTextAsync(command.FilePath, ct);
         var validationResult = await validator.ValidateAsync(jsonContent, "3", ct);
 
-        return new VerifyIRResult(
+        return new VerifyModelResult(
             IsValid: validationResult.IsValid,
             SchemaVersion: "3",
             DetectionMethod: "auto",
@@ -466,7 +466,7 @@ public static class VerifyIRHandler
 For new features, write BDD scenarios BEFORE implementation:
 
 ```gherkin
-# tests/Morphir.Tooling.Tests/Features/VerifyIR/VerifyIR.feature
+# tests/Morphir.Tooling.Tests/Features/ModelVerify/VerifyModel.feature
 Feature: IR Schema Verification
   As a Morphir developer
   I want to validate IR JSON files against schemas
@@ -491,7 +491,7 @@ public void GivenAValidIRV3File(string fileName)
 [When(@"I verify the IR file")]
 public async Task WhenIVerifyTheIRFile()
 {
-    var command = new VerifyIR(_context.FilePath);
+    var command = new VerifyModel(_context.FilePath);
     _context.Result = await _handler.Handle(command, _validator, CancellationToken.None);
 }
 
@@ -532,10 +532,10 @@ public void ThenTheValidationShouldSucceed()
 ```
 tests/Morphir.Tooling.Tests/
 ├── Features/
-│   └── VerifyIR/
-│       ├── VerifyIR.feature          # BDD scenarios
-│       ├── VerifyIRSteps.cs          # Step definitions
-│       └── VerifyIRHandlerTests.cs   # Unit tests
+│   └── ModelVerify/
+│       ├── VerifyModel.feature          # BDD scenarios
+│       ├── VerifyModelSteps.cs          # Step definitions
+│       └── VerifyModelHandlerTests.cs   # Unit tests
 ├── Infrastructure/
 │   └── JsonSchema/
 │       ├── SchemaLoaderTests.cs      # Unit tests
@@ -675,7 +675,7 @@ Example Implementation Notes Section
 - **Decision**: Used WolverineFx's `IMessageBus.InvokeAsync<T>()` instead of `IMessageContext.Send()`
 - **Rationale**: InvokeAsync provides request-response pattern needed for CLI
 - **Impact**: Simpler than setting up reply queues
-- **Files**: `src/Morphir/Program.cs:397-401`, `src/Morphir.Tooling/Features/VerifyIR/VerifyIR.cs`
+- **Files**: `src/Morphir/Program.cs:397-401`, `src/Morphir.Tooling/Features/ModelVerify/VerifyModel.cs`
 
 #### Schema Loading (2025-12-15)
 - **Change**: Used `Assembly.GetManifestResourceStream()` instead of `EmbeddedFileProvider`
@@ -702,18 +702,18 @@ This section documents architectural patterns and conventions established during
 
 **Structure**: Features organized by use case in `src/Morphir.Tooling/Features/{FeatureName}/`
 
-Example: `Features/VerifyIR/`
+Example: `Features/ModelVerify/`
 ```
-Features/VerifyIR/
-├── VerifyIR.cs              # Command, Result, Handler, Validator (all in one file)
+Features/ModelVerify/
+├── VerifyModel.cs              # Command, Result, Handler, Validator (all in one file)
 ├── VersionDetector.cs       # Feature-specific logic
-└── VerifyIR.feature         # BDD scenarios (in test project)
+└── VerifyModel.feature         # BDD scenarios (in test project)
 ```
 
 **Command Pattern**:
 ```csharp
 // Command (immutable record)
-public record VerifyIR(
+public record VerifyModel(
     string FilePath,
     int? SchemaVersion = null,
     bool JsonOutput = false,
@@ -721,7 +721,7 @@ public record VerifyIR(
 );
 
 // Result (immutable record)
-public record VerifyIRResult(
+public record VerifyModelResult(
     bool IsValid,
     string SchemaVersion,
     string DetectionMethod,
@@ -731,10 +731,10 @@ public record VerifyIRResult(
 );
 
 // Handler (static class with pure function)
-public static class VerifyIRHandler
+public static class VerifyModelHandler
 {
-    public static async Task<VerifyIRResult> Handle(
-        VerifyIR command,
+    public static async Task<VerifyModelResult> Handle(
+        VerifyModel command,
         SchemaValidator validator,  // Injected dependency
         CancellationToken ct)
     {
@@ -743,9 +743,9 @@ public static class VerifyIRHandler
 }
 
 // FluentValidation rules
-public class VerifyIRValidator : AbstractValidator<VerifyIR>
+public class VerifyModelValidator : AbstractValidator<VerifyModel>
 {
-    public VerifyIRValidator()
+    public VerifyModelValidator()
     {
         RuleFor(x => x.FilePath)
             .NotEmpty()
@@ -776,7 +776,7 @@ verifyCommand.SetAction(async parseResult =>
     var messageBus = host.Services.GetRequiredService<IMessageBus>();
 
     // Create command
-    var command = new Tooling.Features.VerifyIR.VerifyIR(
+    var command = new Tooling.Features.ModelVerify.VerifyModel(
         FilePath: filePath.FullName,
         SchemaVersion: schemaVersion,
         JsonOutput: jsonOutput,
@@ -784,7 +784,7 @@ verifyCommand.SetAction(async parseResult =>
     );
 
     // Execute via message bus
-    var result = await messageBus.InvokeAsync<VerifyIRResult>(command);
+    var result = await messageBus.InvokeAsync<VerifyModelResult>(command);
 
     // Format output
     FormatOutput(result, jsonOutput, quiet);
@@ -855,12 +855,12 @@ tests/Morphir.Tooling.Tests/
 try
 {
     // Business logic
-    return new VerifyIRResult(IsValid: true, ...);
+    return new VerifyModelResult(IsValid: true, ...);
 }
 catch (JsonException ex)
 {
     // Handle expected errors, return structured result
-    return new VerifyIRResult(
+    return new VerifyModelResult(
         IsValid: false,
         Errors: [new ValidationError(
             Path: "$",
@@ -884,13 +884,13 @@ catch (JsonException ex)
 
 ```csharp
 [JsonSourceGenerationOptions(WriteIndented = true)]
-[JsonSerializable(typeof(VerifyIRResult))]
+[JsonSerializable(typeof(VerifyModelResult))]
 internal partial class MorphirJsonContext : JsonSerializerContext
 {
 }
 
 // Usage
-var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRResult);
+var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyModelResult);
 ```
 
 ### Documentation Requirements

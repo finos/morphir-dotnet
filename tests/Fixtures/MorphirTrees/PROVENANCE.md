@@ -33,3 +33,37 @@ A YAML file or canonical spelling is translated to JSON. A JSON spelling is kept
 ## `acme-demo/`
 
 A v4 document tree written by hand for this repository, not kit data. Its own `acme-demo/PROVENANCE.md` describes it and has its hashes.
+
+## The written trees: `written-v4-library-with-dependency/`, `written-v3-library-with-dependency/` and `written-v4-unknown-type-tag/`
+
+Trees that the document-tree store of `src/Morphir.Models` wrote, with its default options (path budget 4000, no compaction), from cases of the mothers of `tests/Morphir.Models.TestSupport`. `model convert` writes a tree through the same store, so each is the tree that `model convert` writes from its model. They are on disk for the tests that need a tree as files, such as the black-box scenarios of `model verify` in `tests/Morphir.BlackBox.Tests/Integration/ModelVerification.feature`, which cannot build a tree with the store. `FixtureCatalog.Trees` in `tests/Morphir.TestSupport` serves them as `FixtureTree`s.
+
+| Directory | Mother case |
+| --- | --- |
+| `written-v4-library-with-dependency/` | `DocumentTreeMother.v4LibraryWithDependency`, the split of `DistributionMother.v4LibraryWithDependency` |
+| `written-v3-library-with-dependency/` | `DocumentTreeMother.v3LibraryWithDependency`, the classic split of `DistributionMother.v3LibraryWithDependency` with numbered attribute slots |
+| `written-v4-unknown-type-tag/` | The one file of `DocumentTreeMother.Invalid.typeFileWithAnUnknownTypeTag` that differs from the written v4 tree: the type expression of `invoice` has the tag `Struct` |
+
+`WrittenTreeTests` in `tests/Morphir.Models.Tests` fails when the store or a mother case writes other bytes. When that change is meant, write the files again from the mother cases, with `DocumentTreeStoreDriver.write` and `DocumentTreeStoreDriver.texts`, as UTF-8 with no byte order mark, and update the hashes here and in `FixtureCatalog`. The tree with no file for one value, `DocumentTreeMother.Invalid.moduleListingAMissingValue`, is the written v4 tree without `pkg/my-org/finance/pricing/models/default-currency.value.json`, so it has no files of its own.
+
+| File | SHA-256 |
+| --- | --- |
+| `written-v4-library-with-dependency/deps/morphir/_sdk/@/api/module.json` | `e88833b3b5849cee61ee739eca26e44ee34dcffb179913dc0946045efa04e115` |
+| `written-v4-library-with-dependency/deps/morphir/_sdk/@/api/money.type.json` | `60fdada51a9f8e69a326095b91d5c2c74fe3445e50e97c69171daf36055f98ab` |
+| `written-v4-library-with-dependency/deps/morphir/_sdk/@/api/zero.value.json` | `8d31d6c801c2648a1a12d7e27019c14b429761343a57d67f8eac9472b2f4b0c2` |
+| `written-v4-library-with-dependency/manifest.json` | `364827525a4e877ef167d91093626d76cd0bf87b9851802ecf8db67d3c510bf0` |
+| `written-v4-library-with-dependency/pkg/my-org/finance/pricing/models/default-currency.value.json` | `765b553c9bf3198b4cebb8114b0968114fc3e18105e379563bf5bbf04dc86bf1` |
+| `written-v4-library-with-dependency/pkg/my-org/finance/pricing/models/invoice.type.json` | `39db582b34df8e2180b22d5c74bb4f9fba0a85070e788e56b0feaf959b86033d` |
+| `written-v4-library-with-dependency/pkg/my-org/finance/pricing/models/module.json` | `c40d1fa7ec51bb00a35006b9bf94cb0ae77c67db169d5d4c0deb163634f6028f` |
+| `written-v4-library-with-dependency/pkg/my-org/finance/pricing/models/same-invoice.value.json` | `7b7b27ecd5a16f8c6d54922cf22392de81137362e13ff2f9bc8b99862850e253` |
+| `written-v4-library-with-dependency/pkg/my-org/finance/pricing/models/status.type.json` | `fdc8acf6e3b600474bb815b8f2b53d8dea4c84d11554aed2ddbd62a74d18121f` |
+| `written-v3-library-with-dependency/deps/morphir/_sdk/@/api/module.json` | `b6c2ba068b2caa8fab16e02cd0dcadfaa6c3e11e2fa0818e50868edc43a2c5ac` |
+| `written-v3-library-with-dependency/deps/morphir/_sdk/@/api/money.type.json` | `113ffed5a1167e3ac72e6d9d53d3181798a173b210cb4d0806f53e1f1d415ece` |
+| `written-v3-library-with-dependency/deps/morphir/_sdk/@/api/zero.value.json` | `ae1a65a6bc4a22dabcf2f2bc6afa2bf1592922ad8edf2d411f0d84278236a804` |
+| `written-v3-library-with-dependency/manifest.json` | `78a3a5b2f928c3622e391b15c6ba97439270e4db2578ac1748d05e105ee100b6` |
+| `written-v3-library-with-dependency/pkg/my-org/finance/pricing/models/default-currency.value.json` | `1ee1fbe087017465b141c0b2d5455f03cadafa3b05106098a98c2e7d587800de` |
+| `written-v3-library-with-dependency/pkg/my-org/finance/pricing/models/invoice.type.json` | `a2eb31f5ccb5e1d63b6e594c6df153521980d5bba4db0cf304854acf50aa8904` |
+| `written-v3-library-with-dependency/pkg/my-org/finance/pricing/models/module.json` | `46b86cbbf579eb4b1262f76dc0e63db8b2781267e7a4d842db682215bc9c61a0` |
+| `written-v3-library-with-dependency/pkg/my-org/finance/pricing/models/same-invoice.value.json` | `b269aaa997d9b9ac1e314a69025e4f8450b0ba09173aa735c46f2bc1789cba7b` |
+| `written-v3-library-with-dependency/pkg/my-org/finance/pricing/models/status.type.json` | `ff987a5f45e2bd1973cea494d0e091ff7c2fed788f24ded79b5b6179cf1b767f` |
+| `written-v4-unknown-type-tag/pkg/my-org/finance/pricing/models/invoice.type.json` | `ca2b3a89a1a982fe7a59c6c491920ee365fde3ef5fdc555e451290e9fde43039` |

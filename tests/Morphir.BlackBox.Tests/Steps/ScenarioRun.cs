@@ -1,5 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using Morphir.TestSupport.Fixtures;
+
 namespace Morphir.BlackBox.Tests.Steps;
 
 /// <summary>The state that the step classes of one scenario share: the model, and the result of the last command.</summary>
@@ -31,4 +33,10 @@ public sealed class ScenarioRun
 
     /// <summary>The model of the scenario that is a tree of files, or null when the model is one file.</summary>
     public WorkspaceDirectory? ModelTree { get; set; }
+
+    /// <summary>The model of the scenario: its tree when it has one, or else its file.</summary>
+    public ModelLocation ModelLocation => ModelTree is { } tree ? tree : Model;
+
+    /// <summary>Where the model of the scenario is wrong, when a step gave it a faulty case of the catalog.</summary>
+    public FixtureFault? Fault { get; set; }
 }

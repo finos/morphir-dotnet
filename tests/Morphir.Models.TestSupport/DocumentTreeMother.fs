@@ -22,6 +22,13 @@ let treeOf (distribution: Distribution) : StoredTree =
 /// <summary>The worked example of the design: <c>acme/demo</c> with module <c>billing</c> and dependency <c>morphir/sdk</c>.</summary>
 let acmeDemo: StoredTree = treeOf DistributionMother.acmeDemo
 
+/// <summary>
+/// The tree of <c>DistributionMother.v4LibraryWithDependency</c>: the tree that <c>model convert</c> writes from it.
+/// <c>FixtureCatalog.Trees.WrittenV4LibraryWithDependency</c> pins its files, for the tests that need it on disk.
+/// </summary>
+let v4LibraryWithDependency: StoredTree =
+    treeOf DistributionMother.v4LibraryWithDependency
+
 /// <summary>A library with private members, a private module, docs, and a dependency with two modules.</summary>
 let privateAndDocumentedMembers: StoredTree =
     treeOf DistributionMother.privateAndDocumentedMembers
@@ -190,6 +197,13 @@ let classicTreeOf (distribution: JsonClassicModel) : StoredTree =
 /// <summary>The classic library of <c>DistributionMother.v3Library</c>, with numbered attribute slots.</summary>
 let v3Library: StoredTree =
     classicTreeOf (withNumberedSlots DistributionMother.v3Library)
+
+/// <summary>
+/// The classic library of <c>DistributionMother.v3LibraryWithDependency</c>, with numbered attribute slots.
+/// <c>FixtureCatalog.Trees.WrittenV3LibraryWithDependency</c> pins its files, for the tests that need it on disk.
+/// </summary>
+let v3LibraryWithDependency: StoredTree =
+    classicTreeOf (withNumberedSlots DistributionMother.v3LibraryWithDependency)
 
 /// <summary>The classic Specs of <c>DistributionMother.v3Specs</c>, with numbered attribute slots.</summary>
 let v3Specs: StoredTree =
@@ -454,6 +468,34 @@ module Invalid =
     let nodeFileWithNeitherDefNorSpec () : VFileTree =
         acmeFiles ()
         |> Driver.withoutMember invoiceTypeFile "def"
+
+    let private finance = "pkg/my-org/finance/pricing/models/"
+
+    /// <summary>The type file of <c>invoice</c> in <see cref="v4LibraryWithDependency"/>.</summary>
+    let financeInvoiceTypeFile =
+        finance
+        + "invoice.type.json"
+
+    /// <summary>The value file of <c>default-currency</c> in <see cref="v4LibraryWithDependency"/>.</summary>
+    let financeDefaultCurrencyValueFile =
+        finance
+        + "default-currency.value.json"
+
+    /// <summary>
+    /// <see cref="v4LibraryWithDependency"/> with the type expression of <c>invoice</c>, a record, spelled as a node
+    /// with the tag <c>Struct</c>, which no type node has.
+    /// </summary>
+    let typeFileWithAnUnknownTypeTag () : VFileTree =
+        written v4LibraryWithDependency
+        |> Driver.withText financeInvoiceTypeFile (fun text -> text.Replace("\"Record\"", "\"Struct\""))
+
+    /// <summary>
+    /// <see cref="v4LibraryWithDependency"/> with no file for the value <c>default-currency</c>, which its module file
+    /// lists.
+    /// </summary>
+    let moduleListingAMissingValue () : VFileTree =
+        written v4LibraryWithDependency
+        |> Driver.withoutFile financeDefaultCurrencyValueFile
 
     let private v3Files () = written v3Library
 

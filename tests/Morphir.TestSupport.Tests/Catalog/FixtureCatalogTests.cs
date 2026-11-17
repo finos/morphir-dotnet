@@ -54,6 +54,56 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void AWrittenTreeHasEachFileAtItsLocationInTheTree()
+    {
+        var tree = FixtureCatalog.Trees.WrittenV4LibraryWithDependency;
+
+        tree.Files.Select(file => file.Location).Should().Contain(["manifest.json", "pkg/my-org/finance/pricing/models/module.json", "deps/morphir/_sdk/@/api/zero.value.json"]);
+        tree.Files.Select(file => file.Location).Should().BeInAscendingOrder(StringComparer.Ordinal);
+        tree.Files.Should().OnlyContain(file => file.Entry.RelativePath == "MorphirTrees/written-v4-library-with-dependency/" + file.Location);
+        FixtureCatalog.Trees.WrittenV3LibraryWithDependency.Files.Should().HaveCount(tree.Files.Count);
+    }
+
+    [Test]
+    public void AFaultyTreeDiffersFromItsTreeInOneFile()
+    {
+        var tree = FixtureCatalog.Trees.WrittenV4LibraryWithDependency;
+        var unknownTag = FixtureCatalog.Trees.WrittenV4WithAnUnknownTypeTag;
+        var missingValue = FixtureCatalog.Trees.WrittenV4WithAMissingValueFile;
+
+        unknownTag.Tree.Files.Select(file => file.Location).Should().Equal(tree.Files.Select(file => file.Location));
+        unknownTag.Tree.Files.Where(file => file.Entry != tree.Files.Single(other => other.Location == file.Location).Entry)
+            .Select(file => file.Location).Should().Equal(unknownTag.Fault.File);
+        FixtureCatalog.ReadText(unknownTag.Tree.Files.Single(file => file.Location == unknownTag.Fault.File).Entry).Should().Contain("\"Struct\"");
+
+        missingValue.Tree.Files.Select(file => file.Location).Should().Equal(tree.Files.Select(file => file.Location).Where(location => location != missingValue.Fault.File));
+        missingValue.Fault.Names.Should().Equal("pkg/my-org/finance/pricing/models/module.json", "default-currency");
+    }
+
+    [Test]
+    public void ATreeRefusesAFileThatItHasNot()
+    {
+        var tree = FixtureCatalog.Trees.WrittenV4LibraryWithDependency;
+
+        ((Action)(() => tree.Without("no/such.json", "a tree"))).Should().Throw<ArgumentException>().WithMessage("*no file at no/such.json*");
+        ((Action)(() => tree.WithFile("no/such.json", tree.Files[0].Entry, "a tree"))).Should().Throw<ArgumentException>();
+        ((Action)(() => FixtureTree.Below("a tree", "MorphirIR/", [tree.Files[0].Entry]))).Should().Throw<ArgumentException>().WithMessage("*is not below MorphirIR/*");
+    }
+
+    [Test]
+    public async Task ATreeIsWrittenIntoAWorkspaceWithItsBytes()
+    {
+        await using var workspace = Morphir.TestSupport.Drivers.ScenarioWorkspace.Create(Path.Combine(AppContext.BaseDirectory, "Fixtures"));
+        var tree = FixtureCatalog.Trees.WrittenV4WithAMissingValueFile.Tree;
+
+        var directory = workspace.WriteTree(tree, "model");
+
+        workspace.FilesIn(directory).Should().Equal(tree.Files.Select(file => file.Location));
+        foreach (var file in tree.Files)
+            workspace.ReadBytes(directory.File(file.Location.Split('/'))).Should().Equal(FixtureCatalog.ReadBytes(file.Entry));
+    }
+
+    [Test]
     public void DocumentTree0006YamlAndJsonLoadEqual()
     {
         // document-tree-0006 is document-tree-0003's set spelled in the JSON profile.

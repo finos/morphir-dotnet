@@ -60,6 +60,14 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
     [When("I run each documented command of the host on the model")]
     public Task RunEachCommandOnTheModel() => RunEach(arguments => arguments.Replace("model.json", $"\"{run.Model.Path}\"", StringComparison.Ordinal));
 
+    /// <summary>Runs each documented command of the host, with the directory <c>model/</c> as the model tree of the scenario.</summary>
+    [When("I run each documented command of the host on the model tree")]
+    public Task RunEachCommandOnTheModelTree()
+    {
+        var tree = run.ModelTree ?? throw new InvalidOperationException("The scenario has no model tree before this step.");
+        return RunEach(arguments => arguments.Replace(" model/", $" \"{tree.Path}\"", StringComparison.Ordinal));
+    }
+
     /// <summary>Runs each documented command of the host, with the paths <c>src/</c> and <c>broken/</c> in the work area.</summary>
     [When("I run each documented command of the host in the work area")]
     public Task RunEachCommandInTheWorkArea() =>

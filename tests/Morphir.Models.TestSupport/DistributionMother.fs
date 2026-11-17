@@ -131,6 +131,12 @@ let dependencyWithoutModules: Distribution =
 let v3Library: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     buildV3 financeV3
 
+/// <summary>A classic library with the module and the dependency of <c>v4LibraryWithDependency</c>.</summary>
+let v3LibraryWithDependency: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
+    financeV3
+    |> withDependency Sdk.package sdkBasics
+    |> buildV3
+
 /// <summary>A classic Specs distribution with one module and one dependency, which the classic writer writes at 3.1.0.</summary>
 let v3Specs: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     financeV3

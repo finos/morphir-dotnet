@@ -28,6 +28,8 @@
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/invoice.type.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/invoice.type.json" />
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/module.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/module.json" />
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/total.value.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/total.value.json" />
+    <!-- The trees that the document-tree store wrote from mother cases, each file named by its location in the tree. -->
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/written-*/**/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/$([System.String]::Copy('%(RecursiveDir)').Replace('\','/'))%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- The child process of ChildProcess tests and of ConsoleInterrupt: see ProcessHelper. -->

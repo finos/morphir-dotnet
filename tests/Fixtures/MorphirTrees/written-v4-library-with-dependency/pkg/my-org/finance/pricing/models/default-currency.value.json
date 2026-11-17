@@ -1,0 +1,17 @@
+{
+  "formatVersion": 4,
+  "name": "default-currency",
+  "def": {
+    "Public": {
+      "ExpressionBody": {
+        "inputTypes": {},
+        "outputType": "morphir/SDK:string#string",
+        "body": {
+          "Literal": {
+            "StringLiteral": "USD"
+          }
+        }
+      }
+    }
+  }
+}

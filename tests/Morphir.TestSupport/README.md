@@ -22,7 +22,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | --- | --- |
 | `IScenarioWorkspace` (`ScenarioWorkspace`) | The contained folder of one test: the work area, the home, the Morphir home, the temporary directory, the fixture copies, and the list of files written since a `WorkspaceMark`. A step gets a file as a `WorkspaceFile` or a `WorkspaceDirectory`. |
 | `ICliDriver` (`CliDriver`) | Runs one command line on one host of the target and returns a `CommandResult`. It contains the process in the workspace, gives it a time limit (`CliRunOptions`), and holds a place of the `ProcessGate`. It starts a built assembly with `dotnet`, not with `dotnet run`. |
-| `IModelVerificationDriver` (`ModelVerificationDriver`) | The `model verify` command as an intent, with `VerificationOptions`. Its report is `VerificationReport`. |
+| `IModelVerificationDriver` (`ModelVerificationDriver`) | The `model verify` command as an intent, on a `ModelLocation` (a single file or the directory of a document tree), with `VerificationOptions`. Its report is `VerificationReport`. |
 | `IGenerationDriver` (`GenerationDriver`) | The `generate` command as an intent, with `GenerationOptions`. Its report is `GenerationReport`. |
 | `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. It records the Morphir locations of the machine at the start (`MachineTripwire`), and at the end of the run it prints the skip counts and fails if a test changed those locations. |
 | `DriverSet` | The workspace and the drivers of one test on one host. `DriverSet.CliOf` gives the CLI driver of another host of the target, for a test that compares the hosts (`@needs-all-hosts`). |
@@ -69,7 +69,9 @@ that the command wrote in the work area. Two layers check it:
   `JsonOutputArgument.WithMode`, `JsonOutputArgument.Separated`, `JsonOutputArgument.FormerStreamingFlag` and
   `JsonOutputArgument.Then` (an option that the command does not have, at the end of
   the command line). The drivers of `model verify` and the migrations put it right before their positional input.
-- A report type has the checks of its own command. `VerificationReport` reads the fields `IsValid` and `exitCode`.
+- A report type has the checks of its own command. `VerificationReport` reads the fields `IsValid`, `exitCode`,
+  `layout`, `filesChecked` and `compactedFiles`, and the `file` and `code` of each error; `VerificationReport.ShouldHaveAnErrorAt`
+  finds the error at a `FixtureFault`.
   `GenerationReport` reads the field `success`, and fails when the field disagrees with the exit code.
 - The reports of the other command families derive from `JsonCommandReport`: one JSON object (a document, or the
   `report` of a stream), a field `exitCode` that agrees with the exit code, and the list `diagnostics` as
@@ -223,6 +225,13 @@ that tests reach by intent. Each `FixtureEntry` has its intent, its path below `
 - `FixtureCatalog.Trees` holds document trees written by hand for this repository, each file at its location in the
   tree: `FixtureCatalog.Trees.AcmeDemo` is the v4 tree of `tests/Fixtures/MorphirTrees/acme-demo`, which "The same
   tree from two sources" reads from a directory and from resources that `tests/Morphir.Models.Tests` embeds.
+  It also holds the trees that the document-tree store wrote from mother cases, as `FixtureTree`s:
+  `WrittenV4LibraryWithDependency` and `WrittenV3LibraryWithDependency` (the trees that `model convert` writes), and
+  the faulty trees `WrittenV4WithAnUnknownTypeTag` and `WrittenV4WithAMissingValueFile`, each a `FaultyFixtureTree`
+  with its `FixtureFault` (the file, the JSON Pointer and the words of the fault). A tree that differs in one file is
+  another tree, `FixtureTree.Without` that file or `FixtureTree.WithFile` another entry. `FixtureTrees.WriteTree` writes a tree into a
+  workspace. A test of `tests/Morphir.Models.Tests` (`Store.Written trees of the catalog`) keeps the written trees
+  equal to what the store writes.
 - `FixtureCatalog.ExistingOwners` lists, as a `FixtureOwner` each, the folders that test projects owned before the
   catalog. `FixtureCatalog.UnownedFiles` gives the files that have no owner, and
   `tests/Morphir.Build.Tests/Helpers/FixtureOwnershipTests.cs` fails on each.

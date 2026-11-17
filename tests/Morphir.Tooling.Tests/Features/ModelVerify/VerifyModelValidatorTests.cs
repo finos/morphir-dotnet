@@ -1,15 +1,15 @@
 using FluentAssertions;
-using Morphir.Tooling.Features.VerifyIR;
+using Morphir.Tooling.Features.ModelVerify;
 
-namespace Morphir.Tooling.Tests.Features.VerifyIR;
+namespace Morphir.Tooling.Tests.Features.ModelVerify;
 
-public class VerifyIRValidatorTests
+public class VerifyModelValidatorTests
 {
-    private readonly VerifyIRValidator _sut;
+    private readonly VerifyModelValidator _sut;
 
-    public VerifyIRValidatorTests()
+    public VerifyModelValidatorTests()
     {
-        _sut = new VerifyIRValidator();
+        _sut = new VerifyModelValidator();
     }
 
     [Test]
@@ -17,7 +17,7 @@ public class VerifyIRValidatorTests
     public async Task Validate_ShouldSucceed_WhenFileExistsAndVersionValid()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/valid-ir-v3.json",
             SchemaVersion: 3
         );
@@ -35,7 +35,7 @@ public class VerifyIRValidatorTests
     public async Task Validate_ShouldSucceed_WhenFileExistsAndVersionNotSpecified()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/valid-ir-v3.json",
             SchemaVersion: null  // Auto-detect
         );
@@ -51,7 +51,7 @@ public class VerifyIRValidatorTests
     public async Task Validate_ShouldFail_WhenFilePathEmpty()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "",
             SchemaVersion: 3
         );
@@ -70,7 +70,7 @@ public class VerifyIRValidatorTests
     public async Task Validate_ShouldFail_WhenFileDoesNotExist()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/nonexistent-file.json",
             SchemaVersion: 3
         );
@@ -90,7 +90,7 @@ public class VerifyIRValidatorTests
     public async Task Validate_ShouldFail_WhenSchemaVersionLessThan1()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/valid-ir-v3.json",
             SchemaVersion: 0
         );
@@ -102,27 +102,27 @@ public class VerifyIRValidatorTests
         result.IsValid.Should().BeFalse("schema version < 1 should fail validation");
         result.Errors.Should().ContainSingle(e =>
             e.PropertyName == "SchemaVersion" &&
-            e.ErrorMessage.Contains("must be 1, 2, or 3"));
+            e.ErrorMessage.Contains("must be 1, 2, 3 or 4"));
     }
 
     [Test]
     [Category("PlatformSpecific")]
-    public async Task Validate_ShouldFail_WhenSchemaVersionGreaterThan3()
+    public async Task Validate_ShouldFail_WhenSchemaVersionGreaterThan4()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/valid-ir-v3.json",
-            SchemaVersion: 4
+            SchemaVersion: 5
         );
 
         // Act
         var result = await _sut.ValidateAsync(command);
 
         // Assert
-        result.IsValid.Should().BeFalse("schema version > 3 should fail validation");
+        result.IsValid.Should().BeFalse("schema version > 4 should fail validation");
         result.Errors.Should().ContainSingle(e =>
             e.PropertyName == "SchemaVersion" &&
-            e.ErrorMessage.Contains("must be 1, 2, or 3"));
+            e.ErrorMessage.Contains("must be 1, 2, 3 or 4"));
     }
 
     [Test]
@@ -130,9 +130,9 @@ public class VerifyIRValidatorTests
     public async Task Validate_ShouldSucceed_ForAllValidVersions()
     {
         // Arrange & Act & Assert
-        foreach (var version in new[] { 1, 2, 3 })
+        foreach (var version in new[] { 1, 2, 3, 4 })
         {
-            var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+            var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
                 FilePath: "TestData/valid-ir-v3.json",
                 SchemaVersion: version
             );
@@ -144,10 +144,21 @@ public class VerifyIRValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
+    public async Task Validate_ShouldSucceed_WhenThePathIsTheDirectoryOfATree()
+    {
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(FilePath: "TestData", SchemaVersion: 4);
+
+        var result = await _sut.ValidateAsync(command);
+
+        result.IsValid.Should().BeTrue("a document tree is a directory");
+    }
+
+    [Test]
     public async Task Validate_ShouldIncludeMultipleErrors_WhenMultipleRulesViolated()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "",  // Invalid: empty
             SchemaVersion: 99  // Invalid: out of range
         );

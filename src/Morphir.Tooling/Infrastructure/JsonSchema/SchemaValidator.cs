@@ -31,6 +31,7 @@ public class SchemaValidator
         _schemaLoader = schemaLoader;
     }
 
+    /// <summary>Validates a single-file model against the schema of the IR format version <paramref name="schemaVersion"/>.</summary>
     public async Task<SchemaValidationResult> ValidateAsync(
         string jsonContent,
         string schemaVersion,
@@ -38,7 +39,24 @@ public class SchemaValidator
     {
         // Load schema (cached)
         var schema = await _schemaLoader.LoadSchemaAsync(schemaVersion, ct);
+        return await ValidateAsync(jsonContent, schema, ct);
+    }
 
+    /// <summary>Validates one file of a v4 document tree against the schema of its kind.</summary>
+    public async Task<SchemaValidationResult> ValidateTreeFileAsync(
+        string jsonContent,
+        TreeFileKind kind,
+        CancellationToken ct)
+    {
+        var schema = await _schemaLoader.LoadTreeFileSchemaAsync(kind, ct);
+        return await ValidateAsync(jsonContent, schema, ct);
+    }
+
+    private async Task<SchemaValidationResult> ValidateAsync(
+        string jsonContent,
+        global::Json.Schema.JsonSchema schema,
+        CancellationToken ct)
+    {
         // Parse JSON
         using var jsonDocument = JsonDocument.Parse(jsonContent, ModelDocumentOptions);
 
@@ -66,7 +84,9 @@ public class SchemaValidator
             {
                 completion.SetResult(schema.Evaluate(model, new EvaluationOptions
                 {
-                    OutputFormat = OutputFormat.List,
+                    // The tree of results, so an error below a subschema that holds (a branch of an anyOf or a
+                    // oneOf that another branch satisfies) is told from an error of the model.
+                    OutputFormat = OutputFormat.Hierarchical,
                     RequireFormatValidation = false  // Don't require format validation
                 }));
             }
@@ -83,34 +103,43 @@ public class SchemaValidator
         return completion.Task;
     }
 
-    private List<Features.VerifyIR.ValidationError> ConvertToValidationErrors(EvaluationResults results)
+    /// <summary>
+    /// The errors of the evaluation: each error of a subschema that fails, read from the root down through the
+    /// subschemas that fail only. A subschema that holds is not entered, so the errors of a branch of an
+    /// <c>anyOf</c> or a <c>oneOf</c> whose node another branch accepts are not errors of the model. An error that
+    /// two subschemas give at one location with the same message is listed once.
+    /// </summary>
+    private List<Features.ModelVerify.ValidationError> ConvertToValidationErrors(EvaluationResults results)
     {
-        var errors = new List<Features.VerifyIR.ValidationError>();
+        var errors = new List<Features.ModelVerify.ValidationError>();
+        var seen = new HashSet<(string, string)>();
+        var pending = new Stack<EvaluationResults>();
+        pending.Push(results);
 
-        if (!results.IsValid)
+        while (pending.Count > 0)
         {
-            // Traverse the results to collect all errors
-            foreach (var detail in results.Details ?? [])
-            {
-                if (!detail.IsValid && detail.Errors != null)
-                {
-                    foreach (var (errorKey, errorValue) in detail.Errors)
-                    {
-                        // Extract expected and found values from the validation context
-                        var expectedValue = ExtractExpectedValue(errorKey, errorValue);
-                        var foundValue = ExtractFoundValue(errorKey, errorValue);
+            var node = pending.Pop();
+            if (node.IsValid) continue;
 
-                        errors.Add(new Features.VerifyIR.ValidationError(
-                            Path: detail.InstanceLocation.ToString(),
-                            Message: errorValue ?? $"Validation failed for key: {errorKey}",
-                            Expected: expectedValue,
-                            Found: foundValue,
-                            Line: null,     // Calculating line numbers requires tracking position during parse
-                            Column: null    // Calculating columns requires tracking position during parse
-                        ));
-                    }
-                }
+            foreach (var (errorKey, errorValue) in node.Errors ?? new Dictionary<string, string>())
+            {
+                var path = node.InstanceLocation.ToString();
+                var message = errorValue ?? $"Validation failed for key: {errorKey}";
+                if (!seen.Add((path, message))) continue;
+
+                errors.Add(new Features.ModelVerify.ValidationError(
+                    Path: path,
+                    Message: message,
+                    Expected: ExtractExpectedValue(errorKey, errorValue),
+                    Found: ExtractFoundValue(errorKey, errorValue),
+                    Line: null,     // Calculating line numbers requires tracking position during parse
+                    Column: null    // Calculating columns requires tracking position during parse
+                ));
             }
+
+            // In document order: the stack takes the last detail first.
+            var details = node.Details ?? [];
+            for (var i = details.Count - 1; i >= 0; i--) pending.Push(details[i]);
         }
 
         return errors;
@@ -205,5 +234,5 @@ public class SchemaValidator
 
 public record SchemaValidationResult(
     bool IsValid,
-    List<Features.VerifyIR.ValidationError> Errors
+    List<Features.ModelVerify.ValidationError> Errors
 );

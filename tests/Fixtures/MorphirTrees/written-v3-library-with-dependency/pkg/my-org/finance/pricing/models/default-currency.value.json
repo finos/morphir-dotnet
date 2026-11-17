@@ -1,0 +1,47 @@
+{
+  "formatVersion": "3.1.0",
+  "name": "default-currency",
+  "def": {
+    "access": "Public",
+    "value": {
+      "inputTypes": [],
+      "outputType": [
+        "Reference",
+        {
+          "slot": 7
+        },
+        [
+          [
+            [
+              "morphir"
+            ],
+            [
+              "s",
+              "d",
+              "k"
+            ]
+          ],
+          [
+            [
+              "string"
+            ]
+          ],
+          [
+            "string"
+          ]
+        ],
+        []
+      ],
+      "body": [
+        "Literal",
+        {
+          "slot": 8
+        },
+        [
+          "StringLiteral",
+          "USD"
+        ]
+      ]
+    }
+  }
+}

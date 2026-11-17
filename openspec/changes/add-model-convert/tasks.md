@@ -42,8 +42,9 @@ All work is on `feat/model-convert`. Milestones end with a commit that builds an
 - [x] 5.1 Replace the `ir` group with `model` and `ir verify` with `model verify` (no alias), update `ModelVerificationDriver`, the `@needs-model-verification` description and `ModelVerification.feature` (now intent phrases from the fixture catalog), and verify the `cli-model-commands` scenarios, including "The former command is unknown". The report states `exitCode`, and a JSON mode is written with `--quiet` (spec amended). "The group lists its commands" checks `verify` until `convert` lands (6.x adds its row).
 - [x] 5.2 Update the docs pages and CHANGELOG for the rename, and verify the documented commands run as written in the black-box docs checks (`ModelVerifyDocumentation.feature` runs the documented commands of `cli/model-verify.md`).
 - [ ] 5.3 Draft the companion finos/morphir change (`tools/cli-release.ts` packaged-input check, `INSTALLING.md`, `docs/getting-started/morphir-cli.md`) on a parent branch, to land with the pin move that brings the rename; verify `bun test` for `tools/` passes there with a `model verify` stub.
-- [ ] 5.4 Pin the parent's `morphir-ir-v4.json` and `morphir-ir-v4-document-tree-files.json` schemas into `src/Morphir.Tooling/Infrastructure/Schemas` with provenance, make `model verify` detect and check IR v4 single files and accept `--schema-version=4`, and verify "A valid v4 model is valid" and "An invalid v4 model names its error".
-- [ ] 5.5 Make `model verify` check a document tree after group 4 lands: each v4 file against its file-kind schema, the tree rules and every document through the document-tree store (v3 trees through the store alone, as the parent publishes no v3 tree-file schema), errors naming file and JSON path, the report's layout and file count, and a `--schema-version` that contradicts the manifest exiting 2; verify the tree scenarios of `cli-model-commands` in `ModelVerification.feature`, including on trees `model convert` wrote.
+- [x] 5.4 Pin the parent's `morphir-ir-v4.json` and `morphir-ir-v4-document-tree-files.json` schemas into `src/Morphir.Tooling/Infrastructure/Schemas` with provenance, make `model verify` detect and check IR v4 single files and accept `--schema-version=4`, and verify "A valid v4 model is valid" and "An invalid v4 model names its error".
+- [x] 5.5 Make `model verify` check a document tree after group 4 lands: each v4 file against its file-kind schema, the tree rules and every document through the document-tree store (v3 trees through the store alone, as the parent publishes no v3 tree-file schema), errors naming file and JSON path, the report's layout and file count, and a `--schema-version` that contradicts the manifest exiting 2; verify the tree scenarios of `cli-model-commands` in `ModelVerification.feature`, including on trees `model convert` wrote.
+  - The trees are the ones that the document-tree store writes from mother cases, pinned in `FixtureCatalog.Trees` (`WrittenV4LibraryWithDependency`, `WrittenV3LibraryWithDependency` and two faulty variants) and kept equal to the store's output by `WrittenTreeTests` in `tests/Morphir.Models.Tests`; `model convert` writes through the same store. In process, `TreeVerificationTests` (`tests/Morphir.Tooling.Tests`) verifies every tree that the store writes from the mother, every kit tree case, and every store refusal of `DocumentTreeMother.Invalid` passing through with its code and file. A journey that runs `model convert` and then `model verify` waits for 6.3.
 
 ## 6. The convert command (milestone 1)
 
@@ -142,11 +143,11 @@ Every scenario of this change and the test that proves it. Unchanged scenarios o
 | cli-model-commands | JSON output is written in quiet mode | `ModelVerification.feature`; `ModelVerifyDocumentation.feature` |
 | cli-model-commands | A valid v4 model is valid | `ModelVerification.feature` (5.4) |
 | cli-model-commands | An invalid v4 model names its error | `ModelVerification.feature` (5.4) |
-| cli-model-commands | A valid v4 tree is valid | `ModelVerification.feature` (5.5) |
-| cli-model-commands | A valid v3 tree is valid | `ModelVerification.feature` (5.5) |
-| cli-model-commands | An error inside one tree file names the file | `ModelVerification.feature` (5.5) |
-| cli-model-commands | A broken tree rule is an error | `ModelVerification.feature` (5.5) |
-| cli-model-commands | A schema version that contradicts the manifest | `ModelVerification.feature` (5.5) |
+| cli-model-commands | A valid v4 tree is valid | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
+| cli-model-commands | A valid v3 tree is valid | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
+| cli-model-commands | An error inside one tree file names the file | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
+| cli-model-commands | A broken tree rule is an error | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
+| cli-model-commands | A schema version that contradicts the manifest | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
 | cli-model-commands | A compacted tree is verified after expansion | `ModelVerification.feature` (7.6) |
 | cli-model-commands | An invalid context fails verification | `ModelVerification.feature` (7.6) |
 | ir-model-writing | Version-specific spelling | existing writer tests, unchanged |

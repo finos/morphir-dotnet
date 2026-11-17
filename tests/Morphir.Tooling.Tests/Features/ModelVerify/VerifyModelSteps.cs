@@ -2,10 +2,10 @@ using FluentAssertions;
 using Morphir.Tooling.Infrastructure.JsonSchema;
 using System.Text.Json;
 
-namespace Morphir.Tooling.Tests.Features.VerifyIR;
+namespace Morphir.Tooling.Tests.Features.ModelVerify;
 
 [Binding]
-public class VerifyIRSteps
+public class VerifyModelSteps
 {
     private SchemaLoader? _schemaLoader;
     private SchemaValidator? _validator;

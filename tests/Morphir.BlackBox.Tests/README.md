@@ -86,6 +86,7 @@ two steps have the same pattern.
 | CLI | `Then standard error does not contain {string}` |
 | CLI | `Then standard output does not contain {string}` |
 | CLI | `Then standard output contains {string}` |
+| CLI | `Then standard error is empty` |
 | Model | `Given the model fixture {string}` |
 | Model | `Given the model tree fixture {string}` |
 | Model | `Given no model file {string}` |
@@ -453,6 +454,7 @@ two steps have the same pattern.
 | Documentation | `Then the page documents these commands` |
 | Documentation | `Given the source file {string}:` |
 | Documentation | `When I run each documented command of the host on the model` |
+| Documentation | `When I run each documented command of the host on the model tree` |
 | Documentation | `When I run each documented command of the host in the work area` |
 | Documentation | `Then each documented command exits with {int}` |
 | Documentation | `Then each documented command gives its documented output` |
@@ -530,7 +532,15 @@ two steps have the same pattern.
 | Model verification | `Then the verification report has the detection method {string}` |
 | Model verification | `When I verify the model in quiet mode as JSON` |
 | Model verification | `When I ask for the help of the model commands` |
-| Model verification | `When I verify the model with the former command, and no morphir-ir is on the search path` |
+| Model verification | `When I verify the model with the former command` |
+| Model verification | `When I verify the model as a JSON document` |
+| Model verification | `When I verify the model as a JSON document with an option that it does not have` |
+| Model verification | `Then the verification report has the layout {string}` |
+| Model verification | `Then the verification report counts every file of the tree` |
+| Model verification | `Then an error of the verification report names the place of the fault` |
+| Model verification | `Then an error of the verification report has the code {string} and names the place of the fault` |
+| Model verification | `Then an error of the verification report has the code {string} and names the versions {int} and {int}` |
+| Model verification | `Then the output names the file of the fault` |
 | Model verification | `Then the help lists the command {string} with a description` |
 | Model verification | `Then the command fails and names {string} as an unknown command` |
 | Model verification | `Then the model was not verified` |
@@ -539,6 +549,9 @@ two steps have the same pattern.
 | Model | `Given an IR model with no format version` |
 | Model | `Given an IR model whose format version is a string` |
 | Model | `Given a model file that is not JSON` |
+| Model | `Given an IR v4 model with an unknown tag in one type node` |
+| Model | `Given the tree that model convert wrote from a v{int} Library with a dependency` |
+| Model | `Given the tree that model convert wrote from a v4 Library with a dependency, with {string}` |
 | Extension list | `When I list the extensions as JSON` |
 | Extension list | `When I list the extensions as JSON on the other host` |
 | Extension list | `Then the extension list names the host of the run` |

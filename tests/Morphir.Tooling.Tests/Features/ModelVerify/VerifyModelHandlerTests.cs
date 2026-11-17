@@ -1,16 +1,16 @@
 using FluentAssertions;
-using Morphir.Tooling.Features.VerifyIR;
+using Morphir.Tooling.Features.ModelVerify;
 using Morphir.Tooling.Infrastructure.JsonSchema;
 
-namespace Morphir.Tooling.Tests.Features.VerifyIR;
+namespace Morphir.Tooling.Tests.Features.ModelVerify;
 
 [Category("PlatformSpecific")]
-public class VerifyIRHandlerTests
+public class VerifyModelHandlerTests
 {
     private readonly SchemaLoader _schemaLoader;
     private readonly SchemaValidator _validator;
 
-    public VerifyIRHandlerTests()
+    public VerifyModelHandlerTests()
     {
         _schemaLoader = new SchemaLoader();
         _validator = new SchemaValidator(_schemaLoader);
@@ -20,7 +20,7 @@ public class VerifyIRHandlerTests
     public async Task Handle_ShouldReturnValid_WhenIRIsValid()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/valid-ir-v3.json",
             SchemaVersion: 3,
             JsonOutput: false,
@@ -28,7 +28,7 @@ public class VerifyIRHandlerTests
         );
 
         // Act
-        var result = await VerifyIRHandler.Handle(command, _validator, CancellationToken.None);
+        var result = await VerifyModelHandler.Handle(command, _validator, CancellationToken.None);
 
         // Assert
         result.IsValid.Should().BeTrue("valid IR should pass validation");
@@ -44,13 +44,13 @@ public class VerifyIRHandlerTests
     public async Task Handle_ShouldReturnInvalid_WhenIRHasErrors()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/invalid-missing-formatversion.json",
             SchemaVersion: 3
         );
 
         // Act
-        var result = await VerifyIRHandler.Handle(command, _validator, CancellationToken.None);
+        var result = await VerifyModelHandler.Handle(command, _validator, CancellationToken.None);
 
         // Assert
         result.IsValid.Should().BeFalse("invalid IR should fail validation");
@@ -63,13 +63,13 @@ public class VerifyIRHandlerTests
     public async Task Handle_ShouldAutoDetectVersion_WhenVersionNotSpecified()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/valid-ir-v3.json",
             SchemaVersion: null  // Auto-detect
         );
 
         // Act
-        var result = await VerifyIRHandler.Handle(command, _validator, CancellationToken.None);
+        var result = await VerifyModelHandler.Handle(command, _validator, CancellationToken.None);
 
         // Assert
         result.DetectionMethod.Should().Be("auto", "version was auto-detected");
@@ -81,13 +81,13 @@ public class VerifyIRHandlerTests
     public async Task Handle_ShouldWorkWithV1IR()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/valid-ir-v1.json",
             SchemaVersion: 1
         );
 
         // Act
-        var result = await VerifyIRHandler.Handle(command, _validator, CancellationToken.None);
+        var result = await VerifyModelHandler.Handle(command, _validator, CancellationToken.None);
 
         // Assert
         result.IsValid.Should().BeTrue("valid v1 IR should pass validation");
@@ -98,13 +98,13 @@ public class VerifyIRHandlerTests
     public async Task Handle_ShouldWorkWithV2IR()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/valid-ir-v2.json",
             SchemaVersion: 2
         );
 
         // Act
-        var result = await VerifyIRHandler.Handle(command, _validator, CancellationToken.None);
+        var result = await VerifyModelHandler.Handle(command, _validator, CancellationToken.None);
 
         // Assert
         result.IsValid.Should().BeTrue("valid v2 IR should pass validation");
@@ -115,14 +115,14 @@ public class VerifyIRHandlerTests
     public async Task Handle_ShouldIncludeTimestamp()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/valid-ir-v3.json",
             SchemaVersion: 3
         );
         var beforeExecution = DateTime.UtcNow;
 
         // Act
-        var result = await VerifyIRHandler.Handle(command, _validator, CancellationToken.None);
+        var result = await VerifyModelHandler.Handle(command, _validator, CancellationToken.None);
 
         // Assert
         result.Timestamp.Should().BeOnOrAfter(beforeExecution);
@@ -133,13 +133,13 @@ public class VerifyIRHandlerTests
     public async Task Handle_ShouldReturnErrorResult_WhenFileDoesNotExist()
     {
         // Arrange
-        var command = new Morphir.Tooling.Features.VerifyIR.VerifyIR(
+        var command = new Morphir.Tooling.Features.ModelVerify.VerifyModel(
             FilePath: "TestData/nonexistent-file.json",
             SchemaVersion: 3
         );
 
         // Act
-        var result = await VerifyIRHandler.Handle(command, _validator, CancellationToken.None);
+        var result = await VerifyModelHandler.Handle(command, _validator, CancellationToken.None);
 
         // Assert
         result.IsValid.Should().BeFalse("file not found should result in invalid");
@@ -154,12 +154,12 @@ public class VerifyIRHandlerTests
     [Test]
     public void TheJsonReportKeepsIsValidAndStatesTheExitCode()
     {
-        var usage = new VerifyIRResult(false, "unknown", "none", "", [], DateTime.UnixEpoch) { ExitCode = 2 };
+        var usage = new VerifyModelResult(false, "unknown", "none", "", [], DateTime.UnixEpoch) { ExitCode = 2 };
 
-        using var json = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(usage, VerifyIRResult.JsonInfo));
+        using var json = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(usage, VerifyModelResult.JsonInfo));
 
         json.RootElement.GetProperty("IsValid").GetBoolean().Should().BeFalse("the release check of finos/morphir reads IsValid");
         json.RootElement.GetProperty("exitCode").GetInt32().Should().Be(2, "a usage failure is told from a model that is not valid");
-        new VerifyIRResult(true, "3", "auto", "m.json", [], DateTime.UnixEpoch).ExitCode.Should().Be(0);
+        new VerifyModelResult(true, "3", "auto", "m.json", [], DateTime.UnixEpoch).ExitCode.Should().Be(0);
     }
 }

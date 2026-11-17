@@ -96,3 +96,8 @@ tests/Fixtures/MorphirIR/empty-library-v1.json text eol=lf
 tests/Fixtures/MorphirIR/empty-library-v2.json text eol=lf
 tests/Fixtures/MorphirIR/no-format-version.json text eol=lf
 tests/Fixtures/MorphirIR/string-format-version.json text eol=lf
+tests/Fixtures/MorphirIR/daily-rate-unknown-type-tag-v4.json text eol=lf
+
+# The IR v4 schemas of finos/morphir, pinned byte for byte (src/Morphir.Tooling/Infrastructure/Schemas/PROVENANCE.md).
+src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v4.json -text
+src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v4-document-tree-files.json -text

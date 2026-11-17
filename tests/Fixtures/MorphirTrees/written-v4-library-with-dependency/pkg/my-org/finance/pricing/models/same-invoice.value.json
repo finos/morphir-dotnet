@@ -1,0 +1,17 @@
+{
+  "formatVersion": 4,
+  "name": "same-invoice",
+  "def": {
+    "Public": {
+      "ExpressionBody": {
+        "inputTypes": {
+          "invoice": "my-org/finance:pricing/models#invoice"
+        },
+        "outputType": "my-org/finance:pricing/models#invoice",
+        "body": {
+          "Variable": "invoice"
+        }
+      }
+    }
+  }
+}

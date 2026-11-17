@@ -651,6 +651,15 @@
           "Morphir.Files": "[1.0.0, )"
         }
       },
+      "morphir.models.testsupport": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "FsCheck": "[2.16.5, )",
+          "Morphir.Files": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )"
+        }
+      },
       "morphir.myriad.systemtextjson.annotations": {
         "type": "Project"
       },
@@ -792,6 +801,15 @@
         "contentHash": "pxe8IZxl2HNGSynwvTrOIg28IYDuXcOgJ0Fv4CVMNTRdEbqHL5mVsZfSAI/gcjEOYN8XnJoKoSl4RtoTxLxFwQ==",
         "dependencies": {
           "Foundatio.Mediator.Abstractions": "1.3.3"
+        }
+      },
+      "FsCheck": {
+        "type": "CentralTransitive",
+        "requested": "[2.16.5, )",
+        "resolved": "2.16.5",
+        "contentHash": "Tw6Lb/UBqtmUj5porM1rRcAU5xT9NttSlFTaIQ8gn4Fsw2LiZavN/eMAZqSA63laV51t4HRJJAAGeYSWFFxRfA==",
+        "dependencies": {
+          "FSharp.Core": "4.2.3"
         }
       },
       "FSharp.Compiler.Service": {

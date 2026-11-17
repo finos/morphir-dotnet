@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using FluentAssertions;
 using Morphir.TestSupport.Drivers;
+using Morphir.TestSupport.Fixtures;
 
 namespace Morphir.TestSupport.Tests.Drivers;
 
@@ -62,6 +63,59 @@ public class CapabilityDriverTests
         // An unknown option ends the command line, so the parser cannot take it as the path.
         cli.Commands[4].Should().Equal("model", "verify", "--json", model.Path, "--no-such-option");
         model.Path.Should().Contain(" ");
+    }
+
+    [Test]
+    public async Task VerifyTakesTheDirectoryOfATreeAsOneArgument()
+    {
+        await using var workspace = Workspace();
+        var cli = new RecordingCli();
+        var tree = workspace.Directory("my models", "a tree");
+
+        await new ModelVerificationDriver(cli).VerifyAsync(tree, new VerificationOptions { Json = JsonOutputArgument.Document });
+
+        cli.Commands[0].Should().Equal("model", "verify", "--json=document", tree.Path);
+    }
+
+    [Test]
+    public async Task ARealVerificationReportOfATreeReadsItsLayoutItsFilesAndTheFileAndCodeOfAnError()
+    {
+        await using var workspace = Workspace();
+        var faulty = FixtureCatalog.Trees.WrittenV4WithAMissingValueFile;
+        var tree = workspace.WriteTree(faulty.Tree, "my models", "a tree");
+
+        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(tree, new VerificationOptions { Json = JsonOutputArgument.Document });
+        var report = VerificationReport.Of(result);
+
+        result.ShouldExitWith(1);
+        report.ShouldBeInvalid();
+        report.Layout.Should().Be("document-tree");
+        report.FilesChecked.Should().Be(faulty.Tree.Files.Count);
+        report.CompactedFiles.Should().BeEmpty();
+        report.SchemaVersion.Should().Be("4");
+        var error = report.ShouldHaveAnErrorAt(faulty.Fault, "missing_member");
+        error.File.Should().Be(faulty.Fault.File);
+        error.Code.Should().Be("missing_member");
+        ((Action)(() => report.ShouldHaveAnErrorAt(faulty.Fault, "unknown_member"))).Should().Throw<CommandAssertionException>()
+            .WithMessage("*no error unknown_member*").WithMessage("*missing_member*");
+        ((Action)(() => report.ShouldHaveAnErrorAt(faulty.Fault with { File = "manifest.json" }))).Should().Throw<CommandAssertionException>();
+    }
+
+    [Test]
+    public async Task ARealVerificationReportOfASingleFileHasItsLayoutAndNoFileInItsErrors()
+    {
+        await using var workspace = Workspace();
+        var faulty = FixtureCatalog.Models.V4WithAnUnknownTypeTag;
+        var model = workspace.File("my models", "model.json");
+        workspace.WriteBytes(model, FixtureCatalog.ReadBytes(faulty.Entry));
+
+        var report = VerificationReport.Of(await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream }));
+
+        report.Layout.Should().Be("single-file");
+        report.FilesChecked.Should().Be(1);
+        report.SchemaVersion.Should().Be("4");
+        report.Errors.Should().OnlyContain(error => error.File == null && error.Code == null);
+        report.ShouldHaveAnErrorAt(faulty.Fault).Path.Should().Be(faulty.Fault.JsonPointer);
     }
 
     [Test]

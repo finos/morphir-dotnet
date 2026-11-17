@@ -28,8 +28,46 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
         1 => FixtureCatalog.Models.V1EmptyLibrary,
         2 => FixtureCatalog.Models.V2EmptyLibrary,
         3 => FixtureCatalog.Models.V3DailyRate,
-        _ => throw new ArgumentOutOfRangeException(nameof(version), version, "The catalog has a valid model of the versions 1, 2 and 3."),
+        4 => FixtureCatalog.Models.V4DailyRate,
+        _ => throw new ArgumentOutOfRangeException(nameof(version), version, "The catalog has a valid model of the versions 1 to 4."),
     });
+
+    /// <summary>A single-file v4 model with one type node whose tag no type node has, and where that node is.</summary>
+    [Given("an IR v4 model with an unknown tag in one type node")]
+    public void AV4ModelWithAnUnknownTypeTag()
+    {
+        TheCatalogModel(FixtureCatalog.Models.V4WithAnUnknownTypeTag.Entry);
+        run.Fault = FixtureCatalog.Models.V4WithAnUnknownTypeTag.Fault;
+    }
+
+    /// <summary>
+    /// The document tree that the store, and so <c>model convert</c>, writes from a mother case of a Library with a
+    /// dependency, from <see cref="FixtureCatalog.Trees"/>, in the directory <c>model</c> of the workspace.
+    /// </summary>
+    [Given("the tree that model convert wrote from a v{int} Library with a dependency")]
+    public void TheWrittenTree(int version) => TheCatalogTree(version switch
+    {
+        3 => FixtureCatalog.Trees.WrittenV3LibraryWithDependency,
+        4 => FixtureCatalog.Trees.WrittenV4LibraryWithDependency,
+        _ => throw new ArgumentOutOfRangeException(nameof(version), version, "The catalog has a written tree of the versions 3 and 4."),
+    });
+
+    /// <summary>The written v4 tree with one fault, and where the fault is.</summary>
+    [Given("the tree that model convert wrote from a v4 Library with a dependency, with {string}")]
+    public void TheWrittenTreeWithAFault(string fault)
+    {
+        var faulty = fault switch
+        {
+            "an unknown tag in one type node" => FixtureCatalog.Trees.WrittenV4WithAnUnknownTypeTag,
+            "no file for one value" => FixtureCatalog.Trees.WrittenV4WithAMissingValueFile,
+            _ => throw new ArgumentOutOfRangeException(nameof(fault), fault, "Use 'an unknown tag in one type node' or 'no file for one value'."),
+        };
+        TheCatalogTree(faulty.Tree);
+        run.Fault = faulty.Fault;
+    }
+
+    /// <summary>Writes a catalog tree to the directory <c>model</c> of the workspace, as the model of the scenario.</summary>
+    private void TheCatalogTree(FixtureTree tree) => run.ModelTree = workspace.WriteTree(tree, "model");
 
     [Given("an IR model with no format version")]
     public void AModelWithNoFormatVersion() => TheCatalogModel(FixtureCatalog.Models.NoFormatVersion);
