@@ -1064,14 +1064,16 @@ module internal ContextExpansion =
         use buffer = new MemoryStream()
 
         // A spelling is at most three levels deeper than the reference it replaces (a classic FQName), so the writer
-        // has room for that; the parse below checks the limit itself.
+        // has room for that; the parse below checks the limit itself. The walk recurses once for each level, and a
+        // stack that cannot hold the document's depth refuses it as too deep rather than ending the process.
         let written =
             try
                 use writer = new Utf8JsonWriter(buffer, JsonWriterOptions(MaxDepth = limits.MaxDepth + 8))
                 walk context problems writer root document
                 true
-            with :? InvalidOperationException ->
-                false
+            with
+            | :? InvalidOperationException
+            | :? InsufficientExecutionStackException -> false
 
         if not written then
             tooDeep ()

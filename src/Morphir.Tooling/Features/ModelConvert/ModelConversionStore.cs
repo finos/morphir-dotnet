@@ -4,6 +4,7 @@ using System.Text.Json;
 using Morphir.Files;
 using Morphir.IR.Files;
 using Morphir.IR.Trees;
+using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.ModelConvert;
 
@@ -147,7 +148,10 @@ public sealed class DiskModelConversionStore : IModelConversionStore
     public ValueTask<ModelRead> ReadAsync(ModelSource source, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(source.Layout == ModelLayout.DocumentTree ? ReadTree(source) : ReadSingleFile(source));
+        // A single file is read to a depth of 4096, and its expansion and decoders recurse for each level.
+        return source.Layout == ModelLayout.DocumentTree
+            ? ValueTask.FromResult(ReadTree(source))
+            : new ValueTask<ModelRead>(LargeStack.RunAsync(() => ReadSingleFile(source), "morphir model convert read", ct));
     }
 
     private static ModelRead ReadSingleFile(ModelSource source)

@@ -154,6 +154,21 @@ Feature: Model convert
     And the report states the input encoding "compacted"
     And nothing is at the output
 
+  Scenario: A compacted single file near the depth limit ends with a report
+    Given a compacted v3 single-file model nested "near" the depth limit
+    When I convert the model to a document tree
+    Then the stream ends with one completed record
+    And the report states the input encoding "compacted"
+    And the report does not have the diagnostic "invalid_json"
+
+  Scenario: A compacted single file just past the depth limit is too deep
+    Given a compacted v3 single-file model nested "just past" the depth limit
+    When I convert the model to a document tree
+    Then the conversion fails with exit code 1 and the diagnostic "depth_limit_exceeded"
+    And the report states the input encoding "compacted"
+    And the stream ends with one completed record
+    And nothing is at the output
+
   Scenario: A single file in an undeclared envelope is refused without calling it compacted
     Given a single-file model in an envelope whose schema this version does not declare
     When I convert the model to a document tree

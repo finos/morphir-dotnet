@@ -57,6 +57,24 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     [Given("a compacted v{int} single-file model")]
     public void CompactedSingleFile(int ir) => PlaceFile(FixtureCatalog.Context.Example($"v{ir}-single-file").File);
 
+    /// <summary>
+    /// A compacted classic single file of the mother nested near the depth of a plain single file (4096 levels) or just
+    /// past it: 2,000 or 2,060 tuple types of two levels each around its deepest type reference.
+    /// </summary>
+    [Given("a compacted v3 single-file model nested {string} the depth limit")]
+    public void ADeeplyNestedCompactedSingleFile(string where)
+    {
+        var tuples = where switch
+        {
+            "near" => 2000,
+            "just past" => 2060,
+            _ => throw new ArgumentOutOfRangeException(nameof(where), where, "Use 'near' or 'just past'."),
+        };
+        var file = Workspace.File("models", "deep.json");
+        Workspace.WriteBytes(file, Morphir.Models.TestSupport.NamePositionMother.deeplyNestedCompactedFile(tuples).Item1);
+        Place(file);
+    }
+
     /// <summary>The parent's type file whose envelope schema URL no version of morphir declares, as a single file.</summary>
     [Given("a single-file model in an envelope whose schema this version does not declare")]
     public void SingleFileInAnUndeclaredEnvelope() => PlaceFile(FixtureCatalog.Context.Example("undeclared-schema").File);

@@ -14,16 +14,6 @@ public class SchemaValidator
     /// <summary>The options with which a model is parsed, here and in version detection.</summary>
     public static readonly JsonDocumentOptions ModelDocumentOptions = new() { MaxDepth = MaxModelDepth };
 
-    /// <summary>
-    /// The stack of the evaluation thread. Evaluation recurses several frames deep for each level of the model.
-    /// Measured on win-arm64 with optimized JIT code (nested <c>Apply</c> values): a 4 MB stack held 300 levels and
-    /// overflowed at 400, and 8 MB held 700 and overflowed at 900, so a level takes about 10 to 13 KB, and the
-    /// default stack of 1 MB holds fewer than 100 levels. <see cref="MaxModelDepth"/> levels need about 7 MB; 64 MB
-    /// leaves about nine times that for other platforms and code generators. The tests at the depth limit run on each
-    /// operating system. The memory is reserved, and committed only as used.
-    /// </summary>
-    private const int EvaluationStackSize = 64 * 1024 * 1024;
-
     private readonly SchemaLoader _schemaLoader;
 
     public SchemaValidator(SchemaLoader schemaLoader)
@@ -105,29 +95,8 @@ public class SchemaValidator
         }];
     }
 
-    /// <summary>Runs <paramref name="work"/> on a thread with the stack of <see cref="EvaluationStackSize"/>.</summary>
-    private static Task<T> OnLargeStack<T>(Func<T> work, string name, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                completion.SetResult(work());
-            }
-            catch (Exception error)
-            {
-                completion.SetException(error);
-            }
-        }, EvaluationStackSize)
-        {
-            IsBackground = true,
-            Name = name,
-        };
-        thread.Start();
-        return completion.Task;
-    }
+    /// <summary>Runs <paramref name="work"/> on a thread with the stack of <see cref="LargeStack.Size"/>.</summary>
+    private static Task<T> OnLargeStack<T>(Func<T> work, string name, CancellationToken ct) => LargeStack.RunAsync(work, name, ct);
 
     /// <summary>
     /// The errors of the evaluation: each error of a subschema that fails, read from the root down through the

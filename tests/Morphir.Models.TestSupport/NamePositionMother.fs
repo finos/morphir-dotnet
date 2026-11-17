@@ -15,6 +15,7 @@
 /// </remarks>
 module Morphir.Models.TestSupport.NamePositionMother
 
+open System
 open System.Text
 open System.Text.Json
 open System.Text.Json.Nodes
@@ -1141,23 +1142,39 @@ let deeplyNested (extraLevels: int) : string * NamePosition =
     classicFqName "the deepest type reference" "deepest-type-reference"
 
 /// <summary>
-/// The deeply nested classic single file of <see cref="deeplyNested"/> in an envelope of <c>ir-context</c>
-/// 0.1.0-draft.1, its deepest type reference replaced by the reference <c>{"$name": "a"}</c>, whose entry is in the
-/// context's <c>fqNames</c>: the bytes of the file, and the plain document it expands to.
+/// A classic single file whose one type alias nests its deepest type reference in <paramref name="tuples"/> tuple
+/// types, two JSON levels each, built as text so that it can be deeper than a JSON writer goes (System.Text.Json
+/// writes at most 1,000 levels by default): the file in an envelope of <c>ir-context</c> 0.1.0-draft.1, its
+/// reference replaced by <c>{"$name": "a"}</c> with its entry in the context's <c>fqNames</c>, and the plain
+/// document that it expands to. Each tuple adds two levels to the depth of the shallow model.
 /// </summary>
-let deeplyNestedCompactedFile (extraLevels: int) : byte array * string =
-    let plain, position = deeplyNested extraLevels
-    let compacted, count = withReference (spellingOf position) plain
+let deeplyNestedCompactedFile (tuples: int) : byte array * string =
+    if tuples < 0 then
+        invalidArg (nameof tuples) "A count of tuple types is not negative."
 
-    if count <> 1 then
-        failwith $"The deeply nested model holds its deepest reference {count} times, not once."
+    let shallow, position = deeplyNested 0
 
-    let spelling =
+    let fqName, spelling =
         match position.Entry with
-        | FqNameEntry f -> CanonicalNames.fqNameToString f
+        | FqNameEntry f -> textOf (spellingOf position), CanonicalNames.fqNameToString f
         | other -> failwith $"The deepest reference is not an FQName: {other}."
 
+    // The classic JSON of a type reference with no arguments, and of a tuple type, with the unit attributes {}.
+    let referenceType (target: string) = "[\"Reference\",{}," + target + ",[]]"
+    let plainReference = referenceType fqName
+
+    if shallow.Split([| plainReference |], StringSplitOptions.None).Length <> 2 then
+        failwith $"The shallow model does not hold the reference {plainReference} once."
+
+    let nested (inner: string) =
+        String.replicate tuples "[\"Tuple\",{},[" + inner + String.replicate tuples "]]"
+
+    let plain = shallow.Replace(plainReference, nested plainReference)
+    let compacted = shallow.Replace(plainReference, nested (referenceType (textOf (reference ()))))
+
     let envelope =
-        $"{{\"$schema\":\"{MorphirFile.Draft1Schema}\",\"context\":{{\"fqNames\":{{\"{referenceId}\":\"{spelling}\"}}}},\"document\":{compacted}}}"
+        "{\"$schema\":\"" + MorphirFile.Draft1Schema + "\",\"context\":{\"fqNames\":{\"" + referenceId + "\":\""
+        + spelling + "\"}},\"document\":" + compacted + "}"
 
     Encoding.UTF8.GetBytes envelope, plain
+

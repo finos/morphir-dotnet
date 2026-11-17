@@ -221,7 +221,7 @@ and in the `diagnostics` events.
 | `model.unsupported_version` | 1 | The input is IR v1 or v2, which has no document tree. |
 | `context.undeclared_schema` | 1 | A file has a top-level `$schema` that this version does not know as a compaction envelope. |
 | `context.unknown_alias`, `context.duplicate_entry`, `context.unknown_critical`, `context.too_many_entries`, `context.name_too_long`, `context.after_document`, `context.invalid_envelope`, `context.invalid_entry` | 1 | A compacted file breaks a rule of its envelope or its context; see [Context refusals](#context-refusals). |
-| `depth_limit_exceeded` | 1 | The document of a compacted file is nested too deeply once its references are expanded. |
+| `depth_limit_exceeded` | 1 | A file is nested too deeply to read: a compacted single file deeper than 4,096 levels as written or once its references are expanded, a tree file deeper than 512, or a model deeper than a reader of its IR version holds. |
 | `tree.unsupported_option` | 1 | `--compact` was given, and this version does not write compacted files yet. |
 | `invalid_json` | 1 | A file of the input is not JSON. |
 | `model.read_failed`, `model.write_failed` | 1 | The disk refused a read or a write. |
@@ -254,6 +254,10 @@ a rule of `ir/name-compaction`. The codes are the contract's:
 The bytes of the context count toward the size limit of a tree file, as they are part of it. A compacted single file
 is read to the same depth of nesting as a plain one, as written and once expanded, and a file nested deeper is refused
 with `depth_limit_exceeded`.
+
+The message of a diagnostic of a compacted file that a reader of the model gives after expansion, such as
+`decode`, locates the fault in the expanded document (`$.distribution...`), not in the file as written, whose document
+is its envelope's `document` member.
 
 Notices have the severity `info` and do not fail the run:
 

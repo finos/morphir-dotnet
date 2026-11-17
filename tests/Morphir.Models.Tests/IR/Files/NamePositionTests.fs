@@ -121,6 +121,42 @@ let private filesUnder (prefix: string) (model: PositionModel) =
     |> List.filter (fun document -> document.Id.StartsWith(prefix, StringComparison.Ordinal))
     |> List.map (fun document -> document.Id.Substring prefix.Length, document.Text)
 
+/// The limits with the depth of a plain single file of model convert.
+let private deepLimits = ContextLimits.draft1.WithMaxDepth 4096
+
+/// The nesting of JSON bytes, read to any depth: the levels of the deepest container.
+let private nesting (bytes: byte array) =
+    let mutable reader = Utf8JsonReader(ReadOnlySpan bytes, JsonReaderOptions(MaxDepth = Int32.MaxValue))
+    let mutable deepest = 0
+
+    while reader.Read() do
+        deepest <- max deepest reader.CurrentDepth
+
+    deepest + 1
+
+/// The result of <paramref name="work"/> on a thread of its own with a stack of <paramref name="size"/> bytes.
+let private onStack (size: int) (work: unit -> 'a) : 'a =
+    let mutable result = None
+    let mutable failure = None
+
+    let thread =
+        Threading.Thread(
+            (fun () ->
+                try
+                    result <- Some(work ())
+                with error ->
+                    failure <- Some error),
+            size
+        )
+
+    thread.Start()
+    thread.Join()
+
+    match result, failure with
+    | Some value, _ -> value
+    | _, Some error -> raise (Exception("The work failed on its thread.", error))
+    | None, None -> failwith "The work gave no result."
+
 /// The containers around the most deeply nested value: what JsonDocumentOptions.MaxDepth limits.
 let private depthOf (text: string) =
     let mutable reader = Utf8JsonReader(Text.Encoding.UTF8.GetBytes text, JsonReaderOptions(MaxDepth = 4096))
@@ -189,23 +225,47 @@ let tests =
 
         testList "A compacted file is read to the depth of its limits" [
             // Deeper than the readers of a tree (512), within the depth of a plain single file of model convert.
-            let bytes, plain = Mother.deeplyNestedCompactedFile 600
+            let bytes, plain = Mother.deeplyNestedCompactedFile 300
             let read limits = MorphirFile.readPlainDocument limits "deep.json" (ReadOnlyMemory bytes)
 
             test "A file deeper than its limits is depth_limit_exceeded, not invalid_json" {
-                Expect.isGreaterThan (depthOf (Text.Encoding.UTF8.GetString bytes)) ContextLimits.draft1.MaxDepth "the file is deeper than draft1"
+                Expect.isGreaterThan (nesting bytes) ContextLimits.draft1.MaxDepth "the file is deeper than draft1"
                 Expect.equal (read ContextLimits.draft1 |> refusal |> codesAndFiles) [ "depth_limit_exceeded", Some "deep.json" ] "the named diagnostic"
             }
 
             test "The same file within deeper limits expands" {
-                match read (ContextLimits.draft1.WithMaxDepth 4096) with
-                | Ok document -> Expect.equal (normal (document.GetRawText())) (normal plain) "the plain document"
+                match read deepLimits with
+                | Ok document -> Expect.equal (document.GetRawText()) plain "the plain document"
                 | Error errors -> failtestf "%A" errors
             }
 
             test "Text that is not JSON stays invalid_json" {
                 let broken = Array.append (Array.sub bytes 0 (bytes.Length - 1)) "]"B
                 Expect.equal (MorphirFile.readPlainDocument ContextLimits.draft1 "deep.json" (ReadOnlyMemory broken) |> refusal |> List.map (fun e -> e.Code)) [ "invalid_json" ] "a deep file that is also broken"
+            }
+
+            // Near the depth of a plain single file of model convert (4096), and just past it.
+            let nearTheLimit, nearTheLimitPlain = Mother.deeplyNestedCompactedFile 2000
+            let pastTheLimit, _ = Mother.deeplyNestedCompactedFile 2060
+
+            test "A file near the deeper limit expands on a stack that holds its depth" {
+                Expect.isGreaterThan (nesting nearTheLimit) 4000 "the file is near the limit"
+                Expect.isLessThan (nesting nearTheLimit) deepLimits.MaxDepth "the file is within the limit"
+
+                match onStack (64 * 1024 * 1024) (fun () -> MorphirFile.readPlainDocument deepLimits "deep.json" (ReadOnlyMemory nearTheLimit)) with
+                | Ok document -> Expect.equal (document.GetRawText()) nearTheLimitPlain "the plain document"
+                | Error errors -> failtestf "%A" errors
+            }
+
+            test "A file near the deeper limit on a stack that cannot hold it is too deep, and the process goes on" {
+                let read = onStack (256 * 1024) (fun () -> MorphirFile.readPlainDocument deepLimits "deep.json" (ReadOnlyMemory nearTheLimit))
+                Expect.equal (read |> refusal |> codesAndFiles) [ "depth_limit_exceeded", Some "deep.json" ] "a refusal, not an exception"
+            }
+
+            test "A file just past the deeper limit is depth_limit_exceeded" {
+                Expect.isGreaterThan (nesting pastTheLimit) deepLimits.MaxDepth "the file is past the limit"
+                let read = onStack (64 * 1024 * 1024) (fun () -> MorphirFile.readPlainDocument deepLimits "deep.json" (ReadOnlyMemory pastTheLimit))
+                Expect.equal (read |> refusal |> codesAndFiles) [ "depth_limit_exceeded", Some "deep.json" ] "the named diagnostic"
             }
         ]
 
