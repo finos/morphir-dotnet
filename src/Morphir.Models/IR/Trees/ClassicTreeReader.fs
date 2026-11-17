@@ -16,6 +16,7 @@ module internal ClassicTreeReader =
     }
 
     let readClassic
+        (manifestCompacted: bool)
         (options: ReadOptions)
         (manifestFile: ClassicManifestFile)
         (files: (string * Morphir.Files.VFile) list)
@@ -23,6 +24,7 @@ module internal ClassicTreeReader =
         let manifest = manifestFile.Manifest
 
         TreeReader.readTree
+            manifestCompacted
             options
             manifestFile.PathBudget
             manifest.Package

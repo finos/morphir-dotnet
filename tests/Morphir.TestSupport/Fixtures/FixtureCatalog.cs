@@ -274,8 +274,176 @@ public static class FixtureCatalog
             new FixtureFault(null, null, ["manifest.json", "manifest.yaml"]));
     }
 
+    /// <summary>
+    /// RFC 8785, the JSON Canonicalization Scheme, as the RFC Editor publishes it: the source of the test vectors of the
+    /// canonical JSON writer.
+    /// </summary>
+    public static class Rfc8785
+    {
+        /// <summary>The plain text of RFC 8785.</summary>
+        public static FixtureEntry Text { get; } = new(
+            "the text of RFC 8785", "Rfc8785/rfc8785.txt",
+            "63d52294eb0e3f0014174288186d388b4ddbf2c67d1ce8af1d9726eb0c3ab240", "Rfc8785/PROVENANCE.md");
+
+        private static readonly Lazy<Rfc8785Vectors> Read = new(() => Rfc8785Reader.Read(ReadText(Text)));
+
+        /// <summary>The examples of the RFC: its number samples, its primitive sample and its sorting sample.</summary>
+        public static Rfc8785Vectors Vectors => Read.Value;
+    }
+
+    /// <summary>
+    /// The name-context data of finos/morphir (<c>ir-context</c> 0.1.0-draft.1), pinned as reference data below
+    /// <c>tests/Fixtures/MorphirContext</c>: the parent defines the envelope, its refusals and the expected expansions.
+    /// </summary>
+    public static class Context
+    {
+        private const string Provenance = "MorphirContext/PROVENANCE.md";
+
+        /// <summary>The directory of the envelope examples below <c>tests/Fixtures</c>.</summary>
+        public const string ExamplesDirectory = "MorphirContext/examples/";
+
+        private static FixtureEntry ExampleFile(string path, string sha256) =>
+            new($"the name-context example {path}", ExamplesDirectory + path, sha256, Provenance);
+
+        /// <summary>The index of the examples: each case's file, IR version, file kind, expected outcome and twin.</summary>
+        public static FixtureEntry Cases { get; } = ExampleFile("cases.json", "af1a59afdfbd8ae17c7724512f9ce8739df81fcafd6f78128a58e77d71dfa2dc");
+
+        /// <summary>Each example file and expanded twin, by its path below <see cref="ExamplesDirectory"/>.</summary>
+        public static IReadOnlyList<FixtureEntry> ExampleFiles { get; } =
+        [
+            ExampleFile("expanded/v3-manifest.json", "c2c8a7f3bd68e78f24e2c95c430461b1448c2994e2c5ad1bf873c0bc93a80ef3"),
+            ExampleFile("expanded/v3-module.json", "240f7695b3e8dea2f03c9201d218ba5933129deca7583ff80918206800828c21"),
+            ExampleFile("expanded/v3-single-file.json", "6095ee94f276efb07075adbbc41242ea8494f686a05faf38c9a556e90c41c738"),
+            ExampleFile("expanded/v3-type.json", "116f2e287b96d097c602994ca14c30aa1d3238cd3c945f233ccdde5ea13f787b"),
+            ExampleFile("expanded/v3-value.json", "a0c2faf84b7479ded2e595d1734c1035c4f865a93b930bd45302a01d3c354a99"),
+            ExampleFile("expanded/v4-manifest.json", "1f67490668d233d8b2e6a53cc4d312ee725eef837effdec1b899d6e767c1d0a9"),
+            ExampleFile("expanded/v4-module.json", "8469e9cb66313616c859419bbf1d0514ed77026ffa3dd6a4b1c4fba2214b5e5e"),
+            ExampleFile("expanded/v4-single-file.json", "ed8dc46dfb35e75ad2f3bd6afeeea52f20cdef6e869c6226b186cfd39c8c9e5f"),
+            ExampleFile("expanded/v4-type.json", "7802da9f3c6d409d3f20e4f1b7f969de7ba7b69b021e2cf4a15e48313fab8f7e"),
+            ExampleFile("expanded/v4-value.json", "a33aa101c97101bb3ed38d1a560b1735eee9acd285e00410f6d88c6fb193de2d"),
+            ExampleFile("invalid/context-after-document.json", "eb748071304c955bb0cd9e3a2d158894c889d749797cb0d9a4317c1ed5697d36"),
+            ExampleFile("invalid/duplicate-entry.json", "10e58f219400543684d371f1a427875d56289d2b22a60cfa0e42b0d6b7aba440"),
+            ExampleFile("invalid/name-too-long.json", "42c85f4a0caae1b875c3afd671b0596294808549037a853ec596cd5aa92008fb"),
+            ExampleFile("invalid/too-many-entries.json", "f86c270d0a61607d62dbd356039b687bec9c493b2be5e35fc0078ae3987d757c"),
+            ExampleFile("invalid/undeclared-schema.json", "49bbc95d6d8599edcbfbd81033f65a33d81b50a7365ae2d108132003ff329f08"),
+            ExampleFile("invalid/unknown-alias.json", "1bd3db99eec20dd4626bd5e348e0b9219ecc89ba92cd39e8e95f2b4a0df5a693"),
+            ExampleFile("invalid/unknown-critical.json", "fb950b9b9463e46ceab12c1ae6c9a9d3c048518bc0f8cf3667c2cae872521e4b"),
+            ExampleFile("valid/v3-manifest.json", "2c1608b66f23df6b6fe50d91f4e520bd74b7f4a24d92dffefc8e3902656ca95b"),
+            ExampleFile("valid/v3-module.json", "1667174463458a1e047ded1adeedf2d616a95fd053d72f38848d39d031562513"),
+            ExampleFile("valid/v3-single-file.json", "ef822e3859dcf730e3f6fef365c19fe4f65937e8edfcc7990a348dd434ceb93e"),
+            ExampleFile("valid/v3-type.json", "e536f0ee95f6f42c708cc03fa5d8fd0db2bbb595b2dc614b559ab6ed4ea8241c"),
+            ExampleFile("valid/v3-value.json", "56b7151ea22b625f30a23c6374d48ee396fc7e305173cc7f8357bd808bb1bf52"),
+            ExampleFile("valid/v4-manifest.json", "a146a74881ceec07a1246bae075ce52cde1b0595308e45191d3920e7398cf52c"),
+            ExampleFile("valid/v4-module.json", "c3ce4d01b7f2590fdfe55af5ce48891d126adfe06bdd2bd806878b31f3eb65ae"),
+            ExampleFile("valid/v4-single-file.json", "a1583d61b731a0734d8b866747432f3ff08b642473feb91d7afc5ed017f1f589"),
+            ExampleFile("valid/v4-type.json", "db101eda5e41ff38e2f009098226e4d7cc15392f4b1307272d10e3654f8c9143"),
+            ExampleFile("valid/v4-value.json", "94ec9bae07b361f6dabb7da1103e3aa122f20982a1d003738a9fd65599404a2e"),
+        ];
+
+        /// <summary>The pinned files.</summary>
+        public static IReadOnlyList<FixtureEntry> Files { get; } = [Cases, .. ExampleFiles];
+
+        /// <summary>
+        /// The writer policy <c>morphir.compact/0.1.0-draft.1</c> and its fixed cases: each case's plain input and the
+        /// bytes a writer of the policy must produce from it, worked out by hand in the parent.
+        /// </summary>
+        public static class Policy
+        {
+            /// <summary>The directory of the policy below <c>tests/Fixtures</c>.</summary>
+            public const string Directory = "MorphirContext/policy/";
+
+            private static FixtureEntry PolicyFile(string path, string sha256) =>
+                new($"the compaction policy file {path}", Directory + path, sha256, Provenance);
+
+            private static (FixtureEntry Input, FixtureEntry Expected) CaseFiles(string id, string inputSha256, string expectedSha256) =>
+                (PolicyFile($"cases/{id}/input.json", inputSha256), PolicyFile($"cases/{id}/expected.json", expectedSha256));
+
+            /// <summary>The index of the cases: each case's IR version, file kind and whether the policy compacts it.</summary>
+            public static FixtureEntry Cases { get; } = PolicyFile("cases.json", "30a1f81fb36de0c16d27fd2da0ae5b945d0b044ca8ea4b453aeb344c64e3d7c6");
+
+            private static readonly IReadOnlyList<(FixtureEntry Input, FixtureEntry Expected)> CaseEntries =
+            [
+                CaseFiles("alias-allocation-order", "b0849cd38a8eecbc8434abb70c5691c3eb436d542c30e552d03774da3fbd5bb6", "8bbe9b9f71b6ffa5572a98128e2b7898d8f0d2d3c4994bcebaf6a896376e1650"),
+                CaseFiles("look-alike-literal", "17003e3d0805c5534a0806dc3a42550cffeb2668e94dd66d3a59e9199eb2d526", "4330a6a96238922e067a1ebc96a8406be1f9508a8717542fe20d7ff7fd786989"),
+                CaseFiles("loss", "8b190fa3bc42529434b9ea60c77672ef6c181343238eb74e0bde2f32bdff1d47", "e4f4751f3575d340623fe0877c37a94dfc7bc60c2003aa84ed3011f88b8e3f99"),
+                CaseFiles("loss-boundary-accepted", "5754658c078ef7e2a6c91556d109b9b12092f04b7697d3a02ac8718bdbf17cd1", "31894d067ae94b82ead16537ee5171d0681546ba60078b936b4146059a2f1065"),
+                CaseFiles("loss-boundary-declined", "508b1976472a382daa84f5a820431e26ee96aeed4d4bce89249f00a585948d24", "f7f0f6e84b735cf6b826d691ece0072268ea868c5b16a95927050e4230cffc32"),
+                CaseFiles("name-used-once", "a92482d6cf13773b925a895fc81e3d1d8fc32ae580ac9a5b14566d7fa07df654", "773e28d958fe38b2c7d680bcf9464cddcdee2f1edce99f9383673629c48e0785"),
+                CaseFiles("non-ascii-content", "2c1976d2746d2da17cfd173423b848d6f356f6b104ff10f472d5e83ee2fce299", "7a514d56dbc6fa3669222c14d3a45382a008bc800b697214dc451100ccc433c1"),
+                CaseFiles("table-order", "7a3b8852fc440c12f95580046373bd22475232162bc5065b91daa0e408096a78", "f0d935742646e528a1887ded40ae85bac1ac513f0dc14fd6e21738cb67e45f70"),
+                CaseFiles("tie", "2918018c96afe65ff3f965472cca003d19be799eb0cddb51bfbd35c79686f267", "9d6d101e7de67aeab176b16b71ef740e9c254573382c066bdc7a7201cfafa8a4"),
+                CaseFiles("v3-manifest", "15a9ac21999f566db71818b281293d3e0ba6d207c8c01fba9bb542a564d86be1", "931931d96940b4cefe0c72f12b23f247d207ff13229a959cc8ad4371d345f226"),
+                CaseFiles("v3-module", "b82f7aedb41abf17284cc6c7b5bf0d44bc23ae369f8d1c37ea9d6bae0faa9899", "b0eaa6ffab8b88babb3569acb0107c7aeda0b6942511bf3547802e6e6c0baaed"),
+                CaseFiles("v3-single-file", "9b710fdbe68e652e63c11a13c85bb939fee8a744e920cb76c29444d17b107971", "a6c55d93b534330cab4184aad98a3c794fa24e440ee0b3e596dd9b655b17396d"),
+                CaseFiles("v3-type", "9cdee5ac533636ebd96737ce711943bf48a4983cbbe81dc0525808b7899cadca", "d25dc9016de0f0d57d1ee912bc8a223acf04218791c3f0dbaba115f3a54696a1"),
+                CaseFiles("v3-value", "32d5cdd430cfcf1c11cfc69991ad7e32e2f82ea3e7a6fccfe2759cc16d1218cf", "aa79ceb5791718fb0fa0ba621ce02d30810f32940745b2d4bfc2f666d2f05403"),
+                CaseFiles("v4-manifest", "33b360f36f3f2ca8857c56bc868835cd6dcef4dd753ca8c48028714482caced2", "580af09c3fa4c00af59438e482779cced39dd21af769d3087cd0644fa2d8795a"),
+                CaseFiles("v4-module", "882fb7562030dc63d20bd4f7b43e208101b62c248622fca8a9af319253da2014", "26cf6103628dbd2fc7458a7d26f67e75baf4016dd9c005fdbef244a6321bb3bc"),
+                CaseFiles("v4-single-file", "338baa506c270ffaa667afed5dd116e77d58c4329084bdf9226ea1bfba7f0a34", "0c4f00c49dc71b5eda77fdeb165b57df92b8836a23bd7b4b494e6c81c17e7a1d"),
+                CaseFiles("v4-type", "b92972aa55c7808ed87f711d1dc818d57f7a4ffe5fc7ea00b7b07c05aa69ab9a", "9327b83ace0d0607e7b0f1f637c7c8ddce9517da2783b4f967d67a36076a25cf"),
+                CaseFiles("v4-value", "6b0d959c17720785b161fde523f8d4e19f8e98a8a3409d6689023b6451d8eff6", "b542f1d5a421d83ac3c76503975b5aae242947a5d3e25dba2c487c8a85872791"),
+            ];
+
+            /// <summary>The pinned files.</summary>
+            public static IReadOnlyList<FixtureEntry> Files { get; } =
+                [Cases, .. CaseEntries.SelectMany(files => new[] { files.Input, files.Expected })];
+
+            private static readonly Lazy<PolicyCaseIndex> Index = new(() => PolicyCaseIndex.Read(ReadText(Cases), Files, Directory));
+
+            /// <summary>The policy's name, as the index states it.</summary>
+            public static string Name => Index.Value.Policy;
+
+            /// <summary>Every case of the index, in its order.</summary>
+            public static IReadOnlyList<PolicyCase> All => Index.Value.Cases;
+
+            /// <summary>The case with this id, such as <c>name-used-once</c>.</summary>
+            public static PolicyCase Case(string id) =>
+                All.FirstOrDefault(policyCase => policyCase.Id == id)
+                ?? throw new KeyNotFoundException($"The pinned policy has no case '{id}'. Its cases are {string.Join(", ", All.Select(policyCase => policyCase.Id))}.");
+        }
+
+        /// <summary>
+        /// The parent's naming conformance corpus: the canonical names, paths and FQNames and the refused names of
+        /// the naming grammar, whose spellings a context table admits.
+        /// </summary>
+        public static class Naming
+        {
+            /// <summary>The corpus file.</summary>
+            public static FixtureEntry Conformance { get; } = new(
+                "the naming conformance corpus", "MorphirContext/naming/naming-conformance.json",
+                "81b598e45bbe5361ec5cd178f85d9a8d538eb473a226ac1961d79561e3a11607", Provenance);
+
+            /// <summary>The pinned files.</summary>
+            public static IReadOnlyList<FixtureEntry> Files { get; } = [Conformance];
+
+            private static readonly Lazy<NamingConformance> Read = new(() => NamingConformance.Read(ReadText(Conformance)));
+
+            /// <summary>The corpus, in its shipped style.</summary>
+            public static NamingConformance Corpus => Read.Value;
+        }
+
+        private static readonly Lazy<ContextExampleIndex> Index = new(() => ContextExampleIndex.Read(ReadText(Cases), ExampleFiles, ExamplesDirectory));
+
+        /// <summary>The envelope's schema URL, as the index states it.</summary>
+        public static string SchemaUrl => Index.Value.SchemaUrl;
+
+        /// <summary>The most entries one table may hold, as the index states it.</summary>
+        public static int MaxTableEntries => Index.Value.MaxTableEntries;
+
+        /// <summary>The most UTF-8 bytes one expanded spelling may have, as the index states it.</summary>
+        public static int MaxSpellingBytes => Index.Value.MaxSpellingBytes;
+
+        /// <summary>Every example of the index, in its order.</summary>
+        public static IReadOnlyList<ContextExample> Examples => Index.Value.Examples;
+
+        /// <summary>The example with this id, such as <c>v4-type</c>.</summary>
+        public static ContextExample Example(string id) =>
+            Examples.FirstOrDefault(example => example.Id == id)
+            ?? throw new KeyNotFoundException($"The pinned context examples have no case '{id}'. They are {string.Join(", ", Examples.Select(example => example.Id))}.");
+    }
+
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, .. Trees.Written];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, .. Trees.Written, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

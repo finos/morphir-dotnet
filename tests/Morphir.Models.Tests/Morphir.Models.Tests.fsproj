@@ -58,6 +58,9 @@
         <Compile Include="IR/Trees/WrittenTreeTests.fs" />
         <Compile Include="IR/Trees/StoredModelTests.fs" />
         <Compile Include="IR/Trees/ArchitectureTests.fs" />
+        <Compile Include="IR/Files/ExpansionTests.fs" />
+        <Compile Include="IR/Files/NamePositionTests.fs" />
+        <Compile Include="IR/Files/SpellingGrammarTests.fs" />
         <Compile Include="IR/Classic/AccessControlledTests.fs" />
         <Compile Include="IR/Classic/TypeTests.fs" />
         <Compile Include="IR/Classic/LiteralTests.fs" />
@@ -81,6 +84,7 @@
         <Compile Include="Json/ClassicJsonTests.fs" />
         <Compile Include="Json/ClassicJsonWriterTests.fs" />
         <Compile Include="Json/UpstreamIrTests.fs" />
+        <Compile Include="Json/CanonicalJsonTests.fs" />
         <Compile Include="Json/V4/KitCases.fs" />
         <Compile Include="Json/V4/V4KitTests.fs" />
         <Compile Include="Json/V4/V4JsonTests.fs" />

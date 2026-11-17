@@ -104,6 +104,93 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void TheVectorsOfRfc8785AreRead()
+    {
+        var vectors = FixtureCatalog.Rfc8785.Vectors;
+
+        vectors.Numbers.Should().HaveCount(26, "Table 1 of Appendix B has 26 rows");
+        vectors.Numbers[0].Should().Be(new Rfc8785NumberSample(0x0000000000000000, "0", "Zero"));
+        vectors.Numbers.Should().ContainSingle(sample => sample.Comment == "Max pos int").Which.Json.Should().Be("9007199254740992");
+        vectors.Numbers.Where(sample => sample.Json is null).Select(sample => sample.Comment).Should().Equal("NaN", "Infinity");
+        vectors.Numbers.Last().Json.Should().Be("1424953923781206.2");
+
+        JsonNode.Parse(vectors.PrimitiveSample)!["literals"]!.AsArray().Should().HaveCount(3);
+        vectors.PrimitiveSampleCanonical.Should().HaveCount(118, "Section 3.2.4 lists 118 bytes");
+        vectors.PrimitiveSampleCanonical[..2].Should().Equal(0x7b, 0x22);
+        vectors.PrimitiveSampleCanonical[^1].Should().Be(0x7d);
+
+        JsonNode.Parse(vectors.SortingSample)!.AsObject().Count.Should().Be(7);
+        vectors.SortedValues.Should().Equal(
+            "Carriage Return", "One", "Control", "Latin Small Letter O With Diaeresis", "Euro Sign",
+            "Emoji: Grinning Face", "Hebrew Letter Dalet With Dagesh");
+    }
+
+    [Test]
+    public void TheContextExamplesOfTheParentAreRead()
+    {
+        FixtureCatalog.Context.SchemaUrl.Should().Be("https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json");
+        FixtureCatalog.Context.MaxTableEntries.Should().Be(16384);
+        FixtureCatalog.Context.MaxSpellingBytes.Should().Be(1024);
+
+        var examples = FixtureCatalog.Context.Examples;
+        examples.Should().HaveCount(17);
+        examples.Where(example => example.IsValid).Should().HaveCount(10)
+            .And.OnlyContain(example => example.Expanded != null && example.File.RelativePath.StartsWith("MorphirContext/examples/valid/"));
+        examples.Where(example => !example.IsValid).Select(example => example.Expected).Should().BeEquivalentTo(
+            "context.undeclared_schema", "context.unknown_alias", "context.duplicate_entry", "context.unknown_critical",
+            "context.too_many_entries", "context.name_too_long", "context.after_document");
+
+        var v3Type = FixtureCatalog.Context.Example("v3-type");
+        (v3Type.Ir, v3Type.Kind).Should().Be((3, "type"));
+        JsonNode.Parse(FixtureCatalog.ReadText(v3Type.File))!["$schema"]!.GetValue<string>().Should().Be(FixtureCatalog.Context.SchemaUrl);
+        JsonNode.Parse(FixtureCatalog.ReadText(v3Type.Expanded!))!.AsObject().ContainsKey("$schema").Should().BeFalse();
+        FixtureCatalog.All.Should().Contain(FixtureCatalog.Context.Files);
+    }
+
+    [Test]
+    public void TheCompactionPolicyCasesOfTheParentAreRead()
+    {
+        FixtureCatalog.Context.Policy.Name.Should().Be("morphir.compact/0.1.0-draft.1");
+
+        var cases = FixtureCatalog.Context.Policy.All;
+        cases.Should().HaveCount(19);
+        cases.Select(policyCase => policyCase.Id).Should().OnlyHaveUniqueItems();
+        cases.Where(policyCase => !policyCase.Compacted).Select(policyCase => policyCase.Id).Should().BeEquivalentTo(
+            "v4-manifest", "v3-manifest", "loss", "loss-boundary-declined");
+
+        var nameUsedOnce = FixtureCatalog.Context.Policy.Case("name-used-once");
+        (nameUsedOnce.Ir, nameUsedOnce.Kind, nameUsedOnce.Compacted).Should().Be((4, "type", true));
+        nameUsedOnce.Input.RelativePath.Should().Be("MorphirContext/policy/cases/name-used-once/input.json");
+        JsonNode.Parse(FixtureCatalog.ReadText(nameUsedOnce.Expected))!["$schema"]!.GetValue<string>().Should().Be(FixtureCatalog.Context.SchemaUrl);
+        JsonNode.Parse(FixtureCatalog.ReadText(nameUsedOnce.Input))!.AsObject().ContainsKey("$schema").Should().BeFalse();
+        FixtureCatalog.All.Should().Contain(FixtureCatalog.Context.Policy.Files);
+    }
+
+    [Test]
+    public void TheNamingCorpusOfTheParentIsRead()
+    {
+        var corpus = FixtureCatalog.Context.Naming.Corpus;
+
+        corpus.ShippedStyle.Should().Be("uppercase");
+        corpus.Names.Should().HaveCount(17);
+        corpus.Names.Should().ContainSingle(name => name.Canonical == "value-in-USD")
+            .Which.LegacyArray.Should().Equal("value", "in", "u", "s", "d");
+        corpus.Names.Where(name => name.LegacyArray == null).Select(name => name.Canonical).Should().Equal("FR2052A");
+        corpus.Paths.Should().Equal("morphir/SDK", "US/FR2052A/data-tables", "my-org/domain/users");
+        corpus.FqNames.Should().Equal("morphir/SDK:list#map", "my-org:domain#value-in-USD");
+        corpus.Rejects.Should().HaveCount(14);
+        corpus.Rejects.Where(reject => reject.ValidAsName).Select(reject => reject.Input).Should().Equal("value-in-USD", "USD-usd");
+        FixtureCatalog.All.Should().Contain(FixtureCatalog.Context.Naming.Files);
+    }
+
+    [Test]
+    public void TheReaderOfRfc8785RefusesATextWithoutItsVectors()
+    {
+        var act = () => Rfc8785Reader.Read("Appendix B.  Number Serialization Samples\n");
+        act.Should().Throw<FormatException>();
+    }
+
+    [Test]
     public void DocumentTree0006YamlAndJsonLoadEqual()
     {
         // document-tree-0006 is document-tree-0003's set spelled in the JSON profile.

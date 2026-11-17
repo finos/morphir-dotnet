@@ -101,3 +101,8 @@ tests/Fixtures/MorphirIR/daily-rate-unknown-type-tag-v4.json text eol=lf
 # The IR v4 schemas of finos/morphir, pinned byte for byte (src/Morphir.Tooling/Infrastructure/Schemas/PROVENANCE.md).
 src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v4.json -text
 src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v4-document-tree-files.json -text
+
+# RFC 8785 as the RFC Editor publishes it, the source of the JCS test vectors (tests/Fixtures/Rfc8785/PROVENANCE.md).
+tests/Fixtures/Rfc8785/** -text
+# Morphir file context data from finos/morphir, checked by SHA-256 (tests/Fixtures/MorphirContext/PROVENANCE.md).
+tests/Fixtures/MorphirContext/** -text

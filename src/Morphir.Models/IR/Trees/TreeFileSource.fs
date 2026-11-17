@@ -8,6 +8,7 @@ open System
 open System.IO
 open System.Text.Json
 open Morphir.IR
+open Morphir.IR.Files
 open Morphir.IR.V4
 open Morphir.Json.V4
 
@@ -90,43 +91,29 @@ module internal TreeFileSource =
                 with ex ->
                     Error(error "tree.unreadable_file" (Some location) ex.Message)
 
-    /// Decodes a file's JSON, skipping a UTF-8 byte order mark.
+    /// <summary>
+    /// Decodes a file's JSON, skipping a UTF-8 byte order mark: a plain file as it is, and a compacted file
+    /// (<c>ir/name-compaction</c>) after its context is checked and its document expanded, for the IR family that the
+    /// document's own <c>formatVersion</c> gives. Gives the decoded value and whether the file was compacted.
+    /// </summary>
     let decode
         (location: string)
         (read: JsonElement -> Result<'a, V4JsonError>)
         (bytes: byte array)
-        : Result<'a, StoreError> =
-        let start =
-            if
-                bytes.Length
-                >= 3
-                && bytes[0] = 0xEFuy
-                && bytes[1] = 0xBBuy
-                && bytes[2] = 0xBFuy
-            then
-                3
-            else
-                0
-
-        try
-            use document =
-                JsonDocument.Parse(
-                    ReadOnlyMemory(
-                        bytes,
-                        start,
-                        bytes.Length
-                        - start
-                    ),
-                    JsonDocumentOptions(MaxDepth = V4JsonDecoding.MaxDepth)
-                )
-
-            read document.RootElement
-            |> Result.mapError (fun e -> error e.Rule (Some location) $"{e.Location}: {e.Message}")
-        with :? JsonException as problem ->
-            Error(error "invalid_json" (Some location) problem.Message)
+        : Result<'a * bool, StoreError list> =
+        MorphirFile.readEnvelope ContextLimits.draft1 location (ReadOnlyMemory bytes)
+        |> Result.bind (fun file ->
+            MorphirFile.expand (MorphirFile.familyOf file.Document) location file
+            |> Result.bind (fun document ->
+                read document
+                |> Result.map (fun value -> value, file.Context.IsSome)
+                |> Result.mapError (fun e -> [ error e.Rule (Some location) $"{e.Location}: {e.Message}" ])
+            )
+        )
 
     let readFile limit location file read =
         contentBytes limit location file
+        |> Result.mapError List.singleton
         |> Result.bind (decode location read)
 
     /// <summary>
@@ -135,25 +122,7 @@ module internal TreeFileSource =
     /// every one of them but <c>"3.1.0"</c>, and none is sent to the v4 reader.
     /// </summary>
     let isClassicManifest (root: JsonElement) =
-        let mutable version = Unchecked.defaultof<JsonElement>
-        let mutable number = 0.0
-
-        root.ValueKind = JsonValueKind.Object
-        && root.TryGetProperty("formatVersion", &version)
-        && (
-            match version.ValueKind with
-            | JsonValueKind.String ->
-                let text = nonNull (version.GetString())
-
-                text = "3"
-                || text.StartsWith("3.", StringComparison.Ordinal)
-            | JsonValueKind.Number ->
-                version.TryGetDouble(&number)
-                && number
-                   >= 3.0
-                && number < 4.0
-            | _ -> false
-        )
+        MorphirFile.familyOf root = IrFamily.Classic3
 
     let errorsOf (results: Result<'a, StoreError list> list) =
         results

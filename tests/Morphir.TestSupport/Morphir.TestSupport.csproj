@@ -19,6 +19,15 @@
   <ItemGroup>
     <EmbeddedResource Include="../Fixtures/MorphirTrees/kit/*.feature" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/kit/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIR/*.json;../Fixtures/MorphirIR/*.txt" LogicalName="Morphir.TestSupport.Fixtures/MorphirIR/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/Rfc8785/rfc8785.txt" LogicalName="Morphir.TestSupport.Fixtures/Rfc8785/rfc8785.txt" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/examples/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/examples/valid/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/valid/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/examples/expanded/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/expanded/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/examples/invalid/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/invalid/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/policy/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/policy/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/naming/naming-conformance.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/naming/naming-conformance.json" />
+    <!-- One directory per policy case; the resource name uses / whatever the platform's separator. -->
+    <EmbeddedResource Include="../Fixtures/MorphirContext/policy/cases/**/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/policy/cases/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
     <!-- Each file of a hand-written tree, named by its location in the tree. -->
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" />
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" />
