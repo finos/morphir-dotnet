@@ -172,14 +172,14 @@ public sealed class GenerationReport
     public IReadOnlyList<GenerationDiagnostic> Diagnostics { get; }
 
     /// <summary>
-    /// Reads the report from standard output, which must be exactly one JSON document. A report that disagrees
+    /// Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>. A report that disagrees
     /// with the exit code of the command is an error, and so is a report in which one of the lists
     /// (<c>artifacts</c>, <c>written</c>, <c>unchanged</c>, <c>removed</c>, <c>diagnostics</c>) is not there or has
     /// an item of another form: a check that a list is empty must not pass because the list is absent.
     /// </summary>
     public static GenerationReport Of(CommandResult result)
     {
-        var document = result.ShouldWriteOneJsonDocument();
+        var document = result.ReportOfEither();
         if (document.ValueKind != JsonValueKind.Object
             || !document.TryGetProperty("success", out var field)
             || field.ValueKind is not (JsonValueKind.True or JsonValueKind.False))

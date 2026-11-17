@@ -70,10 +70,10 @@ public sealed class VerificationReport
 
     public IReadOnlyList<VerificationError> Errors { get; }
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static VerificationReport Of(CommandResult result)
     {
-        var document = result.ShouldWriteOneJsonDocument();
+        var document = result.ReportOfEither();
         if (document.ValueKind != JsonValueKind.Object
             || !document.TryGetProperty("IsValid", out var isValid)
             || isValid.ValueKind is not (JsonValueKind.True or JsonValueKind.False))

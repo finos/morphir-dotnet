@@ -245,8 +245,8 @@ public static class LocalCandidateJourney
                 "--package-name", "acme/demo", "--ir-version", "4", "--output", "compiled", "--out-dir", "out", "--json"], hidden, project);
             var ir = Path.Combine(irDirectory, "morphir-ir.json");
             File.Copy(ir, Path.Combine(evidence, phase + "-ir.json"));
-            using (var report = JsonDocument.Parse(compiled.StandardOutput))
-                report.RootElement.GetProperty("success").GetBoolean().Should().BeTrue(compiled.StandardOutput);
+            CompilationReport.Of(new CommandResult(phase + "-compile", compiled.ExitCode, compiled.StandardOutput, compiled.StandardError,
+                compiled.ExitedAt - compiled.StartedAt, [])).ShouldSucceed();
             JsonNode.DeepEquals(JsonNode.Parse(await File.ReadAllTextAsync(fixedIr)), JsonNode.Parse(await File.ReadAllTextAsync(ir)))
                 .Should().BeTrue("the frozen IR, with object member order ignored, is the shared expectation");
             var generated = Path.Combine(project, "generated");

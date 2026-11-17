@@ -5,6 +5,7 @@ using System.Text;
 using Foundatio.Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using Morphir.Compilation;
+using Morphir.Tooling.Cli;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
 
 namespace Morphir.Tooling.Features.Compile;
@@ -92,9 +93,10 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
                 context.WorkingDirectory);
             if (!target.TryGetValue(out var generation))
                 return await RenderInvocationAsync(output, target.Diagnostics, mode);
+            var jsonOutput = JsonOutput(output, mode);
             var observer = mode switch
             {
-                Mode.JsonLines => (ICompileEventObserver)new JsonLinesObserver(new JsonLinesWriter(output.StandardOutput)),
+                Mode.JsonLines => (ICompileEventObserver)new JsonLinesObserver(new JsonLinesWriter(jsonOutput!)),
                 Mode.Human => new HumanObserver(output.StandardError),
                 _ => null
             };
@@ -110,7 +112,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
             if (report.Generation is { } generated)
                 foreach (var warning in Morphir.Tooling.Features.Generate.GenerateCommand.FormattingWarnings(generated.Formatting, generated.Backend ?? generated.Target))
                     await output.StandardError.WriteLineAsync(warning);
-            await RenderAsync(output, report, mode, CancellationToken.None);
+            await RenderAsync(output, report, mode, jsonOutput, CancellationToken.None);
             return report.ExitCode;
         });
     }
@@ -153,20 +155,26 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
         var report = CompileReport.Invocation(diagnostics);
         if (mode == Mode.Human)
             foreach (var diagnostic in report.Diagnostics) await output.StandardError.WriteLineAsync(Human(diagnostic));
-        await RenderAsync(output, report, mode, CancellationToken.None);
+        await RenderAsync(output, report, mode, JsonOutput(output, mode), CancellationToken.None);
         return report.ExitCode;
     }
 
-    private static async Task RenderAsync(ICompileOutput output, CompileReport report, Mode mode, CancellationToken ct)
+    /// <summary>The shared JSON output writer of <paramref name="mode"/>, or null in human mode.</summary>
+    private static JsonOutputWriter<CompileReport>? JsonOutput(ICompileOutput output, Mode mode) => mode switch
+    {
+        Mode.JsonLines => JsonLinesWriter.Output(output.StandardOutput, JsonOutputMode.Stream),
+        Mode.Json => JsonLinesWriter.Output(output.StandardOutput, JsonOutputMode.Document),
+        _ => null
+    };
+
+    private static async Task RenderAsync(ICompileOutput output, CompileReport report, Mode mode, JsonOutputWriter<CompileReport>? jsonOutput,
+        CancellationToken ct)
     {
         switch (mode)
         {
-            case Mode.JsonLines:
-                await new JsonLinesWriter(output.StandardOutput).WriteCompletedAsync(report, ct);
-                break;
-            case Mode.Json:
-                await output.StandardOutput.WriteAsync(Encoding.UTF8.GetBytes(report.ToJson() + "\n"), ct);
-                await output.StandardOutput.FlushAsync(ct);
+            case Mode.JsonLines or Mode.Json:
+                // Stream mode writes the completed record; document mode writes the report as the old --json did.
+                jsonOutput!.Completed(report);
                 break;
             default:
                 await output.StandardError.WriteLineAsync(Summary(report));

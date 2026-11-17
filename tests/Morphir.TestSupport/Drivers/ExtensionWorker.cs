@@ -1,7 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Concurrent;
-using System.Text.Json;
+using System.Text;
 
 namespace Morphir.TestSupport.Drivers;
 
@@ -28,8 +28,9 @@ public static class ExtensionWorker
         var help = await HelpAsync(sessions).ConfigureAwait(false);
         if (help.ExitCode != 0)
             throw new InvalidOperationException($"extension worker --help --json did not exit with 0: {help.Describe()}");
-        using var document = JsonDocument.Parse(help.StandardOutput);
-        return document.RootElement.GetProperty("result").GetProperty("buildIdentity").GetString()!;
+        var result = new CommandResult(string.Join(' ', Command) + " --help --json", help.ExitCode ?? -1, Encoding.UTF8.GetString(help.StandardOutput),
+            string.Join(Environment.NewLine, help.StandardError.Select(line => line.Text)), help.ExitedAt, []);
+        return result.ReportOfEither().GetProperty("result").GetProperty("buildIdentity").GetString()!;
     });
 
     /// <summary>Runs <c>extension worker --help --json</c> to its exit.</summary>

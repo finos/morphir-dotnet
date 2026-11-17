@@ -38,7 +38,7 @@ public sealed class MigrationReport : JsonCommandReport
     /// <summary><c>written</c>, <c>preview</c>, <c>unchanged</c>, <c>blocked</c> or <c>failed</c>.</summary>
     public string? Outcome => Text("outcome");
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static MigrationReport Of(CommandResult result) => new(result);
 
     public MigrationReport ShouldHaveOutcome(string outcome)

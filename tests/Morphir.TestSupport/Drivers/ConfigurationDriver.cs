@@ -141,7 +141,7 @@ public sealed class ConfigurationReport : JsonCommandReport
             : throw new CommandAssertionException("The configuration report has no list sources.", Result),
     ];
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static ConfigurationReport Of(CommandResult result) => new(result);
 
     /// <summary>The outcome of an edit is <paramref name="outcome"/>.</summary>

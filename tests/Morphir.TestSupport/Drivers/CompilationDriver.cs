@@ -148,7 +148,7 @@ public sealed class CompilationReport : JsonCommandReport
     /// <summary>The backend of the generation after the compile (<c>generation.backend</c>), or null.</summary>
     public string? GenerationBackend => Text("generation", "backend");
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static CompilationReport Of(CommandResult result) => new(result);
 
     public CompilationReport ShouldSucceed()

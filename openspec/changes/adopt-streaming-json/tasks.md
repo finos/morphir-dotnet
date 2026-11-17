@@ -10,7 +10,7 @@ Work is on `feat/model-convert`, before `add-model-convert` group 6, which build
 
 - [x] 2.1 Add the shared `--json[=stream|document]` option and the bare-flag rewrite (after response-file expansion, never after `--`) in `Morphir.Tooling`, with the mode hint for an unrecognized argument that names a mode; verify parser unit tests for every row of the design's probe table, `--json=bogus`, `--json:document` and `--json=true`.
 - [ ] 2.2 Generalise compile's JSON Lines writer into the shared output writer (events, flush per record, one final `completed`, the document mode, a `completed` record on parse errors and cancellation), using each command's source-generated JSON context; verify writer unit tests and zero trim and AOT warnings.
-- [ ] 2.3 Add `JsonOutputAssertions` beside `JsonCommandReport` in `tests/Morphir.TestSupport` (stream and document forms, returns the report) and move every driver's report reading onto it; verify the `test-driver-contract` scenarios in `tests/Morphir.TestSupport.Tests/Drivers`.
+- [x] 2.3 Add `JsonOutputAssertions` beside `JsonCommandReport` in `tests/Morphir.TestSupport` (stream and document forms, returns the report) and move every driver's report reading onto it; verify the `test-driver-contract` scenarios in `tests/Morphir.TestSupport.Tests/Drivers`.
 - [ ] 2.4 Document the convention on the CLI index page and in the CHANGELOG, and verify the documented examples run as written.
 
 ## 3. Commands adopt the convention

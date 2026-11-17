@@ -67,6 +67,6 @@ public sealed class ValidationReport : JsonCommandReport
     /// <summary>The path of the model, as the command line gave it.</summary>
     public string? Input => Text("input");
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static ValidationReport Of(CommandResult result) => new(result);
 }

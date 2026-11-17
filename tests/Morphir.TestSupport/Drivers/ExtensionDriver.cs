@@ -179,7 +179,7 @@ public sealed class ExtensionListReport : JsonCommandReport
 
     public IReadOnlyList<ListedExtension> Extensions { get; }
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static ExtensionListReport Of(CommandResult result) => new(result);
 
     /// <summary>The entry with <paramref name="id"/>; a report with no such entry is a failure of the check.</summary>
@@ -280,7 +280,7 @@ public sealed class ExtensionRuntimesReport : JsonCommandReport
     /// <summary>True on Windows x64, where the host reports that it cannot run guests (#609).</summary>
     public bool IsWindowsX64 => Platform == "win-x64";
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static ExtensionRuntimesReport Of(CommandResult result) => new(result);
 
     private static ExtensionRuntime Runtime(JsonElement item)

@@ -58,12 +58,17 @@ that the command wrote in the work area. Two layers check it:
 
 - `CommandResultAssertions` has the general checks: the exit code, exactly one JSON document on standard output, a
   written file, text on standard error. These checks read no field of a report.
+- `JsonOutputAssertions` has the checks of the two machine-output forms: `JsonOutputAssertions.ReportOfDocument`
+  (a `--json=document` run: exactly one JSON document, which is a report), `JsonOutputAssertions.ReportOfStream` and
+  `JsonOutputAssertions.Events` (a `--json` run: JSON Lines, each line an object with an `event` member, and one
+  `completed` record on the last line, whose `report` it returns). `JsonOutputAssertions.ReportOfEither` takes either
+  form; every report type reads its report through it. A failure names the line at fault.
 - A report type has the checks of its own command. `VerificationReport` reads the field `IsValid`.
   `GenerationReport` reads the field `success`, and fails when the field disagrees with the exit code.
-- The reports of the other command families derive from `JsonCommandReport`: one JSON object, a field `exitCode`
-  that agrees with the exit code, and the list `diagnostics` as `ReportDiagnostic` items. `CompilationReport` and
-  `ValidationReport` also read `success`; `ConfigurationReport` and `MigrationReport` read `outcome`. A path in a
-  configuration or migration report has the form of `ReportPath`.
+- The reports of the other command families derive from `JsonCommandReport`: one JSON object (a document, or the
+  `report` of a stream), a field `exitCode` that agrees with the exit code, and the list `diagnostics` as
+  `ReportDiagnostic` items. `CompilationReport` and `ValidationReport` also read `success`; `ConfigurationReport` and
+  `MigrationReport` read `outcome`. A path in a configuration or migration report has the form of `ReportPath`.
 
 Each failure is a `CommandAssertionException`. Its message has the command line, the exit code and both streams.
 
