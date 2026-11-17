@@ -9,7 +9,8 @@ description: "Store a Morphir model as a single file or as a document tree, keep
 
 Change how a Morphir model is stored without changing the model. A model is stored as a single IR JSON file or as a
 document tree: a directory with a manifest and one file for each module, type and value. `model convert` reads either
-layout and writes the other. It also reads compacted files and writes them plain (see [Encodings](#encodings)). The IR
+layout and writes the other. It also reads compacted files, and writes them plain or compacted (see
+[Encodings](#encodings) and [Compaction](#compaction)). The IR
 version stays the same: a v3 model stays v3, and a v4 model stays v4.
 
 `model convert` is a command of the `model` group, beside [`model verify`](model-verify.md).
@@ -55,7 +56,7 @@ morphir model verify tree
 | `-i`, `--input <path>` | The model to convert: a single-file model, or the directory of a document tree. Required. |
 | `-o`, `--output <path>` | Where to write the converted model. Required. It must not exist. A tree can also go to an empty directory. A missing parent directory is created. |
 | `--layout=<layout>` | The layout of the output: `document-tree` or `single-file`. The default is the layout of the input. The form `--layout <layout>`, with a space, is accepted too. |
-| `--compact[=<mode>]` | Write compacted files. Writing compacted files is not implemented yet: the run is refused (see [Compaction](#compaction)). A compacted input is read without it. |
+| `--compact[=<mode>]` | Write compacted files, under finos/morphir's writer policy `morphir.compact/0.1.0-draft.1` (see [Compaction](#compaction)). The only mode is `names`, and a bare `--compact` means `--compact=names`. A compacted input is read without it. |
 | `--json[=stream\|document]` | Write the report as JSON: a stream of events that ends with the report (`--json`), or the report alone (`--json=document`). See [JSON output](#json-output). |
 
 Give the values of `--compact` and `--json` only after `=` (see [Machine output](_index.md#machine-output)). A bare `--compact` or `--json` never takes the next argument.
@@ -102,13 +103,12 @@ table. This version reads the envelope
 `model convert` reads compacted files and expands them: each reference is replaced by its entry at the positions
 where the IR has a name, a path or a fully qualified name, and nowhere else, so a string that only looks like a
 reference stays as written. A v3 document stays v3, with its names as classic word arrays, and a v4 document has them
-as canonical strings. The output is plain. Writing compacted files is not implemented yet (see
-[Compaction](#compaction)).
+as canonical strings. The output is plain unless `--compact` is given (see [Compaction](#compaction)).
 
 - A single file is compacted when it is in an envelope. A tree is compacted when any of its files is: the manifest, a
   module file, or a type or value file. The report states `inputEncoding: "compacted"`, and `"plain"` otherwise.
-- Because the output is plain, a compacted input with no `--layout` is written as plain files in its own layout. It
-  is not [nothing to do](#nothing-to-do).
+- Without `--compact` the output is plain, so a compacted input with no `--layout` is written as plain files in its
+  own layout. It is not [nothing to do](#nothing-to-do).
 - A file whose `$schema` is not an envelope that this version knows is refused with `context.undeclared_schema`. The
   report then states no `inputEncoding` when the only envelopes are undeclared; a tree that also has a file in a
   declared envelope is `compacted`.
@@ -150,13 +150,107 @@ $ morphir model convert --input model --output billing.json --layout=single-file
 
 ## Compaction
 
-`--compact` takes the optional mode `names`, and a bare `--compact` means `--compact=names`. An unknown mode, such
-as `--compact=bogus`, exits 2 and lists `names`. `--compact names`, with a space, exits 2 and suggests
-`--compact=names`.
+`--compact` writes each file of the output compacted: the single file, which stays one file, or each file of a tree,
+the manifest included. Each file has its own context, so a file of a tree never needs another file to be read. The
+names, paths and fully qualified names that the file repeats get an alias in its context, and the document refers to
+them as `{"$name": "<id>"}`. The IR version stays the same, and expanding the file gives the plain document back.
 
-**Writing compacted files is not implemented yet.** A run with `--compact` parses, reads the model, and is then
-refused with `tree.unsupported_option` (exit code 1). Nothing is written. The report states `outputEncoding:
-"compacted"` and `compactMode: "names"`. This page will change when compacted writing lands.
+Which names get an alias is fixed by finos/morphir's writer policy `morphir.compact/0.1.0-draft.1`, which the
+report names in `compactPolicy`. Every size it compares is the UTF-8 byte length of the RFC 8785 canonical JSON of
+the file, so a non-ASCII letter of a doc string weighs two bytes or more:
+
+- A name gets an alias only when its occurrences save more bytes than its table entry costs. A name written once
+  never does as a v4 string; a fully qualified name in classic v3 word arrays can, since the arrays are longer than
+  its spelling.
+- The envelope is written only when the aliases save more than the envelope adds: 118 bytes of its own, the header
+  of each table and each entry. Otherwise compaction is declined.
+- Ids are `a`, `b`, ... `z`, `aa`, `ab`, ... in the order in which the names are first used in the canonical JSON of
+  the plain file, one sequence for the four tables.
+- A name that a classic v3 slot could not give back, such as `FR2052A` as word arrays, is left as written.
+
+A compacted file is written in canonical JSON: members sorted, no whitespace, no newline at the end. A file whose
+compaction is declined is its plain document in canonical JSON, with no envelope. As canonical JSON sorts the members
+of every object, the keys of a v4 map, such as the fields of a record, come back sorted when the file is read; the
+order of a map's keys is not part of a v4 model.
+
+Here `order-total.json` is a plain IR v4 model whose one value uses the type
+`acme/order-management:pricing/discount-rules#discounted-amount-before-regional-sales-tax-adjustment` three times.
+Compact it, keeping its layout:
+
+```bash
+$ morphir model convert --input order-total.json --output compacted.json --compact --json=document
+{
+  "success": true,
+  "exitCode": 0,
+  "input": "order-total.json",
+  "output": "compacted.json",
+  "inputLayout": "single-file",
+  "outputLayout": "single-file",
+  "inputEncoding": "plain",
+  "outputEncoding": "compacted",
+  "irVersion": "4",
+  "compactMode": "names",
+  "compactPolicy": "morphir.compact/0.1.0-draft.1",
+  "filesWritten": [
+    "compacted.json"
+  ],
+  "diagnostics": [],
+  "notices": []
+}
+```
+
+`compacted.json` holds the long name once, in `context.fqNames.a`, and `{"$name":"a"}` at each of its three places.
+When no alias pays for itself, the file is written plain, and the notice `model.compaction_declined` says so. The
+small model `morphir-ir.json` of [Try it](#try-it) is one:
+
+```bash
+$ morphir model convert --input morphir-ir.json --output daily-rate.json --compact --json=document
+{
+  "success": true,
+  "exitCode": 0,
+  "input": "morphir-ir.json",
+  "output": "daily-rate.json",
+  "inputLayout": "single-file",
+  "outputLayout": "single-file",
+  "inputEncoding": "plain",
+  "outputEncoding": "plain",
+  "irVersion": "4",
+  "compactMode": "names",
+  "compactPolicy": "morphir.compact/0.1.0-draft.1",
+  "filesWritten": [
+    "daily-rate.json"
+  ],
+  "diagnostics": [],
+  "notices": [
+    {
+      "code": "model.compaction_declined",
+      "severity": "info",
+      "message": "No alias was worth its cost under morphir.compact/0.1.0-draft.1, so the file is written as its plain document in canonical JSON.",
+      "location": "daily-rate.json"
+    }
+  ]
+}
+```
+
+A tree is compacted file by file, and its files are small, so many of them are declined: a manifest names each
+package once. The tree of `order-total.json` has one compacted file, the value's:
+
+```bash
+$ morphir model convert --input order-total.json --output compacted-tree --layout=document-tree --compact
+compacted-tree
+```
+
+Its stderr holds the notice and the summary:
+
+```text
+compacted-tree: info model.compaction_declined: No alias was worth its cost under morphir.compact/0.1.0-draft.1 in 2 of the 3 files, so they are written as their plain documents in canonical JSON.
+model convert: wrote 3 file(s) to compacted-tree: IR 4, single-file to document-tree, compacted; 1 notice(s)
+```
+
+The report's `outputEncoding` is `compacted` when any file written is in an envelope, and `plain` when every file was
+declined. `--compact` takes its mode only after `=`. An unknown mode, such as `--compact=bogus`, exits 2 and lists
+`names`. `--compact names`, with a space, exits 2 and suggests `--compact=names`. A compacted input converted with
+`--compact` and no `--layout` is written again under the policy, so it is not [nothing to do](#nothing-to-do).
 
 ## Nothing to do
 
@@ -200,7 +294,7 @@ refused or failed run leaves nothing at `--output`, and a file that was already 
 | Code | Meaning |
 | --- | --- |
 | 0 | The model was converted, and every file was written. |
-| 1 | The conversion was refused or failed. The input is missing or not a valid model or tree, the envelope or the context of a compacted file is refused, the output is in the way, `--compact` asks for compacted output, or a file could not be read or written. |
+| 1 | The conversion was refused or failed. The input is missing or not a valid model or tree, the envelope or the context of a compacted file is refused, the output is in the way, or a file could not be read or written. |
 | 2 | A usage error: arguments that do not parse, a bad `--layout` or `--compact` value, an `--input` or `--output` that is not a valid path, or nothing to do. |
 | 130 | The run was cancelled, for example with Ctrl+C. The report is still written. |
 
@@ -222,7 +316,6 @@ and in the `diagnostics` events.
 | `context.undeclared_schema` | 1 | A file has a top-level `$schema` that this version does not know as a compaction envelope. |
 | `context.unknown_alias`, `context.duplicate_entry`, `context.unknown_critical`, `context.too_many_entries`, `context.name_too_long`, `context.after_document`, `context.invalid_envelope`, `context.invalid_entry` | 1 | A compacted file breaks a rule of its envelope or its context; see [Context refusals](#context-refusals). |
 | `depth_limit_exceeded` | 1 | The model is nested too deeply. In the read stage: a single file deeper than 4,096 levels, as written or once its references are expanded, or a tree file deeper than 512. In the write stage: a file that the writer would nest deeper than about 1,000 levels, or a tree file deeper than 512, which a read of the tree would refuse; the diagnostic names the output file. |
-| `tree.unsupported_option` | 1 | `--compact` was given, and this version does not write compacted files yet. |
 | `invalid_json` | 1 | A file of the input is not JSON. A file that is JSON but nested too deeply is `depth_limit_exceeded`. |
 | `model.read_failed`, `model.write_failed` | 1 | The disk refused a read or a write. |
 | `model.cancelled` | 130 | The run was cancelled. |
@@ -268,6 +361,7 @@ Notices have the severity `info` and do not fail the run:
 | --- | --- |
 | `tree.dropped_manifest_member` | A v4 manifest's `version` or `created` has no place in a single file and was dropped. The message names the member. |
 | `tree.ignored_file` | A package metadata file, `package.json` in a package directory of `pkg/` or `deps/`, is not part of the model and was ignored. Other files that are neither JSON nor YAML are ignored with no notice. |
+| `model.compaction_declined` | With `--compact`, no alias was worth its cost in the single file, or in some files of a tree, so they are written as their plain documents in canonical JSON. For a tree, one notice at the output counts the files. |
 
 ## JSON output
 
@@ -326,10 +420,10 @@ $ morphir model convert --input tree --output copy.json --layout=single-file --j
 | `exitCode` | The exit code of the run. |
 | `input`, `output` | The paths, as the command line gave them. |
 | `inputLayout`, `outputLayout` | `single-file` or `document-tree`. |
-| `inputEncoding`, `outputEncoding` | `plain` or `compacted`. |
+| `inputEncoding`, `outputEncoding` | `plain` or `compacted`. The output is `compacted` when a file written is in an envelope. |
 | `irVersion` | `"3"` or `"4"`, the IR version of the input and of the output. Absent when the input was not read. |
 | `compactMode` | The compaction mode, `names`. Present only with `--compact`. |
-| `compactPolicy` | The policy that wrote compacted files. Present only when compacted files are written, which this version does not do yet. |
+| `compactPolicy` | The writer policy of the mode, `morphir.compact/0.1.0-draft.1`. Present only with `--compact`. |
 | `filesWritten` | Every file written, in order. Empty for a refused run. |
 | `diagnostics` | The errors, each with `code`, `severity`, `message` and, when it has one, `location`. |
 | `notices` | The notices, in the same form, with the severity `info`. |

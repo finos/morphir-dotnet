@@ -108,6 +108,12 @@ public static class ModelConvertCodes
 
     /// <summary>The run was cancelled (exit code 130).</summary>
     public const string Cancelled = "model.cancelled";
+
+    /// <summary>
+    /// A notice of a compacted write: no alias was worth its cost in the single file, or in some files of a tree, so
+    /// they are the plain document in canonical JSON under the writer policy.
+    /// </summary>
+    public const string CompactionDeclined = "model.compaction_declined";
 }
 
 /// <summary>The wire names of the layouts and encodings in the report and in <c>--layout</c>.</summary>

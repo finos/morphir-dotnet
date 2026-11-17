@@ -5,6 +5,7 @@ open Morphir.Compat
 #endif
 
 open System
+open System.Text
 open System.Text.Json
 open Morphir.IR
 open Morphir.Json.V4
@@ -52,17 +53,45 @@ module internal TreeWriter =
         with :? JsonException ->
             false
 
-    let private encoded path (written: Result<byte array, V4WriteError>) =
+    /// <summary>
+    /// The files of a compacted write that the writer policy wrote plain, in canonical JSON, because no alias was worth
+    /// its cost there, in the declared order. A plain write does not set it.
+    /// </summary>
+    let plainFiles: Morphir.Files.Property<string list> =
+        Morphir.Files.Property.create "morphir.document-tree.plain-files"
+
+    let private tooDeep path =
+        error
+            "depth_limit_exceeded"
+            (Some path)
+            $"The file would be nested more than {V4JsonDecoding.MaxDepth} levels deep, which a read of a tree does not accept."
+
+    /// The bytes of a file under the writer policy, and whether an alias was worth its cost. The file's IR family is
+    /// the one its own formatVersion says, as a reader takes it.
+    let private compacted path (bytes: byte array) =
+        use document =
+            JsonDocument.Parse(ReadOnlyMemory<byte>(bytes), JsonDocumentOptions(MaxDepth = V4JsonDecoding.MaxDepth))
+
+        Morphir.IR.Files.CompactionPolicy.compact (Morphir.IR.Files.MorphirFile.familyOf document.RootElement) document.RootElement
+        |> Result.mapError (List.map (fun (e: StoreError) -> { e with File = Some path }))
+
+    /// A file's path, its text, and whether a compacted write left it plain.
+    let private encoded (compact: CompactMode option) path (written: Result<byte array, V4WriteError>) =
         match written with
-        | Ok bytes when not (readable bytes) ->
-            Error(
-                error
-                    "depth_limit_exceeded"
-                    (Some path)
-                    $"The file would be nested more than {V4JsonDecoding.MaxDepth} levels deep, which a read of a tree does not accept."
-            )
-        | Ok bytes -> Ok(path, TreeFileCodec.toText bytes)
-        | Error e -> Error(error e.Rule (Some path) $"{e.Location}: {e.Message}")
+        | Ok bytes when not (readable bytes) -> Error [ tooDeep path ]
+        | Ok bytes ->
+            match compact with
+            | None -> Ok(path, TreeFileCodec.toText bytes, false)
+            | Some Names ->
+                // The policy's output is the file exactly: canonical JSON, with no newline after it.
+                compacted path bytes
+                |> Result.bind (fun (output, aliased) ->
+                    if readable output then
+                        Ok(path, Encoding.UTF8.GetString output, not aliased)
+                    else
+                        Error [ tooDeep path ]
+                )
+        | Error e -> Error [ error e.Rule (Some path) $"{e.Location}: {e.Message}" ]
 
     let private fileName (path: string) =
         path.Substring(
@@ -134,7 +163,7 @@ module internal TreeWriter =
                 let pathOf address = paths[address]
 
                 let files =
-                    encoded ManifestFile (writers.Manifest options.PathBudget)
+                    encoded options.Compact ManifestFile (writers.Manifest options.PathBudget)
                     :: (documents
                         |> List.map (fun (address, document) ->
                             let path = pathOf address
@@ -156,40 +185,49 @@ module internal TreeWriter =
                                         |> Option.map (fun stem -> name, stem)
                                     )
 
-                                encoded path (writers.Module modulePath m entries)
+                                encoded options.Compact path (writers.Module modulePath m entries)
                             | _, TypeDoc t ->
                                 let name, _ = (memberOf address).Value
-                                encoded path (writers.Type name t)
+                                encoded options.Compact path (writers.Type name t)
                             | _, ValueDoc v ->
                                 let name, _ = (memberOf address).Value
-                                encoded path (writers.Value name v)
+                                encoded options.Compact path (writers.Value name v)
                             // join refuses a document that does not fit its address, so this is not reached.
                             | _, ModuleDoc _ ->
-                                Error(
+                                Error [
                                     error
                                         "tree.mismatched_document"
                                         (Some path)
                                         $"The document at {address} does not fit its address."
-                                )
+                                ]
                         ))
 
                 match
                     files
-                    |> List.choose (
+                    |> List.collect (
                         function
-                        | Error e -> Some e
-                        | Ok _ -> None
+                        | Error errors -> errors
+                        | Ok _ -> []
                     )
                 with
                 | _ :: _ as errors -> Error errors
                 | [] ->
-                    let written =
+                    let encodedFiles =
                         files
                         |> List.choose (
                             function
                             | Ok file -> Some file
                             | Error _ -> None
                         )
+
+                    let written = [ for path, text, _ in encodedFiles -> path, text ]
+
+                    let leftPlain =
+                        set [
+                            for path, _, plain in encodedFiles do
+                                if plain then
+                                    path
+                        ]
 
                     // The manifest first, then every document in the ordinal order of its logical path.
                     let order =
@@ -215,5 +253,9 @@ module internal TreeWriter =
                         (order
                          |> List.filter byPath.ContainsKey)
                     |> Morphir.Files.VFileTree.set locations (Map.add Manifest ManifestFile paths)
+                    |> fun tree ->
+                        match options.Compact with
+                        | Some _ -> Morphir.Files.VFileTree.set plainFiles (order |> List.filter leftPlain.Contains) tree
+                        | None -> tree
                     |> Ok
             )

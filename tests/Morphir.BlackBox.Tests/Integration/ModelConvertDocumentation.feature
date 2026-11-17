@@ -56,3 +56,16 @@ Feature: The commands of the model convert page give their documented output
     When I run each documented command of the host as written in the work area
     Then each documented command exits with 0
     And each documented command gives its documented output
+
+  Scenario: The compaction commands give their documented output
+    Given the section "Compaction" of the documentation page "cli/model-convert.md"
+    And a valid IR v4 model in the file "morphir-ir.json"
+    And the plain v4 single file of the compaction policy's cases in the file "order-total.json"
+    Then the page documents these commands
+      | command                                                                                            |
+      | morphir model convert --input order-total.json --output compacted.json --compact --json=document      |
+      | morphir model convert --input morphir-ir.json --output daily-rate.json --compact --json=document      |
+      | morphir model convert --input order-total.json --output compacted-tree --layout=document-tree --compact |
+    When I run each documented command of the host as written in the work area
+    Then each documented command exits with 0
+    And each documented command gives its documented output

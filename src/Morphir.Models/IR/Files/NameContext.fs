@@ -111,7 +111,7 @@ module internal NameContext =
     /// <c>-</c>, each a word (<c>[a-z0-9]+</c>) or an initialism (<c>[A-Z0-9]+</c>). A name's canonical form writes each
     /// segment as it is read, so every text the grammar accepts is canonical.
     /// </summary>
-    let private isName (text: string) =
+    let isName (text: string) =
         let isAscii (accepts: char -> bool) (segment: string) =
             segment
             |> Seq.forall (fun c -> accepts c || Char.IsAsciiDigit c)
@@ -125,12 +125,12 @@ module internal NameContext =
         |> Array.forall isSegment
 
     /// Whether a text is a path: names joined by <c>/</c>.
-    let private isPath (text: string) =
+    let isPath (text: string) =
         text.Split('/')
         |> Array.forall isName
 
     /// Whether a text is an FQName: <c>package:module#name</c>, with exactly one <c>:</c> and then one <c>#</c>.
-    let private isFqName (text: string) =
+    let isFqName (text: string) =
         match text.Split(':') with
         | [| package; rest |] ->
             match rest.Split('#') with

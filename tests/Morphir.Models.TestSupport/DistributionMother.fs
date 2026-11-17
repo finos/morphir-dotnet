@@ -230,6 +230,33 @@ let nameUsedOften: Distribution =
     |> withModule (modulePath "ledger") types
     |> buildV4
 
+/// <summary>
+/// The library of <c>longNameUsedOften</c> for a builder: the type
+/// <c>acme/order-management:pricing/discount-rules#discounted-amount-before-regional-sales-tax-adjustment</c> (F of the
+/// parent's compaction policy, 99 bytes), and the record <c>order-total</c> whose fields <c>base</c>, <c>bonus</c> and
+/// <c>rebate</c> are each of type F, so the type file of <c>order-total</c> uses F three times, as the policy's case
+/// <c>v4-type</c> does.
+/// </summary>
+let private withLongNameUsedOften (start: PackageName -> LibraryBuilder<'model>) : LibraryBuilder<'model> =
+    let long = "discounted-amount-before-regional-sales-tax-adjustment"
+    let reference = Named(fqName "acme/order-management" "pricing/discount-rules" long, [])
+
+    start (packageName "acme/order-management")
+    |> withModule
+        (modulePath "pricing/discount-rules")
+        (withType (name long) (alias Sdk.int)
+         >> withType (name "order-total") (alias (RecordOf [ name "base", reference; name "bonus", reference; name "rebate", reference ])))
+
+/// <summary>
+/// A v4 library whose type file of <c>order-total</c> uses one long FQName three times: in a tree, that file is worth
+/// an alias under the compaction policy, as its own context.
+/// </summary>
+let longNameUsedOften: Distribution = withLongNameUsedOften aV4Library |> buildV4
+
+/// <summary>The classic library of <see cref="longNameUsedOften"/>, where each use is the FQName's word arrays.</summary>
+let v3LongNameUsedOften: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
+    withLongNameUsedOften aV3Library |> buildV3
+
 /// <summary>A classic library whose one type is named <see cref="Names.nonAscii"/>, a name with an <c>é</c>.</summary>
 let nonAsciiName: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     aV3Library (packageName "my-org/menu")

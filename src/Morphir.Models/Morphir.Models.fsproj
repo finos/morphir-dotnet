@@ -115,6 +115,7 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="IR/Files/NameContext.fs" />
         <Compile Include="IR/Files/ContextExpansion.fs" />
         <Compile Include="IR/Files/MorphirFile.fs" />
+        <Compile Include="IR/Files/CompactionPolicy.fs" />
         <Compile Include="IR/Trees/TreeFileCodec.fs" />
         <Compile Include="IR/Trees/V4TreeFiles.fs" />
         <Compile Include="IR/Trees/ClassicTreeFiles.fs" />

@@ -46,7 +46,7 @@ open Morphir.IR
 /// module file whose path is not its directory's; <c>tree.name_mismatch</c>, a file whose stem does not spell its
 /// name; <c>tree.duplicate_document</c>; <c>tree.over_budget</c>, a path longer than the manifest's budget;
 /// <c>tree.too_many_files</c>; <c>tree.file_too_large</c>; <c>tree.unreadable_file</c>; and
-/// <c>tree.unsupported_option</c>. <c>invalid_json</c> is a file that is not JSON, and <c>invalid_file_name</c> a
+/// <c>tree.unsupported_option</c>, a path budget under the minimum. <c>invalid_json</c> is a file that is not JSON, and <c>invalid_file_name</c> a
 /// <c>fileNames</c> entry that is not the cut stem of its name. Any other codec error keeps the codec's rule.
 /// </para>
 /// </remarks>
@@ -61,28 +61,43 @@ module DocumentTreeStore =
         TreeWriter.locations
 
     /// <summary>
+    /// The files of a compacted write that the writer policy wrote as plain documents in canonical JSON, because no
+    /// alias was worth its cost there, in the declared order; set on the tree that a write with
+    /// <c>Compact = Some Names</c> returns, and not on a plain write.
+    /// </summary>
+    let plainFiles: Morphir.Files.Property<string list> =
+        TreeWriter.plainFiles
+
+    /// <summary>
+    /// The files that a compacted write left plain (<see cref="plainFiles"/>), or none for a tree that a plain write
+    /// gave. C# calls this <c>PlainFilesOf</c>.
+    /// </summary>
+    [<CompiledName("PlainFilesOf")>]
+    let plainFilesOf (files: Morphir.Files.VFileTree) : System.Collections.Generic.IReadOnlyList<string> =
+        match Morphir.Files.VFileTree.tryGet plainFiles files with
+        | Some paths -> Array.ofList paths :> System.Collections.Generic.IReadOnlyList<string>
+        | None -> Array.empty<string> :> System.Collections.Generic.IReadOnlyList<string>
+
+    /// <summary>
     /// Writes a tree to files: a v4 tree in the v4 files, a classic tree in the v3 files. The tree must join
     /// (<c>V4DocumentTree.join</c>, <c>ClassicDocumentTree.join</c>); a v4 module with annotations, two documents
     /// whose files would have one path, and a path that no cut fits are refused, before any file is encoded. The
     /// returned tree has the manifest first and then each document in the ordinal order of its logical path as its
-    /// declared order, and <see cref="locations"/> gives each document's file. A refused write gives every error and
-    /// no file. C# calls this <c>Write</c>.
+    /// declared order, and <see cref="locations"/> gives each document's file. With <c>Compact = Some Names</c>,
+    /// each file, the manifest included, is written under the writer policy <c>morphir.compact/0.1.0-draft.1</c>
+    /// (<c>CompactionPolicy</c>) with its own context, in canonical JSON with no newline after it: an envelope when an
+    /// alias is worth its cost, or else the plain document, which <see cref="plainFiles"/> lists. A file that the
+    /// envelope would nest past what a read of a tree accepts is refused with <c>depth_limit_exceeded</c>. A refused
+    /// write gives every error and no file. C# calls this <c>Write</c>.
     /// </summary>
     [<CompiledName("Write")>]
     let write
         (options: WriteOptions)
         (tree: StoredTree)
         : Result<Morphir.Files.VFileTree, StoreError list> =
-        match options.Compact, tree with
-        | Some _, _ ->
-            Error [
-                error
-                    "tree.unsupported_option"
-                    None
-                    "Compacted trees are written by a later version of this store."
-            ]
-        | None, V4Tree v4 -> V4TreeWriter.writeV4 options v4
-        | None, ClassicTree classic -> ClassicTreeWriter.writeClassic options classic
+        match tree with
+        | V4Tree v4 -> V4TreeWriter.writeV4 options v4
+        | ClassicTree classic -> ClassicTreeWriter.writeClassic options classic
 
     /// <summary>
     /// Reads a tree from files. The manifest's <c>formatVersion</c> chooses the version: a manifest of major 3 is

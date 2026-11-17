@@ -433,22 +433,6 @@ let tests =
                     "The value file is refused, and nothing is written"
             }
 
-            test "A compacted write" {
-                let errors =
-                    refusal (
-                        DocumentTreeStore.write
-                            { WriteOptions.defaults with
-                                Compact = Some Names
-                            }
-                            DocumentTreeMother.acmeDemo
-                    )
-
-                Expect.equal
-                    (codesAndFiles errors)
-                    [ "tree.unsupported_option", None ]
-                    "An error of the whole tree"
-            }
-
             test "A path budget under the minimum" {
                 let errors =
                     refusal (

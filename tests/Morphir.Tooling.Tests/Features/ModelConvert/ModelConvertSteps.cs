@@ -53,6 +53,14 @@ public sealed class ModelConvertSteps : IAsyncDisposable
         // The module file of billing lists the value total; without its file the tree is refused.
         PlaceTree([.. FixtureCatalog.Trees.AcmeDemo.Where(entry => !entry.RelativePath.EndsWith("/total.value.json", StringComparison.Ordinal))]);
 
+    /// <summary>
+    /// The plain single file of IR <paramref name="ir"/> among the cases of the parent's compaction policy
+    /// (<see cref="FixtureCatalog.Context"/>): a Library whose value uses one long FQName three times (v4) or twice in
+    /// word arrays (v3), which the policy gives an alias.
+    /// </summary>
+    [Given("the plain v{int} single file of the compaction policy's cases")]
+    public void ThePlainSingleFileOfThePolicyCases(int ir) => PlaceFile(FixtureCatalog.Context.Policy.Case($"v{ir}-single-file").Input);
+
     /// <summary>The parent's compacted single file of IR <paramref name="ir"/> (<see cref="FixtureCatalog.Context"/>).</summary>
     [Given("a compacted v{int} single-file model")]
     public void CompactedSingleFile(int ir) => PlaceFile(FixtureCatalog.Context.Example($"v{ir}-single-file").File);
@@ -190,6 +198,10 @@ public sealed class ModelConvertSteps : IAsyncDisposable
 
     [When("I convert the model without changing its layout")]
     public Task ConvertWithoutALayout() => Convert(new ConversionOptions());
+
+    /// <summary>With a bare <c>--compact</c> and no layout: the layout of the input.</summary>
+    [When("I convert the model with compaction")]
+    public Task ConvertWithCompaction() => Convert(new ConversionOptions { Compact = CompactionArgument.Default });
 
     [When("I convert the model to a document tree with compaction")]
     public Task ConvertToACompactedTree() =>
@@ -331,12 +343,16 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     [Then("the report states the input encoding {string}")]
     public void TheReportStatesTheInputEncoding(string encoding) => Report.InputEncoding.Should().Be(encoding);
 
-    [Then("the report states the compaction mode {string}")]
-    public void TheReportStatesTheCompactionMode(string mode)
+    /// <summary>The report names the mode, and the parent's writer policy that the pinned policy cases are of.</summary>
+    [Then("the report states the compaction mode {string} and the writer policy")]
+    public void TheReportStatesTheCompactionModeAndThePolicy(string mode)
     {
         Report.CompactMode.Should().Be(mode);
-        Report.OutputEncoding.Should().Be("compacted");
+        Report.CompactPolicy.Should().Be(FixtureCatalog.Context.Policy.Name);
     }
+
+    [Then("the report has the notice {string}")]
+    public void TheReportHasTheNotice(string code) => Report.ShouldHaveNotice(code);
 
     [Then("the single file says format version {int}")]
     public void TheSingleFileSaysItsFormatVersion(int version)
@@ -409,6 +425,21 @@ public sealed class ModelConvertSteps : IAsyncDisposable
         var files = Directory.EnumerateFiles(Output.Path, "*.json", SearchOption.AllDirectories).ToArray();
         files.Should().NotBeEmpty();
         foreach (var file in files) IsPlain(file);
+    }
+
+    /// <summary>
+    /// The written single file is one envelope of the schema that the policy's compacted cases name, and it is
+    /// canonical JSON: members sorted, no whitespace.
+    /// </summary>
+    [Then("the single file is compacted")]
+    public void TheSingleFileIsCompacted()
+    {
+        File.Exists(Output.Path).Should().BeTrue("a single file stays one file");
+        using var expected = JsonDocument.Parse(FixtureCatalog.ReadBytes(FixtureCatalog.Context.Policy.Case("v4-type").Expected));
+        var bytes = File.ReadAllBytes(Output.Path);
+        using var document = JsonDocument.Parse(bytes);
+        document.RootElement.GetProperty("$schema").GetString().Should().Be(expected.RootElement.GetProperty("$schema").GetString());
+        System.Text.Encoding.UTF8.GetString(bytes).Should().StartWith("{\"$schema\":").And.NotContain("\n");
     }
 
     private static void IsPlain(string file)

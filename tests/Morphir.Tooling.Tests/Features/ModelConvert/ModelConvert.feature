@@ -260,12 +260,32 @@ Feature: Model convert
     And the stream ends with one completed record
     And the store was asked neither to read nor to write
 
-  Scenario: A compacted output is not written yet
+  Scenario Outline: A single file is compacted and stays one file
+    Given the plain v<ir> single file of the compaction policy's cases
+    When I convert the model with compaction
+    Then the conversion succeeds
+    And the report states the input encoding "plain" and the output encoding "compacted"
+    And the report states the compaction mode "names" and the writer policy
+    And the single file is compacted
+    When I convert the converted model back to a single file
+    Then the conversion succeeds
+    And the single file is plain
+    And the single file says format version <ir>
+
+    Examples:
+      | ir |
+      | 4  |
+      | 3  |
+
+  Scenario: A compacted output that no alias pays for is written plain, with a notice
     Given a v4 single-file model
     When I convert the model to a document tree with compaction
-    Then the conversion fails with exit code 1 and the diagnostic "tree.unsupported_option"
-    And the report states the compaction mode "names"
-    And nothing is at the output
+    Then the conversion succeeds
+    And the report states the input encoding "plain" and the output encoding "plain"
+    And the report states the compaction mode "names" and the writer policy
+    And the report has the notice "model.compaction_declined"
+    And the streamed notices equal the report's notices
+    And every file at the output is plain
 
   Scenario: A separated compaction mode is refused with a hint
     Given a v4 single-file model

@@ -101,6 +101,16 @@ module internal ContextExpansion =
 
     let private isAttributes name = name = "attributes" || name = "attrs"
 
+    /// The id of a reference: exactly the object <c>{"$name": "&lt;id&gt;"}</c>.
+    let referenceId (element: JsonElement) =
+        if element.ValueKind = JsonValueKind.Object then
+            match List.ofSeq (element.EnumerateObject()) with
+            | [ property ] when property.Name = "$name" && property.Value.ValueKind = JsonValueKind.String ->
+                Some(nonNull (property.Value.GetString()))
+            | _ -> None
+        else
+            None
+
     /// The shapes of IR v4 JSON.
     module private V4 =
         let private name = position NamesTable CanonicalString
@@ -145,9 +155,11 @@ module internal ContextExpansion =
             membersOf (fun payload key _ ->
                 let mutable fields = Unchecked.defaultof<JsonElement>
 
+                // A reference under fields is the type of a legacy field named fields, not a map of fields.
                 let holdsFieldMap =
                     payload.TryGetProperty("fields", &fields)
                     && fields.ValueKind = JsonValueKind.Object
+                    && (referenceId fields).IsNone
                     && fields.EnumerateObject()
                        |> Seq.forall (fun property -> not (tags.Contains property.Name))
 
@@ -898,22 +910,22 @@ module internal ContextExpansion =
                 | _ -> None
             )
 
-    let private tableName table =
+    /// <summary>
+    /// The shape of a whole file of <paramref name="family"/>: a single file, or a manifest, module, type or value file
+    /// of a tree. Expansion resolves references at its positions, and compaction takes its candidates there.
+    /// </summary>
+    let rootOf (family: IrFamily) : Shape =
+        match family with
+        | IrFamily.V4 -> V4.root ()
+        | IrFamily.Classic3 -> Classic.root ()
+
+    /// The name of a table as the context writes it.
+    let tableName table =
         match table with
         | NamesTable -> "names"
         | PackagePathsTable -> "packagePaths"
         | ModulePathsTable -> "modulePaths"
         | FqNamesTable -> "fqNames"
-
-    /// The id of a reference: exactly the object <c>{"$name": "&lt;id&gt;"}</c>.
-    let private referenceId (element: JsonElement) =
-        if element.ValueKind = JsonValueKind.Object then
-            match List.ofSeq (element.EnumerateObject()) with
-            | [ property ] when property.Name = "$name" && property.Value.ValueKind = JsonValueKind.String ->
-                Some(nonNull (property.Value.GetString()))
-            | _ -> None
-        else
-            None
 
     /// The classic word array of a name.
     let private writeClassicName (writer: Utf8JsonWriter) (Name words) =
@@ -1043,10 +1055,7 @@ module internal ContextExpansion =
         (context: FileContext)
         (document: JsonElement)
         : Result<JsonElement, StoreError list> =
-        let root =
-            match family with
-            | IrFamily.V4 -> V4.root ()
-            | IrFamily.Classic3 -> Classic.root ()
+        let root = rootOf family
 
         let problems = {
             Unknown = ResizeArray()

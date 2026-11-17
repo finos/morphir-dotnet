@@ -39,8 +39,8 @@ public sealed class ConsoleModelConvertOutput : IModelConvertOutput
 /// alone. A parse error is a report with exit code 2, in the JSON mode that the tokens ask for.
 /// </summary>
 /// <remarks>
-/// Compacted writing is not implemented yet: <c>--compact</c> parses, and the write is refused with
-/// <c>tree.unsupported_option</c> before any file is written.
+/// <c>--compact=names</c> writes each file, the single file or each file of a tree, under the parent's writer policy
+/// <c>morphir.compact/0.1.0-draft.1</c>, and the report names the mode and the policy.
 /// </remarks>
 public sealed class ModelConvertCommand : Command, IMorphirParseErrorHandler
 {
@@ -58,7 +58,7 @@ public sealed class ModelConvertCommand : Command, IMorphirParseErrorHandler
         HelpName = string.Join('|', ModelConvertNames.Layouts),
     };
     private readonly Option<string> _compact = OptionValueRewrite.CreateOption(CompactOptionName, CompactModes[0], CompactModes,
-        "Compact the output: --compact means --compact=names, which interns names (not implemented yet: the write is refused)");
+        "Compact the output: --compact means --compact=names, which gives repeated names an alias in each file's own context (writer policy morphir.compact/0.1.0-draft.1)");
     private readonly Option<string> _json = JsonOutputOption.Create();
 
     private readonly IServiceProvider _services;

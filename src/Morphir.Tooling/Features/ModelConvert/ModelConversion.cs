@@ -52,7 +52,9 @@ public interface IConvertObserver
 /// directory is needed or the reverse, with <c>model.output_not_empty</c>. A run that changes neither the layout nor
 /// the encoding exits 2 with <c>model.nothing_to_do</c>, decided from the envelopes of the input's files before the
 /// model is read: a tree with any file in an envelope is not plain, so it is read and written plain. A compacted input
-/// is expanded as it is read, and the output is plain unless <c>--compact</c> is given. A
+/// is expanded as it is read, and the output is plain unless <c>--compact</c> is given, which writes each file under
+/// the writer policy <c>morphir.compact/0.1.0-draft.1</c> and notes with <c>model.compaction_declined</c> the files
+/// that no alias paid for. A
 /// path that is not a path exits 2 with <c>model.invalid_arguments</c>. Every other refusal exits 1, and leaves nothing
 /// at the output; a file-system failure is <c>model.read_failed</c> or <c>model.write_failed</c>, so every run ends with
 /// a report.
@@ -163,6 +165,9 @@ public sealed class ModelConversion(IModelConversionStore store)
             : [request.Output];
         foreach (var file in files) observer.FileWritten(file);
         state.FilesWritten.AddRange(files);
+        state.Notices.AddRange(written.Notices);
+        state.OutputEncoding = written.Compacted ? ModelConvertNames.Compacted : ModelConvertNames.Plain;
+        if (written.Notices.Count > 0) observer.Notices(ConvertStages.Write, written.Notices);
         observer.StageCompleted(ConvertStages.Write, true);
         return state.Report(0, []);
     }
@@ -255,6 +260,10 @@ public sealed class ModelConversion(IModelConversionStore store)
         public ModelLayout? InputLayout { get; set; }
         public ModelLayout? OutputLayout { get; set; }
         public string? InputEncoding { get; set; }
+
+        /// <summary>The encoding of the files written, once they are; until then, the encoding asked for.</summary>
+        public string? OutputEncoding { get; set; }
+
         public string? IrVersion { get; set; }
         public List<ConvertDiagnostic> Notices { get; } = [];
         public List<string> FilesWritten { get; } = [];
@@ -264,11 +273,11 @@ public sealed class ModelConversion(IModelConversionStore store)
             InputLayout is { } input ? ModelConvertNames.Of(input) : null,
             OutputLayout is { } output ? ModelConvertNames.Of(output) : null,
             InputEncoding,
-            OutputLayout is null ? null : Request.CompactMode is null ? ModelConvertNames.Plain : ModelConvertNames.Compacted,
+            OutputLayout is null ? null : OutputEncoding ?? (Request.CompactMode is null ? ModelConvertNames.Plain : ModelConvertNames.Compacted),
             IrVersion,
             Request.CompactMode,
-            // The policy that writes compacted files comes from the parent with compacted writing (add-model-convert 8.3).
-            null,
+            // The parent's writer policy, the one policy of the mode names.
+            Request.CompactMode is null ? null : Morphir.IR.Files.CompactionPolicy.Id,
             [.. FilesWritten], [.. diagnostics], [.. Notices]);
     }
 }

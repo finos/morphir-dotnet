@@ -258,26 +258,24 @@ type StoredModel internal (form: ModelForm) =
     /// <summary>
     /// Writes a single-file form as indented JSON: IR 4 with <c>"formatVersion": 4</c>, a classic <c>Library</c> with
     /// <c>"formatVersion": 3</c> and a classic <c>Specs</c> with <c>"formatVersion": "3.1.0"</c>, classic attributes
-    /// as they were read. A compacted single file is refused with <c>tree.unsupported_option</c> until compacted
-    /// writing lands. Throws <see cref="InvalidOperationException"/> for a tree.
+    /// as they were read. With <paramref name="compact"/>, the file is written under the writer policy
+    /// <c>morphir.compact/0.1.0-draft.1</c> (<c>CompactionPolicy</c>) and stays one file: an envelope in canonical JSON
+    /// when an alias is worth its cost, or else the plain document in canonical JSON. <paramref name="compacted"/>
+    /// says which: true for an envelope. Throws <see cref="InvalidOperationException"/> for a tree.
     /// </summary>
     member _.TryWriteSingleFile
         (
             compact: bool,
             [<Out; MaybeNullWhen(false)>] bytes: byref<byte array>,
+            [<Out>] compacted: byref<bool>,
             [<Out; MaybeNullWhen(true)>] problems: byref<IReadOnlyList<ConversionProblem>>
         ) : bool =
-        let written =
+        let plain, family =
             match form with
-            | _ when compact ->
-                Error(
-                    one
-                        "tree.unsupported_option"
-                        "Compacted single files are written by a later version of this store."
-                )
             | V4File distribution ->
                 V4JsonWriter.writeDistribution true distribution
-                |> Result.mapError (fun error -> one error.Rule $"{error.Location}: {error.Message}")
+                |> Result.mapError (fun error -> one error.Rule $"{error.Location}: {error.Message}"),
+                Morphir.IR.Files.IrFamily.V4
             | ClassicFile distribution ->
                 let profile =
                     match distribution with
@@ -285,18 +283,48 @@ type StoredModel internal (form: ModelForm) =
                     | Specs _ -> ClassicWireProfile.v3_1_0
 
                 ClassicJsonWriter.writeJsonAttributes profile true distribution
-                |> Result.mapError (fun error -> one error.Rule $"{error.Location}: {error.Message}")
+                |> Result.mapError (fun error -> one error.Rule $"{error.Location}: {error.Message}"),
+                Morphir.IR.Files.IrFamily.Classic3
             | TreeForm _ -> invalidOp "A document tree is written by DocumentTreeStore.write, not as a single file."
 
+        let written =
+            plain
+            |> Result.bind (fun plain ->
+                if not compact then
+                    Ok(plain, false)
+                else
+                    // The writers bound the nesting; the canonical JSON of the policy refuses a file deeper than it reads.
+                    use document =
+                        JsonDocument.Parse(ReadOnlyMemory<byte>(plain), JsonDocumentOptions(MaxDepth = Int32.MaxValue))
+
+                    Morphir.IR.Files.CompactionPolicy.compact family document.RootElement
+                    |> Result.mapError problemsOf
+            )
+
         match written with
-        | Ok written ->
+        | Ok(written, aliased) ->
             bytes <- written
+            compacted <- aliased
             problems <- Unchecked.defaultof<_>
             true
         | Error found ->
             bytes <- Unchecked.defaultof<_>
+            compacted <- false
             problems <- found
             false
+
+    /// <summary>
+    /// Writes a single-file form, plain or under the writer policy, as the overload with <c>compacted</c> does, for a
+    /// caller that does not ask whether an alias was worth its cost.
+    /// </summary>
+    member this.TryWriteSingleFile
+        (
+            compact: bool,
+            [<Out; MaybeNullWhen(false)>] bytes: byref<byte array>,
+            [<Out; MaybeNullWhen(true)>] problems: byref<IReadOnlyList<ConversionProblem>>
+        ) : bool =
+        let mutable compacted = false
+        this.TryWriteSingleFile(compact, &bytes, &compacted, &problems)
 
     /// <summary>
     /// The options of <c>DocumentTreeStore.write</c>: the default path budget, with name compaction when

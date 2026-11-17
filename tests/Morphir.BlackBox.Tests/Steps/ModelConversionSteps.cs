@@ -82,6 +82,27 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
         FixtureCatalog.Kit.FileSpellings.FirstOrDefault(spelling => spelling.Id == id)
         ?? throw new KeyNotFoundException($"The pinned kit has no case '{id}' that pins a file's spelling.");
 
+    /// <summary>
+    /// The plain single file of IR <paramref name="ir"/> among the cases of the parent's compaction policy
+    /// (<see cref="FixtureCatalog.Context"/>), in <c>model.json</c>: a Library whose one value uses one long FQName three
+    /// times (v4) or twice as word arrays (v3), which the policy gives an alias, in a single file and in the value's
+    /// file of a tree.
+    /// </summary>
+    [Given("the plain v{int} single file of the compaction policy's cases")]
+    public void ThePlainSingleFileOfThePolicyCases(int ir) => ThePlainSingleFileOfThePolicyCasesInTheFile(ir, "model.json");
+
+    /// <summary>
+    /// The plain single file of the policy's cases in the file <paramref name="name"/> of the work area: for a
+    /// documentation page that names its model file.
+    /// </summary>
+    [Given("the plain v{int} single file of the compaction policy's cases in the file {string}")]
+    public void ThePlainSingleFileOfThePolicyCasesInTheFile(int ir, string name)
+    {
+        var model = workspace.File(name);
+        workspace.WriteBytes(model, FixtureCatalog.ReadBytes(FixtureCatalog.Context.Policy.Case($"v{ir}-single-file").Input));
+        run.Model = model;
+    }
+
     // ---- The output -------------------------------------------------------------------------------------------------
 
     /// <summary>The next conversion writes into a directory that already holds a file.</summary>
@@ -106,6 +127,21 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
     [When("I convert the model without changing its layout or its encoding")]
     public Task ConvertTheModelWithoutChangingIt() => Convert(run.ModelLocation, layout: null);
 
+    /// <summary>Converts the model of the scenario with a bare compaction option and no layout: it keeps its layout.</summary>
+    [When("I compact the model")]
+    public Task CompactTheModel() => Convert(run.ModelLocation, layout: null, CompactionArgument.Default);
+
+    [When("I compact the model to a document tree")]
+    public Task CompactTheModelToADocumentTree() => Convert(run.ModelLocation, ModelLayout.DocumentTree, CompactionArgument.Default);
+
+    /// <summary>Converts the model of the scenario with the compaction mode given with an equals sign, and no layout.</summary>
+    [When("I convert the model with the compaction mode {string}")]
+    public Task ConvertWithTheCompactionMode(string mode) => Convert(run.ModelLocation, layout: null, CompactionArgument.WithMode(mode));
+
+    /// <summary>Converts the model of the scenario with the compaction mode as the next argument, which the command refuses.</summary>
+    [When("I convert the model with the compaction mode {string} after a space")]
+    public Task ConvertWithTheCompactionModeAfterASpace(string mode) => Convert(run.ModelLocation, layout: null, CompactionArgument.Separated(mode));
+
     [When("I convert the written model to a single file")]
     public Task ConvertTheWrittenModelToASingleFile() => Convert(Output, ModelLayout.SingleFile);
 
@@ -129,7 +165,7 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
         run.Result = await verification.VerifyAsync(WrittenTree, new VerificationOptions { Json = JsonOutputArgument.Stream });
     }
 
-    private async Task Convert(ModelLocation input, ModelLayout? layout)
+    private async Task Convert(ModelLocation input, ModelLayout? layout, CompactionArgument? compact = null)
     {
         // With no layout, the output has the layout of the input.
         var inputIsATree = (_writtenTree is { } written && input.Path == written.Path) || (run.ModelTree is { } model && input.Path == model.Path);
@@ -156,7 +192,7 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
             _output = _writtenFile;
         }
 
-        run.Result = await conversion.ConvertAsync(input, _output, new ConversionOptions { Layout = layout });
+        run.Result = await conversion.ConvertAsync(input, _output, new ConversionOptions { Layout = layout, Compact = compact });
     }
 
     private string NextName() => "converted-" + (++_conversions).ToString(CultureInfo.InvariantCulture);
@@ -209,6 +245,32 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
         var report = Report;
         report.Check(report.IrVersion == version, $"The conversion report states the IR version {report.IrVersion ?? "null"}, not {version}.");
     }
+
+    /// <summary>The report names the compaction mode, and the parent's writer policy whose fixed cases the catalog pins.</summary>
+    [Then("the conversion report names the compaction mode {string} and the writer policy of the pinned cases")]
+    public void TheReportNamesTheModeAndThePolicy(string mode)
+    {
+        var report = Report;
+        var policy = FixtureCatalog.Context.Policy.Name;
+        report.Check(report.CompactMode == mode && report.CompactPolicy == policy,
+            $"The conversion report names the compaction mode {report.CompactMode ?? "null"} and the policy {report.CompactPolicy ?? "null"}, not {mode} and {policy}.");
+    }
+
+    /// <summary>The diagnostic with the code suggests the words in its message.</summary>
+    [Then("the diagnostic {string} suggests {string}")]
+    public void TheDiagnosticSuggests(string code, string words)
+    {
+        var diagnostic = Diagnostic(code);
+        Report.Check(diagnostic.Message.Contains(words, StringComparison.Ordinal), $"The diagnostic {code} does not suggest '{words}': {diagnostic.Message}");
+    }
+
+    /// <summary>The diagnostic suggests the compaction mode given with an equals sign, the one form the option takes.</summary>
+    [Then("the diagnostic {string} suggests the compaction mode {string} with an equals sign")]
+    public void TheDiagnosticSuggestsTheModeWithAnEqualsSign(string code, string mode) =>
+        TheDiagnosticSuggests(code, string.Join(" ", CompactionArgument.WithMode(mode).Words));
+
+    [Then("the conversion report has the notice {string}")]
+    public void TheReportHasTheNotice(string code) => Report.ShouldHaveNotice(code);
 
     /// <summary>The diagnostic with the code names the input in its message, with these words.</summary>
     [Then("the diagnostic {string} names the input as {string}")]
@@ -340,6 +402,38 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
         var root = JsonNode.Parse(workspace.ReadText(WrittenFile))!.AsObject();
         Report.Check(!root.ContainsKey("$schema"), $"The written file {WrittenFile.Name} is in a compaction envelope.");
     }
+
+    /// <summary>
+    /// The written single file is one file in a compaction envelope of the schema that the policy's compacted cases
+    /// name, in the canonical JSON (RFC 8785) that the policy writes: <c>$schema</c> first, on one line.
+    /// </summary>
+    [Then("the written single file is compacted")]
+    public void TheWrittenFileIsCompacted()
+    {
+        var text = workspace.ReadText(WrittenFile);
+        var schema = JsonNode.Parse(text)!.AsObject()["$schema"]?.GetValue<string>();
+        Report.Check(schema == PolicySchema, $"The written file {WrittenFile.Name} is not in an envelope of {PolicySchema}: its $schema is {schema ?? "missing"}.");
+        Report.Check(text.StartsWith("{\"$schema\":", StringComparison.Ordinal) && !text.Contains('\n', StringComparison.Ordinal),
+            $"The written file {WrittenFile.Name} is not canonical JSON: it does not start with its $schema on one line.");
+    }
+
+    /// <summary>
+    /// At least one file of the written tree is in a compaction envelope; the scenario's compacted files are then the
+    /// written tree's, as paths from its root, for a verification of the tree.
+    /// </summary>
+    [Then("the written tree has a compacted file")]
+    public void TheWrittenTreeHasACompactedFile()
+    {
+        var compacted = workspace.FilesIn(WrittenTree)
+            .Where(path => JsonNode.Parse(workspace.ReadText(WrittenTree.File(path.Split('/'))))!.AsObject()["$schema"]?.GetValue<string>() == PolicySchema)
+            .ToArray();
+        Report.Check(compacted.Length > 0, $"No file of the written tree is in an envelope of {PolicySchema}.");
+        run.CompactedFiles = compacted;
+    }
+
+    /// <summary>The envelope schema that the compacted cases of the parent's policy name.</summary>
+    private static string PolicySchema =>
+        JsonNode.Parse(FixtureCatalog.ReadText(FixtureCatalog.Context.Policy.All.First(policyCase => policyCase.Compacted).Expected))!["$schema"]!.GetValue<string>();
 
     /// <summary>The single files that the last two conversions wrote are the same JSON.</summary>
     [Then("the last two written single files are the same")]

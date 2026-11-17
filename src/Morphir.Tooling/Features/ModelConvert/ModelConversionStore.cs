@@ -29,10 +29,17 @@ public sealed record ModelRead(StoredModel? Model, string? Encoding, IReadOnlyLi
 
 /// <summary>
 /// What a write gave: each file written, as the path from the output with <c>/</c> (empty for a single file, which is
-/// the output itself), or the diagnostics that refused the write, in which case nothing is at the output.
+/// the output itself), or the diagnostics that refused the write, in which case nothing is at the output; and the
+/// notices of a write that did not refuse it, such as a compaction that no alias paid for.
 /// </summary>
 public sealed record ModelWrite(IReadOnlyList<string> Files, IReadOnlyList<ConvertDiagnostic> Diagnostics)
 {
+    /// <summary>The notices of the write; none by default.</summary>
+    public IReadOnlyList<ConvertDiagnostic> Notices { get; init; } = [];
+
+    /// <summary>Whether a written file is in a compaction envelope: false for a plain write, or one that no alias paid for.</summary>
+    public bool Compacted { get; init; }
+
     /// <summary>A refused write.</summary>
     public static ModelWrite Refused(IReadOnlyList<ConvertDiagnostic> diagnostics) => new([], diagnostics);
 }
@@ -313,13 +320,19 @@ public sealed class DiskModelConversionStore : IModelConversionStore
     public ValueTask<ModelWrite> WriteAsync(StoredModel model, ModelTarget target, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(target.Layout == ModelLayout.DocumentTree ? WriteTree(model, target) : WriteSingleFile(model, target));
+        // The writer policy walks a single file once for each level of nesting, as a read does.
+        return target.Layout == ModelLayout.DocumentTree
+            ? ValueTask.FromResult(WriteTree(model, target))
+            : new ValueTask<ModelWrite>(LargeStack.RunAsync(() => WriteSingleFile(model, target), "morphir model convert write", ct));
     }
 
     private static ModelWrite WriteSingleFile(StoredModel model, ModelTarget target)
     {
-        if (!model.TryWriteSingleFile(target.Compact, out var bytes, out var problems))
+        if (!model.TryWriteSingleFile(target.Compact, out var bytes, out var compacted, out var problems))
             return ModelWrite.Refused([.. problems.Select(problem => ConvertDiagnostic.Of(problem, target.Given))]);
+        IReadOnlyList<ConvertDiagnostic> notices = target.Compact && !compacted
+            ? [CompactionDeclined($"No alias was worth its cost under {CompactionPolicy.Id}, so the file is written as its plain document in canonical JSON.", target.Given)]
+            : [];
         string? staging = null;
         try
         {
@@ -327,7 +340,7 @@ public sealed class DiskModelConversionStore : IModelConversionStore
             File.WriteAllBytes(staging, bytes);
             File.Move(staging, target.FullPath, overwrite: false);
             staging = null;
-            return new ModelWrite([], []);
+            return new ModelWrite([], []) { Notices = notices, Compacted = compacted };
         }
         catch (Exception error) when (IsFileSystemFailure(error))
         {
@@ -357,7 +370,7 @@ public sealed class DiskModelConversionStore : IModelConversionStore
             if (Directory.Exists(target.FullPath)) Directory.Delete(target.FullPath);
             Directory.Move(staging, target.FullPath);
             staging = null;
-            return new ModelWrite(files, []);
+            return new ModelWrite(files, []) { Notices = TreeNotices(tree, files.Count, target), Compacted = AnyCompacted(tree, files.Count, target) };
         }
         catch (Exception error) when (IsFileSystemFailure(error))
         {
@@ -368,6 +381,27 @@ public sealed class DiskModelConversionStore : IModelConversionStore
             if (staging is not null) DeleteStaging(staging);
         }
     }
+
+    /// <summary>
+    /// The notice of a compacted tree with files that no alias paid for: how many of its files are the plain document
+    /// in canonical JSON, at the output. None for a plain write, or when every file has an alias worth its cost.
+    /// </summary>
+    private static IReadOnlyList<ConvertDiagnostic> TreeNotices(VFileTree tree, int files, ModelTarget target)
+    {
+        var count = target.Compact ? DocumentTreeStore.PlainFilesOf(tree).Count : 0;
+        if (count == 0)
+            return [];
+        return [CompactionDeclined(
+            $"No alias was worth its cost under {CompactionPolicy.Id} in {count} of the {files} files, so they are written as their plain documents in canonical JSON.",
+            target.Given)];
+    }
+
+    /// <summary>Whether a compacted write of a tree put a file in an envelope: some file is not one that it left plain.</summary>
+    private static bool AnyCompacted(VFileTree tree, int files, ModelTarget target) =>
+        target.Compact && DocumentTreeStore.PlainFilesOf(tree).Count < files;
+
+    private static ConvertDiagnostic CompactionDeclined(string message, string location) =>
+        new(ModelConvertCodes.CompactionDeclined, ConvertDiagnostic.Info, message, location);
 
     private static ModelWrite WriteFailed(ModelTarget target, Exception error) =>
         ModelWrite.Refused([ConvertDiagnostic.Failure(ModelConvertCodes.WriteFailed, error.Message, target.Given)]);

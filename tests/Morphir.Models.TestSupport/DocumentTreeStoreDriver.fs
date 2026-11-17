@@ -13,6 +13,13 @@ open Morphir.IR.Trees
 let write (tree: StoredTree) : Result<VFileTree, StoreError list> =
     DocumentTreeStore.write WriteOptions.defaults tree
 
+/// <summary>
+/// Writes a tree with the default path budget and its names compacted (<c>CompactMode.Names</c>): each file under the
+/// writer policy <c>morphir.compact/0.1.0-draft.1</c>.
+/// </summary>
+let writeCompacted (tree: StoredTree) : Result<VFileTree, StoreError list> =
+    DocumentTreeStore.write { WriteOptions.defaults with Compact = Some Names } tree
+
 /// <summary>Reads a tree of files with the default limits.</summary>
 let read (files: VFileTree) : Result<StoredTree * ReadReport, StoreError list> =
     DocumentTreeStore.read ReadOptions.defaults files

@@ -48,6 +48,7 @@ let private v4Cases = [
     "noModules", DistributionMother.noModules
     "nameUsedOnce", DistributionMother.nameUsedOnce
     "nameUsedOften", DistributionMother.nameUsedOften
+    "longNameUsedOften", DistributionMother.longNameUsedOften
     "windowsReservedStems", DistributionMother.windowsReservedStems
     "privateAndDocumentedMembers", DistributionMother.privateAndDocumentedMembers
 ]
@@ -57,6 +58,7 @@ let private v3Cases = [
     "v3Specs", DistributionMother.v3Specs
     "nonAsciiName", DistributionMother.nonAsciiName
     "v3PrivateAndDocumentedMembers", DistributionMother.v3PrivateAndDocumentedMembers
+    "v3LongNameUsedOften", DistributionMother.v3LongNameUsedOften
 ]
 
 let private modulesOf (distribution: Distribution) =

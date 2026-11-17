@@ -116,9 +116,46 @@ let tests =
                 Expect.isFalse (codes |> List.exists (fun code -> code.StartsWith("model.", StringComparison.Ordinal))) "the codec's rule"
         }
 
-        test "A compacted single file is not written yet" {
-            let model = readOk (v4Bytes DistributionMother.v4LibraryWithOneModule)
-            Expect.equal (write true model) (Error [ "tree.unsupported_option" ]) "compaction is refused"
+        test "A compacted single file stays one file under the policy" {
+            let model = readOk (v4Bytes DistributionMother.nameUsedOften)
+            let mutable bytes = Unchecked.defaultof<byte array>
+            let mutable compacted = false
+            let mutable problems = Unchecked.defaultof<_>
+            Expect.isTrue (model.TryWriteSingleFile(true, &bytes, &compacted, &problems)) "the file is written"
+            Expect.isTrue compacted "an alias is worth its cost"
+
+            use document = JsonDocument.Parse(ReadOnlyMemory bytes)
+            Expect.equal (document.RootElement.GetProperty("$schema").GetString()) Morphir.IR.Files.MorphirFile.Draft1Schema "one envelope"
+
+            match Morphir.IR.Files.MorphirFile.readPlainDocument Morphir.IR.Files.ContextLimits.draft1 "model.json" (ReadOnlyMemory bytes) with
+            | Ok plain ->
+                // Canonical JSON sorts the keys of v4 maps, whose order is not part of the model, so the plain files
+                // are compared in that form.
+                let canonical (bytes: byte array) =
+                    use document = JsonDocument.Parse(ReadOnlyMemory bytes)
+                    Morphir.Json.CanonicalJson.write document.RootElement
+
+                let written result =
+                    match result with
+                    | Ok bytes -> canonical bytes
+                    | Error codes -> failtestf "Expected a write, got %A" codes
+
+                Expect.sequenceEqual
+                    (written (write false (readOk (Text.Encoding.UTF8.GetBytes(plain.GetRawText())))))
+                    (written (write false model))
+                    "the same model"
+            | Error errors -> failtestf "%A" errors
+        }
+
+        test "A single file that no alias pays for is written plain in canonical JSON" {
+            let model = readOk (v4Bytes DistributionMother.nameUsedOnce)
+            let mutable bytes = Unchecked.defaultof<byte array>
+            let mutable compacted = true
+            let mutable problems = Unchecked.defaultof<_>
+            Expect.isTrue (model.TryWriteSingleFile(true, &bytes, &compacted, &problems)) "the file is written"
+            Expect.isFalse compacted "no alias is worth its cost"
+            use document = JsonDocument.Parse(ReadOnlyMemory bytes)
+            Expect.sequenceEqual bytes (Morphir.Json.CanonicalJson.write document.RootElement) "canonical JSON"
         }
 
         test "The tree of a single file and the single file of a tree are refused" {
@@ -138,10 +175,10 @@ let tests =
                 (StoredModel.TryGetWritten(DocumentTreeStore.write (StoredModel.WriteOptions false) tree, &files, &problems))
                 "a plain tree is written"
 
-            Expect.isFalse
+            Expect.isTrue
                 (StoredModel.TryGetWritten(DocumentTreeStore.write (StoredModel.WriteOptions true) tree, &files, &problems))
-                "a compacted tree is not written yet"
+                "a compacted tree is written"
 
-            Expect.equal [ for problem in problems -> problem.Code ] [ "tree.unsupported_option" ] "the store's code"
+            Expect.isSome (Morphir.Files.VFileTree.tryGet DocumentTreeStore.plainFiles files) "under the policy"
         }
     ]

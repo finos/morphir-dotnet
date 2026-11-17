@@ -567,10 +567,16 @@ two steps have the same pattern.
 | Model conversion | `Given the tree of the kit case {string} with the rejected document of the kit case {string} as its type file` |
 | Model conversion | `Given a tree with the file of the kit case {string}` |
 | Model conversion | `Given a tree with the accepted file spelling of the kit case {string}` |
+| Model conversion | `Given the plain v{int} single file of the compaction policy's cases` |
+| Model conversion | `Given the plain v{int} single file of the compaction policy's cases in the file {string}` |
 | Model conversion | `Given the output is a directory that holds a file` |
 | Model conversion | `When I convert the model to a single file` |
 | Model conversion | `When I convert the model to a document tree` |
 | Model conversion | `When I convert the model without changing its layout or its encoding` |
+| Model conversion | `When I compact the model` |
+| Model conversion | `When I compact the model to a document tree` |
+| Model conversion | `When I convert the model with the compaction mode {string}` |
+| Model conversion | `When I convert the model with the compaction mode {string} after a space` |
 | Model conversion | `When I convert the written model to a single file` |
 | Model conversion | `When I convert the written model to a document tree` |
 | Model conversion | `When I convert the plain twin of the model to a single file` |
@@ -582,6 +588,10 @@ two steps have the same pattern.
 | Model conversion | `Then the conversion report states the encodings {string} and {string}` |
 | Model conversion | `Then the conversion report states no input encoding` |
 | Model conversion | `Then the conversion report states the IR version {string}` |
+| Model conversion | `Then the conversion report names the compaction mode {string} and the writer policy of the pinned cases` |
+| Model conversion | `Then the diagnostic {string} suggests {string}` |
+| Model conversion | `Then the diagnostic {string} suggests the compaction mode {string} with an equals sign` |
+| Model conversion | `Then the conversion report has the notice {string}` |
 | Model conversion | `Then the diagnostic {string} names the input as {string}` |
 | Model conversion | `Then the diagnostic {string} names the place of the fault` |
 | Model conversion | `Then the diagnostic {string} names the output` |
@@ -595,6 +605,8 @@ two steps have the same pattern.
 | Model conversion | `Then the written single file says the format version {int}` |
 | Model conversion | `Then every file of the written tree says the format version {string}` |
 | Model conversion | `Then the written single file is plain` |
+| Model conversion | `Then the written single file is compacted` |
+| Model conversion | `Then the written tree has a compacted file` |
 | Model conversion | `Then the last two written single files are the same` |
 | Model conversion | `Then the last two written trees are the same` |
 | Model conversion | `Then the written single file is the canonical spelling of the kit case` |
