@@ -5,9 +5,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Morphir.Extensions.Wasm;
-using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Features.Extensions;
 
@@ -188,21 +186,18 @@ public sealed class WorkerReport
         return kept.Append(CutMarker).ToString();
     }
 
-    /// <summary>The <c>morphir/command-result</c> of <c>--help --json=document</c>, as one line: the help text and
+    /// <summary>The <c>morphir/command-result</c> of <c>--help --json</c>, as one line: the help text and
     /// <c>result.buildIdentity</c>.</summary>
-    public static byte[] HelpResult(string help, string buildIdentity) => Document(writer => new WorkerHelpResult(help, buildIdentity).Write(writer));
-
-    /// <summary>
-    /// Writes the help result to <paramref name="output"/> in <paramref name="mode"/> (adopt-streaming-json): with
-    /// <c>--json</c> one <c>{"event":"completed","report":…}</c> line whose report is the <c>morphir/command-result</c>
-    /// of <see cref="HelpResult"/>, with <c>--json=document</c> that result alone. Both are one line.
-    /// </summary>
-    public static void WriteHelpResult(Stream output, JsonOutputMode mode, string help, string buildIdentity)
+    public static byte[] HelpResult(string help, string buildIdentity) => Document(writer =>
     {
-        ArgumentNullException.ThrowIfNull(output);
-        using var text = new StreamWriter(output, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), bufferSize: 4096, leaveOpen: true);
-        JsonReportOutput.Write(text, mode, new WorkerHelpResult(help, buildIdentity), WorkerJsonContext.Relaxed.WorkerHelpResult);
-    }
+        ResultEnvelope(writer, "succeeded", 0);
+        writer.WriteStartObject("result");
+        writer.WriteString("help", help);
+        writer.WriteString("buildIdentity", buildIdentity);
+        writer.WriteEndObject();
+        writer.WriteStartArray("diagnostics");
+        writer.WriteEndArray();
+    });
 
     /// <summary>The <c>morphir/command-result</c> failure of a usage error, as one line: <c>error.code</c>
     /// <c>usage</c> and exit status 2. The worker writes it on stderr, because stdout is the frame stream.</summary>
@@ -220,7 +215,7 @@ public sealed class WorkerReport
     /// <summary>The text line of a usage error, without <c>--json</c>.</summary>
     public static byte[] UsageText(string message) => Encoding.UTF8.GetBytes(TextLine(message) + "\n");
 
-    internal static void ResultEnvelope(Utf8JsonWriter writer, string state, int exitCode)
+    static void ResultEnvelope(Utf8JsonWriter writer, string state, int exitCode)
     {
         writer.WriteString("profile", ResultProfile);
         writer.WriteString("contractVersion", ProfileVersion);
@@ -242,46 +237,4 @@ public sealed class WorkerReport
 
         return [.. buffer.WrittenSpan, (byte)'\n'];
     }
-}
-
-/// <summary>The <c>morphir/command-result</c> of the worker's help: the help text and the build identity to pass.</summary>
-[JsonConverter(typeof(WorkerHelpResultConverter))]
-public sealed record WorkerHelpResult(string Help, string BuildIdentity)
-{
-    /// <summary>Writes the result: the envelope, <c>result.help</c>, <c>result.buildIdentity</c> and no diagnostics.</summary>
-    internal void Write(Utf8JsonWriter writer)
-    {
-        WorkerReport.ResultEnvelope(writer, "succeeded", 0);
-        writer.WriteStartObject("result");
-        writer.WriteString("help", Help);
-        writer.WriteString("buildIdentity", BuildIdentity);
-        writer.WriteEndObject();
-        writer.WriteStartArray("diagnostics");
-        writer.WriteEndArray();
-    }
-}
-
-/// <summary>Writes a <see cref="WorkerHelpResult"/> as one object; the result is never read back.</summary>
-internal sealed class WorkerHelpResultConverter : JsonConverter<WorkerHelpResult>
-{
-    public override WorkerHelpResult Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-        throw new NotSupportedException("A worker help result is written, never read.");
-
-    public override void Write(Utf8JsonWriter writer, WorkerHelpResult value, JsonSerializerOptions options)
-    {
-        writer.WriteStartObject();
-        value.Write(writer);
-        writer.WriteEndObject();
-    }
-}
-
-/// <summary>The compact JSON contract of the worker's help result.</summary>
-[JsonSerializable(typeof(WorkerHelpResult))]
-internal partial class WorkerJsonContext : JsonSerializerContext
-{
-    /// <summary>The context with the escaping of the worker's lines: non-ASCII text stays UTF-8.</summary>
-    public static WorkerJsonContext Relaxed { get; } = new(new JsonSerializerOptions
-    {
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    });
 }

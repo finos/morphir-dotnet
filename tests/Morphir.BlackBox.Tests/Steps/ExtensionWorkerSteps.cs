@@ -122,7 +122,7 @@ public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverS
     [Then("standard output of the worker is one command result whose build identity is 64 hexadecimal digits")]
     public void StandardOutputIsOneCommandResult()
     {
-        // With --json the result is the report of the one completed record (adopt-streaming-json), on one line.
+        // The pinned contract fixes the form: one morphir/command-result, with no completed wrapper (HelpResultOf fails on one).
         var text = Encoding.UTF8.GetString(Exit.StandardOutput);
         Expect(!text.TrimEnd('\n').Contains('\n'), "The command result is not one line.");
         var result = ExtensionWorker.HelpResultOf(Exit);

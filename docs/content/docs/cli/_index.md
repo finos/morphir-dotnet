@@ -111,6 +111,10 @@ a member of the report: of the document, and of the `report` of the `completed` 
 
 The removed `--json-lines` option fails as an unknown option with exit code 2: use `--json`.
 
+Output that a cross-host contract defines keeps that contract's form. `morphir extension worker` follows the pinned
+WASM worker contract: `--help --json` writes one `morphir/command-result` with no `completed` wrapper, and its event
+lines stay `morphir/command-event` (see [extension worker](./extension-worker/)).
+
 ## Exit Codes
 
 All Morphir CLI commands use consistent exit codes:

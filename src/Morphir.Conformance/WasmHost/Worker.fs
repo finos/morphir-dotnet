@@ -151,31 +151,23 @@ module Worker =
     /// The arguments that `--help --json` takes.
     let helpArguments = [ "extension"; "worker"; "--help"; "--json" ]
 
-    /// The `morphir/command-result` of the help output: the `report` of its one `{"event":"completed","report":…}`
-    /// line, as morphir-dotnet's `--json` writes it (adopt-streaming-json), or the one document itself, as a host
-    /// that writes the corpus's `--help --json` as one `morphir/command-result` does.
-    let private helpResult (root: JsonElement) =
-        match root.ValueKind with
-        | JsonValueKind.Object ->
-            match root.TryGetProperty "event", root.TryGetProperty "report" with
-            | (true, name), (true, report) when
-                name.ValueKind = JsonValueKind.String
-                && name.GetString() = "completed"
-                ->
-                report
-            | _ -> root
-        | _ -> root
+    /// True when the output is a record of a JSON Lines stream (an `event` member), as a `completed` wrapper is.
+    let private isRecord (root: JsonElement) =
+        root.ValueKind = JsonValueKind.Object
+        && fst (root.TryGetProperty "event")
 
-    /// Reads the build identity from the stdout of `extension worker --help --json`: one JSON value, the
-    /// `morphir/command-result` or the `completed` record that holds it, with `result.buildIdentity` of 64
-    /// hexadecimal digits.
+    /// Reads the build identity from the stdout of `extension worker --help --json`: the one
+    /// `morphir/command-result` document that the pinned contract states, and its `result.buildIdentity` of 64
+    /// hexadecimal digits. A host that wraps the result in a `completed` record (the stream convention of
+    /// adopt-streaming-json, which the contract overrides here) is refused, so qualification catches it.
     let parseHelp (stdout: string) : Result<string, string> =
         try
             use document = JsonDocument.Parse(stdout.Trim())
-            let root = helpResult document.RootElement
+            let root = document.RootElement
 
             let identity =
                 match root.ValueKind with
+                | JsonValueKind.Object when isRecord root -> None
                 | JsonValueKind.Object ->
                     match root.TryGetProperty "result" with
                     | true, result when result.ValueKind = JsonValueKind.Object ->
@@ -187,6 +179,9 @@ module Worker =
                 | _ -> None
 
             match identity with
+            | _ when isRecord root ->
+                Error
+                    "The help output is a stream record, not the one morphir/command-result that the contract states"
             | Some text when hexIdentity.IsMatch text -> Ok text
             | Some text -> Error $"result.buildIdentity \"{text}\" is not 64 hexadecimal digits"
             | None -> Error "The help document has no string result.buildIdentity"

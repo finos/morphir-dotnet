@@ -48,6 +48,7 @@ Work is on `feat/model-convert`, before `add-model-convert` group 6, which build
 | cli-json-output | A log line goes to stderr | `JsonOutput.feature` |
 | cli-json-output | A named member in both modes | `JsonOutput.feature` (`extension list`) |
 | cli-json-output | The old flag is unknown | `JsonOutput.feature` |
+| cli-json-output | The worker's help result keeps its contract form | `ExtensionWorkerTests.Help_with_json_writes_one_command_result_with_the_build_identity_on_stdout` (each mode); `WorkerTests` "A help result wrapped in a completed record is refused" (Morphir.Conformance.Tests); black-box `ExtensionWorker.feature` "The help as JSON gives the build identity…" |
 | cli-model-compilation | Warnings from every stage in a successful report | existing compile tests, on `--json=document` (3.1) |
 | cli-model-compilation | Unsupported construct in JSON mode | existing compile tests, on `--json=document` (3.1) |
 | cli-model-compilation | Project-file warning before compilation ends | existing, unchanged |

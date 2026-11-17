@@ -95,11 +95,11 @@ public abstract record WorkerInvocation
     public sealed record Serve(WorkerOptions Options) : WorkerInvocation;
 
     /// <summary>
-    /// Show the help and serve nothing: the text; with <c>--json</c> one <c>completed</c> record whose report is the
-    /// <c>morphir/command-result</c>; with <c>--json=document</c> that <c>morphir/command-result</c> alone.
+    /// Show the help and serve nothing: the text, or with <c>--json</c> in any mode one <c>morphir/command-result</c>.
+    /// The pinned contract fixes that form (adopt-streaming-json, "Output fixed by a cross-host contract keeps that
+    /// contract's form"), so the mode changes nothing and there is no <c>completed</c> wrapper.
     /// </summary>
-    /// <param name="Mode">The JSON output of the help, or <see cref="JsonOutputMode.None"/> for the text.</param>
-    public sealed record Help(JsonOutputMode Mode) : WorkerInvocation
+    public sealed record Help(bool Json) : WorkerInvocation
     {
         internal static readonly Lazy<string> Text = new(Render);
     }
@@ -110,15 +110,18 @@ public abstract record WorkerInvocation
     public sealed record Invalid(string Message, bool Json) : WorkerInvocation;
 
     /// <summary>Reads the arguments after <c>extension worker</c>. Options take their value as the next argument or
-    /// after <c>=</c>, in any order; <c>--json</c> takes its mode only after <c>=</c>
-    /// (<c>--json[=stream|document]</c>). <c>--help</c> (or <c>-h</c>) anywhere shows the help.</summary>
+    /// after <c>=</c>, in any order. <c>--json</c> takes a mode only after <c>=</c>, as every command does
+    /// (<c>--json[=stream|document]</c>); the worker's output is fixed by the pinned contract, so every mode gives the
+    /// same output. <c>--help</c> (or <c>-h</c>) anywhere shows the help.</summary>
     public static WorkerInvocation Parse(IReadOnlyList<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         var json = arguments.Any(IsJsonFlag);
         if (arguments.Any(argument => argument is HelpFlag or "-h"))
         {
-            return JsonModeOf(arguments) is { } mode ? new Help(mode) : new Invalid(UnknownMode, json);
+            return arguments.Where(IsJsonFlag).All(argument => argument == JsonFlag || IsMode(argument[(JsonFlag.Length + 1)..]))
+                ? new Help(json)
+                : new Invalid(UnknownMode, json);
         }
 
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -131,10 +134,7 @@ public abstract record WorkerInvocation
             var inline = equals > 0 ? token[(equals + 1)..] : null;
             if (name == JsonFlag)
             {
-                if (inline is not null && ModeOfValue(inline) is null) return new Invalid(UnknownMode, json);
-                // The report of a serving worker is its events: one document has nothing to hold.
-                if (inline is not null && ModeOfValue(inline) == JsonOutputMode.Document)
-                    return new Invalid($"{JsonFlag}=document applies to {HelpFlag} only; a serving worker reports its events, so give {JsonFlag}", json);
+                if (inline is not null && !IsMode(inline)) return new Invalid(UnknownMode, json);
                 if (!flags.Add(name)) return new Invalid($"{JsonFlag} is given twice", json);
             }
             else if (Valued.Contains(name))
@@ -165,26 +165,8 @@ public abstract record WorkerInvocation
     static bool IsJsonFlag(string argument) =>
         argument == JsonFlag || argument.StartsWith(JsonFlag + "=", StringComparison.Ordinal);
 
-    /// <summary>The mode of <c>--json</c> or <c>--json=&lt;mode&gt;</c>, or null for a value that is not a mode.</summary>
-    static JsonOutputMode? ModeOfValue(string? value) => value switch
-    {
-        null or "stream" => JsonOutputMode.Stream,
-        "document" => JsonOutputMode.Document,
-        _ => null,
-    };
-
-    /// <summary>The JSON output that the arguments ask for (the last <c>--json</c> wins), or null for a value that is not a mode.</summary>
-    static JsonOutputMode? JsonModeOf(IReadOnlyList<string> arguments)
-    {
-        var mode = JsonOutputMode.None;
-        foreach (var argument in arguments.Where(IsJsonFlag))
-        {
-            if (ModeOfValue(argument == JsonFlag ? null : argument[(JsonFlag.Length + 1)..]) is not { } given) return null;
-            mode = given;
-        }
-
-        return mode;
-    }
+    /// <summary>True for a mode of <c>--json=&lt;mode&gt;</c>: <c>stream</c> or <c>document</c>.</summary>
+    static bool IsMode(string value) => JsonOutputOption.Modes.Contains(value);
 
     static WorkerInvocation Read(Dictionary<string, string> values, bool json)
     {
@@ -285,11 +267,11 @@ public abstract record WorkerInvocation
                                          {U(instructions.Maximum)}. Default {U(contract.InstructionBudget)}.
               {MemoryPages} <n>         The ceiling of each linear memory, in 64 KiB pages, from 1 to {MaxMemoryPages}.
                                          Default {N(pages)} ({N(contract.MemoryCeilingBytes / (1024 * 1024))} MiB).
-              {JsonFlag}                     Write the stderr report as morphir/command-event lines.
+              {JsonFlag}                     Write the stderr report as morphir/command-event lines. A mode
+                                         (--json=stream or --json=document) is accepted and changes nothing:
+                                         the pinned contract fixes the output.
               {HelpFlag}, -h                 Show this help on stdout and serve nothing. With --json, write one
-                                         completed record whose report is a morphir/command-result, and with
-                                         --json=document that morphir/command-result alone; its
-                                         result.buildIdentity is the identity to pass.
+                                         morphir/command-result whose result.buildIdentity is the identity to pass.
 
             Exit status: 0 the guest served until its instance ended; 1 a fault, an invalid frame, or stdin ended
             first; 2 invalid arguments; 3 a refusal before any request; 130 interrupted (Ctrl+C, or Ctrl+Break on
@@ -299,10 +281,10 @@ public abstract record WorkerInvocation
     }
 
     /// <summary>Calls the function for this invocation.</summary>
-    public TResult Match<TResult>(Func<WorkerOptions, TResult> serve, Func<JsonOutputMode, TResult> help, Func<string, bool, TResult> invalid) => this switch
+    public TResult Match<TResult>(Func<WorkerOptions, TResult> serve, Func<bool, TResult> help, Func<string, bool, TResult> invalid) => this switch
     {
         Serve value => serve(value.Options),
-        Help value => help(value.Mode),
+        Help value => help(value.Json),
         Invalid value => invalid(value.Message, value.Json),
         _ => throw new UnreachableException(),
     };

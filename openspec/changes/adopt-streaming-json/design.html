@@ -50,6 +50,7 @@ svg line, svg path { stroke: var(--muted); fill: none; }
   <li><a href="#json-2">JSON-2. The record shape is compile's</a></li>
   <li><a href="#json-3">JSON-3. Values only with an equals sign</a></li>
   <li><a href="#json-4">JSON-4. One writer, reports unchanged</a></li>
+  <li><a href="#json-6">JSON-6. Parse errors of commands that take secrets stay redacted</a></li>
   <li><a href="#json-5">JSON-5. Consumers move in the same step</a></li>
   </ul></li>
 <li><a href="#risks">Risks and trade-offs</a></li>
@@ -99,6 +100,9 @@ after:  {"event":"completed","report":{"success":true,"exitCode":0,…}}   (one 
 
 <h3 id="json-4">JSON-4. One writer, reports unchanged</h3>
 <p>A shared JSON output writer in <code>Morphir.Tooling</code> takes a command's events and its report and writes either form. It extends compile's existing JSON Lines writer rather than adding a second one, and it uses each command's existing source-generated JSON context for AOT. Report types do not change. Parse errors still pick the output mode by scanning tokens, now for <code>--json</code>, <code>--json=stream</code> and <code>--json=document</code>.</p>
+
+<h3 id="json-6">JSON-6. Parse errors of commands that take secrets stay redacted</h3>
+<p><code>config</code> (show, set, unset), <code>project migrate</code> and <code>workspace migrate</code> already print fixed parse-error text, because their user docs promise diagnostics that do not echo raw, possibly secret, input (<code>docs/content/docs/cli/config.md</code>, troubleshooting). <code>config set &lt;key&gt; &lt;value&gt;</code> takes a secret as a positional value, and a parser message such as "Unrecognized command or argument '&lt;token&gt;'" would echo it. These commands therefore show only the parse messages that quote no user value besides an option name or a mode name: the <code>--json=&lt;mode&gt;</code> hint, the unknown-mode error, and unknown option names. Every message the <code>cli-json-output</code> scenarios require still shows. <em>Alternative:</em> show the full parser messages (would echo secrets; rejected).</p>
 
 <h3 id="json-5">JSON-5. Consumers move in the same step</h3>
 <p>In this repository:</p>

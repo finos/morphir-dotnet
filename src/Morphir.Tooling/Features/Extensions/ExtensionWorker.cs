@@ -4,7 +4,6 @@ using System.Globalization;
 using System.Text;
 using Morphir.Extensions.Wasm;
 using Morphir.Mep;
-using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Features.Extensions;
 
@@ -89,8 +88,7 @@ public static class ExtensionWorker
         {
             case WorkerInvocation.Help help:
                 // Help serves no guest, so it may use stdout.
-                if (help.Mode == JsonOutputMode.None) io.Output.Write(Encoding.UTF8.GetBytes(WorkerInvocation.HelpText));
-                else WorkerReport.WriteHelpResult(io.Output, help.Mode, WorkerInvocation.HelpText, context.BuildIdentity);
+                io.Output.Write(help.Json ? WorkerReport.HelpResult(WorkerInvocation.HelpText, context.BuildIdentity) : Encoding.UTF8.GetBytes(WorkerInvocation.HelpText));
                 io.Output.Flush();
                 return Served;
             case WorkerInvocation.Invalid invalid:

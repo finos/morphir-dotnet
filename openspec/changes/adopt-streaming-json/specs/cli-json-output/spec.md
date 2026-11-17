@@ -85,6 +85,13 @@ Where a capability names members of a command's JSON output, those SHALL be memb
 - **WHEN** a spec says the JSON output of `extension list` has a top-level `host` member
 - **THEN** that member is at the top of the document in `document` mode and at the top of `report` in `stream` mode
 
+### Requirement: Output fixed by a cross-host contract keeps that contract's form
+A command whose machine output a cross-host contract defines SHALL write the form that contract states, not this convention. `morphir extension worker` follows the parent WASM worker contract: `--help --json` SHALL write one `morphir/command-result` document, and the worker's event lines SHALL keep the contract's `morphir/command-event` form.
+
+#### Scenario: The worker's help result keeps its contract form
+- **WHEN** a host runs `morphir extension worker --help --json`
+- **THEN** stdout is exactly one `morphir/command-result` document whose `result.buildIdentity` is the worker's build identity, with no `completed` wrapper
+
 ### Requirement: The former streaming flag is removed
 The CLI SHALL NOT accept `--json-lines` on any command. It SHALL fail as an unknown option with exit code 2.
 

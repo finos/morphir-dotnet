@@ -12,9 +12,9 @@
 //   {
 //     "buildIdentity": "<64 hexadecimal digits>",   // what `--help --json` reports
 //     "helpExit": 0,                                // optional: the exit status of --help
-//     "helpForm": "stream",                         // optional: "stream" (default) writes the help result in one
-//                                                   // {"event":"completed","report":...} line, as morphir-dotnet's
-//                                                   // --json does; "document" writes the result alone
+//     "helpForm": "document",                       // optional: "document" (default) writes the help result alone,
+//                                                   // as the contract states; "completed" wraps it in one
+//                                                   // {"event":"completed","report":...} line, which a runner refuses
 //     "modules": { "<module file name without extension>" | "*": [ <action>, ... ] }
 //   }
 //
@@ -97,8 +97,8 @@ internal static class Program
                     ["buildIdentity"] = script["buildIdentity"]?.GetValue<string>() ?? new string('a', 64),
                 },
             };
-            var form = script["helpForm"]?.GetValue<string>() ?? "stream";
-            var output = form == "document" ? help : new JsonObject { ["event"] = "completed", ["report"] = help };
+            var form = script["helpForm"]?.GetValue<string>() ?? "document";
+            var output = form == "completed" ? new JsonObject { ["event"] = "completed", ["report"] = help } : help;
             WriteStdout(Encoding.UTF8.GetBytes(output.ToJsonString() + "\n"));
             return script["helpExit"]?.GetValue<int>() ?? 0;
         }

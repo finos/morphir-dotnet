@@ -115,8 +115,8 @@ caller for a `HostSession` for each session. `WorkerSessions`
 (`src/Morphir.Conformance/GuestKit/WorkerSessions.fs`) starts a worker for each of those sessions with
 the corpus's worker arguments,
 `<host> extension worker --abi extism-kernel-v1 --module <wasm> --build-identity <id> --json`. It
-reads the build identity from the host's `--help --json` (the `report` of its `completed` line, or one
-`morphir/command-result` from a host that writes the result alone), gives the runner a `HostSession` over the
+reads the build identity from the host's `--help --json`, which must be the one `morphir/command-result` of the
+contract (a `completed` wrapper is refused), gives the runner a `HostSession` over the
 worker's stdio and keeps the worker's stderr events. `EndAsync` waits for each worker to exit, stops
 the process tree of one that does not, and reports each worker's exit status, events and problems.
 

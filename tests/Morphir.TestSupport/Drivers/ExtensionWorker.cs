@@ -32,15 +32,19 @@ public static class ExtensionWorker
     });
 
     /// <summary>
-    /// The <c>morphir/command-result</c> of <c>extension worker --help --json</c>: the report of its one
-    /// <c>completed</c> record, or the one document of a host that writes the result alone.
+    /// The <c>morphir/command-result</c> of <c>extension worker --help --json</c>: exactly one JSON document, as the
+    /// pinned contract states. Output that is a record of a stream (a <c>completed</c> wrapper, with an <c>event</c>
+    /// member) fails: the contract's form overrides the stream convention here.
     /// </summary>
     public static System.Text.Json.JsonElement HelpResultOf(SessionExit help)
     {
         ArgumentNullException.ThrowIfNull(help);
         var result = new CommandResult(string.Join(' ', Command) + " --help --json", help.ExitCode ?? -1, Encoding.UTF8.GetString(help.StandardOutput),
             string.Join(Environment.NewLine, help.StandardError.Select(line => line.Text)), help.ExitedAt, []);
-        return result.ReportOfEither();
+        var document = result.ShouldWriteOneJsonDocument();
+        return document.ValueKind == System.Text.Json.JsonValueKind.Object && document.TryGetProperty(JsonOutputAssertions.EventMember, out _)
+            ? throw new CommandAssertionException("The help result is a record of a stream, not the one morphir/command-result of the contract.", result)
+            : document;
     }
 
     /// <summary>Runs <c>extension worker --help --json</c> to its exit.</summary>
