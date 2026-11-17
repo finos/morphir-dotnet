@@ -103,6 +103,12 @@ public static class ModelConvertCodes
     /// <summary>The input is compacted, which this version does not read yet.</summary>
     public const string UnsupportedContext = "model.unsupported_context";
 
+    /// <summary>
+    /// A file has a top-level <c>$schema</c> that this version does not declare as a compaction envelope; the code of
+    /// <c>ir/name-compaction</c>'s "Refuse an undeclared envelope". The file is refused, and not called compacted.
+    /// </summary>
+    public const string UndeclaredSchema = "context.undeclared_schema";
+
     /// <summary>A file of the output could not be written.</summary>
     public const string WriteFailed = "model.write_failed";
 
@@ -125,7 +131,7 @@ public static class ModelConvertNames
     /// <summary>The encoding of a file without a compaction envelope.</summary>
     public const string Plain = "plain";
 
-    /// <summary>The encoding of a file with a compaction envelope.</summary>
+    /// <summary>The encoding of a file with a compaction envelope of a declared schema.</summary>
     public const string Compacted = "compacted";
 
     /// <summary>The layouts that <c>--layout</c> accepts.</summary>

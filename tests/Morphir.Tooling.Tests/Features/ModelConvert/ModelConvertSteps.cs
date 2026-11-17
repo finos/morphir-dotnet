@@ -24,7 +24,15 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     /// </summary>
     private const string EnvelopeSchema = "https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json";
 
+    /// <summary>An envelope schema URL that no version of morphir declares.</summary>
+    private const string UndeclaredSchema = "https://example.org/schemas/not-an-ir-context/document.schema.json";
+
+    /// <summary>The file of the acme/demo tree that the envelope scenarios wrap: a type of the dependency.</summary>
+    private const string EnvelopedTreeFile = "deps/morphir/sdk/@/basics/money.type.json";
+
     private readonly ModelConvertCommandDriver _driver = new();
+    private string? _fileInTheWay;
+    private string? _fileInTheWayBefore;
     private ModelLocation? _input;
     private ModelLocation? _output;
     private Task<CommandResult>? _running;
@@ -60,17 +68,26 @@ public sealed class ModelConvertSteps : IAsyncDisposable
         PlaceTree([.. FixtureCatalog.Trees.AcmeDemo.Where(entry => !entry.RelativePath.EndsWith("/total.value.json", StringComparison.Ordinal))]);
 
     [Given("a compacted single-file model")]
-    public void CompactedSingleFile()
+    public void CompactedSingleFile() => PlaceEnvelope(EnvelopeSchema);
+
+    [Given("a single-file model in an envelope whose schema this version does not declare")]
+    public void SingleFileInAnUndeclaredEnvelope() => PlaceEnvelope(UndeclaredSchema);
+
+    [Given("a single-file model that is not JSON")]
+    public void SingleFileThatIsNotJson() => PlaceFile(FixtureCatalog.Models.Malformed);
+
+    [Given("a v4 document tree with a compacted type file and a missing definition file")]
+    public void V4TreeWithACompactedTypeFileAndAMissingDefinitionFile()
     {
-        var envelope = new JsonObject
-        {
-            ["$schema"] = EnvelopeSchema,
-            ["context"] = new JsonObject(),
-            ["document"] = JsonNode.Parse(FixtureCatalog.ReadBytes(FixtureCatalog.Models.V4DailyRate)),
-        };
-        var file = Workspace.File("models", "compacted.json");
-        Workspace.WriteText(file, envelope.ToJsonString());
-        Place(file);
+        V4TreeWithAMissingDefinitionFile();
+        WrapTreeFile(EnvelopedTreeFile, EnvelopeSchema);
+    }
+
+    [Given("a v4 document tree with a type file in an envelope whose schema this version does not declare")]
+    public void V4TreeWithATypeFileInAnUndeclaredEnvelope()
+    {
+        V4TreeWithVersionAndCreated();
+        WrapTreeFile(EnvelopedTreeFile, UndeclaredSchema);
     }
 
     // --- The output ------------------------------------------------------------------------------------------------
@@ -105,8 +122,20 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     [Given("the output is an empty directory")]
     public void OutputIsAnEmptyDirectory() => _output = Workspace.MakeDirectory("out", "empty");
 
+    [Given("the output's parent is an existing file")]
+    public void OutputBelowAFile()
+    {
+        var file = Workspace.File("out", "in-the-way");
+        Workspace.WriteText(file, "kept\n");
+        RememberTheFileInTheWay(file.Path);
+        _output = Workspace.File("out", "in-the-way", "converted");
+    }
+
     [Given("the store holds each write until the test has read the stream")]
     public void TheStoreHoldsEachWrite() => _driver.Store.HoldWrites();
+
+    [Given("reading the model fails with a disk error")]
+    public void ReadingFails() => _driver.Store.FailReads(new IOException("The device is not ready."));
 
     // --- Conversions -----------------------------------------------------------------------------------------------
 
@@ -151,6 +180,35 @@ public sealed class ModelConvertSteps : IAsyncDisposable
         _linesBeforeTheWrite = _driver.FlushedLines;
         _driver.Store.ReleaseWrites();
         _result = await _running.WaitAsync(TimeSpan.FromMinutes(1));
+    }
+
+    /// <summary>
+    /// Holds the write, puts a file at the output (inside it when it is an empty directory), and releases the write,
+    /// so the staged output cannot be moved into place.
+    /// </summary>
+    [When("I convert the model to a {word} {word} while a file appears at the output")]
+    public async Task ConvertWhileAFileAppears(string first, string second)
+    {
+        var layout = LayoutOf($"{first} {second}");
+        _output ??= DefaultOutput(layout);
+        _driver.Store.HoldWrites();
+        _running = _driver.Conversion.ConvertAsync(Input, _output, new ConversionOptions { Layout = layout });
+        if (await Task.WhenAny(_driver.Store.WriteEntered, _running).WaitAsync(TimeSpan.FromMinutes(1)) != _driver.Store.WriteEntered)
+            throw new InvalidOperationException($"The conversion ended before its write stage: {(await _running).StandardError}");
+        var appeared = Directory.Exists(Output.Path) ? Path.Combine(Output.Path, "appeared.txt") : Output.Path;
+        Directory.CreateDirectory(Path.GetDirectoryName(appeared)!);
+        File.WriteAllText(appeared, "someone else's\n");
+        RememberTheFileInTheWay(appeared);
+        _driver.Store.ReleaseWrites();
+        _result = await _running.WaitAsync(TimeSpan.FromMinutes(1));
+    }
+
+    /// <summary>The input is an empty path, which the command line accepts and no file system does.</summary>
+    [When("I convert a model whose input path is empty")]
+    public async Task ConvertAnEmptyInputPath()
+    {
+        _output = DefaultOutput(DriverLayout.SingleFile);
+        _result = await _driver.RunAsync(["model", "convert", "--input", "", "--output", _output.Path, .. JsonOutputArgument.Stream.Words]);
     }
 
     private async Task Convert(ConversionOptions options)
@@ -273,12 +331,53 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     public void TheMessageSuggests(string text) =>
         Report.Diagnostics.Should().Contain(diagnostic => diagnostic.Message.Contains(text, StringComparison.Ordinal));
 
+    [Then("the report has the diagnostic {string}")]
+    public void TheReportHasTheDiagnostic(string code) => Report.ShouldHaveDiagnostic(code);
+
+    [Then("the report does not have the diagnostic {string}")]
+    public void TheReportDoesNotHaveTheDiagnostic(string code) => Report.ShouldNotHaveDiagnostic(code);
+
+    [Then("the compacted file is named once")]
+    public void TheCompactedFileIsNamedOnce() =>
+        Report.Diagnostics.Where(diagnostic => diagnostic.Code == "model.unsupported_context").Select(diagnostic => diagnostic.Location)
+            .Should().Equal(ModelConvertPathsInTest.Join(Input.Path, EnvelopedTreeFile));
+
+    [Then("the report states no input encoding")]
+    public void TheReportStatesNoInputEncoding() => Report.InputEncoding.Should().BeNull();
+
+    [Then("the stream ends with one completed record")]
+    public void TheStreamEndsWithOneCompletedRecord()
+    {
+        var records = Result.Events().Select(record => Describe(record.GetRawText())).ToArray();
+        records.Count(record => record.StartsWith("completed:", StringComparison.Ordinal)).Should().Be(1, Result.StandardOutput);
+        records.Should().EndWith("completed:");
+    }
+
+    [Then("the read stage is completed as not passed")]
+    public void TheReadStageIsCompletedAsNotPassed() =>
+        Result.Events().Should().ContainSingle(record => record.GetProperty("event").GetString() == "stageCompleted"
+            && record.GetProperty("stage").GetString() == "read" && !record.GetProperty("passed").GetBoolean());
+
+    [Then("the file in the way is unchanged")]
+    public void TheFileInTheWayIsUnchanged()
+    {
+        var file = _fileInTheWay ?? throw new InvalidOperationException("No file was put in the way in this scenario.");
+        File.ReadAllText(file).Should().Be(_fileInTheWayBefore);
+    }
+
     [Then("nothing is at the output")]
     public void NothingIsAtTheOutput()
     {
         var output = Path.TrimEndingDirectorySeparator(Output.Path);
         File.Exists(output).Should().BeFalse();
         Directory.Exists(output).Should().BeFalse();
+        NoStagingIsLeft();
+    }
+
+    [Then("no staging file or directory is left beside the output")]
+    public void NoStagingIsLeft()
+    {
+        var output = Path.TrimEndingDirectorySeparator(Output.Path);
         var parent = Path.GetDirectoryName(output)!;
         if (Directory.Exists(parent))
             Directory.EnumerateFileSystemEntries(parent).Select(Path.GetFileName)
@@ -321,6 +420,38 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     }
 
     private void Place(WorkspaceFile file) => _input = file;
+
+    /// <summary>Places V4DailyRate in a compaction envelope with <paramref name="schema"/> and an empty context.</summary>
+    private void PlaceEnvelope(string schema)
+    {
+        var file = Workspace.File("models", "compacted.json");
+        Workspace.WriteText(file, Envelope(schema, FixtureCatalog.ReadBytes(FixtureCatalog.Models.V4DailyRate)));
+        Place(file);
+    }
+
+    /// <summary>Wraps the tree file at <paramref name="path"/> of the input tree in an envelope with <paramref name="schema"/>.</summary>
+    private void WrapTreeFile(string path, string schema)
+    {
+        var file = Path.Combine(Input.Path, path);
+        File.WriteAllText(file, Envelope(schema, File.ReadAllBytes(file)));
+    }
+
+    /// <summary>
+    /// A compaction envelope of <paramref name="document"/> with <paramref name="schema"/> and an empty context, until
+    /// the parent's pinned examples replace it (add-model-convert 7.2).
+    /// </summary>
+    private static string Envelope(string schema, byte[] document) => new JsonObject
+    {
+        ["$schema"] = schema,
+        ["context"] = new JsonObject(),
+        ["document"] = JsonNode.Parse(document),
+    }.ToJsonString();
+
+    private void RememberTheFileInTheWay(string path)
+    {
+        _fileInTheWay = path;
+        _fileInTheWayBefore = File.ReadAllText(path);
+    }
 
     private static DriverLayout LayoutOf(string words) => words switch
     {

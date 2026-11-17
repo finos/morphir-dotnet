@@ -30,7 +30,7 @@ public interface IConvertObserver
     void StageStarted(string stage);
 
     /// <summary>
-    /// Diagnostics, in a stage or, for the checks of the paths before the first stage, with no stage. Together they
+    /// Diagnostics, in a stage or, for the checks of the request before the first stage, with no stage. Together they
     /// are the report's diagnostics.
     /// </summary>
     void Diagnostics(string? stage, IReadOnlyList<ConvertDiagnostic> diagnostics);
@@ -50,8 +50,10 @@ public interface IConvertObserver
 /// output is checked before anything is read or written: <c>--output</c> that is the input, is inside it or holds it
 /// is refused with <c>model.output_overlaps_input</c>, and one that already holds a file, or is a file where a
 /// directory is needed or the reverse, with <c>model.output_not_empty</c>. A run that changes neither the layout nor
-/// the encoding exits 2 with <c>model.nothing_to_do</c>. Every other refusal exits 1, and leaves nothing at the
-/// output.
+/// the encoding exits 2 with <c>model.nothing_to_do</c>, decided from the input's envelope before the model is read. A
+/// path that is not a path exits 2 with <c>model.invalid_arguments</c>. Every other refusal exits 1, and leaves nothing
+/// at the output; a file-system failure is <c>model.read_failed</c> or <c>model.write_failed</c>, so every run ends with
+/// a report.
 /// </summary>
 public sealed class ModelConversion(IModelConversionStore store)
 {
@@ -72,13 +74,26 @@ public sealed class ModelConversion(IModelConversionStore store)
             observer.Diagnostics(state.Stage, [cancelled]);
             return state.Report(ModelConvertCodes.CancelledExitCode, [cancelled]);
         }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // A store refuses what it can name; a file-system failure that escapes it still ends the run with a
+            // report, so the stream ends with one completed record.
+            var writing = state.Stage == ConvertStages.Write;
+            var failure = ConvertDiagnostic.Failure(writing ? ModelConvertCodes.WriteFailed : ModelConvertCodes.ReadFailed, error.Message,
+                writing ? state.Request.Output : state.Request.Input);
+            return state.Stage is { } stage
+                ? Fail(state, observer, stage, ModelConvertCodes.RefusedExitCode, [failure])
+                : Refuse(state, observer, null, failure);
+        }
     }
 
     private async Task<ConvertReport> RunStagesAsync(State state, IConvertObserver observer, CancellationToken ct)
     {
         var request = state.Request;
-        var inputPath = Path.GetFullPath(request.Input);
-        var outputPath = Path.GetFullPath(request.Output);
+        if (InvalidPath(request.Input, "--input", out var inputPath) is { } invalidInput)
+            return Usage(state, observer, invalidInput);
+        if (InvalidPath(request.Output, "--output", out var outputPath) is { } invalidOutput)
+            return Usage(state, observer, invalidOutput);
         ModelLayout inputLayout;
         if (File.Exists(inputPath)) inputLayout = ModelLayout.SingleFile;
         else if (Directory.Exists(inputPath)) inputLayout = ModelLayout.DocumentTree;
@@ -89,13 +104,33 @@ public sealed class ModelConversion(IModelConversionStore store)
         var outputLayout = request.Layout ?? inputLayout;
         state.OutputLayout = outputLayout;
 
-        if (OutputProblem(request, inputPath, outputPath, outputLayout) is { } outputProblem)
+        ConvertDiagnostic? outputProblem;
+        try
+        {
+            outputProblem = OutputProblem(request, inputPath, outputPath, outputLayout);
+        }
+        catch (Exception error) when (DiskModelConversionStore.IsFileSystemFailure(error))
+        {
+            outputProblem = ConvertDiagnostic.Failure(ModelConvertCodes.WriteFailed, $"The output cannot be checked: {error.Message}", request.Output);
+        }
+        if (outputProblem is not null)
             return Refuse(state, observer, null, outputProblem);
+
+        // Nothing to do is decided from the envelope alone, before the model is decoded: a plain input that keeps its
+        // layout and is not compacted would be written as it is, whether or not it decodes.
+        var source = new ModelSource(inputPath, request.Input, inputLayout);
+        if (outputLayout == inputLayout && request.CompactMode is null && !await store.HasEnvelopeAsync(source, ct))
+        {
+            state.InputEncoding = ModelConvertNames.Plain;
+            return Usage(state, observer, ConvertDiagnostic.Failure(ModelConvertCodes.NothingToDo,
+                $"The input is a plain {Describe(inputLayout)} and the output would be the same. Give --layout={ModelConvertNames.Of(Other(inputLayout))} to change the layout, or --compact to compact it.",
+                request.Input));
+        }
 
         // Read.
         state.Stage = ConvertStages.Read;
         observer.StageStarted(ConvertStages.Read);
-        var read = await store.ReadAsync(new ModelSource(inputPath, request.Input, inputLayout), ct);
+        var read = await store.ReadAsync(source, ct);
         state.InputEncoding = read.Encoding;
         state.Notices.AddRange(read.Notices);
         if (read.Notices.Count > 0) observer.Notices(ConvertStages.Read, read.Notices);
@@ -108,11 +143,6 @@ public sealed class ModelConversion(IModelConversionStore store)
         // Convert.
         state.Stage = ConvertStages.Convert;
         observer.StageStarted(ConvertStages.Convert);
-        if (outputLayout == inputLayout && request.CompactMode is null && read.Encoding == ModelConvertNames.Plain)
-            return Fail(state, observer, ConvertStages.Convert, ModelConvertCodes.UsageExitCode,
-                [ConvertDiagnostic.Failure(ModelConvertCodes.NothingToDo,
-                    $"The input is a plain {Describe(inputLayout)} and the output would be the same. Give --layout={ModelConvertNames.Of(Other(inputLayout))} to change the layout, or --compact to compact it.",
-                    request.Input)]);
         if (!model.TryConvert(outputLayout, out var converted, out var problems))
             return Fail(state, observer, ConvertStages.Convert, ModelConvertCodes.RefusedExitCode,
                 [.. problems.Select(problem => ConvertDiagnostic.Of(problem, request.Input))]);
@@ -176,6 +206,30 @@ public sealed class ModelConversion(IModelConversionStore store)
 
     private static ModelLayout Other(ModelLayout layout) =>
         layout == ModelLayout.DocumentTree ? ModelLayout.SingleFile : ModelLayout.DocumentTree;
+
+    /// <summary>
+    /// Why <paramref name="given"/>, the value of <paramref name="option"/>, is not a path, or null with its full path.
+    /// </summary>
+    private static ConvertDiagnostic? InvalidPath(string given, string option, out string fullPath)
+    {
+        try
+        {
+            fullPath = Path.GetFullPath(given);
+            return null;
+        }
+        catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            fullPath = "";
+            return ConvertDiagnostic.Failure(ModelConvertCodes.InvalidArguments, $"The option {option} is not a valid path: {error.Message}", null);
+        }
+    }
+
+    /// <summary>A refusal of the request before any stage (exit code 2).</summary>
+    private static ConvertReport Usage(State state, IConvertObserver observer, ConvertDiagnostic diagnostic)
+    {
+        observer.Diagnostics(null, [diagnostic]);
+        return state.Report(ModelConvertCodes.UsageExitCode, [diagnostic]);
+    }
 
     private static ConvertReport Refuse(State state, IConvertObserver observer, string? stage, ConvertDiagnostic diagnostic)
     {

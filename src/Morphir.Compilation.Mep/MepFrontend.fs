@@ -109,8 +109,10 @@ type MepFrontend
           IrVersion = SemanticVersion.Create version }
 
     /// The host offer: JSON compileModel tuples, 4.0.0 first, and bounds that fit in one 64 MiB frame. A function,
-    /// not a value: the type then has no static field, whose F# init check throws (FailStaticInit) when a second
-    /// thread reads it while the first one initializes it, as two concurrent first compiles did.
+    /// not a value: a class `static let` value is a static field behind an F# init check. When two threads start the
+    /// type initialisers of two types that need each other, the CLR breaks the deadlock by letting one thread see this
+    /// type before its initialiser has finished, and the init check then throws (FailStaticInit), as two concurrent
+    /// first compiles did. With no static field the type has no initialiser to meet.
     static let offer () : ModelTransportSupport =
         { Tuples = [| jsonTuple "4.0.0"; jsonTuple "3.0.0" |]
           Limits =

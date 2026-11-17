@@ -121,10 +121,21 @@ public sealed class ControllableModelStore(IModelConversionStore inner) : IModel
     /// <summary>Lets the held writes go on.</summary>
     public void ReleaseWrites() => _release?.TrySetResult();
 
+    /// <summary>From now on, each read throws <paramref name="failure"/>, as a disk that fails under the store would.</summary>
+    public void FailReads(Exception failure) => _readFailure = failure;
+
+    private Exception? _readFailure;
+
+    /// <summary>
+    /// Passed to the disk store and not counted as a read: it looks for an envelope and decodes nothing.
+    /// </summary>
+    public ValueTask<bool> HasEnvelopeAsync(ModelSource source, CancellationToken ct) => inner.HasEnvelopeAsync(source, ct);
+
     /// <inheritdoc />
     public ValueTask<ModelRead> ReadAsync(ModelSource source, CancellationToken ct)
     {
         Reads++;
+        if (_readFailure is { } failure) throw failure;
         return inner.ReadAsync(source, ct);
     }
 

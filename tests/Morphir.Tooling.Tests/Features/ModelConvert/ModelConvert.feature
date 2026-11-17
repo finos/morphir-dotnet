@@ -84,6 +84,21 @@ Feature: Model convert
     When I convert the model without changing its layout
     Then the conversion fails with exit code 2 and the diagnostic "model.nothing_to_do"
     And the message names the input as "a plain single file"
+    And the store was asked neither to read nor to write
+    And nothing is at the output
+
+  Scenario: Nothing to do for a plain input that does not decode
+    Given a single-file model that is not JSON
+    When I convert the model without changing its layout
+    Then the conversion fails with exit code 2 and the diagnostic "model.nothing_to_do"
+    And the store was asked neither to read nor to write
+    And nothing is at the output
+
+  Scenario: A compacted input with its layout unchanged is refused, not nothing to do
+    Given a compacted single-file model
+    When I convert the model without changing its layout
+    Then the conversion fails with exit code 1 and the diagnostic "model.unsupported_context"
+    And the report states the input encoding "compacted"
     And nothing is at the output
 
   Scenario: A compacted input is refused
@@ -92,6 +107,76 @@ Feature: Model convert
     Then the conversion fails with exit code 1 and the diagnostic "model.unsupported_context"
     And the report states the input encoding "compacted"
     And nothing is at the output
+
+  Scenario: A compacted file of a tree is reported beside the tree's other errors
+    Given a v4 document tree with a compacted type file and a missing definition file
+    When I convert the model to a single file
+    Then the conversion fails with exit code 1 and the diagnostic "model.unsupported_context"
+    And the report has the diagnostic "missing_member"
+    And the compacted file is named once
+    And the report states the input encoding "compacted"
+    And nothing is at the output
+
+  Scenario: A single file in an undeclared envelope is refused without calling it compacted
+    Given a single-file model in an envelope whose schema this version does not declare
+    When I convert the model to a document tree
+    Then the conversion fails with exit code 1 and the diagnostic "context.undeclared_schema"
+    And the report does not have the diagnostic "model.unsupported_context"
+    And the report states no input encoding
+    And nothing is at the output
+
+  Scenario: A tree file in an undeclared envelope is refused without calling the tree compacted
+    Given a v4 document tree with a type file in an envelope whose schema this version does not declare
+    When I convert the model to a single file
+    Then the conversion fails with exit code 1 and the diagnostic "context.undeclared_schema"
+    And the report does not have the diagnostic "model.unsupported_context"
+    And the report states no input encoding
+    And nothing is at the output
+
+  Scenario Outline: An output below a file is refused when it is written
+    Given a <model>
+    And the output's parent is an existing file
+    When I convert the model to a <layout>
+    Then the conversion fails with exit code 1 and the diagnostic "model.write_failed"
+    And the stream ends with one completed record
+    And the file in the way is unchanged
+
+    Examples:
+      | model                                                            | layout        |
+      | v4 document tree whose manifest has a version and a created date | single file   |
+      | v4 single-file model                                             | document tree |
+
+  Scenario: A file that appears at the output during the write is kept
+    Given a v4 document tree whose manifest has a version and a created date
+    When I convert the model to a single file while a file appears at the output
+    Then the conversion fails with exit code 1 and the diagnostic "model.write_failed"
+    And the stream ends with one completed record
+    And the file in the way is unchanged
+    And no staging file or directory is left beside the output
+
+  Scenario: A file that appears in the empty output directory during the write is kept
+    Given a v4 single-file model
+    And the output is an empty directory
+    When I convert the model to a document tree while a file appears at the output
+    Then the conversion fails with exit code 1 and the diagnostic "model.write_failed"
+    And the stream ends with one completed record
+    And the file in the way is unchanged
+    And no staging file or directory is left beside the output
+
+  Scenario: A read that fails with a disk error ends with a report
+    Given a v4 single-file model
+    And reading the model fails with a disk error
+    When I convert the model to a document tree
+    Then the conversion fails with exit code 1 and the diagnostic "model.read_failed"
+    And the read stage is completed as not passed
+    And the stream ends with one completed record
+    And nothing is at the output
+
+  Scenario: An empty input path is a usage error
+    When I convert a model whose input path is empty
+    Then the conversion fails with exit code 2 and the diagnostic "model.invalid_arguments"
+    And the stream ends with one completed record
+    And the store was asked neither to read nor to write
 
   Scenario: A compacted output is not written yet
     Given a v4 single-file model
