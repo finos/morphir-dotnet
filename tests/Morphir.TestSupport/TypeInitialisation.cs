@@ -27,6 +27,13 @@ namespace Morphir.TestSupport;
 /// reads a field of the file class directly (a module without an initialiser of its own). A file with one route is
 /// safe: the second thread waits for the first, and the first waits for nothing the second holds.
 /// </para>
+/// <para>
+/// The rule follows the code that this compiler generates today. So that a change of code generation cannot turn
+/// the guard into a check of nothing, it fails closed: it throws when the assembly has no F# file class with a type
+/// initialiser, when a type cannot be loaded, and when a member that the IL names cannot be resolved. The planted
+/// violation in <c>tests/Morphir.Compilation.Mep.Tests/PlantedContention.fs</c> shows that it still finds a
+/// contended file.
+/// </para>
 /// </remarks>
 public static class TypeInitialisation
 {
@@ -42,13 +49,20 @@ public static class TypeInitialisation
     /// The contended F# files of <paramref name="assembly"/>, each as
     /// <c>$File: routes [...] start [...]</c>. Empty when every file is safe.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The assembly has no F# file class with a type initialiser, a type
+    /// cannot be loaded, or a member that the IL names cannot be resolved: the guard cannot tell.</exception>
     public static IReadOnlyList<string> ContendedFiles(Assembly assembly)
     {
-        var types = LoadableTypes(assembly);
+        var failures = new List<string>();
+        var types = LoadableTypes(assembly, failures);
+        if (!types.Any(t => IsFileClass(t) && t.TypeInitializer is not null))
+            throw new InvalidOperationException(
+                $"{assembly.GetName().Name} has no F# file class with a type initialiser, so the guard would check nothing. "
+                + "Check whether the compiler's code generation changed (for example --realsig+).");
         var owners = new Dictionary<Type, Type>();
         foreach (var type in types.Where(t => !IsFileClass(Outermost(t)) && t.TypeInitializer is not null))
         {
-            var file = MembersOf(type.TypeInitializer!).Select(m => m.DeclaringType).FirstOrDefault(IsFileClass);
+            var file = MembersOf(type.TypeInitializer!, failures).Select(m => m.DeclaringType).FirstOrDefault(IsFileClass);
             if (file is not null) owners[type] = file;
         }
 
@@ -56,11 +70,14 @@ public static class TypeInitialisation
         foreach (var type in types)
         {
             var route = Outermost(type);
-            if (IsFileClass(route) || owners.ContainsKey(route)) continue;
+            if (IsFileClass(route)) continue;
+            // A type whose own initialiser starts the file's reads the file's fields only after that initialiser ran,
+            // so those reads are the same route. A read of another file's fields is a route into that file.
+            var ownFile = owners.GetValueOrDefault(route);
             var methods = type.GetMethods(Declared).Cast<MethodBase>().Concat(type.GetConstructors(Declared));
             foreach (var method in methods.Where(m => !m.IsAbstract))
-                foreach (var field in MembersOf(method).OfType<FieldInfo>())
-                    if (IsFileClass(field.DeclaringType) && field.Name != "init@")
+                foreach (var field in MembersOf(method, failures).OfType<FieldInfo>())
+                    if (IsFileClass(field.DeclaringType) && field.Name != "init@" && field.DeclaringType != ownFile)
                         direct.Add((field.DeclaringType!, route));
         }
 
@@ -70,13 +87,17 @@ public static class TypeInitialisation
             var routes = owners.Where(o => o.Value == file).Select(o => o.Key.FullName!)
                 .Concat(direct.Where(d => d.File == file).Select(d => d.Route.FullName!))
                 .Distinct().Order(StringComparer.Ordinal).ToList();
-            var started = file.TypeInitializer is null ? [] : MembersOf(file.TypeInitializer)
+            var started = file.TypeInitializer is null ? [] : MembersOf(file.TypeInitializer, failures)
                 .Select(m => m.DeclaringType)
                 .Where(t => t is not null && owners.TryGetValue(t, out var owned) && owned == file)
                 .Select(t => t!.FullName!).Distinct().Order(StringComparer.Ordinal).ToList();
             if (routes.Count > 1 && started.Count > 0)
                 contended.Add($"{file.Name}: routes [{string.Join(", ", routes)}] start [{string.Join(", ", started)}]");
         }
+        if (failures.Count > 0)
+            throw new InvalidOperationException(
+                $"The guard could not read all of {assembly.GetName().Name}:{Environment.NewLine}"
+                + string.Join(Environment.NewLine, failures.Distinct().Order(StringComparer.Ordinal)));
         return contended.Order(StringComparer.Ordinal).ToList();
     }
 
@@ -89,14 +110,19 @@ public static class TypeInitialisation
         return type;
     }
 
-    private static Type[] LoadableTypes(Assembly assembly)
+    private static Type[] LoadableTypes(Assembly assembly, List<string> failures)
     {
         try { return assembly.GetTypes(); }
-        catch (ReflectionTypeLoadException error) { return error.Types.OfType<Type>().ToArray(); }
+        catch (ReflectionTypeLoadException error)
+        {
+            failures.AddRange(error.LoaderExceptions.Select(e => "type load: " + e?.Message));
+            return error.Types.OfType<Type>().ToArray();
+        }
     }
 
-    // The fields, methods and constructors that the IL of a method names.
-    private static List<MemberInfo> MembersOf(MethodBase method)
+    // The fields, methods and constructors that the IL of a method names. A token that cannot be resolved is
+    // recorded in failures: a member the guard cannot see could be a route.
+    private static List<MemberInfo> MembersOf(MethodBase method, List<string> failures)
     {
         var members = new List<MemberInfo>();
         if (method.GetMethodBody()?.GetILAsByteArray() is not { } il) return members;
@@ -109,9 +135,13 @@ public static class TypeInitialisation
             var code = OpCodesByValue[value];
             if (code.OperandType is OperandType.InlineField or OperandType.InlineMethod)
             {
-                try { members.Add(method.Module.ResolveMember(BitConverter.ToInt32(il, i), typeArguments, methodArguments)!); }
-                catch (ArgumentException) { }
-                catch (BadImageFormatException) { }
+                var token = BitConverter.ToInt32(il, i);
+                try { members.Add(method.Module.ResolveMember(token, typeArguments, methodArguments)!); }
+                catch (Exception error) when (error is ArgumentException or BadImageFormatException or TypeLoadException
+                    or FileNotFoundException or FileLoadException or MissingMemberException)
+                {
+                    failures.Add($"{method.DeclaringType?.FullName}.{method.Name}: token 0x{token:X8}: {error.GetType().Name}: {error.Message}");
+                }
             }
             i += code.OperandType switch
             {

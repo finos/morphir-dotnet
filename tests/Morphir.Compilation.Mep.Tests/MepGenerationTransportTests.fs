@@ -65,4 +65,20 @@ let tests =
 
             Expect.equal contended [] "the contended files"
         }
+
+        // The guard must still find a contended file: PlantedContention.fs of this test assembly is one on purpose.
+        // If code generation changes so that the guard no longer sees it, this test fails instead of every guard
+        // passing while it checks nothing.
+        test "The guard finds the planted contended file of the test assembly" {
+            let contended =
+                Morphir.TestSupport.TypeInitialisation.ContendedFiles typeof<PlantedContention.PlantedHolder>.Assembly
+                |> List.ofSeq
+
+            Expect.equal
+                contended
+                [ "PlantedContention: routes [Morphir.Compilation.Mep.Tests.PlantedContention, "
+                  + "Morphir.Compilation.Mep.Tests.PlantedContention+PlantedHolder] start "
+                  + "[Morphir.Compilation.Mep.Tests.PlantedContention+PlantedHolder]" ]
+                "only the planted file, with both routes and the class it starts"
+        }
     ]
