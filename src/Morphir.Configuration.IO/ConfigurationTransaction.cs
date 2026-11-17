@@ -637,13 +637,39 @@ public sealed class NativeConfigurationTransactionHost : IConfigurationTransacti
 
     public void Install(string stagedPath, string destination, bool overwrite)
     {
-        if (overwrite)
+        if (!overwrite)
         {
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(stagedPath, File.GetUnixFileMode(destination));
-            File.Replace(stagedPath, destination, null);
+            File.Move(stagedPath, destination);
+            return;
         }
-        else File.Move(stagedPath, destination);
+        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(stagedPath, File.GetUnixFileMode(destination));
+        // Windows refuses to replace a file that another process holds open without delete sharing, and a virus
+        // scanner or a search indexer opens a file just after it is written. ReplaceFile then fails before it changes
+        // either file, so the replacement is tried again for a bounded time (about 2.6 seconds) before the
+        // transaction rolls back.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Replace(stagedPath, destination, null);
+                return;
+            }
+            catch (IOException error) when (attempt < ReplaceAttempts && IsHeldByAnotherHandle(error))
+            {
+                Thread.Sleep(Math.Min(20 << (attempt - 1), 500));
+            }
+        }
     }
+
+    private const int ReplaceAttempts = 10;
+
+    // The Win32 errors of ReplaceFile that leave both files unchanged: the file to replace could not be removed
+    // (ERROR_UNABLE_TO_REMOVE_REPLACED), or a file could not be opened (ERROR_SHARING_VIOLATION,
+    // ERROR_LOCK_VIOLATION). ERROR_UNABLE_TO_MOVE_REPLACEMENT and its second form change the files, so they are not
+    // retried.
+    private static bool IsHeldByAnotherHandle(IOException error) =>
+        OperatingSystem.IsWindows() && (error.HResult & unchecked((int)0xFFFF0000)) == unchecked((int)0x80070000)
+            && (error.HResult & 0xFFFF) is 1175 or 32 or 33;
     public void DeleteFile(string path) => File.Delete(path);
     public void DeleteDirectory(string path)
     {

@@ -2,6 +2,7 @@ using System.Text;
 using System.Diagnostics;
 using FluentAssertions;
 using Morphir.Configuration.IO;
+using TUnit.Core.Enums;
 
 namespace Morphir.Configuration.IO.Tests;
 
@@ -40,6 +41,53 @@ public sealed class ConfigurationTransactionTests
         File.ReadAllText(target).Should().Be("value = 1\n");
         Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
         result.Artifacts.Should().BeEmpty();
+    }
+
+    // A virus scanner or a search indexer opens a file that was just written, without delete sharing, for a short
+    // time. While it holds the file, Windows refuses to replace it ("Unable to remove the file to be replaced").
+    // The replacement waits for such a handle; the edit was rolled back instead.
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task ReplacementWaitsForAShortLivedHandleWithoutDeleteSharing()
+    {
+        using var directory = new TestDirectory();
+        var target = directory.PathFor("morphir.toml");
+        File.WriteAllText(target, "value = 1\n");
+        var observed = ConfigurationTransaction.Observe(target);
+        var plan = new ConfigurationTransactionPlan([observed], [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]);
+        var scanner = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        Task release = Task.CompletedTask;
+        var result = new ConfigurationTransaction(fault: (phase, _) =>
+        {
+            if (phase == ConfigurationTransactionPhase.BeforeInstall)
+                release = Task.Delay(TimeSpan.FromMilliseconds(300)).ContinueWith(_ => scanner.Dispose(), TaskScheduler.Default);
+        }).Apply(plan);
+        await release;
+        scanner.Dispose();
+        result.Status.Should().Be(ConfigurationTransactionStatus.Written, result.Code);
+        File.ReadAllText(target).Should().Be("value = 2\n");
+        Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
+    }
+
+    [Test]
+    [Category("PlatformSpecific")]
+    [RunOn(OS.Windows)]
+    public void ReplacementGivesUpOnAHandleThatStaysOpenAndRollsBack()
+    {
+        using var directory = new TestDirectory();
+        var target = directory.PathFor("morphir.toml");
+        File.WriteAllText(target, "value = 1\n");
+        var observed = ConfigurationTransaction.Observe(target);
+        var plan = new ConfigurationTransactionPlan([observed], [new ConfigurationFileChange(target, observed, Encoding.UTF8.GetBytes("value = 2\n"))]);
+        var clock = Stopwatch.StartNew();
+        ConfigurationTransactionResult result;
+        using (new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            result = new ConfigurationTransaction().Apply(plan);
+        clock.Stop();
+        result.Status.Should().Be(ConfigurationTransactionStatus.RolledBack);
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15), "the replacement waits for a bounded time");
+        File.ReadAllText(target).Should().Be("value = 1\n");
+        Directory.GetFileSystemEntries(directory.Path).Select(ProjectPath.normalize).Should().Equal(target);
     }
 
     [Test]
