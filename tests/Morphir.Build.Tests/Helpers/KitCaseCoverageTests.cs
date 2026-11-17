@@ -1,5 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.Text.RegularExpressions;
 using FluentAssertions;
 using Morphir.Build.Helpers;
 using Morphir.TestSupport.Fixtures;
@@ -14,7 +15,7 @@ namespace Morphir.Build.Tests.Helpers;
 /// named with its kit id and its title. A move of the kit pin that adds, drops or renames a case fails here until the
 /// feature follows it.
 /// </summary>
-public class KitCaseCoverageTests
+public partial class KitCaseCoverageTests
 {
     private const string Feature = "Integration/ModelConversionKitCases.feature";
 
@@ -26,11 +27,41 @@ public class KitCaseCoverageTests
             .Concat(FixtureCatalog.Kit.DocumentTree.Select(kitCase => (kitCase.Id, kitCase.Title)))
             .OrderBy(kitCase => kitCase.Id, StringComparer.Ordinal);
 
-    private static IReadOnlyList<string> ScenarioNames()
+    private static string FeatureText() =>
+        File.ReadAllText(Path.Combine(TestFixture.GetRepositoryRoot(), "tests", "Morphir.BlackBox.Tests", Feature)).Replace("\r\n", "\n");
+
+    private static IReadOnlyList<string> ScenarioNames() => [.. BlackBoxRules.ParseFeature(Feature, FeatureText()).Select(test => test.Name)];
+
+    /// <summary>Each scenario's name, with the kit ids that its Given steps (the steps before its first When) name.</summary>
+    private static IEnumerable<(string Name, string[] Ids)> ScenarioGivens()
     {
-        var path = Path.Combine(TestFixture.GetRepositoryRoot(), "tests", "Morphir.BlackBox.Tests", Feature);
-        return [.. BlackBoxRules.ParseFeature(Feature, File.ReadAllText(path)).Select(test => test.Name)];
+        string? name = null;
+        var ids = new List<string>();
+        var givens = false;
+        foreach (var line in FeatureText().Split('\n').Select(line => line.Trim()))
+        {
+            if (line.StartsWith("Scenario:", StringComparison.Ordinal))
+            {
+                if (name is not null) yield return (name, [.. ids]);
+                name = line["Scenario:".Length..].Trim();
+                ids.Clear();
+                givens = true;
+            }
+            else if (line.StartsWith("When ", StringComparison.Ordinal))
+            {
+                givens = false;
+            }
+            else if (givens && (line.StartsWith("Given ", StringComparison.Ordinal) || line.StartsWith("And ", StringComparison.Ordinal)))
+            {
+                ids.AddRange(KitId().Matches(line).Select(match => match.Value));
+            }
+        }
+
+        if (name is not null) yield return (name, [.. ids]);
     }
+
+    [GeneratedRegex(@"document-tree-\d{4}")]
+    private static partial Regex KitId();
 
     [Test]
     public void ThePinnedKitCasesAreTheCasesOfTheCatalog() =>
@@ -39,6 +70,28 @@ public class KitCaseCoverageTests
     [Test]
     public void EachPinnedKitCaseHasAScenarioNamedWithItsIdAndTitle() =>
         ScenarioNames().Should().Contain(CatalogCases().Select(kitCase => $"{kitCase.Id} {kitCase.Title}"));
+
+    /// <summary>
+    /// The Given steps of each scenario load the case of its own id. Only a case that rejects a document
+    /// (<c>document-tree-0016</c>) also names the kit tree case that holds the document.
+    /// </summary>
+    [Test]
+    public void EachScenarioLoadsTheKitCaseOfItsOwnId()
+    {
+        var scenarios = ScenarioGivens().ToArray();
+        scenarios.Should().NotBeEmpty();
+        foreach (var (name, ids) in scenarios)
+        {
+            var own = name.Split(' ')[0];
+            ids.Should().Contain(own, $"the Given steps of '{name}' load its own kit case");
+            var rejects = FixtureCatalog.Kit.DocumentTree.Any(kitCase => kitCase.Id == own && kitCase.RejectedDocument is not null);
+            var others = ids.Where(id => id != own).ToArray();
+            if (rejects)
+                others.Should().OnlyContain(id => FixtureCatalog.Kit.Case(id).Files.Count > 0, $"'{name}' names only a tree case that holds its rejected document");
+            else
+                others.Should().BeEmpty($"the Given steps of '{name}' load no other kit case");
+        }
+    }
 
     [Test]
     public void EachScenarioOfTheKitCasesIsOfAPinnedKitCase() =>

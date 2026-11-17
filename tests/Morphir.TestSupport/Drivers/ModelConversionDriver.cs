@@ -72,6 +72,12 @@ public sealed record ConversionOptions
     /// <summary>The layout of the output (<c>--layout</c>), or null for the layout of the input.</summary>
     public ModelLayout? Layout { get; init; }
 
+    /// <summary>
+    /// Gives <see cref="Layout"/> after a space (<c>--layout document-tree</c>), the form that the command accepts beside
+    /// <c>--layout=document-tree</c>, for a test of that form.
+    /// </summary>
+    public bool LayoutAfterASpace { get; init; }
+
     /// <summary>The compaction of the output (<c>--compact</c>), or null for plain output.</summary>
     public CompactionArgument? Compact { get; init; }
 
@@ -99,7 +105,7 @@ public sealed class ModelConversionDriver(ICliDriver cli) : IModelConversionDriv
     {
         options ??= new ConversionOptions();
         var arguments = new List<string> { "model", "convert", "--input", input.Path, "--output", output.Path };
-        if (options.Layout is { } layout) arguments.Add("--layout=" + layout.Name());
+        if (options.Layout is { } layout) arguments.AddRange(options.LayoutAfterASpace ? ["--layout", layout.Name()] : ["--layout=" + layout.Name()]);
         if (options.Compact is { } compact) arguments.AddRange(compact.Words);
         arguments.AddRange(options.Arguments);
         if (options.Json is { } json) arguments.AddRange([.. json.Words, .. json.Trailing]);

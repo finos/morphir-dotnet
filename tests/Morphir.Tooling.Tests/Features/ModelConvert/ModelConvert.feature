@@ -19,6 +19,13 @@ Feature: Model convert
     And the report lists every file at the output
     And the report states the layouts "single-file" and "document-tree", the encoding "plain" and IR version "4"
 
+  Scenario: The layout is also accepted after a space
+    Given a v4 single-file model
+    When I convert the model to a document tree with the layout after a space
+    Then the conversion succeeds
+    And the report lists every file at the output
+    And the report states the layouts "single-file" and "document-tree", the encoding "plain" and IR version "4"
+
   Scenario: Streamed diagnostics equal the report's
     Given a v4 document tree with a missing definition file
     When I convert the model to a single file

@@ -21,7 +21,8 @@ morphir model convert --input <path> --output <path> [--layout=<layout>] [--comp
 
 ## Try it
 
-Write a single-file v4 model as a document tree, then write the tree back as a single file:
+Here `morphir-ir.json` is a small IR v4 model: a `Library` of the package `car/rental` with one module, `inventory`,
+which holds one value, `daily-rate`. Write it as a document tree, then write the tree back as a single file:
 
 ```bash
 $ morphir model convert --input morphir-ir.json --output tree --layout=document-tree
@@ -38,7 +39,8 @@ model convert: wrote 1 file(s) to copy.json: IR 4, document-tree to single-file,
 ```
 
 The tree holds `manifest.json`, `pkg/car/rental/inventory/module.json` and
-`pkg/car/rental/inventory/daily-rate.value.json`. `copy.json` is the same model as `morphir-ir.json`. It is written
+`pkg/car/rental/inventory/daily-rate.value.json`. With your own model, such as the `morphir-ir.json` that
+`morphir compile` writes, the files follow your package and its modules. `copy.json` is the same model as `morphir-ir.json`. It is written
 in the writer's canonical spelling, so its bytes can differ from a file that another tool wrote. To check the tree, run:
 
 ```bash
@@ -55,8 +57,7 @@ morphir model verify tree
 | `--compact[=<mode>]` | Write compacted files. Writing compacted files is not implemented yet: the run is refused (see [Compaction](#compaction)). |
 | `--json[=stream\|document]` | Write the report as JSON: a stream of events that ends with the report (`--json`), or the report alone (`--json=document`). See [JSON output](#json-output). |
 
-Give the values of `--compact` and `--json` only after `=`, as in all commands (see
-[Machine output](_index.md#machine-output)). A bare `--compact` or `--json` never takes the next argument.
+Give the values of `--compact` and `--json` only after `=` (see [Machine output](_index.md#machine-output)). A bare `--compact` or `--json` never takes the next argument.
 
 ## Layouts
 
@@ -65,13 +66,21 @@ the layout that `--layout` names. Without `--layout`, the output keeps the layou
 
 - **`single-file`**: one IR JSON file, as `morphir compile` writes it. A v3 `Library` says `"formatVersion": 3`, and
   a v3 `Specs` says `"formatVersion": "3.1.0"`.
-- **`document-tree`**: the layout of the parent's document-tree specifications for IR 3.1.0 and IR 4, in the JSON
+- **`document-tree`**: the layout of finos/morphir's document-tree specifications for
+  [IR 4](https://github.com/finos/morphir/blob/main/docs/spec/ir/schemas/v4/document-tree-files.md) and [IR 3.1.0](https://github.com/finos/morphir/blob/main/docs/spec/ir/schemas/v3/document-tree-files.md), in the JSON
   profile. The tree holds `manifest.json`, a `module.json` for each module, and a `<name>.type.json` or
   `<name>.value.json` for each type and value. The package's own modules are below `pkg/<package>/`, and each
   dependency is below `deps/<package>/@/`. The version segment `@` is bare because the model carries no package
   version. Each file of a v3 tree says `"formatVersion": "3.1.0"`. Writing uses the path budget 4000, and a name
   whose path would be longer is cut and recorded in the module file's `fileNames`.
   [`model verify`](model-verify.md#document-trees) describes the tree in more detail.
+
+The layout can also follow `--layout` after a space:
+
+```bash
+$ morphir model convert --input morphir-ir.json --output tree --layout document-tree
+tree
+```
 
 A tree is read in the sorted order of its paths, so the order in which a disk lists files does not change the model.
 Reading a tree drops the manifest's `layout` and `pathBudget`, which describe the tree, not the model. It also drops
@@ -143,21 +152,22 @@ refused or failed run leaves nothing at `--output`, and a file that was already 
 | --- | --- |
 | 0 | The model was converted, and every file was written. |
 | 1 | The conversion was refused or failed. The input is missing or not a valid model or tree, the output is in the way, the input or the output is compacted, or a file could not be read or written. |
-| 2 | A usage error: arguments that do not parse, a bad `--layout` or `--compact` value, or nothing to do. |
+| 2 | A usage error: arguments that do not parse, a bad `--layout` or `--compact` value, an `--input` or `--output` that is not a valid path, or nothing to do. |
 | 130 | The run was cancelled, for example with Ctrl+C. The report is still written. |
 
 ## Diagnostics
 
 Each diagnostic has a stable code. In text mode, each one is written to stderr when it occurs, as
-`<location>: <severity> <code>: <message>`. A summary line follows. With `--json`, the diagnostics are in the report
+`<location>: <severity> <code>: <message>`, with no `<location>:` when the diagnostic has no location. A summary
+line follows. With `--json`, the diagnostics are in the report
 and in the `diagnostics` events.
 
 | Code | Exit code | Meaning |
 | --- | --- | --- |
-| `model.invalid_arguments` | 2 | The arguments do not parse, for example `--compact names` or `--layout=bogus`. |
+| `model.invalid_arguments` | 2 | The arguments do not parse, for example `--compact names` or `--layout=bogus`, or `--input` or `--output` is not a valid path, for example an empty one. |
 | `model.nothing_to_do` | 2 | The run changes neither the layout nor the encoding. |
 | `model.input_not_found` | 1 | No file or directory is at `--input`. |
-| `model.output_not_empty` | 1 | `--output` already holds something: a file, a directory with an entry, a file where a tree is written, or a directory where a single file is written. |
+| `model.output_not_empty` | 1 | `--output` exists and is not an empty directory for a tree: an existing file, a directory with an entry, or any directory when a single file is written. |
 | `model.output_overlaps_input` | 1 | `--output` is the input, is inside it, or holds it. |
 | `model.unsupported_version` | 1 | The input is IR v1 or v2, which has no document tree. |
 | `model.unsupported_context` | 1 | The input is compacted, which this version does not read yet. |
@@ -167,10 +177,11 @@ and in the `diagnostics` events.
 | `model.read_failed`, `model.write_failed` | 1 | The disk refused a read or a write. |
 | `model.cancelled` | 130 | The run was cancelled. |
 
-A tree that breaks a rule of the parent's tree specification is refused with that specification's code, and the
-diagnostic names the file. Examples are `missing_member` (a module file lists a name that has no file),
-`version_mismatch` (a v3 tree file that does not say `"3.1.0"`), `unknown_member`, `tree.ambiguous_profile` (both
-`manifest.json` and `manifest.yaml`), `tree.unsupported_profile` (a YAML file: this version reads the JSON profile only), `tree.over_budget`, `tree.outside_tree` and `tree.versioned_dependency`. A
+A tree that breaks a rule of finos/morphir's [document-tree specification](https://github.com/finos/morphir/blob/main/docs/spec/ir/schemas/v4/document-tree-files.md) is refused with that
+specification's code, and the diagnostic names the file. Examples are `missing_member` (a module file lists a name
+that has no file), `version_mismatch` (a v3 tree file that does not say `"3.1.0"`), `unknown_member`,
+`tree.ambiguous_profile` (both `manifest.json` and `manifest.yaml`), `tree.unsupported_profile` (a YAML file: this
+version reads the JSON profile only), `tree.over_budget`, `tree.outside_tree` and `tree.versioned_dependency`. A
 refused read lists every error that it finds.
 
 Notices have the severity `info` and do not fail the run:
@@ -224,7 +235,7 @@ $ morphir model convert --input tree --output copy.json --layout=single-file --j
 | --- | --- | --- |
 | `stageStarted` | `stage` | A stage starts: `read`, `convert` or `write`. |
 | `stageCompleted` | `stage`, `passed` | A stage ends. A stage that did not pass is the last one. |
-| `diagnostics` | `stage` (absent for the output checks before the first stage), `diagnostics` | A stage, or the output check, found errors. |
+| `diagnostics` | `stage` (absent for the checks of the request before the first stage), `diagnostics` | A stage, or a check of the request, found errors. |
 | `notices` | `stage`, `notices` | A stage has notices. |
 | `fileWritten` | `path` | One file of the output is in place. There is one for each file of `filesWritten`. |
 | `completed` | `report` | The last line of every run, also of a refused or a cancelled one. |

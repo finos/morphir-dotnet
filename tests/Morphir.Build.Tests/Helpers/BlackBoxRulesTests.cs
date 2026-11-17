@@ -409,6 +409,26 @@ public class BlackBoxRulesTests
             .Should().Be(IntentRule("| --compact=names |", "an option: --compact"));
 
     [Test]
+    [Arguments("Integration/ModelConversion.feature", "@needs-model-conversion", "", true)]
+    [Arguments("Integration/Other.feature", "", "@needs-model-conversion", true)]
+    [Arguments("Integration/ModelConvertDocumentation.feature", "@needs-model-conversion", "", false)]
+    [Arguments("Integration/ModelVerification.feature", "@needs-model-verification", "", false)]
+    public void TheRuleAppliesToEachFeatureThatNeedsModelConversionExceptADocumentationFeature(
+        string file, string featureTags, string scenarioTags, bool applies) =>
+        BlackBoxRules.StatesIntentsOnly(file, string.Join('\n',
+            $"@integration {featureTags}", "Feature: A", $"  {scenarioTags}", "  Scenario: One", "    When I convert the model to a single file", ""))
+            .Should().Be(applies);
+
+    [Test]
+    public void AFeatureThatTheRuleAppliesToAndThatHasACommandLineIsFound()
+    {
+        var text = Scenario("When I run the command \"morphir model convert\"");
+
+        BlackBoxRules.StatesIntentsOnly(ConversionFeature, text).Should().BeTrue();
+        BlackBoxRules.IntentViolations(ConversionFeature, text).Should().NotBeEmpty();
+    }
+
+    [Test]
     public void TheDescriptionOfAFeatureIsNotAStep() =>
         BlackBoxRules.IntentViolations(ConversionFeature,
             "@integration\nFeature: Convert\n  The command morphir model convert --input a.json writes tests/Fixtures/a.json.\n  Scenario: One\n    When I convert the model to a single file\n")
@@ -589,11 +609,10 @@ public class BlackBoxRulesTests
     [Test]
     public void EachModelConversionFeatureStatesIntentsOnly()
     {
-        var features = ProjectFiles(".feature")
-            .Where(file => Path.GetFileName(file.File).StartsWith("ModelConversion", StringComparison.Ordinal))
-            .ToArray();
+        var features = ProjectFiles(".feature").Where(file => BlackBoxRules.StatesIntentsOnly(file.File, file.Text)).ToArray();
 
-        features.Select(file => file.File).Should().Contain(["Integration/ModelConversion.feature", "Integration/ModelConversionKitCases.feature"]);
+        features.Select(file => file.File).Should().Contain(["Integration/ModelConversion.feature", "Integration/ModelConversionKitCases.feature"])
+            .And.NotContain("Integration/ModelConvertDocumentation.feature");
         features.SelectMany(file => BlackBoxRules.IntentViolations(file.File, file.Text)).Select(violation => violation.ToString()).Should().BeEmpty();
     }
 

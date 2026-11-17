@@ -143,6 +143,11 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     [When("I convert the model to a {word} {word}")]
     public Task ConvertToALayout(string first, string second) => Convert(new ConversionOptions { Layout = LayoutOf($"{first} {second}") });
 
+    /// <summary>To a document tree, with the layout after a space: <c>--layout document-tree</c>.</summary>
+    [When("I convert the model to a document tree with the layout after a space")]
+    public Task ConvertWithASeparatedLayout() =>
+        Convert(new ConversionOptions { Layout = DriverLayout.DocumentTree, LayoutAfterASpace = true });
+
     [When("I convert the model without changing its layout")]
     public Task ConvertWithoutALayout() => Convert(new ConversionOptions());
 

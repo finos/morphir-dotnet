@@ -192,6 +192,7 @@ public class ModelConversionDriverTests
         await driver.ConvertAsync(model, tree, new ConversionOptions { Compact = CompactionArgument.WithMode("bogus") });
         await driver.ConvertAsync(model, tree, new ConversionOptions { Compact = CompactionArgument.Separated("names") });
         await driver.ConvertAsync(model, tree, new ConversionOptions { Arguments = ["--no-such-option"], Json = JsonOutputArgument.Stream.Then("--last") });
+        await driver.ConvertAsync(model, tree, new ConversionOptions { Layout = ModelLayout.DocumentTree, LayoutAfterASpace = true });
 
         cli.Commands.Should().BeEquivalentTo(
             new IReadOnlyList<string>[]
@@ -200,6 +201,8 @@ public class ModelConversionDriverTests
                 // A mode after a space, which the command refuses with a hint.
                 ["model", "convert", "--input", model.Path, "--output", tree.Path, "--compact", "names", "--json"],
                 ["model", "convert", "--input", model.Path, "--output", tree.Path, "--no-such-option", "--json", "--last"],
+                // The layout after a space, which the command accepts as --layout=document-tree.
+                ["model", "convert", "--input", model.Path, "--output", tree.Path, "--layout", "document-tree", "--json"],
             },
             options => options.WithStrictOrdering());
         CompactionArgument.Separated("names").ToString().Should().Be("--compact names");

@@ -72,7 +72,7 @@ When the input is refused, the command SHALL exit 1 with the refusal's named dia
 The command's report SHALL hold success, exit code, input and output paths, input and output layouts and encodings, the IR version, the compaction mode and policy when compacting, every file written, and all diagnostics and notices. Its machine output SHALL follow the CLI JSON output convention, with a `fileWritten` event per file. Diagnostics in human mode SHALL go to stderr.
 
 #### Scenario: Every written file is reported
-- **WHEN** a model with three modules is converted to a tree with JSON output
+- **WHEN** a model with several modules is converted to a tree with JSON output
 - **THEN** the report lists every file written, and the stream has one `fileWritten` event for each
 
 #### Scenario: Notices are in the report

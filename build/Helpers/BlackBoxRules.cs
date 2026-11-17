@@ -622,6 +622,21 @@ public static class BlackBoxRules
         ("inline JSON", new(@"[{\[]\s*""", RegexOptions.CultureInvariant)),
     ];
 
+    /// <summary>The capability tag whose features state intents only (<see cref="IntentViolations"/>).</summary>
+    public const string IntentGuardedCapability = "needs-model-conversion";
+
+    /// <summary>The end of the name of a documentation feature, whose subject is the command lines of a page.</summary>
+    public const string DocumentationFeatureSuffix = "Documentation.feature";
+
+    /// <summary>
+    /// Whether <see cref="IntentViolations"/> applies to a feature file: a feature with a test that has the tag
+    /// <c>@needs-model-conversion</c>, except a documentation feature (<c>*Documentation.feature</c>), which lists the
+    /// command lines of a page on purpose.
+    /// </summary>
+    public static bool StatesIntentsOnly(string file, string text) =>
+        !file.EndsWith(DocumentationFeatureSuffix, StringComparison.Ordinal)
+        && ParseFeature(file, text).Any(test => test.Tags.Contains(IntentGuardedCapability));
+
     /// <summary>
     /// The steps of a feature file state intents only (test-driver-contract, "A feature file states intents only"):
     /// a step or a table row holds no command line of <c>morphir</c>, no option such as <c>--layout</c>, no fixture

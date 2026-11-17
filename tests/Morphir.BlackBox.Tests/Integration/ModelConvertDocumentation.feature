@@ -34,3 +34,13 @@ Feature: The commands of the model convert page give their documented output
     When I run each documented command of the host as written in the work area
     Then each documented command exits with 2
     And each documented command gives its documented output
+
+  Scenario: The layout after a space gives its documented output
+    Given the section "Layouts" of the documentation page "cli/model-convert.md"
+    And a valid IR v4 model in the file "morphir-ir.json"
+    Then the page documents these commands
+      | command                                                                         |
+      | morphir model convert --input morphir-ir.json --output tree --layout document-tree |
+    When I run each documented command of the host as written in the work area
+    Then each documented command exits with 0
+    And each documented command gives its documented output
