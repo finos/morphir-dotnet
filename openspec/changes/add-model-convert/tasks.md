@@ -27,12 +27,14 @@ All work is on `feat/model-convert`. Milestones end with a commit that builds an
 
 - [x] 4.1 Add `DocumentAddress`, `ModuleDocumentAddress` and the v3.1 and v4 `DocumentTree` instances with `split` and `join` in `Morphir.Models`, and verify the round-trip laws (`join (split d) = d` over generated and named models at 3.1.0 and 4) and the address scenarios pass.
 - [x] 4.2 Move `TreeStems.fs` from `Morphir.Ion` into `Morphir.Models` with shims for `SHA256.HashData` and `Convert.ToHexString`, point the Ion tree reader at it, and verify the existing Ion tree tests pass unchanged.
-- [ ] 4.3 Implement `DocumentTreeStore.write` and `read` for v4 over `VFileTree` (paths, escaping, budget, truncation with `fileNames`, bare `@` segments, sorted order, `$meta`, manifest notices), add `DocumentTreeMother` and `DocumentTreeStoreDriver`, and verify `read (write t) = t`, the address-to-path bijection law and the v4 scenarios of `model-document-trees`.
+- [x] 4.3 Implement `DocumentTreeStore.write` and `read` for v4 over `VFileTree` (paths, escaping, budget, truncation with `fileNames`, bare `@` segments, sorted order, `$meta`, manifest notices), add `DocumentTreeMother` and `DocumentTreeStoreDriver`, and verify `read (write t) = t`, the address-to-path bijection law and the v4 scenarios of `model-document-trees`.
 - [ ] 4.4 Add the declared classic writer for `3.1.0` `Specs`, and the v3 store (3.1.0 labels, Library back to `3`, Specs stays `"3.1.0"`); verify the `ir-model-writing` scenarios and the v3 scenarios of `model-document-trees`.
   - [x] The declared classic writer for `3.1.0` `Specs` (`ClassicWireProfile.v3_1_0`), verified by the `ir-model-writing` scenarios "A classic Specs distribution at 3.1.0" and "Unsupported output version".
   - [ ] The v3 store (3.1.0 labels, Library back to `3`, Specs stays `"3.1.0"`), verified by the v3 scenarios of `model-document-trees`.
 - [ ] 4.5 Implement every tree refusal with a named diagnostic and a `DocumentTreeMother` invalid shape each, and verify the refusal scenarios ("Ambiguous profile", "Missing definition file", "Versioned dependency segment", plus unknown member, over-budget path, outside `pkg/`/`deps/`, wrong v3 manifest version).
 - [ ] 4.6 Add the architecture tests (only the store refers to `Morphir.Files` types; addresses hold only `PackageName`, `ModulePath` and `Name`) and the "The same tree from two sources" test, and verify they pass and fail on a planted violation.
+  - [x] "The same tree from two sources" for v4: a hand-written tree (`FixtureCatalog.Trees.AcmeDemo`) read from a directory on disk and from an embedded provider gives the same model and the same diagnostics (`V4StoreTests`, `PlatformSpecific`).
+  - [ ] The architecture tests.
 
 ## 5. The model command group (milestone 1)
 
@@ -91,9 +93,9 @@ Every scenario of this change and the test that proves it. Unchanged scenarios o
 | model-document-trees | A dependency document is addressed by its package | `Morphir.Models.Tests`: addresses (4.1) |
 | model-document-trees | A v4 model round-trips | `Morphir.Models.Tests`: split/join law (4.1) |
 | model-document-trees | A v3 model round-trips | `Morphir.Models.Tests`: split/join law (4.1) |
-| model-document-trees | A long name is truncated and recorded | `Morphir.Models.Tests`: store (4.3) |
+| model-document-trees | A long name is truncated and recorded | `Morphir.Models.Tests`: store (4.3), with "A path exactly at the budget is not truncated" |
 | model-document-trees | A dependency is written under a bare version segment | `Morphir.Models.Tests`: store (4.3) |
-| model-document-trees | Kit tree cases are met | `ModelConversionKitCases.feature` (6.3) |
+| model-document-trees | Kit tree cases are met | `Morphir.Models.Tests`: store, v4 cases (4.3); `ModelConversionKitCases.feature` (6.3) |
 | model-document-trees | Directory order does not change the model | `Morphir.Models.Tests`: store (4.3) |
 | model-document-trees | A v3 Library returns its original label | `Morphir.Models.Tests`: v3 store (4.4); `ModelConversion.feature` |
 | model-document-trees | A v3 Specs tree keeps 3.1.0 | `Morphir.Models.Tests`: v3 store (4.4) |
@@ -102,7 +104,7 @@ Every scenario of this change and the test that proves it. Unchanged scenarios o
 | model-document-trees | Ambiguous profile | `Morphir.Models.Tests`: refusals (4.5); `ModelConversion.feature` |
 | model-document-trees | Missing definition file | `Morphir.Models.Tests`: refusals (4.5) |
 | model-document-trees | Versioned dependency segment | `Morphir.Models.Tests`: refusals (4.5) |
-| model-document-trees | The same tree from two sources | `Morphir.Models.Tests`: architecture (4.6) |
+| model-document-trees | The same tree from two sources | `Morphir.Models.Tests`: store (4.3, 4.6) |
 | model-name-compaction | An unknown envelope is refused | `Morphir.Models.Tests`: envelope (7.4) |
 | model-name-compaction | A compacted v3 single file expands to v3 | `Morphir.Models.Tests`: expansion (7.3); `ModelConversionCompaction.feature` |
 | model-name-compaction | A compacted tree value file expands in place | `Morphir.Models.Tests`: expansion (7.3) |

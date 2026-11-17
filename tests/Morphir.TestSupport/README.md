@@ -219,6 +219,9 @@ that tests reach by intent. Each `FixtureEntry` has its intent, its path below `
   step form it does not know; `YamlToJson` translates the kit's YAML spellings and refuses what the kit's YAML
   profile forbids.
 - `FixtureCatalog.Models` holds the IR fixtures of `tests/Fixtures/MorphirIR` by intent, for example `V3Library`.
+- `FixtureCatalog.Trees` holds document trees written by hand for this repository, each file at its location in the
+  tree: `AcmeDemo` is the v4 tree of `tests/Fixtures/MorphirTrees/acme-demo`, which "The same tree from two
+  sources" reads from a directory and from resources that `tests/Morphir.Models.Tests` embeds.
 - `FixtureCatalog.ExistingOwners` lists, as a `FixtureOwner` each, the folders that test projects owned before the
   catalog. `FixtureCatalog.UnownedFiles` gives the files that have no owner, and
   `tests/Morphir.Build.Tests/Helpers/FixtureOwnershipTests.cs` fails on each.

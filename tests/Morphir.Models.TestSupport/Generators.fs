@@ -318,6 +318,18 @@ let v4Distribution: Gen<Morphir.IR.V4.Distribution> =
         1, v4Application
     ]
 
+/// <summary>
+/// A v4 distribution with no module annotations: mostly a <c>Library</c>, and also <c>Specs</c> and
+/// <c>Application</c>. A 4.0.0 module file has no place for module annotations, so this is the generator of the
+/// document-tree store's laws; <c>v4Distribution</c> keeps the annotated cases for the store's refusal.
+/// </summary>
+let v4DistributionWithoutModuleAnnotations: Gen<Morphir.IR.V4.Distribution> =
+    Gen.frequency [
+        3, Gen.map buildV4 v4LibraryBuilder
+        1, Gen.map buildV4Specs v4LibraryBuilder
+        1, v4Application
+    ]
+
 /// <summary>A classic library builder.</summary>
 let v3LibraryBuilder: Gen<V3LibraryBuilder> = library aV3Library
 

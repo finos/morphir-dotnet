@@ -204,6 +204,47 @@ let tests =
                 Expect.isFalse
                     (TreeStems.matchesCut "some-extremely-long-canon" longDigest (name "other"))
                     "The name differs"
+
+            // document-tree-0004 of the kit: 25 characters are left for the stem, so the prefix keeps 15.
+            testCase "A stem is cut to the budget it is given"
+            <| fun () ->
+                Expect.equal
+                    (TreeStems.cut 25 (name "customer-relationship-management-record"))
+                    (Ok "customer-relati__44a101f8")
+                    "The kit's cut stem"
+
+                Expect.equal (TreeStems.digest longName) longDigest "The digest of the escaped stem"
+
+            testCase "A cut drops a trailing hyphen or underscore from its prefix"
+            <| fun () ->
+                Expect.equal
+                    (TreeStems.cut 15 (name initialismName))
+                    (Ok(
+                        "_usd"
+                        + "__"
+                        + initialismDigest
+                    ))
+                    "_usd- loses its hyphen"
+
+                let inUsd = name "value-in-USD-and-more"
+                let digest = TreeStems.digest (TreeStems.escapeName inUsd)
+
+                Expect.equal
+                    (TreeStems.cut 20 inUsd)
+                    (Ok(
+                        "value-in"
+                        + "__"
+                        + digest
+                    ))
+                    "value-in-_ loses its hyphen and underscore"
+
+            testCase "A budget with no room for a prefix is refused"
+            <| fun () ->
+                Expect.isError (TreeStems.cut 10 (name longName)) "Only the digest would fit"
+
+                Expect.isError
+                    (TreeStems.cut 11 (name initialismName))
+                    "Only an underscore would fit"
         ]
 
         testList "The version segment under deps" [

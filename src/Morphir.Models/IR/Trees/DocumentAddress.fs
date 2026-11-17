@@ -52,7 +52,7 @@ type DocumentAddress =
 module DocumentAddress =
     /// The segment that ends a dependency's package path. It is bare while the v4 model carries no package version
     /// (decision 0015 of finos/morphir).
-    let private versionSegment = "@"
+    let private versionSegment = TreeStems.BareVersionSegment
 
     let private stems (Path names) =
         names

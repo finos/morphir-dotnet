@@ -1711,3 +1711,45 @@ module V4JsonWriter =
     /// <summary>Writes a pattern.</summary>
     let writePattern (indented: bool) (node: Pattern) : Result<byte array, V4WriteError> =
         run indented (fun json -> pattern json "$" node)
+
+    // The parts of a document that the files of a v4 document tree hold. V4TreeFiles builds each tree file from
+    // them, so a tree file spells a type, a value or an entry point exactly as a single document does.
+
+    /// Runs a write, giving its bytes or the error it raised.
+    let internal writeWith (indented: bool) (write: Utf8JsonWriter -> unit) = run indented write
+
+    /// Writes a type definition with its access as the key: { "Public": { doc, variant } }.
+    let internal typeDefinitionNode (json: Utf8JsonWriter) location definition =
+        accessControlled json (documentedTypeDefinition json) location definition
+
+    /// Writes a value definition with its access as the key: { "Public": { doc, body } }.
+    let internal valueDefinitionNode (json: Utf8JsonWriter) location definition =
+        accessControlled json (documentedValueDefinition json) location definition
+
+    /// Writes a documented type specification: { doc, variant }.
+    let internal typeSpecificationNode (json: Utf8JsonWriter) location specification =
+        documentedTypeSpecification json location specification
+
+    /// Writes a documented value specification: { doc, inputs, output }.
+    let internal valueSpecificationNode (json: Utf8JsonWriter) location specification =
+        documentedValueSpecification json location specification
+
+    /// Writes entry points in order.
+    let internal entryPointsNode (json: Utf8JsonWriter) location entries =
+        entryPoints json location entries
+
+    /// Writes a name's canonical string, refusing a name that has none.
+    let internal nameNode (json: Utf8JsonWriter) location (name: Name) =
+        nameValue json location name
+
+    /// Writes a path's canonical string, refusing a path that has none.
+    let internal pathNode (json: Utf8JsonWriter) location (path: Path) =
+        json.WriteStringValue(pathText location path)
+
+    /// Writes a doc member when there is a doc.
+    let internal docMember (json: Utf8JsonWriter) location (text: string option) =
+        doc json location text
+
+    /// Writes text, refusing a lone surrogate.
+    let internal textNode (json: Utf8JsonWriter) location (text: string) =
+        stringValue json location text

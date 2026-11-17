@@ -24,6 +24,8 @@
         <Compile Include="DistributionBuilder.fs" />
         <Compile Include="DistributionMother.fs" />
         <Compile Include="Generators.fs" />
+        <Compile Include="DocumentTreeMother.fs" />
+        <Compile Include="DocumentTreeStoreDriver.fs" />
     </ItemGroup>
 
 </Project>

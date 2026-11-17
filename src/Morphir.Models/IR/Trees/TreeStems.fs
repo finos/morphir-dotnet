@@ -163,12 +163,59 @@ module TreeStems =
             wholeName stem
             |> Result.map WholeStem
 
-    /// The first eight hex digits of the SHA-256 of a text's UTF-8 bytes.
-    let private digestOf (text: string) =
+    /// <summary>
+    /// The segment that ends a dependency's package path below <c>deps/</c>. It is a bare <c>@</c> while the v4
+    /// model carries no package version (decision 0015).
+    /// </summary>
+    [<Literal>]
+    let BareVersionSegment = "@"
+
+    /// <summary>
+    /// The digest of a cut stem: the first eight hex digits, lowercase, of the SHA-256 of the UTF-8 bytes of the
+    /// whole escaped stem.
+    /// </summary>
+    let digest (escaped: string) : string =
         Convert
-            .ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes text))
+            .ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes escaped))
             .Substring(0, 8)
             .ToLowerInvariant()
+
+    let private digestOf = digest
+
+    /// <summary>The length of the part of a cut stem after its prefix: <c>__</c> and eight hex digits.</summary>
+    [<Literal>]
+    let CutSuffixLength = 10
+
+    /// <summary>
+    /// The cut stem of a name that fits in <paramref name="stemBudget"/> characters (decision 0012): the longest
+    /// prefix of the escaped name that leaves room for <c>__</c> and the digest, with any trailing <c>-</c> or
+    /// <c>_</c> dropped, then <c>__</c> and <see cref="digest"/> of the whole escaped name. It is an error when no
+    /// prefix of at least one character fits.
+    /// </summary>
+    let cut (stemBudget: int) (name: Name) : Result<string, string> =
+        let escaped = escapeName name
+
+        let room =
+            stemBudget
+            - CutSuffixLength
+
+        if room < 1 then
+            let needed =
+                CutSuffixLength
+                + 1
+
+            Error $"A cut stem of '{escaped}' needs {needed} characters, and {stemBudget} are left."
+        else
+            let prefix = escaped.Substring(0, min room escaped.Length).TrimEnd('-', '_')
+
+            if isSegments prefix then
+                Ok(
+                    prefix
+                    + "__"
+                    + digest escaped
+                )
+            else
+                Error $"No prefix of '{escaped}' in {room} characters is a stem."
 
     /// <summary>
     /// Whether a cut stem belongs to a name: the stem's prefix starts the escaped name, and the digest is the

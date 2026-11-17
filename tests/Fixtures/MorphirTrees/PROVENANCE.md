@@ -1,6 +1,6 @@
 # Morphir document-tree kit data
 
-These files come from outside this repository, so a bug in the .NET tree reader or writer cannot change what the tests expect. Do not edit them by hand. `.gitattributes` keeps their bytes exact, and tests check their hashes.
+The files of `kit/` come from outside this repository, so a bug in the .NET tree reader or writer cannot change what the tests expect. Do not edit them by hand. `.gitattributes` keeps their bytes exact, and tests check their hashes.
 
 The kit is reference data here, not a suite that this repository runs. `FixtureCatalog.Kit` in `tests/Morphir.TestSupport` reads each tree case of `document-tree.feature` (its id, its title, the files of its tree, its canonical single-file spelling and its expected diagnostic) and raises on a step form it does not know. The kit's runner, adapter protocol and CI gates are not used. When the kit is redesigned, only this folder and the reader change.
 
@@ -29,3 +29,7 @@ Copied unchanged from `spec/ir/mck/` in [finos/morphir](https://github.com/finos
 | `document-tree-0016` | No tree: `RejectedDocument` and its `Diagnostic`, `version_mismatch` |
 
 A YAML file or canonical spelling is translated to JSON. A JSON spelling is kept as the kit writes it. When a case gives both a YAML and a JSON canonical spelling, the reader checks that they are the same JSON value and keeps the JSON one.
+
+## `acme-demo/`
+
+A v4 document tree written by hand for this repository, not kit data. Its own `acme-demo/PROVENANCE.md` describes it and has its hashes.

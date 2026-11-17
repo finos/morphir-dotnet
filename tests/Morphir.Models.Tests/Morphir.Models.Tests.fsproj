@@ -14,12 +14,29 @@
         <PackageReference Include="Expecto" />
         <PackageReference Include="Expecto.FsCheck" />
         <PackageReference Include="Verify.Expecto" />
+        <!-- The embedded provider of "The same tree from two sources" in IR/Trees/V4StoreTests.fs. -->
+        <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" />
+    </ItemGroup>
+
+    <!--
+      The tree of "The same tree from two sources", which FixtureCatalog.Trees owns, embedded with a manifest below
+      AcmeDemoTree/, so ManifestEmbeddedFileProvider gives its files at their locations in the tree.
+    -->
+    <PropertyGroup>
+        <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+        <!-- The manifest splits a link at the platform's separator, which %(RecursiveDir) also uses. -->
+        <AcmeDemoTreeLink>AcmeDemoTree$([System.IO.Path]::DirectorySeparatorChar)</AcmeDemoTreeLink>
+    </PropertyGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/**/*.json" Link="$(AcmeDemoTreeLink)%(RecursiveDir)%(Filename)%(Extension)" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Models\Morphir.Models.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.Testing\Morphir.Testing.fsproj" />
         <ProjectReference Include="..\Morphir.Models.TestSupport\Morphir.Models.TestSupport.fsproj" />
+        <!-- FixtureCatalog: the pinned kit tree cases that the store tests read. -->
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -34,6 +51,7 @@
         <Compile Include="IR/Trees/DocumentAddressTests.fs" />
         <Compile Include="IR/Trees/V4DocumentTreeTests.fs" />
         <Compile Include="IR/Trees/ClassicDocumentTreeTests.fs" />
+        <Compile Include="IR/Trees/V4StoreTests.fs" />
         <Compile Include="IR/Classic/AccessControlledTests.fs" />
         <Compile Include="IR/Classic/TypeTests.fs" />
         <Compile Include="IR/Classic/LiteralTests.fs" />
