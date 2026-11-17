@@ -19,6 +19,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Models\Morphir.Models.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.Testing\Morphir.Testing.fsproj" />
+        <ProjectReference Include="..\Morphir.Models.TestSupport\Morphir.Models.TestSupport.fsproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -56,6 +57,7 @@
         <Compile Include="Json/V4/V4KitTests.fs" />
         <Compile Include="Json/V4/V4JsonTests.fs" />
         <Compile Include="Json/V4/V4JsonWriterTests.fs" />
+        <Compile Include="TestSupport/MotherTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

@@ -119,6 +119,7 @@
     <Project Path="tests/Morphir.BlackBox.Tests/Morphir.BlackBox.Tests.csproj" />
     <Project Path="tests\Morphir.Core.Tests\Morphir.Core.Tests.csproj" />
     <Project Path="tests\Morphir.Ion.Tests\Morphir.Ion.Tests.fsproj" />
+    <Project Path="tests/Morphir.Models.TestSupport/Morphir.Models.TestSupport.fsproj" />
     <Project Path="tests\Morphir.Models.Tests\Morphir.Models.Tests.fsproj" />
     <Project Path="tests\Morphir.Build.Tests\Morphir.Build.Tests.csproj" />
     <Project Path="tests\Morphir.Tests\Morphir.Tests.csproj" />

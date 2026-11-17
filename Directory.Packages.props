@@ -136,6 +136,8 @@
     <PackageVersion Include="Eleven19.IonDotnet" Version="0.1.4" />
     <PackageVersion Include="Expecto" Version="10.2.3" />
     <PackageVersion Include="Expecto.FsCheck" Version="10.2.3" />
+    <!-- The version that Expecto.FsCheck resolves; Morphir.Models.TestSupport builds its generators on it. -->
+    <PackageVersion Include="FsCheck" Version="2.16.5" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />
