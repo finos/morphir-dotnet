@@ -15,8 +15,8 @@ open Morphir.IR.Trees
 /// Expands the references of a compacted document (<c>ir/name-compaction</c>). A reference is exactly the object
 /// <c>{"$name": "&lt;id&gt;"}</c>, and it is resolved only at a typed name position: a place that the IR's JSON reads as
 /// a name, a package path, a module path or an FQName. Each position resolves through its own table, and the spelling
-/// is written as the document's version writes that position: a canonical string in v4 and in the envelope members of
-/// a v3 tree file, classic word arrays in a classic v3 slot. A classic attribute slot that holds a type (an array) is a
+/// is written as the document's version writes that position: the entry's text exactly as the table writes it in v4
+/// and in the envelope members of a v3 tree file, classic word arrays in a classic v3 slot. A classic attribute slot that holds a type (an array) is a
 /// type, with its positions. Anything else, a string literal, documentation, an attribute object, extension data, a
 /// document literal, stays as written, even when it looks like a reference. The document's
 /// <c>formatVersion</c> is not touched.
@@ -913,54 +913,55 @@ module internal ContextExpansion =
         else
             None
 
-    let private writeName spelling (writer: Utf8JsonWriter) (Name words as name) =
-        match spelling with
-        | CanonicalString -> writer.WriteStringValue(CanonicalNames.nameToString name)
-        | ClassicArrays ->
-            writer.WriteStartArray()
+    /// The classic word array of a name.
+    let private writeClassicName (writer: Utf8JsonWriter) (Name words) =
+        writer.WriteStartArray()
 
-            for word in words do
-                writer.WriteStringValue word
+        for word in words do
+            writer.WriteStringValue word
 
-            writer.WriteEndArray()
+        writer.WriteEndArray()
 
-    let private writePath spelling (writer: Utf8JsonWriter) (Path names as path) =
-        match spelling with
-        | CanonicalString -> writer.WriteStringValue(CanonicalNames.pathToString path)
-        | ClassicArrays ->
-            writer.WriteStartArray()
+    /// The classic array of a path: one word array per name.
+    let private writeClassicPath (writer: Utf8JsonWriter) (Path names) =
+        writer.WriteStartArray()
 
-            for name in names do
-                writeName ClassicArrays writer name
+        for name in names do
+            writeClassicName writer name
 
-            writer.WriteEndArray()
+        writer.WriteEndArray()
 
-    let private writeFqName spelling (writer: Utf8JsonWriter) (fqName: FQName) =
-        match spelling with
-        | CanonicalString -> writer.WriteStringValue(CanonicalNames.fqNameToString fqName)
-        | ClassicArrays ->
-            let (PackageName package) = fqName.PackagePath
-            let (ModulePath modulePath) = fqName.ModulePath
-            writer.WriteStartArray()
-            writePath ClassicArrays writer package
-            writePath ClassicArrays writer modulePath
-            writeName ClassicArrays writer fqName.LocalName
-            writer.WriteEndArray()
+    /// The classic triple of an FQName: package path, module path and local name.
+    let private writeClassicFqName (writer: Utf8JsonWriter) (fqName: FQName) =
+        let (PackageName package) = fqName.PackagePath
+        let (ModulePath modulePath) = fqName.ModulePath
+        writer.WriteStartArray()
+        writeClassicPath writer package
+        writeClassicPath writer modulePath
+        writeClassicName writer fqName.LocalName
+        writer.WriteEndArray()
 
-    /// Writes the spelling of an id at a position, or gives false when the position's table has no such id.
+    /// <summary>
+    /// Writes the spelling of an id at a position, or gives false when the position's table has no such id. A v4
+    /// position gets the entry's text exactly as the table writes it, never a reprint of its value, and a classic
+    /// position gets the value's word arrays.
+    /// </summary>
     let private resolve (context: FileContext) (writer: Utf8JsonWriter) (table, spelling) (id: string) =
-        let write (entries: Map<string, 'v>) (emit: Spelling -> Utf8JsonWriter -> 'v -> unit) =
+        let write (entries: Map<string, TableEntry<'v>>) (classic: Utf8JsonWriter -> 'v -> unit) =
             match Map.tryFind id entries with
             | Some entry ->
-                emit spelling writer entry
+                match spelling with
+                | CanonicalString -> writer.WriteStringValue entry.Spelling
+                | ClassicArrays -> classic writer entry.Value
+
                 true
             | None -> false
 
         match table with
-        | NamesTable -> write context.Names writeName
-        | PackagePathsTable -> write context.PackagePaths writePath
-        | ModulePathsTable -> write context.ModulePaths writePath
-        | FqNamesTable -> write context.FqNames writeFqName
+        | NamesTable -> write context.Names writeClassicName
+        | PackagePathsTable -> write context.PackagePaths writeClassicPath
+        | ModulePathsTable -> write context.ModulePaths writeClassicPath
+        | FqNamesTable -> write context.FqNames writeClassicFqName
 
     let rec private walk context (unknown: ResizeArray<Table * string>) (writer: Utf8JsonWriter) (shape: Shape) (element: JsonElement) =
         RuntimeHelpers.EnsureSufficientExecutionStack()

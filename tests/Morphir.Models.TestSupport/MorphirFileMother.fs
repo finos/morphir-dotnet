@@ -6,6 +6,7 @@
 /// </summary>
 module Morphir.Models.TestSupport.MorphirFileMother
 
+open System.Text.Json.Nodes
 open Morphir.TestSupport.Fixtures
 
 /// <summary>The parent's example with this id, such as <c>v4-type</c>.</summary>
@@ -88,3 +89,123 @@ let policyInput (id: string) : System.Text.Json.JsonElement =
 
 /// <summary>The bytes a writer of the policy must produce from a case's input, as the parent fixes them.</summary>
 let policyExpectedBytes (id: string) : byte array = FixtureCatalog.ReadBytes (policyCase id).Expected
+
+/// <summary>
+/// A pinned valid example with one context entry spelled anew, and the plain document a reader must give for it.
+/// </summary>
+type RespelledFile = {
+    /// <summary>The example's file name, which diagnostics name.</summary>
+    File: string
+    /// <summary>The IR version of the enclosed document: 3 or 4.</summary>
+    Ir: int
+    /// <summary>The file's bytes: the example with the entry's spelling replaced.</summary>
+    Bytes: byte array
+    /// <summary>The example's twin with the value at each reference to the entry replaced by its new expansion.</summary>
+    ExpandedText: string
+}
+
+/// The twin with each value that a reference to <paramref name="id"/> in the compacted document stands for replaced by
+/// <paramref name="expansion"/>. The two documents have the same shape except at references, so they are walked
+/// together.
+let rec private replaceReferences (id: string) (expansion: JsonNode) (compacted: JsonNode) (twin: JsonNode) : JsonNode =
+    match compacted with
+    | :? JsonObject as reference when
+        reference.Count = 1
+        && reference.ContainsKey "$name"
+        && reference["$name"].GetValueKind() = System.Text.Json.JsonValueKind.String
+        ->
+        // A reference to another entry stands for the twin's value there.
+        if reference["$name"].GetValue<string>() = id then
+            expansion.DeepClone()
+        else
+            twin.DeepClone()
+    | :? JsonObject as compactedObject ->
+        let result = JsonObject()
+
+        for KeyValue(name, value) in twin.AsObject() do
+            result[name] <-
+                match value with
+                | null -> null
+                | value -> replaceReferences id expansion (nonNull compactedObject[name]) value
+
+        result
+    | :? JsonArray as compactedArray ->
+        let result = JsonArray()
+
+        twin.AsArray()
+        |> Seq.iteri (fun index item ->
+            result.Add(
+                match item with
+                | null -> null
+                | item -> replaceReferences id expansion (nonNull compactedArray[index]) item
+            )
+        )
+
+        result
+    | _ -> twin.DeepClone()
+
+/// The example <paramref name="exampleId"/> whose entry <paramref name="id"/> of <paramref name="table"/> is
+/// <paramref name="spelling"/>, where a reference to it expands to <paramref name="expansion"/>.
+let private respelled exampleId (table: string) (id: string) (spelling: string) (expansion: JsonNode) =
+    let example = example exampleId
+    let envelope = nonNull (JsonNode.Parse(FixtureCatalog.ReadText example.File))
+    let context = nonNull envelope["context"]
+    let entries: JsonNode = nonNull context[table]
+
+    if not (entries.AsObject().ContainsKey id) then
+        failwith $"The context example '{exampleId}' has no entry '{id}' in {table}."
+
+    entries[id] <- JsonValue.Create spelling
+
+    let twin = nonNull (JsonNode.Parse(expandedTextOf exampleId))
+    let expanded = replaceReferences id expansion (nonNull envelope["document"]) twin
+
+    {
+        File = System.IO.Path.GetFileName example.File.RelativePath
+        Ir = example.Ir
+        Bytes = System.Text.Encoding.UTF8.GetBytes(envelope.ToJsonString())
+        ExpandedText = expanded.ToJsonString()
+    }
+
+/// <summary>
+/// The v4 type file whose <c>names</c> entry for the type's own name is <paramref name="spelling"/>; the name expands
+/// to exactly that text.
+/// </summary>
+let withNameSpelling (spelling: string) : RespelledFile =
+    respelled "v4-type" "names" "t" spelling (JsonValue.Create spelling)
+
+/// <summary>
+/// The v4 type file whose <c>fqNames</c> entry for its field types is <paramref name="spelling"/>; each field type
+/// expands to exactly that text.
+/// </summary>
+let withFqNameSpelling (spelling: string) : RespelledFile =
+    respelled "v4-type" "fqNames" "i" spelling (JsonValue.Create spelling)
+
+/// <summary>
+/// The v4 module file whose <c>modulePaths</c> entry for its path is <paramref name="spelling"/>; the path expands to
+/// exactly that text.
+/// </summary>
+let withModulePathSpelling (spelling: string) : RespelledFile =
+    respelled "v4-module" "modulePaths" "m" spelling (JsonValue.Create spelling)
+
+/// <summary>
+/// The v4 manifest whose <c>packagePaths</c> entry for its package is <paramref name="spelling"/>; the package expands
+/// to exactly that text.
+/// </summary>
+let withPackagePathSpelling (spelling: string) : RespelledFile =
+    respelled "v4-manifest" "packagePaths" "p" spelling (JsonValue.Create spelling)
+
+/// <summary>
+/// The classic type file whose <c>names</c> entry for a record field's name is <paramref name="spelling"/>; the field
+/// name, a classic slot, expands to the word array <paramref name="words"/>.
+/// </summary>
+let withClassicNameSpelling (spelling: string) (words: string seq) : RespelledFile =
+    let array = JsonArray()
+
+    for word in words do
+        array.Add(JsonValue.Create word)
+
+    respelled "v3-type" "names" "u" spelling array
+
+/// <summary>The parent's naming conformance corpus, in its shipped style.</summary>
+let namingCorpus () : NamingConformance = FixtureCatalog.Context.Naming.Corpus

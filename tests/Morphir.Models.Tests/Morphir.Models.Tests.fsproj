@@ -58,6 +58,7 @@
         <Compile Include="IR/Trees/ArchitectureTests.fs" />
         <Compile Include="IR/Files/ExpansionTests.fs" />
         <Compile Include="IR/Files/NamePositionTests.fs" />
+        <Compile Include="IR/Files/SpellingGrammarTests.fs" />
         <Compile Include="IR/Classic/AccessControlledTests.fs" />
         <Compile Include="IR/Classic/TypeTests.fs" />
         <Compile Include="IR/Classic/LiteralTests.fs" />

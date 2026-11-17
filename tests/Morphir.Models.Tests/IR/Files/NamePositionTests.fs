@@ -24,23 +24,28 @@ module Driver = DocumentTreeStoreDriver
 /// other table a decoy that no document spells, so a reference resolved through the wrong table gives other text.
 /// </summary>
 let private contextFor (entry: ContextEntry) : FileContext =
-    let one value = Map.ofList [ Mother.referenceId, value ]
-    let decoy = DistributionBuilder.name "decoy"
+    // The mother's names are lowercase words, so the printed spelling is the one the table would hold.
+    let one print value =
+        Map.ofList [ Mother.referenceId, { Spelling = print value; Value = value } ]
+
+    let name = one CanonicalNames.nameToString
+    let path = one CanonicalNames.pathToString
+    let fqName = one CanonicalNames.fqNameToString
     let decoyPath = DistributionBuilder.path "decoy/path"
 
     let everyTable = {
         NameContext.empty [] with
-            Names = one decoy
-            PackagePaths = one decoyPath
-            ModulePaths = one decoyPath
-            FqNames = one (DistributionBuilder.fqName "decoy/package" "decoy" "decoy")
+            Names = name (DistributionBuilder.name "decoy")
+            PackagePaths = path decoyPath
+            ModulePaths = path decoyPath
+            FqNames = fqName (DistributionBuilder.fqName "decoy/package" "decoy" "decoy")
     }
 
     match entry with
-    | NameEntry n -> { everyTable with Names = one n }
-    | PackagePathEntry p -> { everyTable with PackagePaths = one p }
-    | ModulePathEntry p -> { everyTable with ModulePaths = one p }
-    | FqNameEntry f -> { everyTable with FqNames = one f }
+    | NameEntry n -> { everyTable with Names = name n }
+    | PackagePathEntry p -> { everyTable with PackagePaths = path p }
+    | ModulePathEntry p -> { everyTable with ModulePaths = path p }
+    | FqNameEntry f -> { everyTable with FqNames = fqName f }
 
 /// A context that defines the id in every table, with decoys only.
 let private decoys = contextFor (NameEntry(DistributionBuilder.name "decoy"))

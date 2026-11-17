@@ -84,3 +84,11 @@ The writer policy `morphir.compact/0.1.0-draft.1` and its 19 fixed cases, copied
 | `policy/cases/v4-type/input.json` | `docs/spec/ir/context/policy/morphir.compact-0.1.0-draft.1/cases/v4-type/input.json` | `6587e961e94df7ef9abeed06f1705591a5946b21` | `b92972aa55c7808ed87f711d1dc818d57f7a4ffe5fc7ea00b7b07c05aa69ab9a` |
 | `policy/cases/v4-value/expected.json` | `docs/spec/ir/context/policy/morphir.compact-0.1.0-draft.1/cases/v4-value/expected.json` | `9ac776be295b2054c90b647e6a2789d482b97a14` | `b542f1d5a421d83ac3c76503975b5aae242947a5d3e25dba2c487c8a85872791` |
 | `policy/cases/v4-value/input.json` | `docs/spec/ir/context/policy/morphir.compact-0.1.0-draft.1/cases/v4-value/input.json` | `ad100ded969bd4a0b324530e9dc4e5b31c365dca` | `6b0d959c17720785b161fde523f8d4e19f8e98a8a3409d6689023b6451d8eff6` |
+
+## `naming/`
+
+The parent's naming conformance corpus, copied unchanged from `docs/spec/ir/fixtures/naming-conformance.json` of finos/morphir at commit `36ed842431ebd6f8313770dbe863392750190677` (2026-11-17, branch `feat/ir-context-contract`, not yet merged), with `git show <commit>:<path>`. The commit makes the parent's checker validate context spellings by the segment grammar of `docs/spec/draft/names.md`, and its tests read this corpus. The .NET reader is tested against the same cases: every round-trip name, path and FQName in the shipped `uppercase` style is admitted as a table spelling and expands to exactly its text, and every input that style refuses as a name is refused. `FixtureCatalog.Context.Naming` serves the file and reads it.
+
+| File | Upstream path | Git blob | SHA-256 |
+| --- | --- | --- | --- |
+| `naming/naming-conformance.json` | `docs/spec/ir/fixtures/naming-conformance.json` | `5ebb77fb90d5a46d36454056ca9259e8606df72b` | `81b598e45bbe5361ec5cd178f85d9a8d538eb473a226ac1961d79561e3a11607` |

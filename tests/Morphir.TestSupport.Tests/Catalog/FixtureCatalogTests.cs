@@ -117,6 +117,23 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void TheNamingCorpusOfTheParentIsRead()
+    {
+        var corpus = FixtureCatalog.Context.Naming.Corpus;
+
+        corpus.ShippedStyle.Should().Be("uppercase");
+        corpus.Names.Should().HaveCount(17);
+        corpus.Names.Should().ContainSingle(name => name.Canonical == "value-in-USD")
+            .Which.LegacyArray.Should().Equal("value", "in", "u", "s", "d");
+        corpus.Names.Where(name => name.LegacyArray == null).Select(name => name.Canonical).Should().Equal("FR2052A");
+        corpus.Paths.Should().Equal("morphir/SDK", "US/FR2052A/data-tables", "my-org/domain/users");
+        corpus.FqNames.Should().Equal("morphir/SDK:list#map", "my-org:domain#value-in-USD");
+        corpus.Rejects.Should().HaveCount(14);
+        corpus.Rejects.Where(reject => reject.ValidAsName).Select(reject => reject.Input).Should().Equal("value-in-USD", "USD-usd");
+        FixtureCatalog.All.Should().Contain(FixtureCatalog.Context.Naming.Files);
+    }
+
+    [Test]
     public void TheReaderOfRfc8785RefusesATextWithoutItsVectors()
     {
         var act = () => Rfc8785Reader.Read("Appendix B.  Number Serialization Samples\n");

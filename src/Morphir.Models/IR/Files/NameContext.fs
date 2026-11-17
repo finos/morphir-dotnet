@@ -20,18 +20,33 @@ type IrFamily =
     | V4
 
 /// <summary>
+/// An entry of a context table: its spelling exactly as the file writes it, and the value that spelling reads as.
+/// </summary>
+/// <remarks>
+/// A <see cref="Name"/> holds words, so it cannot give back every spelling: <c>FR2052A</c> and <c>FR-2052-a</c> read
+/// as one value. A v4 position therefore expands to <see cref="Spelling"/>, and only a classic word-array position
+/// uses <see cref="Value"/>.
+/// </remarks>
+type TableEntry<'v> = {
+    /// <summary>The spelling as the table writes it, such as <c>FR2052A</c>.</summary>
+    Spelling: string
+    /// <summary>The value the spelling reads as.</summary>
+    Value: 'v
+}
+
+/// <summary>
 /// The file-local name tables of a compacted Morphir file (the parent's <c>ir/name-compaction</c>): each alias id with
 /// the spelling it stands for, by the type of position it may fill.
 /// </summary>
 type FileContext = {
     /// <summary>The <c>names</c> table: aliases of names, such as <c>invoice-line</c>.</summary>
-    Names: Map<string, Name>
+    Names: Map<string, TableEntry<Name>>
     /// <summary>The <c>packagePaths</c> table: aliases of package paths, such as <c>my-org/billing</c>.</summary>
-    PackagePaths: Map<string, Path>
+    PackagePaths: Map<string, TableEntry<Path>>
     /// <summary>The <c>modulePaths</c> table: aliases of module paths, such as <c>invoicing</c>.</summary>
-    ModulePaths: Map<string, Path>
+    ModulePaths: Map<string, TableEntry<Path>>
     /// <summary>The <c>fqNames</c> table: aliases of fully qualified names, such as <c>morphir/SDK:basics#int</c>.</summary>
-    FqNames: Map<string, FQName>
+    FqNames: Map<string, TableEntry<FQName>>
     /// <summary>The member paths that the file's <c>critical</c> list says a reader must understand.</summary>
     Critical: string list
 }
@@ -80,6 +95,41 @@ module internal NameContext =
         && id
            |> Seq.forall Char.IsAsciiLetterOrDigit
 
+    /// <summary>
+    /// Whether a text is a name by the grammar of the parent's <c>docs/spec/draft/names.md</c>: segments joined by
+    /// <c>-</c>, each a word (<c>[a-z0-9]+</c>) or an initialism (<c>[A-Z0-9]+</c>). A name's canonical form writes each
+    /// segment as it is read, so every text the grammar accepts is canonical.
+    /// </summary>
+    let private isName (text: string) =
+        let isAscii (accepts: char -> bool) (segment: string) =
+            segment
+            |> Seq.forall (fun c -> accepts c || Char.IsAsciiDigit c)
+
+        let isSegment (segment: string) =
+            segment.Length > 0
+            && (isAscii Char.IsAsciiLetterLower segment
+                || isAscii Char.IsAsciiLetterUpper segment)
+
+        text.Split('-')
+        |> Array.forall isSegment
+
+    /// Whether a text is a path: names joined by <c>/</c>.
+    let private isPath (text: string) =
+        text.Split('/')
+        |> Array.forall isName
+
+    /// Whether a text is an FQName: <c>package:module#name</c>, with exactly one <c>:</c> and then one <c>#</c>.
+    let private isFqName (text: string) =
+        match text.Split(':') with
+        | [| package; rest |] ->
+            match rest.Split('#') with
+            | [| modulePath; local |] ->
+                isPath package
+                && isPath modulePath
+                && isName local
+            | _ -> false
+        | _ -> false
+
     /// The members of an object in document order, with each name that appears more than once refused.
     let membersOnce file (where: string) (element: JsonElement) =
         let seen = HashSet<string>(StringComparer.Ordinal)
@@ -97,15 +147,20 @@ module internal NameContext =
 
         members, duplicates
 
-    /// One table: each id with its spelling, parsed by <paramref name="parse"/>, within the limits.
+    /// <summary>
+    /// One table: each id with its spelling, within the limits. A spelling is admitted when
+    /// <paramref name="isSpelling"/> accepts it by the grammar of its table's type (<paramref name="kind"/>), and is
+    /// kept as written beside the value <paramref name="parse"/> reads it as.
+    /// </summary>
     let private table
         (limits: ContextLimits)
         file
         (tableName: string)
+        (kind: string)
+        (isSpelling: string -> bool)
         (parse: string -> Result<'v, string>)
-        (print: 'v -> string)
         (element: JsonElement)
-        : Map<string, 'v> * StoreError list =
+        : Map<string, TableEntry<'v>> * StoreError list =
         let where = $"context.{tableName}"
 
         if element.ValueKind <> JsonValueKind.Object then
@@ -145,22 +200,17 @@ module internal NameContext =
                                 file
                                 $"{where}.{id} is {bytes} bytes long, and a spelling has at most {limits.MaxNameLength}."
                         )
+                    elif not (isSpelling spelling) then
+                        Error(error "context.invalid_entry" file $"{where}.{id} is '{spelling}', which is not {kind}.")
                     else
                         match parse spelling with
-                        | Ok parsed when print parsed = spelling -> Ok(id, parsed)
-                        | Ok parsed ->
-                            Error(
-                                error
-                                    "context.invalid_entry"
-                                    file
-                                    $"{where}.{id} is '{spelling}', and its canonical spelling is '{print parsed}'."
-                            )
+                        | Ok parsed -> Ok(id, { Spelling = spelling; Value = parsed })
                         | Error message ->
                             Error(
                                 error
                                     "context.invalid_entry"
                                     file
-                                    $"{where}.{id} is not a canonical spelling of its kind: {message}"
+                                    $"{where}.{id} is '{spelling}', which is not {kind}: {message}"
                             )
 
             // The count is checked first, so an oversized table is refused without reading each entry.
@@ -198,8 +248,8 @@ module internal NameContext =
 
     /// <summary>
     /// The tables of a context, with the envelope's <paramref name="critical"/> list, and the problems found:
-    /// duplicate members, malformed or over-limit tables, and spellings that are not canonical. Unknown members of
-    /// the context are ignored.
+    /// duplicate members, malformed or over-limit tables, and spellings that are not of their table's type. Unknown
+    /// members of the context are ignored.
     /// </summary>
     let read (limits: ContextLimits) file (critical: string list) (context: JsonElement) : FileContext * StoreError list =
         if context.ValueKind <> JsonValueKind.Object then
@@ -207,18 +257,21 @@ module internal NameContext =
         else
             let members, duplicates = membersOnce file "The context" context
 
-            let tableOf name parse print =
+            let tableOf name kind isSpelling parse =
                 match
                     members
                     |> List.tryFind (fun (key, _) -> key = name)
                 with
-                | Some(_, element) -> table limits file name parse print element
+                | Some(_, element) -> table limits file name kind isSpelling parse element
                 | None -> Map.empty, []
 
-            let names, nameProblems = tableOf "names" CanonicalNames.parseName CanonicalNames.nameToString
-            let packagePaths, packageProblems = tableOf "packagePaths" CanonicalNames.parsePath CanonicalNames.pathToString
-            let modulePaths, moduleProblems = tableOf "modulePaths" CanonicalNames.parsePath CanonicalNames.pathToString
-            let fqNames, fqNameProblems = tableOf "fqNames" CanonicalNames.parseFQName CanonicalNames.fqNameToString
+            let name = "a name: words and initialisms joined by '-'"
+            let path = "a path: names joined by '/'"
+            let fqName = "an FQName: package:module#name"
+            let names, nameProblems = tableOf "names" name isName CanonicalNames.parseName
+            let packagePaths, packageProblems = tableOf "packagePaths" path isPath CanonicalNames.parsePath
+            let modulePaths, moduleProblems = tableOf "modulePaths" path isPath CanonicalNames.parsePath
+            let fqNames, fqNameProblems = tableOf "fqNames" fqName isFqName CanonicalNames.parseFQName
 
             {
                 Names = names

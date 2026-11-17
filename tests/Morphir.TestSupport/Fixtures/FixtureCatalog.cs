@@ -264,6 +264,26 @@ public static class FixtureCatalog
                 ?? throw new KeyNotFoundException($"The pinned policy has no case '{id}'. Its cases are {string.Join(", ", All.Select(policyCase => policyCase.Id))}.");
         }
 
+        /// <summary>
+        /// The parent's naming conformance corpus: the canonical names, paths and FQNames and the refused names of
+        /// the naming grammar, whose spellings a context table admits.
+        /// </summary>
+        public static class Naming
+        {
+            /// <summary>The corpus file.</summary>
+            public static FixtureEntry Conformance { get; } = new(
+                "the naming conformance corpus", "MorphirContext/naming/naming-conformance.json",
+                "81b598e45bbe5361ec5cd178f85d9a8d538eb473a226ac1961d79561e3a11607", Provenance);
+
+            /// <summary>The pinned files.</summary>
+            public static IReadOnlyList<FixtureEntry> Files { get; } = [Conformance];
+
+            private static readonly Lazy<NamingConformance> Read = new(() => NamingConformance.Read(ReadText(Conformance)));
+
+            /// <summary>The corpus, in its shipped style.</summary>
+            public static NamingConformance Corpus => Read.Value;
+        }
+
         private static readonly Lazy<ContextExampleIndex> Index = new(() => ContextExampleIndex.Read(ReadText(Cases), ExampleFiles, ExamplesDirectory));
 
         /// <summary>The envelope's schema URL, as the index states it.</summary>
@@ -285,7 +305,7 @@ public static class FixtureCatalog
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that
