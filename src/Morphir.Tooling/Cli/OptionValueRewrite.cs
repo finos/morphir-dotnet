@@ -77,12 +77,25 @@ public static class OptionValueRewrite
     /// follows that option given bare, gets the hint of <see cref="HintFor"/>: <c>--json document</c> on a command
     /// without positional arguments says to use <c>--json=document</c>.
     /// </summary>
-    public static IReadOnlyList<string> ErrorMessages(ParseResult result)
+    /// <remarks>
+    /// The host computes these once for every command (<c>MorphirCliApp</c>) and gives them to the command's
+    /// <see cref="IMorphirParseErrorHandler"/>; System.CommandLine shows the errors of a command without one, followed by
+    /// <see cref="ErrorHints"/>.
+    /// </remarks>
+    public static IReadOnlyList<string> ErrorMessages(ParseResult result) =>
+        [.. result.Errors.Zip(ErrorHints(result), (error, hint) => hint is null ? error.Message : $"{error.Message} {hint}")];
+
+    /// <summary>
+    /// The hint of each error of <paramref name="result"/>, in order, or null for an error without one: for example
+    /// <c>Give a value with an equals sign: --json=document.</c> for the unrecognized argument of <c>--json document</c>.
+    /// </summary>
+    public static IReadOnlyList<string?> ErrorHints(ParseResult result)
     {
         var hints = Hints(result);
-        return [.. result.Errors.Select(error => hints.FirstOrDefault(hint => error.Message.Contains($"'{hint.Token}'", StringComparison.Ordinal)) is { Hint: { } hint }
-            ? $"{error.Message} Give a value with an equals sign: {hint}."
-            : error.Message)];
+        return [.. result.Errors.Select(error =>
+            hints.FirstOrDefault(hint => error.Message.Contains($"'{hint.Token}'", StringComparison.Ordinal)) is { Hint: { } hint }
+                ? $"Give a value with an equals sign: {hint}."
+                : null)];
     }
 
     /// <summary>

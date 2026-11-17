@@ -44,7 +44,7 @@ public sealed class ProjectMigrationCommand : Command, IMorphirParseErrorHandler
         SetAction(Execute);
     }
 
-    public int HandleParseErrors(ParseResult parsed) => Render(ProjectMigrationReport.Failure("project.migrate_usage",
+    public int HandleParseErrors(ParseResult parsed, IReadOnlyList<string> messages) => Render(ProjectMigrationReport.Failure("project.migrate_usage",
         "Expected one project directory or classic morphir.json and supported migration options."), parsed.Tokens.Any(token => token.Value is "--json" or "--json=true"));
 
     private int Execute(ParseResult parsed)

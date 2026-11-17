@@ -29,12 +29,12 @@ public sealed class ValidateCommand : Command, IMorphirParseErrorHandler
         });
     }
 
-    public int HandleParseErrors(ParseResult result)
+    public int HandleParseErrors(ParseResult result, IReadOnlyList<string> messages)
     {
         // A bad value for an option cannot be read. Parser diagnostics still use the requested JSON mode.
         var json = result.Tokens.Any(token => token.Value is "--json" or "--json=true");
         var report = new ValidationReport(_host.Host.WireValue, false, 2, null, null, null, [],
-            result.Errors.Select(error => new ValidationDiagnostic("error", "invalid-arguments", error.Message, null, null, null, null)).ToArray());
+            messages.Select(message => new ValidationDiagnostic("error", "invalid-arguments", message, null, null, null, null)).ToArray());
         return Render(report, json, TerminalProfile.Plain);
     }
 

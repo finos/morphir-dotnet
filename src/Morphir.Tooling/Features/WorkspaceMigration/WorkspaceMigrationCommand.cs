@@ -45,7 +45,7 @@ public sealed class WorkspaceMigrationCommand : Command, IMorphirParseErrorHandl
         SetAction(Execute);
     }
 
-    public int HandleParseErrors(ParseResult parsed) => Render(WorkspaceMigrationReport.Failure("workspace.migrate_usage",
+    public int HandleParseErrors(ParseResult parsed, IReadOnlyList<string> messages) => Render(WorkspaceMigrationReport.Failure("workspace.migrate_usage",
         "Expected one bounded directory and supported workspace migration options."), WantsJson(parsed));
 
     private static bool WantsJson(ParseResult parsed) => parsed.Tokens.Any(token => token.Value is "--json" or "--json=true");

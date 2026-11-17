@@ -68,7 +68,7 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
         SetAction(Execute);
     }
 
-    public int HandleParseErrors(ParseResult result) => Render(ConfigurationReport.Failure(Name, "config.usage", "Invalid configuration command arguments."), WantsJson(result));
+    public int HandleParseErrors(ParseResult result, IReadOnlyList<string> messages) => Render(ConfigurationReport.Failure(Name, "config.usage", "Invalid configuration command arguments."), WantsJson(result));
 
     private static bool WantsJson(ParseResult result) => result.Tokens.Any(t => t.Value is "--json" or "--json=true");
 

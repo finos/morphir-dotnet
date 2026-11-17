@@ -47,10 +47,10 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
         ExtensionId = result.GetValue(_extensionId),
     };
 
-    public int HandleParseErrors(ParseResult result)
+    public int HandleParseErrors(ParseResult result, IReadOnlyList<string> messages)
     {
         var failure = new GenerationFailure(GenerationFailureKind.Invocation,
-            result.Errors.Select(error => new GenerationDiagnostic("invalid-arguments", error.Message)).ToImmutableArray());
+            messages.Select(message => new GenerationDiagnostic("invalid-arguments", message)).ToImmutableArray());
         // A bad value for an option cannot be read. Parser diagnostics still use the requested JSON mode.
         var json = result.Tokens.Any(token => token.Value is "--json" or "--json=true");
         return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(failure), new()), json);

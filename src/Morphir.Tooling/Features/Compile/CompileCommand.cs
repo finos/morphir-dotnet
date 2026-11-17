@@ -133,11 +133,11 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     };
 
     /// <inheritdoc />
-    public int HandleParseErrors(ParseResult result)
+    public int HandleParseErrors(ParseResult result, IReadOnlyList<string> messages)
     {
         // A parse error has no valid parse result, so the output mode comes from the tokens (JSON-4).
         var mode = JsonOutputOption.ScanTokens([.. result.Tokens.Select(token => token.Value)]);
-        return RenderInvocationAsync(Output, OptionValueRewrite.ErrorMessages(result).Select(Invalid), mode).GetAwaiter().GetResult();
+        return RenderInvocationAsync(Output, messages.Select(Invalid), mode).GetAwaiter().GetResult();
     }
 
     private static Diagnostic Invalid(string message) => Diagnostic.Create(Severity.Error, CompileCodes.InvalidArguments, message, null);

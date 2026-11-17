@@ -41,7 +41,7 @@ public sealed class ConfigurationEditingCommand : Command, IMorphirParseErrorHan
     }
 
     private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "Bound discovery to this directory and its descendants (default: MORPHIR_DISCOVERY_BOUNDARY, else the filesystem root)" };
-    public int HandleParseErrors(ParseResult parsed) => Render(ConfigurationEditReport.Failure(Name, "config.usage"), parsed.Tokens.Any(t => t.Value is "--json" or "--json=true"));
+    public int HandleParseErrors(ParseResult parsed, IReadOnlyList<string> messages) => Render(ConfigurationEditReport.Failure(Name, "config.usage"), parsed.Tokens.Any(t => t.Value is "--json" or "--json=true"));
 
     private int Execute(ParseResult parsed)
     {
