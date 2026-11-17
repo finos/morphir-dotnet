@@ -35,7 +35,6 @@
         <Compile Include="Ir/V4IonValues.fs" />
         <Compile Include="Ir/V4IonDistribution.fs" />
         <Compile Include="Ir/IonIr.fs" />
-        <Compile Include="Ir/TreeStems.fs" />
         <Compile Include="Ir/IonSources.fs" />
         <Compile Include="Ir/IonIrTree.fs" />
         <Compile Include="Ir/IonIrParser.fs" />

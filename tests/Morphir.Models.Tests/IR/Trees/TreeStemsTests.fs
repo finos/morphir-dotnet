@@ -1,11 +1,11 @@
 /// Stems in a document tree: the escape of decision 0001, the cut stems of decisions 0001 and 0012, and the
 /// version segment of decision 0015. The digests below were computed with PowerShell's SHA256, not with this
 /// library.
-module Morphir.Ion.Tests.TreeStemTests
+module Morphir.IR.Tests.Trees.TreeStemsTests
 
 open Expecto
 open Morphir.IR
-open Morphir.Ion
+open Morphir.IR.Trees
 
 let private name (input: string) =
     match CanonicalNames.parseName input with

@@ -1,32 +1,47 @@
-namespace Morphir.Ion
+namespace Morphir.IR.Trees
 
 open System
 open System.Security.Cryptography
 open System.Text
 open Morphir.IR
+#if NETSTANDARD2_0
+open Morphir.Compat
+#endif
 
-/// What a file or directory stem in a document tree stands for.
-type internal Stem =
-    /// A stem that spells a whole name.
+/// <summary>What a file or directory stem in a document tree stands for.</summary>
+type Stem =
+    /// <summary>A stem that spells a whole name.</summary>
     | WholeStem of Name
-    /// A stem the path budget cut: the prefix of the escaped name and the first eight hex digits of its SHA-256.
+    /// <summary>
+    /// A stem the path budget cut: the prefix of the escaped name and the first eight hex digits of the SHA-256 of
+    /// the whole escaped name.
+    /// </summary>
     | CutStem of prefix: string * digest: string
 
+/// <summary>
 /// The directory part of a dependency path: <c>deps/&lt;package path&gt;/@&lt;version&gt;/&lt;module path&gt;</c>.
-type internal DependencyDirectory = {
+/// </summary>
+type DependencyDirectory = {
+    /// <summary>The directories of the package path, before the <c>@</c> segment.</summary>
     PackageDirectories: string list
+    /// <summary>
     /// What follows the <c>@</c>. It is always empty, since only the bare <c>@</c> is accepted while the model has
     /// no package version.
+    /// </summary>
     Version: string
+    /// <summary>The directories of the module path, after the <c>@</c> segment.</summary>
     ModuleDirectories: string list
 }
 
+/// <summary>
 /// Stems in a document tree. A name is written to a file name through a reversible escape (decision 0001 of
 /// finos/morphir): an initialism segment is lowercase with a <c>_</c> prefix, and a stem that is a Windows device
 /// name takes a <c>_</c> suffix. A path budget can cut a stem (decision 0012): the stem keeps a prefix and ends
 /// in <c>__</c> and the first eight hex digits of the SHA-256 of the whole escaped stem. A dependency's package
 /// path ends at the segment that begins with <c>@</c> (decision 0015).
-module internal TreeStems =
+/// </summary>
+[<RequireQualifiedAccess>]
+module TreeStems =
     let private isLowerOrDigit (c: char) =
         (c >= 'a'
          && c <= 'z')
@@ -56,7 +71,7 @@ module internal TreeStems =
                 || stem.StartsWith("lpt", StringComparison.Ordinal))
             && Char.IsAsciiDigit stem[3]
 
-    /// Writes a name as a file stem, before any cut.
+    /// <summary>Writes a name as a file stem, before any cut.</summary>
     let escapeName (name: Name) : string =
         let escaped =
             (CanonicalNames.nameToString name).Split('-')
@@ -126,7 +141,7 @@ module internal TreeStems =
             CanonicalNames.parseName canonical
         | _ -> Error $"'{stem}' is not a file stem that the escape writes."
 
-    /// Reads a file or directory stem. A stem the escape never writes is an error.
+    /// <summary>Reads a file or directory stem back. A stem the escape never writes is an error.</summary>
     let parseStem (stem: string) : Result<Stem, string> =
         let cutAt =
             stem.Length
@@ -155,17 +170,21 @@ module internal TreeStems =
             .Substring(0, 8)
             .ToLowerInvariant()
 
+    /// <summary>
     /// Whether a cut stem belongs to a name: the stem's prefix starts the escaped name, and the digest is the
     /// escaped name's.
+    /// </summary>
     let matchesCut (prefix: string) (digest: string) (name: Name) : bool =
         let escaped = escapeName name
 
         escaped.StartsWith(prefix, StringComparison.Ordinal)
         && digestOf escaped = digest
 
+    /// <summary>
     /// Splits the directories below <c>deps/</c> at the segment that begins with <c>@</c>. Decision 0015's
     /// current layout has only the bare <c>@</c>, and a version after it would let two versions of a package
     /// merge, so a segment such as <c>@1.0.0</c> is refused.
+    /// </summary>
     let splitDependency (directories: string list) : Result<DependencyDirectory, string> =
         match
             directories

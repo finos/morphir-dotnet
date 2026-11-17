@@ -26,7 +26,7 @@ All work is on `feat/model-convert`. Milestones end with a commit that builds an
 ## 4. Document trees in the model layer (milestone 1)
 
 - [ ] 4.1 Add `DocumentAddress`, `ModuleDocumentAddress` and the v3.1 and v4 `DocumentTree` instances with `split` and `join` in `Morphir.Models`, and verify the round-trip laws (`join (split d) = d` over generated and named models at 3.1.0 and 4) and the address scenarios pass.
-- [ ] 4.2 Move `TreeStems.fs` from `Morphir.Ion` into `Morphir.Models` with shims for `SHA256.HashData` and `Convert.ToHexString`, point the Ion tree reader at it, and verify the existing Ion tree tests pass unchanged.
+- [x] 4.2 Move `TreeStems.fs` from `Morphir.Ion` into `Morphir.Models` with shims for `SHA256.HashData` and `Convert.ToHexString`, point the Ion tree reader at it, and verify the existing Ion tree tests pass unchanged.
 - [ ] 4.3 Implement `DocumentTreeStore.write` and `read` for v4 over `VFileTree` (paths, escaping, budget, truncation with `fileNames`, bare `@` segments, sorted order, `$meta`, manifest notices), add `DocumentTreeMother` and `DocumentTreeStoreDriver`, and verify `read (write t) = t`, the address-to-path bijection law and the v4 scenarios of `model-document-trees`.
 - [ ] 4.4 Add the declared classic writer for `3.1.0` `Specs`, and the v3 store (3.1.0 labels, Library back to `3`, Specs stays `"3.1.0"`); verify the `ir-model-writing` scenarios and the v3 scenarios of `model-document-trees`.
 - [ ] 4.5 Implement every tree refusal with a named diagnostic and a `DocumentTreeMother` invalid shape each, and verify the refusal scenarios ("Ambiguous profile", "Missing definition file", "Versioned dependency segment", plus unknown member, over-budget path, outside `pkg/`/`deps/`, wrong v3 manifest version).
