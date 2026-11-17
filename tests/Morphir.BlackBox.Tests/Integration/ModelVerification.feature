@@ -113,6 +113,7 @@ Feature: Verify a Morphir model
     When I verify the model
     Then the exit code is 1
     And the output contains "error" or "not found"
+    And the output contains "Schema Version: unknown (auto)"
 
   Scenario: A file that is not JSON is an error
     Given a model file that is not JSON

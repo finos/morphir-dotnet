@@ -82,7 +82,9 @@
     <!-- The pages of the documentation whose commands a scenario runs, and the example of the F# pricing tutorial. -->
     <None Include="../../docs/content/docs/backends/csharp/build-integration.md" Link="Fixtures/Docs/backends/csharp/build-integration.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/backends/csharp/_index.md" Link="Fixtures/Docs/backends/csharp/_index.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/cli/_index.md" Link="Fixtures/Docs/cli/_index.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/cli/compile.md" Link="Fixtures/Docs/cli/compile.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/cli/config.md" Link="Fixtures/Docs/cli/config.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/cli/generate.md" Link="Fixtures/Docs/cli/generate.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/cli/validate.md" Link="Fixtures/Docs/cli/validate.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/cli/model-verify.md" Link="Fixtures/Docs/cli/model-verify.md" CopyToOutputDirectory="PreserveNewest" />

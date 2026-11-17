@@ -93,10 +93,22 @@ This guide covers common issues you may encounter when using the Morphir .NET CL
 
 ### "File does not exist" Error
 
-**Problem:**
+**Problem:** `morphir model verify morphir-ir.json` writes a result that is not valid, and exits with 1:
 ```
-Error: File does not exist: morphir-ir.json
+Validation Result: ✗ INVALID
+File: /work/morphir-ir.json
+Schema Version: unknown (auto)
+Timestamp: 2025-12-15 10:30:00 UTC
+
+Found 1 validation error(s):
+
+  Path: $
+  Message: File does not exist: /work/morphir-ir.json
+  Expected: Existing file
+  Found: File not found
 ```
+
+The message gives the full path that the command looked for.
 
 **Solutions:**
 
@@ -153,15 +165,17 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
    morphir model verify --schema-version 3 morphir-ir.json
    ```
 
-2. **Check formatVersion field** (for v2/v3):
+2. **Check formatVersion field** (for every version):
    ```bash
    cat morphir-ir.json | jq '.formatVersion'
    ```
 
 3. **Verify IR structure:**
-   - **v1**: No `formatVersion` field
+   - **v1**: `"formatVersion": 1`
    - **v2**: `"formatVersion": 2`
-   - **v3**: `"formatVersion": 3`
+   - **v3**: `"formatVersion": 3` or `"3.1.0"`, and the default when the member is missing
+   - **v4**: `"formatVersion": 4`, or a release such as `"4.0.0"`
+   - A document tree takes its version from its `manifest.json`
 
 ### Validation Fails but IR Appears Correct
 
@@ -176,6 +190,7 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
    morphir model verify --schema-version 1 morphir-ir.json
    morphir model verify --schema-version 2 morphir-ir.json
    morphir model verify --schema-version 3 morphir-ir.json
+   morphir model verify --schema-version 4 morphir-ir.json
    ```
 
 4. **Compare with known-good IR:**
@@ -189,6 +204,21 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
    - Missing required fields
    - Incorrect array structure
    - Type mismatches
+
+### A document tree is not valid
+
+**Problem:** `morphir model verify` on a directory reports a tree error.
+
+- **`tree.missing_manifest`** (exit code 1): the directory has no `manifest.json` at its root. Give the root directory
+  of the tree, the directory that holds `manifest.json`.
+- **`missing_member`** (exit code 1): a file of the tree lacks a required member, or a module file lists a type or a
+  value that has no file in the tree. The error names its file in `file`, the missing file for a listed name. Add the
+  member, or write the missing file or remove the name from the module file.
+- **`verify.schema_version_conflict`** (exit code 2): `--schema-version` contradicts the version that the manifest
+  states, or is not 3 or 4 on a directory with no readable manifest. Leave out `--schema-version`: a tree takes its
+  version from its manifest.
+
+See [Document trees](model-verify.md#document-trees) for the files of a tree and the checks.
 
 ## Configuration
 

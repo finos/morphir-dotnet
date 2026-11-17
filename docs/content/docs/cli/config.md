@@ -98,7 +98,7 @@ The command fails with exit code 2, before reading any configuration, when:
 
 `--help` never reads either variable.
 
-```console
+```bash
 $ export MORPHIR_DISCOVERY_BOUNDARY=$PWD MORPHIR_ISOLATED=1
 $ morphir config path --json=document
 ```

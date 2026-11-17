@@ -188,27 +188,6 @@ who published them.
 
 ## Validating IR
 
-### model verify rejects the IR that compile wrote
-
-**What you see.** `morphir model verify` reports errors for a file that `compile` wrote. For format 4 it says:
-
-```text
-Validation Result: ✗ INVALID
-...
-Schema Version: v3 (auto)
-...
-  Path: /formatVersion
-  Message: Expected "3"
-```
-
-For a file compiled with `--ir-version 3`, it reports a very long list of errors.
-
-**Why.** `model verify` checks against the JSON schema of IR formats 1, 2 and 3. It doesn't know format 4, and its
-schema doesn't match the format 3 that `compile` writes.
-
-**What to do.** Use `morphir validate --input <file>` instead, as
-[Validating IR files]({{< relref "/docs/getting-started/validating-ir" >}}) shows.
-
 ### validate can't read the file
 
 `validate` stops with exit code 2 when the file isn't IR it can read. The message names the problem and where it is:

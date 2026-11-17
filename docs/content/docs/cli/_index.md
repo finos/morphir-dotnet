@@ -11,8 +11,8 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 
 ## Available Commands
 
-- [morphir compile](./compile/) - Compile F# sources to Morphir IR (built into `dotnet-morphir`)
-- [morphir generate](./generate/) - Generate F# from classic or v4 JSON/Ion libraries
+- [morphir compile](./compile/) - Compile C# or F# sources to Morphir IR (every host has the C# frontend; `dotnet-morphir` also has the F# frontend built in)
+- [morphir generate](./generate/) - Generate F# or C# from classic or v4 JSON/Ion libraries
 - [morphir validate](./validate/) - Check a model with the built-in analyzers, such as the type validator
 - [morphir extension list](./management/#extension-list) - List the built-in generators and analyzers of this host
 - [morphir extension runtimes](./extension-runtimes/) - Report whether this host can run WASM extensions, or why not
@@ -29,14 +29,12 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 The `model` group holds the commands that act on a Morphir model. It replaces the `ir` group, which was removed with
 no alias.
 
-- **[morphir model verify](./model-verify/)** - Validate a Morphir model file against the official IR JSON schemas
+- **[morphir model verify](./model-verify/)** - Validate a Morphir model, a single IR file (v1-v4) or a document tree, against the official IR JSON schemas
 
 ### Project Management
 
-- Planned [morphir project migrate]({{< relref "/docs/cli/project" >}}) converts one classic project to the newer project system.
-- Planned [morphir workspace migrate]({{< relref "/docs/cli/workspace" >}}) inventories and adopts projects within a bounded repository directory.
-
-These migration commands are not yet implemented.
+- [morphir project migrate]({{< relref "/docs/cli/project" >}}) converts one classic project to the newer project system.
+- [morphir workspace migrate]({{< relref "/docs/cli/workspace" >}}) inventories and adopts projects within a bounded repository directory.
 
 ## Installation
 
@@ -95,13 +93,35 @@ Every command with machine output takes one option, `--json[=stream|document]`:
   same run.
 - Without `--json`, the command writes its output for people.
 
-```console
-$ morphir validate --input model.json --json
-{"event":"completed","report":{"host":"morphir","success":true,"exitCode":0,…}}
+For a valid model `model.json` in the current directory, the stream is one line:
 
-$ morphir validate --input model.json --json=document | jq .exitCode
-0
+```bash
+$ morphir validate --input model.json --json
+{"event":"completed","report":{"host":"morphir","success":true,"exitCode":0,"input":"/work/model.json","family":"Classic","formatVersion":"3","analyzers":[{"id":"morphir.type-validator","status":"ran"}],"diagnostics":[]}}
 ```
+
+The document is the `report` of that line:
+
+```bash
+$ morphir validate --input model.json --json=document
+{
+  "host": "morphir",
+  "success": true,
+  "exitCode": 0,
+  "input": "/work/model.json",
+  "family": "Classic",
+  "formatVersion": "3",
+  "analyzers": [
+    {
+      "id": "morphir.type-validator",
+      "status": "ran"
+    }
+  ],
+  "diagnostics": []
+}
+```
+
+Logs go to stderr only, so `morphir validate --input model.json --json=document | jq .exitCode` prints `0`.
 
 Give the mode only after `=`. A bare `--json` never takes the next argument, so `morphir model verify --json model.json`
 verifies `model.json`. A command without a positional argument refuses `--json document` with exit code 2 and
@@ -121,11 +141,11 @@ lines stay `morphir/command-event` (see [extension worker](./extension-worker/))
 
 All Morphir CLI commands use consistent exit codes:
 
-- **0**: Success - operation completed successfully
-- **1**: Validation failure - IR file failed schema validation
-- **2**: Operational error - file not found, invalid JSON, missing dependencies, etc.
+- **0**: Success - the operation completed successfully
+- **1**: The input failed - a model that is not valid, a file that is missing or not JSON, a source error. An unknown command, such as `morphir ir`, also exits 1
+- **2**: A usage, configuration or setup error - a command line that does not parse, a bad option value
 
-These exit codes are designed for CI/CD integration and scripting.
+These exit codes are designed for CI/CD integration and scripting. Each command's page lists its own exit codes.
 
 ## Configuration
 

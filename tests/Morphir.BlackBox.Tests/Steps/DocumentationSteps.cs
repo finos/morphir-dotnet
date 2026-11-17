@@ -73,6 +73,72 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
     public Task RunEachCommandInTheWorkArea() =>
         RunEach(arguments => WorkAreaPath().Replace(arguments, match => workspace.Directory(match.Groups[1].Value).Path + "/"));
 
+    /// <summary>
+    /// Runs each documented command of the host in the work area, with the variables of the documented
+    /// <c>export</c> lines of the section. <c>$PWD</c> in a value is the work area.
+    /// </summary>
+    [When("I run each documented command of the host with the exported variables of the section")]
+    public async Task RunEachCommandWithTheExportedVariables()
+    {
+        var variables = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var export in Commands.Where(command => command.Host == "export"))
+        {
+            foreach (var assignment in export.Arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = assignment.Split('=', 2);
+                if (parts.Length != 2) throw new InvalidOperationException($"The export line has no value in {assignment}.");
+                variables[parts[0]] = parts[1].Replace("$PWD", workspace.Work.Path, StringComparison.Ordinal);
+            }
+        }
+
+        if (variables.Count == 0) throw new InvalidOperationException("The section exports no variable.");
+        _ran.Clear();
+        foreach (var command in Commands.Where(command => command.Host == HostCommand))
+        {
+            var result = await cli.RunCommandLineAsync(command.Arguments, new CliRunOptions { Timeout = TimeSpan.FromSeconds(120), Environment = variables });
+            _ran.Add((command, result));
+            run.Result = result;
+        }
+
+        if (_ran.Count == 0) throw new InvalidOperationException($"The section documents no command of the host {HostCommand}.");
+    }
+
+    /// <summary>
+    /// The JSON report of each command has each member of the JSON block of the section, with the same value. The
+    /// block is the members of the report, without the braces of the report. A <c>boundary</c> member shows an
+    /// example path, and it must be the work area.
+    /// </summary>
+    [Then("the report of each documented command has the members of the JSON block of the section")]
+    public void TheReportHasTheMembersOfTheJsonBlock()
+    {
+        var block = JsonBlock().Match(_section ?? throw new InvalidOperationException("The scenario has no section before this step."));
+        if (!block.Success) throw new InvalidOperationException("The section has no json block.");
+        var body = block.Groups["body"].Value.Trim();
+        var documented = JsonNode.Parse(body.StartsWith('{') ? body : "{" + body + "}")!.AsObject();
+        foreach (var (_, result) in _ran)
+        {
+            var report = JsonNode.Parse(result.StandardOutput)!.AsObject();
+            foreach (var (name, value) in documented)
+            {
+                Check(report[name] is not null, $"The report has no member {name}.", result);
+                var actual = report[name]!.DeepClone();
+                var expected = value?.DeepClone();
+                if (actual is JsonObject actualObject && expected is JsonObject expectedObject && expectedObject.ContainsKey("boundary"))
+                {
+                    var boundary = actualObject["boundary"]?.GetValue<string>().Replace('\\', '/').TrimEnd('/');
+                    Check(boundary == workspace.Work.Path.Replace('\\', '/').TrimEnd('/'), $"The boundary of the report is {boundary}, not the work area {workspace.Work.Path}.", result);
+                    actualObject.Remove("boundary");
+                    expectedObject.Remove("boundary");
+                }
+
+                Check(JsonNode.DeepEquals(actual, expected), $"The member {name} of the report is {actual?.ToJsonString()}, not the documented {expected?.ToJsonString()}.", result);
+            }
+        }
+    }
+
+    [GeneratedRegex("```json\\n(?<body>.*?)\\n```", RegexOptions.Singleline)]
+    private static partial Regex JsonBlock();
+
     [Then("each documented command exits with {int}")]
     public void EachCommandExitsWith(int exitCode)
     {

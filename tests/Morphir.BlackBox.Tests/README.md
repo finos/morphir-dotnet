@@ -458,6 +458,8 @@ two steps have the same pattern.
 | Documentation | `When I run each documented command of the host in the work area` |
 | Documentation | `Then each documented command exits with {int}` |
 | Documentation | `Then each documented command gives its documented output` |
+| Documentation | `When I run each documented command of the host with the exported variables of the section` |
+| Documentation | `Then the report of each documented command has the members of the JSON block of the section` |
 | Documentation | `Given the morphir.toml of the section in the project directory {string}` |
 | Documentation | `When I run the documented commands of the section in the project directory {string}` |
 | Documentation | `Given the first C# code block of the documentation page {string} as the file {string}` |

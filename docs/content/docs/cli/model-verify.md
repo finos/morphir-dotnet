@@ -66,7 +66,8 @@ The schema version to validate against.
 - **Default:** detected from the file, or read from the manifest of a tree
 - **Use when:** testing compatibility with one version, or overriding the detection of a single file
 - **A tree:** the version must be the one that the manifest states. A version that contradicts it is refused with
-  the diagnostic `verify.schema_version_conflict` and exit code 2, and nothing is checked.
+  the diagnostic `verify.schema_version_conflict` and exit code 2, and nothing is checked. On a directory, a version
+  other than 3 or 4 is refused the same way.
 
 **Examples:**
 ```bash
@@ -120,13 +121,13 @@ Write the result as JSON instead of text, by the convention of [Machine output](
 | `Errors` | Each error; see below |
 | `exitCode` | The exit code of the run |
 | `layout` | `single-file` or `document-tree`; absent when the command line does not parse |
-| `filesChecked` | The number of files checked: 1 for a single file, each JSON file of a tree, and 0 when none was read |
+| `filesChecked` | The number of files checked: 1 for a single file, each JSON or YAML file of a tree (a YAML file is counted, and the store refuses it), and 0 when none was read |
 | `compactedFiles` | The files that were compacted; empty for a plain model |
 
 Each error has `Path`, the JSON location of the error in its file as a JSON Pointer (`""` is the whole file, and
 `$` an input that was not read), `Message`, and `Expected` and `Found` when the schema states them. An error in a
-document tree also has `file`, the path of its file from the root of the tree, and an error of a rule of the tree has
-its stable `code`, such as `missing_member`.
+document tree also has `file`, the path of its file from the root of the tree, and an error of a rule of the tree, or
+of the v4 reader, has its stable `code`, such as `missing_member` or `unknown_node`.
 
 The result of a model with no `formatVersion`, with the file in the current directory:
 
@@ -140,7 +141,7 @@ $ morphir model verify model.json --json=document
   "Errors": [
     {
       "Path": "",
-      "Message": "Required properties [\"formatVersion\"] are not present",
+      "Message": "Required properties [\u0022formatVersion\u0022] are not present",
       "Expected": "required property",
       "Found": "undefined (missing)",
       "Line": null,
@@ -176,7 +177,7 @@ Write no text and no log: the exit code is the result.
 
 ```bash
 $ morphir model verify --quiet --json model.json
-{"event":"completed","report":{"IsValid":false,"SchemaVersion":"3","DetectionMethod":"auto","FilePath":"/work/model.json","Errors":[{"Path":"","Message":"Required properties [\"formatVersion\"] are not present","Expected":"required property","Found":"undefined (missing)","Line":null,"Column":null}],"Timestamp":"2025-12-15T10:30:00Z","exitCode":1,"layout":"single-file","filesChecked":1,"compactedFiles":[]}}
+{"event":"completed","report":{"IsValid":false,"SchemaVersion":"3","DetectionMethod":"auto","FilePath":"/work/model.json","Errors":[{"Path":"","Message":"Required properties [\u0022formatVersion\u0022] are not present","Expected":"required property","Found":"undefined (missing)","Line":null,"Column":null}],"Timestamp":"2025-12-15T10:30:00Z","exitCode":1,"layout":"single-file","filesChecked":1,"compactedFiles":[]}}
 ```
 
 **Examples:**
@@ -279,7 +280,7 @@ code 2 and one error, `verify.schema_version_conflict`, that names both versions
 | Code | Meaning | Description |
 |------|---------|-------------|
 | `0` | Valid | The model is valid against the schema |
-| `1` | Not valid | The model failed validation, the file is not there, or the file is not JSON |
+| `1` | Not valid | The model failed validation, the file is not there, the file is not JSON, or a directory is not a readable tree, for example it has no `manifest.json` |
 | `2` | Usage error | The command line does not parse, for example an unknown option or a `--schema-version` other than 1 to 4, or `--schema-version` contradicts the manifest of a tree |
 
 ## Output
@@ -484,6 +485,17 @@ Found: string
 ```
 
 **Solution:** change the value to the type that the schema requires (here `formatVersion` is a number, not a string).
+
+### A tree has no manifest
+
+```text
+Code: tree.missing_manifest
+Path:
+Message: The tree has no manifest.json at its root.
+```
+
+**Solution:** give the root directory of the tree, the directory that holds `manifest.json`. A directory that cannot
+be read at all gives the code `verify.unreadable_directory` instead.
 
 ### A file of a tree is missing
 

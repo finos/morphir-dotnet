@@ -160,7 +160,9 @@ public class ModelToolingScenario : IMorphirCliScenario
             // Human-readable output
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Validation Result: {(result.IsValid ? "✓ VALID" : "✗ INVALID")}");
             Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"File: {result.FilePath}");
-            Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Schema Version: v{result.SchemaVersion} ({result.DetectionMethod})");
+            // A version that was not found is "unknown", with no "v" before it.
+            var version = result.SchemaVersion == "unknown" ? result.SchemaVersion : $"v{result.SchemaVersion}";
+            Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Schema Version: {version} ({result.DetectionMethod})");
             if (result.Layout == Features.ModelVerify.ModelLayouts.DocumentTree)
             {
                 Infrastructure.ConsoleOutputHelper.WriteLineToStdout($"Layout: {result.Layout}");
