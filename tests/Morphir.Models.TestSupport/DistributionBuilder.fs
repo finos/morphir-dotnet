@@ -314,6 +314,21 @@ let withDependency
     : LibraryBuilder<'model> =
     withDependencyModule package dependencyModule build library
 
+/// <summary>Adds a dependency with no modules, which a model can hold and only the manifest of a tree records.</summary>
+let withDependencyWithoutModules (package: PackageName) (library: LibraryBuilder<'model>) : LibraryBuilder<'model> =
+    if
+        library.Dependencies
+        |> List.exists (fun (p, _) -> p = package)
+    then
+        invalidOp $"The library already depends on %A{package}."
+
+    {
+        library with
+            Dependencies =
+                library.Dependencies
+                @ [ package, [] ]
+    }
+
 /// Builds a v4 OrderedMap, refusing a key that repeats: test data with a repeated name is a bug.
 let private orderedMap (what: string) (entries: ('k * 'v) list) =
     match Morphir.IR.V4.OrderedMap.ofList entries with

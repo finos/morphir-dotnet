@@ -85,6 +85,24 @@ module V4DocumentTree =
     type private PackageDocuments =
         (ModuleDocumentAddress * TreeDocument<V4ModuleDocument, V4TypeDocument, V4ValueDocument>) list
 
+    /// <summary>
+    /// Whether the document at an address in a tree of the kind holds a definition rather than a specification: a
+    /// <c>Library</c> holds its own definitions and its dependencies' specifications, a <c>Specs</c> holds
+    /// specifications only, and an <c>Application</c> holds definitions only. A definition is a
+    /// <c>DefinedType</c> or a <c>DefinedValue</c>, and its module document has an access; a specification is a
+    /// <c>SpecifiedType</c> or a <c>SpecifiedValue</c>, and its module document has none. The manifest holds
+    /// neither, and gives false. A store uses this rule to decode a document as <c>split</c> makes it, and
+    /// <c>join</c> checks every document against it. C# calls this <c>HoldsDefinitions</c>.
+    /// </summary>
+    [<CompiledName("HoldsDefinitions")>]
+    let holdsDefinitions (kind: V4DistributionKind) (address: DocumentAddress) : bool =
+        match kind, address with
+        | _, Manifest -> false
+        | (LibraryKind | ApplicationKind), Own _ -> true
+        | SpecsKind, Own _ -> false
+        | ApplicationKind, Dependency _ -> true
+        | (LibraryKind | SpecsKind), Dependency _ -> false
+
     let private moduleDocument access annotations doc typeNames valueNames =
         ModuleDoc
             {
@@ -208,22 +226,84 @@ module V4DocumentTree =
 
     let private nameText (name: Name) = CanonicalNames.nameToString name
 
-    /// What the documents of one package must hold, and how its modules are made of them.
+    /// The case of a document as text, for messages.
+    let private describe
+        (document: TreeDocument<V4ModuleDocument, V4TypeDocument, V4ValueDocument>)
+        =
+        match document with
+        | ModuleDoc _ -> "a module document"
+        | TypeDoc(DefinedType _) -> "a type definition"
+        | TypeDoc(SpecifiedType _) -> "a type specification"
+        | ValueDoc(DefinedValue _) -> "a value definition"
+        | ValueDoc(SpecifiedValue _) -> "a value specification"
+
+    /// <summary>
+    /// The errors of documents that do not fit their address or their package. The case must match the address. A
+    /// type or value must be a definition where <c>holdsDefinitions</c> says so, and a specification elsewhere. A
+    /// module definition has an access and no annotations, and a module specification has no access. No document
+    /// is at the manifest address. Every rule about the case of a document is here, so the readers of
+    /// <c>joinPackage</c> leave a document that does not fit to this check.
+    /// </summary>
+    let private documentErrors (tree: V4DocumentTree) : TreeError list =
+        let kind = tree.Manifest.Kind
+
+        tree.Documents
+        |> Map.toList
+        |> List.choose (fun (address, document) ->
+            let holds = holdsDefinitions kind address
+            let wanted = if holds then "a definition" else "a specification"
+
+            let fault =
+                match address, document with
+                | Manifest, _ -> Some "the manifest of a tree is not one of its documents"
+                | (Own(Module _) | Dependency(_, Module _)), ModuleDoc m ->
+                    match holds, m.Access, m.Annotations with
+                    | true, None, _ ->
+                        Some "a module definition has an access, and this module document has none"
+                    | true, Some _, _ :: _ ->
+                        Some
+                            "a module definition has no annotations, and this module document has some"
+                    | false, Some _, _ ->
+                        Some
+                            "a module specification has no access, and this module document has one"
+                    | _ -> None
+                | (Own(TypeDef _) | Dependency(_, TypeDef _)), TypeDoc t ->
+                    match holds, t with
+                    | true, DefinedType _
+                    | false, SpecifiedType _ -> None
+                    | _ ->
+                        Some $"its package holds {wanted}, and the document is {describe document}"
+                | (Own(ValueDef _) | Dependency(_, ValueDef _)), ValueDoc v ->
+                    match holds, v with
+                    | true, DefinedValue _
+                    | false, SpecifiedValue _ -> None
+                    | _ ->
+                        Some $"its package holds {wanted}, and the document is {describe document}"
+                | _ ->
+                    Some
+                        $"the address needs another kind of document, and the document is {describe document}"
+
+            fault
+            |> Option.map (fun reason ->
+                error
+                    "tree.mismatched_document"
+                    (Some address)
+                    $"The document at {address} does not fit: {reason}."
+            )
+        )
+
+    /// How the modules of one package are made of its documents. A reader gives none for a document that
+    /// documentErrors reports.
     type private PackageShape<'typ, 'value, 'moduleOf when 'typ: equality and 'value: equality> = {
-        /// "definition" or "specification", for messages.
-        What: string
         TypeOf: V4TypeDocument -> 'typ option
         ValueOf: V4ValueDocument -> 'value option
-        /// Checks the members of a module document itself, and gives the function that makes the module of its
-        /// types and values, or why the document does not fit.
         ModuleOf:
             V4ModuleDocument
-                -> Result<OrderedMap<Name, 'typ> -> OrderedMap<Name, 'value> -> 'moduleOf, string>
+                -> (OrderedMap<Name, 'typ> -> OrderedMap<Name, 'value> -> 'moduleOf) option
     }
 
     let private definitions
         : PackageShape<AccessControlled<Documented<TypeDefinition>>, AccessControlled<Documented<ValueDefinition>>, AccessControlled<ModuleDefinition>> = {
-        What = "definition"
         TypeOf =
             function
             | DefinedType t -> Some t
@@ -235,13 +315,8 @@ module V4DocumentTree =
         ModuleOf =
             fun m ->
                 match m.Access, m.Annotations with
-                | None, _ ->
-                    Error "a module definition has an access, and this module document has none"
-                | Some _, _ :: _ ->
-                    Error
-                        "a module definition has no annotations, and this module document has some"
                 | Some access, [] ->
-                    Ok(fun types values -> {
+                    Some(fun types values -> {
                         Access = access
                         Value = {
                             Types = types
@@ -249,11 +324,11 @@ module V4DocumentTree =
                             Doc = m.Doc
                         }
                     })
+                | _ -> None
     }
 
     let private specifications
         : PackageShape<Documented<TypeSpecification>, Documented<ValueSpecification>, ModuleSpecification> = {
-        What = "specification"
         TypeOf =
             function
             | SpecifiedType t -> Some t
@@ -265,16 +340,19 @@ module V4DocumentTree =
         ModuleOf =
             fun m ->
                 match m.Access with
-                | Some _ ->
-                    Error "a module specification has no access, and this module document has one"
                 | None ->
-                    Ok(fun types values -> {
+                    Some(fun types values -> {
                         Annotations = m.Annotations
                         Types = types
                         Values = values
                         Doc = m.Doc
                     })
+                | Some _ -> None
     }
+
+    /// The result for a document that does not fit. documentErrors reports it, and join always includes those
+    /// errors, so the package fails here with no error of its own and the error is not reported twice.
+    let private reportedByDocumentErrors<'a> : Result<'a, TreeError list> = Error []
 
     /// The modules of one package in the ordinal order of their logical paths, or every error of its documents.
     let private joinPackage
@@ -284,9 +362,6 @@ module V4DocumentTree =
         (documents: PackageDocuments)
         : Result<OrderedMap<ModulePath, 'moduleOf>, TreeError list> =
         let byAddress = Map.ofList documents
-
-        let mismatched address message =
-            Error [ error "tree.mismatched_document" (Some(scope address)) message ]
 
         let byLogicalPath (addressOf: 'a -> ModuleDocumentAddress) (items: 'a list) =
             items
@@ -337,10 +412,7 @@ module V4DocumentTree =
                     | Some document ->
                         match read document with
                         | Some value -> Ok(name, value)
-                        | None ->
-                            mismatched
-                                address
-                                $"The document at {scope address} is not a {what} {shape.What}."
+                        | None -> reportedByDocumentErrors
                 )
                 |> collect
 
@@ -370,10 +442,9 @@ module V4DocumentTree =
         let moduleDocuments =
             documents
             |> List.choose (fun (address, document) ->
-                match address with
-                | Module path -> Some(path, document)
-                | TypeDef _
-                | ValueDef _ -> None
+                match address, document with
+                | Module path, ModuleDoc m -> Some(path, m)
+                | _ -> None
             )
             |> byLogicalPath (
                 fst
@@ -382,56 +453,31 @@ module V4DocumentTree =
 
         let modules =
             moduleDocuments
-            |> List.map (fun (path, document) ->
-                match document with
-                | ModuleDoc m ->
-                    let made =
-                        shape.ModuleOf m
-                        |> Result.mapError (fun reason -> [
-                            error
-                                "tree.mismatched_document"
-                                (Some(scope (Module path)))
-                                $"The document of {scope (Module path)} does not fit its package: {reason}."
-                        ])
+            |> List.map (fun (path, m) ->
+                let types =
+                    members path "type" (fun name -> TypeDef(path, name)) readType m.TypeNames
 
-                    let types =
-                        members path "type" (fun name -> TypeDef(path, name)) readType m.TypeNames
+                let values =
+                    members path "value" (fun name -> ValueDef(path, name)) readValue m.ValueNames
 
-                    let values =
-                        members
-                            path
-                            "value"
-                            (fun name -> ValueDef(path, name))
-                            readValue
-                            m.ValueNames
-
-                    match made, types, values with
-                    | Ok make, Ok types, Ok values -> Ok(path, make types values)
-                    | _ ->
-                        Error(
-                            errorsOf made
-                            @ errorsOf types
-                            @ errorsOf values
-                        )
-                | TypeDoc _
-                | ValueDoc _ ->
-                    mismatched
-                        (Module path)
-                        $"The document at {scope (Module path)} is not a module document."
+                match shape.ModuleOf m, types, values with
+                | Some make, Ok types, Ok values -> Ok(path, make types values)
+                // A module document that does not fit is reported by documentErrors.
+                | _ ->
+                    Error(
+                        errorsOf types
+                        @ errorsOf values
+                    )
             )
             |> collect
 
         let listed =
             moduleDocuments
-            |> List.collect (fun (path, document) ->
-                match document with
-                | ModuleDoc m ->
-                    (m.TypeNames
-                     |> List.map (fun name -> TypeDef(path, name)))
-                    @ (m.ValueNames
-                       |> List.map (fun name -> ValueDef(path, name)))
-                | TypeDoc _
-                | ValueDoc _ -> []
+            |> List.collect (fun (path, m) ->
+                (m.TypeNames
+                 |> List.map (fun name -> TypeDef(path, name)))
+                @ (m.ValueNames
+                   |> List.map (fun name -> ValueDef(path, name)))
             )
             |> Set.ofList
 
@@ -452,30 +498,30 @@ module V4DocumentTree =
                     $"The tree has a document for {scope address}, and no module document lists it."
             )
 
-        match modules, unlisted with
-        | Ok modules, [] ->
-            // Each module path is one key of the documents, so the paths are distinct.
-            OrderedMap.ofList modules
-            |> Result.mapError (fun path -> [
-                error
-                    "tree.mismatched_document"
-                    (Some(scope (Module path)))
-                    $"The tree has {scope (Module path)} twice."
-            ])
+        // Each module path is one key of the documents, so the map always builds.
+        let made =
+            modules
+            |> Result.bind (fun modules ->
+                OrderedMap.ofList modules
+                |> Result.mapError (fun path -> [
+                    error
+                        "tree.mismatched_document"
+                        (Some(scope (Module path)))
+                        $"The tree has {scope (Module path)} twice."
+                ])
+            )
+
+        match made, unlisted with
+        | Ok modules, [] -> Ok modules
         | _ ->
             Error(
-                errorsOf modules
+                errorsOf made
                 @ unlisted
             )
 
     /// The errors of the manifest itself, and of documents that belong to no package of it.
-    let private treeErrors (tree: V4DocumentTree) (logicalPath: DocumentAddress -> string) =
+    let private manifestErrors (tree: V4DocumentTree) (logicalPath: DocumentAddress -> string) =
         let manifest = tree.Manifest
-
-        let addresses =
-            tree.Documents
-            |> Map.keys
-            |> List.ofSeq
 
         let repeatedDependencies =
             manifest.Dependencies
@@ -499,44 +545,32 @@ module V4DocumentTree =
                     "The manifest has entry points, and only an Application has them."
               ]
 
-        let manifestDocument =
-            if List.contains Manifest addresses then
-                [
-                    error
-                        "tree.mismatched_document"
-                        (Some Manifest)
-                        "The tree holds a document at the manifest address, which is the tree's own manifest."
-                ]
-            else
-                []
-
         let undeclared =
-            addresses
-            |> List.filter (fun address ->
+            tree.Documents
+            |> Map.keys
+            |> List.ofSeq
+            |> List.choose (fun address ->
                 match address with
-                | Dependency(package, _) -> not (List.contains package manifest.Dependencies)
+                | Dependency(package, _) when not (List.contains package manifest.Dependencies) ->
+                    Some(package, address)
                 | Manifest
-                | Own _ -> false
+                | Own _
+                | Dependency _ -> None
             )
-            |> List.groupBy (fun address ->
-                match address with
-                | Dependency(package, _) -> Some package
-                | Manifest
-                | Own _ -> None
-            )
-            |> List.choose (fun (package, documents) ->
-                package
-                |> Option.map (fun (PackageName path) ->
-                    error
-                        "tree.undeclared_dependency"
-                        (Some(List.minBy logicalPath documents))
-                        $"The tree has documents of the dependency '{CanonicalNames.pathToString path}', and the manifest does not list it."
-                )
+            |> List.groupBy fst
+            |> List.map (fun (PackageName path, documents) ->
+                error
+                    "tree.undeclared_dependency"
+                    (Some(
+                        documents
+                        |> List.map snd
+                        |> List.minBy logicalPath
+                    ))
+                    $"The tree has documents of the dependency '{CanonicalNames.pathToString path}', and the manifest does not list it."
             )
 
         repeatedDependencies
         @ misplacedEntryPoints
-        @ manifestDocument
         @ undeclared
 
     /// <summary>
@@ -583,13 +617,23 @@ module V4DocumentTree =
             )
             |> collect
             |> Result.bind (fun packages ->
-                // The packages are distinct, so the map always builds.
+                // List.distinct leaves each package once, so the map always builds.
                 OrderedMap.ofList packages
-                |> Result.mapError (fun _ -> [])
+                |> Result.mapError (fun (PackageName package) -> [
+                    error
+                        "tree.duplicate_dependency"
+                        (Some Manifest)
+                        $"The manifest lists the dependency '{CanonicalNames.pathToString package}' more than once."
+                ])
             )
 
         let assemble ownResult dependencyResult build =
-            match treeErrors tree logicalPath, ownResult, dependencyResult with
+            match
+                manifestErrors tree logicalPath
+                @ documentErrors tree,
+                ownResult,
+                dependencyResult
+            with
             | [], Ok ownModules, Ok dependencyMap -> Ok(build ownModules dependencyMap)
             | found, _, _ ->
                 Error(

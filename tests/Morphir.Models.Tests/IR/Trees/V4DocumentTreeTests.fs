@@ -18,6 +18,7 @@ let private v4Cases = [
     "v4SpecsWithModuleAnnotations", DistributionMother.v4SpecsWithModuleAnnotations
     "v4Application", DistributionMother.v4Application
     "acmeDemo", DistributionMother.acmeDemo
+    "dependencyWithoutModules", DistributionMother.dependencyWithoutModules
     "emptyModule", DistributionMother.emptyModule
     "noModules", DistributionMother.noModules
     "nameUsedOnce", DistributionMother.nameUsedOnce
@@ -78,6 +79,51 @@ let private packageOf distribution =
     | Specs(package, _, _)
     | Application(package, _, _, _) -> package
 
+let private kindOf distribution =
+    match distribution with
+    | Library _ -> LibraryKind
+    | Specs _ -> SpecsKind
+    | Application _ -> ApplicationKind
+
+/// The orders that join keeps, which model equality does not see: the dependencies in order, and the types and
+/// values of each module in order, by package and module path. Module order is left out, because join sorts
+/// modules by logical path.
+let private memberOrder distribution =
+    let ofDefinition (definition: PackageDefinition) =
+        OrderedMap.toList definition.Modules
+        |> List.map (fun (path, m) ->
+            path, (OrderedMap.keys m.Value.Types, OrderedMap.keys m.Value.Values)
+        )
+        |> Map.ofList
+
+    let ofSpecification (specification: PackageSpecification) =
+        OrderedMap.toList specification.Modules
+        |> List.map (fun (path, m) -> path, (OrderedMap.keys m.Types, OrderedMap.keys m.Values))
+        |> Map.ofList
+
+    let ofDependencies ofPackage dependencies =
+        OrderedMap.keys dependencies,
+        OrderedMap.toList dependencies
+        |> List.map (fun (package, contents) -> package, ofPackage contents)
+        |> Map.ofList
+
+    match distribution with
+    | Library(_, dependencies, definition) ->
+        ofDefinition definition, ofDependencies ofSpecification dependencies
+    | Specs(_, dependencies, specification) ->
+        ofSpecification specification, ofDependencies ofSpecification dependencies
+    | Application(_, dependencies, definition, _) ->
+        ofDefinition definition, ofDependencies ofDefinition dependencies
+
+/// Whether a document holds a definition: a defined type or value, or a module document with an access.
+let private isDefinition document =
+    match document with
+    | ModuleDoc(m: V4ModuleDocument) -> m.Access.IsSome
+    | TypeDoc(DefinedType _)
+    | ValueDoc(DefinedValue _) -> true
+    | TypeDoc(SpecifiedType _)
+    | ValueDoc(SpecifiedValue _) -> false
+
 [<Tests>]
 let tests =
     testList "Trees" [
@@ -115,6 +161,77 @@ let tests =
                     (V4DocumentTree.split DistributionMother.noModules).Documents
                     "A package with no modules has only the manifest"
             }
+
+            test "A dependency with no modules round-trips through the manifest" {
+                expectRoundTrip DistributionMother.dependencyWithoutModules
+
+                let tree = V4DocumentTree.split DistributionMother.dependencyWithoutModules
+                let ledger = packageName "acme/ledger"
+
+                Expect.contains
+                    tree.Manifest.Dependencies
+                    ledger
+                    "The manifest lists the dependency"
+
+                Expect.isFalse
+                    (tree.Documents
+                     |> Map.exists (fun address _ ->
+                         match address with
+                         | Dependency(package, _) -> package = ledger
+                         | Manifest
+                         | Own _ -> false
+                     ))
+                    "The tree has no document of the dependency"
+            }
+
+            testPropertyWithConfig config "join keeps the order of dependencies, types and values"
+            <| Prop.forAll
+                (Arb.fromGen Generators.v4Distribution)
+                (fun distribution ->
+                    match roundTrip distribution with
+                    | Ok joined -> memberOrder joined = memberOrder distribution
+                    | Error _ -> false
+                )
+
+            testList "holdsDefinitions" [
+                for kind, own, dependency in
+                    [
+                        LibraryKind, true, false
+                        SpecsKind, false, false
+                        ApplicationKind, true, true
+                    ] do
+                    test $"{kind}" {
+                        let basics = Module(modulePath "basics")
+
+                        Expect.equal
+                            (V4DocumentTree.holdsDefinitions kind (Own basics))
+                            own
+                            "The own package"
+
+                        Expect.equal
+                            (V4DocumentTree.holdsDefinitions kind (Dependency(Sdk.package, basics)))
+                            dependency
+                            "A dependency"
+
+                        Expect.isFalse
+                            (V4DocumentTree.holdsDefinitions kind Manifest)
+                            "The manifest holds neither"
+                    }
+
+                testPropertyWithConfig
+                    config
+                    "every document of a split holds what holdsDefinitions says"
+                <| Prop.forAll
+                    (Arb.fromGen Generators.v4Distribution)
+                    (fun distribution ->
+                        let kind = kindOf distribution
+
+                        (V4DocumentTree.split distribution).Documents
+                        |> Map.forall (fun address document ->
+                            isDefinition document = V4DocumentTree.holdsDefinitions kind address
+                        )
+                    )
+            ]
 
             test "A split has one document per module, type and value" {
                 let tree = V4DocumentTree.split DistributionMother.acmeDemo

@@ -117,6 +117,16 @@ let acmeDemo: Distribution =
     |> withDependencyModule (packageName "morphir/sdk") (modulePath "basics") sdkBasics
     |> buildV4
 
+/// <summary>
+/// A v4 library with one module and two dependencies: <c>morphir/SDK</c> with one module, and
+/// <c>acme/ledger</c> with none. A tree has no document of <c>acme/ledger</c>; only its manifest records it.
+/// </summary>
+let dependencyWithoutModules: Distribution =
+    financeV4
+    |> withDependency Sdk.package sdkBasics
+    |> withDependencyWithoutModules (packageName "acme/ledger")
+    |> buildV4
+
 /// <summary>A classic library with the module of <c>v4LibraryWithOneModule</c>.</summary>
 let v3Library: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     buildV3 financeV3

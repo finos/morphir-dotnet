@@ -37,6 +37,7 @@ let private v4Cases = [
     "v4SpecsWithModuleAnnotations", DistributionMother.v4SpecsWithModuleAnnotations
     "v4Application", DistributionMother.v4Application
     "acmeDemo", DistributionMother.acmeDemo
+    "dependencyWithoutModules", DistributionMother.dependencyWithoutModules
     "emptyModule", DistributionMother.emptyModule
     "noModules", DistributionMother.noModules
     "nameUsedOnce", DistributionMother.nameUsedOnce
