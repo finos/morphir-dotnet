@@ -294,6 +294,11 @@ A file is compacted when its envelope's schema is one that this version declares
 files in `compactedFiles`: the file itself for a single file, and each compacted file of a tree by its path from the
 root. A tree can have plain and compacted files; its version comes from the document of its manifest.
 
+The `Path` of an error in a compacted file locates the node in the file as written. The document is the envelope's
+`document` member, so the path of an error in the expanded document starts with `/document`: an error at `/def/access`
+of the plain document is at `/document/def/access` of the compacted file, and one of the whole document is at
+`/document`. An error of the envelope or of its context is at `""`, the whole file.
+
 The result of a v4 tree each file of which is compacted, with the tree in the directory `model/`:
 
 ```bash

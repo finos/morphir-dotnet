@@ -37,7 +37,8 @@ type MorphirFile<'doc> = {
 /// for a malformed envelope or entry, so this reader uses <c>context.invalid_envelope</c> (no <c>context</c> or
 /// <c>document</c> object, or a <c>critical</c> that is not a list of strings) and <c>context.invalid_entry</c> (an
 /// id that is not ASCII letters and digits starting with a letter, or a spelling that is not the canonical spelling
-/// of its table's type). A file that is not JSON is <c>invalid_json</c>, as in the document-tree store.
+/// of its table's type). A file that is not JSON is <c>invalid_json</c>, as in the document-tree store, and a file
+/// nested deeper than the <c>MaxDepth</c> of its limits, as written or once expanded, is <c>depth_limit_exceeded</c>.
 /// </para>
 /// <para>
 /// Unknown optional members of the envelope and of the context are ignored. Context bytes count toward a caller's
@@ -113,6 +114,19 @@ module MorphirFile =
             bytes.Slice 3
         else
             bytes
+
+    /// Whether the bytes are JSON once no limit of depth applies: after a parse with a limit failed, it failed on the
+    /// depth. A reader of JSON keeps no stack per level, so reading deep text is safe.
+    let private isJsonAtAnyDepth (bytes: ReadOnlyMemory<byte>) =
+        try
+            let mutable reader = Utf8JsonReader(bytes.Span, JsonReaderOptions(MaxDepth = Int32.MaxValue))
+
+            while reader.Read() do
+                ()
+
+            true
+        with :? JsonException ->
+            false
 
     let private envelope (limits: ContextLimits) file (root: JsonElement) : Result<MorphirFile<JsonElement>, StoreError list> =
         let members, duplicates = NameContext.membersOnce file "The envelope" root
@@ -204,10 +218,7 @@ module MorphirFile =
         : Result<MorphirFile<JsonElement>, StoreError list> =
         try
             use document =
-                JsonDocument.Parse(
-                    withoutByteOrderMark bytes,
-                    JsonDocumentOptions(MaxDepth = Morphir.Json.V4.V4JsonDecoding.MaxDepth)
-                )
+                JsonDocument.Parse(withoutByteOrderMark bytes, JsonDocumentOptions(MaxDepth = limits.MaxDepth))
 
             let root = document.RootElement
             let mutable schema = Unchecked.defaultof<JsonElement>
@@ -221,18 +232,29 @@ module MorphirFile =
                     Document = root.Clone()
                 }
         with :? JsonException as problem ->
-            Error [ error "invalid_json" file problem.Message ]
+            if isJsonAtAnyDepth (withoutByteOrderMark bytes) then
+                Error [
+                    error "depth_limit_exceeded" file $"The file is nested more than {limits.MaxDepth} levels deep."
+                ]
+            else
+                Error [ error "invalid_json" file problem.Message ]
 
     /// <summary>
     /// The plain document of a file: a plain file's document as it is, or a compacted file's document with each
     /// reference at a typed name position of <paramref name="family"/> replaced by its spelling. Diagnostics name
-    /// <paramref name="file"/>. C# calls this <c>Expand</c>.
+    /// <paramref name="file"/>. An expanded document nested deeper than <c>limits.MaxDepth</c> is refused with
+    /// <c>depth_limit_exceeded</c>. C# calls this <c>Expand</c>.
     /// </summary>
     [<CompiledName("Expand")>]
-    let expand (family: IrFamily) (file: string) (morphirFile: MorphirFile<JsonElement>) : Result<JsonElement, StoreError list> =
+    let expand
+        (limits: ContextLimits)
+        (family: IrFamily)
+        (file: string)
+        (morphirFile: MorphirFile<JsonElement>)
+        : Result<JsonElement, StoreError list> =
         match morphirFile.Context with
         | None -> Ok morphirFile.Document
-        | Some context -> ContextExpansion.expand family file context morphirFile.Document
+        | Some context -> ContextExpansion.expand limits family file context morphirFile.Document
 
     /// <summary>
     /// The plain document of a Morphir file's bytes: <see cref="readEnvelope"/>, then <see cref="expand"/> in the IR
@@ -246,4 +268,4 @@ module MorphirFile =
         (bytes: ReadOnlyMemory<byte>)
         : Result<JsonElement, StoreError list> =
         readEnvelope limits file bytes
-        |> Result.bind (fun morphirFile -> expand (familyOf morphirFile.Document) file morphirFile)
+        |> Result.bind (fun morphirFile -> expand limits (familyOf morphirFile.Document) file morphirFile)

@@ -66,6 +66,7 @@ public static class TreeVerification
         var detection = schemaVersion.HasValue ? "manual" : "manifest";
         var errors = new List<ValidationError>();
         var compactedFiles = new List<string>();
+        var expandedFiles = new HashSet<string>(StringComparer.Ordinal);
 
         if (files.Count <= limits.MaxFiles)
         {
@@ -73,15 +74,17 @@ public static class TreeVerification
             {
                 if (TreeFileKinds.Of(location) is not { } kind || Text(file, limits.MaxFileBytes) is not { } json) continue;
                 var schema = CompactedFiles.TopLevelSchema(json);
-                if (schema is not null && MorphirFile.IsDeclared(schema)) compactedFiles.Add(location);
-                if (version != "4") continue;
                 if (schema is not null)
                 {
+                    if (MorphirFile.IsDeclared(schema)) compactedFiles.Add(location);
                     // The schema of the kind checks the expanded document. A refused envelope or context is an error
                     // of the store's read, with its code, and the file is not also checked against the schema.
                     if (CompactedFiles.Expand(location, json).Json is not { } plain) continue;
                     json = plain;
+                    expandedFiles.Add(location);
                 }
+
+                if (version != "4") continue;
 
                 SchemaValidationResult checkedFile;
                 try
@@ -94,13 +97,16 @@ public static class TreeVerification
                     continue;
                 }
 
-                errors.AddRange(checkedFile.Errors.Select(error => error with { File = location }));
+                errors.AddRange(checkedFile.Errors.Select(error =>
+                    (expandedFiles.Contains(location) ? CompactedFiles.InDocument(error) : error) with { File = location }));
             }
         }
 
+        // An error in an expanded file is located in the file as written: inside the envelope's document.
         var read = DocumentTreeStore.Read(limits, tree);
         if (read.IsError)
-            errors.AddRange(read.ErrorValue.Select(ErrorOf));
+            errors.AddRange(read.ErrorValue.Select(ErrorOf).Select(error =>
+                error.File is { } file && expandedFiles.Contains(file) ? CompactedFiles.InDocument(error) : error));
 
         return Result(filePath, version ?? "unknown", detection, files.Count, errors) with { CompactedFiles = compactedFiles };
     }

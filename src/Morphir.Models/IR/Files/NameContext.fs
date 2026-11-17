@@ -52,23 +52,34 @@ type FileContext = {
 }
 
 /// <summary>The limits a reader puts on a file's context before it expands any reference.</summary>
-type ContextLimits = {
-    /// <summary>The most entries one table may hold.</summary>
-    MaxEntries: int
-    /// <summary>The most UTF-8 bytes one expanded spelling may have.</summary>
-    MaxNameLength: int
-}
+type ContextLimits =
+    {
+        /// <summary>The most entries one table may hold.</summary>
+        MaxEntries: int
+        /// <summary>The most UTF-8 bytes one expanded spelling may have.</summary>
+        MaxNameLength: int
+        /// <summary>
+        /// The deepest nesting of JSON that a file may have, as it is written and once its references are expanded. A
+        /// file deeper than this is refused with <c>depth_limit_exceeded</c>.
+        /// </summary>
+        MaxDepth: int
+    }
+
+    /// <summary>The same limits with <paramref name="depth"/> as <see cref="MaxDepth"/>; for C# callers.</summary>
+    member this.WithMaxDepth(depth: int) : ContextLimits = { this with MaxDepth = depth }
 
 /// <summary>Functions for <see cref="ContextLimits"/>.</summary>
 [<RequireQualifiedAccess>]
 module ContextLimits =
     /// <summary>
     /// The limits of <c>ir-context</c> 0.1.0-draft.1: 16,384 entries per table and 1,024 UTF-8 bytes per spelling
-    /// (the parent's <c>docs/spec/ir/context/examples/README.md</c>).
+    /// (the parent's <c>docs/spec/ir/context/examples/README.md</c>), with the nesting depth of the readers of a
+    /// document tree (<c>V4JsonDecoding.MaxDepth</c>, 512).
     /// </summary>
     let draft1: ContextLimits = {
         MaxEntries = 16_384
         MaxNameLength = 1_024
+        MaxDepth = Morphir.Json.V4.V4JsonDecoding.MaxDepth
     }
 
 /// Reads and checks the context of an envelope (<c>ir/name-compaction</c>): its tables, their limits and its

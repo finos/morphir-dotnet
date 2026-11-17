@@ -171,7 +171,11 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         }
         catch (JsonException error)
         {
-            return ModelRead.Refused(null, ConvertDiagnostic.Failure("invalid_json", error.Message, source.Given));
+            // A file in an envelope is refused by the reader of Morphir files, which tells a file nested too deeply
+            // (depth_limit_exceeded) from one that is not JSON.
+            return EnvelopeOfText(content) is { } envelope
+                ? ReadCompactedSingleFile(source, bytes, envelope)
+                : ModelRead.Refused(null, ConvertDiagnostic.Failure("invalid_json", error.Message, source.Given));
         }
 
         using (document)
@@ -186,16 +190,32 @@ public sealed class DiskModelConversionStore : IModelConversionStore
     /// <summary>
     /// Reads a single file in an envelope through <see cref="MorphirFile"/>: the envelope and its context are checked
     /// and the document is expanded, so the model is read from the plain document. A refusal of the envelope or of its
-    /// context keeps its <c>context.</c> code. The input is compacted when its schema is declared, and its encoding is
+    /// context keeps its <c>context.</c> code, and a file nested deeper than <see cref="MaxDepth"/> is
+    /// <c>depth_limit_exceeded</c>. The input is compacted when its schema is declared, and its encoding is
     /// not stated otherwise.
     /// </summary>
     private static ModelRead ReadCompactedSingleFile(ModelSource source, byte[] bytes, string schema)
     {
         var encoding = MorphirFile.IsDeclared(schema) ? ModelConvertNames.Compacted : null;
-        var expanded = MorphirFile.ReadPlainDocument(ContextLimitsModule.draft1, source.Given, bytes);
+        // A compacted file is read as deep as a plain one, as written and once expanded.
+        var expanded = MorphirFile.ReadPlainDocument(ContextLimitsModule.draft1.WithMaxDepth(MaxDepth), source.Given, bytes);
         return expanded.IsOk
             ? ReadPlainSingleFile(source, expanded.ResultValue, encoding)
             : ModelRead.Refused(encoding, [.. expanded.ErrorValue.Select(error => ConvertDiagnostic.Failure(error.Code, error.Message, source.Given))]);
+    }
+
+    /// <summary>The top-level <c>$schema</c> of JSON text that does not parse whole, if its start shows one.</summary>
+    private static string? EnvelopeOfText(ReadOnlyMemory<byte> content)
+    {
+        try
+        {
+            using var stream = new MemoryStream(content.ToArray(), writable: false);
+            return TopLevelSchema(stream);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static ModelRead ReadPlainSingleFile(ModelSource source, JsonElement root, string? encoding) =>

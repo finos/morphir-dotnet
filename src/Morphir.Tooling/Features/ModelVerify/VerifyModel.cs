@@ -130,6 +130,7 @@ public static class VerifyModelHandler
             // 1. Load the JSON; a compacted file is checked and expanded, and the rest checks its plain document.
             var jsonContent = await File.ReadAllTextAsync(command.FilePath, ct);
             List<string> compactedFiles = [];
+            var expandedFile = false;
             if (CompactedFiles.TopLevelSchema(jsonContent) is { } schema)
             {
                 var expanded = CompactedFiles.Expand(command.FilePath, jsonContent);
@@ -141,6 +142,7 @@ public static class VerifyModelHandler
                     return NotValid(command, filesChecked: 1, [.. refusals]) with { CompactedFiles = compactedFiles };
                 }
                 jsonContent = plain;
+                expandedFile = true;
             }
 
             // 2. Detect or use specified version
@@ -156,6 +158,10 @@ public static class VerifyModelHandler
             var errors = validationResult.Errors;
             if (version == "4")
                 errors = [.. errors, .. await Infrastructure.JsonSchema.SchemaValidator.DecodeV4Async(jsonContent, ct)];
+
+            // An error of an expanded document is located in the file as written: inside the envelope's document.
+            if (expandedFile)
+                errors = [.. errors.Select(CompactedFiles.InDocument)];
 
             // 5. Return pure result (no side effects)
             return new VerifyModelResult(

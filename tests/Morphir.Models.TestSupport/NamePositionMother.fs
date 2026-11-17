@@ -1139,3 +1139,25 @@ let deeplyNested (extraLevels: int) : string * NamePosition =
 
     written "deeply nested model" (ClassicJsonWriter.writeTyped ClassicWireProfile.v3 false distribution),
     classicFqName "the deepest type reference" "deepest-type-reference"
+
+/// <summary>
+/// The deeply nested classic single file of <see cref="deeplyNested"/> in an envelope of <c>ir-context</c>
+/// 0.1.0-draft.1, its deepest type reference replaced by the reference <c>{"$name": "a"}</c>, whose entry is in the
+/// context's <c>fqNames</c>: the bytes of the file, and the plain document it expands to.
+/// </summary>
+let deeplyNestedCompactedFile (extraLevels: int) : byte array * string =
+    let plain, position = deeplyNested extraLevels
+    let compacted, count = withReference (spellingOf position) plain
+
+    if count <> 1 then
+        failwith $"The deeply nested model holds its deepest reference {count} times, not once."
+
+    let spelling =
+        match position.Entry with
+        | FqNameEntry f -> CanonicalNames.fqNameToString f
+        | other -> failwith $"The deepest reference is not an FQName: {other}."
+
+    let envelope =
+        $"{{\"$schema\":\"{MorphirFile.Draft1Schema}\",\"context\":{{\"fqNames\":{{\"{referenceId}\":\"{spelling}\"}}}},\"document\":{compacted}}}"
+
+    Encoding.UTF8.GetBytes envelope, plain

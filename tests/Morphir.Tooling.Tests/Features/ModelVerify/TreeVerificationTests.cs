@@ -175,8 +175,8 @@ public class TreeVerificationTests
 
     /// <summary>
     /// A v4 tree file is checked against the schema of its kind after expansion: a compacted type file whose expanded
-    /// document breaks the schema has the schema's error, and a schema check of the envelope itself would have refused
-    /// the file at its top level.
+    /// document breaks the schema has the schema's error, located in the file as written (inside the envelope's
+    /// <c>document</c>), and a schema check of the envelope itself would have refused the file at its top level.
     /// </summary>
     [Test]
     public async Task TheSchemaOfAKindChecksTheExpandedDocument()
@@ -187,10 +187,34 @@ public class TreeVerificationTests
 
         var result = await Verify(files);
 
-        result.Errors.Should().Contain(error => error.File == typeFile && error.Code == null && error.Path.StartsWith("/def", StringComparison.Ordinal),
+        result.Errors.Should().Contain(error => error.File == typeFile && error.Code == null && error.Path.StartsWith("/document/def", StringComparison.Ordinal),
             "the schema checks the expanded document, whose access is not one the schema allows");
-        result.Errors.Should().NotContain(error => error.File == typeFile && error.Path == "" && error.Code == null,
+        result.Errors.Should().NotContain(error => error.File == typeFile && (error.Path == "" || error.Path == "/document") && error.Code == null,
             "the envelope is not checked as a document");
+        result.Errors.Where(error => error.File == typeFile).Should().OnlyContain(error => error.Path.StartsWith("/document", StringComparison.Ordinal),
+            "each error of the expanded file is located inside the envelope's document");
+    }
+
+    /// <summary>
+    /// An error of the store in an expanded tree file, here an unknown tag of a type node, is located in the file as
+    /// written: the JSON location of the expanded document inside the envelope's <c>document</c>. The same fault in the
+    /// plain twin has the location without the prefix.
+    /// </summary>
+    [Test]
+    [Arguments(3)]
+    [Arguments(4)]
+    public async Task AnErrorOfTheStoreInAnExpandedFileIsLocatedInTheEnvelopesDocument(int ir)
+    {
+        var typeFile = FixtureCatalog.Context.TreeLocation("type");
+        static string Broken(string text) => text.Replace("\"Record\"", "\"Recrd\"", StringComparison.Ordinal);
+        var compacted = await Verify(WithText(ContextTree(ir, MorphirFileMother.CompactedFiles.EveryFile), typeFile, Broken));
+        var plain = await Verify(WithText(ContextTree(ir, MorphirFileMother.CompactedFiles.NoFile), typeFile, Broken));
+
+        var plainErrors = plain.Errors.Where(error => error.Code != null).ToArray();
+        plainErrors.Should().NotBeEmpty("the plain twin's type file has the fault");
+        compacted.Errors.Where(error => error.Code != null).Select(error => (error.File, error.Code, error.Path)).Should().Equal(
+            plainErrors.Select(error => (error.File, error.Code, "/document" + error.Path)),
+            "the store's errors of the plain twin, each inside the envelope's document");
     }
 
     /// <summary>The parent's invalid examples, each a type file, by id.</summary>

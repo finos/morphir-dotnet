@@ -1033,9 +1033,16 @@ module internal ContextExpansion =
     /// refused with <c>context.unknown_alias</c> for each id that its position's table does not define, and with
     /// <c>context.invalid_entry</c> for each entry referenced at a classic slot whose word arrays do not read back as
     /// its spelling. That check is made here, not when the table is read, since one table can feed both kinds of
-    /// position.
+    /// position. An expanded document nested deeper than <c>limits.MaxDepth</c> is refused with
+    /// <c>depth_limit_exceeded</c>.
     /// </summary>
-    let expand (family: IrFamily) (file: string) (context: FileContext) (document: JsonElement) : Result<JsonElement, StoreError list> =
+    let expand
+        (limits: ContextLimits)
+        (family: IrFamily)
+        (file: string)
+        (context: FileContext)
+        (document: JsonElement)
+        : Result<JsonElement, StoreError list> =
         let root =
             match family with
             | IrFamily.V4 -> V4.root ()
@@ -1046,13 +1053,29 @@ module internal ContextExpansion =
             Unholdable = ResizeArray()
         }
 
+        let tooDeep () =
+            Error [
+                StoreErrors.error
+                    "depth_limit_exceeded"
+                    (Some file)
+                    $"The expanded document is nested more than {limits.MaxDepth} levels deep."
+            ]
+
         use buffer = new MemoryStream()
 
-        do
-            use writer = new Utf8JsonWriter(buffer)
-            walk context problems writer root document
+        // A spelling is at most three levels deeper than the reference it replaces (a classic FQName), so the writer
+        // has room for that; the parse below checks the limit itself.
+        let written =
+            try
+                use writer = new Utf8JsonWriter(buffer, JsonWriterOptions(MaxDepth = limits.MaxDepth + 8))
+                walk context problems writer root document
+                true
+            with :? InvalidOperationException ->
+                false
 
-        if problems.Unknown.Count > 0 || problems.Unholdable.Count > 0 then
+        if not written then
+            tooDeep ()
+        elif problems.Unknown.Count > 0 || problems.Unholdable.Count > 0 then
             let unknown =
                 problems.Unknown
                 |> Seq.distinct
@@ -1077,15 +1100,10 @@ module internal ContextExpansion =
         else
             // A classic spelling is deeper than the reference it replaces, so a document within the limit can expand
             // past it.
-            let maxDepth = Morphir.Json.V4.V4JsonDecoding.MaxDepth
+            let maxDepth = limits.MaxDepth
 
             try
                 use expanded = JsonDocument.Parse(ReadOnlyMemory(buffer.ToArray()), JsonDocumentOptions(MaxDepth = maxDepth))
                 Ok(expanded.RootElement.Clone())
             with :? JsonException ->
-                Error [
-                    StoreErrors.error
-                        "depth_limit_exceeded"
-                        (Some file)
-                        $"The expanded document is nested more than {maxDepth} levels deep."
-                ]
+                tooDeep ()

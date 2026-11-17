@@ -56,7 +56,7 @@ let private normal (text: string) = Mother.textOf (Mother.parse text)
 let private expandText family (documentId: string) context (text: string) =
     use document = JsonDocument.Parse(text, JsonDocumentOptions(MaxDepth = V4JsonDecoding.MaxDepth))
 
-    ContextExpansion.expand family documentId context document.RootElement
+    ContextExpansion.expand ContextLimits.draft1 family documentId context document.RootElement
     |> Result.map (fun expanded -> normal (expanded.GetRawText()))
 
 let private documentsHolding (model: PositionModel) (spelling: JsonNode) =
@@ -186,6 +186,28 @@ let tests =
             | Error errors ->
                 Expect.equal (codesAndFiles errors) [ "depth_limit_exceeded", Some "deep.json" ] "the named diagnostic"
         }
+
+        testList "A compacted file is read to the depth of its limits" [
+            // Deeper than the readers of a tree (512), within the depth of a plain single file of model convert.
+            let bytes, plain = Mother.deeplyNestedCompactedFile 600
+            let read limits = MorphirFile.readPlainDocument limits "deep.json" (ReadOnlyMemory bytes)
+
+            test "A file deeper than its limits is depth_limit_exceeded, not invalid_json" {
+                Expect.isGreaterThan (depthOf (Text.Encoding.UTF8.GetString bytes)) ContextLimits.draft1.MaxDepth "the file is deeper than draft1"
+                Expect.equal (read ContextLimits.draft1 |> refusal |> codesAndFiles) [ "depth_limit_exceeded", Some "deep.json" ] "the named diagnostic"
+            }
+
+            test "The same file within deeper limits expands" {
+                match read (ContextLimits.draft1.WithMaxDepth 4096) with
+                | Ok document -> Expect.equal (normal (document.GetRawText())) (normal plain) "the plain document"
+                | Error errors -> failtestf "%A" errors
+            }
+
+            test "Text that is not JSON stays invalid_json" {
+                let broken = Array.append (Array.sub bytes 0 (bytes.Length - 1)) "]"B
+                Expect.equal (MorphirFile.readPlainDocument ContextLimits.draft1 "deep.json" (ReadOnlyMemory broken) |> refusal |> List.map (fun e -> e.Code)) [ "invalid_json" ] "a deep file that is also broken"
+            }
+        ]
 
         test "Context bytes count toward the file size limit" {
             let files = MorphirFileMother.tree 4 MorphirFileMother.ValueFileOnly

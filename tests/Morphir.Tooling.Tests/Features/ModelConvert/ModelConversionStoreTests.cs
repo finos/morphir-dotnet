@@ -31,6 +31,30 @@ public sealed class ModelConversionStoreTests
         Directory.Exists(staging).Should().BeFalse();
     }
 
+    /// <summary>
+    /// A compacted single file is read as deep as a plain one: deeper than the readers of a tree (512), it still
+    /// expands and decodes, as its plain twin does.
+    /// </summary>
+    [Test]
+    public async Task ACompactedSingleFileIsReadToTheDepthOfAPlainOne()
+    {
+        using var sandbox = TestSandbox.Create("morphir-convert-deep-");
+        var (bytes, plain) = Morphir.Models.TestSupport.NamePositionMother.deeplyNestedCompactedFile(600);
+        var compacted = sandbox.PathOf("deep.json");
+        var twin = sandbox.PathOf("deep-plain.json");
+        await File.WriteAllBytesAsync(compacted, bytes);
+        await File.WriteAllTextAsync(twin, plain);
+        var store = new DiskModelConversionStore();
+
+        var read = await store.ReadAsync(new ModelSource(compacted, "deep.json", Morphir.IR.Trees.ModelLayout.SingleFile), CancellationToken.None);
+        var plainRead = await store.ReadAsync(new ModelSource(twin, "deep-plain.json", Morphir.IR.Trees.ModelLayout.SingleFile), CancellationToken.None);
+
+        plainRead.Diagnostics.Should().BeEmpty("the plain twin is read");
+        read.Diagnostics.Should().BeEmpty("the compacted file is read to the same depth");
+        read.Model.Should().NotBeNull();
+        read.Encoding.Should().Be(ModelConvertNames.Compacted);
+    }
+
     [Test]
     public void AStagingFileThatCannotBeDeletedDoesNotThrow()
     {

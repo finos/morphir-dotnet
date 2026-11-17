@@ -43,6 +43,19 @@ internal static class CompactedFiles
         }
     }
 
+    /// <summary>The JSON Pointer of the member that holds an envelope's document.</summary>
+    public const string DocumentPointer = "/document";
+
+    /// <summary>
+    /// The error with its <c>Path</c>, a JSON Pointer into an expanded document, located in the file as written: inside
+    /// the envelope's <c>document</c> member (<c>""</c> becomes <c>/document</c>, <c>/def</c> becomes
+    /// <c>/document/def</c>). A path that is not a pointer, such as <c>$</c>, is kept.
+    /// </summary>
+    public static ValidationError InDocument(ValidationError error) => error with
+    {
+        Path = error.Path.Length == 0 || error.Path.StartsWith('/') ? DocumentPointer + error.Path : error.Path,
+    };
+
     /// <summary>
     /// Reads the envelope of <paramref name="json"/> and expands its document, with each diagnostic naming
     /// <paramref name="file"/>. The IR family of the expansion is the enclosed document's own.

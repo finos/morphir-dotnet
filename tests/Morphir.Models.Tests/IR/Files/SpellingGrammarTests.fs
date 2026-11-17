@@ -17,7 +17,7 @@ let private familyOf (file: MorphirFileMother.RespelledFile) =
 
 let private read (file: MorphirFileMother.RespelledFile) =
     MorphirFile.readEnvelope ContextLimits.draft1 file.File (ReadOnlyMemory file.Bytes)
-    |> Result.bind (MorphirFile.expand (familyOf file) file.File)
+    |> Result.bind (MorphirFile.expand ContextLimits.draft1 (familyOf file) file.File)
 
 let private expandsToItsSpelling (file: MorphirFileMother.RespelledFile) =
     match read file with
@@ -89,7 +89,7 @@ let tests =
 
                     let result =
                         MorphirFile.readEnvelope ContextLimits.draft1 file.File (ReadOnlyMemory file.Bytes)
-                        |> Result.bind (MorphirFile.expand IrFamily.Classic3 file.File)
+                        |> Result.bind (MorphirFile.expand ContextLimits.draft1 IrFamily.Classic3 file.File)
 
                     match refusal result with
                     | [ error ] ->

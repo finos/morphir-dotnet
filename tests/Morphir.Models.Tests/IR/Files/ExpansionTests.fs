@@ -27,7 +27,7 @@ let private read (example: ContextExample) =
 let private expanded (id: string) =
     let example = Mother.example id
 
-    match read example |> Result.bind (MorphirFile.expand (familyOf example) (fileName example)) with
+    match read example |> Result.bind (MorphirFile.expand ContextLimits.draft1 (familyOf example) (fileName example)) with
     | Ok document -> document
     | Error errors -> failtestf "%s did not expand: %A" id errors
 
@@ -35,7 +35,7 @@ let private refusedWith (id: string) =
     let example = Mother.example id
 
     read example
-    |> Result.bind (MorphirFile.expand (familyOf example) (fileName example))
+    |> Result.bind (MorphirFile.expand ContextLimits.draft1 (familyOf example) (fileName example))
     |> refusal
 
 let private json (element: JsonElement) = compact (element.GetRawText())
@@ -110,7 +110,7 @@ let tests =
                 Expect.isNone file.Schema "a plain file has no schema"
                 Expect.isNone file.Context "a plain file has no context"
 
-                match MorphirFile.expand IrFamily.V4 "v4-type.json" file with
+                match MorphirFile.expand ContextLimits.draft1 IrFamily.V4 "v4-type.json" file with
                 | Ok document -> Expect.equal (json document) (compact (Mother.expandedTextOf "v4-type")) "the document as written"
                 | Error errors -> failtestf "%A" errors
             | Error errors -> failtestf "%A" errors
@@ -205,7 +205,7 @@ let tests =
 
                     match
                         MorphirFile.readEnvelope ContextLimits.draft1 file (ReadOnlyMemory(Mother.policyExpectedBytes policyCase.Id))
-                        |> Result.bind (MorphirFile.expand family file)
+                        |> Result.bind (MorphirFile.expand ContextLimits.draft1 family file)
                     with
                     | Ok document ->
                         // The expected bytes are canonical JSON, with sorted members, so both sides are compared in that form.
@@ -235,7 +235,7 @@ let tests =
                     use document = JsonDocument.Parse text
                     let root = document.RootElement
 
-                    match ContextExpansion.expand (MorphirFile.familyOf root) name noAlias root with
+                    match ContextExpansion.expand ContextLimits.draft1 (MorphirFile.familyOf root) name noAlias root with
                     | Ok copy -> Expect.equal (json copy) (compact text) "every member and item is copied as written"
                     | Error errors -> failtestf "%A" errors
                 }

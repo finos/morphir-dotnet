@@ -110,7 +110,8 @@ as canonical strings. The output is plain. Writing compacted files is not implem
 - Because the output is plain, a compacted input with no `--layout` is written as plain files in its own layout. It
   is not [nothing to do](#nothing-to-do).
 - A file whose `$schema` is not an envelope that this version knows is refused with `context.undeclared_schema`. The
-  report then states no `inputEncoding`.
+  report then states no `inputEncoding` when the only envelopes are undeclared; a tree that also has a file in a
+  declared envelope is `compacted`.
 - A context that breaks a rule of the contract is refused with the code of the rule, and the diagnostic names the
   file (see [Context refusals](#context-refusals)). Nothing is written.
 
@@ -250,7 +251,9 @@ a rule of `ir/name-compaction`. The codes are the contract's:
 | `context.invalid_envelope` | Has no `context` or `document` object, or a `critical` that is not a list of strings. |
 | `context.invalid_entry` | Has an id that is not ASCII letters and digits starting with a letter, an entry that is not the canonical spelling of its table's kind, or an entry that a classic v3 slot cannot hold. |
 
-The bytes of the context count toward the size limit of a file, as they are part of it.
+The bytes of the context count toward the size limit of a tree file, as they are part of it. A compacted single file
+is read to the same depth of nesting as a plain one, as written and once expanded, and a file nested deeper is refused
+with `depth_limit_exceeded`.
 
 Notices have the severity `info` and do not fail the run:
 

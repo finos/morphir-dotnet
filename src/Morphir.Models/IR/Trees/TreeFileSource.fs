@@ -103,7 +103,7 @@ module internal TreeFileSource =
         : Result<'a * bool, StoreError list> =
         MorphirFile.readEnvelope ContextLimits.draft1 location (ReadOnlyMemory bytes)
         |> Result.bind (fun file ->
-            MorphirFile.expand (MorphirFile.familyOf file.Document) location file
+            MorphirFile.expand ContextLimits.draft1 (MorphirFile.familyOf file.Document) location file
             |> Result.bind (fun document ->
                 read document
                 |> Result.map (fun value -> value, file.Context.IsSome)

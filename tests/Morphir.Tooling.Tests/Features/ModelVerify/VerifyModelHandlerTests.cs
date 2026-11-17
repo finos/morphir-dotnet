@@ -202,12 +202,16 @@ public class VerifyModelHandlerTests
         result.FilesChecked.Should().Be(1);
     }
 
-    /// <summary>Verifies the bytes of the parent's name-context example <paramref name="id"/>, written to a file of a sandbox.</summary>
-    private async Task<VerifyModelResult> VerifyContextExample(string id, int? schemaVersion = null)
+    /// <summary>
+    /// Verifies the bytes of the parent's name-context example <paramref name="id"/>, or of its plain twin, written to a
+    /// file of a sandbox.
+    /// </summary>
+    private async Task<VerifyModelResult> VerifyContextExample(string id, int? schemaVersion = null, bool twin = false)
     {
         await using var sandbox = TestSandbox.Create("morphir-verify-compacted-");
         var path = sandbox.PathOf("model.json");
-        await File.WriteAllBytesAsync(path, FixtureCatalog.ReadBytes(FixtureCatalog.Context.Example(id).File));
+        var example = FixtureCatalog.Context.Example(id);
+        await File.WriteAllBytesAsync(path, FixtureCatalog.ReadBytes(twin ? example.Expanded! : example.File));
         return await VerifyModelHandler.Handle(new VerifyModel(path, schemaVersion), _validator, CancellationToken.None);
     }
 
@@ -234,6 +238,26 @@ public class VerifyModelHandlerTests
         result.IsValid.Should().BeFalse("the expanded document is a v3 model, which the v4 schema refuses");
         result.DetectionMethod.Should().Be("manual");
         result.CompactedFiles.Should().ContainSingle();
+        // Only the expanded v3 document has a formatVersion and a classic distribution array; the envelope has neither.
+        result.Errors.Should().Contain(error => error.Path == "/document/formatVersion" && error.Message.Contains("4"),
+            "the v4 schema refuses the v3 document's formatVersion, located inside the envelope's document");
+        result.Errors.Should().Contain(error => error.Path == "/document/distribution",
+            "the classic distribution is an array, where v4 has an object");
+        result.Errors.Should().OnlyContain(error => error.Path.StartsWith("/document/", StringComparison.Ordinal),
+            "no error is at the envelope's top level");
+    }
+
+    [Test]
+    public async Task AnErrorOfAnExpandedSingleFileIsLocatedInTheEnvelopesDocument()
+    {
+        var compacted = await VerifyContextExample("v3-single-file", schemaVersion: 4);
+        var plain = await VerifyContextExample("v3-single-file", schemaVersion: 4, twin: true);
+
+        plain.Errors.Should().NotBeEmpty();
+        plain.CompactedFiles.Should().BeEmpty();
+        compacted.Errors.Select(error => (error.Path, error.Message)).Should().Equal(
+            plain.Errors.Select(error => ("/document" + error.Path, error.Message)),
+            "the errors of the plain twin, each inside the envelope's document");
     }
 
     [Test]
