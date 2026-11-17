@@ -205,6 +205,65 @@ public static class FixtureCatalog
         /// <summary>The pinned files.</summary>
         public static IReadOnlyList<FixtureEntry> Files { get; } = [Cases, .. ExampleFiles];
 
+        /// <summary>
+        /// The writer policy <c>morphir.compact/0.1.0-draft.1</c> and its fixed cases: each case's plain input and the
+        /// bytes a writer of the policy must produce from it, worked out by hand in the parent.
+        /// </summary>
+        public static class Policy
+        {
+            /// <summary>The directory of the policy below <c>tests/Fixtures</c>.</summary>
+            public const string Directory = "MorphirContext/policy/";
+
+            private static FixtureEntry PolicyFile(string path, string sha256) =>
+                new($"the compaction policy file {path}", Directory + path, sha256, Provenance);
+
+            private static (FixtureEntry Input, FixtureEntry Expected) CaseFiles(string id, string inputSha256, string expectedSha256) =>
+                (PolicyFile($"cases/{id}/input.json", inputSha256), PolicyFile($"cases/{id}/expected.json", expectedSha256));
+
+            /// <summary>The index of the cases: each case's IR version, file kind and whether the policy compacts it.</summary>
+            public static FixtureEntry Cases { get; } = PolicyFile("cases.json", "30a1f81fb36de0c16d27fd2da0ae5b945d0b044ca8ea4b453aeb344c64e3d7c6");
+
+            private static readonly IReadOnlyList<(FixtureEntry Input, FixtureEntry Expected)> CaseEntries =
+            [
+                CaseFiles("alias-allocation-order", "b0849cd38a8eecbc8434abb70c5691c3eb436d542c30e552d03774da3fbd5bb6", "8bbe9b9f71b6ffa5572a98128e2b7898d8f0d2d3c4994bcebaf6a896376e1650"),
+                CaseFiles("look-alike-literal", "17003e3d0805c5534a0806dc3a42550cffeb2668e94dd66d3a59e9199eb2d526", "4330a6a96238922e067a1ebc96a8406be1f9508a8717542fe20d7ff7fd786989"),
+                CaseFiles("loss", "8b190fa3bc42529434b9ea60c77672ef6c181343238eb74e0bde2f32bdff1d47", "e4f4751f3575d340623fe0877c37a94dfc7bc60c2003aa84ed3011f88b8e3f99"),
+                CaseFiles("loss-boundary-accepted", "5754658c078ef7e2a6c91556d109b9b12092f04b7697d3a02ac8718bdbf17cd1", "31894d067ae94b82ead16537ee5171d0681546ba60078b936b4146059a2f1065"),
+                CaseFiles("loss-boundary-declined", "508b1976472a382daa84f5a820431e26ee96aeed4d4bce89249f00a585948d24", "f7f0f6e84b735cf6b826d691ece0072268ea868c5b16a95927050e4230cffc32"),
+                CaseFiles("name-used-once", "a92482d6cf13773b925a895fc81e3d1d8fc32ae580ac9a5b14566d7fa07df654", "773e28d958fe38b2c7d680bcf9464cddcdee2f1edce99f9383673629c48e0785"),
+                CaseFiles("non-ascii-content", "2c1976d2746d2da17cfd173423b848d6f356f6b104ff10f472d5e83ee2fce299", "7a514d56dbc6fa3669222c14d3a45382a008bc800b697214dc451100ccc433c1"),
+                CaseFiles("table-order", "7a3b8852fc440c12f95580046373bd22475232162bc5065b91daa0e408096a78", "f0d935742646e528a1887ded40ae85bac1ac513f0dc14fd6e21738cb67e45f70"),
+                CaseFiles("tie", "2918018c96afe65ff3f965472cca003d19be799eb0cddb51bfbd35c79686f267", "9d6d101e7de67aeab176b16b71ef740e9c254573382c066bdc7a7201cfafa8a4"),
+                CaseFiles("v3-manifest", "15a9ac21999f566db71818b281293d3e0ba6d207c8c01fba9bb542a564d86be1", "931931d96940b4cefe0c72f12b23f247d207ff13229a959cc8ad4371d345f226"),
+                CaseFiles("v3-module", "b82f7aedb41abf17284cc6c7b5bf0d44bc23ae369f8d1c37ea9d6bae0faa9899", "b0eaa6ffab8b88babb3569acb0107c7aeda0b6942511bf3547802e6e6c0baaed"),
+                CaseFiles("v3-single-file", "9b710fdbe68e652e63c11a13c85bb939fee8a744e920cb76c29444d17b107971", "a6c55d93b534330cab4184aad98a3c794fa24e440ee0b3e596dd9b655b17396d"),
+                CaseFiles("v3-type", "9cdee5ac533636ebd96737ce711943bf48a4983cbbe81dc0525808b7899cadca", "d25dc9016de0f0d57d1ee912bc8a223acf04218791c3f0dbaba115f3a54696a1"),
+                CaseFiles("v3-value", "32d5cdd430cfcf1c11cfc69991ad7e32e2f82ea3e7a6fccfe2759cc16d1218cf", "aa79ceb5791718fb0fa0ba621ce02d30810f32940745b2d4bfc2f666d2f05403"),
+                CaseFiles("v4-manifest", "33b360f36f3f2ca8857c56bc868835cd6dcef4dd753ca8c48028714482caced2", "580af09c3fa4c00af59438e482779cced39dd21af769d3087cd0644fa2d8795a"),
+                CaseFiles("v4-module", "882fb7562030dc63d20bd4f7b43e208101b62c248622fca8a9af319253da2014", "26cf6103628dbd2fc7458a7d26f67e75baf4016dd9c005fdbef244a6321bb3bc"),
+                CaseFiles("v4-single-file", "338baa506c270ffaa667afed5dd116e77d58c4329084bdf9226ea1bfba7f0a34", "0c4f00c49dc71b5eda77fdeb165b57df92b8836a23bd7b4b494e6c81c17e7a1d"),
+                CaseFiles("v4-type", "b92972aa55c7808ed87f711d1dc818d57f7a4ffe5fc7ea00b7b07c05aa69ab9a", "9327b83ace0d0607e7b0f1f637c7c8ddce9517da2783b4f967d67a36076a25cf"),
+                CaseFiles("v4-value", "6b0d959c17720785b161fde523f8d4e19f8e98a8a3409d6689023b6451d8eff6", "b542f1d5a421d83ac3c76503975b5aae242947a5d3e25dba2c487c8a85872791"),
+            ];
+
+            /// <summary>The pinned files.</summary>
+            public static IReadOnlyList<FixtureEntry> Files { get; } =
+                [Cases, .. CaseEntries.SelectMany(files => new[] { files.Input, files.Expected })];
+
+            private static readonly Lazy<PolicyCaseIndex> Index = new(() => PolicyCaseIndex.Read(ReadText(Cases), Files, Directory));
+
+            /// <summary>The policy's name, as the index states it.</summary>
+            public static string Name => Index.Value.Policy;
+
+            /// <summary>Every case of the index, in its order.</summary>
+            public static IReadOnlyList<PolicyCase> All => Index.Value.Cases;
+
+            /// <summary>The case with this id, such as <c>name-used-once</c>.</summary>
+            public static PolicyCase Case(string id) =>
+                All.FirstOrDefault(policyCase => policyCase.Id == id)
+                ?? throw new KeyNotFoundException($"The pinned policy has no case '{id}'. Its cases are {string.Join(", ", All.Select(policyCase => policyCase.Id))}.");
+        }
+
         private static readonly Lazy<ContextExampleIndex> Index = new(() => ContextExampleIndex.Read(ReadText(Cases), ExampleFiles, ExamplesDirectory));
 
         /// <summary>The envelope's schema URL, as the index states it.</summary>
@@ -226,7 +285,7 @@ public static class FixtureCatalog
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, Rfc8785.Text, .. Context.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

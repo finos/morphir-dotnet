@@ -189,6 +189,26 @@ let tests =
             | other -> failtestf "Expected one diagnostic, got %A" other
         }
 
+        testList "Each compacted policy case expands to its input" [
+            for policyCase in Mother.policyCases |> List.filter (fun policyCase -> policyCase.Compacted) ->
+                test policyCase.Id {
+                    let file = $"{policyCase.Id}/expected.json"
+                    let family = if policyCase.Ir = 3 then IrFamily.Classic3 else IrFamily.V4
+
+                    match
+                        MorphirFile.readEnvelope ContextLimits.draft1 file (ReadOnlyMemory(Mother.policyExpectedBytes policyCase.Id))
+                        |> Result.bind (MorphirFile.expand family file)
+                    with
+                    | Ok document ->
+                        // The expected bytes are canonical JSON, with sorted members, so both sides are compared in that form.
+                        Expect.sequenceEqual
+                            (Morphir.Json.CanonicalJson.write document)
+                            (Morphir.Json.CanonicalJson.write (Mother.policyInput policyCase.Id))
+                            "the plain input the policy compacted"
+                    | Error errors -> failtestf "%A" errors
+                }
+        ]
+
         testList "Expansion with no alias gives the document back" [
             let noAlias = NameContext.empty []
 

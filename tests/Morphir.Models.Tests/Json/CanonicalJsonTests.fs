@@ -8,6 +8,7 @@ open System.Text
 open System.Text.Json
 open Expecto
 open Morphir.Json
+open Morphir.Models.TestSupport
 open Morphir.TestSupport.Fixtures
 
 let private vectors = FixtureCatalog.Rfc8785.Vectors
@@ -121,4 +122,19 @@ let tests =
             let twice = members [ "a", 1; "a", 2 ]
             refused (fun () -> CanonicalJson.write twice)
         }
+
+        // The parent's compaction policy fixes its expected bytes in canonical JSON, worked out by hand.
+        testList "Each policy case's expected bytes are canonical JSON" [
+            for policyCase in MorphirFileMother.policyCases ->
+                test policyCase.Id {
+                    let expected = MorphirFileMother.policyExpectedBytes policyCase.Id
+                    Expect.sequenceEqual (CanonicalJson.write (parse (utf8 expected))) expected "the parent's bytes are their own canonical form"
+
+                    if not policyCase.Compacted then
+                        Expect.sequenceEqual
+                            (CanonicalJson.write (MorphirFileMother.policyInput policyCase.Id))
+                            expected
+                            "a declined case is its input in canonical JSON"
+                }
+        ]
     ]

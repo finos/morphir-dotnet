@@ -98,6 +98,25 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void TheCompactionPolicyCasesOfTheParentAreRead()
+    {
+        FixtureCatalog.Context.Policy.Name.Should().Be("morphir.compact/0.1.0-draft.1");
+
+        var cases = FixtureCatalog.Context.Policy.All;
+        cases.Should().HaveCount(19);
+        cases.Select(policyCase => policyCase.Id).Should().OnlyHaveUniqueItems();
+        cases.Where(policyCase => !policyCase.Compacted).Select(policyCase => policyCase.Id).Should().BeEquivalentTo(
+            "v4-manifest", "v3-manifest", "loss", "loss-boundary-declined");
+
+        var nameUsedOnce = FixtureCatalog.Context.Policy.Case("name-used-once");
+        (nameUsedOnce.Ir, nameUsedOnce.Kind, nameUsedOnce.Compacted).Should().Be((4, "type", true));
+        nameUsedOnce.Input.RelativePath.Should().Be("MorphirContext/policy/cases/name-used-once/input.json");
+        JsonNode.Parse(FixtureCatalog.ReadText(nameUsedOnce.Expected))!["$schema"]!.GetValue<string>().Should().Be(FixtureCatalog.Context.SchemaUrl);
+        JsonNode.Parse(FixtureCatalog.ReadText(nameUsedOnce.Input))!.AsObject().ContainsKey("$schema").Should().BeFalse();
+        FixtureCatalog.All.Should().Contain(FixtureCatalog.Context.Policy.Files);
+    }
+
+    [Test]
     public void TheReaderOfRfc8785RefusesATextWithoutItsVectors()
     {
         var act = () => Rfc8785Reader.Read("Appendix B.  Number Serialization Samples\n");

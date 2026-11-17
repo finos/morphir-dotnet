@@ -71,3 +71,20 @@ let tree (ir: int) (compacted: CompactedFiles) : (string * string) list =
             else
                 expandedTextOf id
     ]
+
+/// <summary>The parent's compaction policy case with this id, such as <c>name-used-once</c>.</summary>
+let policyCase (id: string) : PolicyCase = FixtureCatalog.Context.Policy.Case id
+
+/// <summary>Every case of the parent's compaction policy, in its order.</summary>
+let policyCases: PolicyCase list = List.ofSeq FixtureCatalog.Context.Policy.All
+
+/// <summary>
+/// The plain document of a policy case, the input a writer of the policy compacts. Its <c>formatVersion</c> gives
+/// its IR version.
+/// </summary>
+let policyInput (id: string) : System.Text.Json.JsonElement =
+    use document = System.Text.Json.JsonDocument.Parse(FixtureCatalog.ReadText (policyCase id).Input)
+    document.RootElement.Clone()
+
+/// <summary>The bytes a writer of the policy must produce from a case's input, as the parent fixes them.</summary>
+let policyExpectedBytes (id: string) : byte array = FixtureCatalog.ReadBytes (policyCase id).Expected
