@@ -9,8 +9,17 @@
 /// surrogate escape with U+FFFD, and RFC 8785 requires the writer to refuse it. Every refusal raises
 /// <see cref="T:System.ArgumentException"/>: a lone surrogate, a number outside the double range, a member named twice
 /// in one object.
+///
+/// Numbers need the shortest round-trip formatting and the correctly rounded parsing of .NET Core 3.0 and later. The
+/// <c>netstandard2.0</c> build refuses to write a number, with
+/// <see cref="T:System.PlatformNotSupportedException"/>, when it is loaded on another runtime such as .NET Framework,
+/// where <c>ToString("R")</c> can give more digits than the shortest (<c>5e-324</c> as <c>4.94065645841247E-324</c>).
 /// </remarks>
 module Morphir.Json.CanonicalJson
+
+#if NETSTANDARD2_0
+open Morphir.Compat
+#endif
 
 open System
 open System.Collections.Generic
@@ -27,9 +36,50 @@ let private MaxDepth = 1024
 
 let private refuse message = raise (ArgumentException("RFC 8785: " + message))
 
+/// <summary>
+/// Refuses a runtime whose number formatting is not the shortest round trip: every runtime except .NET Core 3.x and
+/// .NET 5 and later. The runtime is given by its <c>RuntimeInformation.FrameworkDescription</c> and its
+/// <c>Environment.Version</c>; .NET Core 2.x describes itself as ".NET Core 4.6" with version 4.0, so a ".NET Core"
+/// runtime must also have version 3.
+/// </summary>
+/// <exception cref="T:System.PlatformNotSupportedException">The runtime is not .NET Core 3.0 or later.</exception>
+let internal checkRuntime (frameworkDescription: string) (version: Version) : unit =
+    let isDotNet =
+        frameworkDescription.Length > 5
+        && frameworkDescription.StartsWith(".NET ", StringComparison.Ordinal)
+        && Char.IsDigit frameworkDescription.[5]
+
+    let supported =
+        if frameworkDescription.StartsWith(".NET Core ", StringComparison.Ordinal) then version.Major = 3
+        elif isDotNet then version.Major >= 5
+        else false
+
+    if not supported then
+        raise (
+            PlatformNotSupportedException(
+                $"RFC 8785 canonical JSON numbers need .NET Core 3.0 or later; this runtime is {frameworkDescription} ({version})."
+            )
+        )
+
+#if NETSTANDARD2_0
+/// The check of the runtime this build is loaded on, made once.
+let private runtimeChecked =
+    lazy
+        (checkRuntime
+            System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription
+            Environment.Version)
+#endif
+
 /// <summary>The ECMAScript form of a double (ECMA-262 Number::toString, RFC 8785 section 3.2.2.3).</summary>
+/// <remarks>The <c>netstandard2.0</c> build refuses on a runtime other than .NET Core 3.0 or later, whose number
+/// formatting is not the shortest round trip.</remarks>
 /// <exception cref="T:System.ArgumentException">NaN or an infinity, which JSON cannot hold.</exception>
+/// <exception cref="T:System.PlatformNotSupportedException">The <c>netstandard2.0</c> build is loaded on a runtime
+/// other than .NET Core 3.0 or later, such as .NET Framework.</exception>
 let number (value: float) : string =
+#if NETSTANDARD2_0
+    runtimeChecked.Force()
+#endif
     if Double.IsNaN value || Double.IsInfinity value then
         refuse $"{value} is not a JSON number"
     elif value = 0.0 then
@@ -150,24 +200,18 @@ let private unescape (token: string) =
     checkSurrogates value
     value
 
+/// The text of the reader's current token, as written in the input.
+let private tokenText (reader: byref<Utf8JsonReader>) = Encoding.UTF8.GetString reader.ValueSpan
+
 /// The string of the reader's current string or property-name token.
 let private tokenString (reader: byref<Utf8JsonReader>) =
-    let raw =
-#if NETSTANDARD2_0
-        Encoding.UTF8.GetString(reader.ValueSpan.ToArray())
-#else
-        Encoding.UTF8.GetString reader.ValueSpan
-#endif
+    let raw = tokenText &reader
     if reader.ValueIsEscaped then unescape raw else (checkSurrogates raw; raw)
 
 /// The reader's current number token as a double.
 let private tokenNumber (reader: byref<Utf8JsonReader>) =
-    let text =
-#if NETSTANDARD2_0
-        Encoding.UTF8.GetString(reader.ValueSpan.ToArray())
-#else
-        Encoding.UTF8.GetString reader.ValueSpan
-#endif
+    let text = tokenText &reader
+
     let parsed =
         try
             Double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture)
@@ -249,7 +293,13 @@ let rec private appendNode (output: StringBuilder) (node: Node) =
 /// <summary>The RFC 8785 canonical form of a JSON value, as UTF-8 bytes.</summary>
 /// <exception cref="T:System.ArgumentException">The value holds a lone surrogate, a number outside the range of a
 /// double, or an object with the same member twice.</exception>
+/// <exception cref="T:System.PlatformNotSupportedException">The <c>netstandard2.0</c> build is loaded on a runtime
+/// other than .NET Core 3.0 or later, such as .NET Framework, whose number formatting and parsing are not those of
+/// RFC 8785. It refuses every value, numbers or not, so that the output never depends on what the value holds.</exception>
 let write (element: JsonElement) : byte array =
+#if NETSTANDARD2_0
+    runtimeChecked.Force()
+#endif
     let mutable reader =
         Utf8JsonReader(ReadOnlySpan(Encoding.UTF8.GetBytes(element.GetRawText())), JsonReaderOptions(MaxDepth = MaxDepth))
 

@@ -123,6 +123,43 @@ let tests =
             refused (fun () -> CanonicalJson.write twice)
         }
 
+        // The netstandard2.0 build checks the runtime it is loaded on; these tests run on net11.0, so they call the check
+        // with each runtime's own FrameworkDescription and Environment.Version.
+        testList "Canonical numbers need .NET Core 3.0 or later" [
+            for description, version in [
+                ".NET 11.0.0", "11.0.0"
+                ".NET 5.0.17", "5.0.17"
+                ".NET Core 3.1.32", "3.1.32"
+                ".NET Core 3.0.3", "3.0.3"
+            ] do
+                yield test $"{description} writes canonical numbers" {
+                    CanonicalJson.checkRuntime description (System.Version version)
+                }
+
+            for description, version in [
+                ".NET Framework 4.8.9032.0", "4.0.30319.42000"
+                ".NET Framework 4.6.2", "4.0.30319.42000"
+                // .NET Core 2.x reports a 4.6 description and the version of .NET Framework 4.
+                ".NET Core 4.6.27817.03", "4.0.30319.42000"
+                "Mono 6.12.0.182 (2020-02/6051b710799)", "4.0.30319.42000"
+                ".NET Native 2.2", "4.0.30319.42000"
+            ] do
+                yield test $"{description} is refused" {
+                    let refusal =
+                        Expect.throwsC
+                            (fun () -> CanonicalJson.checkRuntime description (System.Version version))
+                            id
+
+                    Expect.isTrue (refusal :? PlatformNotSupportedException) "the refusal is PlatformNotSupportedException"
+                    Expect.stringContains refusal.Message ".NET Core 3.0 or later" "the message names the runtimes that are supported"
+                    Expect.stringContains refusal.Message description "the message names the runtime"
+                }
+
+            yield test "The runtime of these tests writes canonical numbers" {
+                CanonicalJson.checkRuntime Runtime.InteropServices.RuntimeInformation.FrameworkDescription Environment.Version
+            }
+        ]
+
         // The parent's compaction policy fixes its expected bytes in canonical JSON, worked out by hand.
         testList "Each policy case's expected bytes are canonical JSON" [
             for policyCase in MorphirFileMother.policyCases ->
