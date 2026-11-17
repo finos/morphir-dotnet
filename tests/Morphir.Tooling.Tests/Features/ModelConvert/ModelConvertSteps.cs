@@ -1,7 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using FluentAssertions;
 using Morphir.TestSupport;
 using Morphir.TestSupport.Drivers;
@@ -17,19 +16,6 @@ namespace Morphir.Tooling.Tests.Features.ModelConvert;
 [Binding]
 public sealed class ModelConvertSteps : IAsyncDisposable
 {
-    /// <summary>
-    /// The illustrative schema URL of the compaction envelope of the add-model-convert spec (model-name-compaction).
-    /// The command refuses any envelope for now, so the URL is not a contract here; the parent's pinned examples
-    /// replace this envelope when compacted files are read (add-model-convert 7.2).
-    /// </summary>
-    private const string EnvelopeSchema = "https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json";
-
-    /// <summary>An envelope schema URL that no version of morphir declares.</summary>
-    private const string UndeclaredSchema = "https://example.org/schemas/not-an-ir-context/document.schema.json";
-
-    /// <summary>The file of the acme/demo tree that the envelope scenarios wrap: a type of the dependency.</summary>
-    private const string EnvelopedTreeFile = "deps/morphir/sdk/@/basics/money.type.json";
-
     private readonly ModelConvertCommandDriver _driver = new();
     private string? _fileInTheWay;
     private string? _fileInTheWayBefore;
@@ -67,35 +53,40 @@ public sealed class ModelConvertSteps : IAsyncDisposable
         // The module file of billing lists the value total; without its file the tree is refused.
         PlaceTree([.. FixtureCatalog.Trees.AcmeDemo.Where(entry => !entry.RelativePath.EndsWith("/total.value.json", StringComparison.Ordinal))]);
 
-    [Given("a compacted single-file model")]
-    public void CompactedSingleFile() => PlaceEnvelope(EnvelopeSchema);
+    /// <summary>The parent's compacted single file of IR <paramref name="ir"/> (<see cref="FixtureCatalog.Context"/>).</summary>
+    [Given("a compacted v{int} single-file model")]
+    public void CompactedSingleFile(int ir) => PlaceFile(FixtureCatalog.Context.Example($"v{ir}-single-file").File);
 
+    /// <summary>The parent's type file whose envelope schema URL no version of morphir declares, as a single file.</summary>
     [Given("a single-file model in an envelope whose schema this version does not declare")]
-    public void SingleFileInAnUndeclaredEnvelope() => PlaceEnvelope(UndeclaredSchema);
+    public void SingleFileInAnUndeclaredEnvelope() => PlaceFile(FixtureCatalog.Context.Example("undeclared-schema").File);
 
     [Given("a single-file model that is not JSON")]
     public void SingleFileThatIsNotJson() => PlaceFile(FixtureCatalog.Models.Malformed);
 
-    [Given("a v4 document tree with a compacted type file")]
-    public void V4TreeWithACompactedTypeFile()
-    {
-        V4TreeWithVersionAndCreated();
-        WrapTreeFile(EnvelopedTreeFile, EnvelopeSchema);
-    }
+    [Given("a compacted v4 document tree")]
+    public void CompactedV4Tree() => PlaceTree(FixtureCatalog.Context.Tree(4, ContextTreeCompaction.EveryFile));
 
-    [Given("a v4 document tree with a compacted type file and a missing definition file")]
-    public void V4TreeWithACompactedTypeFileAndAMissingDefinitionFile()
-    {
-        V4TreeWithAMissingDefinitionFile();
-        WrapTreeFile(EnvelopedTreeFile, EnvelopeSchema);
-    }
+    /// <summary>The examples' v4 tree with a plain manifest, module file and type file, and a compacted value file.</summary>
+    [Given("a v4 document tree with only its value file compacted")]
+    public void V4TreeWithACompactedValueFile() => PlaceTree(FixtureCatalog.Context.Tree(4, ContextTreeCompaction.ValueFileOnly));
+
+    /// <summary>The same tree without the type file that its module file lists, which the store refuses.</summary>
+    [Given("a v4 document tree with only its value file compacted and no type file")]
+    public void V4TreeWithACompactedValueFileAndNoTypeFile() =>
+        PlaceTree(FixtureCatalog.Context.Tree(4, ContextTreeCompaction.ValueFileOnly)
+            .Without(FixtureCatalog.Context.TreeLocation("type"), "the v4 tree of the name-context examples with no type file"));
+
+    [Given("a v4 document tree whose type file references an alias that no table defines")]
+    public void V4TreeWithAnUnknownAlias() => PlaceTreeWithTypeFile("unknown-alias");
 
     [Given("a v4 document tree with a type file in an envelope whose schema this version does not declare")]
-    public void V4TreeWithATypeFileInAnUndeclaredEnvelope()
-    {
-        V4TreeWithVersionAndCreated();
-        WrapTreeFile(EnvelopedTreeFile, UndeclaredSchema);
-    }
+    public void V4TreeWithATypeFileInAnUndeclaredEnvelope() => PlaceTreeWithTypeFile("undeclared-schema");
+
+    /// <summary>The examples' plain v4 tree with its type file replaced by the parent's invalid example <paramref name="id"/>.</summary>
+    private void PlaceTreeWithTypeFile(string id) =>
+        PlaceTree(FixtureCatalog.Context.Tree(4, ContextTreeCompaction.NoFile)
+            .WithFile(FixtureCatalog.Context.TreeLocation("type"), FixtureCatalog.Context.Example(id).File, $"the v4 tree of the name-context examples with the type file {id}"));
 
     // --- The output ------------------------------------------------------------------------------------------------
 
@@ -225,7 +216,8 @@ public sealed class ModelConvertSteps : IAsyncDisposable
 
     private async Task Convert(ConversionOptions options)
     {
-        _output ??= DefaultOutput(options.Layout ?? DriverLayout.SingleFile);
+        // With no layout, the output has the layout of the input.
+        _output ??= DefaultOutput(options.Layout ?? (Directory.Exists(Input.Path) ? DriverLayout.DocumentTree : DriverLayout.SingleFile));
         _inputBefore = Snapshot(Input.Path);
         _result = await _driver.Conversion.ConvertAsync(Input, _output, options);
     }
@@ -349,10 +341,39 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     [Then("the report does not have the diagnostic {string}")]
     public void TheReportDoesNotHaveTheDiagnostic(string code) => Report.ShouldNotHaveDiagnostic(code);
 
-    [Then("the compacted file is named once")]
-    public void TheCompactedFileIsNamedOnce() =>
-        Report.Diagnostics.Where(diagnostic => diagnostic.Code == "model.unsupported_context").Select(diagnostic => diagnostic.Location)
-            .Should().Equal(ModelConvertPathsInTest.Join(Input.Path, EnvelopedTreeFile));
+    [Then("the report states the input encoding {string} and the output encoding {string}")]
+    public void TheReportStatesTheEncodings(string input, string output)
+    {
+        Report.InputEncoding.Should().Be(input);
+        Report.OutputEncoding.Should().Be(output);
+    }
+
+    /// <summary>The diagnostic with the code is at the type file of the input tree, and its message names the words.</summary>
+    [Then("the diagnostic {string} is at the type file and names {string}")]
+    public void TheDiagnosticIsAtTheTypeFile(string code, string words) =>
+        Report.Diagnostics.Should().ContainSingle(diagnostic => diagnostic.Code == code)
+            .Which.Should().Match<ReportDiagnostic>(diagnostic =>
+                diagnostic.Location == ModelConvertPathsInTest.Join(Input.Path, FixtureCatalog.Context.TreeLocation("type"))
+                && diagnostic.Message.Contains(words, StringComparison.Ordinal));
+
+    /// <summary>The written single file is a plain document: it has no top-level <c>$schema</c>.</summary>
+    [Then("the single file is plain")]
+    public void TheSingleFileIsPlain() => IsPlain(Output.Path);
+
+    /// <summary>Each file of the written tree is a plain document.</summary>
+    [Then("every file at the output is plain")]
+    public void EveryFileAtTheOutputIsPlain()
+    {
+        var files = Directory.EnumerateFiles(Output.Path, "*.json", SearchOption.AllDirectories).ToArray();
+        files.Should().NotBeEmpty();
+        foreach (var file in files) IsPlain(file);
+    }
+
+    private static void IsPlain(string file)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllBytes(file));
+        document.RootElement.TryGetProperty("$schema", out _).Should().BeFalse($"{file} is written plain");
+    }
 
     [Then("the report states no input encoding")]
     public void TheReportStatesNoInputEncoding() => Report.InputEncoding.Should().BeNull();
@@ -431,33 +452,9 @@ public sealed class ModelConvertSteps : IAsyncDisposable
         _input = tree;
     }
 
+    private void PlaceTree(FixtureTree tree) => _input = Workspace.WriteTree(tree, "models", "tree");
+
     private void Place(WorkspaceFile file) => _input = file;
-
-    /// <summary>Places V4DailyRate in a compaction envelope with <paramref name="schema"/> and an empty context.</summary>
-    private void PlaceEnvelope(string schema)
-    {
-        var file = Workspace.File("models", "compacted.json");
-        Workspace.WriteText(file, Envelope(schema, FixtureCatalog.ReadBytes(FixtureCatalog.Models.V4DailyRate)));
-        Place(file);
-    }
-
-    /// <summary>Wraps the tree file at <paramref name="path"/> of the input tree in an envelope with <paramref name="schema"/>.</summary>
-    private void WrapTreeFile(string path, string schema)
-    {
-        var file = Path.Combine(Input.Path, path);
-        File.WriteAllText(file, Envelope(schema, File.ReadAllBytes(file)));
-    }
-
-    /// <summary>
-    /// A compaction envelope of <paramref name="document"/> with <paramref name="schema"/> and an empty context, until
-    /// the parent's pinned examples replace it (add-model-convert 7.2).
-    /// </summary>
-    private static string Envelope(string schema, byte[] document) => new JsonObject
-    {
-        ["$schema"] = schema,
-        ["context"] = new JsonObject(),
-        ["document"] = JsonNode.Parse(document),
-    }.ToJsonString();
 
     private void RememberTheFileInTheWay(string path)
     {

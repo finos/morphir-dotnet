@@ -540,6 +540,7 @@ two steps have the same pattern.
 | Model verification | `When I verify the model as a JSON document with an option that it does not have` |
 | Model verification | `Then the verification report has the layout {string}` |
 | Model verification | `Then the verification report counts every file of the tree` |
+| Model verification | `Then the verification report lists every compacted file of the tree` |
 | Model verification | `Then an error of the verification report names the place of the fault` |
 | Model verification | `Then an error of the verification report has the code {string} and names the place of the fault` |
 | Model verification | `Then an error of the verification report has the code {string} and names the versions {int} and {int}` |
@@ -558,6 +559,10 @@ two steps have the same pattern.
 | Model | `Given a valid IR v{int} model in the file {string}` |
 | Model | `Given a valid IR v4 model with two modules` |
 | Model | `Given a v4 tree whose manifest has a version and a created date` |
+| Model | `Given the compacted v{int} single file of the name-context examples` |
+| Model | `Given the compacted v{int} single file of the name-context examples in the file {string}` |
+| Model | `Given the v{int} tree of the name-context examples, with {string} compacted` |
+| Model | `Given the v4 tree of the name-context examples, with {string} in its type file` |
 | Model conversion | `Given the tree of the kit case {string}` |
 | Model conversion | `Given the tree of the kit case {string} with the rejected document of the kit case {string} as its type file` |
 | Model conversion | `Given a tree with the file of the kit case {string}` |
@@ -568,10 +573,14 @@ two steps have the same pattern.
 | Model conversion | `When I convert the model without changing its layout or its encoding` |
 | Model conversion | `When I convert the written model to a single file` |
 | Model conversion | `When I convert the written model to a document tree` |
+| Model conversion | `When I convert the plain twin of the model to a single file` |
+| Model conversion | `When I convert the plain twin of the model to a document tree` |
 | Model conversion | `When I verify the written tree as JSON` |
 | Model conversion | `Then the conversion succeeds` |
 | Model conversion | `Then the conversion fails with the exit code {int} and the diagnostic {string}` |
 | Model conversion | `Then the conversion report states the layouts {string} and {string}` |
+| Model conversion | `Then the conversion report states the encodings {string} and {string}` |
+| Model conversion | `Then the conversion report states no input encoding` |
 | Model conversion | `Then the conversion report states the IR version {string}` |
 | Model conversion | `Then the diagnostic {string} names the input as {string}` |
 | Model conversion | `Then the diagnostic {string} names the place of the fault` |
@@ -585,6 +594,9 @@ two steps have the same pattern.
 | Model conversion | `Then the conversion report has a notice {string} that names {string}` |
 | Model conversion | `Then the written single file says the format version {int}` |
 | Model conversion | `Then every file of the written tree says the format version {string}` |
+| Model conversion | `Then the written single file is plain` |
+| Model conversion | `Then the last two written single files are the same` |
+| Model conversion | `Then the last two written trees are the same` |
 | Model conversion | `Then the written single file is the canonical spelling of the kit case` |
 | Model conversion | `Then the written tree has the files of the kit case` |
 | Model conversion | `Then the written tree has the file of the kit case in its canonical spelling` |

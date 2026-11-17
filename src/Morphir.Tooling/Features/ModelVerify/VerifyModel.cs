@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using FluentValidation;
+using Morphir.IR.Files;
 
 namespace Morphir.Tooling.Features.ModelVerify;
 
@@ -63,7 +64,10 @@ public record VerifyModelResult(
     [JsonPropertyName("filesChecked")]
     public int FilesChecked { get; init; }
 
-    /// <summary>The files that were compacted, as paths from the root of a tree. A plain model has none.</summary>
+    /// <summary>
+    /// The files that were compacted, each in an envelope of a declared schema: as paths from the root of a tree, or the
+    /// path of a single file as <see cref="VerifyModelResult.FilePath"/> gives it. A plain model has none.
+    /// </summary>
     [JsonPropertyName("compactedFiles")]
     public List<string> CompactedFiles { get; init; } = [];
 
@@ -107,7 +111,9 @@ internal partial class VerifyModelJsonContext : JsonSerializerContext;
 /// <summary>
 /// Verifies a model: a directory is a document tree (<see cref="TreeVerification"/>), and any other path a single
 /// file, checked against the schema of its IR version. A v4 single file is also decoded with
-/// <c>V4Json.readDistribution</c>, as a tree's documents are, and the decoder's error is an error of the report.
+/// <c>V4Json.readDistribution</c>, as a tree's documents are, and the decoder's error is an error of the report. A
+/// compacted single file is expanded first (<see cref="CompactedFiles"/>), and its plain document is checked; a
+/// refused envelope or context is an error with its <c>context.</c> code.
 /// </summary>
 public static class VerifyModelHandler
 {
@@ -121,8 +127,21 @@ public static class VerifyModelHandler
 
         try
         {
-            // 1. Load and parse JSON
+            // 1. Load the JSON; a compacted file is checked and expanded, and the rest checks its plain document.
             var jsonContent = await File.ReadAllTextAsync(command.FilePath, ct);
+            List<string> compactedFiles = [];
+            if (CompactedFiles.TopLevelSchema(jsonContent) is { } schema)
+            {
+                var expanded = CompactedFiles.Expand(command.FilePath, jsonContent);
+                if (MorphirFile.IsDeclared(schema)) compactedFiles.Add(command.FilePath);
+                if (expanded.Json is not { } plain)
+                {
+                    // A single file has no file of a tree: the report's FilePath names it.
+                    var refusals = expanded.Errors.Select(error => TreeVerification.ErrorOf(error) with { File = null });
+                    return NotValid(command, filesChecked: 1, [.. refusals]) with { CompactedFiles = compactedFiles };
+                }
+                jsonContent = plain;
+            }
 
             // 2. Detect or use specified version
             var version = GivenVersion(command) ?? VersionDetector.DetectVersion(jsonContent);
@@ -150,6 +169,7 @@ public static class VerifyModelHandler
             {
                 Layout = ModelLayouts.SingleFile,
                 FilesChecked = 1,
+                CompactedFiles = compactedFiles,
             };
         }
         catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
@@ -177,14 +197,14 @@ public static class VerifyModelHandler
 
     private static string DetectionMethod(VerifyModel command) => command.SchemaVersion.HasValue ? "manual" : "auto";
 
-    /// <summary>The result of a single file that is not there or is not JSON.</summary>
-    private static VerifyModelResult NotValid(VerifyModel command, int filesChecked, ValidationError error) =>
+    /// <summary>The result of a single file that is not there, is not JSON, or whose envelope or context is refused.</summary>
+    private static VerifyModelResult NotValid(VerifyModel command, int filesChecked, params List<ValidationError> errors) =>
         new(
             IsValid: false,
             SchemaVersion: GivenVersion(command) ?? "unknown",
             DetectionMethod: DetectionMethod(command),
             FilePath: command.FilePath,
-            Errors: [error],
+            Errors: errors,
             Timestamp: DateTime.UtcNow)
         {
             Layout = ModelLayouts.SingleFile,

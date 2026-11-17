@@ -148,6 +148,29 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    [Arguments(3)]
+    [Arguments(4)]
+    public void TheContextExamplesOfOneIrVersionAreTheFilesOfOneTree(int ir)
+    {
+        Func<FixtureTreeFile, bool> IsEnvelope = file =>
+            JsonNode.Parse(FixtureCatalog.ReadText(file.Entry))!.AsObject().ContainsKey("$schema");
+
+        var every = FixtureCatalog.Context.Tree(ir, ContextTreeCompaction.EveryFile);
+        every.Files.Select(file => file.Location).Should().Equal(
+            "manifest.json",
+            "pkg/my-org/billing/invoicing/invoice-line.type.json",
+            "pkg/my-org/billing/invoicing/line-total.value.json",
+            "pkg/my-org/billing/invoicing/module.json");
+        every.Files.All(IsEnvelope).Should().BeTrue("every file is compacted");
+        string[] kinds = ["manifest", "type", "value", "module"];
+        every.Files.Select(file => file.Entry).Should().Equal(kinds.Select(kind => FixtureCatalog.Context.Example($"v{ir}-{kind}").File));
+
+        FixtureCatalog.Context.Tree(ir, ContextTreeCompaction.NoFile).Files.Any(IsEnvelope).Should().BeFalse("no file is compacted");
+        FixtureCatalog.Context.Tree(ir, ContextTreeCompaction.ValueFileOnly).Files.Where(IsEnvelope).Select(file => file.Location)
+            .Should().Equal(FixtureCatalog.Context.TreeLocation("value"));
+    }
+
+    [Test]
     public void TheCompactionPolicyCasesOfTheParentAreRead()
     {
         FixtureCatalog.Context.Policy.Name.Should().Be("morphir.compact/0.1.0-draft.1");

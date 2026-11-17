@@ -9,7 +9,8 @@ description: "Store a Morphir model as a single file or as a document tree, keep
 
 Change how a Morphir model is stored without changing the model. A model is stored as a single IR JSON file or as a
 document tree: a directory with a manifest and one file for each module, type and value. `model convert` reads either
-layout and writes the other. The IR version stays the same: a v3 model stays v3, and a v4 model stays v4.
+layout and writes the other. It also reads compacted files and writes them plain (see [Encodings](#encodings)). The IR
+version stays the same: a v3 model stays v3, and a v4 model stays v4.
 
 `model convert` is a command of the `model` group, beside [`model verify`](model-verify.md).
 
@@ -54,7 +55,7 @@ morphir model verify tree
 | `-i`, `--input <path>` | The model to convert: a single-file model, or the directory of a document tree. Required. |
 | `-o`, `--output <path>` | Where to write the converted model. Required. It must not exist. A tree can also go to an empty directory. A missing parent directory is created. |
 | `--layout=<layout>` | The layout of the output: `document-tree` or `single-file`. The default is the layout of the input. The form `--layout <layout>`, with a space, is accepted too. |
-| `--compact[=<mode>]` | Write compacted files. Writing compacted files is not implemented yet: the run is refused (see [Compaction](#compaction)). |
+| `--compact[=<mode>]` | Write compacted files. Writing compacted files is not implemented yet: the run is refused (see [Compaction](#compaction)). A compacted input is read without it. |
 | `--json[=stream\|document]` | Write the report as JSON: a stream of events that ends with the report (`--json`), or the report alone (`--json=document`). See [JSON output](#json-output). |
 
 Give the values of `--compact` and `--json` only after `=` (see [Machine output](_index.md#machine-output)). A bare `--compact` or `--json` never takes the next argument.
@@ -92,12 +93,59 @@ refused with `model.unsupported_version`.
 
 ## Encodings
 
-A file is plain, or compacted with a name-compaction envelope (a top-level `$schema` member). This version reads and
-writes only plain files:
+A file is plain, or compacted: wrapped in a name-compaction envelope of finos/morphir's `ir/name-compaction`
+contract. The envelope's top-level `$schema` names its version, its `context` holds tables of names, paths and fully
+qualified names, and its `document` is the Morphir document, in which a `{"$name": "<id>"}` stands for an entry of a
+table. This version reads the envelope
+`https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json`.
 
-- A compacted input is refused with `model.unsupported_context`, and the report states `inputEncoding: "compacted"`.
-- A file whose `$schema` is not a compaction envelope that this version knows is refused with
-  `context.undeclared_schema`.
+`model convert` reads compacted files and expands them: each reference is replaced by its entry at the positions
+where the IR has a name, a path or a fully qualified name, and nowhere else, so a string that only looks like a
+reference stays as written. A v3 document stays v3, with its names as classic word arrays, and a v4 document has them
+as canonical strings. The output is plain. Writing compacted files is not implemented yet (see
+[Compaction](#compaction)).
+
+- A single file is compacted when it is in an envelope. A tree is compacted when any of its files is: the manifest, a
+  module file, or a type or value file. The report states `inputEncoding: "compacted"`, and `"plain"` otherwise.
+- Because the output is plain, a compacted input with no `--layout` is written as plain files in its own layout. It
+  is not [nothing to do](#nothing-to-do).
+- A file whose `$schema` is not an envelope that this version knows is refused with `context.undeclared_schema`. The
+  report then states no `inputEncoding`.
+- A context that breaks a rule of the contract is refused with the code of the rule, and the diagnostic names the
+  file (see [Context refusals](#context-refusals)). Nothing is written.
+
+Here `compacted.json` is a compacted IR v4 single file. Write it as a plain single file:
+
+```bash
+$ morphir model convert --input compacted.json --output plain.json --layout=single-file
+plain.json
+```
+
+Its summary on stderr is `model convert: wrote 1 file(s) to plain.json: IR 4, single-file to single-file, plain; 0
+notice(s)`. Here `model` is a compacted v4 tree, each file of which is in an envelope. Join it into a plain single
+file:
+
+```bash
+$ morphir model convert --input model --output billing.json --layout=single-file --json=document
+{
+  "success": true,
+  "exitCode": 0,
+  "input": "model",
+  "output": "billing.json",
+  "inputLayout": "document-tree",
+  "outputLayout": "single-file",
+  "inputEncoding": "compacted",
+  "outputEncoding": "plain",
+  "irVersion": "4",
+  "filesWritten": [
+    "billing.json"
+  ],
+  "diagnostics": [],
+  "notices": []
+}
+```
+
+[`model verify`](model-verify.md#compacted-files) checks a compacted model after the same expansion.
 
 ## Compaction
 
@@ -111,9 +159,9 @@ refused with `tree.unsupported_option` (exit code 1). Nothing is written. The re
 
 ## Nothing to do
 
-A run that changes neither the layout nor the encoding fails with exit code 2 and `model.nothing_to_do`. The message
-names the input's layout and encoding. The command reads only the top level of the input (of a tree, its manifest)
-and writes nothing:
+A run that changes neither the layout nor the encoding fails with exit code 2 and `model.nothing_to_do`: a plain input
+with no `--layout` and no `--compact`. The message names the input's layout and encoding. The command reads only the
+top level of the input (of a tree, the top level of each tree file, to find an envelope) and writes nothing:
 
 ```bash
 $ morphir model convert --input morphir-ir.json --output other.json --json=document
@@ -151,7 +199,7 @@ refused or failed run leaves nothing at `--output`, and a file that was already 
 | Code | Meaning |
 | --- | --- |
 | 0 | The model was converted, and every file was written. |
-| 1 | The conversion was refused or failed. The input is missing or not a valid model or tree, the output is in the way, the input or the output is compacted, or a file could not be read or written. |
+| 1 | The conversion was refused or failed. The input is missing or not a valid model or tree, the envelope or the context of a compacted file is refused, the output is in the way, `--compact` asks for compacted output, or a file could not be read or written. |
 | 2 | A usage error: arguments that do not parse, a bad `--layout` or `--compact` value, an `--input` or `--output` that is not a valid path, or nothing to do. |
 | 130 | The run was cancelled, for example with Ctrl+C. The report is still written. |
 
@@ -170,8 +218,9 @@ and in the `diagnostics` events.
 | `model.output_not_empty` | 1 | `--output` exists and is not an empty directory for a tree: an existing file, a directory with an entry, or any directory when a single file is written. |
 | `model.output_overlaps_input` | 1 | `--output` is the input, is inside it, or holds it. |
 | `model.unsupported_version` | 1 | The input is IR v1 or v2, which has no document tree. |
-| `model.unsupported_context` | 1 | The input is compacted, which this version does not read yet. |
 | `context.undeclared_schema` | 1 | A file has a top-level `$schema` that this version does not know as a compaction envelope. |
+| `context.unknown_alias`, `context.duplicate_entry`, `context.unknown_critical`, `context.too_many_entries`, `context.name_too_long`, `context.after_document`, `context.invalid_envelope`, `context.invalid_entry` | 1 | A compacted file breaks a rule of its envelope or its context; see [Context refusals](#context-refusals). |
+| `depth_limit_exceeded` | 1 | The document of a compacted file is nested too deeply once its references are expanded. |
 | `tree.unsupported_option` | 1 | `--compact` was given, and this version does not write compacted files yet. |
 | `invalid_json` | 1 | A file of the input is not JSON. |
 | `model.read_failed`, `model.write_failed` | 1 | The disk refused a read or a write. |
@@ -183,6 +232,25 @@ that has no file), `version_mismatch` (a v3 tree file that does not say `"3.1.0"
 `tree.ambiguous_profile` (both `manifest.json` and `manifest.yaml`), `tree.unsupported_profile` (a YAML file: this
 version reads the JSON profile only), `tree.over_budget`, `tree.outside_tree` and `tree.versioned_dependency`. A
 refused read lists every error that it finds.
+
+### Context refusals
+
+A compacted file is refused, with the file as the location of the diagnostic, when its envelope or its context breaks
+a rule of `ir/name-compaction`. The codes are the contract's:
+
+| Code | The file |
+| --- | --- |
+| `context.undeclared_schema` | Has a `$schema` that this version does not declare. The message names the URL. |
+| `context.unknown_alias` | Has a `{"$name": "<id>"}` whose id no table of its position defines. The message names the id. |
+| `context.duplicate_entry` | Has a member twice in a table, in the context or in the envelope. |
+| `context.unknown_critical` | Marks a member path `critical` that this version does not recognize. |
+| `context.too_many_entries` | Has a table with more than 16,384 entries. |
+| `context.name_too_long` | Has an entry longer than 1,024 UTF-8 bytes. |
+| `context.after_document` | Has its `document` member before its `context` member: the context must come first. |
+| `context.invalid_envelope` | Has no `context` or `document` object, or a `critical` that is not a list of strings. |
+| `context.invalid_entry` | Has an id that is not ASCII letters and digits starting with a letter, an entry that is not the canonical spelling of its table's kind, or an entry that a classic v3 slot cannot hold. |
+
+The bytes of the context count toward the size limit of a file, as they are part of it.
 
 Notices have the severity `info` and do not fail the run:
 

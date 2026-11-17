@@ -44,8 +44,9 @@ public interface IModelConversionStore
 {
     /// <summary>
     /// Whether the input has a top-level <c>$schema</c> member, the mark of a compaction envelope, declared or not: in
-    /// the file itself, or in a tree's <c>manifest.json</c>. It decodes nothing, so the command can tell that a plain
-    /// input has nothing to do without reading the model. An input that cannot be read, or is not JSON, has none.
+    /// the file itself, or in any tree file of a tree (its manifest, a module file, or a type or value file). It decodes
+    /// nothing, so the command can tell that a plain input has nothing to do without reading the model. An input that
+    /// cannot be read, or is not JSON, has none.
     /// </summary>
     ValueTask<bool> HasEnvelopeAsync(ModelSource source, CancellationToken ct);
 
@@ -63,12 +64,11 @@ public interface IModelConversionStore
 /// a refused or failed write leaves nothing at the output.
 /// </summary>
 /// <remarks>
-/// A file whose top level has a <c>$schema</c> member is in a compaction envelope (<c>ir/name-compaction</c>). An
-/// envelope of a declared schema is a compacted input, refused with <c>model.unsupported_context</c> until
-/// <c>convert</c> expands compacted files (add-model-convert 7.5); any other <c>$schema</c> is refused with
-/// <c>context.undeclared_schema</c>, and the input is not called compacted. The tree store already expands a compacted
-/// tree file, so a tree's compacted files are found before the store reads it, and a tree that has one is refused
-/// whether or not the store reads it.
+/// A file whose top level has a <c>$schema</c> member is in a compaction envelope (<c>ir/name-compaction</c>). A single
+/// file in an envelope is read with <see cref="MorphirFile"/>, which checks the envelope and its context and expands the
+/// document; the tree store expands the files of a tree. A refusal of an envelope or of a context keeps the reader's
+/// <c>context.</c> code, such as <c>context.undeclared_schema</c> for a schema that this version does not declare, in
+/// which case the input is not called compacted.
 /// </remarks>
 public sealed class DiskModelConversionStore : IModelConversionStore
 {
@@ -79,18 +79,17 @@ public sealed class DiskModelConversionStore : IModelConversionStore
 
     private const string TreeManifest = "manifest.json";
 
-    /// <summary>
-    /// The envelope schema URLs that this version declares: those of the model store's reader of Morphir files
-    /// (<c>ir-context</c> 0.1.0-draft.1 of the parent's <c>ir/name-compaction</c>).
-    /// </summary>
-    private static readonly string[] DeclaredSchemas = [.. MorphirFile.declaredSchemas.Select(url => url.OriginalString)];
-
     /// <inheritdoc />
     public ValueTask<bool> HasEnvelopeAsync(ModelSource source, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        var file = source.Layout == ModelLayout.DocumentTree ? Path.Combine(source.FullPath, TreeManifest) : source.FullPath;
-        return ValueTask.FromResult(TopLevelSchemaOf(file) is not null);
+        if (source.Layout != ModelLayout.DocumentTree) return ValueTask.FromResult(TopLevelSchemaOf(source.FullPath) is not null);
+        foreach (var file in TreeFilesOf(source.FullPath))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (TopLevelSchemaOf(file) is not null) return ValueTask.FromResult(true);
+        }
+        return ValueTask.FromResult(false);
     }
 
     /// <summary>
@@ -178,56 +177,71 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         using (document)
         {
             var root = document.RootElement;
-            if (Envelope(root) is { } schema)
-                return IsDeclared(schema)
-                    ? ModelRead.Refused(ModelConvertNames.Compacted, Compacted(source.Given, schema))
-                    : ModelRead.Refused(null, Undeclared(source.Given, schema));
-            return StoredModel.TryReadSingleFile(root, out var model, out var problems)
-                ? new ModelRead(model, ModelConvertNames.Plain, [], [])
-                : ModelRead.Refused(ModelConvertNames.Plain, [.. problems.Select(problem => ConvertDiagnostic.Of(problem, source.Given))]);
+            return Envelope(root) is { } schema
+                ? ReadCompactedSingleFile(source, bytes, schema)
+                : ReadPlainSingleFile(source, root, ModelConvertNames.Plain);
         }
     }
 
+    /// <summary>
+    /// Reads a single file in an envelope through <see cref="MorphirFile"/>: the envelope and its context are checked
+    /// and the document is expanded, so the model is read from the plain document. A refusal of the envelope or of its
+    /// context keeps its <c>context.</c> code. The input is compacted when its schema is declared, and its encoding is
+    /// not stated otherwise.
+    /// </summary>
+    private static ModelRead ReadCompactedSingleFile(ModelSource source, byte[] bytes, string schema)
+    {
+        var encoding = MorphirFile.IsDeclared(schema) ? ModelConvertNames.Compacted : null;
+        var expanded = MorphirFile.ReadPlainDocument(ContextLimitsModule.draft1, source.Given, bytes);
+        return expanded.IsOk
+            ? ReadPlainSingleFile(source, expanded.ResultValue, encoding)
+            : ModelRead.Refused(encoding, [.. expanded.ErrorValue.Select(error => ConvertDiagnostic.Failure(error.Code, error.Message, source.Given))]);
+    }
+
+    private static ModelRead ReadPlainSingleFile(ModelSource source, JsonElement root, string? encoding) =>
+        StoredModel.TryReadSingleFile(root, out var model, out var problems)
+            ? new ModelRead(model, encoding, [], [])
+            : ModelRead.Refused(encoding, [.. problems.Select(problem => ConvertDiagnostic.Of(problem, source.Given))]);
+
+    /// <summary>
+    /// Reads a tree through the document-tree store, which expands each compacted tree file and lists it in the read's
+    /// report. The input is compacted when any of its files is. A refused read lists no compacted file, so its encoding
+    /// comes from the envelopes of the tree files: compacted when one is in a declared envelope, not stated when the only
+    /// envelopes are undeclared, and plain otherwise.
+    /// </summary>
     private static ModelRead ReadTree(ModelSource source)
     {
         var loaded = VFileTreeModule.loadFromDisk(source.FullPath);
         if (loaded.IsError)
             return ModelRead.Refused(null, ConvertDiagnostic.Failure(ModelConvertCodes.ReadFailed, "The directory cannot be read: " + TreeLoadErrorModule.describe(loaded.ErrorValue) + ".", source.Given));
-        var files = loaded.ResultValue;
-        var compactedFiles = CompactedTreeFiles(source.FullPath);
-        if (StoredModel.TryOfTreeRead(DocumentTreeStore.Read(ReadOptionsModule.defaults, files), out var model, out var notices, out var problems))
-            return compactedFiles.Count == 0
-                ? new ModelRead(model, ModelConvertNames.Plain, [], [.. notices.Select(notice => ConvertDiagnostic.Of(notice, source.Given))])
-                : RefusedTree(source, [], compactedFiles);
-        return RefusedTree(source, problems, compactedFiles);
+        var read = DocumentTreeStore.Read(ReadOptionsModule.defaults, loaded.ResultValue);
+        if (StoredModel.TryOfTreeRead(read, out var model, out var notices, out var compactedFiles, out var problems))
+            return new ModelRead(model, compactedFiles.Count > 0 ? ModelConvertNames.Compacted : ModelConvertNames.Plain, [],
+                [.. notices.Select(notice => ConvertDiagnostic.Of(notice, source.Given))]);
+        var schemas = TreeFilesOf(source.FullPath).Select(TopLevelSchemaOf).OfType<string>().ToArray();
+        var encoding = schemas.Any(MorphirFile.IsDeclared) ? ModelConvertNames.Compacted : schemas.Length > 0 ? null : ModelConvertNames.Plain;
+        return ModelRead.Refused(encoding, [.. problems.Select(problem => ConvertDiagnostic.Of(problem, source.Given))]);
     }
 
     /// <summary>
-    /// The tree files below <paramref name="root"/> in an envelope of a declared schema, each as its path from the root
-    /// with <c>/</c> and its schema, in ordinal order of the path. A tree file is the manifest, a module file or a type
-    /// or value file. The tree store expands such a file; this version of <c>convert</c> refuses it.
+    /// The full path of each tree file below <paramref name="root"/>, in the ordinal order of its path from the root: the
+    /// manifest, each module file and each type or value file. A directory that cannot be listed has none; the store
+    /// reports it.
     /// </summary>
-    private static IReadOnlyList<(string File, string Schema)> CompactedTreeFiles(string root)
+    private static IReadOnlyList<string> TreeFilesOf(string root)
     {
-        IEnumerable<string> candidates;
         try
         {
-            candidates = [.. Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories)];
+            return [.. Directory.EnumerateFiles(root, "*.json", SearchOption.AllDirectories)
+                .Select(path => (Path: path, File: Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/')))
+                .Where(file => IsTreeFileName(file.File))
+                .OrderBy(file => file.File, StringComparer.Ordinal)
+                .Select(file => file.Path)];
         }
         catch (Exception error) when (IsFileSystemFailure(error))
         {
-            // The store reports a tree that cannot be read.
             return [];
         }
-        var found = new List<(string File, string Schema)>();
-        foreach (var path in candidates)
-        {
-            var file = Path.GetRelativePath(root, path).Replace(Path.DirectorySeparatorChar, '/');
-            if (!IsTreeFileName(file)) continue;
-            if (TopLevelSchemaOf(path) is { } schema && IsDeclared(schema)) found.Add((file, schema));
-        }
-        found.Sort((left, right) => string.CompareOrdinal(left.File, right.File));
-        return found;
     }
 
     /// <summary>Whether the file at <paramref name="file"/> (a path from a tree's root) is a file of the tree.</summary>
@@ -237,85 +251,6 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         return file == TreeManifest || name == "module.json"
             || name.EndsWith(".type.json", StringComparison.Ordinal) || name.EndsWith(".value.json", StringComparison.Ordinal);
     }
-
-    /// <summary>
-    /// The refusal of a tree. Each file of <paramref name="compactedFiles"/> is reported once, as compacted. For each
-    /// other file that the store's errors name and that is in an envelope, the envelope is the reason to report, once
-    /// for the file. The errors that name no enveloped file are kept. The input is compacted when a file is in a
-    /// declared envelope, and its encoding is not stated when the only envelopes are undeclared.
-    /// </summary>
-    private static ModelRead RefusedTree(
-        ModelSource source, IReadOnlyList<ConversionProblem> problems, IReadOnlyList<(string File, string Schema)> compactedFiles)
-    {
-        var envelopes = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var reported = new HashSet<string>(StringComparer.Ordinal);
-        var diagnostics = new List<ConvertDiagnostic>();
-        var compacted = compactedFiles.Count > 0;
-        var undeclared = false;
-        foreach (var (file, schema) in compactedFiles)
-        {
-            envelopes[file] = schema;
-            reported.Add(file);
-            diagnostics.Add(Compacted(ModelConvertPaths.Join(source.Given, file), schema));
-        }
-        foreach (var problem in problems)
-        {
-            if (problem.File is { } file && EnvelopeOfTreeFile(source.FullPath, file, envelopes) is { } schema)
-            {
-                if (!reported.Add(file)) continue;
-                var location = ModelConvertPaths.Join(source.Given, file);
-                if (IsDeclared(schema))
-                {
-                    compacted = true;
-                    diagnostics.Add(Compacted(location, schema));
-                }
-                else
-                {
-                    undeclared = true;
-                    diagnostics.Add(Undeclared(location, schema));
-                }
-                continue;
-            }
-            diagnostics.Add(ConvertDiagnostic.Of(problem, source.Given));
-        }
-        var encoding = compacted ? ModelConvertNames.Compacted : undeclared ? null : ModelConvertNames.Plain;
-        return new ModelRead(null, encoding, diagnostics, []);
-    }
-
-    /// <summary>
-    /// The <c>$schema</c> of the envelope of the tree file at <paramref name="file"/> (a path from
-    /// <paramref name="root"/>), or null when it has none or cannot be read. Each file is read once.
-    /// </summary>
-    private static string? EnvelopeOfTreeFile(string root, string file, Dictionary<string, string?> envelopes)
-    {
-        if (envelopes.TryGetValue(file, out var known)) return known;
-        string? schema = null;
-        try
-        {
-            var path = Path.GetFullPath(Path.Combine(root, file));
-            if (path.StartsWith(Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar, StringComparison.Ordinal) && File.Exists(path))
-            {
-                using var document = JsonDocument.Parse(File.ReadAllBytes(path), new JsonDocumentOptions { MaxDepth = MaxDepth });
-                schema = Envelope(document.RootElement);
-            }
-        }
-        catch (Exception error) when (IsFileSystemFailure(error) || error is JsonException)
-        {
-            // The store has already reported this file.
-        }
-        envelopes[file] = schema;
-        return schema;
-    }
-
-    private static bool IsDeclared(string schema) => DeclaredSchemas.Contains(schema, StringComparer.Ordinal);
-
-    private static ConvertDiagnostic Compacted(string location, string schema) =>
-        ConvertDiagnostic.Failure(ModelConvertCodes.UnsupportedContext,
-            $"The file is compacted (its $schema is '{schema}'). This version of morphir does not read compacted files yet.", location);
-
-    private static ConvertDiagnostic Undeclared(string location, string schema) =>
-        ConvertDiagnostic.Failure(ModelConvertCodes.UndeclaredSchema,
-            $"The file has a top-level $schema '{schema}', which this version of morphir does not declare as a compaction envelope.", location);
 
     /// <summary>
     /// The <c>$schema</c> of an envelope at the top of <paramref name="root"/>, or null. A <c>$schema</c> that is not

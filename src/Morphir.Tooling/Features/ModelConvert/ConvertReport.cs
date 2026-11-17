@@ -100,15 +100,6 @@ public static class ModelConvertCodes
     /// <summary><c>--output</c> is the input, is inside it, or holds it.</summary>
     public const string OutputOverlapsInput = "model.output_overlaps_input";
 
-    /// <summary>The input is compacted, which this version does not read yet.</summary>
-    public const string UnsupportedContext = "model.unsupported_context";
-
-    /// <summary>
-    /// A file has a top-level <c>$schema</c> that this version does not declare as a compaction envelope; the code of
-    /// <c>ir/name-compaction</c>'s "Refuse an undeclared envelope". The file is refused, and not called compacted.
-    /// </summary>
-    public const string UndeclaredSchema = "context.undeclared_schema";
-
     /// <summary>A file of the output could not be written.</summary>
     public const string WriteFailed = "model.write_failed";
 

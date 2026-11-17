@@ -54,6 +54,15 @@ module MorphirFile =
     /// <summary>The envelope schema URLs that this reader declares.</summary>
     let declaredSchemas: Uri list = [ Uri Draft1Schema ]
 
+    /// <summary>
+    /// Whether <paramref name="schema"/>, the text of an envelope's <c>$schema</c>, is a URL that this reader declares,
+    /// compared ordinally. C# calls this <c>IsDeclared</c>.
+    /// </summary>
+    [<CompiledName("IsDeclared")>]
+    let isDeclared (schema: string) =
+        declaredSchemas
+        |> List.exists (fun url -> String.Equals(url.OriginalString, schema, StringComparison.Ordinal))
+
     let private error code file message : StoreError = StoreErrors.error code (Some file) message
 
     /// <summary>
@@ -83,6 +92,13 @@ module MorphirFile =
             )
 
         if isClassic then IrFamily.Classic3 else IrFamily.V4
+
+    /// <summary>
+    /// Whether a document is classic v3 by its <c>formatVersion</c>, as <see cref="familyOf"/> decides it: a tree's
+    /// manifest that is classic makes a v3 tree. C# calls this <c>IsClassic</c>.
+    /// </summary>
+    [<CompiledName("IsClassic")>]
+    let isClassic (document: JsonElement) : bool = familyOf document = IrFamily.Classic3
 
     /// The bytes after a UTF-8 byte order mark.
     let private withoutByteOrderMark (bytes: ReadOnlyMemory<byte>) =
@@ -217,3 +233,17 @@ module MorphirFile =
         match morphirFile.Context with
         | None -> Ok morphirFile.Document
         | Some context -> ContextExpansion.expand family file context morphirFile.Document
+
+    /// <summary>
+    /// The plain document of a Morphir file's bytes: <see cref="readEnvelope"/>, then <see cref="expand"/> in the IR
+    /// family of the enclosed document (<see cref="familyOf"/>). Diagnostics name <paramref name="file"/>. C# calls
+    /// this <c>ReadPlainDocument</c>.
+    /// </summary>
+    [<CompiledName("ReadPlainDocument")>]
+    let readPlainDocument
+        (limits: ContextLimits)
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        : Result<JsonElement, StoreError list> =
+        readEnvelope limits file bytes
+        |> Result.bind (fun morphirFile -> expand (familyOf morphirFile.Document) file morphirFile)

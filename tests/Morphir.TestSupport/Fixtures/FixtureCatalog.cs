@@ -440,6 +440,46 @@ public static class FixtureCatalog
         public static ContextExample Example(string id) =>
             Examples.FirstOrDefault(example => example.Id == id)
             ?? throw new KeyNotFoundException($"The pinned context examples have no case '{id}'. They are {string.Join(", ", Examples.Select(example => example.Id))}.");
+
+        /// <summary>
+        /// The location in a tree of each tree-file kind of the examples. The examples share one model, package
+        /// <c>my-org/billing</c> with module <c>invoicing</c>, the type <c>invoice-line</c> and the value
+        /// <c>line-total</c>, so their tree-file examples of one IR version are the files of one tree.
+        /// </summary>
+        public static IReadOnlyList<(string Kind, string Location)> TreeLocations { get; } =
+        [
+            ("manifest", "manifest.json"),
+            ("module", "pkg/my-org/billing/invoicing/module.json"),
+            ("type", "pkg/my-org/billing/invoicing/invoice-line.type.json"),
+            ("value", "pkg/my-org/billing/invoicing/line-total.value.json"),
+        ];
+
+        /// <summary>The location in the examples' tree of the file of <paramref name="kind"/>, such as <c>type</c>.</summary>
+        public static string TreeLocation(string kind) =>
+            TreeLocations.FirstOrDefault(entry => entry.Kind == kind).Location
+            ?? throw new KeyNotFoundException($"The examples' tree has no file of the kind '{kind}'.");
+
+        /// <summary>
+        /// The examples' model as a document tree of IR <paramref name="ir"/> (3 or 4): at each location the example of
+        /// its kind (<c>v4-type</c>, ...) when <paramref name="compacted"/> compacts that kind, or else the example's
+        /// plain twin.
+        /// </summary>
+        public static FixtureTree Tree(int ir, ContextTreeCompaction compacted)
+        {
+            if (ir is not (3 or 4)) throw new ArgumentOutOfRangeException(nameof(ir), ir, "The examples have trees of the IR versions 3 and 4.");
+            return FixtureTree.Of($"the v{ir} tree of the name-context examples, {compacted}", TreeLocations.Select(entry =>
+            {
+                var example = Example($"v{ir}-{entry.Kind}");
+                var isCompacted = compacted switch
+                {
+                    ContextTreeCompaction.NoFile => false,
+                    ContextTreeCompaction.ValueFileOnly => entry.Kind == "value",
+                    ContextTreeCompaction.EveryFile => true,
+                    _ => throw new ArgumentOutOfRangeException(nameof(compacted), compacted, null),
+                };
+                return new FixtureTreeFile(entry.Location, isCompacted ? example.File : example.Expanded!);
+            }));
+        }
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>

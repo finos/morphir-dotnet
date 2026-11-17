@@ -8,7 +8,8 @@ description: "Validate a Morphir model, a single file or a document tree, agains
 # morphir model verify
 
 Validate a Morphir model against the official JSON schemas of IR format versions 1, 2, 3 and 4. The model is a
-single IR JSON file, or a document tree: a directory with a manifest and a file for each module, type and value.
+single IR JSON file, or a document tree: a directory with a manifest and a file for each module, type and value. A
+file can be plain or compacted; a compacted file is checked once it is expanded (see [Compacted files](#compacted-files)).
 
 `model verify` is a command of the `model` group, which holds the commands that act on a Morphir model: the IR
 together with its decorators, metadata and later additions. It replaces `morphir ir verify`. The `ir` group was
@@ -122,7 +123,7 @@ Write the result as JSON instead of text, by the convention of [Machine output](
 | `exitCode` | The exit code of the run |
 | `layout` | `single-file` or `document-tree`; absent when the command line does not parse |
 | `filesChecked` | The number of files checked: 1 for a single file, each JSON or YAML file of a tree (a YAML file counts, and the store refuses it with `tree.unsupported_profile`), and 0 when none was read |
-| `compactedFiles` | The files that were compacted; empty for a plain model |
+| `compactedFiles` | The files that were compacted: the path of a single file, as `FilePath` gives it, or each compacted file of a tree, by its path from the root of the tree. Empty for a plain model. See [Compacted files](#compacted-files) |
 
 Each error has `Path`, the JSON location of the error in its file as a JSON Pointer (`""` is the whole file, and
 `$` an input that was not read), `Message`, and `Expected` and `Found` when the schema states them. An error in a
@@ -276,12 +277,62 @@ code 2 and one error, `verify.schema_version_conflict`, that names both versions
   Found: 3
 ```
 
+## Compacted files
+
+A compacted file is wrapped in a name-compaction envelope of finos/morphir's `ir/name-compaction` contract: its
+top-level `$schema` names the envelope's version, its `context` holds tables of names, and its `document` is the
+Morphir document, in which a `{"$name": "<id>"}` stands for an entry of a table. `model verify` reads compacted single
+files and compacted tree files, as [`morphir model convert`](model-convert.md#encodings) does:
+
+1. It applies the context refusals of the contract. An envelope or a context that breaks a rule is an error with the
+   rule's code, such as `context.unknown_alias` for a reference whose id no table defines, and the model is not valid
+   (exit code 1). The codes are listed in [Context refusals](model-convert.md#context-refusals).
+2. It expands the document, and checks the expanded document as it checks a plain one: against the schema of its IR
+   version, and for a tree, against the schema of each file's kind and the rules of the tree.
+
+A file is compacted when its envelope's schema is one that this version declares. The report lists the compacted
+files in `compactedFiles`: the file itself for a single file, and each compacted file of a tree by its path from the
+root. A tree can have plain and compacted files; its version comes from the document of its manifest.
+
+The result of a v4 tree each file of which is compacted, with the tree in the directory `model/`:
+
+```bash
+$ morphir model verify model/ --json=document
+{
+  "IsValid": true,
+  "SchemaVersion": "4",
+  "DetectionMethod": "manifest",
+  "FilePath": "/work/model/",
+  "Errors": [],
+  "Timestamp": "2025-12-15T10:30:00Z",
+  "exitCode": 0,
+  "layout": "document-tree",
+  "filesChecked": 4,
+  "compactedFiles": [
+    "manifest.json",
+    "pkg/my-org/billing/invoicing/invoice-line.type.json",
+    "pkg/my-org/billing/invoicing/line-total.value.json",
+    "pkg/my-org/billing/invoicing/module.json"
+  ]
+}
+```
+
+An error of a context names its file and has the rule's code. Its message names what is wrong, such as the id of an
+unknown alias:
+
+```text
+  File: pkg/my-org/billing/invoicing/invoice-line.type.json
+  Code: context.unknown_alias
+  Path:
+  Message: The reference to 'zz' is at a position of context.fqNames, which does not define 'zz'.
+```
+
 ## Exit codes
 
 | Code | Meaning | Description |
 |------|---------|-------------|
 | `0` | Valid | The model is valid against the schema |
-| `1` | Not valid | The model failed validation, the file is not there, the file is not JSON, or a directory is not a readable tree, for example it has no `manifest.json` |
+| `1` | Not valid | The model failed validation, the file is not there, the file is not JSON, the envelope or the context of a compacted file is refused, or a directory is not a readable tree, for example it has no `manifest.json` |
 | `2` | Usage error | The command line does not parse, for example an unknown option or a `--schema-version` other than 1 to 4, or `--schema-version` contradicts the manifest of a tree |
 
 ## Output

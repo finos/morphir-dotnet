@@ -19,6 +19,8 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
     private ModelLocation? _output;
     private WorkspaceFile? _writtenFile;
     private WorkspaceDirectory? _writtenTree;
+    private WorkspaceFile? _previousWrittenFile;
+    private WorkspaceDirectory? _previousWrittenTree;
     private WorkspaceDirectory? _presetOutput;
     private (WorkspaceFile File, byte[] Bytes)? _fileInTheOutput;
     private KitTreeCase? _kitCase;
@@ -110,6 +112,15 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
     [When("I convert the written model to a document tree")]
     public Task ConvertTheWrittenModelToADocumentTree() => Convert(Output, ModelLayout.DocumentTree);
 
+    /// <summary>Converts the plain twin of the compacted model of the scenario, which a step put beside it.</summary>
+    [When("I convert the plain twin of the model to a single file")]
+    public Task ConvertThePlainTwinToASingleFile() => Convert(PlainTwin, ModelLayout.SingleFile);
+
+    [When("I convert the plain twin of the model to a document tree")]
+    public Task ConvertThePlainTwinToADocumentTree() => Convert(PlainTwin, ModelLayout.DocumentTree);
+
+    private ModelLocation PlainTwin => run.PlainTwin ?? throw new InvalidOperationException("The scenario has no compacted model with a plain twin before this step.");
+
     /// <summary>Verifies the tree that the last conversion wrote, as JSON; the tree is then the model of the scenario.</summary>
     [When("I verify the written tree as JSON")]
     public async Task VerifyTheWrittenTree()
@@ -123,6 +134,8 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
         // With no layout, the output has the layout of the input.
         var inputIsATree = (_writtenTree is { } written && input.Path == written.Path) || (run.ModelTree is { } model && input.Path == model.Path);
         var tree = layout == ModelLayout.DocumentTree || (layout is null && inputIsATree);
+        if (_writtenFile is { } lastFile) _previousWrittenFile = lastFile;
+        if (_writtenTree is { } lastTree) _previousWrittenTree = lastTree;
         if (_presetOutput is { } preset)
         {
             _output = preset;
@@ -172,6 +185,22 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
         var report = Report;
         report.Check(report.InputLayout == input && report.OutputLayout == output,
             $"The conversion report states the layouts {report.InputLayout ?? "null"} and {report.OutputLayout ?? "null"}, not {input} and {output}.");
+    }
+
+    [Then("the conversion report states the encodings {string} and {string}")]
+    public void TheReportStatesTheEncodings(string input, string output)
+    {
+        var report = Report;
+        report.Check(report.InputEncoding == input && report.OutputEncoding == output,
+            $"The conversion report states the encodings {report.InputEncoding ?? "null"} and {report.OutputEncoding ?? "null"}, not {input} and {output}.");
+    }
+
+    /// <summary>The report does not say whether the input is plain or compacted, as when its only envelopes are undeclared.</summary>
+    [Then("the conversion report states no input encoding")]
+    public void TheReportStatesNoInputEncoding()
+    {
+        var report = Report;
+        report.Check(report.InputEncoding is null, $"The conversion report states the input encoding {report.InputEncoding}.");
     }
 
     [Then("the conversion report states the IR version {string}")]
@@ -302,6 +331,36 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
             Report.Check(formatVersion is JsonValue value && value.GetValueKind() == JsonValueKind.String && value.GetValue<string>() == version,
                 $"The tree file {path} says the format version {formatVersion?.ToJsonString() ?? "nothing"}, not \"{version}\".");
         }
+    }
+
+    /// <summary>The written single file is a plain document: its top level has no <c>$schema</c>, the mark of a compaction envelope.</summary>
+    [Then("the written single file is plain")]
+    public void TheWrittenFileIsPlain()
+    {
+        var root = JsonNode.Parse(workspace.ReadText(WrittenFile))!.AsObject();
+        Report.Check(!root.ContainsKey("$schema"), $"The written file {WrittenFile.Name} is in a compaction envelope.");
+    }
+
+    /// <summary>The single files that the last two conversions wrote are the same JSON.</summary>
+    [Then("the last two written single files are the same")]
+    public void TheLastTwoWrittenFilesAreTheSame()
+    {
+        var previous = _previousWrittenFile ?? throw new InvalidOperationException("The conversion before the last one of the scenario wrote no single file.");
+        SameJson(workspace.ReadText(WrittenFile), workspace.ReadText(previous), $"The written single file {WrittenFile.Name} is not the file {previous.Name}");
+    }
+
+    /// <summary>The trees that the last two conversions wrote have the same files, each the same JSON.</summary>
+    [Then("the last two written trees are the same")]
+    public void TheLastTwoWrittenTreesAreTheSame()
+    {
+        var previous = _previousWrittenTree ?? throw new InvalidOperationException("The conversion before the last one of the scenario wrote no tree.");
+        var files = workspace.FilesIn(WrittenTree);
+        var previousFiles = workspace.FilesIn(previous);
+        Report.Check(files.Count > 0 && files.SequenceEqual(previousFiles),
+            $"The written tree has the files {string.Join(", ", files)}, and the tree before it {string.Join(", ", previousFiles)}.");
+        foreach (var path in files)
+            SameJson(workspace.ReadText(WrittenTree.File(path.Split('/'))), workspace.ReadText(previous.File(path.Split('/'))),
+                $"The written file {path} is not the file of the tree before it");
     }
 
     /// <summary>The written single file is, as JSON, the canonical single file of the kit case.</summary>

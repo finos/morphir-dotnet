@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.FSharp.Core;
 using Morphir.Files;
+using Morphir.IR.Files;
 using Morphir.IR.Trees;
 using Morphir.Tooling.Infrastructure.JsonSchema;
 
@@ -12,7 +13,9 @@ namespace Morphir.Tooling.Features.ModelVerify;
 /// Verifies a document tree (design VER-1): each file of a v4 tree against the parent's schema of its kind, then the
 /// whole tree through <see cref="DocumentTreeStore"/>, which checks the tree's rules and decodes every document. A v3
 /// tree is checked by the store alone, as the parent publishes no v3 tree-file schema. Every error is collected, each
-/// with the file it is in and its JSON location in that file. The version comes from the manifest; a
+/// with the file it is in and its JSON location in that file. A compacted tree file (cli-model-commands, "Model verify
+/// reads compacted files") is checked against its schema after <see cref="CompactedFiles"/> expands it, and the store
+/// applies the context refusals; the report lists the compacted files. The version comes from the manifest; a
 /// <c>--schema-version</c> that contradicts it is refused with <see cref="SchemaVersionConflict"/> and exit code 2,
 /// and nothing is checked.
 /// </summary>
@@ -62,12 +65,24 @@ public static class TreeVerification
         var version = manifestVersion ?? schemaVersion?.ToString(CultureInfo.InvariantCulture);
         var detection = schemaVersion.HasValue ? "manual" : "manifest";
         var errors = new List<ValidationError>();
+        var compactedFiles = new List<string>();
 
-        if (version == "4" && files.Count <= limits.MaxFiles)
+        if (files.Count <= limits.MaxFiles)
         {
             foreach (var (location, file) in files)
             {
                 if (TreeFileKinds.Of(location) is not { } kind || Text(file, limits.MaxFileBytes) is not { } json) continue;
+                var schema = CompactedFiles.TopLevelSchema(json);
+                if (schema is not null && MorphirFile.IsDeclared(schema)) compactedFiles.Add(location);
+                if (version != "4") continue;
+                if (schema is not null)
+                {
+                    // The schema of the kind checks the expanded document. A refused envelope or context is an error
+                    // of the store's read, with its code, and the file is not also checked against the schema.
+                    if (CompactedFiles.Expand(location, json).Json is not { } plain) continue;
+                    json = plain;
+                }
+
                 SchemaValidationResult checkedFile;
                 try
                 {
@@ -87,7 +102,7 @@ public static class TreeVerification
         if (read.IsError)
             errors.AddRange(read.ErrorValue.Select(ErrorOf));
 
-        return Result(filePath, version ?? "unknown", detection, files.Count, errors);
+        return Result(filePath, version ?? "unknown", detection, files.Count, errors) with { CompactedFiles = compactedFiles };
     }
 
     /// <summary>
@@ -103,8 +118,10 @@ public static class TreeVerification
             .OrderBy(entry => entry.Key, StringComparer.Ordinal)];
 
     /// <summary>
-    /// The IR version that the JSON manifest states, as the store reads it: <c>"3"</c> for a <c>formatVersion</c> of
-    /// major 3, <c>"4"</c> for any other, or null when the tree has no JSON manifest or it cannot be read.
+    /// The IR version that the JSON manifest states, as the store reads it (<c>MorphirFile.IsClassic</c>):
+    /// <c>"3"</c> for a <c>formatVersion</c> of major 3, <c>"4"</c> for any other, or null when the tree has no JSON
+    /// manifest or it cannot be read. A compacted manifest states it in the document of its envelope, where
+    /// <c>formatVersion</c> is never a name to expand.
     /// </summary>
     private static string? ManifestVersion(List<(string Location, VFile File)> files, long limit)
     {
@@ -113,27 +130,17 @@ public static class TreeVerification
         try
         {
             using var document = JsonDocument.Parse(json, SchemaValidator.ModelDocumentOptions);
-            return IsMajor3(document.RootElement) ? "3" : "4";
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("$schema", out _)
+                && root.TryGetProperty("document", out var enclosed))
+                root = enclosed;
+            return MorphirFile.IsClassic(root) ? "3" : "4";
         }
         catch (JsonException)
         {
             return null;
         }
     }
-
-    /// <summary>
-    /// Whether a manifest states a format version of major 3: the string <c>"3"</c> or one that starts with
-    /// <c>"3."</c>, or a number from 3 up to 4. The store reads such a manifest as a v3 tree.
-    /// </summary>
-    private static bool IsMajor3(JsonElement root) =>
-        root.ValueKind == JsonValueKind.Object
-        && root.TryGetProperty("formatVersion", out var version)
-        && version.ValueKind switch
-        {
-            JsonValueKind.String => version.GetString() is { } text && (text == "3" || text.StartsWith("3.", StringComparison.Ordinal)),
-            JsonValueKind.Number => version.TryGetDouble(out var number) && number is >= 3.0 and < 4.0,
-            _ => false,
-        };
 
     /// <summary>
     /// A given version contradicts the tree when the manifest states another one, or when it is no version of a
@@ -213,7 +220,7 @@ public static class TreeVerification
     /// Pointer in <c>Path</c>, with the rest of the message. A diagnostic of a whole file or of the tree has the
     /// location of the whole file, <c>""</c>.
     /// </summary>
-    private static ValidationError ErrorOf(StoreError error)
+    internal static ValidationError ErrorOf(StoreError error)
     {
         var (pointer, message) = StoreLocation.Split(error.Message);
         return new ValidationError(pointer, message)

@@ -213,6 +213,22 @@ Feature: Verify a Morphir model
     And the verification report says that the model is not valid
     And an error of the verification report has the code "missing_member" and names the place of the fault
 
+  Scenario: A compacted tree is verified after expansion
+    Given the v4 tree of the name-context examples, with "every file" compacted
+    When I verify the model as JSON
+    Then the exit code is 0
+    And the verification report says that the model is valid
+    And the verification report has the schema version "4"
+    And the verification report counts every file of the tree
+    And the verification report lists every compacted file of the tree
+
+  Scenario: An invalid context fails verification
+    Given the v4 tree of the name-context examples, with "a reference to an alias that no table defines" in its type file
+    When I verify the model as JSON
+    Then the exit code is 1
+    And the verification report says that the model is not valid
+    And an error of the verification report has the code "context.unknown_alias" and names the place of the fault
+
   Scenario: A schema version that contradicts the manifest
     Given the tree that the store writes from a v4 Library with a dependency
     When I verify the model with the schema version 3 as JSON

@@ -28,6 +28,19 @@ public sealed record ContextExample(
     public bool IsValid => Expected == "valid";
 }
 
+/// <summary>Which files of the name-context examples' tree (<see cref="FixtureCatalog.Context.Tree"/>) are compacted.</summary>
+public enum ContextTreeCompaction
+{
+    /// <summary>None: every file is its plain twin.</summary>
+    NoFile,
+
+    /// <summary>Only the value file of <c>line-total</c>; the manifest, the module file and the type file are plain.</summary>
+    ValueFileOnly,
+
+    /// <summary>The manifest, the module file, the type file and the value file.</summary>
+    EveryFile,
+}
+
 /// <summary>The parent's <c>cases.json</c> of the name-context examples.</summary>
 /// <param name="SchemaUrl">The envelope's schema URL.</param>
 /// <param name="MaxTableEntries">The most entries one context table may hold.</param>

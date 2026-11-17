@@ -81,6 +81,27 @@ let tests =
                 }
         ]
 
+        testList "The plain document of a file's bytes is its expansion in its own family" [
+            for example in Mother.validExamples ->
+                test example.Id {
+                    match MorphirFile.readPlainDocument ContextLimits.draft1 (fileName example) (ReadOnlyMemory(Mother.bytesOf example.Id)) with
+                    | Ok document -> Expect.equal (json document) (json (expanded example.Id)) "readEnvelope, then expand in the document's family"
+                    | Error errors -> failtestf "%A" errors
+                }
+        ]
+
+        test "Only a declared schema URL is declared" {
+            Expect.isTrue (MorphirFile.isDeclared MorphirFile.Draft1Schema) "the draft.1 envelope"
+            Expect.isFalse (MorphirFile.isDeclared (MorphirFile.Draft1Schema.ToUpperInvariant())) "URLs compare ordinally"
+            Expect.isFalse (MorphirFile.isDeclared "https://morphir.finos.org/schemas/ir-context/0.2.0/document.schema.json") "another version"
+        }
+
+        test "A classic document is told by its format version" {
+            Expect.isTrue (MorphirFile.isClassic (twin "v3-manifest")) "a v3 tree file says 3.1.0"
+            Expect.isTrue (MorphirFile.isClassic (twin "v3-single-file")) "a v3 single file says 3"
+            Expect.isFalse (MorphirFile.isClassic (twin "v4-manifest")) "a v4 manifest"
+        }
+
         test "A plain file is read as plain" {
             let example = Mother.example "v4-type"
 

@@ -42,35 +42,21 @@ type CompactedFiles =
     /// <summary>The manifest, the module file, the type file and the value file.</summary>
     | EveryFile
 
-/// The location in a tree of each tree-file example, by its kind.
-let private locations =
-    [
-        "manifest", "manifest.json"
-        "module", "pkg/my-org/billing/invoicing/module.json"
-        "type", "pkg/my-org/billing/invoicing/invoice-line.type.json"
-        "value", "pkg/my-org/billing/invoicing/line-total.value.json"
-    ]
-
 /// <summary>
 /// The examples' model as a tree of files, by location, for IR <paramref name="ir"/> (3 or 4): each file the
-/// example of its kind when it is compacted, or the example's plain twin otherwise.
+/// example of its kind when it is compacted, or the example's plain twin otherwise
+/// (<c>FixtureCatalog.Context.Tree</c>).
 /// </summary>
 let tree (ir: int) (compacted: CompactedFiles) : (string * string) list =
+    let which =
+        match compacted with
+        | NoFile -> ContextTreeCompaction.NoFile
+        | ValueFileOnly -> ContextTreeCompaction.ValueFileOnly
+        | EveryFile -> ContextTreeCompaction.EveryFile
+
     [
-        for kind, location in locations ->
-            let id = $"v{ir}-{kind}"
-
-            let isCompacted =
-                match compacted with
-                | NoFile -> false
-                | ValueFileOnly -> kind = "value"
-                | EveryFile -> true
-
-            location,
-            if isCompacted then
-                FixtureCatalog.ReadText (example id).File
-            else
-                expandedTextOf id
+        for file in FixtureCatalog.Context.Tree(ir, which).Files ->
+            file.Location, FixtureCatalog.ReadText file.Entry
     ]
 
 /// <summary>The parent's compaction policy case with this id, such as <c>name-used-once</c>.</summary>

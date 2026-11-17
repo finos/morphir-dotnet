@@ -24,3 +24,13 @@ Feature: The commands of the model verify page give their documented output
     When I run each documented command of the host on the model tree
     Then each documented command exits with 1
     And each documented command gives its documented output
+
+  Scenario: The documented command of a compacted tree gives its documented output
+    Given the section "Compacted files" of the documentation page "cli/model-verify.md"
+    And the v4 tree of the name-context examples, with "every file" compacted
+    Then the page documents these commands
+      | command                                     |
+      | morphir model verify model/ --json=document |
+    When I run each documented command of the host on the model tree
+    Then each documented command exits with 0
+    And each documented command gives its documented output

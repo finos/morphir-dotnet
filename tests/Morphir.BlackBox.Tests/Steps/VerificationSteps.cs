@@ -129,6 +129,18 @@ public sealed class VerificationSteps(IModelVerificationDriver verification, ICl
             throw new CommandAssertionException($"The verification report checked {report.FilesChecked?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "null"} files, and the tree has {files}.", run.Result);
     }
 
+    /// <summary>The report lists exactly the compacted files of the tree of the scenario, each as its path from the root.</summary>
+    [Then("the verification report lists every compacted file of the tree")]
+    public void TheReportListsEveryCompactedFile()
+    {
+        if (run.CompactedFiles.Count == 0) throw new InvalidOperationException("The scenario has no compacted model before this step.");
+        var report = VerificationReport.Of(run.Result);
+        var listed = report.CompactedFiles.Order(StringComparer.Ordinal).ToArray();
+        var expected = run.CompactedFiles.Order(StringComparer.Ordinal).ToArray();
+        if (!listed.SequenceEqual(expected))
+            throw new CommandAssertionException($"The verification report lists the compacted files {string.Join(", ", listed)}, and the tree has {string.Join(", ", expected)}.", run.Result);
+    }
+
     /// <summary>An error of the report is at the fault of the model: in its file, at its JSON location, naming its words.</summary>
     [Then("an error of the verification report names the place of the fault")]
     public void AnErrorNamesThePlaceOfTheFault() => VerificationReport.Of(run.Result).ShouldHaveAnErrorAt(Fault);

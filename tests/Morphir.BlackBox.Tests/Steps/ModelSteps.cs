@@ -90,6 +90,81 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
         run.Fault = faulty.Fault;
     }
 
+    /// <summary>
+    /// The parent's compacted single file of IR <paramref name="ir"/> (<see cref="FixtureCatalog.Context"/>), with its
+    /// plain twin beside it.
+    /// </summary>
+    [Given("the compacted v{int} single file of the name-context examples")]
+    public void TheCompactedSingleFile(int ir)
+    {
+        var example = FixtureCatalog.Context.Example($"v{ir}-single-file");
+        TheCatalogModel(example.File);
+        var twin = workspace.File("plain-twin.json");
+        workspace.WriteBytes(twin, FixtureCatalog.ReadBytes(example.Expanded!));
+        run.PlainTwin = twin;
+    }
+
+    /// <summary>
+    /// The parent's compacted single file of IR <paramref name="ir"/> in the file <paramref name="name"/> of the work
+    /// area: for a documentation page that names its model file.
+    /// </summary>
+    [Given("the compacted v{int} single file of the name-context examples in the file {string}")]
+    public void TheCompactedSingleFileInTheFile(int ir, string name)
+    {
+        var model = workspace.File(name);
+        workspace.WriteBytes(model, FixtureCatalog.ReadBytes(FixtureCatalog.Context.Example($"v{ir}-single-file").File));
+        run.Model = model;
+    }
+
+    /// <summary>
+    /// The examples' tree of IR <paramref name="ir"/> (<see cref="FixtureCatalog.Context.Tree"/>) with <c>every file</c>
+    /// or <c>only its value file</c> compacted, with its plain twin beside it.
+    /// </summary>
+    [Given("the v{int} tree of the name-context examples, with {string} compacted")]
+    public void TheCompactedTree(int ir, string which)
+    {
+        var compaction = which switch
+        {
+            "every file" => ContextTreeCompaction.EveryFile,
+            "only its value file" => ContextTreeCompaction.ValueFileOnly,
+            _ => throw new ArgumentOutOfRangeException(nameof(which), which, "Use 'every file' or 'only its value file'."),
+        };
+        var tree = FixtureCatalog.Context.Tree(ir, compaction);
+        TheCatalogTree(tree);
+        run.PlainTwin = workspace.WriteTree(FixtureCatalog.Context.Tree(ir, ContextTreeCompaction.NoFile), "plain-twin");
+        run.CompactedFiles = [.. tree.Files.Where(file => FixtureCatalog.Context.Examples.Any(example => example.File == file.Entry)).Select(file => file.Location)];
+    }
+
+    /// <summary>
+    /// The examples' plain v4 tree with its type file replaced by one of the parent's invalid examples, and where the
+    /// fault is: the type file, and the words that a refusal names.
+    /// </summary>
+    [Given("the v4 tree of the name-context examples, with {string} in its type file")]
+    public void TheTreeWithAnInvalidTypeFile(string fault)
+    {
+        var id = fault switch
+        {
+            "a reference to an alias that no table defines" => "unknown-alias",
+            "a document before its context" => "context-after-document",
+            "an envelope schema that this version does not declare" => "undeclared-schema",
+            _ => throw new ArgumentOutOfRangeException(nameof(fault), fault,
+                "Use 'a reference to an alias that no table defines', 'a document before its context' or 'an envelope schema that this version does not declare'."),
+        };
+        var example = FixtureCatalog.Context.Example(id);
+        var location = FixtureCatalog.Context.TreeLocation("type");
+        TheCatalogTree(FixtureCatalog.Context.Tree(4, ContextTreeCompaction.NoFile)
+            .WithFile(location, example.File, $"the v4 tree of the name-context examples with the type file {id}"));
+        // What a refusal names: the alias that the file references and no table defines, the rule of the order, or the
+        // URL of the envelope's schema.
+        string[] names = id switch
+        {
+            "unknown-alias" => ["'zz'"],
+            "context-after-document" => ["the context must come first"],
+            _ => [JsonNode.Parse(FixtureCatalog.ReadText(example.File))!["$schema"]!.GetValue<string>()],
+        };
+        run.Fault = new FixtureFault(location, null, names);
+    }
+
     /// <summary>Writes a catalog tree to the directory <c>model</c> of the workspace, as the model of the scenario.</summary>
     private void TheCatalogTree(FixtureTree tree) => run.ModelTree = workspace.WriteTree(tree, "model");
 

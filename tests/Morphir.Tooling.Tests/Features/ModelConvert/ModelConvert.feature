@@ -101,34 +101,56 @@ Feature: Model convert
     And the store was asked neither to read nor to write
     And nothing is at the output
 
-  Scenario: A compacted input with its layout unchanged is refused, not nothing to do
-    Given a compacted single-file model
+  Scenario: Nothing to do for a plain tree
+    Given a v4 document tree whose manifest has a version and a created date
     When I convert the model without changing its layout
-    Then the conversion fails with exit code 1 and the diagnostic "model.unsupported_context"
-    And the report states the input encoding "compacted"
+    Then the conversion fails with exit code 2 and the diagnostic "model.nothing_to_do"
+    And the message names the input as "a plain document tree"
+    And the store was asked neither to read nor to write
     And nothing is at the output
 
-  Scenario: A compacted input is refused
-    Given a compacted single-file model
+  Scenario: A compacted input with its layout unchanged is expanded, not nothing to do
+    Given a compacted v4 single-file model
+    When I convert the model without changing its layout
+    Then the conversion succeeds
+    And the report states the input encoding "compacted" and the output encoding "plain"
+    And the single file is plain
+    And the single file says format version 4
+
+  Scenario: A compacted v3 single file is expanded into a plain tree
+    Given a compacted v3 single-file model
     When I convert the model to a document tree
-    Then the conversion fails with exit code 1 and the diagnostic "model.unsupported_context"
+    Then the conversion succeeds
+    And the report states the input encoding "compacted" and the output encoding "plain"
+    And the report states IR version "3"
+    And every file at the output is plain
+
+  Scenario: A tree with one compacted file other than the manifest is not nothing to do
+    Given a v4 document tree with only its value file compacted
+    When I convert the model without changing its layout
+    Then the conversion succeeds
+    And the report states the input encoding "compacted" and the output encoding "plain"
+    And every file at the output is plain
+
+  Scenario: A compacted tree is expanded into a plain single file
+    Given a compacted v4 document tree
+    When I convert the model to a single file
+    Then the conversion succeeds
+    And the report states the input encoding "compacted" and the output encoding "plain"
+    And the single file is plain
+
+  Scenario: A refused tree with a compacted file is stated as compacted
+    Given a v4 document tree with only its value file compacted and no type file
+    When I convert the model to a single file
+    Then the conversion fails with exit code 1 and the diagnostic "missing_member"
     And the report states the input encoding "compacted"
     And nothing is at the output
 
-  Scenario: A tree with a compacted file is refused although the store expands it
-    Given a v4 document tree with a compacted type file
+  Scenario: A refused context names its file
+    Given a v4 document tree whose type file references an alias that no table defines
     When I convert the model to a single file
-    Then the conversion fails with exit code 1 and the diagnostic "model.unsupported_context"
-    And the compacted file is named once
-    And the report states the input encoding "compacted"
-    And nothing is at the output
-
-  Scenario: A compacted file of a tree is reported beside the tree's other errors
-    Given a v4 document tree with a compacted type file and a missing definition file
-    When I convert the model to a single file
-    Then the conversion fails with exit code 1 and the diagnostic "model.unsupported_context"
-    And the report has the diagnostic "missing_member"
-    And the compacted file is named once
+    Then the conversion fails with exit code 1 and the diagnostic "context.unknown_alias"
+    And the diagnostic "context.unknown_alias" is at the type file and names "zz"
     And the report states the input encoding "compacted"
     And nothing is at the output
 
@@ -136,7 +158,6 @@ Feature: Model convert
     Given a single-file model in an envelope whose schema this version does not declare
     When I convert the model to a document tree
     Then the conversion fails with exit code 1 and the diagnostic "context.undeclared_schema"
-    And the report does not have the diagnostic "model.unsupported_context"
     And the report states no input encoding
     And nothing is at the output
 
@@ -144,7 +165,7 @@ Feature: Model convert
     Given a v4 document tree with a type file in an envelope whose schema this version does not declare
     When I convert the model to a single file
     Then the conversion fails with exit code 1 and the diagnostic "context.undeclared_schema"
-    And the report does not have the diagnostic "model.unsupported_context"
+    And the diagnostic "context.undeclared_schema" is at the type file and names "https://morphir.finos.org/schemas/ir-context/0.2.0/document.schema.json"
     And the report states no input encoding
     And nothing is at the output
 

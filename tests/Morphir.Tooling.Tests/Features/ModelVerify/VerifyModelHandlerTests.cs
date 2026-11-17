@@ -202,6 +202,57 @@ public class VerifyModelHandlerTests
         result.FilesChecked.Should().Be(1);
     }
 
+    /// <summary>Verifies the bytes of the parent's name-context example <paramref name="id"/>, written to a file of a sandbox.</summary>
+    private async Task<VerifyModelResult> VerifyContextExample(string id, int? schemaVersion = null)
+    {
+        await using var sandbox = TestSandbox.Create("morphir-verify-compacted-");
+        var path = sandbox.PathOf("model.json");
+        await File.WriteAllBytesAsync(path, FixtureCatalog.ReadBytes(FixtureCatalog.Context.Example(id).File));
+        return await VerifyModelHandler.Handle(new VerifyModel(path, schemaVersion), _validator, CancellationToken.None);
+    }
+
+    [Test]
+    [Arguments("v4-single-file", "4")]
+    [Arguments("v3-single-file", "3")]
+    public async Task ACompactedSingleFileIsVerifiedAfterExpansion(string id, string version)
+    {
+        var result = await VerifyContextExample(id);
+
+        result.Errors.Should().BeEmpty($"{id} is valid once expanded");
+        result.IsValid.Should().BeTrue();
+        result.SchemaVersion.Should().Be(version, "the version is detected from the expanded document");
+        result.DetectionMethod.Should().Be("auto");
+        result.FilesChecked.Should().Be(1);
+        result.CompactedFiles.Should().Equal(result.FilePath);
+    }
+
+    [Test]
+    public async Task ACompactedSingleFileIsCheckedAgainstAGivenVersion()
+    {
+        var result = await VerifyContextExample("v3-single-file", schemaVersion: 4);
+
+        result.IsValid.Should().BeFalse("the expanded document is a v3 model, which the v4 schema refuses");
+        result.DetectionMethod.Should().Be("manual");
+        result.CompactedFiles.Should().ContainSingle();
+    }
+
+    [Test]
+    [Arguments("undeclared-schema", "context.undeclared_schema", false)]
+    [Arguments("unknown-alias", "context.unknown_alias", true)]
+    [Arguments("context-after-document", "context.after_document", true)]
+    public async Task AnInvalidContextOfASingleFileFailsVerification(string id, string code, bool declared)
+    {
+        var result = await VerifyContextExample(id);
+
+        result.IsValid.Should().BeFalse();
+        result.ExitCode.Should().Be(1);
+        result.FilesChecked.Should().Be(1);
+        var error = result.Errors.Should().ContainSingle().Which;
+        error.Code.Should().Be(code);
+        error.File.Should().BeNull("a single file has no file of a tree");
+        result.CompactedFiles.Should().HaveCount(declared ? 1 : 0, "a file is compacted when its envelope's schema is declared");
+    }
+
     [Test]
     public void TheJsonReportKeepsIsValidAndStatesTheExitCode()
     {

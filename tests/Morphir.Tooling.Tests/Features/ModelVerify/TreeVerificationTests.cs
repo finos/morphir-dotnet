@@ -143,6 +143,93 @@ public class TreeVerificationTests
         result.SchemaVersion.Should().Be("3");
     }
 
+    /// <summary>The name-context examples' tree of IR <paramref name="ir"/>, with the files that <paramref name="compacted"/> names compacted.</summary>
+    private static VFileTree ContextTree(int ir, MorphirFileMother.CompactedFiles compacted) => Texts(
+        MorphirFileMother.tree(ir, compacted).Select(file => (file.Item1, file.Item2)));
+
+    [Test]
+    [Arguments(3)]
+    [Arguments(4)]
+    public async Task ACompactedTreeIsVerifiedAfterExpansion(int ir)
+    {
+        var result = await Verify(ContextTree(ir, MorphirFileMother.CompactedFiles.EveryFile));
+
+        result.Errors.Should().BeEmpty("each file of the parent's example tree is valid once expanded");
+        result.IsValid.Should().BeTrue();
+        result.SchemaVersion.Should().Be(ir.ToString(System.Globalization.CultureInfo.InvariantCulture), "the version is the compacted manifest's");
+        result.FilesChecked.Should().Be(4);
+        result.CompactedFiles.Should().Equal(FixtureCatalog.Context.TreeLocations.Select(entry => entry.Location).Order(StringComparer.Ordinal));
+    }
+
+    [Test]
+    public async Task OnlyTheCompactedFilesOfATreeAreListed()
+    {
+        var plain = await Verify(ContextTree(4, MorphirFileMother.CompactedFiles.NoFile));
+        var one = await Verify(ContextTree(4, MorphirFileMother.CompactedFiles.ValueFileOnly));
+
+        plain.Errors.Should().BeEmpty();
+        plain.CompactedFiles.Should().BeEmpty();
+        one.Errors.Should().BeEmpty();
+        one.CompactedFiles.Should().Equal(FixtureCatalog.Context.TreeLocation("value"));
+    }
+
+    /// <summary>
+    /// A v4 tree file is checked against the schema of its kind after expansion: a compacted type file whose expanded
+    /// document breaks the schema has the schema's error, and a schema check of the envelope itself would have refused
+    /// the file at its top level.
+    /// </summary>
+    [Test]
+    public async Task TheSchemaOfAKindChecksTheExpandedDocument()
+    {
+        var typeFile = FixtureCatalog.Context.TreeLocation("type");
+        var files = WithText(ContextTree(4, MorphirFileMother.CompactedFiles.EveryFile), typeFile,
+            text => text.Replace("\"access\": \"Public\"", "\"access\": \"Open\"", StringComparison.Ordinal));
+
+        var result = await Verify(files);
+
+        result.Errors.Should().Contain(error => error.File == typeFile && error.Code == null && error.Path.StartsWith("/def", StringComparison.Ordinal),
+            "the schema checks the expanded document, whose access is not one the schema allows");
+        result.Errors.Should().NotContain(error => error.File == typeFile && error.Path == "" && error.Code == null,
+            "the envelope is not checked as a document");
+    }
+
+    /// <summary>The parent's invalid examples, each a type file, by id.</summary>
+    public static IEnumerable<Func<string>> InvalidContextExamples() =>
+        MorphirFileMother.invalidExamples.Select(example => (Func<string>)(() => example.Id));
+
+    [Test]
+    [MethodDataSource(nameof(InvalidContextExamples))]
+    public async Task AnInvalidContextFailsVerificationWithItsCodeAtItsFile(string id)
+    {
+        var example = MorphirFileMother.example(id);
+        var typeFile = FixtureCatalog.Context.TreeLocation("type");
+        var files = WithText(ContextTree(4, MorphirFileMother.CompactedFiles.NoFile), typeFile, _ => FixtureCatalog.ReadText(example.File));
+
+        var result = await Verify(files);
+
+        result.IsValid.Should().BeFalse();
+        result.ExitCode.Should().Be(1);
+        result.Errors.Should().Contain(error => error.Code == example.Expected && error.File == typeFile, $"{id} is refused with {example.Expected}");
+        result.Errors.Should().OnlyContain(error => error.File == typeFile && error.Code != null && error.Code.StartsWith("context.", StringComparison.Ordinal),
+            "a refused file is not also checked against the schema of its kind");
+    }
+
+    [Test]
+    public async Task AnUnknownAliasNamesTheFileAndTheAlias()
+    {
+        var typeFile = FixtureCatalog.Context.TreeLocation("type");
+        var files = WithText(ContextTree(4, MorphirFileMother.CompactedFiles.NoFile), typeFile,
+            _ => FixtureCatalog.ReadText(MorphirFileMother.example("unknown-alias").File));
+
+        var result = await Verify(files);
+
+        var error = result.Errors.Should().ContainSingle().Which;
+        error.Code.Should().Be("context.unknown_alias");
+        error.File.Should().Be(typeFile);
+        error.Message.Should().Contain("'zz'");
+        result.CompactedFiles.Should().Equal(typeFile);
+    }
+
     /// <summary>The invalid trees of the mother, each a refusal of the store, by name.</summary>
     private static readonly Dictionary<string, Func<VFileTree>> InvalidTreeCases = new()
     {

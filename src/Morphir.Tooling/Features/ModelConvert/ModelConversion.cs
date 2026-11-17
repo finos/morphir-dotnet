@@ -50,7 +50,9 @@ public interface IConvertObserver
 /// output is checked before anything is read or written: <c>--output</c> that is the input, is inside it or holds it
 /// is refused with <c>model.output_overlaps_input</c>, and one that already holds a file, or is a file where a
 /// directory is needed or the reverse, with <c>model.output_not_empty</c>. A run that changes neither the layout nor
-/// the encoding exits 2 with <c>model.nothing_to_do</c>, decided from the input's envelope before the model is read. A
+/// the encoding exits 2 with <c>model.nothing_to_do</c>, decided from the envelopes of the input's files before the
+/// model is read: a tree with any file in an envelope is not plain, so it is read and written plain. A compacted input
+/// is expanded as it is read, and the output is plain unless <c>--compact</c> is given. A
 /// path that is not a path exits 2 with <c>model.invalid_arguments</c>. Every other refusal exits 1, and leaves nothing
 /// at the output; a file-system failure is <c>model.read_failed</c> or <c>model.write_failed</c>, so every run ends with
 /// a report.
@@ -116,8 +118,9 @@ public sealed class ModelConversion(IModelConversionStore store)
         if (outputProblem is not null)
             return Refuse(state, observer, null, outputProblem);
 
-        // Nothing to do is decided from the envelope alone, before the model is decoded: a plain input that keeps its
-        // layout and is not compacted would be written as it is, whether or not it decodes.
+        // Nothing to do is decided from the envelopes alone, before the model is decoded: a plain input that keeps its
+        // layout and is not compacted would be written as it is, whether or not it decodes. A tree is plain only when
+        // none of its files is in an envelope.
         var source = new ModelSource(inputPath, request.Input, inputLayout);
         if (outputLayout == inputLayout && request.CompactMode is null && !await store.HasEnvelopeAsync(source, ct))
         {

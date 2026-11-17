@@ -186,25 +186,29 @@ type StoredModel internal (form: ModelForm) =
             false
 
     /// <summary>
-    /// Takes the result of <c>DocumentTreeStore.read</c>: the tree as a model with the read's notices, or the store's
-    /// errors as problems, each with its code and file.
+    /// Takes the result of <c>DocumentTreeStore.read</c>: the tree as a model with the read's notices and the
+    /// documents whose files were compacted (<c>ReadReport.CompactedFiles</c>: the manifest first, then by file; none
+    /// for a plain tree), or the store's errors as problems, each with its code and file.
     /// </summary>
     static member TryOfTreeRead
         (
             read: Result<StoredTree * ReadReport, StoreError list>,
             [<Out; MaybeNullWhen(false)>] model: byref<StoredModel>,
             [<Out; MaybeNullWhen(false)>] notices: byref<IReadOnlyList<ConversionNotice>>,
+            [<Out; MaybeNullWhen(false)>] compactedFiles: byref<IReadOnlyList<DocumentAddress>>,
             [<Out; MaybeNullWhen(true)>] problems: byref<IReadOnlyList<ConversionProblem>>
         ) : bool =
         match read with
         | Ok(tree, report) ->
             model <- StoredModel(TreeForm tree)
             notices <- [| for notice in report.Notices -> noticeOf notice |]
+            compactedFiles <- List.toArray report.CompactedFiles
             problems <- Unchecked.defaultof<_>
             true
         | Error errors ->
             model <- Unchecked.defaultof<_>
             notices <- Unchecked.defaultof<_>
+            compactedFiles <- Unchecked.defaultof<_>
             problems <- problemsOf errors
             false
 

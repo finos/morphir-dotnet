@@ -41,6 +41,9 @@ public sealed class FixtureTree
             ? new FixtureTreeFile(entry.RelativePath[directory.Length..], entry)
             : throw new ArgumentException($"The entry {entry.RelativePath} is not below {directory}.", nameof(entries))));
 
+    /// <summary>The tree of <paramref name="files"/>, each a catalog entry at its location.</summary>
+    public static FixtureTree Of(string intent, IEnumerable<FixtureTreeFile> files) => new(intent, files);
+
     /// <summary>The same files without the file at <paramref name="location"/>, which must be one of them.</summary>
     public FixtureTree Without(string location, string intent) =>
         Files.Any(file => file.Location == location)

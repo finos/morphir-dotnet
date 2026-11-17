@@ -39,4 +39,13 @@ public sealed class ScenarioRun
 
     /// <summary>Where the model of the scenario is wrong, when a step gave it a faulty case of the catalog.</summary>
     public FixtureFault? Fault { get; set; }
+
+    /// <summary>
+    /// The plain twin of a compacted model of the scenario: the same model with no file compacted, in the workspace
+    /// beside it, when a step gave the model a compacted case of the catalog.
+    /// </summary>
+    public ModelLocation? PlainTwin { get; set; }
+
+    /// <summary>The files of the model of the scenario that are compacted, as paths from the root of its tree.</summary>
+    public IReadOnlyList<string> CompactedFiles { get; set; } = [];
 }
