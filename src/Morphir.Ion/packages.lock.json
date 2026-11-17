@@ -26,10 +26,17 @@
         "resolved": "10.0.15",
         "contentHash": "u0WnRcZgBZYHlVFpbe/3Adpmb9rmNJ8/fmEwqc/xjB7fFppq+gfaLJd3Sdaw+J02zV0eP/T9dneQ3Dv5jWw6bw=="
       },
-      "morphir.ir.pipeline": {
+      "morphir.files": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.ir.pipeline": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Files": "[1.0.0, )"
         }
       },
       "morphir.models": {
@@ -64,10 +71,17 @@
         "resolved": "11.0.0",
         "contentHash": "gK2aq4XvChj5kvozpPHrkfKkr7zc5Z4xoTrJb4GPZzDEPMlCk0TX632bwY3LsWcX2UVcVRQBBGzsBGC2lq6YhA=="
       },
-      "morphir.ir.pipeline": {
+      "morphir.files": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.ir.pipeline": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Files": "[1.0.0, )"
         }
       },
       "morphir.models": {

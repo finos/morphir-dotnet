@@ -1,8 +1,8 @@
-module Morphir.IR.Pipeline.Tests.FileTreeTests
+module Morphir.Files.Tests.FileTreeTests
 
 open System.IO
 open Expecto
-open Morphir.IR.Pipeline
+open Morphir.Files
 
 let private testKey = Property.create<string> "test.key"
 let private buildKey = Property.create<string> "test.build"

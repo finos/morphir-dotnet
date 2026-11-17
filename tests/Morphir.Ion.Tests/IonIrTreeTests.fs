@@ -7,7 +7,7 @@ open System.IO
 open Expecto
 open Morphir.IR
 open Morphir.IR.V4
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Ion
 open Morphir.Ion.Tests
 

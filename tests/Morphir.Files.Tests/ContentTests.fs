@@ -1,10 +1,10 @@
-module Morphir.IR.Pipeline.Tests.ContentTests
+module Morphir.Files.Tests.ContentTests
 
 open System
 open System.IO
 open System.Text
 open Expecto
-open Morphir.IR.Pipeline
+open Morphir.Files
 
 /// A stream source that counts how many times it has been opened.
 let private countingSource (bytes: byte[]) =

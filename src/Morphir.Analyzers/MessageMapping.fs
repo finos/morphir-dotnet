@@ -2,7 +2,7 @@ namespace Morphir.Analyzers
 
 open System
 open System.IO
-open Morphir.IR.Pipeline
+open Morphir.Files
 
 /// <summary>Maps pipeline messages (<c>VMessage</c>) to MEP diagnostics, as design ANA-1 says.</summary>
 [<RequireQualifiedAccess>]

@@ -100,15 +100,15 @@ let private generateWith (backend: IGenerationBackend) (model: LoadedModel) (pai
         .GetResult()
 
 /// The files of a generated tree in its declared order (the manifest order), else by path.
-let private filesOf (tree: Morphir.IR.Pipeline.VFileTree) =
-    let files = Morphir.IR.Pipeline.VFileTree.toFileMap tree
+let private filesOf (tree: Morphir.Files.VFileTree) =
+    let files = Morphir.Files.VFileTree.toFileMap tree
 
     let order =
-        Morphir.IR.Pipeline.VFileTree.tryGet Morphir.IR.Pipeline.VFileTree.declaredOrder tree
+        Morphir.Files.VFileTree.tryGet Morphir.Files.VFileTree.declaredOrder tree
         |> Option.defaultWith (fun () -> files |> Map.keys |> List.ofSeq)
 
     [ for location in order ->
-          match Morphir.IR.Pipeline.VFile.readText files[location] with
+          match Morphir.Files.VFile.readText files[location] with
           | Ok text -> location, text
           | Error failure -> failtest $"{location} reads as text: {failure}" ]
 

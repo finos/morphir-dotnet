@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `VFile`, `VFileTree` and `PropertyBag` moved from `Morphir.IR.Pipeline` to the new package `Morphir.Files`, in the namespace `Morphir.Files`. Code that uses them adds `open Morphir.Files` (F#) or `using Morphir.Files;` (C#). `Morphir.IR.Pipeline` depends on `Morphir.Files` and keeps `MorphirProcessor`, so a pipeline also opens `Morphir.IR.Pipeline`.
+
 ## [0.5.0-alpha.4] - 2026-11-16
 
 ### Added

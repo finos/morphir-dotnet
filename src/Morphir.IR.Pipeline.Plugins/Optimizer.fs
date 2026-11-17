@@ -3,6 +3,7 @@ namespace Morphir.IR.Pipeline.Plugins
 open System
 open Morphir.IR
 open Morphir.IR.Classic
+open Morphir.Files
 open Morphir.IR.Pipeline
 
 /// <summary>

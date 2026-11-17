@@ -4,7 +4,7 @@
         <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.IR.Pipeline</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <Description>File abstractions and the typed processor pipeline shared by morphir-dotnet frontends and backends: VFile, VFileTree and MorphirProcessor.</Description>
+        <Description>The typed processor pipeline shared by morphir-dotnet frontends and backends: MorphirProcessor, over the VFile and VFileTree of Morphir.Files.</Description>
     </PropertyGroup>
 
     <ItemGroup>
@@ -12,9 +12,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="Property.fs" />
-        <Compile Include="File.fs" />
-        <Compile Include="FileTree.fs" />
+        <ProjectReference Include="..\Morphir.Files\Morphir.Files.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <Compile Include="Processor.fs" />
         <Compile Include="PipelineBuilder.fs" />
     </ItemGroup>

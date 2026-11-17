@@ -5,8 +5,8 @@ using System.Text;
 using System.Text.Json;
 using Morphir.Compilation.Mep;
 using Morphir.Extensions;
+using Morphir.Files;
 using Morphir.IR.Model;
-using Morphir.IR.Pipeline;
 using Morphir.Mep;
 
 namespace Morphir.Tooling.Features.Generate;

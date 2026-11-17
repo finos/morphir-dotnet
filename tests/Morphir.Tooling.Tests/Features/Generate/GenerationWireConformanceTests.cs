@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
-using Morphir.IR.Pipeline;
+using Morphir.Files;
 using Morphir.Testing;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Tests.Integration.CLI;

@@ -1594,6 +1594,7 @@ let tests =
                     "Microsoft.CodeAnalysis.Workspaces"
                     "Microsoft.CodeAnalysis.CSharp.Workspaces"
                     "Morphir.IR.Pipeline"
+                    "Morphir.Files"
                 ] do
                 Expect.isFalse
                     (Array.contains forbidden names)

@@ -15,6 +15,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Morphir.Models/Morphir.Models.fsproj" />
+    <ProjectReference Include="../Morphir.Files/Morphir.Files.fsproj" />
     <ProjectReference Include="../Morphir.IR.Pipeline/Morphir.IR.Pipeline.fsproj" />
     <ProjectReference Include="../Morphir.IR.Pipeline.Plugins/Morphir.IR.Pipeline.Plugins.fsproj" />
     <PackageReference Include="FSharp.Core" />

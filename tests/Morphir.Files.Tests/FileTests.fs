@@ -1,7 +1,7 @@
-module Morphir.IR.Pipeline.Tests.FileTests
+module Morphir.Files.Tests.FileTests
 
 open Expecto
-open Morphir.IR.Pipeline
+open Morphir.Files
 
 [<Tests>]
 let messageTypeTests =

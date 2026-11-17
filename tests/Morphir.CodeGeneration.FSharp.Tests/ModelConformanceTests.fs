@@ -2,7 +2,7 @@ module Morphir.CodeGeneration.FSharp.Tests.ModelConformanceTests
 
 open Expecto
 open Morphir.IR.Model
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Testing
 open Morphir.Testing.GenerationConformance
 open Morphir.CodeGeneration.FSharp

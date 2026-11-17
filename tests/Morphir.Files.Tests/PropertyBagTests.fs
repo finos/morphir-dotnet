@@ -1,7 +1,7 @@
-module Morphir.IR.Pipeline.Tests.PropertyBagTests
+module Morphir.Files.Tests.PropertyBagTests
 
 open Expecto
-open Morphir.IR.Pipeline
+open Morphir.Files
 
 let private irVersion = Property.create<int> "test.ir.version"
 let private sourcePath = Property.create<string> "test.source.path"

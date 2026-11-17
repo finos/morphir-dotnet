@@ -474,6 +474,7 @@
           "FSharp.Core": "[10.1.403, )",
           "Fabulous.AST": "[1.10.0, )",
           "Fantomas.Core": "[7.0.5, )",
+          "Morphir.Files": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.IR.Pipeline.Plugins": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
@@ -550,6 +551,12 @@
           "Wasmtime": "[50.0.1, )"
         }
       },
+      "morphir.files": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )"
+        }
+      },
       "morphir.frontend.fsharp": {
         "type": "Project",
         "dependencies": {
@@ -567,6 +574,7 @@
         "dependencies": {
           "Eleven19.IonDotnet": "[0.1.4, )",
           "FSharp.Core": "[10.1.403, )",
+          "Morphir.Files": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
@@ -574,13 +582,15 @@
       "morphir.ir.pipeline": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.1.403, )"
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Files": "[1.0.0, )"
         }
       },
       "morphir.ir.pipeline.plugins": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
+          "Morphir.Files": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
@@ -592,17 +602,9 @@
           "FSharp.Core": "[10.1.403, )",
           "Microsoft.CodeAnalysis.CSharp": "[5.12.0, )",
           "Morphir.Compilation": "[1.0.0, )",
-          "Morphir.Lang.CSharp.Analyzers": "[1.0.0, )",
-          "Morphir.Lang.CSharp.Attributes": "[1.0.0, )",
           "Morphir.MiddleEnd": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
-      },
-      "morphir.lang.csharp.analyzers": {
-        "type": "Project"
-      },
-      "morphir.lang.csharp.attributes": {
-        "type": "Project"
       },
       "morphir.mep": {
         "type": "Project",
@@ -678,7 +680,7 @@
           "Morphir.Extensions": "[1.0.0, )",
           "Morphir.Extensions.Installation": "[1.0.0, )",
           "Morphir.Extensions.Wasm": "[1.0.0, )",
-          "Morphir.IR.Pipeline": "[1.0.0, )",
+          "Morphir.Files": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
           "Morphir.Lang.CSharp": "[1.0.0, )",
           "Morphir.MiddleEnd": "[1.0.0, )",

@@ -3,7 +3,7 @@ module Morphir.CodeGeneration.FSharp.Tests.GenerationOptionsTests
 open System.Text.Json
 open Expecto
 open Morphir.IR.Model
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Testing
 open Morphir.Testing.GenerationConformance
 open Morphir.CodeGeneration.FSharp

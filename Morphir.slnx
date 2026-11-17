@@ -53,6 +53,7 @@
     <Project Path="src/Morphir.FSharp.Annotations/Morphir.FSharp.Annotations.csproj" />
     <Project Path="src/Morphir.Configuration.IO/Morphir.Configuration.IO.csproj" />
     <Project Path="src/Morphir.Configuration.Microsoft/Morphir.Configuration.Microsoft.csproj" />
+    <Project Path="src/Morphir.Files/Morphir.Files.fsproj" />
     <Project Path="src/Morphir.IR.Pipeline/Morphir.IR.Pipeline.fsproj" />
     <Project Path="src/Morphir.IR.Pipeline.Plugins/Morphir.IR.Pipeline.Plugins.fsproj" />
     <Project Path="src/Morphir.Tool/Morphir.Tool.csproj" />
@@ -92,6 +93,7 @@
     <Project Path="tests/Morphir.Compilation.Tests/Morphir.Compilation.Tests.fsproj" />
     <Project Path="tests/Morphir.Configuration.Inspection.Smoke/Morphir.Configuration.Inspection.Smoke.csproj" />
     <Project Path="tests/Morphir.Internal.CodeGeneration.Tests/Morphir.Internal.CodeGeneration.Tests.fsproj" />
+    <Project Path="tests/Morphir.Files.Tests/Morphir.Files.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Tests/Morphir.IR.Pipeline.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Plugins.Tests/Morphir.IR.Pipeline.Plugins.Tests.fsproj" />
     <Project Path="tests/Morphir.Extensions.Tests/Morphir.Extensions.Tests.fsproj" />

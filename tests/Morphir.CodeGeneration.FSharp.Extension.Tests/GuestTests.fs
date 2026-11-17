@@ -327,8 +327,8 @@ let edgeTests =
           testCase "A generated tree with an unsafe path is -32603, not artifacts"
           <| fun _ ->
               let tree =
-                  Morphir.IR.Pipeline.VFileTree.fromFileMap (
-                      Map.ofList [ "Car:Inventory.fs", Morphir.IR.Pipeline.VFile.ofText "Car:Inventory.fs" "module X" ]
+                  Morphir.Files.VFileTree.fromFileMap (
+                      Map.ofList [ "Car:Inventory.fs", Morphir.Files.VFile.ofText "Car:Inventory.fs" "module X" ]
                   )
 
               match FSharpGuest.artifacts tree with

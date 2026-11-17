@@ -4,7 +4,7 @@ open System.IO
 open System.Text
 open Expecto
 open Morphir.CodeGeneration.FSharp
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Testing
 open Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
 

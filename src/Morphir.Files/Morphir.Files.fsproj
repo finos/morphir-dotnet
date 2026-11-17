@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <RootNamespace>Morphir.Files</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <Description>Virtual files shared by morphir-dotnet frontends, backends and models: VFile, VFileTree and PropertyBag.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Property.fs" />
+        <Compile Include="File.fs" />
+        <Compile Include="FileTree.fs" />
+    </ItemGroup>
+
+</Project>

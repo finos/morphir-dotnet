@@ -1,4 +1,4 @@
-namespace Morphir.IR.Pipeline
+namespace Morphir.Files
 
 open System
 open System.ComponentModel

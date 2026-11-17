@@ -1,10 +1,10 @@
-module Morphir.IR.Pipeline.Tests.PublicationTests
+module Morphir.Files.Tests.PublicationTests
 
 open System
 open System.IO
 open System.Threading.Tasks
 open Expecto
-open Morphir.IR.Pipeline
+open Morphir.Files
 
 let private withTempDir (run: string -> unit) =
     let temp = Directory.CreateTempSubdirectory("morphir-publish-").FullName
