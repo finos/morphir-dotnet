@@ -1165,7 +1165,7 @@ module IonIrTree =
 
             let! manifestPackages, fragments =
                 match header.Kind with
-                | ApplicationKind ->
+                | IrKind.ApplicationKind ->
                     // A linked dependency's modules sit inside its package::def.
                     tree {
                         let! modulesByKey =
@@ -1203,8 +1203,8 @@ module IonIrTree =
 
                         return listedPackages, []
                     }
-                | LibraryKind
-                | SpecsKind -> tree {
+                | IrKind.LibraryKind
+                | IrKind.SpecsKind -> tree {
                     let! fragments =
                         named
                         |> traverse (modulesOf SpecificationFragment)

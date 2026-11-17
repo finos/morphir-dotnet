@@ -322,8 +322,8 @@ let v4Distribution: Gen<Morphir.IR.V4.Distribution> =
 let v3LibraryBuilder: Gen<V3LibraryBuilder> = library aV3Library
 
 /// <summary>
-/// A classic <c>Library</c>, the input of a property that writes classic JSON: the classic writer refuses a Specs
-/// distribution until its format 3.1.0 writer exists.
+/// A classic <c>Library</c>, for a property that writes classic JSON at an integer version: a Specs distribution
+/// is written at 3.1.0 only.
 /// </summary>
 let v3Distribution: Gen<Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>>> =
     Gen.map buildV3 v3LibraryBuilder

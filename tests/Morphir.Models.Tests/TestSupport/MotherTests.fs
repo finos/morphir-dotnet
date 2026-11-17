@@ -16,8 +16,14 @@ let private v4Json (distribution: Distribution) =
     | Ok bytes -> Encoding.UTF8.GetString bytes
     | Error error -> failtestf "Expected a v4 write, got %s at %s: %s" error.Rule error.Location error.Message
 
-let private v3Json distribution =
-    match ClassicJsonWriter.writeTyped ClassicWireProfile.v3 false distribution with
+/// A classic Library is written at 3, and a Specs at 3.1.0, the version that introduced it.
+let private v3Json (distribution: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>>) =
+    let profile =
+        match distribution with
+        | Morphir.IR.Classic.Distribution.Library _ -> ClassicWireProfile.v3
+        | Morphir.IR.Classic.Distribution.Specs _ -> ClassicWireProfile.v3_1_0
+
+    match ClassicJsonWriter.writeTyped profile false distribution with
     | Ok(bytes: byte array) -> Encoding.UTF8.GetString bytes
     | Error(error: ClassicWriteError) ->
         failtestf "Expected a v3 write, got %s at %s: %s" error.Rule error.Location error.Message
@@ -48,6 +54,7 @@ let private v4Cases = [
 
 let private v3Cases = [
     "v3Library", DistributionMother.v3Library
+    "v3Specs", DistributionMother.v3Specs
     "nonAsciiName", DistributionMother.nonAsciiName
     "v3PrivateAndDocumentedMembers", DistributionMother.v3PrivateAndDocumentedMembers
 ]
@@ -234,12 +241,6 @@ let tests =
         ]
 
         testList "a case that stands for a refusal is refused as expected" [
-            test "v3Specs is refused by the classic writer until the 3.1.0 Specs writer exists" {
-                match ClassicJsonWriter.writeTyped ClassicWireProfile.v3 false DistributionMother.v3Specs with
-                | Ok _ -> failtest "The classic writer wrote a Specs distribution; v3Specs now belongs with the cases that encode."
-                | Error error -> Expect.equal error.Rule "unsupported-distribution" "the known refusal"
-            }
-
             test "collidingStems spells two different type names the same way, so the v4 writer refuses it" {
                 let types =
                     modulesOf DistributionMother.collidingStems
@@ -359,6 +360,6 @@ let tests =
             <| Prop.forAll (Arb.fromGen Generators.v4Distribution) (fun distribution -> v4Json distribution |> ignore)
 
             testPropertyWithConfig config "v3"
-            <| Prop.forAll (Arb.fromGen Generators.v3Distribution) (fun distribution -> v3Json distribution |> ignore)
+            <| Prop.forAll (Arb.fromGen Generators.v3AnyDistribution) (fun distribution -> v3Json distribution |> ignore)
         ]
     ]

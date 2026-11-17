@@ -46,13 +46,23 @@ type ClassicModuleDocStyle =
     /// <summary><c>"doc": null</c> (version 3, as the upstream kit, writer and schema have it).</summary>
     | NullWhenAbsent
 
+/// <summary>The distribution kind a classic wire profile writes, with the tag its version spells.</summary>
+[<RequireQualifiedAccess>]
+type ClassicProfileDistribution =
+    /// <summary>A <c>Library</c>, tagged <c>library</c> (version 1) or <c>Library</c> (versions 2 and 3).</summary>
+    | Library of tag: string
+    /// <summary>A <c>Specs</c>, tagged <c>Specs</c> (version 3.1.0).</summary>
+    | Specs of tag: string
+
 /// <summary>
 /// The wire rules of one classic format version (IRW-1). It is data with no behavior; the writer reads it.
-/// Each of versions 1, 2 and 3 is one value.
+/// Each of versions 1, 2, 3 and 3.1.0 is one value, and a new version is a new value.
 /// </summary>
 type ClassicWireProfile = {
-    /// <summary>The integer <c>formatVersion</c> the writer writes.</summary>
+    /// <summary>The classic major version, written as the integer <c>formatVersion</c> unless <c>Release</c> is given.</summary>
     FormatVersion: int
+    /// <summary>The release written as the string <c>formatVersion</c>, such as <c>3.1.0</c>, or none to write the integer.</summary>
+    Release: string option
     /// <summary>The spelling of type, type definition and type specification tags.</summary>
     TypeTags: ClassicTagStyle
     /// <summary>The spelling of value, pattern and literal tags.</summary>
@@ -61,8 +71,8 @@ type ClassicWireProfile = {
     Access: ClassicAccessStyle
     /// <summary>The module list shape.</summary>
     Modules: ClassicModuleListStyle
-    /// <summary>The distribution tag of a library.</summary>
-    LibraryTag: string
+    /// <summary>The distribution kind the profile writes and its tag. The writer refuses the other kind.</summary>
+    Distribution: ClassicProfileDistribution
     /// <summary>How a module without documentation is written.</summary>
     ModuleDocs: ClassicModuleDocStyle
 }
@@ -70,38 +80,66 @@ type ClassicWireProfile = {
 /// <summary>The classic wire profiles.</summary>
 [<RequireQualifiedAccess>]
 module ClassicWireProfile =
-    /// <summary>Classic format version 1.</summary>
+    /// <summary>Classic format version 1: a Library.</summary>
     let v1 = {
         FormatVersion = 1
+        Release = None
         TypeTags = ClassicTagStyle.SnakeCase
         ValueTags = ClassicTagStyle.SnakeCase
         Access = ClassicAccessStyle.Pair
         Modules = ClassicModuleListStyle.Records
-        LibraryTag = "library"
+        Distribution = ClassicProfileDistribution.Library "library"
         ModuleDocs = ClassicModuleDocStyle.OmitWhenAbsent
     }
 
-    /// <summary>Classic format version 2.</summary>
+    /// <summary>Classic format version 2: a Library.</summary>
     let v2 = {
         FormatVersion = 2
+        Release = None
         TypeTags = ClassicTagStyle.PascalCase
         ValueTags = ClassicTagStyle.SnakeCase
         Access = ClassicAccessStyle.Object
         Modules = ClassicModuleListStyle.Pairs
-        LibraryTag = "Library"
+        Distribution = ClassicProfileDistribution.Library "Library"
         ModuleDocs = ClassicModuleDocStyle.OmitWhenAbsent
     }
 
-    /// <summary>Classic format version 3.</summary>
+    /// <summary>Classic format version 3: a Library, with the integer <c>"formatVersion": 3</c>.</summary>
     let v3 = {
         FormatVersion = 3
+        Release = None
         TypeTags = ClassicTagStyle.PascalCase
         ValueTags = ClassicTagStyle.PascalCase
         Access = ClassicAccessStyle.Object
         Modules = ClassicModuleListStyle.Pairs
-        LibraryTag = "Library"
+        Distribution = ClassicProfileDistribution.Library "Library"
         ModuleDocs = ClassicModuleDocStyle.NullWhenAbsent
     }
+
+    /// <summary>
+    /// Classic format version 3.1.0: a Specs distribution, with <c>"formatVersion": "3.1.0"</c> and the v3
+    /// spellings. 3.1.0 introduced the Specs distribution; a Library needs nothing newer than 3, so it is written
+    /// with <c>v3</c>.
+    /// </summary>
+    let v3_1_0 = {
+        FormatVersion = 3
+        Release = Some "3.1.0"
+        TypeTags = ClassicTagStyle.PascalCase
+        ValueTags = ClassicTagStyle.PascalCase
+        Access = ClassicAccessStyle.Object
+        Modules = ClassicModuleListStyle.Pairs
+        Distribution = ClassicProfileDistribution.Specs "Specs"
+        ModuleDocs = ClassicModuleDocStyle.NullWhenAbsent
+    }
+
+    /// <summary>Every declared classic profile, in version order.</summary>
+    let declared = [ v1; v2; v3; v3_1_0 ]
+
+    /// <summary>The version a profile writes, as text: <c>3</c> or <c>3.1.0</c>.</summary>
+    let label (profile: ClassicWireProfile) =
+        match profile.Release with
+        | Some release -> release
+        | None -> string profile.FormatVersion
 
 /// <summary>Why a classic document was not written.</summary>
 type ClassicWriteError = {
@@ -116,8 +154,8 @@ type ClassicWriteError = {
 exception private ClassicWriteFailure of ClassicWriteError
 
 /// <summary>
-/// Writes classic library distributions as JSON for one wire profile. The attribute encoders decide how
-/// attributes appear, so the same writer serves typed models and models read from JSON.
+/// Writes classic distributions as JSON for one wire profile: a Library at 1, 2 or 3, and a Specs at 3.1.0. The
+/// attribute encoders decide how attributes appear, so the same writer serves typed models and models read from JSON.
 /// </summary>
 [<RequireQualifiedAccess>]
 module ClassicJsonWriter =
@@ -694,10 +732,54 @@ module ClassicJsonWriter =
 
         w.Json.WriteEndObject()
 
+    /// The kinds the declared profiles write, with their versions: for example "a Library at 1, 2 and 3, and a
+    /// Specs at 3.1.0".
+    let private supportedSet () =
+        let at (writes: ClassicProfileDistribution -> bool) =
+            ClassicWireProfile.declared
+            |> List.filter (fun p -> writes p.Distribution)
+            |> List.map ClassicWireProfile.label
+            |> function
+                | [] -> "no version"
+                | [ only ] -> only
+                | versions ->
+                    let reversed = List.rev versions
+
+                    (List.rev reversed.Tail
+                     |> String.concat ", ")
+                    + " and "
+                    + reversed.Head
+
+        let library =
+            at (
+                function
+                | ClassicProfileDistribution.Library _ -> true
+                | ClassicProfileDistribution.Specs _ -> false
+            )
+
+        let specs =
+            at (
+                function
+                | ClassicProfileDistribution.Specs _ -> true
+                | ClassicProfileDistribution.Library _ -> false
+            )
+
+        $"the classic writers write a Library at {library}, and a Specs at {specs}"
+
+    let private unsupportedKind (profile: ClassicWireProfile) (kind: string) =
+        Error
+            {
+                Rule = "unsupported-distribution"
+                Location = "$.distribution"
+                Message =
+                    $"A {kind} distribution is not written at format version {ClassicWireProfile.label profile}: {supportedSet ()}."
+            }
+
     /// <summary>
-    /// Writes a library distribution with <paramref name="profile"/>. Members and lists are written in a fixed
-    /// order, so equal models give equal bytes. A <c>Specs</c> distribution and a non-finite float literal are
-    /// refused.
+    /// Writes a distribution with <paramref name="profile"/>: a <c>Library</c> with a Library profile (1, 2, 3), a
+    /// <c>Specs</c> with a Specs profile (3.1.0). Members and lists are written in a fixed order, so equal models
+    /// give equal bytes. A distribution of the other kind is refused with <c>unsupported-distribution</c>, naming
+    /// the requested version and the supported set, and a non-finite float literal is refused.
     /// </summary>
     let write
         (profile: ClassicWireProfile)
@@ -706,16 +788,7 @@ module ClassicJsonWriter =
         (valueAttribute: 'va -> Utf8JsonWriter -> unit)
         (distribution: Distribution<'ta, 'va>)
         : Result<byte array, ClassicWriteError> =
-        match distribution with
-        | Specs _ ->
-            Error
-                {
-                    Rule = "unsupported-distribution"
-                    Location = "$.distribution"
-                    Message =
-                        "Only a Library distribution can be written; a Specs distribution needs format 3.1.0."
-                }
-        | Library(package, dependencies, definition) ->
+        let document (tag: string) package dependencies (writeContents: Writer<'ta, 'va> -> unit) =
             let buffer = ArrayBufferWriter<byte>()
 
             try
@@ -733,16 +806,20 @@ module ClassicJsonWriter =
                 }
 
                 json.WriteStartObject()
-                json.WriteNumber("formatVersion", profile.FormatVersion)
+
+                match profile.Release with
+                | Some release -> json.WriteString("formatVersion", release)
+                | None -> json.WriteNumber("formatVersion", profile.FormatVersion)
+
                 json.WritePropertyName "distribution"
 
                 array
                     w
                     (fun () ->
-                        json.WriteStringValue profile.LibraryTag
+                        json.WriteStringValue tag
                         packageName w package
                         pairs w (packageName w) (packageSpecification w) (Map.toSeq dependencies)
-                        packageDefinition w definition
+                        writeContents w
                     )
 
                 json.WriteEndObject()
@@ -750,6 +827,14 @@ module ClassicJsonWriter =
                 Ok(buffer.WrittenSpan.ToArray())
             with ClassicWriteFailure error ->
                 Error error
+
+        match distribution, profile.Distribution with
+        | Library(package, dependencies, definition), ClassicProfileDistribution.Library tag ->
+            document tag package dependencies (fun w -> packageDefinition w definition)
+        | Specs(package, dependencies, specification), ClassicProfileDistribution.Specs tag ->
+            document tag package dependencies (fun w -> packageSpecification w specification)
+        | Library _, ClassicProfileDistribution.Specs _ -> unsupportedKind profile "Library"
+        | Specs _, ClassicProfileDistribution.Library _ -> unsupportedKind profile "Specs"
 
     /// <summary>Writes attributes that came from JSON as they are, for models read with <c>ClassicJson</c>.</summary>
     let writeJsonAttributes

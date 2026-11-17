@@ -665,8 +665,8 @@ let buildV3 (library: V3LibraryBuilder) : Morphir.IR.Classic.Distribution.Distri
     )
 
 /// <summary>
-/// Builds a classic <c>Specs</c>, the public interface as <c>buildV4Specs</c> makes it. The classic writer refuses
-/// it today: a Specs distribution needs format 3.1.0.
+/// Builds a classic <c>Specs</c>, the public interface as <c>buildV4Specs</c> makes it. The classic writer writes
+/// it at format 3.1.0, the version that introduced it.
 /// </summary>
 let buildV3Specs
     (library: V3LibraryBuilder)

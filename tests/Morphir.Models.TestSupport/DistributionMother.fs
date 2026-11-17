@@ -4,9 +4,9 @@
 /// rather than adding a case here.
 /// </summary>
 /// <remarks>
-/// Every case encodes with the existing writers except two, which stand for a refusal: <c>v3Specs</c> (the
-/// classic writer refuses a Specs distribution until its format 3.1.0 writer exists) and <c>collidingStems</c>
-/// (its two type names have one spelling, so the v4 writer refuses the one that has no canonical spelling).
+/// Every case encodes with the existing writers except one, which stands for a refusal: <c>collidingStems</c>
+/// (its two type names have one spelling, so the v4 writer refuses the one that has no canonical spelling). The
+/// classic cases encode at 3, and <c>v3Specs</c> at 3.1.0.
 /// </remarks>
 module Morphir.Models.TestSupport.DistributionMother
 
@@ -131,7 +131,7 @@ let dependencyWithoutModules: Distribution =
 let v3Library: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     buildV3 financeV3
 
-/// <summary>A classic Specs distribution with one module and one dependency. The classic writer refuses it.</summary>
+/// <summary>A classic Specs distribution with one module and one dependency, which the classic writer writes at 3.1.0.</summary>
 let v3Specs: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     financeV3
     |> withDependency Sdk.package sdkBasics
