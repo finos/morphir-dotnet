@@ -29,6 +29,8 @@
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
+        <!-- IFileProvider, which FileProviders.fs implements over a tree and reads into one. It brings Microsoft.Extensions.Primitives. -->
+        <PackageReference Include="Microsoft.Extensions.FileProviders.Abstractions" />
     </ItemGroup>
 
     <!--
@@ -45,6 +47,7 @@
         <Compile Include="Property.fs" />
         <Compile Include="File.fs" />
         <Compile Include="FileTree.fs" />
+        <Compile Include="FileProviders.fs" />
     </ItemGroup>
 
 </Project>

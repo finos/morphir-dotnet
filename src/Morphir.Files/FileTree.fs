@@ -248,17 +248,17 @@ module TreeConfig =
 [<RequireQualifiedAccess>]
 module VFileTree =
     /// <summary>True for a path anchored outside the tree, such as /a, \a or C:\a.</summary>
-    let private isRooted (path: string): bool =
+    let internal isRooted (path: string): bool =
         path.StartsWith '/' || path.StartsWith '\\' || (path.Length > 1 && path[1] = ':')
 
     /// <summary>Splits a path on either separator, dropping empty and "." segments.</summary>
-    let private pathSegments (path: string): string list =
+    let internal pathSegments (path: string): string list =
         path.Split([| '/'; '\\' |], StringSplitOptions.RemoveEmptyEntries)
         |> Array.filter (fun segment -> segment <> ".")
         |> List.ofArray
 
     /// <summary>Joins a path to a normalized base path. A rooted path ignores the base.</summary>
-    let private resolvePath (basePath: string) (path: string): string =
+    let internal resolvePath (basePath: string) (path: string): string =
         let relative = String.Join("/", pathSegments path)
 
         if isRooted path then path.Replace('\\', '/')
@@ -326,7 +326,7 @@ module VFileTree =
             | Directory subtree -> allFiles subtree)
 
     /// <summary>Every file that has a location, paired with that location, in tree order.</summary>
-    let private locatedFiles (tree: VFileTree): (string * VFile) list =
+    let internal locatedFiles (tree: VFileTree): (string * VFile) list =
         let rec collect (basePath: string) (content: TreeNode list) =
             content
             |> List.collect (function

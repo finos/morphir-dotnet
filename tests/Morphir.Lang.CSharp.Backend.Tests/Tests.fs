@@ -1587,6 +1587,9 @@ let tests =
             Expect.isTrue (Array.contains "Morphir.Models" names) "real typed dependency"
             Expect.isTrue (Array.contains "Microsoft.CodeAnalysis.CSharp" names) "the syntax trees are Roslyn trees"
 
+            // Direct references only: the backend takes a typed model in memory and does not code against tooling, Ion,
+            // pipeline files or Workspaces. Morphir.Models references Morphir.Files, so Morphir.Files is in the closure
+            // of the backend; that is allowed, and only a use of its types here would add it to these names.
             for forbidden in
                 [
                     "Morphir.Tooling"

@@ -1,5 +1,6 @@
 // Prints the target framework of the Morphir.Files assembly it loaded, then the location and content of each file of a
-// tree built from two in-memory files (text and bytes), a property of one file, then what publishing the tree under the folder given as the first argument did, twice: the second
+// tree built from two in-memory files (text and bytes), a property of one file, a file of the tree through its
+// IFileProvider and the file count of the tree built back from that provider, then what publishing the tree under the folder given as the first argument did, twice: the second
 // time one file has new content. Publishing runs the members that Polyfill.fs adds for netstandard2.0.
 module Morphir.Files.NetStandardHost.Program
 
@@ -45,6 +46,10 @@ let main args =
         printfn "location %s %s" location content
 
     printfn "origin %s" (VFileTree.findFile "docs/readme.txt" tree |> Option.bind (VFile.tryGet origin) |> Option.defaultValue "none")
+
+    let provider = VFileProviders.asFileProvider tree
+    let readme = provider.GetFileInfo "docs/readme.txt"
+    printfn "provider %s %d, %d files back" readme.Name readme.Length (VFileTree.fileCount (VFileProviders.ofFileProvider provider))
 
     match args with
     | [| root |] ->

@@ -21,6 +21,20 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="altcover" />
+        <!-- The providers that the tree is built from in FileProviderTests.fs. The product references only the abstractions. -->
+        <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" />
+        <PackageReference Include="Microsoft.Extensions.FileProviders.Physical" />
+    </ItemGroup>
+
+    <!--
+      The document tree of "Embedded fixtures become a tree": embedded in this assembly with a manifest, so
+      ManifestEmbeddedFileProvider gives its files at their relative locations.
+    -->
+    <PropertyGroup>
+        <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+    </PropertyGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="EmbeddedTree/**" />
     </ItemGroup>
 
     <ItemGroup>
@@ -34,6 +48,7 @@
         <Compile Include="ContentTests.fs" />
         <Compile Include="FileTreeTests.fs" />
         <Compile Include="PublicationTests.fs" />
+        <Compile Include="FileProviderTests.fs" />
         <Compile Include="NetStandardTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

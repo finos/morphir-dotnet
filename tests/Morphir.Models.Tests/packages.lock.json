@@ -116,10 +116,17 @@
           "SimpleInfoName": "3.2.0"
         }
       },
-      "morphir.models": {
+      "morphir.files": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.models": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Files": "[1.0.0, )"
         }
       },
       "morphir.testing": {

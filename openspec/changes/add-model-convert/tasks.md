@@ -10,9 +10,11 @@ All work is on `feat/model-convert`. Milestones end with a commit that builds an
 
 - [x] 2.1 Create `src/Morphir.Files` targeting `$(MorphirLibraryTargetFrameworks);netstandard2.0`, move `Property.fs`, `File.fs` and `FileTree.fs` out of `src/Morphir.IR.Pipeline` with their tests into a new `tests/Morphir.Files.Tests`, and make `Morphir.IR.Pipeline`, `Morphir.Ion`, `Morphir.Tooling`, `Morphir.CodeGeneration.FSharp` and `Morphir.IR.Pipeline.Plugins` reference it; verify the solution builds and the moved tests and every existing pipeline test pass unchanged on `net11.0` (scenario "Existing pipeline behavior is unchanged").
 - [x] 2.2 Port `Morphir.Files` to `netstandard2.0` with `Polyfill.fs` and `#if NETSTANDARD2_0` shims for the gaps the trial build found, and verify the `netstandard2.0` build has zero warnings and a `netstandard2.0` consumer builds a tree (scenario "A netstandard2.0 model library uses virtual file trees").
-- [ ] 2.3 Implement `IFileProvider` on `VFileTree` and a tree builder from any `IFileProvider`, and verify the Expecto contract tests for the five provider scenarios of `virtual-file-providers` pass, including embedded and physical providers.
-- [ ] 2.4 Reference `Morphir.Files` from `Morphir.Models` and verify the C# generator and MSBuild task still load in their hosts (the existing generator package and build tests pass).
-- [ ] 2.5 Document `Morphir.Files` (README in the project, a CHANGELOG line) and verify the README's example compiles as an Expecto test.
+- [x] 2.3 Implement `IFileProvider` on `VFileTree` and a tree builder from any `IFileProvider`, and verify the Expecto contract tests for the five provider scenarios of `virtual-file-providers` pass, including embedded and physical providers.
+- [x] 2.4 Reference `Morphir.Files` from `Morphir.Models` and verify the C# generator and MSBuild task still load in their hosts (the existing generator package and build tests pass).
+- [x] 2.5 Document `Morphir.Files` (README in the project, a CHANGELOG line) and verify the README's example compiles as an Expecto test.
+
+**What to try (milestone 0):** `dotnet run --project tests/Morphir.Files.Tests -- --filter "FileProviders"` runs the provider scenarios (a tree as an `IFileProvider`, and trees built from embedded and physical providers without reading a file). In F#, `VFileProviders.asFileProvider tree` gives a tree to any API that takes an `IFileProvider`, and `VFileProviders.ofFileProvider (new PhysicalFileProvider "some/dir")` loads a directory as a tree; `src/Morphir.Files/README.md` has the example. `Morphir.Models` now references `Morphir.Files`, and the `Morphir.Lang.CSharp` package carries it in its analyzer and MSBuild task folders.
 
 ## 3. Test structure foundation (milestone 1)
 

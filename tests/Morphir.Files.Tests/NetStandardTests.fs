@@ -89,6 +89,8 @@ let tests =
               "location data/schema.bin v1"
               "location docs/readme.txt two files"
               "origin text"
+              // The tree as an IFileProvider: the length is the byte count, and a tree built from it has both files.
+              "provider readme.txt 9, 2 files back"
               // The first publication writes both files, in tree order.
               "written docs/readme.txt,data/schema.bin"
               "unchanged "

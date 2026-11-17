@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Morphir.Files` exchanges trees with `Microsoft.Extensions.FileProviders`: `VFileProviders.asFileProvider` gives a `VFileTree` wherever an `IFileProvider` is accepted, and `VFileProviders.ofFileProvider` builds a tree from any provider (physical, embedded, composite) without reading a file until it is read. `Morphir.Models` now depends on `Morphir.Files`, so the analyzer and MSBuild task folders of `Morphir.Lang.CSharp` also carry `Morphir.Files`, `Microsoft.Extensions.FileProviders.Abstractions` and `Microsoft.Extensions.Primitives`. See [the Morphir.Files README](src/Morphir.Files/README.md#exchange-files-with-ifileprovider).
+
 ### Changed
 - `VFile`, `VFileTree` and `PropertyBag` moved from `Morphir.IR.Pipeline` to the new package `Morphir.Files`, in the namespace `Morphir.Files`. Code that uses them adds `open Morphir.Files` (F#) or `using Morphir.Files;` (C#). `Morphir.IR.Pipeline` depends on `Morphir.Files` and keeps `MorphirProcessor`, so a pipeline also opens `Morphir.IR.Pipeline`.
 

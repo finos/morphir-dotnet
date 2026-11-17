@@ -37,6 +37,11 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <PackageReference Include="FSharp.Core" />
     </ItemGroup>
 
+    <!-- Virtual files and trees, which the document-tree store of the model reads and writes without touching the disk. -->
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Files\Morphir.Files.fsproj" />
+    </ItemGroup>
+
     <!-- netstandard2.0 has no System.Text.Json and lacks some members of newer frameworks; Polyfill.fs adds them. -->
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
         <PackageReference Include="System.Text.Json" />

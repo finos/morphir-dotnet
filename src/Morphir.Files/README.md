@@ -5,6 +5,9 @@ The virtual files that morphir-dotnet frontends, backends and models share. `Mor
 - `VFile` is one virtual file: content, path, path history, diagnostics and plugin data.
 - `VFileTree` is a hierarchy of `VFile`s with configuration, metadata and tree-level diagnostics.
 - `PropertyBag` holds typed data attached to files, trees and tree configuration.
+- `VFileProviders` turns a tree into a Microsoft `IFileProvider` and builds a tree from any `IFileProvider`.
+
+The library targets `net11.0`, `net10.0` and `netstandard2.0`, so `Morphir.Models` and the assemblies that a compiler or MSBuild host loads can use it.
 
 The design is in [Unified File Architecture](../../docs/design/unified-file-architecture.md).
 
@@ -150,6 +153,35 @@ match VFileTree.loadFromDisk "out" with
 - It skips symbolic links to directories, because they can form cycles. It follows symbolic links to files.
 
 Publishing a tree and loading it back gives the same locations and content. The exception is an empty directory, which `loadFromDisk` keeps but `publish` does not create. The loaded tree's `Path` is the directory you loaded, and its `Config` and `Metadata` are empty.
+
+## Exchange files with IFileProvider
+
+`VFileProviders` connects trees to `Microsoft.Extensions.FileProviders`, in both directions.
+
+```fsharp
+open Microsoft.Extensions.FileProviders
+
+let tree =
+    VFileTree.fromFileMap (Map.ofList [ "pkg/acme/demo/module.json", VFile.create "module.json" "{}" ])
+
+let provider: IFileProvider = VFileProviders.asFileProvider tree
+let info = provider.GetFileInfo "pkg/acme/demo/module.json"                         // info.Exists, info.Length = 2L
+let names = [ for entry in provider.GetDirectoryContents "pkg/acme/demo" -> entry.Name ] // [ "module.json" ]
+
+let back = VFileProviders.ofFileProvider provider                                   // the same locations, nothing read yet
+```
+
+`asFileProvider` gives a tree wherever an `IFileProvider` is accepted:
+
+- A path is a file's location in the tree, with either separator and an optional leading one. Lookups are case-sensitive.
+- A file's stream opens its content, and its length is its byte count. It has no physical path, and its modification time is `DateTimeOffset.MinValue`.
+- A directory, a missing path and a path with `..` are not files: they do not exist, and opening one throws.
+- Listing a directory gives its files and then its subdirectories, in tree order, and nothing deeper. The empty path lists the top level.
+- `Watch` returns a change token that never fires, because a tree does not change.
+
+`ofFileProvider` builds a tree from any provider: physical, embedded, composite. Each file keeps its location below the provider's root with forward slashes, and its content is a `Stream` that opens the provider's file when it is read, so building the tree reads no file. As with `loadFromDisk`, each directory lists its files and then its subdirectories, sorted by name, and empty directories are kept. The tree's `Path` is `.`.
+
+C# calls them as `VFileProviders.AsFileProvider(tree)` and `VFileProviders.OfFileProvider(provider)`.
 
 ## Migrate from morphir-elm
 
