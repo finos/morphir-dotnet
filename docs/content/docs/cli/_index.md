@@ -30,6 +30,9 @@ The `model` group holds the commands that act on a Morphir model. It replaces th
 no alias.
 
 - **[morphir model verify](./model-verify/)** - Validate a Morphir model, a single IR file (v1-v4) or a document tree, against the official IR JSON schemas
+- **[morphir model convert](./model-convert/)** - Store a Morphir model (IR v3 or v4) as a single file or as a document tree, keeping its IR version
+
+`morphir model --help` lists both commands.
 
 ### Project Management
 
@@ -58,6 +61,7 @@ For help with any command, use the `--help` flag:
 morphir --help
 morphir model --help
 morphir model verify --help
+morphir model convert --help
 ```
 
 ## Common Workflows

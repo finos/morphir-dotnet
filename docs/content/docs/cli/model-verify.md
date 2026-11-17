@@ -34,7 +34,7 @@ parent's v4 schema checks the types and values of a module only when the module 
 
 Use it to:
 - **Catch structural errors** before other tools read a model
-- **Validate generated IR** from Morphir compilers and from `morphir model convert`
+- **Validate generated IR** from Morphir compilers and from [`morphir model convert`](model-convert.md)
 - **Check models in CI/CD**
 - **Debug IR problems** with detailed error messages
 
@@ -196,9 +196,10 @@ fi
 
 ## Document trees
 
-When `<model-path>` is a directory, `model verify` reads it as a document tree, as `morphir model convert` writes
-it: `manifest.json`, a `module.json` for each module, and a `<name>.type.json` or `<name>.value.json` for each type
-and value, below `pkg/<package>/` for the package and `deps/<package>/@/` for each dependency.
+When `<model-path>` is a directory, `model verify` reads it as a document tree, as
+[`morphir model convert`](model-convert.md) writes it: `manifest.json`, a `module.json` for each module, and a
+`<name>.type.json` or `<name>.value.json` for each type and value, below `pkg/<package>/` for the package and
+`deps/<package>/@/` for each dependency.
 
 The version comes from the manifest: a v4 tree says `"formatVersion": 4`, and each file of a v3 tree says
 `"formatVersion": "3.1.0"`. The command checks the whole tree and lists every error it finds:
@@ -369,7 +370,8 @@ morphir model verify --schema-version=3 morphir-ir.json
 
 ### A document tree
 
-Validate a tree that `morphir model convert` wrote:
+Write a single-file model as a document tree with [`morphir model convert`](model-convert.md), then validate the
+tree:
 
 ```bash
 morphir model convert --input morphir-ir.json --output out/tree --layout=document-tree

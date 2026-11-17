@@ -88,6 +88,7 @@
     <None Include="../../docs/content/docs/cli/generate.md" Link="Fixtures/Docs/cli/generate.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/cli/validate.md" Link="Fixtures/Docs/cli/validate.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/cli/model-verify.md" Link="Fixtures/Docs/cli/model-verify.md" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/content/docs/cli/model-convert.md" Link="Fixtures/Docs/cli/model-convert.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/guides/fsharp-pricing-tutorial.md" Link="Fixtures/Docs/guides/fsharp-pricing-tutorial.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/getting-started/compile-fsharp.md" Link="Fixtures/Docs/getting-started/compile-fsharp.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/content/docs/frontends/csharp/_index.md" Link="Fixtures/Docs/frontends/csharp/_index.md" CopyToOutputDirectory="PreserveNewest" />
