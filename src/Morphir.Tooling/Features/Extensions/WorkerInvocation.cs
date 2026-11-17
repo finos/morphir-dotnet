@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using Morphir.Extensions.Wasm;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Features.Extensions;
 
@@ -93,8 +94,12 @@ public abstract record WorkerInvocation
     /// <summary>Serve the module with these options.</summary>
     public sealed record Serve(WorkerOptions Options) : WorkerInvocation;
 
-    /// <summary>Show the help and serve nothing: the text, or with <c>--json</c> one <c>morphir/command-result</c>.</summary>
-    public sealed record Help(bool Json) : WorkerInvocation
+    /// <summary>
+    /// Show the help and serve nothing: the text; with <c>--json</c> one <c>completed</c> record whose report is the
+    /// <c>morphir/command-result</c>; with <c>--json=document</c> that <c>morphir/command-result</c> alone.
+    /// </summary>
+    /// <param name="Mode">The JSON output of the help, or <see cref="JsonOutputMode.None"/> for the text.</param>
+    public sealed record Help(JsonOutputMode Mode) : WorkerInvocation
     {
         internal static readonly Lazy<string> Text = new(Render);
     }
@@ -105,14 +110,15 @@ public abstract record WorkerInvocation
     public sealed record Invalid(string Message, bool Json) : WorkerInvocation;
 
     /// <summary>Reads the arguments after <c>extension worker</c>. Options take their value as the next argument or
-    /// after <c>=</c>, in any order. <c>--help</c> (or <c>-h</c>) anywhere shows the help.</summary>
+    /// after <c>=</c>, in any order; <c>--json</c> takes its mode only after <c>=</c>
+    /// (<c>--json[=stream|document]</c>). <c>--help</c> (or <c>-h</c>) anywhere shows the help.</summary>
     public static WorkerInvocation Parse(IReadOnlyList<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        var json = arguments.Contains(JsonFlag);
+        var json = arguments.Any(IsJsonFlag);
         if (arguments.Any(argument => argument is HelpFlag or "-h"))
         {
-            return new Help(json);
+            return JsonModeOf(arguments) is { } mode ? new Help(mode) : new Invalid(UnknownMode, json);
         }
 
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -125,7 +131,10 @@ public abstract record WorkerInvocation
             var inline = equals > 0 ? token[(equals + 1)..] : null;
             if (name == JsonFlag)
             {
-                if (inline is not null) return new Invalid($"{JsonFlag} takes no value", json);
+                if (inline is not null && ModeOfValue(inline) is null) return new Invalid(UnknownMode, json);
+                // The report of a serving worker is its events: one document has nothing to hold.
+                if (inline is not null && ModeOfValue(inline) == JsonOutputMode.Document)
+                    return new Invalid($"{JsonFlag}=document applies to {HelpFlag} only; a serving worker reports its events, so give {JsonFlag}", json);
                 if (!flags.Add(name)) return new Invalid($"{JsonFlag} is given twice", json);
             }
             else if (Valued.Contains(name))
@@ -148,6 +157,33 @@ public abstract record WorkerInvocation
         }
 
         return Read(values, json);
+    }
+
+    /// <summary>The error of a <c>--json</c> value that is not a mode.</summary>
+    const string UnknownMode = $"{JsonFlag} takes the mode stream or document, after =";
+
+    static bool IsJsonFlag(string argument) =>
+        argument == JsonFlag || argument.StartsWith(JsonFlag + "=", StringComparison.Ordinal);
+
+    /// <summary>The mode of <c>--json</c> or <c>--json=&lt;mode&gt;</c>, or null for a value that is not a mode.</summary>
+    static JsonOutputMode? ModeOfValue(string? value) => value switch
+    {
+        null or "stream" => JsonOutputMode.Stream,
+        "document" => JsonOutputMode.Document,
+        _ => null,
+    };
+
+    /// <summary>The JSON output that the arguments ask for (the last <c>--json</c> wins), or null for a value that is not a mode.</summary>
+    static JsonOutputMode? JsonModeOf(IReadOnlyList<string> arguments)
+    {
+        var mode = JsonOutputMode.None;
+        foreach (var argument in arguments.Where(IsJsonFlag))
+        {
+            if (ModeOfValue(argument == JsonFlag ? null : argument[(JsonFlag.Length + 1)..]) is not { } given) return null;
+            mode = given;
+        }
+
+        return mode;
     }
 
     static WorkerInvocation Read(Dictionary<string, string> values, bool json)
@@ -251,7 +287,9 @@ public abstract record WorkerInvocation
                                          Default {N(pages)} ({N(contract.MemoryCeilingBytes / (1024 * 1024))} MiB).
               {JsonFlag}                     Write the stderr report as morphir/command-event lines.
               {HelpFlag}, -h                 Show this help on stdout and serve nothing. With --json, write one
-                                         morphir/command-result whose result.buildIdentity is the identity to pass.
+                                         completed record whose report is a morphir/command-result, and with
+                                         --json=document that morphir/command-result alone; its
+                                         result.buildIdentity is the identity to pass.
 
             Exit status: 0 the guest served until its instance ended; 1 a fault, an invalid frame, or stdin ended
             first; 2 invalid arguments; 3 a refusal before any request; 130 interrupted (Ctrl+C, or Ctrl+Break on
@@ -261,10 +299,10 @@ public abstract record WorkerInvocation
     }
 
     /// <summary>Calls the function for this invocation.</summary>
-    public TResult Match<TResult>(Func<WorkerOptions, TResult> serve, Func<bool, TResult> help, Func<string, bool, TResult> invalid) => this switch
+    public TResult Match<TResult>(Func<WorkerOptions, TResult> serve, Func<JsonOutputMode, TResult> help, Func<string, bool, TResult> invalid) => this switch
     {
         Serve value => serve(value.Options),
-        Help value => help(value.Json),
+        Help value => help(value.Mode),
         Invalid value => invalid(value.Message, value.Json),
         _ => throw new UnreachableException(),
     };

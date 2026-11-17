@@ -25,10 +25,11 @@ morphirup run -- validate --input .morphir/out/compile.dest/morphir-ir.json
 The exit code is 0 when there are no errors, so you can use the command in a script or a CI job. The checks find
 type mismatches, such as a string where the model declares an int.
 
-For a report that a script can read, add `--json`:
+For one report that a script can read, add `--json=document` (a bare `--json` writes the same report in one
+`completed` line; see [machine output]({{< relref "/docs/cli#machine-output" >}})):
 
 ```shell
-morphirup run -- validate --input .morphir/out/compile.dest/morphir-ir.json --json
+morphirup run -- validate --input .morphir/out/compile.dest/morphir-ir.json --json=document
 ```
 
 ```json

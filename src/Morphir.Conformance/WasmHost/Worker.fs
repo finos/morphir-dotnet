@@ -151,12 +151,28 @@ module Worker =
     /// The arguments that `--help --json` takes.
     let helpArguments = [ "extension"; "worker"; "--help"; "--json" ]
 
-    /// Reads the build identity from the stdout of `extension worker --help --json`: the one
-    /// `morphir/command-result` document and its `result.buildIdentity` of 64 hexadecimal digits.
+    /// The `morphir/command-result` of the help output: the `report` of its one `{"event":"completed","report":…}`
+    /// line, as morphir-dotnet's `--json` writes it (adopt-streaming-json), or the one document itself, as a host
+    /// that writes the corpus's `--help --json` as one `morphir/command-result` does.
+    let private helpResult (root: JsonElement) =
+        match root.ValueKind with
+        | JsonValueKind.Object ->
+            match root.TryGetProperty "event", root.TryGetProperty "report" with
+            | (true, name), (true, report) when
+                name.ValueKind = JsonValueKind.String
+                && name.GetString() = "completed"
+                ->
+                report
+            | _ -> root
+        | _ -> root
+
+    /// Reads the build identity from the stdout of `extension worker --help --json`: one JSON value, the
+    /// `morphir/command-result` or the `completed` record that holds it, with `result.buildIdentity` of 64
+    /// hexadecimal digits.
     let parseHelp (stdout: string) : Result<string, string> =
         try
             use document = JsonDocument.Parse(stdout.Trim())
-            let root = document.RootElement
+            let root = helpResult document.RootElement
 
             let identity =
                 match root.ValueKind with

@@ -21,7 +21,10 @@ public sealed record WorkspaceMigrationReport(
     string[] UncertainDirectories, string[] PreservedDirectories, int ExitCode,
     ConfigurationValueTypeDto[] ValueTypes)
 {
-    public string ToJson() => JsonSerializer.Serialize(this, WorkspaceMigrationJsonContext.Default.WorkspaceMigrationReport);
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>The source-generated contract of the report, for the shared JSON output writer.</summary>
+    public static System.Text.Json.Serialization.Metadata.JsonTypeInfo<WorkspaceMigrationReport> JsonInfo => WorkspaceMigrationJsonContext.Default.WorkspaceMigrationReport;
 
     internal static WorkspaceMigrationReport From(WorkspaceMigrationPreview preview, string outcome, bool dryRun,
         int exitCode = 0, string? errorCode = null, ConfigurationEditArtifactDto[]? artifacts = null,

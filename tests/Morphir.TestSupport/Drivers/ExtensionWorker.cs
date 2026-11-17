@@ -28,10 +28,20 @@ public static class ExtensionWorker
         var help = await HelpAsync(sessions).ConfigureAwait(false);
         if (help.ExitCode != 0)
             throw new InvalidOperationException($"extension worker --help --json did not exit with 0: {help.Describe()}");
+        return HelpResultOf(help).GetProperty("result").GetProperty("buildIdentity").GetString()!;
+    });
+
+    /// <summary>
+    /// The <c>morphir/command-result</c> of <c>extension worker --help --json</c>: the report of its one
+    /// <c>completed</c> record, or the one document of a host that writes the result alone.
+    /// </summary>
+    public static System.Text.Json.JsonElement HelpResultOf(SessionExit help)
+    {
+        ArgumentNullException.ThrowIfNull(help);
         var result = new CommandResult(string.Join(' ', Command) + " --help --json", help.ExitCode ?? -1, Encoding.UTF8.GetString(help.StandardOutput),
             string.Join(Environment.NewLine, help.StandardError.Select(line => line.Text)), help.ExitedAt, []);
-        return result.ReportOfEither().GetProperty("result").GetProperty("buildIdentity").GetString()!;
-    });
+        return result.ReportOfEither();
+    }
 
     /// <summary>Runs <c>extension worker --help --json</c> to its exit.</summary>
     public static async Task<SessionExit> HelpAsync(IProcessSessionDriver sessions, ProcessSessionOptions? options = null)

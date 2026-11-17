@@ -12,6 +12,9 @@
 //   {
 //     "buildIdentity": "<64 hexadecimal digits>",   // what `--help --json` reports
 //     "helpExit": 0,                                // optional: the exit status of --help
+//     "helpForm": "stream",                         // optional: "stream" (default) writes the help result in one
+//                                                   // {"event":"completed","report":...} line, as morphir-dotnet's
+//                                                   // --json does; "document" writes the result alone
 //     "modules": { "<module file name without extension>" | "*": [ <action>, ... ] }
 //   }
 //
@@ -94,7 +97,9 @@ internal static class Program
                     ["buildIdentity"] = script["buildIdentity"]?.GetValue<string>() ?? new string('a', 64),
                 },
             };
-            WriteStdout(Encoding.UTF8.GetBytes(help.ToJsonString() + "\n"));
+            var form = script["helpForm"]?.GetValue<string>() ?? "stream";
+            var output = form == "document" ? help : new JsonObject { ["event"] = "completed", ["report"] = help };
+            WriteStdout(Encoding.UTF8.GetBytes(output.ToJsonString() + "\n"));
             return script["helpExit"]?.GetValue<int>() ?? 0;
         }
 

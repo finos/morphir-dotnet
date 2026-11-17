@@ -86,6 +86,36 @@ public static class OptionValueRewrite
         [.. result.Errors.Zip(ErrorHints(result), (error, hint) => hint is null ? error.Message : $"{error.Message} {hint}")];
 
     /// <summary>
+    /// The messages of <see cref="ErrorMessages"/> that quote no value that a user gave, for a command whose report
+    /// repeats no raw input (configuration and migration, whose values can be secrets): an error of an option made by
+    /// <see cref="CreateOption"/>, such as an unknown mode, which lists the modes; an unrecognized argument that
+    /// names a mode, with its hint; and an unrecognized argument that is an option name, such as <c>--json-lines</c>.
+    /// </summary>
+    public static IReadOnlyList<string> RedactedErrorMessages(ParseResult result)
+    {
+        var messages = ErrorMessages(result);
+        var hints = ErrorHints(result);
+        var optionNames = result.UnmatchedTokens.Where(IsOptionName).Select(token => $"'{token}'").ToArray();
+        return [.. result.Errors.Select((error, index) => (error, index))
+            .Where(item => hints[item.index] is not null || OfAnOptionWithABareDefault(item.error.SymbolResult)
+                || optionNames.Any(name => item.error.Message.Contains(name, StringComparison.Ordinal)))
+            .Select(item => messages[item.index])];
+    }
+
+    /// <summary>True for a token that is only an option name, with no value: <c>--json-lines</c>, not <c>--key=value</c>.</summary>
+    private static bool IsOptionName(string token) =>
+        token.Length > 2 && token.StartsWith(DoubleDash, StringComparison.Ordinal) && char.IsAsciiLetter(token[2])
+        && token.Skip(3).All(character => char.IsAsciiLetterOrDigit(character) || character == '-');
+
+    /// <summary>True when <paramref name="symbol"/> is, or belongs to, the result of an option made by <see cref="CreateOption"/>.</summary>
+    private static bool OfAnOptionWithABareDefault(SymbolResult? symbol)
+    {
+        for (; symbol is not null; symbol = symbol.Parent)
+            if (symbol is OptionResult option) return option.Option is OptionalValueOption;
+        return false;
+    }
+
+    /// <summary>
     /// The hint of each error of <paramref name="result"/>, in order, or null for an error without one: for example
     /// <c>Give a value with an equals sign: --json=document.</c> for the unrecognized argument of <c>--json document</c>.
     /// </summary>

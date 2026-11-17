@@ -459,7 +459,8 @@ type internal LiveWorker
 /// A session factory for ModelTierRunner.RunAsync that runs each session the runner asks for in a new worker
 /// process: `<host> [host arguments] extension worker --abi extism-kernel-v1 --module <module> --build-identity
 /// <identity> --json`, the arguments of the wasm-host corpus's worker convention, with the build identity that the
-/// host's `extension worker --help --json` reports. The session is a HostSession over the worker's stdout and stdin;
+/// host's `extension worker --help --json` reports (Worker.parseHelp reads it from the `completed` record that
+/// morphir-dotnet writes, or from one morphir/command-result). The session is a HostSession over the worker's stdout and stdin;
 /// the factory reads the worker's stderr events. EndAsync waits for each worker to exit, stops the process tree of one
 /// that does not, and reports each worker's end and events. Disposing the factory stops every worker still running and
 /// releases each worker's process.

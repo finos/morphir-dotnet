@@ -33,9 +33,9 @@ Keys are case-sensitive. Dots separate segments; JSON-escaped double-quoted segm
 
 ```bash
 morphir config get ir.format_version
-morphir config get 'codegen."custom.generator".enabled' --json
+morphir config get 'codegen."custom.generator".enabled' --json=document
 morphir config list --show-origin --show-scope
-morphir config show --json
+morphir config show --json=document
 morphir config path --json
 morphir config explain custom.theme
 ```
@@ -67,7 +67,7 @@ A workspace-root invocation reads the root unless shared selection chooses one d
 | --- | --- |
 | `--show-origin` | Include winning paths, formats and available positions with entries |
 | `--show-scope` | Include winning source roles with entries |
-| `--json` | Emit one JSON report with typed JSON values and structured diagnostics |
+| `--json[=stream\|document]` | Emit the JSON report with typed JSON values and structured diagnostics: a bare `--json` writes one `completed` record that holds it, `--json=document` the report alone. See [Machine output](_index.md#machine-output) |
 | `--config <path>` | Overlay an explicitly selected configuration file |
 | `--discovery-boundary <directory>` | Include this directory in discovery and exclude its parents. Default: `MORPHIR_DISCOVERY_BOUNDARY`, else the current filesystem volume |
 | `--profiles <names>` | Comma-separated profile names, repeatable in order |
@@ -100,10 +100,10 @@ The command fails with exit code 2, before reading any configuration, when:
 
 ```console
 $ export MORPHIR_DISCOVERY_BOUNDARY=$PWD MORPHIR_ISOLATED=1
-$ morphir config path --json
+$ morphir config path --json=document
 ```
 
-`config path --json` reports what was in effect:
+`config path` reports what was in effect:
 
 ```json
 "containment": {
@@ -187,7 +187,7 @@ keys alone, to recognize special values.
 
 Temporal values retain their string text and have `kind: "temporal"` metadata with the original temporal kind in `encoding`, for example `LocalDate`. Metadata also identifies special values under `/entries/0/value` and `/contributions/0/value`. Pointers use standard JSON Pointer escaping, including `~0` for `~` and `~1` for `/`. Finite values need no metadata. Redaction replaces sensitive values and secret references with `"[REDACTED]"` before presentation and before special-value encoding; safe key/source metadata remains inspectable. Diagnostics retain structured codes and metadata while avoiding raw secret-bearing input text.
 
-Stdout contains only results. Human diagnostic text goes to stderr in both human and JSON modes. Successful JSON with mixed-format warnings therefore remains parseable, and `diagnostics` carries the warnings for scripts. Usage errors also return one structured JSON report when `--json` is present.
+Stdout contains only results. Human diagnostic text goes to stderr in both human and JSON modes. Successful JSON with mixed-format warnings therefore remains parseable, and `diagnostics` carries the warnings for scripts. Usage errors also return one structured JSON report in a JSON mode: the `report` of the one `completed` record with `--json`, the document with `--json=document`. Its `config.usage` diagnostic adds only the parser messages that quote no value, such as an unknown `--json` mode, the hint `--json=document` or an unknown option name.
 
 ## Exit codes
 
@@ -199,13 +199,13 @@ Stdout contains only results. Human diagnostic text goes to stderr in both human
 
 IR verification retains its existing interpretation of code `1`.
 
-Malformed or inaccessible host `appsettings` files return `config.load` with exit code 2. With `--json`, the failure remains one JSON result. Invalid command arguments return `config.usage` before this failure; help does not load host configuration.
+Malformed or inaccessible host `appsettings` files return `config.load` with exit code 2. In a JSON mode, the failure remains one JSON result. Invalid command arguments return `config.usage` before this failure; help does not load host configuration.
 
 ## CI example
 
 ```bash
-morphir config show --isolated --discovery-boundary . --profiles ci --json > effective-config.json
-morphir config get ir.format_version --isolated --discovery-boundary . --profiles ci --json
+morphir config show --isolated --discovery-boundary . --profiles ci --json=document > effective-config.json
+morphir config get ir.format_version --isolated --discovery-boundary . --profiles ci --json=document
 ```
 
 Isolation preserves supplied environment values and selected profiles. Control the job's environment as well when checking reproducibility. An explicitly selected eligible personal file retains its discovered ownership restrictions even under isolation.
@@ -232,7 +232,7 @@ Strings are the default, even with `--json`. Explicit types use JSON literal syn
 Duplicate object keys, null values and nested nulls fail. Integer input and integer tokens inside composite values must fit Int64; explicit `number` input chooses finite floating-point precision, including for large literals. Arrays and objects replace the complete target entry. Paths address whole arrays and opaque references; traversal through an atomic ancestor fails. Known settings are validated in the authored target as well as the effective candidate, so a higher environment value cannot hide an invalid edit.
 
 ```bash
-morphir config set ui.color false --type bool --global --dry-run --json
+morphir config set ui.color false --type bool --global --dry-run --json=document
 morphir config set custom.caption false --json  # writes the string "false"
 morphir config set custom.targets '["csharp"]' --type array
 morphir config set custom.generator '{"enabled":true,"targets":["csharp"]}' --type object
@@ -246,7 +246,7 @@ Profile, isolation, warning-suppression and discovery-boundary controls retain t
 
 ## Editing JSON reports
 
-Every editing invocation with `--json` emits one object matching the [editing JSON Schema](https://github.com/finos/morphir-dotnet/blob/main/docs/spec/schemas/config-edit-result.schema.json). Stdout contains only this report; safe diagnostics go to stderr.
+Every editing invocation with `--json=document` emits one object, and with `--json` one `completed` record whose `report` is that object, matching the [editing JSON Schema](https://github.com/finos/morphir-dotnet/blob/main/docs/spec/schemas/config-edit-result.schema.json). Stdout contains only this report; safe diagnostics go to stderr.
 
 | Field | Meaning |
 | --- | --- |

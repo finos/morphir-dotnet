@@ -103,7 +103,7 @@ let private readiness (root: SafeDirectory) (stage: SafeDirectory) (candidate: L
     let ir = read work "compiled/morphir-ir.json"
     if not(JsonNode.DeepEquals(JsonNode.Parse ir,JsonNode.Parse(fixedBytes "ir.json"))) then
         refuse "setup.readiness_failed" "Compiled IR differs from the fixed semantic expectation."
-    let! backend,backendReport = launchReport program ["generate";"--target";"fsharp";"--input";Path.Combine(workPath,"compiled/morphir-ir.json");"--output";Path.Combine(workPath,"generated");"--option";"format=false";"--extension-id";candidate.BackendId.Text;"--json"] workPath home overlay ct
+    let! backend,backendReport = launchReport program ["generate";"--target";"fsharp";"--input";Path.Combine(workPath,"compiled/morphir-ir.json");"--output";Path.Combine(workPath,"generated");"--option";"format=false";"--extension-id";candidate.BackendId.Text;"--json=document"] workPath home overlay ct
     use generated = work.Child("generated",false)
     checkGeneratedSet (generated.Entries()) (SharedJson.required "report" "artifacts" backendReport)
     read generated ".morphir-generated.json" |> ignore

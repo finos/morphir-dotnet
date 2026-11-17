@@ -27,7 +27,7 @@ public sealed class ModelVerificationBudgetTests : BlackBoxTest
     {
         var model = Workspace.CopyFixture("Models/greeting-example-v3.json");
 
-        var result = await Drivers.Verification.VerifyAsync(model, new VerificationOptions { Json = true });
+        var result = await Drivers.Verification.VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream });
 
         await Assert.That(result.ExitCode).IsEqualTo(0).Because(result.Describe());
         VerificationReport.Of(result).ShouldBeValid();
@@ -48,7 +48,7 @@ public sealed class ModelVerificationBudgetTests : BlackBoxTest
         var model = Workspace.File("deep.json");
         Workspace.WriteText(model, json);
 
-        var result = await Drivers.Verification.VerifyAsync(model, new VerificationOptions { Json = true });
+        var result = await Drivers.Verification.VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream });
 
         await Assert.That(result.ExitCode).IsEqualTo(0).Because(result.Describe());
         VerificationReport.Of(result).ShouldBeValid();
@@ -62,7 +62,7 @@ public sealed class ModelVerificationBudgetTests : BlackBoxTest
         var model = Workspace.File("too-deep.json");
         Workspace.WriteText(model, json);
 
-        var result = await Drivers.Verification.VerifyAsync(model, new VerificationOptions { Json = true });
+        var result = await Drivers.Verification.VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream });
 
         await Assert.That(result.ExitCode).IsEqualTo(1).Because(result.Describe());
         var report = VerificationReport.Of(result).ShouldBeInvalid();

@@ -624,6 +624,29 @@ two steps have the same pattern.
 | Install scripts | `Then the install script says {string}` |
 | Install scripts | `Then the install script installed morphirup` |
 | Install scripts | `Then the install script installed nothing` |
+| JSON output | `Given the input of {string}` |
+| JSON output | `Given the input of {string} that makes it write a log line` |
+| JSON output | `When I run {string} with a bare JSON flag` |
+| JSON output | `When I run {string} with the JSON document` |
+| JSON output | `When I run {string} with the JSON output {string}` |
+| JSON output | `When I run {string} with the JSON mode {string}` |
+| JSON output | `When I run {string} with the JSON mode {string} after a space` |
+| JSON output | `When I run {string} with a bare JSON flag and an option that it does not have` |
+| JSON output | `When I run {string} with the former streaming flag` |
+| JSON output | `When I run {string} with a bare JSON flag right before its input` |
+| JSON output | `When I run {string} with a bare JSON flag and then with the JSON document` |
+| JSON output | `When I list the extensions with a bare JSON flag and then with the JSON document` |
+| JSON output | `Then standard output is JSON Lines that end with one completed record` |
+| JSON output | `Then every line of standard output is a JSON record with an event, and only the last is completed` |
+| JSON output | `Then standard output is one completed record` |
+| JSON output | `Then the output names the JSON modes {string} and {string}` |
+| JSON output | `Then the report of {string} states the usage failure` |
+| JSON output | `Then the document is the report of the completed record` |
+| JSON output | `Then standard output is one report document whose exit code is the exit code of the command` |
+| JSON output | `Then the report of {string} names its input` |
+| JSON output | `Then standard error has a line` |
+| JSON output | `Then standard output is the JSON output {string}` |
+| JSON output | `Then the member {string} is at the top of the document and at the top of the report of the completed record` |
 
 The scenarios that pull request 3 of the change `consolidate-black-box-tests` moved keep the step texts of their old
 features, so that each moved scenario has its old steps and its old checks. Some of those steps say one thing in the

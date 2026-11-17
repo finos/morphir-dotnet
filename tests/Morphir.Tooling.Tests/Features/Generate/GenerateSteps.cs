@@ -54,7 +54,7 @@ public sealed class GenerateSteps : IDisposable
 
     private async Task Invoke(params string[] extra)
     {
-        var arguments = new List<string> { "generate", "--json", $"--input \"{_input}\"", "--target fsharp", $"--output \"{Output}\"" };
+        var arguments = new List<string> { "generate", "--json=document", $"--input \"{_input}\"", "--target fsharp", $"--output \"{Output}\"" };
         arguments.AddRange(extra);
         _run.Result = await _cli.ExecuteCommandAsync(string.Join(" ", arguments), timeout: TimeSpan.FromSeconds(120));
     }

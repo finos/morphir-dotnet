@@ -31,9 +31,28 @@ public sealed class ExtensionWorkerTests
     // --- Help and usage -------------------------------------------------------------------------------------------
 
     [Test]
-    public async Task Help_with_json_writes_one_command_result_with_the_build_identity_on_stdout()
+    public async Task Help_with_json_writes_one_completed_record_whose_report_is_the_command_result()
     {
         var run = await RunAsync(["--help", "--json"], []);
+
+        run.ExitCode.Should().Be(0);
+        run.StderrLines.Should().BeEmpty();
+        var text = Encoding.UTF8.GetString(run.Stdout);
+        text.Should().EndWith("}\n").And.Subject.Count(c => c == '\n').Should().Be(1);
+        using var record = JsonDocument.Parse(run.Stdout);
+        record.RootElement.GetProperty("event").GetString().Should().Be("completed");
+        var report = record.RootElement.GetProperty("report");
+        report.GetProperty("profile").GetString().Should().Be("morphir/command-result");
+        report.GetProperty("result").GetProperty("buildIdentity").GetString().Should().Be(Identity);
+        // The record holds the document of --json=document, byte for byte.
+        var document = await RunAsync(["--help", "--json=document"], []);
+        text.Should().Be("{\"event\":\"completed\",\"report\":" + Encoding.UTF8.GetString(document.Stdout).TrimEnd('\n') + "}\n");
+    }
+
+    [Test]
+    public async Task Help_with_the_json_document_writes_one_command_result_with_the_build_identity_on_stdout()
+    {
+        var run = await RunAsync(["--help", "--json=document"], []);
 
         run.ExitCode.Should().Be(0);
         run.StderrLines.Should().BeEmpty();

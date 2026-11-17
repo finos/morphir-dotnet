@@ -23,6 +23,9 @@ public static class ConsoleOutputHelper
         _isRedirected = true;
     }
 
+    /// <summary>The writer of stdout (for command output), which <see cref="RedirectConsoleToStderr"/> keeps.</summary>
+    public static TextWriter Stdout => _originalStdout ?? Console.Out;
+
     /// <summary>
     /// Write directly to stdout (for command output like JSON results).
     /// </summary>

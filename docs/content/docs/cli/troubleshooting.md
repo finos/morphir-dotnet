@@ -13,8 +13,8 @@ Use exact target `csharp`, numeric `language-version=15`, and an optional
 literal C# namespace. These invocations fail with exit 2 before publication:
 
 ```powershell
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=preview --json
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option namespace=true --json
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=preview --json=document
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option namespace=true --json=document
 ```
 
 The first requires a numeric profile. The second supplies a JSON Boolean where
@@ -24,8 +24,8 @@ a namespace string is required. Use `--option language-version=15` and
 unescaped reserved words are refused with a located namespace diagnostic.
 Use `@` for reserved words, for example `namespace=@class.Models`.
 
-In JSON mode, parse the single stdout report and inspect `failureKind` and
-`diagnostics`. Structured diagnostics are report data; JSON failures need not
+With `--json=document`, parse the single stdout report and inspect `failureKind`
+and `diagnostics`; with `--json`, read the `report` of the one `completed` line. Structured diagnostics are report data; JSON failures need not
 duplicate their text on stderr. Without `--json`, human diagnostics use stderr.
 Exit 1 identifies unsupported or invalid model semantics; exit 2 identifies
 invocation or operational failures; cancellation before publication returns 130.
@@ -350,16 +350,17 @@ echo "Validation succeeded!"
 
 1. **Verify JSON format:**
    ```bash
-   morphir ir verify --json morphir-ir.json | jq .
+   morphir ir verify --json=document morphir-ir.json | jq .
    ```
 
 2. **Save to file:**
    ```bash
-   morphir ir verify --json morphir-ir.json > validation-result.json
+   morphir ir verify --json=document morphir-ir.json > validation-result.json
    ```
 
 3. **Check for extra output:**
-   - Use `--quiet` with `--json` to suppress non-JSON output
+   - A bare `--json` writes JSON Lines that end with one `completed` record; a tool that reads one document needs
+     `--json=document`. See [Machine output](_index.md#machine-output).
    - Some logging may appear on stderr
 
 ### Permission Denied in Docker
@@ -644,7 +645,7 @@ See [morphir generate](../generate/) for the complete command contract.
 
 ## Project migration blocks or cannot write
 
-Run `morphir project migrate --dry-run --json` and inspect `ledger`, `conflicts`,
+Run `morphir project migrate --dry-run --json=document` and inspect `ledger`, `conflicts`,
 `verification` and `diagnostics`. Unsupported nonempty classic shapes and values
 TOML cannot represent must be reconciled explicitly. A conflicting target is
 never overwritten, even when an ambient override makes normal loading look equal.
@@ -660,7 +661,7 @@ retains the original classic source and never edits workspace membership.
 
 ## Workspace migration blocks or needs recovery
 
-Run `morphir workspace migrate <directory> --dry-run --json` and inspect
+Run `morphir workspace migrate <directory> --dry-run --json=document` and inspect
 `inventory`, `projects`, `diagnostics`, and `verified`. The selected directory is
 the boundary even if it has no workspace. A child invocation does not adopt its
 parent or siblings. Excluded candidates, default skipped directories, links,
@@ -694,4 +695,5 @@ Every JSON result, including parse or host-initialization failure, follows the
 [workspace result schema](https://github.com/finos/morphir-dotnet/blob/main/docs/spec/schemas/workspace-migration-result.schema.json).
 Exit 0 means applicable preview, success, or valid-workspace no-op. Exit 2 means
 blocked, invalid, failed, or recovery required. Diagnostics go to stderr and stdout
-contains one JSON document when `--json` is supplied.
+contains one JSON document with `--json=document`, or one `completed` record whose
+`report` is that result with `--json`.

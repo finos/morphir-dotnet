@@ -89,6 +89,34 @@ let tests =
                 "the same first 63 digits"
         }
 
+        // adopt-streaming-json: morphir-dotnet's --help --json writes the result in one completed record; another
+        // host can write the morphir/command-result alone. The runner reads both.
+        test "The build identity is read from the completed record of --help --json" {
+            let record =
+                """{"event":"completed","report":{"profile":"morphir/command-result","result":{"help":"h","buildIdentity":"IDENTITY"}}}"""
+
+            Expect.equal
+                (Worker.parseHelp (record.Replace("IDENTITY", Identity) + "\n"))
+                (Ok Identity)
+                "the identity of the report"
+        }
+
+        test "The build identity is read from one morphir/command-result document" {
+            let result =
+                """{"profile":"morphir/command-result","result":{"help":"h","buildIdentity":"IDENTITY"}}"""
+
+            Expect.equal
+                (Worker.parseHelp (result.Replace("IDENTITY", Identity) + "\n"))
+                (Ok Identity)
+                "the identity of the document"
+        }
+
+        test "A completed record without a build identity is refused" {
+            Expect.isError
+                (Worker.parseHelp """{"event":"completed","report":{"profile":"morphir/command-result"}}""")
+                "no result.buildIdentity"
+        }
+
         test "A frame is a Content-Length header and the compact UTF-8 body" {
             let frame = (suiteCase "extism/echo").Case.Runs.Head.Frames.Head
             let body = Json.compact frame.Value

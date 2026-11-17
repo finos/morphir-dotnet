@@ -49,12 +49,18 @@ public class CapabilityDriverTests
         var model = workspace.File("my models", "valid ir.json");
 
         await new ModelVerificationDriver(cli).VerifyAsync(model);
-        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { SchemaVersion = 3, Json = true });
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { SchemaVersion = 3, Json = JsonOutputArgument.Stream });
         await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Quiet = true });
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Document });
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream.Then("--no-such-option") });
 
         cli.Commands[0].Should().Equal("ir", "verify", model.Path);
-        cli.Commands[1].Should().Equal("ir", "verify", model.Path, "--schema-version", "3", "--json");
+        // The --json argument comes before the path, so the path is the argument after a bare --json.
+        cli.Commands[1].Should().Equal("ir", "verify", "--json", model.Path, "--schema-version", "3");
         cli.Commands[2].Should().Equal("ir", "verify", model.Path, "--quiet");
+        cli.Commands[3].Should().Equal("ir", "verify", "--json=document", model.Path);
+        // An unknown option ends the command line, so the parser cannot take it as the path.
+        cli.Commands[4].Should().Equal("ir", "verify", "--json", model.Path, "--no-such-option");
         model.Path.Should().Contain(" ");
     }
 
@@ -69,7 +75,7 @@ public class CapabilityDriverTests
         await new GenerationDriver(cli).GenerateAsync(model, "csharp", output);
         await new GenerationDriver(cli).GenerateAsync(model, "csharp", output, new GenerationOptions
         {
-            Json = false,
+            Json = null,
             InputFormat = "json",
             Options = ["namespace=Pricing.Generated", "language-version=14"],
         });
@@ -89,13 +95,14 @@ public class CapabilityDriverTests
         await using var workspace = Workspace();
         var model = workspace.CopyFixture("Cli/valid-ir-v3.json", "my models/valid ir.json");
 
-        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = true });
+        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream });
         var report = VerificationReport.Of(result);
 
         result.ShouldExitWith(0);
         report.IsValid.Should().BeTrue();
         report.SchemaVersion.Should().Be("3");
         report.DetectionMethod.Should().Be("auto");
+        report.FilePath.Should().EndWith("valid ir.json");
         report.Errors.Should().BeEmpty();
         report.ShouldBeValid();
         ((Action)(() => report.ShouldBeInvalid())).Should().Throw<CommandAssertionException>().WithMessage("*IsValid is true*");
@@ -107,7 +114,7 @@ public class CapabilityDriverTests
         await using var workspace = Workspace();
         var model = workspace.CopyFixture("Cli/invalid-missing-formatversion.json");
 
-        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = true });
+        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream });
         var report = VerificationReport.Of(result);
 
         result.ShouldExitWith(1);

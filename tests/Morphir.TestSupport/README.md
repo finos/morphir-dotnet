@@ -63,6 +63,10 @@ that the command wrote in the work area. Two layers check it:
   `JsonOutputAssertions.Events` (a `--json` run: JSON Lines, each line an object with an `event` member, and one
   `completed` record on the last line, whose `report` it returns). `JsonOutputAssertions.ReportOfEither` takes either
   form; every report type reads its report through it. A failure names the line at fault.
+- `JsonOutputArgument` is the `--json` argument that a driver puts on a command line: `Stream` (a bare `--json`, the
+  default of the drivers that read a report), `Document` (`--json=document`), and, for a test of the convention,
+  `WithMode`, `Separated`, `FormerStreamingFlag` and `Then` (an option that the command does not have, at the end of
+  the command line). The drivers of `ir verify` and the migrations put it right before their positional input.
 - A report type has the checks of its own command. `VerificationReport` reads the field `IsValid`.
   `GenerationReport` reads the field `success`, and fails when the field disagrees with the exit code.
 - The reports of the other command families derive from `JsonCommandReport`: one JSON object (a document, or the

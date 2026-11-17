@@ -124,6 +124,28 @@ public sealed class OptionValueRewriteTests
     }
 
     [Test]
+    public void TheRedactedMessagesKeepTheErrorsOfTheConventionAndAnUnknownOptionName()
+    {
+        // An unknown mode lists the modes, a separated mode has its hint, and an unknown option is only a name.
+        OptionValueRewrite.RedactedErrorMessages(ParseRewritten(WithoutInput(), "--json=lines")).Should().ContainSingle()
+            .Which.Should().Contain("stream").And.Contain("document");
+        OptionValueRewrite.RedactedErrorMessages(ParseRewritten(WithoutInput(), "--json", "document")).Should().ContainSingle()
+            .Which.Should().Contain("--json=document");
+        OptionValueRewrite.RedactedErrorMessages(ParseRewritten(WithoutInput(), "--json-lines")).Should().ContainSingle()
+            .Which.Should().Contain("'--json-lines'");
+    }
+
+    [Test]
+    public void TheRedactedMessagesLeaveOutAnErrorThatQuotesAValue()
+    {
+        // A value can be a secret: an unrecognized value, or an option name with a value after '=', is not quoted.
+        OptionValueRewrite.RedactedErrorMessages(ParseRewritten(WithoutInput(), "never-print-secret")).Should().BeEmpty();
+        OptionValueRewrite.RedactedErrorMessages(ParseRewritten(WithoutInput(), "--token=never-print-secret")).Should().BeEmpty();
+        OptionValueRewrite.ErrorMessages(ParseRewritten(WithoutInput(), "never-print-secret")).Should().ContainSingle()
+            .Which.Should().Contain("never-print-secret");
+    }
+
+    [Test]
     public void AModeThatDoesNotFollowTheFlagGetsNoHint()
     {
         // "document" is unrecognized, but it is not the word after --json.

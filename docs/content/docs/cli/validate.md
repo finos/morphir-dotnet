@@ -12,7 +12,7 @@ reports diagnostics. It does not change the model or write files. The command re
 ## Synopsis
 
 ```text
-morphir validate --input <file-or-directory> [--input-format auto|json|ion] [--json]
+morphir validate --input <file-or-directory> [--input-format auto|json|ion] [--json[=stream|document]]
 ```
 
 ## Options
@@ -21,7 +21,7 @@ morphir validate --input <file-or-directory> [--input-format auto|json|ion] [--j
 | --- | --- |
 | `--input` | Required. A JSON or Ion model file, or an Ion tree directory. The path resolves against the invocation directory. |
 | `--input-format` | `auto` (the default), `json` or `ion`. `json` and `ion` select the reader. |
-| `--json` | Write one JSON report to stdout. |
+| `--json[=stream\|document]` | Write the report as JSON to stdout: a bare `--json` writes one `completed` record that holds it, `--json=document` the report alone. See [Machine output](_index.md#machine-output). |
 
 The input rules are those of `morphir generate`: the same readers, the same detection, the same limits and the same
 refusals (for example YAML input, or a MEP model envelope instead of bare IR).
@@ -73,10 +73,10 @@ no diagnostic, only the summary line is written.
 When the command stops before any analyzer runs (an invalid option, or an input that cannot be read), it writes the
 diagnostics to stderr and nothing to stdout.
 
-With `--json`, the command writes one report:
+With `--json=document`, the command writes one report:
 
 ```bash
-$ morphir validate --input model.json --json
+$ morphir validate --input model.json --json=document
 {
   "host": "morphir",
   "success": false,
@@ -111,7 +111,15 @@ $ morphir validate --input model.json --json
 | `analyzers` | Each analyzer, ordered by id, with its `status`: `ran`, `failed` (with a `detail`) or `not-run` (with a `reason`: `turned-off` or `unsupported-model`). |
 | `diagnostics` | The diagnostics, in the MEP `Diagnostic` shape: `severity` (`error`, `warning`, `info` or `hint`), `code`, `message`, `location` (`uri` and a zero-based `range`), `related` and `data`, plus `extension`, the id of the analyzer that reported it. Absent members are left out. A diagnostic of the command itself has no `extension`. |
 
-Logs go to stderr only, so `morphir validate --input model.json --json | jq .exitCode` works.
+With `--json`, the command writes the same report as the `report` of one `completed` record, on one line. validate
+has no other events:
+
+```bash
+$ morphir validate --input model.json --json
+{"event":"completed","report":{"host":"morphir","success":false,"exitCode":1,"input":"/work/model.json","family":"Classic","formatVersion":"3","analyzers":[{"id":"morphir.type-validator","status":"ran"}],"diagnostics":[{"severity":"error","code":"type-mismatch","message":"Inventory.dailyRate: Value has type Morphir.SDK.String.String, declared Morphir.SDK.Basics.Int.","extension":"morphir.type-validator"}]}}
+```
+
+Logs go to stderr only, so `morphir validate --input model.json --json=document | jq .exitCode` works.
 
 The command does not change the model file or the working directory.
 

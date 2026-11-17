@@ -4,6 +4,7 @@ using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.FSharp.Collections;
 using Morphir.Configuration;
+using Morphir.Tooling.Cli;
 using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Configuration;
@@ -35,7 +36,7 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
     private readonly IConfigurationInspectionHost _host;
     private readonly bool _hostInitializationFailed;
     private readonly Argument<string>? _key;
-    private readonly Option<bool> _json = new("--json") { Description = "Emit one structured JSON result" };
+    private readonly Option<string> _json = JsonOutputOption.Create();
     private readonly Option<bool> _origin = new("--show-origin") { Description = "Include winning source paths and positions" };
     private readonly Option<bool> _scope = new("--show-scope") { Description = "Include winning source roles" };
     private readonly Option<bool> _workspace = new("--workspace") { Description = "Inspect workspace primary sources only" };
@@ -68,13 +69,24 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
         SetAction(Execute);
     }
 
-    public int HandleParseErrors(ParseResult result, IReadOnlyList<string> messages) => Render(ConfigurationReport.Failure(Name, "config.usage", "Invalid configuration command arguments."), WantsJson(result));
+    /// <summary>
+    /// Renders the parse errors as one <c>config.usage</c> failure. A parse error has no valid parse result, so the
+    /// output mode comes from the tokens (JSON-4).
+    /// </summary>
+    public int HandleParseErrors(ParseResult result, IReadOnlyList<string> messages) =>
+        Render(ConfigurationReport.Failure(Name, "config.usage", UsageMessage("Invalid configuration command arguments.", result)), JsonOutputOption.ScanTokens([.. result.Tokens.Select(token => token.Value)]));
 
-    private static bool WantsJson(ParseResult result) => result.Tokens.Any(t => t.Value is "--json" or "--json=true");
+    /// <summary>
+    /// The message of a usage failure: <paramref name="sentence"/>, then each message of the host that quotes no value
+    /// (<see cref="OptionValueRewrite.RedactedErrorMessages"/>), for example an unknown <c>--json</c> mode or the hint
+    /// <c>--json=document</c>. A diagnostic of configuration never repeats raw input that may hold a secret.
+    /// </summary>
+    internal static string UsageMessage(string sentence, ParseResult result) =>
+        string.Join(" ", [sentence, .. OptionValueRewrite.RedactedErrorMessages(result)]);
 
     private int Execute(ParseResult parsed)
     {
-        var json = parsed.GetValue(_json);
+        var json = JsonOutputOption.ModeOf(parsed);
         ConfigurationReport Failure(string message) => ConfigurationReport.Failure(Name, "config.usage", message);
         if (new[] { parsed.GetValue(_project), parsed.GetValue(_file), parsed.GetValue(_config), parsed.GetValue(_boundary) }
             .Any(value => value is not null && string.IsNullOrWhiteSpace(value)))
@@ -140,11 +152,11 @@ public sealed class ConfigurationCommand : Command, IMorphirParseErrorHandler
         }
     }
 
-    private static int Render(ConfigurationReport report, bool json)
+    private static int Render(ConfigurationReport report, JsonOutputMode json)
     {
         foreach (var diagnostic in report.Diagnostics)
             Console.Error.WriteLine($"{diagnostic.Path ?? "config"}: {diagnostic.Code}: {diagnostic.Message}");
-        if (json) ConsoleOutputHelper.WriteLineToStdout(report.ToJson());
+        if (json != JsonOutputMode.None) JsonReportOutput.Write(ConsoleOutputHelper.Stdout, json, report, ConfigurationReport.JsonInfo);
         else if (report.ExitCode != 2)
         {
             if (report.Operation is "get" or "show")

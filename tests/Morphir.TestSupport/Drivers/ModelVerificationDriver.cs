@@ -10,8 +10,11 @@ public sealed record VerificationOptions
     /// <summary>The schema version to check against. Without it, the command detects the version.</summary>
     public int? SchemaVersion { get; init; }
 
-    /// <summary>Write one JSON report to standard output.</summary>
-    public bool Json { get; init; }
+    /// <summary>
+    /// The <c>--json</c> argument, or null for the text of a person. The driver puts it before the path of the model,
+    /// so the path is the argument after a bare <c>--json</c>.
+    /// </summary>
+    public JsonOutputArgument? Json { get; init; }
 
     /// <summary>Write no output; the exit code is the result.</summary>
     public bool Quiet { get; init; }
@@ -28,15 +31,17 @@ public sealed class ModelVerificationDriver(ICliDriver cli) : IModelVerification
 {
     public Task<CommandResult> VerifyAsync(WorkspaceFile model, VerificationOptions? options = null, CancellationToken cancellation = default)
     {
-        var arguments = new List<string> { "ir", "verify", model.Path };
+        var arguments = new List<string> { "ir", "verify" };
+        if (options?.Json is { } json) arguments.AddRange(json.Words);
+        arguments.Add(model.Path);
         if (options?.SchemaVersion is { } version)
         {
             arguments.Add("--schema-version");
             arguments.Add(version.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
-        if (options?.Json == true) arguments.Add("--json");
         if (options?.Quiet == true) arguments.Add("--quiet");
+        if (options?.Json is { } trailing) arguments.AddRange(trailing.Trailing);
         return cli.RunAsync(arguments, cancellation: cancellation);
     }
 }
@@ -55,6 +60,7 @@ public sealed class VerificationReport
     private VerificationReport(CommandResult result, bool isValid, string? schemaVersion, string? detectionMethod, IReadOnlyList<VerificationError> errors)
     {
         _result = result;
+        Result = result;
         IsValid = isValid;
         SchemaVersion = schemaVersion;
         DetectionMethod = detectionMethod;
@@ -62,6 +68,12 @@ public sealed class VerificationReport
     }
 
     public bool IsValid { get; }
+
+    /// <summary>The result of the command that wrote the report.</summary>
+    public CommandResult Result { get; }
+
+    /// <summary>The full path of the file that the command verified (<c>FilePath</c>), or null when the report has none.</summary>
+    public string? FilePath { get; private init; }
 
     public string? SchemaVersion { get; }
 
@@ -85,7 +97,10 @@ public sealed class VerificationReport
             ? list.EnumerateArray().Select(error => new VerificationError(
                 Text(error, "Path") ?? "", Text(error, "Message") ?? "", Text(error, "Expected"), Text(error, "Found"))).ToArray()
             : [];
-        return new VerificationReport(result, isValid.GetBoolean(), Text(document, "SchemaVersion"), Text(document, "DetectionMethod"), errors);
+        return new VerificationReport(result, isValid.GetBoolean(), Text(document, "SchemaVersion"), Text(document, "DetectionMethod"), errors)
+        {
+            FilePath = Text(document, "FilePath"),
+        };
     }
 
     public VerificationReport ShouldBeValid() =>

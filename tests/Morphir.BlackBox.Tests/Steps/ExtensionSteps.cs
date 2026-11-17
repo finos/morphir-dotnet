@@ -24,13 +24,13 @@ public sealed class ExtensionSteps(IExtensionDriver extensions, ScenarioRun run)
     }
 
     [When("I list the extensions as text")]
-    public async Task ListAsText() => run.Result = await extensions.ListAsync(new ExtensionListOptions { Json = false });
+    public async Task ListAsText() => run.Result = await extensions.ListAsync(new ExtensionListOptions { Json = null });
 
     [When("I report the extension runtimes as JSON")]
     public async Task RuntimesAsJson() => run.Result = await extensions.RuntimesAsync();
 
     [When("I report the extension runtimes as text")]
-    public async Task RuntimesAsText() => run.Result = await extensions.RuntimesAsync(json: false);
+    public async Task RuntimesAsText() => run.Result = await extensions.RuntimesAsync(json: null);
 
     [Then("the extension list report has the host {string} and the extensions {string}")]
     public void TheListHasTheHostAndTheExtensions(string host, string ids)

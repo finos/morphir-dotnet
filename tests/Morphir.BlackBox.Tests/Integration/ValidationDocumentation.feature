@@ -8,9 +8,10 @@ Feature: The commands of the validate page give their documented output
     Given the documentation page "cli/validate.md"
     And the model fixture "Models/daily-rate-mismatch-v3.json" as "model.json"
     Then the page documents these commands
-      | command                                    |
-      | morphir validate --input model.json        |
-      | morphir validate --input model.json --json |
+      | command                                             |
+      | morphir validate --input model.json                 |
+      | morphir validate --input model.json --json=document |
+      | morphir validate --input model.json --json          |
     When I run each documented command of the host on the model
     Then each documented command exits with 1
     And each documented command gives its documented output

@@ -4,6 +4,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Morphir.Extensions.Wasm;
 using Morphir.Tooling.Features.Extensions;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -221,9 +222,29 @@ public sealed class ExtensionWorkerArgumentsTests
     [Test]
     public void Help_is_shown_whatever_else_is_missing()
     {
-        WorkerInvocation.Parse(["--help"]).Should().Be(new WorkerInvocation.Help(Json: false));
-        WorkerInvocation.Parse(["--help", "--json"]).Should().Be(new WorkerInvocation.Help(Json: true));
-        WorkerInvocation.Parse(["-h", "--abi", "extism-kernel-v1"]).Should().Be(new WorkerInvocation.Help(Json: false));
+        WorkerInvocation.Parse(["--help"]).Should().Be(new WorkerInvocation.Help(JsonOutputMode.None));
+        WorkerInvocation.Parse(["--help", "--json"]).Should().Be(new WorkerInvocation.Help(JsonOutputMode.Stream));
+        WorkerInvocation.Parse(["--help", "--json=stream"]).Should().Be(new WorkerInvocation.Help(JsonOutputMode.Stream));
+        WorkerInvocation.Parse(["--help", "--json=document"]).Should().Be(new WorkerInvocation.Help(JsonOutputMode.Document));
+        WorkerInvocation.Parse(["-h", "--abi", "extism-kernel-v1"]).Should().Be(new WorkerInvocation.Help(JsonOutputMode.None));
+    }
+
+    [Test]
+    public void A_json_mode_is_given_only_after_an_equals_sign_and_must_be_stream_or_document()
+    {
+        // adopt-streaming-json: a mode that is not one names the modes; a mode after a space is a positional argument.
+        Invalid(["--help", "--json=lines"]).Should().Contain("stream").And.Contain("document");
+        Invalid([.. Required(), "--json=lines"]).Should().Contain("stream").And.Contain("document");
+        Invalid([.. Required(), "--json", "document"]).Should().Contain("'document'");
+        Serve([.. Required(), "--json=stream"]).Json.Should().BeTrue();
+    }
+
+    [Test]
+    public void A_serving_worker_refuses_the_document_mode_because_it_reports_events()
+    {
+        var invalid = WorkerInvocation.Parse([.. Required(), "--json=document"]).Should().BeOfType<WorkerInvocation.Invalid>().Subject;
+        invalid.Message.Should().Contain("--json=document").And.Contain("--help");
+        invalid.Json.Should().BeTrue();
     }
 
     [Test]

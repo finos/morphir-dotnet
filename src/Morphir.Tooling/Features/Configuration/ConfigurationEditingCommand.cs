@@ -3,6 +3,7 @@
 using System.CommandLine;
 using Microsoft.FSharp.Collections;
 using Morphir.Configuration;
+using Morphir.Tooling.Cli;
 using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Configuration;
@@ -14,7 +15,7 @@ public sealed class ConfigurationEditingCommand : Command, IMorphirParseErrorHan
     private readonly bool _hostInitializationFailed;
     private readonly Argument<string> _key = new("key");
     private readonly Argument<string>? _value;
-    private readonly Option<bool> _json = new("--json");
+    private readonly Option<string> _json = JsonOutputOption.Create();
     private readonly Option<bool> _dryRun = new("--dry-run");
     private readonly Option<string> _type = new("--type") { Description = "Input type: string, bool, int, number, array or object" };
     private readonly Option<bool> _workspace = new("--workspace");
@@ -41,11 +42,18 @@ public sealed class ConfigurationEditingCommand : Command, IMorphirParseErrorHan
     }
 
     private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "Bound discovery to this directory and its descendants (default: MORPHIR_DISCOVERY_BOUNDARY, else the filesystem root)" };
-    public int HandleParseErrors(ParseResult parsed, IReadOnlyList<string> messages) => Render(ConfigurationEditReport.Failure(Name, "config.usage"), parsed.Tokens.Any(t => t.Value is "--json" or "--json=true"));
+
+    /// <summary>
+    /// Renders the parse errors as one <c>config.usage</c> failure with the messages of the host that quote no
+    /// value (<see cref="ConfigurationCommand.UsageMessage"/>). A parse error has no valid parse result, so the output mode
+    /// comes from the tokens (JSON-4).
+    /// </summary>
+    public int HandleParseErrors(ParseResult parsed, IReadOnlyList<string> messages) =>
+        Render(ConfigurationEditReport.Usage(Name, ConfigurationCommand.UsageMessage(ConfigurationEditReport.FailureMessage, parsed)), JsonOutputOption.ScanTokens([.. parsed.Tokens.Select(token => token.Value)]));
 
     private int Execute(ParseResult parsed)
     {
-        var json = parsed.GetValue(_json);
+        var json = JsonOutputOption.ModeOf(parsed);
         var key = parsed.GetValue(_key)!;
         if (KeyPath.parse(key).IsError) return Render(ConfigurationEditReport.Failure(Name, "config.usage"), json);
         if (new[] { parsed.GetValue(_project), parsed.GetValue(_file), parsed.GetValue(_config), parsed.GetValue(_boundary) }
@@ -100,10 +108,10 @@ public sealed class ConfigurationEditingCommand : Command, IMorphirParseErrorHan
         { return Render(ConfigurationEditReport.Failure(Name, "config.edit_io"), json); }
     }
 
-    private static int Render(ConfigurationEditReport report, bool json)
+    private static int Render(ConfigurationEditReport report, JsonOutputMode json)
     {
         foreach (var diagnostic in report.Diagnostics) Console.Error.WriteLine($"{diagnostic.Path ?? "config"}: {diagnostic.Code}: {diagnostic.Message}");
-        if (json) ConsoleOutputHelper.WriteLineToStdout(report.ToJson());
+        if (json != JsonOutputMode.None) JsonReportOutput.Write(ConsoleOutputHelper.Stdout, json, report, ConfigurationEditReport.JsonInfo);
         else
         {
             ConsoleOutputHelper.WriteLineToStdout($"{report.Outcome}\t{report.Target?.Path ?? "config"}\t{report.Key ?? ""}");

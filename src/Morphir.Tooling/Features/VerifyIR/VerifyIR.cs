@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using FluentValidation;
 
 namespace Morphir.Tooling.Features.VerifyIR;
@@ -19,7 +20,11 @@ public record VerifyIRResult(
     string FilePath,
     List<ValidationError> Errors,
     DateTime Timestamp
-);
+)
+{
+    /// <summary>The source-generated contract of the result, for the shared JSON output writer.</summary>
+    public static JsonTypeInfo<VerifyIRResult> JsonInfo => VerifyIRJsonContext.Default.VerifyIRResult;
+}
 
 public record ValidationError(
     string Path,

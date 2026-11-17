@@ -24,7 +24,10 @@ public sealed record ProjectMigrationReport(
     bool Changed, bool DryRun, MigrationFieldDto[] Ledger, MigrationEditDto[] Edits, MigrationConflictDto[] Conflicts, MigrationVerificationDto? Verification,
     ConfigurationDiagnosticDto[] Diagnostics, ConfigurationEditArtifactDto[] RecoveryArtifacts, int ExitCode, ConfigurationValueTypeDto[] ValueTypes)
 {
-    public string ToJson() => JsonSerializer.Serialize(this, ProjectMigrationJsonContext.Default.ProjectMigrationReport);
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>The source-generated contract of the report, for the shared JSON output writer.</summary>
+    public static System.Text.Json.Serialization.Metadata.JsonTypeInfo<ProjectMigrationReport> JsonInfo => ProjectMigrationJsonContext.Default.ProjectMigrationReport;
 
     internal static ProjectMigrationReport From(ProjectMigrationPreview preview, string outcome, bool dryRun,
         int exitCode = 0, string? errorCode = null, ConfigurationEditArtifactDto[]? artifacts = null)

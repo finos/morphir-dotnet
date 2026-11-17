@@ -13,7 +13,10 @@ public sealed record ConfigurationEditReport(
     ConfigurationReport? Effective, ConfigurationDiagnosticDto[] Diagnostics,
     ConfigurationEditArtifactDto[] RecoveryArtifacts, int ExitCode, ConfigurationValueTypeDto[] ValueTypes)
 {
-    public string ToJson() => JsonSerializer.Serialize(this, ConfigurationEditJsonContext.Default.ConfigurationEditReport);
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>The source-generated contract of the report, for the shared JSON output writer.</summary>
+    public static System.Text.Json.Serialization.Metadata.JsonTypeInfo<ConfigurationEditReport> JsonInfo => ConfigurationEditJsonContext.Default.ConfigurationEditReport;
 
     internal static ConfigurationEditReport From(EditPlan plan, string outcome, bool dryRun, int exitCode = 0,
         string? errorCode = null, ConfigurationEditArtifactDto[]? artifacts = null)
@@ -31,7 +34,14 @@ public sealed record ConfigurationEditReport(
     internal static ConfigurationEditReport Failure(string operation, string code, int exitCode = 2,
         IEnumerable<ConfigDiagnostic>? diagnostics = null) => new(operation, "failed", null, null, null, null, false, false, null,
         (diagnostics ?? []).Select(ConfigurationReport.Diagnostic)
-            .Append(new ConfigurationDiagnosticDto(code, "error", "Configuration edit failed. Check the code, selectors and input type.", null, null, null, null)).ToArray(), [], exitCode, []);
+            .Append(new ConfigurationDiagnosticDto(code, "error", FailureMessage, null, null, null, null)).ToArray(), [], exitCode, []);
+
+    /// <summary>The message of a failed edit, which repeats no input.</summary>
+    internal const string FailureMessage = "Configuration edit failed. Check the code, selectors and input type.";
+
+    /// <summary>The <c>config.usage</c> failure of arguments that do not parse, which states <paramref name="message"/>.</summary>
+    internal static ConfigurationEditReport Usage(string operation, string message) => new(operation, "failed", null, null, null, null, false, false, null,
+        [new ConfigurationDiagnosticDto("config.usage", "error", message, null, null, null, null)], [], 2, []);
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true, MaxDepth = global::Morphir.Tooling.Features.Configuration.ConfigurationReport.MaxJsonDepth)]

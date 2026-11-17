@@ -76,6 +76,7 @@ None. `dotnet-sdk-conformance` keeps its requirements. A later change moves its 
 
 - **Depends on `add-fsharp-compile`.** That change lands first. It creates the `conformance/` corpus, the `Morphir.Conformance` runner and the `cli`, `mep-guest` and `library` adapters for the F# compile suite (its MCK-1). This change generalizes them and does not create a second runner.
 - **Related:** the default-CLI decision record and PRD that propose morphir-dotnet as the default Morphir CLI. MCK results are part of the evidence that decision needs.
+- **Coordinates with `adopt-streaming-json`.** That change replaced `--json` and `--json-lines` with one option, `--json[=stream|document]`: a bare `--json` streams JSON Lines that end with one `completed` record holding the report, `--json=document` writes the report alone, and `--json-lines` is removed. The `cli` adapter now drives `compile --json`. When this change is next revised, the CLI suite observes that convention instead of `--json` and `--json-lines`, and the machine output of `morphir mck run` (planned here as `--json-lines`) adopts it too.
 - **No tracking issue exists yet.** Open an MCK epic and a feature PRD before production changes.
 - **Upstream baseline:** `finos/morphir` at `cde7722eb`, covering `spec/mep/mck/` (kits, `model-transport.cases.json`, the README rules) and the Smithy transcripts. The MEP protocol definition stays upstream. Contract defects found by the kit are reported upstream.
 

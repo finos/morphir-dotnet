@@ -61,15 +61,20 @@ morphir ir verify --schema-version 3 morphir-ir.json
 morphir ir verify --schema-version 3 morphir-ir-v2.json
 ```
 
-### `--json`
+### `--json[=stream|document]`
 
-Output validation results in JSON format instead of human-readable text.
+Output validation results as JSON instead of human-readable text, by the convention of
+[Machine output](_index.md#machine-output).
 
 - **Default:** Human-readable output
 - **Use when:** Parsing results in CI/CD, scripts, or other tools
-- **Output:** Structured JSON with validation details
+- **Output:** A bare `--json` writes one line, `{"event":"completed","report":{...}}`, whose `report` is the result.
+  `--json=document` writes the result alone, as one JSON document.
+- **Mode:** Give it only after `=`. `morphir ir verify --json morphir-ir.json` verifies `morphir-ir.json`.
+- **Usage errors:** In a JSON mode an invalid command line is a result with `IsValid` `false`, one error for each
+  parser message, and exit code 2.
 
-**JSON Output Format:**
+**JSON Output Format** (`--json=document`; with `--json` this is the `report` of the `completed` line):
 ```json
 {
   "IsValid": true,
@@ -105,10 +110,10 @@ For invalid IR:
 **Example:**
 ```bash
 # Get JSON output for parsing
-morphir ir verify --json morphir-ir.json
+morphir ir verify --json=document morphir-ir.json
 
 # Use in scripts
-RESULT=$(morphir ir verify --json morphir-ir.json)
+RESULT=$(morphir ir verify --json=document morphir-ir.json)
 echo $RESULT | jq '.IsValid'
 ```
 
@@ -217,7 +222,7 @@ Validate IR in a GitHub Actions workflow:
 ```yaml
 - name: Validate Morphir IR
   run: |
-    dotnet morphir ir verify --json morphir-ir.json > validation-result.json
+    dotnet morphir ir verify --json=document morphir-ir.json > validation-result.json
     if [ $? -ne 0 ]; then
       cat validation-result.json
       exit 1
@@ -252,16 +257,16 @@ Parse JSON output with `jq`:
 
 ```bash
 # Check if valid
-morphir ir verify --json morphir-ir.json | jq '.IsValid'
+morphir ir verify --json=document morphir-ir.json | jq '.IsValid'
 
 # Get error count
-morphir ir verify --json morphir-ir.json | jq '.Errors | length'
+morphir ir verify --json=document morphir-ir.json | jq '.Errors | length'
 
 # Extract error messages
-morphir ir verify --json morphir-ir.json | jq '.Errors[].Message'
+morphir ir verify --json=document morphir-ir.json | jq '.Errors[].Message'
 
 # Get schema version used
-morphir ir verify --json morphir-ir.json | jq '.SchemaVersion'
+morphir ir verify --json=document morphir-ir.json | jq '.SchemaVersion'
 ```
 
 ## Common Error Messages

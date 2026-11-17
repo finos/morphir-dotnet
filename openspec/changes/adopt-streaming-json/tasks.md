@@ -9,22 +9,22 @@ Work is on `feat/model-convert`, before `add-model-convert` group 6, which build
 ## 2. The convention
 
 - [x] 2.1 Add the shared `--json[=stream|document]` option and the bare-flag rewrite (after response-file expansion, never after `--`) in `Morphir.Tooling`, with the mode hint for an unrecognized argument that names a mode; verify parser unit tests for every row of the design's probe table, `--json=bogus`, `--json:document` and `--json=true`.
-- [ ] 2.2 Generalise compile's JSON Lines writer into the shared output writer (events, flush per record, one final `completed`, the document mode, a `completed` record on parse errors and cancellation), using each command's source-generated JSON context; verify writer unit tests and zero trim and AOT warnings.
+- [x] 2.2 Generalise compile's JSON Lines writer into the shared output writer (events, flush per record, one final `completed`, the document mode, a `completed` record on parse errors and cancellation), using each command's source-generated JSON context; verify writer unit tests and zero trim and AOT warnings. Every command writes through it; the zero-warning check of a Native AOT publish is not yet run (it runs with 5.1).
 - [x] 2.3 Add `JsonOutputAssertions` beside `JsonCommandReport` in `tests/Morphir.TestSupport` (stream and document forms, returns the report) and move every driver's report reading onto it; verify the `test-driver-contract` scenarios in `tests/Morphir.TestSupport.Tests/Drivers`.
-- [ ] 2.4 Document the convention on the CLI index page and in the CHANGELOG, and verify the documented examples run as written.
+- [x] 2.4 Document the convention on the CLI index page and in the CHANGELOG, and verify the documented examples run as written.
 
 ## 3. Commands adopt the convention
 
 - [x] 3.1 `compile`: move the event stream under `--json`, the single report under `--json=document`, remove `--json-lines`; verify the `cli-model-compilation` scenarios in the existing compile command tests and black-box features, and update `docs/content/docs/cli/compile.md`.
-- [ ] 3.2 `validate`, `generate` (including C# generation) and `ir verify` (renamed to `model verify` by `add-model-convert`): adopt the writer; verify the `model-analyzers` and `cli-csharp-generation` scenarios and update their CLI pages.
-- [ ] 3.3 `config` (show, set, unset), `extension list`, `extension runtimes`, `extension worker --help --json`, `project migrate` and `workspace migrate`: adopt the writer; verify their existing report tests through `JsonOutputAssertions` and update their CLI pages.
-- [ ] 3.4 Write `JsonOutput.feature` in `tests/Morphir.BlackBox.Tests/Integration/` with scenario outlines over the commands for every `cli-json-output` scenario, and verify it passes on the development build and the Native AOT executable.
+- [x] 3.2 `validate`, `generate` (including C# generation) and `ir verify` (renamed to `model verify` by `add-model-convert`): adopt the writer; verify the `model-analyzers` and `cli-csharp-generation` scenarios and update their CLI pages.
+- [x] 3.3 `config` (show, set, unset), `extension list`, `extension runtimes`, `extension worker --help --json`, `project migrate` and `workspace migrate`: adopt the writer; verify their existing report tests through `JsonOutputAssertions` and update their CLI pages.
+- [x] 3.4 Write `JsonOutput.feature` in `tests/Morphir.BlackBox.Tests/Integration/` with scenario outlines over the commands for every `cli-json-output` scenario, and verify it passes on the development build and the Native AOT executable. It passes on the development build; the Native AOT run is task 5.1.
 
 ## 4. Consumers
 
-- [ ] 4.1 Update `src/Morphir.Conformance/CliAdapter.fs` to drive `compile --json`, and `GuestKit/WorkerSessions.fs` and `WasmHost/Worker.fs` to read the new output; verify the frontend and WASM host conformance suites pass unchanged.
+- [x] 4.1 Update `src/Morphir.Conformance/CliAdapter.fs` to drive `compile --json`, and `GuestKit/WorkerSessions.fs` and `WasmHost/Worker.fs` to read the new output; verify the frontend and WASM host conformance suites pass unchanged.
 - [ ] 4.2 Draft the finos/morphir change that makes `tools/cli-release.ts` read the `completed` line, to land with the pin move that carries this change; verify its `tools/` tests pass there.
-- [ ] 4.3 Record in `establish-morphir-compatibility-kit` (a note in its proposal) that `mck run --json-lines` adopts this convention when the change is next revised; verify `openspec validate establish-morphir-compatibility-kit` still passes.
+- [x] 4.3 Record in `establish-morphir-compatibility-kit` (a note in its proposal) that `mck run --json-lines` adopts this convention when the change is next revised; verify `openspec validate establish-morphir-compatibility-kit` still passes.
 
 ## 5. Integration checks
 

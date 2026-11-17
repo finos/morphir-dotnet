@@ -90,7 +90,7 @@ public sealed partial class TutorialSteps(
         {
             Target = target,
             Output = Project.Directory(output),
-            Options = new GenerationOptions { Json = false, Project = Project },
+            Options = new GenerationOptions { Json = null, Project = Project },
         });
 
     [Then("the example has the generated C# files {string} in {string}")]

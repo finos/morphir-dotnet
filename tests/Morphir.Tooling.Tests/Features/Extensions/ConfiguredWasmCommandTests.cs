@@ -27,7 +27,7 @@ public sealed class ConfiguredWasmCommandTests
         var input = GenerationInputFixtures.DailyRate(workspace.Root, "4", "json");
         var output = workspace.PathOf("generated");
         var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(
-            $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json");
+            $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json=document");
         result.ExitCode.Should().Be(2, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);
         report.RootElement.GetProperty("diagnostics")[0].GetProperty("code").GetString().Should().Be("extension.memory_limit");
@@ -97,7 +97,7 @@ public sealed class ConfiguredWasmCommandTests
         var input = GenerationInputFixtures.DailyRate(workspace.Root, "4", "json");
         var output = workspace.PathOf("generated");
         var result = await CliTestHelper.ForTarget(host).ExecuteCommandAsync(
-            $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json");
+            $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json=document");
         result.ExitCode.Should().Be(0, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);
         report.RootElement.GetProperty("success").GetBoolean().Should().BeTrue();
@@ -119,7 +119,7 @@ public sealed class ConfiguredWasmCommandTests
         report.RootElement.GetProperty("frontend").GetString().Should().Contain("morphir-python").And.Contain("wasm");
         File.Exists(report.RootElement.GetProperty("output").GetString()).Should().BeTrue();
         var generated = await CliTestHelper.ForTarget(host).ExecuteCommandAsync(
-            $"generate --project \"{workspace.Root}\" --target python --output \"{workspace.PathOf("generated")}\" --json");
+            $"generate --project \"{workspace.Root}\" --target python --output \"{workspace.PathOf("generated")}\" --json=document");
         generated.ExitCode.Should().Be(0, generated.CombinedOutput);
         using var generatedReport = JsonDocument.Parse(generated.StandardOutput);
         generatedReport.RootElement.GetProperty("backendTransport").GetString().Should().Be("wasm");
@@ -194,7 +194,7 @@ public sealed class ConfiguredWasmCommandTests
         var output = workspace.PathOf("generated");
         var command = compile
             ? $"compile --project \"{workspace.Root}\" --language python --input \"{source}\" --ir-version 4 --json=document"
-            : $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json";
+            : $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json=document";
         var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(command);
         result.ExitCode.Should().Be(2, result.CombinedOutput);
         result.CombinedOutput.Should().Contain("extension.runtime_unavailable").And.Contain("win_x64_trap_unsupported");

@@ -7,8 +7,8 @@ namespace Morphir.TestSupport.Drivers;
 /// <summary>The options of <c>generate</c>.</summary>
 public sealed record GenerationOptions
 {
-    /// <summary>Write one JSON report to standard output. Default true.</summary>
-    public bool Json { get; init; } = true;
+    /// <summary>The <c>--json</c> argument, or null for the paths of the artifacts. Default the stream.</summary>
+    public JsonOutputArgument? Json { get; init; } = JsonOutputArgument.Stream;
 
     /// <summary><c>auto</c>, <c>json</c> or <c>ion</c>. Without it, the command decides.</summary>
     public string? InputFormat { get; init; }
@@ -84,7 +84,7 @@ public sealed class GenerationDriver(ICliDriver cli) : IGenerationDriver
         Add(arguments, "--input", request.Input);
         Add(arguments, "--target", request.Target);
         Add(arguments, "--output", request.Output?.Path);
-        if (options.Json) arguments.Add("--json");
+        if (options.Json is { } json) arguments.AddRange(json.Words);
         if (options.InputFormat is { } format)
         {
             arguments.Add("--input-format");
@@ -100,6 +100,7 @@ public sealed class GenerationDriver(ICliDriver cli) : IGenerationDriver
         Add(arguments, "--project", options.Project?.Path);
         Add(arguments, "--extension", options.Extension);
         arguments.AddRange(options.Arguments);
+        if (options.Json is { } trailing) arguments.AddRange(trailing.Trailing);
         return cli.RunAsync(arguments, options.WithoutDynamicCode ? new CliRunOptions { WithoutDynamicCode = true } : null, cancellation);
     }
 

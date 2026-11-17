@@ -99,7 +99,7 @@ public sealed class InstalledWasmCommandTests
         var input = GenerationInputFixtures.DailyRate(workspace.Root, "4", "json");
         var output = workspace.PathOf("generated");
         var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(
-            $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --extension-id {Id} --json",
+            $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --extension-id {Id} --json=document",
             environment: HomeOf(home));
         result.ExitCode.Should().Be(0, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);

@@ -73,14 +73,43 @@ morphir ir verify path/to/morphir-ir.json
 # Validate with explicit schema version
 morphir ir verify --schema-version 3 path/to/morphir-ir.json
 
-# Get JSON output for CI/CD
-morphir ir verify --json path/to/morphir-ir.json
+# Get one JSON report for CI/CD (see Machine output below)
+morphir ir verify --json=document path/to/morphir-ir.json
 
 # Quiet mode (only errors)
 morphir ir verify --quiet path/to/morphir-ir.json
 ```
 
 See the [morphir ir verify](./ir-verify/) documentation for complete details.
+
+## Machine output
+
+Every command with machine output takes one option, `--json[=stream|document]`:
+
+- A bare `--json` (the same as `--json=stream`) writes JSON Lines to stdout. Each line is one compact JSON object with
+  an `event` member, written when its event occurs. The last line is the only `completed` record, and its `report`
+  member holds the command's report. A command with no events writes only that line, which is also one JSON document.
+- `--json=document` writes the report alone, as one JSON document. It is the `report` of the `completed` record of the
+  same run.
+- Without `--json`, the command writes its output for people.
+
+```console
+$ morphir validate --input model.json --json
+{"event":"completed","report":{"host":"morphir","success":true,"exitCode":0,…}}
+
+$ morphir validate --input model.json --json=document | jq .exitCode
+0
+```
+
+Give the mode only after `=`. A bare `--json` never takes the next argument, so `morphir ir verify --json model.json`
+verifies `model.json`. A command without a positional argument refuses `--json document` with exit code 2 and
+suggests `--json=document`. A mode that is not `stream` or `document` fails with exit code 2 and names both. A parse
+or usage error in a JSON mode still ends with one `completed` record (or the one document) whose report states the
+error. Logs and human-readable diagnostics go to stderr in every mode, so stdout holds only the JSON. A consumer
+ignores event types and members that it does not know. When a page names a member of a command's JSON output, it is
+a member of the report: of the document, and of the `report` of the `completed` record.
+
+The removed `--json-lines` option fails as an unknown option with exit code 2: use `--json`.
 
 ## Exit Codes
 

@@ -16,7 +16,7 @@ input is an explicit `--input`, or else the IR of the most recent
 
 ```text
 morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output <directory>
-  [--input-format auto|json|ion] [--option KEY=VALUE ...] [--json]
+  [--input-format auto|json|ion] [--option KEY=VALUE ...] [--json[=stream|document]]
   [--extension <path-or-command>] [--project <path-or-name>] [--config <file>] [--out-dir <directory>]
 ```
 
@@ -29,7 +29,7 @@ morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output
 | `--output` | Required output directory with owned generated files |
 | `--input-format` | `auto` by default; `json` or `ion` constrains the reader |
 | `--option` | Repeatable backend option, described below |
-| `--json` | Write one structured report to stdout |
+| `--json[=stream\|document]` | Write the structured report to stdout: a bare `--json` writes one `completed` record that holds it, `--json=document` the report alone. See [Machine output](_index.md#machine-output) |
 | `--extension` | A backend extension: a command name, a path, or a `.dll`. Overrides `[codegen.<target>].extension`. See [Backend extensions](#backend-extensions). |
 | `--project` | The project directory, workspace member path or project name: its compile record without `--input`, and its configuration |
 | `--config` | An explicit configuration file of the project |
@@ -255,7 +255,7 @@ using the .NET SDK 11 compiler. See [the executable C# walkthrough]({{< relref "
 For CI, retain the JSON report and propagate a failure:
 
 ```powershell
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target fsharp --output artifacts/generated-fsharp --json |
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target fsharp --output artifacts/generated-fsharp --json=document |
     Set-Content artifacts/generation-report.json
 if ($LASTEXITCODE -ne 0) { throw "Morphir generation failed" }
 ```

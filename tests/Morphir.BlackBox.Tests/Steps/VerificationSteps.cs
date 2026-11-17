@@ -15,11 +15,11 @@ public sealed class VerificationSteps(IModelVerificationDriver verification, Sce
 
     [When("I verify the model as JSON")]
     public async Task VerifyTheModelAsJson() =>
-        run.Result = await verification.VerifyAsync(run.Model, new VerificationOptions { Json = true });
+        run.Result = await verification.VerifyAsync(run.Model, new VerificationOptions { Json = JsonOutputArgument.Stream });
 
     [When("I verify the model with the schema version {int} as JSON")]
     public async Task VerifyTheModelWithTheSchemaVersionAsJson(int version) =>
-        run.Result = await verification.VerifyAsync(run.Model, new VerificationOptions { SchemaVersion = version, Json = true });
+        run.Result = await verification.VerifyAsync(run.Model, new VerificationOptions { SchemaVersion = version, Json = JsonOutputArgument.Stream });
 
     [When("I verify the model in quiet mode")]
     public async Task VerifyTheModelInQuietMode() =>
