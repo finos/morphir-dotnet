@@ -66,7 +66,7 @@ public class CommandFamilyDriverTests
             ExtensionId = "org.finos.morphir.fsharp-frontend",
             Arguments = ["--target", "fsharp"],
         });
-        await new CompilationDriver(cli).CompileAsync(new CompilationOptions { Output = CompilationOutput.JsonLines });
+        await new CompilationDriver(cli).CompileAsync(new CompilationOptions { Output = CompilationOutput.Document });
 
         cli.Commands[0].Arguments.Should().Equal("compile", "--json", "--project", project.Path, "--input", rates.Path, pricing.Path, "--ir-version", "4");
         cli.Commands[1].Arguments.Should().Equal(
@@ -74,7 +74,7 @@ public class CommandFamilyDriverTests
             "--package-name", "acme/demo", "--output", workspace.Directory("my project", "dist").Path, "--out-dir", workspace.Directory("out dir").Path,
             "--target", "csharp", "--generate-output", workspace.Directory("gen code").Path, "--extension-id", "org.finos.morphir.fsharp-frontend",
             "--target", "fsharp");
-        cli.Commands[2].Arguments.Should().Equal("compile", "--json-lines");
+        cli.Commands[2].Arguments.Should().Equal("compile", "--json=document");
         cli.Commands[0].Options!.Timeout.Should().Be(CompilationDriver.Timeout);
         project.Path.Should().Contain(" ");
     }

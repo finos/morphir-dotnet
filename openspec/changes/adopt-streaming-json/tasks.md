@@ -15,7 +15,7 @@ Work is on `feat/model-convert`, before `add-model-convert` group 6, which build
 
 ## 3. Commands adopt the convention
 
-- [ ] 3.1 `compile`: move the event stream under `--json`, the single report under `--json=document`, remove `--json-lines`; verify the `cli-model-compilation` scenarios in the existing compile command tests and black-box features, and update `docs/content/docs/cli/compile.md`.
+- [x] 3.1 `compile`: move the event stream under `--json`, the single report under `--json=document`, remove `--json-lines`; verify the `cli-model-compilation` scenarios in the existing compile command tests and black-box features, and update `docs/content/docs/cli/compile.md`.
 - [ ] 3.2 `validate`, `generate` (including C# generation) and `ir verify` (renamed to `model verify` by `add-model-convert`): adopt the writer; verify the `model-analyzers` and `cli-csharp-generation` scenarios and update their CLI pages.
 - [ ] 3.3 `config` (show, set, unset), `extension list`, `extension runtimes`, `extension worker --help --json`, `project migrate` and `workspace migrate`: adopt the writer; verify their existing report tests through `JsonOutputAssertions` and update their CLI pages.
 - [ ] 3.4 Write `JsonOutput.feature` in `tests/Morphir.BlackBox.Tests/Integration/` with scenario outlines over the commands for every `cli-json-output` scenario, and verify it passes on the development build and the Native AOT executable.

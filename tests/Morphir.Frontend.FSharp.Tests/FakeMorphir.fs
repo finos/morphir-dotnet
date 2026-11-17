@@ -50,7 +50,6 @@ let private documented =
         "--project", true
         "--config", true
         "--json", false
-        "--json-lines", false
         "--types-only", false
         "--target", true
         "--generate-output", true
@@ -210,7 +209,7 @@ let private compile (options: Map<string, string list>) (cwd: string) (mode: str
         sources options cwd
     with
     | Some [ package ], Some exposed, Some [ version ], Ok(kind, root, documents) when
-        options.ContainsKey "--json-lines"
+        options.ContainsKey "--json"
         ->
         eprintfn "fake-morphir: compiling %d document(s) at IR version %s" documents.Length version
 
@@ -402,7 +401,7 @@ let private compile (options: Map<string, string list>) (cwd: string) (mode: str
         2
     | _ ->
         eprintfn
-            "fake-morphir: compile needs --json-lines, --ir-version and project.name and project.exposed_modules in morphir.toml."
+            "fake-morphir: compile needs --json, --ir-version and project.name and project.exposed_modules in morphir.toml."
 
         2
 

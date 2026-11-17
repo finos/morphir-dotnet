@@ -196,7 +196,7 @@ Use `--json` for a machine-readable report. The exit code is 0, 1 (a source erro
 2 (a setup error).
 
 ```bash
-dotnet-morphir compile --json | jq '{success, modules, diagnostics}'
+dotnet-morphir compile --json=document | jq '{success, modules, diagnostics}'
 ```
 
 ```json

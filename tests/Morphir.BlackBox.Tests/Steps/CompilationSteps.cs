@@ -49,7 +49,7 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
         </Project>
         """;
 
-    private string? _targetReport;
+    private CompilationReport? _targetReport;
 
     private WorkspaceDirectory Project => workspace.Work;
 
@@ -105,8 +105,7 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
     public async Task CompileWithTarget(string input, string noun, string target)
     {
         await Compile(Sources(input) with { Target = target, GenerateOutput = Project.Directory("with-target") });
-        CompilationReport.Of(run.Result.ShouldExitWith(0));
-        _targetReport = run.Result.StandardOutput;
+        _targetReport = CompilationReport.Of(run.Result.ShouldExitWith(0));
     }
 
     [When("I compile the project from its {word} {word} and then generate {string} from the compiled IR")]
@@ -352,8 +351,7 @@ public sealed class CompilationSteps(ICompilationDriver compilation, IGeneration
     [Then("both reports name the same backend")]
     public void SameBackend()
     {
-        using var combined = JsonDocument.Parse(_targetReport ?? throw new InvalidOperationException("The scenario has no compile with a target."));
-        var backend = combined.RootElement.GetProperty("generation").GetProperty("backend").GetString();
+        var backend = (_targetReport ?? throw new InvalidOperationException("The scenario has no compile with a target.")).GenerationBackend;
         var generated = GenerationReport.Of(run.Result).Backend;
         Check(!string.IsNullOrEmpty(backend) && backend == generated, $"The compile with a target names the backend {backend ?? "null"}, and the generation names {generated ?? "null"}.");
     }

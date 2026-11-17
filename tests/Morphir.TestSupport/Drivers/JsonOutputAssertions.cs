@@ -30,9 +30,12 @@ public static class JsonOutputAssertions
     /// <inheritdoc cref="ReportOfStream(CommandResult)"/>
     /// <param name="result">The result of the command.</param>
     /// <param name="maxDepth">The depth that the parse of a line accepts; 0 is the default of the parser (64).</param>
-    public static JsonElement ReportOfStream(this CommandResult result, int maxDepth)
+    public static JsonElement ReportOfStream(this CommandResult result, int maxDepth) =>
+        result.ReportOfRecords(result.Records(maxDepth));
+
+    /// <summary>The report of the records of a stream, which must end with its one <c>completed</c> record.</summary>
+    private static JsonElement ReportOfRecords(this CommandResult result, List<JsonElement> records)
     {
-        var records = result.Records(maxDepth);
         var completed = records.Select((record, index) => (record, line: index + 1)).Where(item => IsCompleted(item.record)).ToArray();
         if (completed.Length == 0) throw new CommandAssertionException("The stream has no completed record.", result);
         if (completed.Length > 1)
@@ -65,10 +68,16 @@ public static class JsonOutputAssertions
     }
 
     /// <summary>The records of a stream, in order, the <c>completed</c> record last. Each line must be one.</summary>
-    public static IReadOnlyList<JsonElement> Events(this CommandResult result)
+    public static IReadOnlyList<JsonElement> Events(this CommandResult result) => result.Events(maxDepth: 0);
+
+    /// <inheritdoc cref="Events(CommandResult)"/>
+    /// <param name="result">The result of the command.</param>
+    /// <param name="maxDepth">The depth that the parse of a line accepts; 0 is the default of the parser (64).</param>
+    public static IReadOnlyList<JsonElement> Events(this CommandResult result, int maxDepth)
     {
-        result.ReportOfStream();
-        return result.Records(maxDepth: 0);
+        var records = result.Records(maxDepth);
+        result.ReportOfRecords(records);
+        return records;
     }
 
     /// <summary>

@@ -113,7 +113,7 @@ public sealed class ConfiguredWasmCommandTests
         using var workspace = await PublishedWorkspace();
         workspace.Write("identity.py", "def identity(value: int) -> int:\n    return value\n");
         var result = await CliTestHelper.ForTarget(host).ExecuteCommandAsync(
-            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("identity.py")}\" --ir-version 4 --json");
+            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("identity.py")}\" --ir-version 4 --json=document");
         result.ExitCode.Should().Be(0, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);
         report.RootElement.GetProperty("frontend").GetString().Should().Contain("morphir-python").And.Contain("wasm");
@@ -173,7 +173,7 @@ public sealed class ConfiguredWasmCommandTests
         using var workspace = await PublishedWorkspace();
         workspace.Write("add.py", "def add(a: int, b: int) -> int:\n    return a + b\n");
         var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(
-            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("add.py")}\" --ir-version 4 --json");
+            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("add.py")}\" --ir-version 4 --json=document");
         result.ExitCode.Should().Be(1, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);
         report.RootElement.GetProperty("failureKind").GetString().Should().Be("source");
@@ -193,7 +193,7 @@ public sealed class ConfiguredWasmCommandTests
         var source = workspace.Write("add.py", "def add(a: int, b: int) -> int:\n    return a + b\n");
         var output = workspace.PathOf("generated");
         var command = compile
-            ? $"compile --project \"{workspace.Root}\" --language python --input \"{source}\" --ir-version 4 --json"
+            ? $"compile --project \"{workspace.Root}\" --language python --input \"{source}\" --ir-version 4 --json=document"
             : $"generate --project \"{workspace.Root}\" --input \"{input}\" --target python --output \"{output}\" --json";
         var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(command);
         result.ExitCode.Should().Be(2, result.CombinedOutput);

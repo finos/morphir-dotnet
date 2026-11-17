@@ -98,7 +98,7 @@ let private readiness (root: SafeDirectory) (stage: SafeDirectory) (candidate: L
         LocalInstallation.writeFile work "Pricing.fs" (fixedBytes "Pricing.fs"))
     let program = path home (LocalCandidateDocument.installationPath candidate.Host+"/"+candidate.Host.EntryPoint.Target.Text)
     let overlay = Path.Combine(stage.Path,"generation")
-    let! frontend,_ = launchReport program ["compile";"--language";"fsharp";"--input";Path.Combine(workPath,"Pricing.fs");"--package-name";"acme/demo";"--ir-version";"4";"--output";Path.Combine(workPath,"compiled");"--out-dir";Path.Combine(workPath,"out");"--extension-id";candidate.FrontendId.Text;"--json"] workPath home overlay ct
+    let! frontend,_ = launchReport program ["compile";"--language";"fsharp";"--input";Path.Combine(workPath,"Pricing.fs");"--package-name";"acme/demo";"--ir-version";"4";"--output";Path.Combine(workPath,"compiled");"--out-dir";Path.Combine(workPath,"out");"--extension-id";candidate.FrontendId.Text;"--json=document"] workPath home overlay ct
     use work = stage.Child("work",false)
     let ir = read work "compiled/morphir-ir.json"
     if not(JsonNode.DeepEquals(JsonNode.Parse ir,JsonNode.Parse(fixedBytes "ir.json"))) then

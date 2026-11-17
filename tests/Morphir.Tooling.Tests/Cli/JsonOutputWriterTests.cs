@@ -4,9 +4,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
-using Morphir.Compilation;
 using Morphir.Tooling.Cli;
-using Morphir.Tooling.Features.Compile;
 
 namespace Morphir.Tooling.Tests.Cli;
 
@@ -178,15 +176,37 @@ public sealed class JsonOutputWriterTests
     }
 
     [Test]
-    public void TheCompileDocumentIsTheJsonOfTheReport()
+    [Arguments(JsonOutputMode.Stream)]
+    [Arguments(JsonOutputMode.Document)]
+    public void ACompletedOutputThatFailsToWriteCanBeWrittenAgain(JsonOutputMode mode)
     {
-        // --json=document must give the output of the old --json exactly.
-        var report = CompileReport.Invocation([Diagnostic.Create(DiagnosticSeverity.Error, CompileCodes.InvalidArguments, "Use 'one' option.", null)]);
-        using var stdout = new StringWriter();
+        // A renderer that catches the failure can still end the output with its report.
+        using var stdout = new FailingOnceWriter();
+        var writer = Writer(stdout, mode);
 
-        new JsonOutputWriter<CompileReport>(stdout, JsonOutputMode.Document, CompileReport.JsonInfo).Completed(report);
+        var failing = () => writer.Completed(Report);
+        failing.Should().Throw<IOException>();
+        writer.Completed(Report);
 
-        stdout.ToString().Should().Be(report.ToJson() + "\n");
+        stdout.ToString().Should().EndWith("}\n");
+        var again = () => writer.Completed(Report);
+        again.Should().Throw<InvalidOperationException>("the completed output was written");
+    }
+
+    /// <summary>A text writer whose first write fails, as a closed pipe does.</summary>
+    private sealed class FailingOnceWriter : StringWriter
+    {
+        private bool _failed;
+
+        public override void Write(string? value)
+        {
+            if (!_failed)
+            {
+                _failed = true;
+                throw new IOException("The pipe is closed.");
+            }
+            base.Write(value);
+        }
     }
 
     private static JsonElement Nested(int depth)

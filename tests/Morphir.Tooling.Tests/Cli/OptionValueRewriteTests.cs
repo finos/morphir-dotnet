@@ -34,8 +34,9 @@ public sealed class OptionValueRewriteTests
         return new Probe(new RootCommand { json }, json, null);
     }
 
+    /// <summary>Parses as every host does: through <see cref="OptionValueRewrite.Parse"/>.</summary>
     private static ParseResult ParseRewritten(Probe probe, params string[] args) =>
-        probe.Command.Parse(OptionValueRewrite.Apply(args, JsonDefault));
+        OptionValueRewrite.Parse(probe.Command, args);
 
     private static string[] InputOf(Probe probe, ParseResult result) => result.GetValue(probe.Input!) ?? [];
 
@@ -103,6 +104,51 @@ public sealed class OptionValueRewriteTests
     [Test]
     public void AnArgumentThatNamesNoModeGetsNoHint() =>
         OptionValueRewrite.HintFor("model.json", JsonOutputOption.Name, JsonOutputOption.Modes).Should().BeNull();
+
+    [Test]
+    public void TheErrorMessageOfASeparatedModeSuggestsTheEqualsSign()
+    {
+        var result = ParseRewritten(WithoutInput(), "--json", "document");
+
+        OptionValueRewrite.ErrorMessages(result).Should().ContainSingle()
+            .Which.Should().Contain("'document'").And.Contain("--json=document");
+    }
+
+    [Test]
+    public void TheErrorMessageOfAnArgumentThatNamesNoModeHasNoHint()
+    {
+        var result = ParseRewritten(WithoutInput(), "--json", "model.json");
+
+        OptionValueRewrite.ErrorMessages(result).Should().ContainSingle()
+            .Which.Should().Contain("'model.json'").And.NotContain("--json=");
+    }
+
+    [Test]
+    public void AModeThatDoesNotFollowTheFlagGetsNoHint()
+    {
+        // "document" is unrecognized, but it is not the word after --json.
+        var other = new Option<bool>("--verbose");
+        var probe = WithoutInput();
+        probe.Command.Options.Add(other);
+
+        var result = ParseRewritten(probe, "--json", "--verbose", "document");
+
+        OptionValueRewrite.ErrorMessages(result).Should().ContainSingle().Which.Should().NotContain("--json=");
+    }
+
+    [Test]
+    public void TheHelpOfTheOptionShowsItsModesAfterAnEqualsSign()
+    {
+        var root = WithoutInput().Command;
+        OptionValueRewrite.ShowValuesAfterAnEqualsSignInHelp(root);
+        using var help = new StringWriter();
+
+        root.Parse(["--help"]).Invoke(new InvocationConfiguration { Output = help });
+
+        var line = help.ToString().Split('\n').Single(text => text.Contains("--json", StringComparison.Ordinal));
+        line.TrimStart().Should().StartWith("--json[=stream|document]  ");
+        help.ToString().Should().Contain("-?, -h, --help", "the rest of the help is unchanged");
+    }
 
     [Test]
     [Arguments("--json=bogus")]

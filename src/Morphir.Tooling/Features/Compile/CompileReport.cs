@@ -106,8 +106,8 @@ public sealed record CompileReportGeneration(
 }
 
 /// <summary>
-/// The one JSON report of <c>morphir compile --json</c>, and the report of the last <c>--json-lines</c> record.
-/// Members are camelCase. <c>installed</c> lists the <c>-o</c> installations of this run.
+/// The report of <c>morphir compile</c>: the one document of <c>--json=document</c>, and the <c>report</c> of the
+/// last record of <c>--json</c>. Members are camelCase. <c>installed</c> lists the <c>-o</c> installations of this run.
 /// </summary>
 public sealed record CompileReport(
     bool Success,
@@ -171,14 +171,14 @@ public sealed record CompileReport(
         return (inside ? relative : full).Replace('\\', '/');
     }
 
-    /// <summary>The indented JSON of <c>--json</c>.</summary>
+    /// <summary>The indented JSON of <c>--json=document</c>.</summary>
     public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
 
     /// <summary>The source-generated contract of the report, for the shared <see cref="JsonOutputWriter{TReport}"/>.</summary>
     public static JsonTypeInfo<CompileReport> JsonInfo => CompileJsonContext.Relaxed.CompileReport;
 }
 
-/// <summary>The indented JSON contract of <c>--json</c>.</summary>
+/// <summary>The indented JSON contract of <c>--json=document</c>; the records of <c>--json</c> are compact.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
 [JsonSerializable(typeof(CompileReport))]
 [JsonSerializable(typeof(CompileReportDiagnostic[]))]
@@ -194,16 +194,14 @@ internal partial class CompileJsonContext : JsonSerializerContext
 }
 
 /// <summary>
-/// Writes compile events as JSON Lines (STRM-2) through the shared <see cref="JsonOutputWriter{TReport}"/>: one
-/// compact UTF-8 JSON object per line, each with an <c>event</c> member, flushed when the event occurs. The
-/// <c>completed</c> record is written last, once.
+/// Writes the record of each compile event of <c>--json</c> (STRM-2) through the shared
+/// <see cref="JsonOutputWriter{TReport}"/>: <c>stageStarted</c>, <c>diagnostics</c> and <c>stageCompleted</c>, each
+/// one compact UTF-8 JSON object on one line, flushed when the event occurs. The command writes the last
+/// <c>completed</c> record with <see cref="JsonOutputWriter{TReport}.Completed"/>, once it has folded the report. In
+/// document mode the events write nothing.
 /// </summary>
 public sealed class JsonLinesWriter(JsonOutputWriter<CompileReport> output)
 {
-    /// <summary>A stream-mode writer on <paramref name="stdout"/>.</summary>
-    public JsonLinesWriter(Stream stdout) : this(Output(stdout, JsonOutputMode.Stream))
-    {
-    }
 
     /// <summary>The shared writer of compile's report in <paramref name="mode"/> on the UTF-8 byte stream <paramref name="stdout"/>.</summary>
     public static JsonOutputWriter<CompileReport> Output(Stream stdout, JsonOutputMode mode) =>
@@ -211,7 +209,7 @@ public sealed class JsonLinesWriter(JsonOutputWriter<CompileReport> output)
             mode, CompileReport.JsonInfo);
 
     /// <summary>Writes the record of one stream event. A <see cref="CompileEvent.Completed"/> event writes nothing:
-    /// its record needs the folded report, which <see cref="WriteCompletedAsync"/> writes.</summary>
+    /// its record needs the folded report.</summary>
     public ValueTask WriteEventAsync(CompileEvent compileEvent, CancellationToken ct)
     {
         switch (compileEvent)
@@ -238,13 +236,6 @@ public sealed class JsonLinesWriter(JsonOutputWriter<CompileReport> output)
                 break;
         }
 
-        return ValueTask.CompletedTask;
-    }
-
-    /// <summary>Writes the last record, which holds the same report that <c>--json</c> writes.</summary>
-    public ValueTask WriteCompletedAsync(CompileReport report, CancellationToken ct)
-    {
-        output.Completed(report);
         return ValueTask.CompletedTask;
     }
 }

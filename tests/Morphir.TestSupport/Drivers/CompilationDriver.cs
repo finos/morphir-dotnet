@@ -7,11 +7,11 @@ namespace Morphir.TestSupport.Drivers;
 /// <summary>The form of the result of <c>compile</c> on standard output.</summary>
 public enum CompilationOutput
 {
-    /// <summary>One JSON report (<c>--json</c>).</summary>
-    Json,
+    /// <summary>The compile events as JSON Lines, ending with the report (<c>--json</c>).</summary>
+    Stream,
 
-    /// <summary>One JSON document for each line (<c>--json-lines</c>).</summary>
-    JsonLines,
+    /// <summary>The report alone, as one JSON document (<c>--json=document</c>).</summary>
+    Document,
 
     /// <summary>Text for a person: no format option.</summary>
     Text,
@@ -20,7 +20,7 @@ public enum CompilationOutput
 /// <summary>The options of <c>compile</c>. A null option is not on the command line.</summary>
 public sealed record CompilationOptions
 {
-    public CompilationOutput Output { get; init; } = CompilationOutput.Json;
+    public CompilationOutput Output { get; init; } = CompilationOutput.Stream;
 
     /// <summary>The project directory (<c>--project</c>).</summary>
     public WorkspaceDirectory? Project { get; init; }
@@ -77,8 +77,8 @@ public sealed class CompilationDriver(ICliDriver cli) : ICompilationDriver
     public Task<CommandResult> CompileAsync(CompilationOptions options, CancellationToken cancellation = default)
     {
         var arguments = new List<string> { "compile" };
-        if (options.Output == CompilationOutput.Json) arguments.Add("--json");
-        if (options.Output == CompilationOutput.JsonLines) arguments.Add("--json-lines");
+        if (options.Output == CompilationOutput.Stream) arguments.Add("--json");
+        if (options.Output == CompilationOutput.Document) arguments.Add("--json=document");
         Add(arguments, "--project", options.Project?.Path);
         if (options.Inputs.Count > 0)
         {
@@ -108,7 +108,7 @@ public sealed class CompilationDriver(ICliDriver cli) : ICompilationDriver
 }
 
 /// <summary>
-/// The JSON report of <c>compile --json</c>. It states success in the field <c>success</c>, which must agree with the
+/// The report of <c>compile --json</c>, in either form. It states success in the field <c>success</c>, which must agree with the
 /// exit code of the command, and it has the list <c>diagnostics</c>.
 /// </summary>
 public sealed class CompilationReport : JsonCommandReport

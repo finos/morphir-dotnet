@@ -73,28 +73,28 @@ public sealed class JsonOutputWriter<TReport>
 
     /// <summary>
     /// Writes the last output, once: in stream mode the <c>completed</c> record with <paramref name="report"/> under
-    /// <c>report</c>; in document mode the report alone. Both carry the same report.
+    /// <c>report</c>; in document mode the report alone. Both carry the same report. The output counts as written only
+    /// when the write succeeds, so a renderer that catches a failure can still write its report.
     /// </summary>
     public void Completed(TReport report)
     {
         ThrowIfCompleted();
+        WriteLine(Mode == JsonOutputMode.Document ? JsonSerializer.Serialize(report, _reportInfo) : CompletedLine(report));
         _completed = true;
-        if (Mode == JsonOutputMode.Document)
-        {
-            WriteLine(JsonSerializer.Serialize(report, _reportInfo));
-            return;
-        }
+    }
 
+    private string CompletedLine(TReport report)
+    {
         // The report is serialized at depth 0, as in a document, so the record adds no level to its depth limit.
         var body = Utf8(writer => JsonSerializer.Serialize(writer, report, _reportInfo));
-        WriteLine(Line(writer =>
+        return Line(writer =>
         {
             writer.WriteStartObject();
             writer.WriteString("event", CompletedEvent);
             writer.WritePropertyName("report");
             writer.WriteRawValue(body.WrittenSpan, skipInputValidation: true);
             writer.WriteEndObject();
-        }));
+        });
     }
 
     private void ThrowIfCompleted()

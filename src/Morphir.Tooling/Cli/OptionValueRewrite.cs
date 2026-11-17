@@ -1,4 +1,6 @@
 using System.CommandLine;
+using System.CommandLine.Help;
+using System.CommandLine.Invocation;
 using System.CommandLine.Parsing;
 
 namespace Morphir.Tooling.Cli;
@@ -58,13 +60,82 @@ public static class OptionValueRewrite
     /// </summary>
     public static Option<string> CreateOption(string name, string bareDefault, IReadOnlyList<string> values, string description)
     {
-        var option = new OptionalValueOption(name, bareDefault)
+        var option = new OptionalValueOption(name, bareDefault, values)
         {
             Arity = ArgumentArity.ZeroOrOne,
             Description = description,
+            // The help label: ShowValuesAfterAnEqualsSignInHelp turns "--json <stream|document>" into "--json[=stream|document]".
+            HelpName = string.Join('|', values),
         };
         option.AcceptOnlyFromAmong([.. values]);
         return option;
+    }
+
+    /// <summary>
+    /// The messages of the errors of <paramref name="result"/>, for a command that renders its own parse errors. An
+    /// unrecognized argument that names a value of an option made by <see cref="CreateOption"/>, and that directly
+    /// follows that option given bare, gets the hint of <see cref="HintFor"/>: <c>--json document</c> on a command
+    /// without positional arguments says to use <c>--json=document</c>.
+    /// </summary>
+    public static IReadOnlyList<string> ErrorMessages(ParseResult result)
+    {
+        var hints = Hints(result);
+        return [.. result.Errors.Select(error => hints.FirstOrDefault(hint => error.Message.Contains($"'{hint.Token}'", StringComparison.Ordinal)) is { Hint: { } hint }
+            ? $"{error.Message} Give a value with an equals sign: {hint}."
+            : error.Message)];
+    }
+
+    /// <summary>
+    /// Each unrecognized token that names a value of an option made by <see cref="CreateOption"/> and comes right
+    /// after that option and the value of its rewrite, with its hint.
+    /// </summary>
+    private static List<(string Token, string Hint)> Hints(ParseResult result)
+    {
+        var hints = new List<(string, string)>();
+        if (result.UnmatchedTokens.Count == 0) return hints;
+        var options = OptionsWithBareDefaults(result.CommandResult);
+        var tokens = result.Tokens;
+        for (var i = 2; i < tokens.Count; i++)
+        {
+            var token = tokens[i];
+            if (token.Type != TokenType.Argument || !result.UnmatchedTokens.Contains(token.Value)) continue;
+            if (tokens[i - 2].Type != TokenType.Option || !options.TryGetValue(tokens[i - 2].Value, out var option)) continue;
+            if (tokens[i - 1].Value != option.BareDefault) continue;
+            if (HintFor(token.Value, option.Name, option.Values) is { } hint) hints.Add((token.Value, hint));
+        }
+        return hints;
+    }
+
+    /// <summary>
+    /// Makes the help of <paramref name="root"/> and its subcommands show each option made by
+    /// <see cref="CreateOption"/> as <c>--json[=stream|document]</c>, the only way to give it a value, instead of
+    /// System.CommandLine's <c>--json &lt;stream|document&gt;</c>. Both labels have the same length, so the columns
+    /// of the help stay aligned.
+    /// </summary>
+    public static void ShowValuesAfterAnEqualsSignInHelp(Command root)
+    {
+        foreach (var help in root.Options.OfType<HelpOption>())
+            if (help.Action is HelpAction action)
+                help.Action = new EqualsSignHelpAction(action);
+    }
+
+    /// <summary>The options of <paramref name="command"/> that <see cref="Parse"/> rewrites, by name and alias.</summary>
+    private static Dictionary<string, OptionalValueOption> OptionsWithBareDefaults(CommandResult command)
+    {
+        var options = new Dictionary<string, OptionalValueOption>(StringComparer.Ordinal);
+        var own = true;
+        for (SymbolResult? symbol = command; symbol is not null; symbol = symbol.Parent)
+        {
+            if (symbol is not CommandResult result) continue;
+            foreach (var option in result.Command.Options)
+            {
+                if (option is not OptionalValueOption optional || !(own || option.Recursive)) continue;
+                options.TryAdd(option.Name, optional);
+                foreach (var alias in option.Aliases) options.TryAdd(alias, optional);
+            }
+            own = false;
+        }
+        return options;
     }
 
     /// <summary>
@@ -91,23 +162,8 @@ public static class OptionValueRewrite
     /// The bare defaults of the parsed command: its own options made by <see cref="CreateOption"/> and the
     /// recursive ones of its ancestors, each by its name and aliases.
     /// </summary>
-    private static Dictionary<string, string> BareDefaultsOf(CommandResult command)
-    {
-        var defaults = new Dictionary<string, string>(StringComparer.Ordinal);
-        var own = true;
-        for (SymbolResult? symbol = command; symbol is not null; symbol = symbol.Parent)
-        {
-            if (symbol is not CommandResult result) continue;
-            foreach (var option in result.Command.Options)
-            {
-                if (option is not OptionalValueOption optional || !(own || option.Recursive)) continue;
-                defaults.TryAdd(option.Name, optional.BareDefault);
-                foreach (var alias in option.Aliases) defaults.TryAdd(alias, optional.BareDefault);
-            }
-            own = false;
-        }
-        return defaults;
-    }
+    private static Dictionary<string, string> BareDefaultsOf(CommandResult command) =>
+        OptionsWithBareDefaults(command).ToDictionary(item => item.Key, item => item.Value.BareDefault, StringComparer.Ordinal);
 
     /// <summary>
     /// Expands response files as System.CommandLine's tokenizer does: each <c>@name</c> argument before <c>--</c> is
@@ -135,8 +191,42 @@ public static class OptionValueRewrite
     }
 
     /// <summary>An option whose bare flag <see cref="Parse"/> rewrites to <c>name=<see cref="BareDefault"/></c>.</summary>
-    private sealed class OptionalValueOption(string name, string bareDefault) : Option<string>(name)
+    private sealed class OptionalValueOption(string name, string bareDefault, IReadOnlyList<string> values) : Option<string>(name)
     {
         public string BareDefault { get; } = bareDefault;
+
+        public IReadOnlyList<string> Values { get; } = values;
+    }
+
+    /// <summary>
+    /// The help action of System.CommandLine, with each <c>name &lt;values&gt;</c> label of an option made by
+    /// <see cref="CreateOption"/> on the command of the help written as <c>name[=values]</c>.
+    /// </summary>
+    private sealed class EqualsSignHelpAction(HelpAction inner) : SynchronousCommandLineAction
+    {
+        public override bool ClearsParseErrors => inner.ClearsParseErrors;
+
+        public override int Invoke(ParseResult parseResult)
+        {
+            var configuration = parseResult.InvocationConfiguration;
+            var output = configuration.Output;
+            using var buffer = new StringWriter();
+            configuration.Output = buffer;
+            int exitCode;
+            try
+            {
+                exitCode = inner.Invoke(parseResult);
+            }
+            finally
+            {
+                configuration.Output = output;
+            }
+
+            var text = buffer.ToString();
+            foreach (var option in OptionsWithBareDefaults(parseResult.CommandResult).Values.Distinct())
+                text = text.Replace($"{option.Name} <{option.HelpName}>", $"{option.Name}[={option.HelpName}]", StringComparison.Ordinal);
+            output.Write(text);
+            return exitCode;
+        }
     }
 }

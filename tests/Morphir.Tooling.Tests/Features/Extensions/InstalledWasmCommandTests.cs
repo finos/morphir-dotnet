@@ -84,7 +84,7 @@ public sealed class InstalledWasmCommandTests
             lockDocument.RootElement.GetProperty("runtime").GetString().Should().Be("wasm");
         workspace.Write("identity.py", "def identity(value: int) -> int:\n    return value\n");
         var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(
-            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("identity.py")}\" --ir-version 4 --extension-id {Id} --json",
+            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("identity.py")}\" --ir-version 4 --extension-id {Id} --json=document",
             environment: HomeOf(home));
         result.ExitCode.Should().Be(0, result.CombinedOutput);
         using var report = JsonDocument.Parse(result.StandardOutput);
@@ -114,7 +114,7 @@ public sealed class InstalledWasmCommandTests
         using var _ = workspace;
         workspace.Write("identity.py", "def identity(value: int) -> int:\n    return value\n");
         var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(
-            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("identity.py")}\" --ir-version 4 --extension-id {Id} --json",
+            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("identity.py")}\" --ir-version 4 --extension-id {Id} --json=document",
             environment: HomeOf(home));
         result.ExitCode.Should().NotBe(0, result.CombinedOutput);
         result.CombinedOutput.Should().Contain("extension.claims_mismatch");
@@ -131,7 +131,7 @@ public sealed class InstalledWasmCommandTests
         await File.AppendAllTextAsync(stored, "changed");
         workspace.Write("identity.py", "def identity(value: int) -> int:\n    return value\n");
         var result = await CliTestHelper.ForTarget().ExecuteCommandAsync(
-            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("identity.py")}\" --ir-version 4 --extension-id {Id} --json",
+            $"compile --project \"{workspace.Root}\" --language python --input \"{workspace.PathOf("identity.py")}\" --ir-version 4 --extension-id {Id} --json=document",
             environment: HomeOf(home));
         result.ExitCode.Should().NotBe(0, result.CombinedOutput);
         result.CombinedOutput.Should().Contain("extension.digest_mismatch");

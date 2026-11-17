@@ -73,7 +73,7 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
 
     /// <summary>
     /// The output of each command is its documented output: the same JSON, apart from the members that the page shows
-    /// with an example path, or the same text.
+    /// with an example path, line by line for a documented stream, or the same text.
     /// </summary>
     [Then("each documented command gives its documented output")]
     public void EachCommandGivesItsDocumentedOutput()
@@ -82,8 +82,9 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
         {
             var actual = result.StandardOutput.Trim().Replace("\r\n", "\n").Split('\n');
             Check(actual.Length == command.Output.Length, $"The command {command.Arguments} wrote {actual.Length} lines, and the page documents {command.Output.Length}.", result);
-            if (command.Arguments.EndsWith("--json-lines", StringComparison.Ordinal))
+            if (command.Output.Length > 0 && command.Output[0].StartsWith("{\"event\":", StringComparison.Ordinal))
             {
+                // A documented stream (--json): each line is one record.
                 for (var line = 0; line < actual.Length; line++)
                     Check(Normalize(actual[line], result) == Normalize(command.Output[line], result: null), $"Line {line + 1} of {command.Arguments} is not the documented line.", result);
             }

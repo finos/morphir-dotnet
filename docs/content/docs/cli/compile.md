@@ -20,7 +20,7 @@ command starts and that compiles the documents. See [Frontend extensions](#front
 dotnet-morphir compile [--language <id>] [--input <file>... | --input <directory> | --project-file <file>]
   [--package-name <name>] [--ir-version <version>] [--project <path-or-name>] [--config <file>]
   [--extension <id-or-path>] [-o <directory>] [--out-dir <directory>]
-  [--target <id> --generate-output <directory> [--option <key>=<value>]...] [--json | --json-lines]
+  [--target <id> --generate-output <directory> [--option <key>=<value>]...] [--json[=stream|document]]
 ```
 
 ## Options
@@ -40,11 +40,11 @@ dotnet-morphir compile [--language <id>] [--input <file>... | --input <directory
 | `--target` | A generation target, for example `fsharp` or `csharp`. Generate code from the compiled IR. See [Compile and generate](#compile-and-generate). |
 | `--generate-output` | The owned output directory of the generation. Necessary with `--target`. |
 | `--option` | A backend option `KEY=VALUE` for `--target`, as in `generate`. You can give it more than once. |
-| `--json` | Write one JSON report to stdout. |
-| `--json-lines` | Write the compile events to stdout as JSON Lines, and end with the report. |
+| `--json[=stream\|document]` | Write JSON to stdout. A bare `--json` streams the compile events as JSON Lines and ends with the report. `--json=document` writes the report alone. See [JSON stream](#json-stream) and [JSON report](#json-report). |
 | `--types-only` | Not implemented. The command refuses it with exit code 2. |
 
-Do not use `--json` and `--json-lines` together. Do not use `--project-file` and `--input` together. Give
+Give the mode of `--json` only after `=`: the command refuses `--json document` and suggests `--json=document`.
+Do not use `--project-file` and `--input` together. Give
 `--target` one time only, and always with `--generate-output`. `--generate-output` and `--option` need
 `--target`. The command refuses these errors with exit code 2 before it compiles.
 
@@ -274,7 +274,7 @@ never on stdout or in the JSON output. Pass `--option format=false` for the unfo
   this command.
 
 ```bash
-$ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --target fsharp --generate-output generated --json
+$ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --target fsharp --generate-output generated --json=document
 {
   "success": true,
   "exitCode": 0,
@@ -351,7 +351,7 @@ generation output. Stdout still holds only the path of the published IR.
 
 ## Human output
 
-Without `--json` or `--json-lines`, the command writes each stage's diagnostics to stderr when that stage
+Without `--json`, the command writes each stage's diagnostics to stderr when that stage
 completes, before later stages start. A project-file warning is therefore on stderr before a slow compile
 ends. The last stderr line is a summary that lists the same diagnostics. On success, stdout holds only the
 path of the published IR.
@@ -363,12 +363,12 @@ compile failed (source, exit code 1); 1 error(s): error fsharp.unsupported_mutab
 
 ## JSON report
 
-With `--json`, stdout holds exactly one JSON report. Logs go to stderr. The examples on this page use the
+With `--json=document`, stdout holds exactly one JSON report. Logs go to stderr. The examples on this page use the
 sources of the MCK corpus cases `frontend-fsharp-0116` (`src/Rates.fs` and `src/Totals.fs`) and
 `frontend-fsharp-0001` (`broken/Pricing.fs`). `output` and `sources.root` show example paths.
 
 ```bash
-$ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --json
+$ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --json=document
 {
   "success": true,
   "exitCode": 0,
@@ -433,7 +433,7 @@ document `uri` and a zero-based `range` in UTF-16 code units), `related` and `da
 relative to `sources.root`, as the documents are.
 
 ```bash
-$ dotnet-morphir compile --language fsharp --input broken/Pricing.fs --package-name acme/demo --json
+$ dotnet-morphir compile --language fsharp --input broken/Pricing.fs --package-name acme/demo --json=document
 {
   "success": false,
   "exitCode": 1,
@@ -497,7 +497,7 @@ $ dotnet-morphir compile --language fsharp --input broken/Pricing.fs --package-n
 A pre-release that no writer declares fails before compilation:
 
 ```bash
-$ dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --ir-version 4.1.0-draft.1 --json
+$ dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --ir-version 4.1.0-draft.1 --json=document
 {
   "success": false,
   "exitCode": 2,
@@ -540,7 +540,7 @@ $ dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name a
 The Native AOT executable has no F# frontend:
 
 ```bash
-$ morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --json
+$ morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --json=document
 {
   "success": false,
   "exitCode": 2,
@@ -579,9 +579,9 @@ $ morphir compile --language fsharp --input src/Rates.fs --package-name acme/dem
 }
 ```
 
-## JSON Lines
+## JSON stream
 
-With `--json-lines`, stdout holds only newline-delimited JSON. Each line is one compact UTF-8 JSON object
+With `--json` (the same as `--json=stream`), stdout holds only newline-delimited JSON. Each line is one compact UTF-8 JSON object
 with an `event` member. The command writes and flushes each line when its event occurs. Logs stay on
 stderr.
 
@@ -590,19 +590,18 @@ stderr.
 | `stageStarted` | `stage` | A stage starts. |
 | `diagnostics` | `stage`, optional `document`, `diagnostics` | The diagnostics of a stage for one document, or for no document. |
 | `stageCompleted` | `stage`, `passed` | A stage completes. |
-| `completed` | `report` | The last line, exactly once. `report` is the report that `--json` writes. |
+| `completed` | `report` | The last line, exactly once. `report` is the report that `--json=document` writes. |
 
 The stages are `settings`, `sources`, `capture`, `frontend` (which builds the requested IR family),
 `transform` (the passes of the stage after a frontend; it starts only when a pass has that stage), `write` and `publish`, and with `--target` also `generate` (model loading, backend selection, option
 validation and generation) and `generatePublish` (owned publication of the generated files). A stage that
 does not run has no records. All `diagnostics` records together hold
 the same diagnostics as the report. The records keep emission order; the report keeps stage, document and
-position order. A parse error, the `--json` and `--json-lines` conflict, and cancellation also end with
-one `completed` record. Ignore event types and members that you do not know: new ones can be added
+position order. A parse error and cancellation also end with one `completed` record. Ignore event types and members that you do not know: new ones can be added
 without a new format version.
 
 ```bash
-$ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --ir-version 3 --json-lines
+$ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --ir-version 3 --json
 {"event":"stageStarted","stage":"settings"}
 {"event":"stageCompleted","stage":"settings","passed":true}
 {"event":"stageStarted","stage":"sources"}
@@ -618,13 +617,8 @@ $ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --
 {"event":"completed","report":{"success":true,"exitCode":0,"language":"fsharp","frontend":"morphir-dotnet.fsharp (in-process)","irVersion":"3","sources":{"projectFile":null,"root":"src","documents":["Rates.fs","Totals.fs"]},"modules":["Rates","Totals"],"output":"/work/.morphir/out/compile.dest/morphir-ir.json","installed":[],"diagnostics":[],"failureKind":null,"origins":{"language":{"kind":"cli","flag":"--language"},"packageName":{"kind":"cli","flag":"--package-name"},"irVersion":{"kind":"cli","flag":"--ir-version"},"input":{"kind":"cli","flag":"--input"}}}}
 ```
 
-### Difference from the Rust CLI
-
-The Rust `morphir` CLI (finos/morphir) writes one compact report line for `--json-lines`. This CLI writes
-the event stream, one record per line, as the events occur. Until upstream aligns, the two CLIs give
-different `--json-lines` output. The last line of this CLI is a `completed` record that holds the full
-report, so a consumer that reads only the last line and its `report` member works with this CLI. An
-upstream issue proposes this record format as the shared meaning.
+A consumer that needs only the outcome reads the last line and its `report` member. The command has no
+`--json-lines` option: it fails as an unknown option with exit code 2. Use `--json`.
 
 ## Unimplemented options
 

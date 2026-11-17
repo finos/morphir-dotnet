@@ -106,6 +106,26 @@ public class JsonOutputAssertionsTests
     }
 
     [Test]
+    public void TheEventsOfAStreamDeeperThanTheDefaultLimitAreReadWithALargerLimit()
+    {
+        // A record nested 70 levels deep: over the parser's default limit of 64.
+        const int depth = 70;
+        var deep = "{\"event\":\"note\",\"value\":" + string.Concat(Enumerable.Repeat("[", depth)) + new string(']', depth) + "}";
+        var result = Lines(deep, Completed);
+
+        ShouldFail(() => result.Events(), result, "Line 1 of standard output is not JSON");
+        result.Events(maxDepth: depth + 1).Select(record => record.GetProperty("event").GetString()).Should().Equal("note", "completed");
+    }
+
+    [Test]
+    public void TheEventsOfAStreamWithoutACompletedRecordFail()
+    {
+        var result = Lines(StageStarted, StageCompleted);
+
+        ShouldFail(() => result.Events(), result, "The stream has no completed record.");
+    }
+
+    [Test]
     public void AStreamWithCarriageReturnsGivesItsReport() =>
         Result(StageStarted + "\r\n" + Completed + "\r\n").ReportOfStream().GetProperty("success").GetBoolean().Should().BeTrue();
 

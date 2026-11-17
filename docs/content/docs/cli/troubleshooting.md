@@ -571,8 +571,8 @@ The CLI should create directories automatically. If this fails:
 
 ## Compile failures
 
-Use `--json` and read `failureKind` and `diagnostics`, or `--json-lines` and read the last `completed`
-record. Exit code 1 is a source or model error; exit code 2 is an invocation, configuration, selection or
+Use `--json=document` and read `failureKind` and `diagnostics`, or `--json` and read the `report` of the
+last `completed` record. Exit code 1 is a source or model error; exit code 2 is an invocation, configuration, selection or
 I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
 
 | Code | Cause | Fix |

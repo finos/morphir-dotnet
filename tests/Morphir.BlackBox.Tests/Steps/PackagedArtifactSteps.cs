@@ -71,7 +71,7 @@ public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace 
     {
         var work = Packaged.NewWorkDirectory();
         workspace.WriteText(work.Folder.File("my sources", "Rates.fs"), "module Acme.Demo.Rates\n\nlet dailyRate (days: int) : int = days * 40\n");
-        await RunAsync(["compile", "--language", "fsharp", "--input", "my sources/Rates.fs", "--package-name", "acme/demo", "--json"], RuntimeAccess.Visible, work);
+        await RunAsync(["compile", "--language", "fsharp", "--input", "my sources/Rates.fs", "--package-name", "acme/demo", "--json=document"], RuntimeAccess.Visible, work);
     }
 
     [When("I validate the model fixture {string} with the installed artifact")]
