@@ -54,6 +54,35 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void TheVectorsOfRfc8785AreRead()
+    {
+        var vectors = FixtureCatalog.Rfc8785.Vectors;
+
+        vectors.Numbers.Should().HaveCount(26, "Table 1 of Appendix B has 26 rows");
+        vectors.Numbers[0].Should().Be(new Rfc8785NumberSample(0x0000000000000000, "0", "Zero"));
+        vectors.Numbers.Should().ContainSingle(sample => sample.Comment == "Max pos int").Which.Json.Should().Be("9007199254740992");
+        vectors.Numbers.Where(sample => sample.Json is null).Select(sample => sample.Comment).Should().Equal("NaN", "Infinity");
+        vectors.Numbers.Last().Json.Should().Be("1424953923781206.2");
+
+        JsonNode.Parse(vectors.PrimitiveSample)!["literals"]!.AsArray().Should().HaveCount(3);
+        vectors.PrimitiveSampleCanonical.Should().HaveCount(118, "Section 3.2.4 lists 118 bytes");
+        vectors.PrimitiveSampleCanonical[..2].Should().Equal(0x7b, 0x22);
+        vectors.PrimitiveSampleCanonical[^1].Should().Be(0x7d);
+
+        JsonNode.Parse(vectors.SortingSample)!.AsObject().Count.Should().Be(7);
+        vectors.SortedValues.Should().Equal(
+            "Carriage Return", "One", "Control", "Latin Small Letter O With Diaeresis", "Euro Sign",
+            "Emoji: Grinning Face", "Hebrew Letter Dalet With Dagesh");
+    }
+
+    [Test]
+    public void TheReaderOfRfc8785RefusesATextWithoutItsVectors()
+    {
+        var act = () => Rfc8785Reader.Read("Appendix B.  Number Serialization Samples\n");
+        act.Should().Throw<FormatException>();
+    }
+
+    [Test]
     public void DocumentTree0006YamlAndJsonLoadEqual()
     {
         // document-tree-0006 is document-tree-0003's set spelled in the JSON profile.

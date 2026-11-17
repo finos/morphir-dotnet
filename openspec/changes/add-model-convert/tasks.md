@@ -66,7 +66,8 @@ Depends on `adopt-streaming-json` group 2 for the `--json` convention.
 ## 8. Write compacted files (milestone 3)
 
 - [ ] 8.1 On the same finos/morphir branch, complete parent task 1.4: the policy `morphir.compact/0.1.0-draft.1` with JCS bytes and UTF-8 size, and its hand-derived fixed cases (v3 and v4 single files, each tree file kind, name used once, non-ASCII name, alias order, ties, table order, look-alike literals, a loss case), reviewed in the parent PR; verify the parent's checks pass with no Rust change.
-- [ ] 8.2 Add the AOT-safe JCS writer to `Morphir.Models` and verify the RFC 8785 test vectors and zero trim and AOT warnings.
+- [x] 8.2 Add the AOT-safe JCS writer to `Morphir.Models` and verify the RFC 8785 test vectors and zero trim and AOT warnings.
+  - `Morphir.Json.CanonicalJson` (`write`, `number`, `byteLength`) passes the vectors of RFC 8785 itself, pinned whole as `FixtureCatalog.Rfc8785` (every row of Appendix B, the bytes of Sections 3.2.2 and 3.2.4, the sorting sample of 3.2.3), plus "Non-ASCII content is measured as UTF-8" (`CanonicalJsonTests`). `Morphir.Models` builds for `net11.0`, `net10.0` and `netstandard2.0` with 0 warnings under its trim and AOT analyzers; the Native AOT publish of `morphir` is checked with 9.1.
 - [ ] 8.3 Implement the writer policy and `--compact[=<mode>]` (bare means `names`, `=` only, unknown mode exits 2, report names mode and policy), and verify the parent's fixed cases byte for byte, `expand (compact f) = f`, determinism, and the compaction scenarios of `cli-model-conversion` and `model-name-compaction`.
 - [ ] 8.4 Finish `ModelConversionCompaction.feature` (writing part), update the docs and CHANGELOG, add the milestone 3 note, and verify the docs commands run as written.
 - [ ] 8.5 Move the parent pins to the merged finos/morphir commit when the parent change merges, and verify the hash checks.

@@ -136,8 +136,25 @@ public static class FixtureCatalog
         ];
     }
 
+    /// <summary>
+    /// RFC 8785, the JSON Canonicalization Scheme, as the RFC Editor publishes it: the source of the test vectors of the
+    /// canonical JSON writer.
+    /// </summary>
+    public static class Rfc8785
+    {
+        /// <summary>The plain text of RFC 8785.</summary>
+        public static FixtureEntry Text { get; } = new(
+            "the text of RFC 8785", "Rfc8785/rfc8785.txt",
+            "63d52294eb0e3f0014174288186d388b4ddbf2c67d1ce8af1d9726eb0c3ab240", "Rfc8785/PROVENANCE.md");
+
+        private static readonly Lazy<Rfc8785Vectors> Read = new(() => Rfc8785Reader.Read(ReadText(Text)));
+
+        /// <summary>The examples of the RFC: its number samples, its primitive sample and its sorting sample.</summary>
+        public static Rfc8785Vectors Vectors => Read.Value;
+    }
+
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, Rfc8785.Text];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

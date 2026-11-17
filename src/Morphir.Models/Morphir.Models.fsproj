@@ -95,6 +95,7 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="Json/MorphirJsonOptions.fs" />
         <Compile Include="Json/Encode.fs" />
         <Compile Include="Json/Decode.fs" />
+        <Compile Include="Json/CanonicalJson.fs" />
         <Compile Include="Json/Codecs/NameCodec.fs" />
         <Compile Include="Json/Codecs/PathCodec.fs" />
         <Compile Include="Json/Codecs/FQNameCodec.fs" />

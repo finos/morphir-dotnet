@@ -19,6 +19,7 @@
   <ItemGroup>
     <EmbeddedResource Include="../Fixtures/MorphirTrees/kit/*.feature" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/kit/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIR/*.json;../Fixtures/MorphirIR/*.txt" LogicalName="Morphir.TestSupport.Fixtures/MorphirIR/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/Rfc8785/rfc8785.txt" LogicalName="Morphir.TestSupport.Fixtures/Rfc8785/rfc8785.txt" />
     <!-- Each file of a hand-written tree, named by its location in the tree. -->
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" />
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" />
