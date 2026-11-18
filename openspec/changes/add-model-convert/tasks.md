@@ -122,7 +122,7 @@ Every scenario of this change and the test that proves it, by its final name: a 
 | virtual-file-providers | A directory lists its entries | `Morphir.Files.Tests`: `FileProviders/A directory lists its entries` |
 | virtual-file-providers | Watching never signals a change | `Morphir.Files.Tests`: `FileProviders/Watching never signals a change` |
 | virtual-file-providers | Embedded fixtures become a tree | `Morphir.Files.Tests`: `FileProviders/Embedded fixtures become a tree` |
-| virtual-file-providers | Content is not read while building | `Morphir.Files.Tests`: `FileProviders/PlatformSpecific/Content is not read while building` |
+| virtual-file-providers | Content is not read while building | `Morphir.Files.Tests`: `FileProviders/PlatformSpecific/Content is not read while building`; for a tree's own provider, `FileProviders/A tree built from a tree's provider reads no stream of unknown length` and `FileProviders/A tree built from a tree's provider keeps each length that is known` |
 | model-document-trees | Two spellings of one name have one address | `Morphir.Models.Tests`: `Trees/Document addresses/Two spellings of one name have one address` |
 | model-document-trees | A dependency document is addressed by its package | `Morphir.Models.Tests`: `Trees/Document addresses/A dependency document is addressed by its package` |
 | model-document-trees | A v4 model round-trips | `Morphir.Models.Tests`: `Trees/V4 document trees/A v4 model round-trips`; `Store/V4 document tree store/read (write t) = t` |

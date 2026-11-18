@@ -8,7 +8,10 @@ open System.Text
 open Microsoft.Extensions.FileProviders
 open Microsoft.Extensions.Primitives
 
-/// <summary>A file of a tree, as an <c>IFileInfo</c>. Its length is worked out when it is first asked for.</summary>
+/// <summary>
+/// A file of a tree, as an <c>IFileInfo</c>. Its length is worked out when it is first asked for, which for stream
+/// content of no declared length reads the stream; <c>KnownLength</c> gives it only when no read is needed.
+/// </summary>
 [<Sealed>]
 type internal TreeFileInfo(name: string, location: string, file: VFile) =
     /// Opens the content, raising the read failure with the location as an IOException, as a file provider does.
@@ -45,6 +48,14 @@ type internal TreeFileInfo(name: string, location: string, file: VFile) =
                              read <- stream.Read(buffer, 0, buffer.Length)
 
                          total)
+
+    /// The length when it is known without a read: the length of text, bytes or a stream that declares one, or of a
+    /// stream that an earlier call of Length read; otherwise None.
+    member _.KnownLength: int64 option =
+        match file.Content with
+        | Some(VFileContent.Stream source) when source.Length.IsNone ->
+            if length.IsValueCreated then Some length.Value else None
+        | _ -> Some(length.Force())
 
     interface IFileInfo with
         member _.Exists = true
@@ -194,8 +205,11 @@ module VFileProviders =
     /// <summary>
     /// A tree of every file and directory that a provider lists, from its root down. Each file keeps its location below
     /// the root, with forward slashes, and its content is a <c>VFileContent.Stream</c> that opens the provider's file
-    /// when it is read, so building the tree reads no content. As with <see cref="VFileTree.loadFromDisk"/>, each
-    /// directory lists its files first and then its subdirectories, both sorted by name, and empty directories are kept.
+    /// when it is read, so building the tree reads no content. Its length is the provider's file length, or unknown
+    /// when the provider gives -1; a file of a tree's own provider (<see cref="asFileProvider"/>) whose stream content
+    /// declares no length keeps it unknown, as its length would read the stream. As with
+    /// <see cref="VFileTree.loadFromDisk"/>, each directory lists its files first and then its subdirectories, both
+    /// sorted by name, and empty directories are kept.
     /// The tree's <c>Path</c> is ".", and its configuration and metadata are empty.
     /// </summary>
     /// <param name="provider">The provider to read</param>
@@ -217,13 +231,17 @@ module VFileProviders =
                 let fileNodes =
                     byName files
                     |> List.map (fun info ->
-                        let length = info.Length
+                        // A file of a tree's own provider gives its length only when no read is needed: the length
+                        // of a stream that declares none would read the stream. A provider gives -1 for an unknown one.
+                        let length =
+                            match info with
+                            | :? TreeFileInfo as treeFile -> treeFile.KnownLength
+                            | _ -> if info.Length >= 0L then Some info.Length else None
 
                         let source =
-                            if length >= 0L then
-                                StreamSource((fun () -> info.CreateReadStream()), length)
-                            else
-                                StreamSource(fun () -> info.CreateReadStream())
+                            match length with
+                            | Some length -> StreamSource((fun () -> info.CreateReadStream()), length)
+                            | None -> StreamSource(fun () -> info.CreateReadStream())
 
                         TreeNode.File(VFile.ofStream info.Name source))
 

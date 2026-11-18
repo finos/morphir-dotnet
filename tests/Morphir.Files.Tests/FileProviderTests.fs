@@ -12,12 +12,53 @@ open Microsoft.Extensions.Primitives
 open Morphir.Files
 open Morphir.TestSupport
 
+/// A stream that reads its bytes forward only, as a network or pipe stream does, and counts the reads of every
+/// stream that one counter gives out.
+type private ForwardOnlyStream(bytes: byte array, reads: int ref) =
+    inherit Stream()
+    let mutable position = 0
+
+    override _.CanRead = true
+    override _.CanSeek = false
+    override _.CanWrite = false
+    override _.Length = raise (NotSupportedException "a forward-only stream has no length")
+
+    override _.Position
+        with get () = raise (NotSupportedException "a forward-only stream has no position")
+        and set _ = raise (NotSupportedException "a forward-only stream has no position")
+
+    override _.Flush() = ()
+    override _.Seek(_, _) = raise (NotSupportedException "a forward-only stream cannot seek")
+    override _.SetLength _ = raise (NotSupportedException "a forward-only stream cannot change")
+    override _.Write(_, _, _) = raise (NotSupportedException "a forward-only stream is read only")
+
+    override _.Read(buffer: byte array, offset: int, count: int) =
+        reads.Value <- reads.Value + 1
+        let available = min count (bytes.Length - position)
+        Array.blit bytes position buffer offset available
+        position <- position + available
+        available
+
 /// The trees and files that the provider tests read, by intent.
 module private ProviderTreeMother =
     /// Text whose UTF-8 form is longer than its characters, so a length in characters would be wrong.
     let moduleText = """{"module":"Demo","note":"café"}"""
 
     let moduleBytes = UTF8Encoding(false).GetBytes moduleText
+
+    /// A tree with one file whose content is a forward-only stream of no declared length, and the opens and reads of
+    /// its streams so far.
+    let forwardOnlyStreamOfUnknownLength () =
+        let opened = ref 0
+        let reads = ref 0
+
+        let source =
+            StreamSource(fun () ->
+                opened.Value <- opened.Value + 1
+                new ForwardOnlyStream(moduleBytes, reads) :> Stream)
+
+        VFileTree.fromFileMap (Map.ofList [ "pkg/acme/demo/module.json", VFile.ofStream "module.json" source ]),
+        (fun () -> opened.Value, reads.Value)
 
     let typeBytes = [| 0x7Buy; 0x7Duy; 0x0Auy |]
 
@@ -169,6 +210,35 @@ let treeAsProviderTests =
                 let expected = drain ((embedded.GetFileInfo location).CreateReadStream())
                 Expect.isNonEmpty expected $"%s{location} is embedded"
                 Expect.equal (bytesOf file) expected $"%s{location} reads the embedded bytes"
+        }
+
+        test "A tree built from a tree's provider reads no stream of unknown length" {
+            let tree, opensAndReads = ProviderTreeMother.forwardOnlyStreamOfUnknownLength ()
+
+            let back = VFileProviders.ofFileProvider (VFileProviders.asFileProvider tree)
+
+            Expect.equal (opensAndReads ()) (0, 0) "building the tree opened and read no stream"
+
+            let file = Expect.wantSome (VFileTree.findFile "pkg/acme/demo/module.json" back) "the file comes back"
+
+            match file.Content with
+            | Some(VFileContent.Stream source) -> Expect.isNone source.Length "an unknown length stays unknown"
+            | other -> failtestf "expected stream content, got %A" other
+
+            Expect.equal (bytesOf file) ProviderTreeMother.moduleBytes "the file reads the stream's bytes"
+            Expect.equal (fst (opensAndReads ())) 1 "reading the file opened the stream once"
+        }
+
+        test "A tree built from a tree's provider keeps each length that is known" {
+            let back = VFileProviders.ofFileProvider (VFileProviders.asFileProvider ProviderTreeMother.demoPackage)
+
+            let lengthOf location =
+                match (Expect.wantSome (VFileTree.findFile location back) location).Content with
+                | Some(VFileContent.Stream source) -> source.Length
+                | other -> failtestf "expected stream content at %s, got %A" location other
+
+            Expect.equal (lengthOf "pkg/acme/demo/module.json") (Some(int64 ProviderTreeMother.moduleBytes.Length)) "text: its UTF-8 byte count"
+            Expect.equal (lengthOf "pkg/acme/demo/types/order.type.json") (Some(int64 ProviderTreeMother.typeBytes.Length)) "bytes: their count"
         }
 
         test "Content is not read while building" {

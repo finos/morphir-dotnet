@@ -179,7 +179,7 @@ let back = VFileProviders.ofFileProvider provider                               
 - Listing a directory gives its files and then its subdirectories, in tree order, and nothing deeper. The empty path lists the top level.
 - `Watch` returns a change token that never fires, because a tree does not change.
 
-`ofFileProvider` builds a tree from any provider: physical, embedded, composite. Each file keeps its location below the provider's root with forward slashes, and its content is a `Stream` that opens the provider's file when it is read, so building the tree reads no file. As with `loadFromDisk`, each directory lists its files and then its subdirectories, sorted by name, and empty directories are kept. The tree's `Path` is `.`.
+`ofFileProvider` builds a tree from any provider: physical, embedded, composite. Each file keeps its location below the provider's root with forward slashes, and its content is a `Stream` that opens the provider's file when it is read, so building the tree reads no file. A file's length is the provider's length, or unknown when the provider gives `-1`. A file of `asFileProvider` whose content is a stream with no declared length stays of unknown length, because its `Length` reads the stream. As with `loadFromDisk`, each directory lists its files and then its subdirectories, sorted by name, and empty directories are kept. The tree's `Path` is `.`.
 
 C# calls them as `VFileProviders.AsFileProvider(tree)` and `VFileProviders.OfFileProvider(provider)`.
 
