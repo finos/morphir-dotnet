@@ -131,6 +131,60 @@ public sealed class ModelConversionStoreTests
         File.Exists(staging).Should().BeTrue("the caller deletes its staging");
     }
 
+    /// <summary>A staged tree whose manifest a scanner holds: the directory cannot be moved while it does.</summary>
+    private static (string Staging, string Output, FileStream Scanner) AHeldStagedTree(TestSandbox sandbox)
+    {
+        var staging = Directory.CreateDirectory(sandbox.PathOf(".out.convert-held")).FullName;
+        var output = sandbox.PathOf("out");
+        File.WriteAllText(Path.Combine(staging, "manifest.json"), "{}");
+        return (staging, output, HoldWithoutDeleteSharing(Path.Combine(staging, "manifest.json")));
+    }
+
+    [Test]
+    [RunOn(OS.Windows)]
+    public void TheMoveOfATreeWaitsForAShortLivedHandleOnAStagedFile()
+    {
+        using var sandbox = TestSandbox.Create("morphir-convert-move-");
+        var (staging, output, scanner) = AHeldStagedTree(sandbox);
+        var waits = 0;
+        try
+        {
+            DiskModelConversionStore.MoveTreeIntoPlace(staging, output, afterWait: () =>
+            {
+                if (waits++ == 0) scanner.Dispose();
+            });
+        }
+        finally { scanner.Dispose(); }
+
+        waits.Should().Be(1, "the first move met the handle and the second did not");
+        File.ReadAllText(Path.Combine(output, "manifest.json")).Should().Be("{}");
+        Directory.Exists(staging).Should().BeFalse("the staged tree was moved");
+    }
+
+    [Test]
+    [RunOn(OS.Windows)]
+    public void TheMoveOfATreeKeepsADirectoryThatAppearsAtTheOutputDuringTheWait()
+    {
+        using var sandbox = TestSandbox.Create("morphir-convert-move-");
+        var (staging, output, scanner) = AHeldStagedTree(sandbox);
+        Action move = () => DiskModelConversionStore.MoveTreeIntoPlace(staging, output, afterWait: () =>
+        {
+            if (!scanner.CanRead) return;
+            Directory.CreateDirectory(output);
+            File.WriteAllText(Path.Combine(output, "theirs.json"), "someone else's");
+            scanner.Dispose();
+        });
+        try
+        {
+            move.Should().Throw<IOException>().WithMessage("*appeared*");
+        }
+        finally { scanner.Dispose(); }
+
+        Directory.GetFileSystemEntries(output).Select(Path.GetFileName).Should().Equal(["theirs.json"], "the other writer's directory is neither replaced nor merged into");
+        File.ReadAllText(Path.Combine(output, "theirs.json")).Should().Be("someone else's");
+        File.Exists(Path.Combine(staging, "manifest.json")).Should().BeTrue("the caller deletes its staging");
+    }
+
     [Test]
     public void AStagingFileThatCannotBeDeletedDoesNotThrow()
     {

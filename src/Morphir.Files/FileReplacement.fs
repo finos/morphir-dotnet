@@ -11,10 +11,10 @@ open System.Threading
 /// <remarks>
 /// On Windows a virus scanner or a search indexer opens a file just after it is written, without delete sharing.
 /// While it holds the file, Windows refuses to replace it: <c>File.Replace</c> fails with a sharing violation or
-/// ERROR_UNABLE_TO_REMOVE_REPLACED, and an overwriting <c>File.Move</c> fails with ERROR_ACCESS_DENIED. Each refusal
-/// leaves both files unchanged, so the replacement can wait and try again. The wait gives other writers time to
-/// change the files, so the caller checks again what its contract requires before every further attempt. C# and
-/// F# callers use the same members.
+/// ERROR_UNABLE_TO_REMOVE_REPLACED, an overwriting <c>File.Move</c> fails with ERROR_ACCESS_DENIED, and so does a
+/// <c>Directory.Move</c> of a directory that holds such a file. Each refusal leaves both files unchanged, so the
+/// replacement can wait and try again. The wait gives other writers time to change the files, so the caller checks
+/// again what its contract requires before every further attempt. C# and F# callers use the same members.
 /// </remarks>
 [<AbstractClass; Sealed>]
 type FileReplacement =
@@ -26,9 +26,11 @@ type FileReplacement =
     /// True when <paramref name="error"/> is a failure on Windows that another handle on one of the files causes
     /// and that leaves both files unchanged: a sharing or lock violation (ERROR_SHARING_VIOLATION,
     /// ERROR_LOCK_VIOLATION), ReplaceFile's ERROR_UNABLE_TO_REMOVE_REPLACED, or the access denial
-    /// (ERROR_ACCESS_DENIED) of an overwriting move onto a file that is open. ERROR_UNABLE_TO_MOVE_REPLACEMENT and
-    /// its second form change the files, so they are not such failures. Always false on other systems, which
-    /// replace a file that another handle holds open.
+    /// (ERROR_ACCESS_DENIED) of an overwriting move onto a file that is open, which .NET raises as an
+    /// <see cref="T:System.UnauthorizedAccessException"/>, or of a directory move while a file inside the directory is
+    /// open, which <c>Directory.Move</c> raises as an <see cref="T:System.IO.IOException"/>.
+    /// ERROR_UNABLE_TO_MOVE_REPLACEMENT and its second form change the files, so they are not such failures. Always
+    /// false on other systems, which replace a file that another handle holds open.
     /// </summary>
     /// <param name="error">The failure of a replacement</param>
     static member IsHeldByAnotherHandle(error: exn) : bool =
@@ -41,7 +43,8 @@ type FileReplacement =
             | :? FileNotFoundException
             | :? DirectoryNotFoundException -> false
             | :? IOException as failure ->
-                win32 failure.HResult && (let c = code failure.HResult in c = 32 || c = 33 || c = 1175)
+                win32 failure.HResult
+                && (let c = code failure.HResult in c = 5 || c = 32 || c = 33 || c = 1175)
             | _ -> false)
 
     /// <summary>

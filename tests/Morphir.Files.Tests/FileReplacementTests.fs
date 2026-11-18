@@ -160,6 +160,33 @@ let tests =
                     Expect.equal (File.ReadAllText target, File.ReadAllText source) ("old", "new") $"{name} changed neither file")
         }
 
+        test "a real handle without delete sharing on a file inside a directory makes Directory.Move report a held handle" {
+            windowsOnly ()
+
+            withTempDir (fun temp ->
+                let staged = Path.Combine(temp, "staged")
+                let target = Path.Combine(temp, "target")
+                Directory.CreateDirectory staged |> ignore
+                let file = Path.Combine(staged, "manifest.json")
+                File.WriteAllText(file, "{}")
+
+                use _scanner = holdWithoutDeleteSharing file
+
+                let error =
+                    try
+                        Directory.Move(staged, target)
+                        None
+                    with error ->
+                        Some error
+
+                match error with
+                | Some error -> Expect.isTrue (FileReplacement.IsHeldByAnotherHandle error) $"{error.GetType().Name} 0x{error.HResult:X8} {error.Message}"
+                | None -> failtest "Directory.Move moved a directory with a file that another handle holds"
+
+                Expect.isTrue (File.Exists file) "the staged directory keeps its file"
+                Expect.isFalse (Directory.Exists target) "nothing is at the target")
+        }
+
         test "publication waits for a short-lived handle on an output file" {
             windowsOnly ()
 

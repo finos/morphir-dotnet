@@ -368,7 +368,7 @@ public sealed class DiskModelConversionStore : IModelConversionStore
                 return ModelWrite.Refused([ConvertDiagnostic.Failure(ModelConvertCodes.WriteFailed, published.Failure!, target.Given)]);
             // The output is absent or an empty directory, which the command checked before the read.
             if (Directory.Exists(target.FullPath)) Directory.Delete(target.FullPath);
-            Directory.Move(staging, target.FullPath);
+            MoveTreeIntoPlace(staging, target.FullPath);
             staging = null;
             return new ModelWrite(files, []) { Notices = TreeNotices(tree, files.Count, target), Compacted = AnyCompacted(tree, files.Count, target) };
         }
@@ -404,16 +404,30 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         new(ModelConvertCodes.CompactionDeclined, ConvertDiagnostic.Info, message, location);
 
     /// <summary>
-    /// Moves the staged single file at <paramref name="staging"/> to <paramref name="output"/>, which must not exist.
-    /// On Windows, while another process holds the staged file open (a virus scanner or a search indexer does, just
-    /// after a file is written), the move waits a bounded time (<see cref="FileReplacement"/>), as the publication of a
-    /// tree does. Before each further attempt it checks again that nothing is at the output, since the wait gives
-    /// another writer time to put something there; if something is, the move fails with an
-    /// <see cref="IOException"/> and leaves it. <paramref name="afterWait"/> runs after each wait, for tests.
+    /// Moves the staged single file at <paramref name="staging"/> to <paramref name="output"/>, which must not exist,
+    /// as <see cref="MoveIntoPlace"/> does. <paramref name="afterWait"/> runs after each wait, for tests.
     /// </summary>
-    internal static void MoveFileIntoPlace(string staging, string output, Action? afterWait = null)
+    internal static void MoveFileIntoPlace(string staging, string output, Action? afterWait = null) =>
+        MoveIntoPlace(() => File.Move(staging, output, overwrite: false), output, afterWait);
+
+    /// <summary>
+    /// Moves the staged tree directory at <paramref name="staging"/> to <paramref name="output"/>, which must not exist,
+    /// as <see cref="MoveIntoPlace"/> does. A directory move never replaces or merges into a directory at the output.
+    /// <paramref name="afterWait"/> runs after each wait, for tests.
+    /// </summary>
+    internal static void MoveTreeIntoPlace(string staging, string output, Action? afterWait = null) =>
+        MoveIntoPlace(() => Directory.Move(staging, output), output, afterWait);
+
+    /// <summary>
+    /// Runs <paramref name="move"/>, which puts the staged output at <paramref name="output"/>. On Windows, while another
+    /// process holds a staged file open (a virus scanner or a search indexer does, just after a file is written), the
+    /// move waits a bounded time (<see cref="FileReplacement"/>), as the publication of a tree's files does. Before each
+    /// further attempt it checks again that nothing is at the output, since the wait gives another writer time to put
+    /// something there; if something is, the move fails with an <see cref="IOException"/> and leaves it.
+    /// </summary>
+    private static void MoveIntoPlace(Action move, string output, Action? afterWait)
     {
-        var moved = FileReplacement.Replace(() => File.Move(staging, output, overwrite: false), () =>
+        var moved = FileReplacement.Replace(move, () =>
         {
             afterWait?.Invoke();
             return !File.Exists(output) && !Directory.Exists(output);
