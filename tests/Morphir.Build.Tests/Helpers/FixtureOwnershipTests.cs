@@ -53,6 +53,30 @@ public class FixtureOwnershipTests
         FixtureCatalog.UnownedFiles(fixtures).Should().Equal("MorphirTrees/kit/planted.feature", "Unowned/planted.json");
     }
 
+    /// <summary>
+    /// The upstream IR tests read the corpus from <see cref="FixtureCatalog.UpstreamIr"/>, a fixed list, so a JSON document
+    /// added to one of its folders without an entry would not be tested.
+    /// </summary>
+    [Test]
+    public void EachUpstreamIrDocumentIsInTheCatalog() =>
+        FixtureCatalog.UpstreamIr.Uncatalogued(FixturesDirectory).Should().BeEmpty(
+            "each *.json of the folders of FixtureCatalog.UpstreamIr is a document of FixtureCatalog.UpstreamIr.Documents");
+
+    [Test]
+    public void AnUncataloguedUpstreamIrDocumentIsFound()
+    {
+        using var sandbox = TestSandbox.Create("morphir-upstream-ir-");
+        var fixtures = sandbox.PathOf("Fixtures");
+        foreach (var document in FixtureCatalog.UpstreamIr.Documents.Append(FixtureCatalog.UpstreamIr.Documents[0] with { RelativePath = FixtureCatalog.UpstreamIr.Directory + "v4/planted.json" }))
+        {
+            var path = Path.Combine(fixtures, document.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "{}");
+        }
+
+        FixtureCatalog.UpstreamIr.Uncatalogued(fixtures).Should().Equal("v4/planted.json");
+    }
+
     [Test]
     public void EachOwnerOfTheCatalogIsInTheRepository()
     {

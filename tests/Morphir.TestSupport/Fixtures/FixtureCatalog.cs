@@ -359,6 +359,30 @@ public static class FixtureCatalog
 
         /// <summary>The path of a document below <see cref="Directory"/>, such as <c>pairs/v3-specs.json</c>.</summary>
         public static string NameOf(FixtureEntry document) => document.RelativePath[Directory.Length..];
+
+        /// <summary>The folders below <see cref="Directory"/> each of whose <c>*.json</c> files is a document.</summary>
+        public static IReadOnlyList<string> Folders { get; } = ["pairs/", "records/", "v4/"];
+
+        /// <summary>
+        /// The <c>*.json</c> files of <see cref="Folders"/> below a fixtures directory (paths below <see cref="Directory"/>,
+        /// with <c>/</c>) that <see cref="Documents"/> does not list, so that no test would read them.
+        /// <c>FixtureOwnershipTests</c> in <c>tests/Morphir.Build.Tests</c> fails on any.
+        /// </summary>
+        public static IReadOnlyList<string> Uncatalogued(string fixturesDirectory)
+        {
+            var listed = Documents.Select(NameOf).ToHashSet(StringComparer.Ordinal);
+            return Folders
+                .SelectMany(folder =>
+                {
+                    var path = Path.Combine(fixturesDirectory, (Directory + folder).TrimEnd('/').Replace('/', Path.DirectorySeparatorChar));
+                    return System.IO.Directory.Exists(path)
+                        ? System.IO.Directory.EnumerateFiles(path, "*.json", SearchOption.TopDirectoryOnly).Select(file => folder + Path.GetFileName(file))
+                        : Enumerable.Empty<string>();
+                })
+                .Where(name => !listed.Contains(name))
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+        }
     }
 
     /// <summary>
