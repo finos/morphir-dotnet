@@ -51,6 +51,7 @@
         <Compile Include="FileReplacementTests.fs" />
         <Compile Include="FileProviderTests.fs" />
         <Compile Include="NetStandardTests.fs" />
+        <Compile Include="TypeInitialisationTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 
