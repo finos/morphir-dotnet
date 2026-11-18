@@ -174,6 +174,7 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Internal.CodeGeneration.Tests"),
         TestSuite.Expecto("Morphir.Models.Tests"),
         TestSuite.Expecto("Morphir.Files.Tests"),
+        TestSuite.Expecto("Morphir.Knowledge.Tests"),
         TestSuite.Expecto("Morphir.IR.Pipeline.Tests"),
         TestSuite.Expecto("Morphir.SDK.Tests"),
         // The tests of the package driver pack a project of the repository with no build, and LibraryHostDriverTests

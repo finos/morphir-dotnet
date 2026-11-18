@@ -4,9 +4,9 @@ Apply the repository's test-manager guidance before changing tests and its F# an
 
 ## 1. Shared knowledge contracts
 
-- [ ] 1.1 Add `Morphir.Knowledge` with the repository library target-framework property. Implement typed absolute IRIs, document and revision IDs, readonly UTF-16 offsets and half-open source spans. Verify ordinal identity, invalid construction, zero values and whole-source bounds in library tests.
-- [ ] 1.2 Add immutable text snapshots and selections with grouped, ordered, disjoint ranges. Verify input ordering, empty, overlapping and out-of-bounds selections, and historical resolution after a path move or new revision.
-- [ ] 1.3 Add typed annotation and directional link envelopes and review and concept-mention examples. Verify a caller-defined payload and a dictionary IRI preserve the original text and can be inspected by a caller. Document the identities, lifetimes and both language entry points.
+- [x] 1.1 Add `Morphir.Knowledge` with the repository library target-framework property. Implement typed absolute IRIs, document and revision IDs, readonly UTF-16 offsets and half-open source spans. Verify ordinal identity, invalid construction, zero values and whole-source bounds in library tests.
+- [x] 1.2 Add immutable text snapshots and selections with grouped, ordered, disjoint ranges. Verify input ordering, empty, overlapping and out-of-bounds selections, and historical resolution after a path move or new revision.
+- [x] 1.3 Add typed annotation and directional link envelopes and review and concept-mention examples. Verify a caller-defined payload and a dictionary IRI preserve the original text and can be inspected by a caller. Document the identities, lifetimes and both language entry points.
 
 ## 2. OKF document syntax and navigation
 
