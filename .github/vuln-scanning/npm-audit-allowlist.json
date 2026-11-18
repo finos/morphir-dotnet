@@ -1,0 +1,11 @@
+{
+  "$comment": "Advisories that `npm audit` may report for docs/ without failing dotnet-scan. Each entry names one advisory and one package, says why it is accepted, and expires on `until` (YYYY-MM-DD); an expired entry fails the scan. Remove an entry as soon as a fixed release is available and docs/package-lock.json takes it.",
+  "advisories": [
+    {
+      "id": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "until": "2027-01-31",
+      "notes": "ReDoS through single-branch repeated extglobs, in every picomatch release up to 4.0.7, the latest when this entry was added (2026-11-18), so no fixed version exists. docs/ reaches picomatch only through postcss-cli (chokidar, anymatch, readdirp, tinyglobby), a build-time tool of the documentation site that matches the site's own fixed glob patterns; no untrusted pattern reaches it. https://github.com/advisories/GHSA-fc5q-39xc-vjpf"
+    }
+  ]
+}
