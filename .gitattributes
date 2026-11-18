@@ -86,6 +86,7 @@ src/Morphir.Extensions.Wasm/Kernel/LICENSE text eol=lf
 src/Morphir.Extensions.Wasm/Kernel/NOTICE text eol=lf
 # Document-tree kit data from finos/morphir, checked by SHA-256 (tests/Fixtures/MorphirTrees/PROVENANCE.md).
 tests/Fixtures/MorphirTrees/** -text
+tests/Fixtures/MorphirBoundedOrders/** -text
 # The IR fixtures that FixtureCatalog serves are checked by SHA-256, so their bytes are the same on every checkout.
 tests/Fixtures/MorphirIR/greeting-example-v3.json -text
 tests/Fixtures/MorphirIR/constant-folding-v3.json text eol=lf

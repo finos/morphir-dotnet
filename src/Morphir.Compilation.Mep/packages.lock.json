@@ -50,7 +50,8 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
-          "Morphir.Files": "[1.0.0, )"
+          "Morphir.Files": "[1.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
         }
       },
       "morphir.myriad.systemtextjson.annotations": {
@@ -110,6 +111,12 @@
         "dependencies": {
           "Microsoft.Extensions.Primitives": "5.0.1"
         }
+      },
+      "YamlDotNet": {
+        "type": "CentralTransitive",
+        "requested": "[16.3.0, )",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     },
     "net11.0": {
@@ -160,7 +167,8 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
-          "Morphir.Files": "[1.0.0, )"
+          "Morphir.Files": "[1.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
         }
       },
       "morphir.myriad.systemtextjson.annotations": {
@@ -202,6 +210,12 @@
         "requested": "[3.0.0, )",
         "resolved": "3.0.0",
         "contentHash": "9jZCicsVgTebqkAujRWtC9J1A5EQVlu0TVKHcgoCuv345ve5DYf4D1MjhKEnQjdRZo6x/vdv6QQrYFs7ilGzLA=="
+      },
+      "YamlDotNet": {
+        "type": "CentralTransitive",
+        "requested": "[16.3.0, )",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     }
   }

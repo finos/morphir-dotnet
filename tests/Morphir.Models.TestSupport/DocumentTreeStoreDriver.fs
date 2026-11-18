@@ -172,6 +172,33 @@ let withFailingClose (location: string) (files: VFileTree) : VFileTree =
     |> Map.add location (VFile.ofStream location source)
     |> VFileTree.fromFileMap
 
+type private CountingReadStream(bytes: byte array, countRead: int -> unit) =
+    inherit MemoryStream(bytes, writable = false)
+
+    override _.Read(buffer: byte array, offset: int, count: int) =
+        let read = base.Read(buffer, offset, count)
+        countRead read
+        read
+
+/// <summary>The same files with one streamed file, and a count of the bytes the reader consumed from it.</summary>
+let withReadCounter (location: string) (files: VFileTree) : VFileTree * (unit -> int) =
+    let bytes = Encoding.UTF8.GetBytes((texts files)[location])
+    let mutable bytesRead = 0
+
+    let countRead count =
+        bytesRead <-
+            bytesRead
+            + count
+
+    let source = StreamSource(fun () -> new CountingReadStream(bytes, countRead))
+
+    let changed =
+        VFileTree.toFileMap files
+        |> Map.add location (VFile.ofStream location source)
+        |> VFileTree.fromFileMap
+
+    changed, (fun () -> bytesRead)
+
 /// <summary>The same files with a copy of the file at <paramref name="location"/> at <paramref name="copy"/>.</summary>
 let copied (location: string) (copy: string) (files: VFileTree) : VFileTree =
     withFile copy ((texts files)[location]) files

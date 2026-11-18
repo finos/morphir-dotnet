@@ -154,6 +154,14 @@ module ContentError =
 /// </summary>
 [<RequireQualifiedAccess>]
 module VFileContent =
+    /// Gets the byte count when it is available without opening or copying the content.
+    let tryGetKnownLength (content: VFileContent) =
+        match content with
+        | VFileContent.Text text -> Some(int64 (Encoding.UTF8.GetByteCount text))
+        | VFileContent.Bytes bytes -> Some(int64 bytes.Length)
+        | VFileContent.Stream source -> source.Length
+
+
     /// <summary>
     /// Opens a new stream over the content. The caller owns and disposes the stream.
     /// </summary>

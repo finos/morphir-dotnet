@@ -5,8 +5,10 @@ open Morphir.Compat
 #endif
 
 open System
+open System.Collections.Generic
 open System.IO
 open System.Text.Json
+open Microsoft.Extensions.FileProviders
 open Morphir.IR
 open Morphir.IR.Files
 open Morphir.IR.V4
@@ -21,9 +23,186 @@ module internal TreeFileSource =
 
     let private error code file message = StoreErrors.error code file message
 
+    /// Looking up a file does not open its content. A revision must change when
+    /// the source changes and must never identify more than one set of files.
+    type SnapshotSource = {
+        Revision: unit -> string
+        ContainsFile: string -> bool
+        FindFile: string -> Morphir.Files.VFile option
+        /// The first logical module path in a package after the optional cursor, in ordinal order.
+        /// This callback only examines storage metadata.
+        NextModule: int -> string -> string option -> Result<string option, StoreError>
+    }
+
+
+    /// Use the provider's directory metadata and open only the file requested by the reader.
+    let fromFileProvider maxEntries revision (provider: IFileProvider) : SnapshotSource =
+        let fileAt path =
+            let info = provider.GetFileInfo path
+
+            if
+                info.Exists
+                && not info.IsDirectory
+            then
+                Some info
+            else
+                None
+
+        let nextModule pathBudget (prefix: string) after =
+            let root = prefix.TrimEnd('/')
+            let directories = Stack<string * IEnumerator<IFileInfo>>()
+            let mutable remaining = maxEntries
+            let mutable nearest = None
+            let mutable refusal = None
+
+            let push directory =
+                directories.Push(
+                    directory,
+                    provider.GetDirectoryContents(directory).GetEnumerator()
+                )
+
+            try
+                push root
+
+                while directories.Count > 0
+                      && Option.isNone refusal do
+                    let directory, entries = directories.Peek()
+
+                    if not (entries.MoveNext()) then
+                        directories.Pop()
+                        |> ignore
+
+                        entries.Dispose()
+                    elif remaining = 0 then
+                        refusal <-
+                            Some(
+                                error
+                                    "tree.too_many_files"
+                                    (Some prefix)
+                                    $"Module lookup exceeded its limit of {maxEntries} directory entries."
+                            )
+                    else
+                        remaining <-
+                            remaining
+                            - 1
+
+                        let entry = entries.Current
+                        let name = entry.Name
+
+                        if entry.IsDirectory then
+                            match TreeStems.parseStem name with
+                            | Ok(WholeStem canonical) when TreeStems.escapeName canonical = name ->
+                                let location =
+                                    directory
+                                    + "/"
+                                    + name
+
+                                if
+                                    location.Length
+                                    >= pathBudget
+                                then
+                                    refusal <-
+                                        Some(
+                                            error
+                                                "tree.invalid_module_path"
+                                                (Some location)
+                                                "The module directory exceeds the path budget."
+                                        )
+                                else
+                                    push location
+                            | _ -> ()
+                        elif
+                            directory
+                            <> root
+                            && (name = "module.json"
+                                || name = "module.yaml"
+                                || name = "module.yml")
+                        then
+                            let logical =
+                                directory
+                                + "/module"
+
+                            if
+                                (after
+                                 |> Option.forall (fun prior ->
+                                     String.CompareOrdinal(logical, prior) > 0
+                                 ))
+                                && (nearest
+                                    |> Option.forall (fun candidate ->
+                                        String.CompareOrdinal(logical, candidate) < 0
+                                    ))
+                            then
+                                nearest <- Some logical
+
+                match refusal with
+                | Some problem -> Error problem
+                | None -> Ok nearest
+            finally
+                while directories.Count > 0 do
+                    let _, entries = directories.Pop()
+                    entries.Dispose()
+
+        {
+            Revision = revision
+            ContainsFile =
+                fileAt
+                >> Option.isSome
+            FindFile =
+                fun path ->
+                    fileAt path
+                    |> Option.map (fun info ->
+                        let length = Morphir.Files.VFileProviders.tryGetKnownLength info
+
+                        let source =
+                            Morphir.Files.StreamSource(
+                                (fun () -> info.CreateReadStream()),
+                                ?length = length
+                            )
+
+                        Morphir.Files.VFile.ofStream path source
+                    )
+            NextModule = nextModule
+        }
+
+
     type Profile =
         | Json
         | Yaml
+
+    /// Inspect the physical spellings without opening any of them.
+    let snapshotLocation (source: SnapshotSource) expected logical =
+        try
+            let found =
+                [ Json, ".json"; Yaml, ".yaml"; Yaml, ".yml" ]
+                |> List.map (fun (profile, suffix) ->
+                    profile,
+                    logical
+                    + suffix
+                )
+                |> List.filter (fun (_, location) -> source.ContainsFile location)
+
+            match found with
+            | [] -> Error(error "tree.missing_member" (Some logical) "The tree file is missing.")
+            | [ profile, location ] when
+                expected
+                |> Option.exists ((<>) profile)
+                ->
+                Error(
+                    error
+                        "tree.unsupported_profile"
+                        (Some location)
+                        "The file's profile differs from the manifest."
+                )
+            | [ found ] -> Ok found
+            | _ ->
+                Error(
+                    error
+                        "tree.ambiguous_profile"
+                        (Some logical)
+                        "More than one physical file has this logical path."
+                )
+        with ex ->
+            Error(error "tree.unreadable_file" (Some logical) ex.Message)
 
     let profileOf (location: string) =
         if location.EndsWith(".json", StringComparison.Ordinal) then
@@ -46,7 +225,7 @@ module internal TreeFileSource =
         || name.EndsWith(".type.json", StringComparison.Ordinal)
         || name.EndsWith(".value.json", StringComparison.Ordinal)
 
-    /// The bytes of a file, refusing one over the limit without reading past it.
+    /// The bytes of a file, refusing one over the limit after at most one lookahead byte.
     let contentBytes
         (limit: int64)
         (location: string)
@@ -57,6 +236,11 @@ module internal TreeFileSource =
 
         match file.Content with
         | None -> Ok [||]
+        | Some content when
+            Morphir.Files.VFileContent.tryGetKnownLength content
+            |> Option.exists (fun length -> length > limit)
+            ->
+            Error(tooLarge ())
         | Some content ->
             match Morphir.Files.VFileContent.openRead content with
             | Error problem ->
@@ -70,26 +254,40 @@ module internal TreeFileSource =
                 try
                     use stream = opened
                     use buffer = new MemoryStream()
-                    let chunk = Array.zeroCreate<byte> 81920
-                    let mutable total = 0L
+
+                    let readSize remaining =
+                        int (min 81919L (max 0L remaining))
+                        + 1
+
+                    let chunk = Array.zeroCreate<byte> (readSize limit)
+                    let mutable remaining = limit
                     let mutable over = false
                     let mutable count = stream.Read(chunk, 0, chunk.Length)
 
                     while count > 0
                           && not over do
-                        total <-
-                            total
-                            + int64 count
-
-                        if total > limit then
+                        if int64 count > remaining then
                             over <- true
                         else
                             buffer.Write(chunk, 0, count)
-                            count <- stream.Read(chunk, 0, chunk.Length)
+
+                            remaining <-
+                                remaining
+                                - int64 count
+
+                            count <- stream.Read(chunk, 0, readSize remaining)
 
                     if over then Error(tooLarge ()) else Ok(buffer.ToArray())
                 with ex ->
                     Error(error "tree.unreadable_file" (Some location) ex.Message)
+
+    let snapshotBytes limit (source: SnapshotSource) location =
+        try
+            match source.FindFile location with
+            | Some file -> contentBytes limit location file
+            | None -> Error(error "tree.missing_member" (Some location) "The tree file is missing.")
+        with ex ->
+            Error(error "tree.unreadable_file" (Some location) ex.Message)
 
     /// <summary>
     /// Decodes a file's JSON, skipping a UTF-8 byte order mark: a plain file as it is, and a compacted file
@@ -103,11 +301,17 @@ module internal TreeFileSource =
         : Result<'a * bool, StoreError list> =
         MorphirFile.readEnvelope ContextLimits.draft1 location (ReadOnlyMemory bytes)
         |> Result.bind (fun file ->
-            MorphirFile.expand ContextLimits.draft1 (MorphirFile.familyOf file.Document) location file
+            MorphirFile.expand
+                ContextLimits.draft1
+                (MorphirFile.familyOf file.Document)
+                location
+                file
             |> Result.bind (fun document ->
                 read document
                 |> Result.map (fun value -> value, file.Context.IsSome)
-                |> Result.mapError (fun e -> [ error e.Rule (Some location) $"{e.Location}: {e.Message}" ])
+                |> Result.mapError (fun e -> [
+                    error e.Rule (Some location) $"{e.Location}: {e.Message}"
+                ])
             )
         )
 

@@ -4,7 +4,6 @@ open System
 open System.Collections
 open System.Collections.Generic
 open System.IO
-open System.Text
 open Microsoft.Extensions.FileProviders
 open Microsoft.Extensions.Primitives
 
@@ -24,38 +23,33 @@ type internal TreeFileInfo(name: string, location: string, file: VFile) =
             | Result.Error (ContentError.ReadFailed (_, cause)) ->
                 raise (IOException(ContentError.describe (ContentError.ReadFailed (Some location, cause)), cause))
 
+    let declaredLength =
+        lazy (file.Content |> Option.map VFileContent.tryGetKnownLength |> Option.defaultValue (Some 0L))
+
     let length =
         lazy
-            (match file.Content with
-             | None -> 0L
-             | Some (VFileContent.Text text) -> int64 (UTF8Encoding(false).GetByteCount text)
-             | Some (VFileContent.Bytes bytes) -> int64 bytes.Length
-             | Some (VFileContent.Stream source) ->
-                 match source.Length with
-                 | Some known -> known
-                 | None ->
-                     use stream = openContent ()
+            (match declaredLength.Value with
+             | Some known -> known
+             | None ->
+                 use stream = openContent ()
 
-                     if stream.CanSeek then
-                         stream.Length
-                     else
-                         let buffer = Array.zeroCreate<byte> 81920
-                         let mutable total = 0L
-                         let mutable read = stream.Read(buffer, 0, buffer.Length)
+                 if stream.CanSeek then
+                     stream.Length
+                 else
+                     let buffer = Array.zeroCreate<byte> 81920
+                     let mutable total = 0L
+                     let mutable read = stream.Read(buffer, 0, buffer.Length)
 
-                         while read > 0 do
-                             total <- total + int64 read
-                             read <- stream.Read(buffer, 0, buffer.Length)
+                     while read > 0 do
+                         total <- total + int64 read
+                         read <- stream.Read(buffer, 0, buffer.Length)
 
-                         total)
+                     total)
 
     /// The length when it is known without a read: the length of text, bytes or a stream that declares one, or of a
     /// stream that an earlier call of Length read; otherwise None.
     member _.KnownLength: int64 option =
-        match file.Content with
-        | Some(VFileContent.Stream source) when source.Length.IsNone ->
-            if length.IsValueCreated then Some length.Value else None
-        | _ -> Some(length.Force())
+        if length.IsValueCreated then Some length.Value else declaredLength.Value
 
     interface IFileInfo with
         member _.Exists = true
@@ -201,6 +195,14 @@ module VFileProviders =
     /// <param name="tree">The tree to provide</param>
     [<CompiledName("AsFileProvider")>]
     let asFileProvider (tree: VFileTree) : IFileProvider = TreeFileProvider(tree) :> IFileProvider
+
+    /// Gets the byte count of this provider's file without opening its content, when known.
+    /// Other providers need not implement a metadata-only length lookup.
+    [<CompiledName("TryGetKnownLength")>]
+    let tryGetKnownLength (info: IFileInfo) =
+        match info with
+        | :? TreeFileInfo as file -> file.KnownLength
+        | _ -> None
 
     /// <summary>
     /// A tree of every file and directory that a provider lists, from its root down. Each file keeps its location below

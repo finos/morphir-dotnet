@@ -494,6 +494,29 @@ module Invalid =
         written noModules
         |> Driver.withFailingClose "manifest.json"
 
+    let private streamedManifestWithPadding padding =
+        let location = "manifest.json"
+        let files = written noModules
+        let limit = System.Text.Encoding.UTF8.GetByteCount((Driver.texts files)[location])
+
+        let streamed, bytesRead =
+            files
+            |> Driver.withText
+                location
+                (fun manifest ->
+                    manifest
+                    + System.String(' ', padding)
+                )
+            |> Driver.withReadCounter location
+
+        streamed, limit, bytesRead
+
+    /// <summary>A streamed manifest that fits exactly within the byte limit.</summary>
+    let streamedManifestAtReadLimit () = streamedManifestWithPadding 0
+
+    /// <summary>A streamed manifest with 64 whitespace bytes beyond the byte limit.</summary>
+    let streamedManifestOverReadLimit () = streamedManifestWithPadding 64
+
     /// <summary><see cref="acmeDemo"/> with a module file of <c>billing</c> whose text is not JSON.</summary>
     let moduleFileThatIsNotJson () : VFileTree =
         acmeFiles ()

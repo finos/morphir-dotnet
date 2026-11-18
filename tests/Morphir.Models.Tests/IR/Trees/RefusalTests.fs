@@ -351,6 +351,44 @@ let tests =
 
                     Expect.stringContains error.Message (string limit) "It names the limit"
             }
+
+            test
+                "An oversized streamed manifest consumes only the byte limit and one lookahead byte" {
+                let files, limit, bytesRead = Invalid.streamedManifestOverReadLimit ()
+
+                let errors =
+                    DocumentTreeStore.read
+                        { ReadOptions.defaults with
+                            MaxFileBytes = int64 limit
+                        }
+                        files
+                    |> refusal
+
+                Expect.equal
+                    (codesAndFiles errors)
+                    [ "tree.file_too_large", Some "manifest.json" ]
+                    "The oversized manifest is refused"
+
+                Expect.equal
+                    (bytesRead ())
+                    (limit + 1)
+                    "One byte beyond the limit is sufficient to detect overflow"
+            }
+
+            test "A streamed manifest that reaches EOF at the byte limit succeeds" {
+                let files, limit, bytesRead = Invalid.streamedManifestAtReadLimit ()
+
+                match
+                    DocumentTreeStore.read
+                        { ReadOptions.defaults with
+                            MaxFileBytes = int64 limit
+                        }
+                        files
+                with
+                | Result.Error errors ->
+                    failtestf "Expected the exact-limit manifest to read, got %A" errors
+                | Ok _ -> Expect.equal (bytesRead ()) limit "The entire manifest was read"
+            }
         ]
 
         testList "Refusals of a v3 tree" [

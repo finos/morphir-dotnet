@@ -176,7 +176,8 @@
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "Morphir.Files": "[1.0.0, )",
-          "System.Text.Json": "[11.0.0, )"
+          "System.Text.Json": "[11.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
         }
       },
       "FSharp.Core": {
@@ -236,6 +237,12 @@
           "System.Text.Encodings.Web": "11.0.0",
           "System.Threading.Tasks.Extensions": "4.6.3"
         }
+      },
+      "YamlDotNet": {
+        "type": "CentralTransitive",
+        "requested": "[16.3.0, )",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     }
   }
