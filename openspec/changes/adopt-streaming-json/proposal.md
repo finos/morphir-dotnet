@@ -1,5 +1,7 @@
 # Proposal
 
+Tracking issue: [finos/morphir-dotnet#675](https://github.com/finos/morphir-dotnet/issues/675). Landed in [#673](https://github.com/finos/morphir-dotnet/pull/673).
+
 ## Why
 
 The CLI has two machine-output flags today: `--json` writes one report on every command, and `compile` alone adds `--json-lines`, which streams events and cannot be combined with `--json`. Two flags that exclude each other are awkward, and a single report makes a long command hold everything back until it ends. Tools such as `claude -p --output-format stream-json`, `codex exec --json`, `cargo --message-format=json` and `go test -json` stream JSON Lines on stdout and keep stderr for people, and `jq` reads such a stream directly.

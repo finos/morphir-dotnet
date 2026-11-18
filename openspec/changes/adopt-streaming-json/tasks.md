@@ -4,7 +4,8 @@ Work is on `feat/model-convert`, before `add-model-convert` group 6, which build
 
 ## 1. Tracking
 
-- [ ] 1.1 File a morphir-dotnet GitHub issue for this change (maintainer approves the text first), link it in `proposal.md` and the pull request, and verify the link resolves.
+- [x] 1.1 File a morphir-dotnet GitHub issue for this change (maintainer approves the text first), link it in `proposal.md` and the pull request, and verify the link resolves.
+  - [#675](https://github.com/finos/morphir-dotnet/issues/675), text approved by the maintainer, filed after the change landed in [#673](https://github.com/finos/morphir-dotnet/pull/673); `proposal.md` links both, and the issue links #673.
 
 ## 2. The convention
 
@@ -23,7 +24,8 @@ Work is on `feat/model-convert`, before `add-model-convert` group 6, which build
 ## 4. Consumers
 
 - [x] 4.1 Update `src/Morphir.Conformance/CliAdapter.fs` to drive `compile --json`, and `GuestKit/WorkerSessions.fs` and `WasmHost/Worker.fs` to read the new output; verify the frontend and WASM host conformance suites pass unchanged.
-- [ ] 4.2 Draft the finos/morphir change that makes `tools/cli-release.ts` read the `completed` line, to land with the pin move that carries this change; verify its `tools/` tests pass there.
+- [x] 4.2 Draft the finos/morphir change that makes `tools/cli-release.ts` read the `completed` line, to land with the pin move that carries this change; verify its `tools/` tests pass there.
+  - The same draft as add-model-convert 5.3 (finos/morphir branch `feat/model-file-context-release`, commit `86d4d5f9d`): it reads the `completed` record of `model verify --json`; `bun test cli-release.test.ts` passes 66/66.
 - [x] 4.3 Record in `establish-morphir-compatibility-kit` (a note in its proposal) that `mck run --json-lines` adopts this convention when the change is next revised; verify `openspec validate establish-morphir-compatibility-kit` still passes.
 
 ## 5. Integration checks
