@@ -12,7 +12,7 @@ type internal PropertyKey = { Name: string; ValueType: Type }
 /// different types. Create one with <c>property.With</c> or <c>Property.valueOf</c>.
 /// </summary>
 [<Sealed>]
-type PropertyValue internal (key: PropertyKey, value: obj) =
+type PropertyValue internal (key: PropertyKey, value: obj | null) =
     member internal _.Key = key
     member internal _.Value = value
 
@@ -35,13 +35,13 @@ type Property<'T> internal (name: string) =
 /// with equal values.
 /// </summary>
 [<Sealed>]
-type PropertyBag internal (items: ImmutableDictionary<PropertyKey, obj>) =
+type PropertyBag internal (items: ImmutableDictionary<PropertyKey, obj | null>) =
     member internal _.Items = items
 
     /// <summary>The number of stored values.</summary>
     member _.Count = items.Count
 
-    override _.Equals(other: obj) =
+    override _.Equals(other: obj | null) =
         match other with
         | :? PropertyBag as bag ->
             items.Count = bag.Items.Count
@@ -57,7 +57,10 @@ type PropertyBag internal (items: ImmutableDictionary<PropertyKey, obj>) =
         items
         |> Seq.fold
             (fun hash item ->
-                let valueHash = if isNull item.Value then 0 else item.Value.GetHashCode()
+                let valueHash =
+                    match item.Value with
+                    | null -> 0
+                    | value -> value.GetHashCode()
                 hash ^^^ HashCode.Combine(item.Key.Name, item.Key.ValueType, valueHash))
             0
 
@@ -80,7 +83,7 @@ module Property =
 [<RequireQualifiedAccess>]
 module PropertyBag =
     /// <summary>A bag with no values.</summary>
-    let empty = PropertyBag(ImmutableDictionary<PropertyKey, obj>.Empty)
+    let empty = PropertyBag(ImmutableDictionary<PropertyKey, obj | null>.Empty)
 
     /// <summary>Adds a property value, replacing any value already stored for that property.</summary>
     /// <param name="value">The property value</param>

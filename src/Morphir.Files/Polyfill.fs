@@ -121,7 +121,7 @@ module internal BclExtensions =
         /// junction) returns its own full name, and any other directory returns null, so the value only tells
         /// whether the directory is a link.
         /// </summary>
-        member this.LinkTarget: string =
+        member this.LinkTarget: string | null =
             if this.Exists && this.Attributes.HasFlag FileAttributes.ReparsePoint then
                 this.FullName
             else

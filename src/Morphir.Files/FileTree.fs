@@ -648,7 +648,12 @@ module VFileTree =
             if System.IO.File.Exists path then
                 use document = System.Text.Json.JsonDocument.Parse(System.IO.File.ReadAllText path)
 
-                [ for entry in document.RootElement.EnumerateArray() -> entry.GetString() ]
+                [
+                    for entry in document.RootElement.EnumerateArray() do
+                        match entry.GetString() with
+                        | null -> ()
+                        | location -> location
+                ]
             else
                 []
 
@@ -819,7 +824,9 @@ module VFileTree =
 
     /// <summary>Writes a file's content to a path, keeping bytes and streams byte for byte.</summary>
     let private writeContent (path: string) (content: VFileContent option): unit =
-        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName path) |> ignore
+        match System.IO.Path.GetDirectoryName path with
+        | null -> ()
+        | directory -> System.IO.Directory.CreateDirectory directory |> ignore
 
         match content with
         | None -> System.IO.File.WriteAllBytes(path, [||])
@@ -924,7 +931,10 @@ module VFileTree =
 
                         for location in changed do
                             let destination = System.IO.Path.Combine(root, location)
-                            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName destination) |> ignore
+                            match System.IO.Path.GetDirectoryName destination with
+                            | null -> ()
+                            | directory -> System.IO.Directory.CreateDirectory directory |> ignore
+
                             replaceStaged root location (System.IO.Path.Combine(stage, location)) destination
 
                         let removed =

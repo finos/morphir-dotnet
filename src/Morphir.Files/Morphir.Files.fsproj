@@ -18,6 +18,9 @@
         <RootNamespace>Morphir.Files</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <Description>Virtual files shared by morphir-dotnet frontends, backends and models: VFile, VFileTree and PropertyBag.</Description>
+        <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees these types as oblivious. -->
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
     <!-- Trimming and AOT analyzers for the frameworks that support them. netstandard2.0 supports neither (NETSDK1210, NETSDK1212). -->

@@ -137,12 +137,18 @@ type internal TreeFileProvider(tree: VFileTree) =
 
     /// The location of a provider subpath, with either separator and an optional leading separator, or None when it
     /// climbs out with "..".
-    let locationOf (subpath: string) =
-        if isNull subpath then
-            Some ""
-        else
+    let locationOf (subpath: string | null) =
+        match subpath with
+        | null -> Some ""
+        | subpath ->
             let segments = VFileTree.pathSegments subpath
             if List.contains ".." segments then None else Some(String.Join("/", segments))
+
+    // A C# caller can pass null where the interface says string.
+    let orEmpty (subpath: string | null) =
+        match subpath with
+        | null -> ""
+        | subpath -> subpath
 
     let join (directory: string) (name: string) =
         if directory = "" then name else directory + "/" + name
@@ -151,7 +157,7 @@ type internal TreeFileProvider(tree: VFileTree) =
         member _.GetFileInfo(subpath: string) : IFileInfo =
             match locationOf subpath with
             | Some location when files.ContainsKey location -> files[location]
-            | _ -> NotFoundFileInfo(if isNull subpath then "" else subpath) :> IFileInfo
+            | _ -> NotFoundFileInfo(orEmpty subpath) :> IFileInfo
 
         member _.GetDirectoryContents(subpath: string) : IDirectoryContents =
             match locationOf subpath with
