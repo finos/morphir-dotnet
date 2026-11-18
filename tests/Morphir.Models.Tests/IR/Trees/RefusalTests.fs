@@ -392,12 +392,22 @@ let tests =
                 let error =
                     expectOne
                         (Invalid.v3DefinitionWithAnotherMember ())
-                        "invalid_distribution_shape"
+                        "unknown_member"
                         (Some Invalid.v3InvoiceTypeFile)
-                        "$.def"
+                        "$.def.since:"
 
                 Expect.stringContains error.Message "'since'" "It names the member"
             }
+
+            // A member beside the members of a wrapper is refused at that member, as one below it is.
+            testList "A member beside the members of a wrapper" [
+                for wrapper in Invalid.v3Wrappers do
+                    test $"%A{wrapper}" {
+                        let files, file, location = Invalid.v3WithAWrapperMember wrapper
+                        let error = expectOne files "unknown_member" (Some file) (location + ":")
+                        Expect.stringContains error.Message "'metadata'" "It names the member"
+                    }
+            ]
 
             // The classic decoder passes over a member it does not know; the store refuses it, so no write drops it.
             test "A nested member that the classic model has no place for, in a type file" {

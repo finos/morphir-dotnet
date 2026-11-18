@@ -125,6 +125,28 @@ public sealed class ModelConvertSteps : IAsyncDisposable
             Morphir.Models.TestSupport.DocumentTreeMother.Invalid.v3NestedUnknownValueMember);
     }
 
+    /// <summary>
+    /// The mother's v3 tree with a member <c>metadata</c> beside the members of one wrapper of a payload
+    /// (<c>DocumentTreeMother.Invalid.v3WithAWrapperMember</c>), and where that member is.
+    /// </summary>
+    [Given(@"^a v3 document tree with an unknown member beside the members of a (.+)$")]
+    public void V3TreeWithAWrapperMember(string wrapper)
+    {
+        var position = wrapper switch
+        {
+            "type definition" => Morphir.Models.TestSupport.DocumentTreeMother.Invalid.V3Wrapper.TypeDefinition,
+            "documented type definition" => Morphir.Models.TestSupport.DocumentTreeMother.Invalid.V3Wrapper.DocumentedTypeDefinition,
+            "value definition" => Morphir.Models.TestSupport.DocumentTreeMother.Invalid.V3Wrapper.ValueDefinition,
+            "documented value definition" => Morphir.Models.TestSupport.DocumentTreeMother.Invalid.V3Wrapper.DocumentedValueDefinition,
+            "documented type specification" => Morphir.Models.TestSupport.DocumentTreeMother.Invalid.V3Wrapper.DocumentedTypeSpecification,
+            "documented value specification" => Morphir.Models.TestSupport.DocumentTreeMother.Invalid.V3Wrapper.DocumentedValueSpecification,
+            _ => throw new ArgumentOutOfRangeException(nameof(wrapper), wrapper, "Name a type or value definition or specification, documented or not."),
+        };
+        var (files, file, location) = Morphir.Models.TestSupport.DocumentTreeMother.Invalid.v3WithAWrapperMember(position);
+        PlaceTree(files);
+        _unknownMember = (file, location);
+    }
+
     /// <summary>The mother's v3 single file with the same member in the same value, and where that member is.</summary>
     [Given("a v3 single-file model with an unknown member in one value definition")]
     public void V3SingleFileWithAnUnknownMember()

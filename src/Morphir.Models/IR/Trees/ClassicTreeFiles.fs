@@ -38,8 +38,9 @@ type internal ClassicModuleFile =
 /// manifest has no member beside <c>formatVersion</c>, <c>distribution</c>, <c>package</c>, <c>pathBudget</c> and
 /// <c>dependencies</c>; a module specification has no <c>access</c>, and a module file has no <c>module</c> alias for
 /// <c>path</c>: each is an <c>unknown_member</c>. A <c>def</c> wrapper has only <c>access</c> and <c>value</c>, a
-/// documented entry only <c>doc</c> and <c>value</c>, and a <c>spec</c> no <c>access</c>: anything else is
-/// <c>invalid_distribution_shape</c> at <c>#/def</c> or <c>#/spec</c>. A payload that is not the classic JSON of its
+/// documented entry only <c>doc</c> and <c>value</c>: another member is <c>unknown_member</c> at that member, as
+/// in a single file. A <c>spec</c> with <c>access</c> is the parent's <c>invalid_distribution_shape</c> at
+/// <c>#/spec</c>. A payload that is not the classic JSON of its
 /// kind is <c>invalid_type</c>, and a member below the wrapper that no classic v3 shape has, at any depth, is
 /// <c>unknown_member</c> at that member (<c>ClassicMembers</c>), so no conversion drops it.
 /// </remarks>
@@ -112,8 +113,8 @@ module internal ClassicTreeFiles =
     let private shape location message =
         fail "invalid_distribution_shape" location message
 
-    /// A documented entry, { "doc", "value" }, has no other member. An entry without a doc is the bare entry, as the
-    /// classic writer writes it.
+    /// A documented entry, { "doc", "value" }, has no other member: another is unknown_member at that member. An entry
+    /// without a doc is the bare entry, as the classic writer writes it.
     let private checkDocumented location (element: JsonElement) =
         let mutable doc = Unchecked.defaultof<JsonElement>
 
@@ -128,21 +129,24 @@ module internal ClassicTreeFiles =
                     && key
                        <> "value"
                 then
-                    shape
-                        location
-                        $"A documented entry has doc and value, and this one also has '{key}'."
+                    fail
+                        "unknown_member"
+                        (memberAt location key)
+                        $"Unknown member '{key}': a documented entry has doc and value, and the classic v3 model has no place for another member."
 
-    /// A def wrapper, { "access", "value" }, has no other member, and its value is a documented entry.
+    /// A def wrapper, { "access", "value" }, has no other member (another is unknown_member at that member), and its
+    /// value is a documented entry.
     let private checkDefinition location (element: JsonElement) =
         if element.ValueKind = JsonValueKind.Object then
             for key, item in members location element do
                 match key with
                 | "access" -> ()
-                | "value" -> checkDocumented location item
+                | "value" -> checkDocumented (memberAt location "value") item
                 | other ->
-                    shape
-                        location
-                        $"A def payload has access and value, and this one also has '{other}'."
+                    fail
+                        "unknown_member"
+                        (memberAt location other)
+                        $"Unknown member '{other}': a def payload has access and value, and the classic v3 model has no place for another member."
 
     /// A spec payload is a documented entry with no access.
     let private checkSpecification location (element: JsonElement) =

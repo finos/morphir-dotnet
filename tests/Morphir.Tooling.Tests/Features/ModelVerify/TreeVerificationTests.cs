@@ -334,6 +334,29 @@ public class TreeVerificationTests
         });
     }
 
+    /// <summary>The wrappers of a v3 payload, so a test is named by its wrapper.</summary>
+    public static IEnumerable<Func<DocumentTreeMother.Invalid.V3Wrapper>> V3Wrappers() =>
+        DocumentTreeMother.Invalid.v3Wrappers.Select(wrapper => (Func<DocumentTreeMother.Invalid.V3Wrapper>)(() => wrapper));
+
+    /// <summary>A member beside the members of a payload's wrapper is an error at that member, as one below it is.</summary>
+    [Test]
+    [MethodDataSource(nameof(V3Wrappers))]
+    public async Task AV3MemberBesideTheMembersOfAWrapperIsUnknownMemberAtItsPointer(DocumentTreeMother.Invalid.V3Wrapper wrapper)
+    {
+        var (files, file, location) = DocumentTreeMother.Invalid.v3WithAWrapperMember(wrapper);
+
+        var result = await Verify(files);
+
+        result.IsValid.Should().BeFalse();
+        result.ExitCode.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            File = file,
+            Path = StoreLocation.Pointer(location),
+            Code = "unknown_member",
+        });
+    }
+
     [Test]
     public async Task AModuleFileThatListsAValueWithNoFileIsMissingMemberAtTheMissingFile()
     {

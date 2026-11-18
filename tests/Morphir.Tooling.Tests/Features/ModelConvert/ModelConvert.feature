@@ -139,6 +139,22 @@ Feature: Model convert
     And the diagnostic "unknown_member" names the member that the classic model has no place for
     And nothing is at the output
 
+  Scenario Outline: A v3 tree with a member beside the members of a wrapper is refused, not dropped
+    Given a v3 document tree with an unknown member beside the members of <wrapper>
+    When I convert the model to a single file
+    Then the conversion fails with exit code 1 and the diagnostic "unknown_member"
+    And the diagnostic "unknown_member" names the member that the classic model has no place for
+    And nothing is at the output
+
+    Examples:
+      | wrapper                                   |
+      | a type definition                         |
+      | a documented type definition              |
+      | a value definition                        |
+      | a documented value definition             |
+      | a documented type specification           |
+      | a documented value specification          |
+
   Scenario: A tree with one compacted file other than the manifest is not nothing to do
     Given a v4 document tree with only its value file compacted
     When I convert the model without changing its layout

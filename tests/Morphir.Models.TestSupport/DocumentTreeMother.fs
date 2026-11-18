@@ -707,6 +707,81 @@ module Invalid =
         files
         |> Driver.withMember v3DefaultCurrencyValueFile "spec" (spec.ToJsonString())
 
+    /// <summary>A wrapper of a v3 tree file's payload, where <see cref="v3WithAWrapperMember"/> adds a member.</summary>
+    [<RequireQualifiedAccess>]
+    type V3Wrapper =
+        /// <summary>The <c>{ "access", "value" }</c> of the <c>def</c> of the type <c>invoice</c>.</summary>
+        | TypeDefinition
+        /// <summary>The <c>{ "doc", "value" }</c> of that definition, documented.</summary>
+        | DocumentedTypeDefinition
+        /// <summary>The <c>{ "access", "value" }</c> of the <c>def</c> of the value <c>default-currency</c>.</summary>
+        | ValueDefinition
+        /// <summary>The <c>{ "doc", "value" }</c> of that definition, documented.</summary>
+        | DocumentedValueDefinition
+        /// <summary>The <c>{ "doc", "value" }</c> of the <c>spec</c> of the type <c>invoice</c> in a Specs tree.</summary>
+        | DocumentedTypeSpecification
+        /// <summary>The <c>{ "doc", "value" }</c> of the <c>spec</c> of the value <c>default-currency</c> in a Specs tree.</summary>
+        | DocumentedValueSpecification
+
+    /// <summary>Every wrapper of <see cref="V3Wrapper"/>.</summary>
+    let v3Wrappers =
+        [
+            V3Wrapper.TypeDefinition
+            V3Wrapper.DocumentedTypeDefinition
+            V3Wrapper.ValueDefinition
+            V3Wrapper.DocumentedValueDefinition
+            V3Wrapper.DocumentedTypeSpecification
+            V3Wrapper.DocumentedValueSpecification
+        ]
+
+    /// <summary>
+    /// <see cref="v3LibraryWithDependency"/>, or <see cref="v3Specs"/> for a specification, with a member
+    /// <c>metadata</c> beside the members of one wrapper, where the classic model has no place for it; a documented
+    /// wrapper is first made by giving the entry the doc <c>""</c>. Gives the files, the file that holds the member and
+    /// the member's JSON location: <c>$.def.metadata</c>, <c>$.def.value.metadata</c> or <c>$.spec.metadata</c>.
+    /// </summary>
+    let v3WithAWrapperMember (wrapper: V3Wrapper) : VFileTree * string * string =
+        let file, payload, documented, source =
+            match wrapper with
+            | V3Wrapper.TypeDefinition -> v3InvoiceTypeFile, "def", false, v3LibraryWithDependency
+            | V3Wrapper.DocumentedTypeDefinition -> v3InvoiceTypeFile, "def", true, v3LibraryWithDependency
+            | V3Wrapper.ValueDefinition -> v3DefaultCurrencyValueFile, "def", false, v3LibraryWithDependency
+            | V3Wrapper.DocumentedValueDefinition -> v3DefaultCurrencyValueFile, "def", true, v3LibraryWithDependency
+            | V3Wrapper.DocumentedTypeSpecification -> v3InvoiceTypeFile, "spec", true, v3Specs
+            | V3Wrapper.DocumentedValueSpecification -> v3DefaultCurrencyValueFile, "spec", true, v3Specs
+
+        let files = written source
+        let root = Driver.jsonAt file files
+        let content = nonNull root[payload]
+
+        let documentedOf (entry: Nodes.JsonNode) =
+            let wrapped = Nodes.JsonObject()
+            wrapped["doc"] <- Nodes.JsonValue.Create ""
+            wrapped["value"] <- entry.DeepClone()
+            wrapped
+
+        let changed, location =
+            match payload, documented with
+            | "def", false ->
+                let definition = content.AsObject()
+                definition["metadata"] <- Nodes.JsonValue.Create "do-not-drop"
+                definition :> Nodes.JsonNode, "$.def.metadata"
+            | "def", true ->
+                let definition = content.AsObject()
+                let wrapped = documentedOf (nonNull definition["value"])
+                wrapped["metadata"] <- Nodes.JsonValue.Create "do-not-drop"
+                definition["value"] <- wrapped
+                definition :> Nodes.JsonNode, "$.def.value.metadata"
+            | _ ->
+                let wrapped = documentedOf content
+                wrapped["metadata"] <- Nodes.JsonValue.Create "do-not-drop"
+                wrapped :> Nodes.JsonNode, "$.spec.metadata"
+
+        files
+        |> Driver.withMember file payload (changed.ToJsonString()),
+        file,
+        location
+
     /// <summary><see cref="v3Library"/> with no file for the type <c>invoice</c>, which its module file lists.</summary>
     let v3ModuleListingAMissingType () : VFileTree =
         v3Files ()
