@@ -43,23 +43,59 @@ let private compacted family (document: JsonElement) =
     | Ok result -> result
     | Error errors -> failtestf "The document was not compacted: %A" errors
 
-/// The canonical JSON of the plain document that bytes written by the policy expand to, read as a reader does.
-let private expanded (file: string) (bytes: byte array) =
+/// The plain document that bytes written by the policy expand to, read as a reader does.
+let private expandedDocument (file: string) (bytes: byte array) =
     let limits = ContextLimits.draft1.WithMaxDepth 4096
 
     match MorphirFile.readPlainDocument limits file (ReadOnlyMemory bytes) with
-    | Ok document -> CanonicalJson.write document
+    | Ok document -> document
     | Error errors -> failtestf "%s did not expand: %A" file errors
 
-/// Whether the bytes the policy writes for a document expand to the document.
+/// Whether a member holds the parameters of a v4 value, whose key order is their order: the test's own reading of the
+/// parent's schema, by member name, apart from the policy's grammar.
+let private holdsParameters (name: string) = name = "inputTypes" || name = "inputs"
+
+/// <summary>
+/// The JSON of a value with the members of each object sorted, except those of an object that holds a value's
+/// parameters, which keep their order. Two documents that compare equal in this form are the same model whatever the
+/// order of the keys of their maps, and have the same parameters in the same order.
+/// </summary>
+let private orderOfMeaning (element: JsonElement) : string =
+    let rec normalized (keepOrder: bool) (node: JsonNode | null) : JsonNode | null =
+        match node with
+        | :? JsonObject as o ->
+            let members = List.ofSeq o
+            let members = if keepOrder then members else members |> List.sortWith (fun a b -> String.CompareOrdinal(a.Key, b.Key))
+            let copy = JsonObject()
+
+            for KeyValue(name, value) in members do
+                copy[name] <- normalized (holdsParameters name) value
+
+            copy
+        | :? JsonArray as a ->
+            let copy = JsonArray()
+
+            for item in a do
+                copy.Add(normalized false item)
+
+            copy
+        | null -> null
+        | other -> other.DeepClone()
+
+    (nonNull (normalized false (JsonNode.Parse(element.GetRawText(), documentOptions = JsonDocumentOptions(MaxDepth = 900))))).ToJsonString()
+
+/// Whether the bytes the policy writes for a document expand to the document, in the order of its meaning.
 let private lossless family (document: JsonElement) =
     let bytes, _ = compacted family document
-    expanded "file" bytes = CanonicalJson.write document
+    orderOfMeaning (expandedDocument "file" bytes) = orderOfMeaning document
 
 let private expectLossless family name (document: JsonElement) =
     let bytes, _ = compacted family document
 
-    Expect.sequenceEqual (expanded name bytes) (CanonicalJson.write document) $"{name} expands to the document it was written from"
+    Expect.equal
+        (orderOfMeaning (expandedDocument name bytes))
+        (orderOfMeaning document)
+        $"{name} expands to the document it was written from"
 
 let private isEnvelope (bytes: byte array) =
     let root = parse bytes
@@ -82,6 +118,39 @@ let private v3Bytes (distribution: Morphir.IR.Classic.Distribution.Distribution<
     | Ok bytes -> bytes
     | Error error -> failtestf "Expected a v3 write, got %s at %s: %s" error.Rule error.Location error.Message
 
+/// The v4 model of a single file: its maps compare without regard to key order, and its parameters in order.
+let private v4Model (document: JsonElement) =
+    match V4Json.readDistribution document with
+    | Ok read -> read.Distribution
+    | Error error -> failtestf "Expected a v4 model, got %A" error
+
+/// The classic model of a single file written with typed attributes, which compare by value.
+let private v3Model (document: JsonElement) =
+    match ClassicJson.readTypedDistribution document with
+    | Ok read -> read.Distribution
+    | Error error -> failtestf "Expected a classic model, got %A" error
+
+/// <summary>
+/// A decoded v4 model in the order of its meaning: written again and normalized, so the keys of its maps, which the
+/// parent's v4 model does not order (record fields, module members, dependencies, constructors), compare in any order,
+/// and its parameters, which it does, compare in order. The .NET model holds record fields as lists, so it cannot be
+/// compared with <c>=</c> alone.
+/// </summary>
+let private v4Meaning (distribution: Morphir.IR.V4.Distribution) = orderOfMeaning (parse (v4Bytes distribution))
+
+/// Whether a v4 single file, written under the policy and expanded, decodes to the same model.
+let private sameV4Model (distribution: Morphir.IR.V4.Distribution) =
+    let document = parse (v4Bytes distribution)
+    let bytes, _ = compacted IrFamily.V4 document
+    v4Meaning (v4Model (expandedDocument "model.json" bytes)) = v4Meaning (v4Model document)
+
+/// Whether a classic single file, written under the policy and expanded, decodes to the same model: classic models
+/// with typed attributes compare by value, and classic JSON has no map whose order a writer could change.
+let private sameV3Model (distribution: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>>) =
+    let document = parse (v3Bytes distribution)
+    let bytes, _ = compacted IrFamily.Classic3 document
+    v3Model (expandedDocument "model.json" bytes) = v3Model document
+
 let private v4Mothers = [
     "v4LibraryWithOneModule", DistributionMother.v4LibraryWithOneModule
     "v4LibraryWithDependency", DistributionMother.v4LibraryWithDependency
@@ -97,6 +166,8 @@ let private v4Mothers = [
     "longNameUsedOften", DistributionMother.longNameUsedOften
     "windowsReservedStems", DistributionMother.windowsReservedStems
     "privateAndDocumentedMembers", DistributionMother.privateAndDocumentedMembers
+    "v4LibraryWithUnsortedParameters", DistributionMother.v4LibraryWithUnsortedParameters
+    "v4SpecsWithUnsortedParameters", DistributionMother.v4SpecsWithUnsortedParameters
 ]
 
 let private v3Mothers = [
@@ -122,6 +193,8 @@ let private treeMothers = [
     "v3PrivateAndDocumentedMembers", Trees.v3PrivateAndDocumentedMembers
     "longNameUsedOften", Trees.treeOf DistributionMother.longNameUsedOften
     "v3LongNameUsedOften", Trees.classicTreeOf (Trees.withNumberedSlots DistributionMother.v3LongNameUsedOften)
+    "v4LibraryWithUnsortedParameters", Trees.treeOf DistributionMother.v4LibraryWithUnsortedParameters
+    "v4SpecsWithUnsortedParameters", Trees.treeOf DistributionMother.v4SpecsWithUnsortedParameters
 ]
 
 let private writtenOk (result: Result<Morphir.Files.VFileTree, StoreError list>) =
@@ -129,10 +202,32 @@ let private writtenOk (result: Result<Morphir.Files.VFileTree, StoreError list>)
     | Ok files -> files
     | Error errors -> failtestf "Expected the tree to be written, got %A" errors
 
-/// What a tree written compacted does not keep: each file whose expansion is not its plain file, and a tree that does
-/// not read back as the same tree. Empty when the tree is written losslessly.
+/// The model of a tree read back: a v4 tree's joined distribution in the order of its meaning (<c>v4Meaning</c>); a
+/// classic tree's single file in canonical JSON (its parameters are arrays, and its attribute slots are JSON, which
+/// compare by reference).
+let private treeModel (files: Morphir.Files.VFileTree) : Choice<string, byte array> option =
+    match Driver.read files with
+    | Ok(V4Tree tree, _) ->
+        match V4DocumentTree.join tree with
+        | Ok distribution -> Some(Choice1Of2(v4Meaning distribution))
+        | Error _ -> None
+    | Ok(ClassicTree tree, _) ->
+        match ClassicDocumentTree.join tree with
+        | Ok distribution ->
+            match ClassicJsonWriter.writeJsonAttributes ClassicWireProfile.v3 false distribution with
+            | Ok bytes -> Some(Choice2Of2(CanonicalJson.write (parse bytes)))
+            | Error _ ->
+                match ClassicJsonWriter.writeJsonAttributes ClassicWireProfile.v3_1_0 false distribution with
+                | Ok bytes -> Some(Choice2Of2(CanonicalJson.write (parse bytes)))
+                | Error _ -> None
+        | Error _ -> None
+    | Error _ -> None
+
+/// What a tree written compacted does not keep: each file whose expansion is not its plain file in the order of its
+/// meaning, and a tree that does not read back as the same model. Empty when the tree is written losslessly.
 let private treeLosses (tree: StoredTree) =
-    let plain = Driver.texts (writtenOk (Driver.write tree))
+    let plainFiles = writtenOk (Driver.write tree)
+    let plain = Driver.texts plainFiles
     let compactedFiles = writtenOk (Driver.writeCompacted tree)
     let texts = Driver.texts compactedFiles
 
@@ -143,60 +238,67 @@ let private treeLosses (tree: StoredTree) =
             for KeyValue(location, text) in plain do
                 let written = texts[location]
 
-                if expanded location (Encoding.UTF8.GetBytes written) <> CanonicalJson.write (parseText text) then
+                if orderOfMeaning (expandedDocument location (Encoding.UTF8.GetBytes written)) <> orderOfMeaning (parseText text) then
                     yield $"{location} was written as {written}, and its plain file is {text}."
 
-        // Canonical JSON sorts members, and the order of a v4 map's keys is not part of the model (the parent's v4
-        // semantic model), so the tree read back is compared by the canonical form of each file it writes.
-        let canonical (files: Map<string, string>) = files |> Map.map (fun _ text -> CanonicalJson.write (parseText text))
-
-        match Driver.read compactedFiles with
-        | Ok(read, _) ->
-            if canonical (Driver.texts (writtenOk (Driver.write read))) <> canonical plain then
-                yield "The tree read back is another tree."
-        | Error errors -> yield $"The tree does not read back: {errors}"
+        match treeModel compactedFiles, treeModel plainFiles with
+        | Some read, Some expected when read = expected -> ()
+        | Some _, Some _ -> yield "The tree read back is another model."
+        | None, _ -> yield "The compacted tree does not read back."
+        | _, None -> yield "The plain tree does not read back."
     ]
 
 /// Whether a tree written compacted holds, file by file, the plain files that its plain write holds once expanded,
-/// and reads back as the same tree; a failure names what it lost.
+/// and reads back as the same model; a failure names what it lost.
 let private treeLossless (tree: StoredTree) =
     match treeLosses tree with
     | [] -> true
     | losses -> failwith (String.concat Environment.NewLine losses)
 
-/// The node at a path of member names and array indexes.
-let rec private nodeAt (path: obj list) (node: JsonNode) : JsonNode =
-    match path with
-    | [] -> node
-    | (:? string as name) :: rest -> nodeAt rest (nonNull node.[name])
-    | (:? int as index) :: rest -> nodeAt rest (nonNull node.[index])
-    | other :: _ -> failtestf "%A is not a member name or an index" other
-
-/// A policy case's input as a JSON node, to derive a variant of it.
-let private inputNode (id: string) = nonNull (JsonNode.Parse((Mother.policyInput id).GetRawText()))
-
-/// The input of a policy case with each object's members in the reverse order: the same document, written otherwise.
+/// The same document with the members of each object in the reverse order, except a value's parameters, whose order
+/// is the model's: the same model, written otherwise.
 let private reversedMembers (element: JsonElement) =
-    let rec reverse (node: JsonNode | null) : JsonNode | null =
+    let rec reverse (keepOrder: bool) (node: JsonNode | null) : JsonNode | null =
         match node with
         | :? JsonObject as o ->
+            let members = List.ofSeq o
             let copy = JsonObject()
 
-            for KeyValue(name, value) in List.rev (List.ofSeq o) do
-                copy[name] <- reverse value
+            for KeyValue(name, value) in (if keepOrder then members else List.rev members) do
+                copy[name] <- reverse (holdsParameters name) value
 
             copy
         | :? JsonArray as a ->
             let copy = JsonArray()
 
             for item in a do
-                copy.Add(reverse item)
+                copy.Add(reverse false item)
 
             copy
         | null -> null
         | other -> other.DeepClone()
 
-    parseText ((nonNull (reverse (JsonNode.Parse(element.GetRawText())))).ToJsonString())
+    parseText ((nonNull (reverse false (JsonNode.Parse(element.GetRawText())))).ToJsonString())
+
+/// The parameter names of each value of a written file, in the order the file writes them: the keys of every object
+/// that a member inputTypes or inputs holds.
+let private parametersOf (bytes: byte array) =
+    let rec find (element: JsonElement) =
+        [
+            match element.ValueKind with
+            | JsonValueKind.Object ->
+                for property in element.EnumerateObject() do
+                    if holdsParameters property.Name && property.Value.ValueKind = JsonValueKind.Object then
+                        yield [ for parameter in property.Value.EnumerateObject() -> parameter.Name ]
+                    else
+                        yield! find property.Value
+            | JsonValueKind.Array ->
+                for item in element.EnumerateArray() do
+                    yield! find item
+            | _ -> ()
+        ]
+
+    find (parse bytes)
 
 [<Tests>]
 let tests =
@@ -249,11 +351,20 @@ let tests =
                     }
             ]
 
-            testList "each mother case as a single file" [
+            testList "each mother case as a single file, as a decoded model" [
                 for name, distribution in v4Mothers ->
-                    test $"v4 {name}" { expectLossless IrFamily.V4 name (parse (v4Bytes distribution)) }
+                    test $"v4 {name}" {
+                        expectLossless IrFamily.V4 name (parse (v4Bytes distribution))
+                        Expect.isTrue (sameV4Model distribution) "the expanded file decodes to the same model"
+                    }
                 for name, distribution in v3Mothers ->
-                    test $"v3 {name}" { expectLossless IrFamily.Classic3 name (parse (v3Bytes distribution)) }
+                    test $"v3 {name}" {
+                        expectLossless IrFamily.Classic3 name (parse (v3Bytes distribution))
+
+                        // nonAsciiName has a name that the classic reader refuses, by design; its JSON is compared.
+                        if name <> "nonAsciiName" then
+                            Expect.isTrue (sameV3Model distribution) "the expanded file decodes to the same model"
+                    }
             ]
 
             testList "each mother case as a tree" [
@@ -261,14 +372,14 @@ let tests =
                     test name { Expect.isTrue (treeLossless tree) "every file expands to its plain file, and the tree reads back" }
             ]
 
-            testPropertyWithConfig config "generated v4 single files"
+            testPropertyWithConfig config "generated v4 single files, as decoded models"
             <| Prop.forAll (Arb.fromGen Generators.v4Distribution) (fun distribution ->
-                lossless IrFamily.V4 (parse (v4Bytes distribution))
+                lossless IrFamily.V4 (parse (v4Bytes distribution)) && sameV4Model distribution
             )
 
-            testPropertyWithConfig config "generated v3 single files, with typed attributes"
+            testPropertyWithConfig config "generated v3 single files, with typed attributes, as decoded models"
             <| Prop.forAll (Arb.fromGen Generators.v3AnyDistribution) (fun distribution ->
-                lossless IrFamily.Classic3 (parse (v3Bytes distribution))
+                lossless IrFamily.Classic3 (parse (v3Bytes distribution)) && sameV3Model distribution
             )
 
             testPropertyWithConfig config "generated v4 trees"
@@ -290,20 +401,7 @@ let tests =
             }
 
             test "a legacy record whose field is named fields keeps the field's type" {
-                // The v4-type input's record in the legacy form, its fields beside each other under Record, one of
-                // them named fields: a reference there is the field's type, not a map of fields.
-                let input = inputNode "v4-type"
-                let typeExp = nodeAt [ "def"; "TypeAliasDefinition"; "typeExp" ] input
-                let fields = (nodeAt [ "Record"; "fields" ] typeExp).AsObject()
-                let legacy = JsonObject()
-
-                for KeyValue(name, value) in List.ofSeq fields do
-                    legacy.[name] <- (nonNull value).DeepClone()
-
-                legacy.["fields"] <- (nonNull fields.["base"]).DeepClone()
-                typeExp.["Record"] <- legacy
-
-                let document = parseText (input.ToJsonString())
+                let document = Mother.legacyRecordWithFieldNamedFields
                 let bytes, aliased = compacted IrFamily.V4 document
                 Expect.isTrue aliased "the field types share an alias"
                 expectLossless IrFamily.V4 "legacy record" document
@@ -322,6 +420,33 @@ let tests =
                     Expect.sequenceEqual second first "compacting twice gives identical bytes"
                     Expect.sequenceEqual reordered first "the same document with its members in another order gives the same bytes"
                 }
+        ]
+
+        testList "A value's parameters keep their order" [
+            let library = DistributionMother.v4LibraryWithUnsortedParameters
+            let specs = DistributionMother.v4SpecsWithUnsortedParameters
+            let order = [ "rate"; "amount" ]
+
+            test "in a single file's value definition" {
+                let bytes, _ = compacted IrFamily.V4 (parse (v4Bytes library))
+                Expect.equal (parametersOf bytes) [ order ] "the written file keeps rate before amount"
+                Expect.isTrue (sameV4Model library) "the expanded file decodes to the same model"
+            }
+
+            test "in a single file's value specification" {
+                let bytes, _ = compacted IrFamily.V4 (parse (v4Bytes specs))
+                Expect.equal (parametersOf bytes) [ order ] "the written file keeps rate before amount"
+                Expect.isTrue (sameV4Model specs) "the expanded file decodes to the same model"
+            }
+
+            test "in a tree's value files" {
+                for tree in [ Trees.treeOf library; Trees.treeOf specs ] do
+                    Expect.isTrue (treeLossless tree) "the tree reads back as the same model"
+
+                    for KeyValue(location, text) in Driver.texts (writtenOk (Driver.writeCompacted tree)) do
+                        if location.EndsWith(".value.json", StringComparison.Ordinal) then
+                            Expect.equal (parametersOf (Encoding.UTF8.GetBytes text)) [ order ] $"{location} keeps rate before amount"
+            }
         ]
 
         test "A name used once stays spelled out" {
@@ -384,14 +509,7 @@ let tests =
             // v3-type's field types are F twice, which the policy aliases. With the local name's words as ["US"], an
             // initialism read as one word, the arrays read as US, which reads back as the words u and s: expansion
             // could not give the arrays back, so the policy leaves them.
-            let input = inputNode "v3-type"
-            let record = (nodeAt [ "def"; "value"; "value"; 2; 2 ] input).AsArray()
-
-            for field in record do
-                let fqName = (nodeAt [ "tpe"; 2 ] (nonNull field)).AsArray()
-                fqName.[2] <- JsonArray(JsonValue.Create "US")
-
-            let document = parseText (input.ToJsonString())
+            let document = Mother.v3TypeWithUnholdableLocalName
             let bytes, aliased = compacted IrFamily.Classic3 document
             Expect.isFalse aliased "no alias is worth its cost without F"
             Expect.sequenceEqual bytes (CanonicalJson.write document) "the arrays are written as they are"
@@ -420,13 +538,7 @@ let tests =
             }
 
             test "A document deeper than canonical JSON reads is too deep" {
-                // The v4-type input with a member nested 1,100 levels deep, past the 1,024 that canonical JSON reads.
-                let input = inputNode "v4-type"
-                input.["deep"] <- JsonValue.Create 0
-                let nested = String('[', 1100) + "0" + String(']', 1100)
-                let text = input.ToJsonString().Replace("\"deep\":0", "\"deep\":" + nested)
-
-                match CompactionPolicy.compact IrFamily.V4 (parseText text) with
+                match CompactionPolicy.compact IrFamily.V4 Mother.v4TypeNestedPastCanonicalDepth with
                 | Error [ e ] -> Expect.equal e.Code "depth_limit_exceeded" "the depth"
                 | other -> failtestf "Expected one refusal, got %A" other
             }

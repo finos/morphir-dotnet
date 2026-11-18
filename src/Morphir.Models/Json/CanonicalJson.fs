@@ -230,7 +230,16 @@ type private Node =
     | Items of Node list
     | Members of (string * Node) list
 
-let rec private readNode (reader: byref<Utf8JsonReader>) : Node =
+/// The JSON Pointer (RFC 6901) of a value, from the reversed path of its escaped reference tokens.
+let private pointerOf (path: string list) =
+    match path with
+    | [] -> ""
+    | _ -> "/" + String.Join("/", List.rev path)
+
+/// A member name as a JSON Pointer reference token: <c>~</c> as <c>~0</c> and <c>/</c> as <c>~1</c>.
+let private token (name: string) = name.Replace("~", "~0").Replace("/", "~1")
+
+let rec private readNode (keepsOrder: string -> bool) (path: string list) (reader: byref<Utf8JsonReader>) : Node =
     match reader.TokenType with
     | JsonTokenType.Null -> Literal "null"
     | JsonTokenType.True -> Literal "true"
@@ -241,7 +250,7 @@ let rec private readNode (reader: byref<Utf8JsonReader>) : Node =
         let items = ResizeArray()
 
         while reader.Read() && reader.TokenType <> JsonTokenType.EndArray do
-            items.Add(readNode &reader)
+            items.Add(readNode keepsOrder (string items.Count :: path) &reader)
 
         Items(List.ofSeq items)
     | JsonTokenType.StartObject ->
@@ -255,10 +264,13 @@ let rec private readNode (reader: byref<Utf8JsonReader>) : Node =
                 refuse $"the object has the member \"{name}\" twice"
 
             reader.Read() |> ignore
-            members.Add((name, readNode &reader))
+            members.Add((name, readNode keepsOrder (token name :: path) &reader))
 
-        // Ordinal comparison compares UTF-16 code units as unsigned integers (RFC 8785 section 3.2.3).
-        Members(members |> List.ofSeq |> List.sortWith (fun (a, _) (b, _) -> String.CompareOrdinal(a, b)))
+        if keepsOrder (pointerOf path) then
+            Members(List.ofSeq members)
+        else
+            // Ordinal comparison compares UTF-16 code units as unsigned integers (RFC 8785 section 3.2.3).
+            Members(members |> List.ofSeq |> List.sortWith (fun (a, _) (b, _) -> String.CompareOrdinal(a, b)))
     | other -> refuse $"unexpected token {other}"
 
 let rec private appendNode (output: StringBuilder) (node: Node) =
@@ -290,13 +302,17 @@ let rec private appendNode (output: StringBuilder) (node: Node) =
 
         output.Append '}' |> ignore
 
-/// <summary>The RFC 8785 canonical form of a JSON value, as UTF-8 bytes.</summary>
+/// <summary>
+/// The RFC 8785 canonical form of a JSON value, as UTF-8 bytes, except that the members of each object for which
+/// <paramref name="keepsOrder"/> holds keep their order in the value. The predicate is given the object's JSON Pointer
+/// (RFC 6901): <c>""</c> for the value itself, <c>"/def/ExpressionBody/inputTypes"</c> for an object below it. Strings,
+/// numbers and the absence of whitespace are those of RFC 8785 everywhere. C# calls this <c>WriteKeepingOrder</c>.
+/// </summary>
 /// <exception cref="T:System.ArgumentException">The value holds a lone surrogate, a number outside the range of a
 /// double, or an object with the same member twice.</exception>
-/// <exception cref="T:System.PlatformNotSupportedException">The <c>netstandard2.0</c> build is loaded on a runtime
-/// other than .NET Core 3.0 or later, such as .NET Framework, whose number formatting and parsing are not those of
-/// RFC 8785. It refuses every value, numbers or not, so that the output never depends on what the value holds.</exception>
-let write (element: JsonElement) : byte array =
+/// <exception cref="T:System.PlatformNotSupportedException">As for <see cref="write"/>.</exception>
+[<CompiledName("WriteKeepingOrder")>]
+let writeKeepingOrder (keepsOrder: string -> bool) (element: JsonElement) : byte array =
 #if NETSTANDARD2_0
     runtimeChecked.Force()
 #endif
@@ -304,7 +320,15 @@ let write (element: JsonElement) : byte array =
         Utf8JsonReader(ReadOnlySpan(Encoding.UTF8.GetBytes(element.GetRawText())), JsonReaderOptions(MaxDepth = MaxDepth))
 
     reader.Read() |> ignore
-    let node = readNode &reader
+    let node = readNode keepsOrder [] &reader
     let output = StringBuilder()
     appendNode output node
     utf8.GetBytes(output.ToString())
+
+/// <summary>The RFC 8785 canonical form of a JSON value, as UTF-8 bytes.</summary>
+/// <exception cref="T:System.ArgumentException">The value holds a lone surrogate, a number outside the range of a
+/// double, or an object with the same member twice.</exception>
+/// <exception cref="T:System.PlatformNotSupportedException">The <c>netstandard2.0</c> build is loaded on a runtime
+/// other than .NET Core 3.0 or later, such as .NET Framework, whose number formatting and parsing are not those of
+/// RFC 8785. It refuses every value, numbers or not, so that the output never depends on what the value holds.</exception>
+let write (element: JsonElement) : byte array = writeKeepingOrder (fun _ -> false) element

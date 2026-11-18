@@ -41,6 +41,13 @@ open ContextExpansion
 /// fixed bytes, len(table) + 5 for each table that holds an entry, len(id) + len(spelling) + 5 for each entry and a
 /// comma between two entries. Otherwise the file is the plain document in canonical JSON.
 /// </para>
+/// <para>
+/// The file is written in canonical JSON, with one exception (the controller's ruling of add-model-convert, to which
+/// the parent's policy is being amended): an object whose members' order the IR schema says is the model's keeps its
+/// members in document order. In v4 these are the parameters of a value, a definition's <c>inputTypes</c> and a
+/// specification's <c>inputs</c> (<c>Shape.KeepsOrder</c>). Strings, numbers and whitespace are canonical everywhere,
+/// every size is measured on the file so written, and first use is the order of that file.
+/// </para>
 /// </remarks>
 [<RequireQualifiedAccess>]
 module CompactionPolicy =
@@ -200,16 +207,25 @@ module CompactionPolicy =
         member val Count = 0L with get, set
         member val Bytes = 0L with get, set
 
-    /// What a walk of the plain document found: its candidates, and the references that a plain document cannot hold.
+    /// What a walk of the plain document found: its candidates, the references that a plain document cannot hold, and
+    /// the JSON Pointers of the objects whose members keep their order.
     type private Found = {
         Candidates: Dictionary<struct (Table * string), Candidate>
         mutable Next: int
         References: ResizeArray<Table * string>
+        Ordered: HashSet<string>
     }
 
-    /// Walks the plain document in the order of its canonical JSON and records each occurrence of a candidate. A
-    /// position inside an occurrence is not walked: candidates are taken at the outermost positions.
-    let rec private collect (found: Found) (shape: Shape) (element: JsonElement) =
+    /// A member name as a JSON Pointer reference token (RFC 6901).
+    let private token (name: string) = name.Replace("~", "~0").Replace("/", "~1")
+
+    /// <summary>
+    /// Walks the plain document in the order of the file as written, and records each occurrence of a candidate and
+    /// each object that keeps its members' order (<c>Shape.KeepsOrder</c>). The file as written is canonical JSON,
+    /// whose objects have their members sorted, except an object that keeps its members' order. A position inside an
+    /// occurrence is not walked: candidates are taken at the outermost positions.
+    /// </summary>
+    let rec private collect (found: Found) (pointer: string) (shape: Shape) (element: JsonElement) =
         RuntimeHelpers.EnsureSufficientExecutionStack()
 
         match occurrence shape element with
@@ -234,18 +250,22 @@ module CompactionPolicy =
                 match element.ValueKind with
                 | JsonValueKind.Object ->
                     let members =
-                        element.EnumerateObject()
-                        |> Seq.sortWith (fun a b -> String.CompareOrdinal(a.Name, b.Name))
+                        if shape.KeepsOrder then
+                            found.Ordered.Add pointer |> ignore
+                            Seq.ofArray (Array.ofSeq (element.EnumerateObject()))
+                        else
+                            element.EnumerateObject()
+                            |> Seq.sortWith (fun a b -> String.CompareOrdinal(a.Name, b.Name))
 
                     for property in members do
                         match shape.Member element property.Name property.Value with
-                        | Some inner -> collect found inner property.Value
+                        | Some inner -> collect found $"{pointer}/{token property.Name}" inner property.Value
                         | None -> ()
                 | JsonValueKind.Array ->
                     element.EnumerateArray()
                     |> Seq.iteri (fun index item ->
                         match shape.Item element index with
-                        | Some inner -> collect found inner item
+                        | Some inner -> collect found $"{pointer}/{index}" inner item
                         | None -> ()
                     )
                 | _ -> ()
@@ -310,7 +330,8 @@ module CompactionPolicy =
     /// The bytes of a plain Morphir file of <paramref name="family"/> under the policy, and whether an alias was worth
     /// its cost: the envelope of <c>ir-context</c> 0.1.0-draft.1 in canonical JSON (RFC 8785) with the aliases the
     /// policy chooses, or, when no alias is worth its cost or the envelope would not make the file smaller, the plain
-    /// document in canonical JSON. Expanding the bytes gives the document back. The same document always gives the same
+    /// document in canonical JSON. In both, an object that carries its members' order, such as a v4 value's
+    /// parameters, keeps it. Expanding the bytes gives the document back. The same document always gives the same
     /// bytes. C# calls this <c>Compact</c>.
     /// </summary>
     /// <remarks>
@@ -331,34 +352,37 @@ module CompactionPolicy =
                     "$schema: a plain document has no $schema member, which marks a compaction envelope."
             ]
         else
-            let plain =
+            let root = rootOf family
+
+            let found = {
+                Candidates = Dictionary()
+                Next = 0
+                References = ResizeArray()
+                Ordered = HashSet(StringComparer.Ordinal)
+            }
+
+            let walked =
                 try
-                    Ok(CanonicalJson.write document)
-                with
-                | :? JsonException -> Error(tooDeep ())
-                | :? InsufficientExecutionStackException -> Error(tooDeep ())
-                | :? ArgumentException as problem -> Error [ error "invalid_json" problem.Message ]
+                    collect found "" root document
+                    true
+                with :? InsufficientExecutionStackException ->
+                    false
+
+            // The file as written: canonical JSON, with the members of an order-carrying object in document order.
+            let plain =
+                if not walked then
+                    Error(tooDeep ())
+                else
+                    try
+                        Ok(CanonicalJson.writeKeepingOrder found.Ordered.Contains document)
+                    with
+                    | :? JsonException -> Error(tooDeep ())
+                    | :? InsufficientExecutionStackException -> Error(tooDeep ())
+                    | :? ArgumentException as problem -> Error [ error "invalid_json" problem.Message ]
 
             plain
             |> Result.bind (fun plain ->
-                let root = rootOf family
-
-                let found = {
-                    Candidates = Dictionary()
-                    Next = 0
-                    References = ResizeArray()
-                }
-
-                let walked =
-                    try
-                        collect found root document
-                        true
-                    with :? InsufficientExecutionStackException ->
-                        false
-
-                if not walked then
-                    Error(tooDeep ())
-                elif found.References.Count > 0 then
+                if found.References.Count > 0 then
                     found.References
                     |> Seq.distinct
                     |> Seq.map (fun (table, referenced) ->
@@ -447,7 +471,12 @@ module CompactionPolicy =
                             use envelope =
                                 JsonDocument.Parse(ReadOnlyMemory(buffer.ToArray()), JsonDocumentOptions(MaxDepth = maxDepth))
 
-                            Ok(CanonicalJson.write envelope.RootElement, true)
+                            // The document is the envelope's member document, so its objects are below /document.
+                            let keepsOrder (pointer: string) =
+                                pointer.StartsWith("/document", StringComparison.Ordinal)
+                                && found.Ordered.Contains(pointer.Substring "/document".Length)
+
+                            Ok(CanonicalJson.writeKeepingOrder keepsOrder envelope.RootElement, true)
                         with
                         | :? JsonException
                         | :? InsufficientExecutionStackException -> Error(tooDeep ())

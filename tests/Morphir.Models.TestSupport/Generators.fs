@@ -152,10 +152,21 @@ let private literalShape: Gen<LiteralShape> =
         Gen.map WholeValue Arb.generate<int64>
     ]
 
+/// A function of one to three distinct parameters, in generated order, so their names are often not sorted.
+let private projection: Gen<ValueShape> = gen {
+    let! first = canonicalName
+    let! rest = distinctNames 2
+    let names = List.distinct (first :: rest)
+    let! types = Gen.listOfLength names.Length (typeExpr [] 1)
+    let! returned = Gen.elements names
+    return Projection(List.zip names types, returned)
+}
+
 let private valueShape: Gen<ValueShape> =
     Gen.oneof [
         Gen.map Constant literalShape
         Gen.map2 (fun parameter parameterType -> Identity(parameter, parameterType)) canonicalName (typeExpr [] 2)
+        projection
     ]
 
 /// Adds a generated entry: public or private, with or without documentation.

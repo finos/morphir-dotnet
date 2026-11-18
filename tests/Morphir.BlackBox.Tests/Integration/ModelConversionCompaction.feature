@@ -113,7 +113,7 @@ Feature: Model conversion of compacted files
     And the diagnostic "model.invalid_arguments" suggests the compaction mode "names" with an equals sign
     And nothing is at the output
 
-  Scenario: A model that no alias pays for is written plain, with a notice
+  Scenario: A compaction that no alias pays for is written plain, with a notice
     Given a valid IR v4 model
     When I compact the model
     Then the conversion succeeds

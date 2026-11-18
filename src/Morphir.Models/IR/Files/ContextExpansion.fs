@@ -51,12 +51,19 @@ module internal ContextExpansion =
         Member: JsonElement -> string -> JsonElement -> Shape option
         /// The shape of an item, from the array and the item's index.
         Item: JsonElement -> int -> Shape option
+        /// <summary>
+        /// Whether the value, an object, carries its members' order: the IR schema says that their order is the
+        /// model's, as for the parameters of a value (<c>inputTypes</c> and <c>inputs</c> in v4). A canonical writer
+        /// keeps such an object's members in document order and sorts every other object's.
+        /// </summary>
+        KeepsOrder: bool
     }
 
     let private opaque: Shape = {
         Reference = None
         Member = fun _ _ _ -> None
         Item = fun _ _ -> None
+        KeepsOrder = false
     }
 
     let private position table spelling = { opaque with Reference = Some(table, spelling) }
@@ -70,6 +77,9 @@ module internal ContextExpansion =
     let private listOf (item: Shape) = { opaque with Item = fun _ _ -> Some item }
 
     let private mapOf (value: Shape) = { opaque with Member = fun _ _ _ -> Some value }
+
+    /// An object whose members' order is the model's, such as a value's parameters.
+    let private ordered (shape: Shape) = { shape with KeepsOrder = true }
 
     let private pair (first: Shape) (second: Shape) =
         itemsOf (fun _ index ->
@@ -91,6 +101,7 @@ module internal ContextExpansion =
             Reference = Option.orElse b.Reference a.Reference
             Member = fun container name value -> both (a.Member container name value) (b.Member container name value)
             Item = fun container index -> both (a.Item container index) (b.Item container index)
+            KeepsOrder = a.KeepsOrder || b.KeepsOrder
         }
 
     let private hasMember (name: string) (element: JsonElement) =
@@ -174,6 +185,7 @@ module internal ContextExpansion =
             Reference = Some(FqNamesTable, CanonicalString)
             Member = fun _ tag _ -> typeNode tag
             Item = fun _ _ -> Some(typ ())
+            KeepsOrder = false
         }
 
         and private typeNode tag =
@@ -444,7 +456,8 @@ module internal ContextExpansion =
                     Some(
                         members (
                             function
-                            | "inputTypes" -> Some(mapOf (typ ()))
+                            // "The key order of inputs is the parameter order" (the v4 schema), for a definition too.
+                            | "inputTypes" -> Some(ordered (mapOf (typ ())))
                             | "outputType" -> Some(typ ())
                             | "body"
                             | "partialBody" -> Some(value ())
@@ -591,7 +604,7 @@ module internal ContextExpansion =
                 function
                 | "value" -> Some(valueSpecification ())
                 | "annotations" -> Some(annotations ())
-                | "inputs" -> Some(union (mapOf (typ ())) (listOf (namedType ())))
+                | "inputs" -> Some(ordered (union (mapOf (typ ())) (listOf (namedType ()))))
                 | "output" -> Some(typ ())
                 | _ -> None
             )

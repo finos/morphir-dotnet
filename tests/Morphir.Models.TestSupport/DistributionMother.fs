@@ -257,6 +257,31 @@ let longNameUsedOften: Distribution = withLongNameUsedOften aV4Library |> buildV
 let v3LongNameUsedOften: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     withLongNameUsedOften aV3Library |> buildV3
 
+/// <summary>
+/// The module of the unsorted-parameter cases: the value <c>apply-rate</c> takes <c>rate</c> and then <c>amount</c>,
+/// in that order, which is not the sorted order of their names, and returns the amount.
+/// </summary>
+let private withUnsortedParameters =
+    withValue (name "apply-rate") (Projection([ name "rate", Sdk.int; name "amount", Sdk.int ], name "amount"))
+
+/// <summary>
+/// A v4 library whose value definition <c>apply-rate</c> has the parameters <c>rate</c> and <c>amount</c> in that
+/// order: canonical JSON must not sort its <c>inputTypes</c>.
+/// </summary>
+let v4LibraryWithUnsortedParameters: Distribution =
+    aV4Library (packageName "acme/pricing")
+    |> withModule (modulePath "rates") withUnsortedParameters
+    |> buildV4
+
+/// <summary>
+/// A v4 Specs whose value specification <c>apply-rate</c> has the inputs <c>rate</c> and <c>amount</c> in that
+/// order: canonical JSON must not sort its <c>inputs</c>.
+/// </summary>
+let v4SpecsWithUnsortedParameters: Distribution =
+    aV4Library (packageName "acme/pricing")
+    |> withModule (modulePath "rates") withUnsortedParameters
+    |> buildV4Specs
+
 /// <summary>A classic library whose one type is named <see cref="Names.nonAscii"/>, a name with an <c>é</c>.</summary>
 let nonAsciiName: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     aV3Library (packageName "my-org/menu")

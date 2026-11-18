@@ -50,6 +50,10 @@ The command SHALL read a file as a single-file model and a directory holding a m
 - **WHEN** a model is converted with `--compact=bogus`
 - **THEN** the command exits 2 and lists `names` as the known mode
 
+#### Scenario: A compaction that no alias pays for is written plain, with a notice
+- **WHEN** a model none of whose names is worth an alias under the policy is converted with `--compact`
+- **THEN** the written file is the plain document, the report states `outputEncoding` `plain`, and its notices hold `model.compaction_declined`
+
 ### Requirement: An option value is given only with an equals sign
 `--compact` SHALL take its mode only in the form `--compact=<mode>`. A bare `--compact` SHALL never take the next argument as its mode. `--compact names` SHALL fail with exit code 2 and suggest `--compact=names`.
 

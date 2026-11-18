@@ -169,9 +169,11 @@ the file, so a non-ASCII letter of a doc string weighs two bytes or more:
 - A name that a classic v3 slot could not give back, such as `FR2052A` as word arrays, is left as written.
 
 A compacted file is written in canonical JSON: members sorted, no whitespace, no newline at the end. A file whose
-compaction is declined is its plain document in canonical JSON, with no envelope. As canonical JSON sorts the members
-of every object, the keys of a v4 map, such as the fields of a record, come back sorted when the file is read; the
-order of a map's keys is not part of a v4 model.
+compaction is declined is its plain document in canonical JSON, with no envelope. There is one exception to the
+sorting: an object whose member order the IR schema gives a meaning keeps its order. These are the parameters of a v4
+value, the `inputTypes` of a definition and the `inputs` of a specification, so function parameters keep their
+order. The keys of a v4 map, such as record fields, module members, constructors and dependencies, may come back in
+sorted order when the file is read, which does not change the model.
 
 Here `order-total.json` is a plain IR v4 model whose one value uses the type
 `acme/order-management:pricing/discount-rules#discounted-amount-before-regional-sales-tax-adjustment` three times.

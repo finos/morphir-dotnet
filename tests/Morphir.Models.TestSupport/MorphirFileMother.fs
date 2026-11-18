@@ -76,6 +76,62 @@ let policyInput (id: string) : System.Text.Json.JsonElement =
 /// <summary>The bytes a writer of the policy must produce from a case's input, as the parent fixes them.</summary>
 let policyExpectedBytes (id: string) : byte array = FixtureCatalog.ReadBytes (policyCase id).Expected
 
+/// The node at a path of member names and array indexes.
+let rec private nodeAt (path: obj list) (node: JsonNode) : JsonNode =
+    match path with
+    | [] -> node
+    | (:? string as name) :: rest -> nodeAt rest (nonNull node.[name])
+    | (:? int as index) :: rest -> nodeAt rest (nonNull node.[index])
+    | other :: _ -> failwith $"{other} is not a member name or an index."
+
+/// A policy case's input as a JSON node, to derive a variant of it.
+let private policyInputNode (id: string) = nonNull (JsonNode.Parse((policyInput id).GetRawText()))
+
+let private elementOf (text: string) =
+    use document = System.Text.Json.JsonDocument.Parse(text, System.Text.Json.JsonDocumentOptions(MaxDepth = 4096))
+    document.RootElement.Clone()
+
+/// <summary>
+/// The policy case <c>v4-type</c> with its record in the legacy form, whose fields sit directly under
+/// <c>Record</c>, and one more field named <c>fields</c> of the same type F: a reference there is the field's type,
+/// not a map of fields.
+/// </summary>
+let legacyRecordWithFieldNamedFields: System.Text.Json.JsonElement =
+    let input = policyInputNode "v4-type"
+    let typeExp = nodeAt [ "def"; "TypeAliasDefinition"; "typeExp" ] input
+    let fields = (nodeAt [ "Record"; "fields" ] typeExp).AsObject()
+    let legacy = JsonObject()
+
+    for KeyValue(name, value) in List.ofSeq fields do
+        legacy.[name] <- (nonNull value).DeepClone()
+
+    legacy.["fields"] <- (nonNull fields.["base"]).DeepClone()
+    typeExp.["Record"] <- legacy
+    elementOf (input.ToJsonString())
+
+/// <summary>
+/// The policy case <c>v3-type</c> whose two field types, F in classic word arrays, have the local name
+/// <c>["US"]</c>: one uppercase word, which reads as <c>US</c> and back as the words <c>u</c> and <c>s</c>. A classic
+/// slot cannot hold that spelling, so a writer leaves the arrays as they are.
+/// </summary>
+let v3TypeWithUnholdableLocalName: System.Text.Json.JsonElement =
+    let input = policyInputNode "v3-type"
+
+    for field in (nodeAt [ "def"; "value"; "value"; 2; 2 ] input).AsArray() do
+        (nodeAt [ "tpe"; 2 ] (nonNull field)).AsArray().[2] <- JsonArray(JsonValue.Create "US")
+
+    elementOf (input.ToJsonString())
+
+/// <summary>
+/// The policy case <c>v4-type</c> with a member <c>deep</c> nested 1,100 levels deep, past the 1,024 levels that
+/// canonical JSON reads.
+/// </summary>
+let v4TypeNestedPastCanonicalDepth: System.Text.Json.JsonElement =
+    let input = policyInputNode "v4-type"
+    input.["deep"] <- JsonValue.Create 0
+    let nested = System.String('[', 1100) + "0" + System.String(']', 1100)
+    elementOf (input.ToJsonString().Replace("\"deep\":0", "\"deep\":" + nested))
+
 /// <summary>
 /// A pinned valid example with one context entry spelled anew, and the plain document a reader must give for it.
 /// </summary>

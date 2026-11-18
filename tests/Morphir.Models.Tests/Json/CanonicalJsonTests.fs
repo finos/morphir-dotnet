@@ -80,6 +80,43 @@ let tests =
             Expect.sequenceEqual values vectors.SortedValues "the order of Section 3.2.3"
         }
 
+        test "An object that keeps its order is written in document order, and its strings canonically" {
+            let sample = parse vectors.SortingSample
+
+            let keptOrder =
+                use document = JsonDocument.Parse(CanonicalJson.writeKeepingOrder (fun pointer -> pointer = "") sample)
+                [ for property in document.RootElement.EnumerateObject() -> property.Name ]
+
+            Expect.sequenceEqual keptOrder [ for property in sample.EnumerateObject() -> property.Name ] "the document's order"
+            Expect.sequenceEqual (CanonicalJson.writeKeepingOrder (fun _ -> false) sample) (CanonicalJson.write sample) "no kept order is RFC 8785"
+
+            Expect.equal
+                (Encoding.UTF8.GetString(CanonicalJson.writeKeepingOrder (fun pointer -> pointer = "") (parse vectors.PrimitiveSample)).Length)
+                (Encoding.UTF8.GetString(CanonicalJson.write (parse vectors.PrimitiveSample)).Length)
+                "only the order of the members changes: the escapes and numbers are canonical"
+        }
+
+        test "An object below the root is named by its JSON Pointer" {
+            // The sorting sample, nested at /a~1b/0, keeps its order there and nowhere else.
+            let nested =
+                written (fun writer ->
+                    writer.WriteStartObject()
+                    writer.WriteNumber("z", 0)
+                    writer.WriteStartArray "a/b"
+                    writer.WriteRawValue vectors.SortingSample
+                    writer.WriteEndArray()
+                    writer.WriteEndObject()
+                )
+
+            let kept = CanonicalJson.writeKeepingOrder (fun pointer -> pointer = "/a~1b/0") nested
+            use document = JsonDocument.Parse kept
+            let root = [ for property in document.RootElement.EnumerateObject() -> property.Name ]
+            let item = document.RootElement.GetProperty("a/b").[0]
+            let inner = [ for property in item.EnumerateObject() -> property.Name ]
+            Expect.equal root [ "a/b"; "z" ] "the root is sorted"
+            Expect.sequenceEqual inner [ for property in (parse vectors.SortingSample).EnumerateObject() -> property.Name ] "the named object keeps its order"
+        }
+
         test "Writing the same value twice gives the same bytes" {
             let value = parse vectors.PrimitiveSample
             Expect.sequenceEqual (CanonicalJson.write value) (CanonicalJson.write value) "JCS output is deterministic"

@@ -63,6 +63,11 @@ type ValueShape =
     | Constant of LiteralShape
     /// <summary>A one-input function that returns its input.</summary>
     | Identity of parameter: Name * parameterType: TypeExpr
+    /// <summary>
+    /// A function of several inputs, in the order given, that returns the input <c>returned</c>: the order of its
+    /// parameters is part of the model, whatever the order of their names.
+    /// </summary>
+    | Projection of parameters: (Name * TypeExpr) list * returned: Name
 
 /// <summary>A named type or value of a module, with its visibility and documentation.</summary>
 type Entry<'shape> = {
@@ -140,6 +145,12 @@ let dependencyModule: ModulePath = modulePath "api"
 
 /// <summary>An alias with no type parameters.</summary>
 let alias (aliased: TypeExpr) : TypeShape = Alias([], aliased)
+
+/// <summary>The type of the parameter <paramref name="returned"/> of a <c>Projection</c>, which its value returns.</summary>
+let projected (parameters: (Name * TypeExpr) list) (returned: Name) : TypeExpr =
+    match parameters |> List.tryFind (fun (parameter, _) -> parameter = returned) with
+    | Some(_, parameterType) -> parameterType
+    | None -> invalidArg (nameof returned) "A projection returns one of its parameters."
 
 /// <summary>A custom type with no type parameters and public constructors.</summary>
 let custom (constructors: (Name * (Name * TypeExpr) list) list) : TypeShape =
@@ -418,6 +429,11 @@ module private ToV4 =
                 InputTypes = [ parameter, input ]
                 Body = ExpressionBody(input, Value.Variable(ValueAttributes.empty, parameter))
             }
+        | Projection(parameters, returned) ->
+            {
+                InputTypes = [ for parameter, parameterType in parameters -> parameter, typ parameterType ]
+                Body = ExpressionBody(typ (projected parameters returned), Value.Variable(ValueAttributes.empty, returned))
+            }
 
     let valueSpecification (shape: ValueShape) : ValueSpecification =
         match shape with
@@ -430,6 +446,11 @@ module private ToV4 =
             Annotations = []
             Inputs = [ parameter, typ parameterType ]
             Output = typ parameterType
+          }
+        | Projection(parameters, returned) -> {
+            Annotations = []
+            Inputs = [ for parameter, parameterType in parameters -> parameter, typ parameterType ]
+            Output = typ (projected parameters returned)
           }
 
     let moduleDefinition (m: ModuleBuilder) : ModuleDefinition = {
@@ -542,6 +563,14 @@ module private ToClassic =
                 OutputType = input
                 Body = Value.Variable(input, parameter)
             }
+        | Projection(parameters, returned) ->
+            let output = typ (projected parameters returned)
+
+            {
+                InputTypes = [ for parameter, parameterType in parameters -> parameter, typ parameterType, typ parameterType ]
+                OutputType = output
+                Body = Value.Variable(output, returned)
+            }
 
     let valueSpecification (shape: ValueShape) : ValueSpecification<unit> =
         match shape with
@@ -552,6 +581,10 @@ module private ToClassic =
         | Identity(parameter, parameterType) -> {
             Inputs = [ parameter, typ parameterType ]
             Output = typ parameterType
+          }
+        | Projection(parameters, returned) -> {
+            Inputs = [ for parameter, parameterType in parameters -> parameter, typ parameterType ]
+            Output = typ (projected parameters returned)
           }
 
     let moduleDefinition (m: ModuleBuilder) : Module.ModuleDefinition<unit, Type<unit>> =
