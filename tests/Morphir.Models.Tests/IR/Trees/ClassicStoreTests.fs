@@ -136,6 +136,12 @@ let tests =
                     | Result.Error _ -> false
                 )
 
+            test "A type and a value of one long name share one cut stem and one fileNames entry" {
+                let case = Mother.v3SharedNameOverTheBudget
+                expectOneStemForEachSharedName case (written case.Tree)
+                expectRoundTrip case.Tree
+            }
+
             testList "every v3 mother case round-trips with numbered attribute slots" [
                 for caseName, tree in v3Cases do
                     test caseName { expectRoundTrip tree }

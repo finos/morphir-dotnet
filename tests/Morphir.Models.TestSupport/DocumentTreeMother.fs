@@ -165,6 +165,53 @@ let pathOverTheBudget: BudgetCase =
         + 1
     )
 
+/// <summary>A tree whose module holds a type and a value of the same long name, for names a path budget cuts.</summary>
+type SharedNameCase = {
+    /// <summary>The tree.</summary>
+    Tree: StoredTree
+    /// <summary>The module that holds the types and values, <c>pricing/models</c> of <c>my-org/finance</c>.</summary>
+    Module: DocumentAddress
+    /// <summary>
+    /// The names, each of a type and a value: the first one's value file has a path one character over the budget, so
+    /// its type file, one character shorter, fits uncut; the second one's files are both over.
+    /// </summary>
+    Names: Name list
+}
+
+let private sharedNames () =
+    let valueAddress n = Own(ValueDef(pricing, n))
+
+    [
+        nameOfLength (stemLengthFor (defaultBudget + 1) valueAddress)
+        nameOfLength (stemLengthFor (defaultBudget + 20) valueAddress)
+    ]
+
+let private withSharedNames (names: Name list) : ModuleBuilder -> ModuleBuilder =
+    names
+    |> List.map (fun shared ->
+        withType shared (alias Sdk.int)
+        >> withValue shared (Constant(WholeValue 0L))
+    )
+    |> List.reduce (>>)
+
+/// <summary>
+/// A v4 library whose module <c>pricing/models</c> has a type and a value of each of two long names (see
+/// <see cref="SharedNameCase"/>). The parent's <c>fileNames</c> maps a name to one stem, so both files of a name share
+/// one cut stem, chosen so the value file, the longer of the two, fits the default budget.
+/// </summary>
+let sharedNameOverTheBudget: SharedNameCase =
+    let names = sharedNames ()
+
+    {
+        Tree =
+            aV4Library finance
+            |> withModule pricing (withSharedNames names)
+            |> buildV4
+            |> treeOf
+        Module = Own(Module pricing)
+        Names = names
+    }
+
 /// <summary>A classic model as <c>ClassicJson</c> reads it: attributes are JSON values.</summary>
 type JsonClassicModel = Morphir.IR.Classic.Distribution.Distribution<JsonElement, JsonElement>
 
@@ -215,6 +262,24 @@ let v3Specs: StoredTree =
 /// </summary>
 let v3PrivateAndDocumentedMembers: StoredTree =
     classicTreeOf (withNumberedSlots DistributionMother.v3PrivateAndDocumentedMembers)
+
+/// <summary>
+/// The classic v3 form of <see cref="sharedNameOverTheBudget"/>, with numbered attribute slots: a v3 tree's stems,
+/// truncation and <c>fileNames</c> are the v4 tree's.
+/// </summary>
+let v3SharedNameOverTheBudget: SharedNameCase =
+    let names = sharedNames ()
+
+    {
+        Tree =
+            aV3Library finance
+            |> withModule pricing (withSharedNames names)
+            |> buildV3
+            |> withNumberedSlots
+            |> classicTreeOf
+        Module = Own(Module pricing)
+        Names = names
+    }
 
 /// <summary>The value of <see cref="v3Library"/> that <see cref="v3LibraryWithANonFiniteFloat"/> changes.</summary>
 let defaultCurrency =

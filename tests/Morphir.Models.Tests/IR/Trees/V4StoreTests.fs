@@ -231,6 +231,16 @@ let tests =
                 expectRoundTrip case.Tree
             }
 
+            // The parent's fileNames maps a name to one stem, and a reader finds both files of a name by it.
+            test "A type and a value of one long name share one cut stem and one fileNames entry" {
+                let case = Mother.sharedNameOverTheBudget
+                let files = written case.Tree
+                expectOneStemForEachSharedName case files
+                let read, report = readBack files
+                Expect.equal read case.Tree "read (write t) = t"
+                Expect.isEmpty report.Notices "A written tree has nothing to report"
+            }
+
             test "A path exactly at the budget is not truncated" {
                 let case = Mother.pathAtTheBudget
                 let files = written case.Tree

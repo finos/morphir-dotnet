@@ -37,6 +37,10 @@ Writing a tree SHALL produce the logical paths, name escaping, path budget, trun
 - **WHEN** a value's escaped stem would make its path exceed the tree's path budget
 - **THEN** the file uses the truncated stem the spec defines and the module file's `fileNames` maps it back to the name
 
+#### Scenario: A type and a value of one name share one cut stem
+- **WHEN** a module holds a type and a value of one name, and the path of either file would exceed the path budget
+- **THEN** both files use one truncated stem, short enough for the longer value file, the module file's `fileNames` maps the name to it once, and reading the tree gives the model that was written
+
 #### Scenario: A dependency is written under a bare version segment
 - **WHEN** a tree with dependency `morphir/sdk` is written
 - **THEN** its files are under `deps/morphir/sdk/@/`

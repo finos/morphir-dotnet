@@ -76,7 +76,9 @@ the layout that `--layout` names. Without `--layout`, the output keeps the layou
   `<name>.value.json` for each type and value. The package's own modules are below `pkg/<package>/`, and each
   dependency is below `deps/<package>/@/`. The version segment `@` is bare because the model carries no package
   version. Each file of a v3 tree says `"formatVersion": "3.1.0"`. Writing uses the path budget 4000, and a name
-  whose path would be longer is cut and recorded in the module file's `fileNames`.
+  whose path would be longer is cut and recorded in the module file's `fileNames`. A type and a value of one name in
+  a module share one cut stem, short enough for the longer `.value.json` path, and one `fileNames` entry, so both are
+  read back.
   [`model verify`](model-verify.md#document-trees) describes the tree in more detail.
 
 The layout can also follow `--layout` after a space:

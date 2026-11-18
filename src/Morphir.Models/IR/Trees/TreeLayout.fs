@@ -168,50 +168,86 @@ module internal TreeLayout =
             |> List.map fst
             |> Set.ofList
 
+        // A module's fileNames maps a name to one stem, and a reader finds the type file and the value file of a name
+        // by it, so the members of a module that share a name share one stem: it is cut when the path of any of their
+        // files is over the budget, so that the longest of their files fits.
+        let sharedStems =
+            whole
+            |> List.choose (fun (address, path) ->
+                memberOf address
+                |> Option.map (fun (name, suffix) -> (moduleOf address, name), (path, suffix))
+            )
+            |> List.groupBy fst
+            |> List.map (fun (key, members) ->
+                let members = List.map snd members
+
+                key,
+                (members
+                 |> List.exists (fun (path, _) -> path.Length > budget),
+                 members
+                 |> List.map snd
+                 |> List.maxBy String.length)
+            )
+            |> Map.ofList
+
         let placed =
             whole
             |> List.choose (fun (address, path) ->
                 match memberOf address with
-                | _ when
+                | None when
                     path.Length
                     <= budget
                     ->
                     Some(Ok(address, path, None))
                 | None -> None
-                | Some _ when Set.contains (moduleOf address) blocked -> None
                 | Some(name, suffix) ->
-                    let directory = directoryOf own address
+                    let cut, longest = sharedStems[(moduleOf address, name)]
 
-                    let ending =
-                        suffix
-                        + Extension
+                    if not cut then
+                        Some(Ok(address, path, None))
+                    elif Set.contains (moduleOf address) blocked then
+                        None
+                    else
+                        let directory = directoryOf own address
 
-                    match
-                        TreeStems.cut
-                            (budget
-                             - directory.Length
-                             - ending.Length)
-                            name
-                    with
-                    | Ok stem ->
-                        Some(
-                            Ok(
-                                address,
-                                directory
-                                + stem
-                                + ending,
-                                Some(name, stem)
+                        let ending =
+                            suffix
+                            + Extension
+
+                        match
+                            TreeStems.cut
+                                (budget
+                                 - directory.Length
+                                 - (longest
+                                    + Extension)
+                                     .Length)
+                                name
+                        with
+                        | Ok stem ->
+                            Some(
+                                Ok(
+                                    address,
+                                    directory
+                                    + stem
+                                    + ending,
+                                    Some(name, stem)
+                                )
                             )
-                        )
-                    | Error reason ->
-                        Some(
-                            Error(
-                                error
-                                    "invalid_distribution_shape"
-                                    (Some path)
-                                    $"The path of {describe address} has {path.Length} characters, and no cut stem fits the path budget of {budget}: {reason}"
+                        // The member whose own path fits names no error: the one over the budget does.
+                        | Error _ when
+                            path.Length
+                            <= budget
+                            ->
+                            None
+                        | Error reason ->
+                            Some(
+                                Error(
+                                    error
+                                        "invalid_distribution_shape"
+                                        (Some path)
+                                        $"The path of {describe address} has {path.Length} characters, and no cut stem fits the path budget of {budget}: {reason}"
+                                )
                             )
-                        )
             )
 
         let errors =

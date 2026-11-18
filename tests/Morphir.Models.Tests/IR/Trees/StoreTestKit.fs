@@ -95,3 +95,46 @@ let writtenAsKitFiles (files: Morphir.Files.VFileTree) =
 let kitFilesCompacted (kitCase: KitTreeCase) =
     [ for KeyValue(logicalPath, text) in kitCase.Files -> logicalPath, compact text ]
     |> List.sortWith (fun (first, _) (second, _) -> System.String.CompareOrdinal(first, second))
+
+/// The files of a shared-name case have, for each name, one cut stem for its type file and its value file, each path
+/// within the budget, and one fileNames entry in the module file that maps the name to that stem.
+let expectOneStemForEachSharedName (case: DocumentTreeMother.SharedNameCase) (files: Morphir.Files.VFileTree) =
+    let modulePath =
+        match case.Module with
+        | Morphir.IR.Trees.Own(Morphir.IR.Trees.Module path) -> path
+        | other -> failtestf "The case's module is an own module, not %O" other
+
+    let moduleFile = (Driver.fileAt case.Module files).Value
+    let moduleText = (Driver.texts files)[moduleFile]
+    let fileNames = (nonNull ((Driver.jsonAt moduleFile files)["fileNames"])).AsObject()
+
+    let stemOf (address: Morphir.IR.Trees.DocumentAddress) (suffix: string) =
+        let path = (Driver.fileAt address files).Value
+        Expect.isLessThanOrEqual path.Length DocumentTreeMother.defaultBudget $"The path of {address} fits the budget"
+        Expect.stringEnds path suffix $"The file of {address} ends with {suffix}"
+        let fileName = path.Substring(path.LastIndexOf '/' + 1)
+        fileName.Substring(0, fileName.Length - suffix.Length)
+
+    Expect.equal fileNames.Count case.Names.Length "One fileNames entry for each shared name"
+
+    for shared in case.Names do
+        let key = Morphir.IR.CanonicalNames.nameToString shared
+        let typeStem = stemOf (Morphir.IR.Trees.Own(Morphir.IR.Trees.TypeDef(modulePath, shared))) ".type.json"
+        let valueStem = stemOf (Morphir.IR.Trees.Own(Morphir.IR.Trees.ValueDef(modulePath, shared))) ".value.json"
+
+        Expect.equal typeStem valueStem $"The type and the value {key} have one stem"
+
+        match TreeStems.parseStem valueStem with
+        | Ok(CutStem(prefix, digest)) ->
+            Expect.isTrue (TreeStems.matchesCut prefix digest shared) $"The cut stem of {key} belongs to its name"
+        | other -> failtestf "Expected a cut stem for %s, got %A" key other
+
+        Expect.equal (string fileNames[key]) valueStem $"fileNames maps {key} to its one stem"
+
+        // The parser keeps the last of two equal keys, so the text is counted too.
+        let quoted = "\"" + key + "\":"
+
+        Expect.equal
+            (moduleText.Replace(" ", "").Split([| quoted |], System.StringSplitOptions.None).Length - 1)
+            1
+            $"The module file names {key} once in fileNames"

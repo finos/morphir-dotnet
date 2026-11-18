@@ -177,9 +177,11 @@ module internal TreeWriter =
 
                                 let typeNames, valueNames = writers.Listed m
 
+                                // A type and a value of one name share one stem, so the name has one entry.
                                 let entries =
                                     typeNames
                                     @ valueNames
+                                    |> List.distinct
                                     |> List.choose (fun name ->
                                         Map.tryFind name cut
                                         |> Option.map (fun stem -> name, stem)
