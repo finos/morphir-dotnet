@@ -23,6 +23,7 @@
     <EmbeddedResource Include="../Fixtures/MorphirBoundedGenerationReceipts/fixtures/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirBoundedGenerationReceipts/fixtures/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIR/*.json;../Fixtures/MorphirIR/*.txt" LogicalName="Morphir.TestSupport.Fixtures/MorphirIR/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/Rfc8785/rfc8785.txt" LogicalName="Morphir.TestSupport.Fixtures/Rfc8785/rfc8785.txt" />
+    <EmbeddedResource Include="../Fixtures/OkfDocuments/commonmark-0.31.2.json" LogicalName="Morphir.TestSupport.Fixtures/OkfDocuments/commonmark-0.31.2.json" />
     <EmbeddedResource Include="../Fixtures/MorphirContext/examples/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirContext/examples/valid/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/valid/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirContext/examples/expanded/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/expanded/%(Filename)%(Extension)" />

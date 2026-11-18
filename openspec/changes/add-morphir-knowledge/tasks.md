@@ -10,9 +10,9 @@ Apply the repository's test-manager guidance before changing tests and its F# an
 
 ## 2. OKF document syntax and navigation
 
-- [ ] 2.1 Add `Morphir.Knowledge.Okf`, one immutable source and a unified document parse result. Reproduce the disposable CST proof as a repository test against the selected package versions, including bad UTF-8, strict fence recognition, nested metadata, recoverable YAML and a header-only table at EOF.
-- [ ] 2.2 Project YAML and Markdown into the complete public AST and CST, retaining unknown fields, trivia, typed tokens, table delimiters, links, both referenced and unused footnotes and malformed regions. Verify the supported dialect against pinned conformance cases and assert exact byte emission and ordered leaf coverage for representative source fixtures.
-- [ ] 2.3 Add shared cursor navigation and preorder visiting on both trees. Verify parent, child and sibling navigation across frontmatter and body, whole-document ranges, subtree boundaries, skip and stop. Document how consumers read original source and reach the AST and CST.
+- [x] 2.1 Add `Morphir.Knowledge.Okf`, one immutable source and a unified document parse result. Reproduce the disposable CST proof as a repository test against the selected package versions, including bad UTF-8, strict fence recognition, nested metadata, recoverable YAML and a header-only table at EOF.
+- [x] 2.2 Project YAML and Markdown into the complete public AST and CST, retaining unknown fields, trivia, typed tokens, table delimiters, links, both referenced and unused footnotes and malformed regions. Verify the supported dialect against pinned conformance cases and assert exact byte emission and ordered leaf coverage for representative source fixtures.
+- [x] 2.3 Add shared cursor navigation and preorder visiting on both trees. Verify parent, child and sibling navigation across frontmatter and body, whole-document ranges, subtree boundaries, skip and stop. Document how consumers read original source and reach the AST and CST.
 
 ## 3. Knowledge bundles and CLI
 

@@ -677,8 +677,17 @@ public static class FixtureCatalog
     }
 
 
+    /// <summary>The CommonMark examples for the OKF document parser.</summary>
+    public static class OkfDocuments
+    {
+        /// <summary>The CommonMark 0.31.2 example corpus.</summary>
+        public static FixtureEntry CommonMark { get; } = new(
+            "the CommonMark 0.31.2 parser examples", "OkfDocuments/commonmark-0.31.2.json",
+            "d431b29d97b6f73e69d547109cf5081578fac931e72afe95639ebe766c1b2a20", "OkfDocuments/PROVENANCE.md");
+    }
+
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, OkfDocuments.CommonMark, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

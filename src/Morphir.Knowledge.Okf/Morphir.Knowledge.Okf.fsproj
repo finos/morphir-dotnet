@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <RootNamespace>Morphir.Knowledge.Okf</RootNamespace>
+        <Description>Parse, traverse and validate Open Knowledge Format documents and knowledge bundles.</Description>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Markdig" />
+        <PackageReference Include="YamlDotNet" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Morphir.Knowledge/Morphir.Knowledge.fsproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="DocumentModel.fs" />
+        <Compile Include="Cursor.fs" />
+        <Compile Include="SourceSyntax.fs" />
+        <Compile Include="YamlSyntax.fs" />
+        <Compile Include="MarkdownSyntax.fs" />
+        <Compile Include="OkfDocument.fs" />
+    </ItemGroup>
+</Project>
