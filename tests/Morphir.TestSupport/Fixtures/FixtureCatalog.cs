@@ -314,6 +314,54 @@ public static class FixtureCatalog
     }
 
     /// <summary>
+    /// The upstream IR JSON documents of <c>tests/Fixtures/MorphirIon</c> (see its <c>PROVENANCE.md</c>) that the classic
+    /// and v4 readers and writers are checked against: the migrated pairs, the record vectors, the v4 examples of
+    /// finos/morphir and the plain IR of the MEP model-transport kit. The Ion files beside them stay with
+    /// <c>Morphir.Ion.Tests</c>, which owns the folder.
+    /// </summary>
+    public static class UpstreamIr
+    {
+        private const string Provenance = "MorphirIon/PROVENANCE.md";
+
+        /// <summary>The folder of the documents below <c>tests/Fixtures</c>.</summary>
+        public const string Directory = "MorphirIon/";
+
+        private static FixtureEntry Document(string name, string sha256) =>
+            new($"the upstream IR document {name}", Directory + name, sha256, Provenance);
+
+        /// <summary>Each document, by its path below <see cref="Directory"/>, in ordinal order.</summary>
+        public static IReadOnlyList<FixtureEntry> Documents { get; } =
+        [
+            Document("pairs/books-and-records-example.json", "1b16d3ee46aa6dec65841000e3bf8d28a990837843aef63e0003c2ca4829a15e"),
+            Document("pairs/complete-example.json", "fbaa25336c90b7f369c17f5f2104496d3de481dff211532319724c465ef1b095"),
+            Document("pairs/direct-rules-example.json", "dd78f3baab0b7639567134c8d23dffc5a337f82a9521f0a73e33e635860118da"),
+            Document("pairs/greeting-example.json", "2cf6a695a9f3859da30cea76a4b4d9acb81d3d55023affa5a9bc8a9c005e7004"),
+            Document("pairs/rule-set-example.json", "a5bc8d6e2acfd4ff8d9a6c54cf1e9058de597c710ba458b31a8be1bd0c8414d1"),
+            Document("pairs/v3-daily-rate.json", "5afebe65d650a3467d116aa3d83b26f01631657ab03ef2dfb4e146b1573f001d"),
+            Document("pairs/v3-library-nodes.json", "f2ca693fc65ca3244bb96227ea45c7af2fb98be9faf7100e50cf3c94eac621ed"),
+            Document("pairs/v3-specs.json", "079390570095546e6ff721edcea96e492d8f66640befdba25c5725d63aaadf2f"),
+            Document("pairs/v4-application.json", "256b18910a28aede380d4ed4aefba5e6e60b790d0d828e4fe28276bb54771756"),
+            Document("pairs/v4-empty-library.json", "2ba7fb00c8c0c1cc9b956043e1bbe5919be303a2946ed7558c796ad15e23fe69"),
+            Document("pairs/v4-library-nodes.json", "f4251a5bae9d4d7abb8566e1e48d11eb8d31b3cfa22b269e8c96014a70e1affc"),
+            Document("pairs/v4-specs.json", "5bc82d132605dd88db4d661246b8df0b3af91694dc3533414b82f2d30956c4ef"),
+            Document("records/application.json", "8adc711586ca42d1ca0c8e63809f2b6eb56ca53903bcd087fdc323a6bd6805ed"),
+            Document("records/document-numbers.json", "ed37fcd6d6f3e903fe95582d46fb11506e561f5094f5f8ae2f07b1be31d3d0cb"),
+            Document("records/empty-library.json", "7a05a8318f10ad481d2e33f9b7b6122c41f548777200ab8f15a98ad2e082c363"),
+            Document("records/library.json", "6ba238abdac2e6cfcc58e09324f39ba36d255c755dd636f163813b314edc123b"),
+            Document("records/shorthand.json", "3869de77813dc556ec54e42b746fb313fb0b8841df34e06b67f91d37c84d7504"),
+            Document("records/specs.json", "83e2b01e62de866aac3742b45e05644d3ad83c46f571d1c092ff8bd996b73fe0"),
+            Document("records/v3-library.json", "210c803484dbda09b9f647a4190f3f8aa1dbb7fedc5243bfb00814b1170ded4c"),
+            Document("records/v3-shorthand.json", "312dd7b9f690fbf55732ae94349c7366ff644dd54250f0509d6dd41c11d99eb3"),
+            Document("v4/books-and-records-example.json", "bdc25e9fb332a49f7f12bfa80c907eca482ae5b63bad07575ef06194ab99fda3"),
+            Document("v4/complete-example.json", "30fbea9879b377dde11d0a4916b926dba152069e7b24bd43e4cf33cb27fcd979"),
+            Document("mep/fixtures/plain-ir.json", "fd49ad8b0cab49216323beb969c08f91a888925dbb995838c57a05b48a80bb2f"),
+        ];
+
+        /// <summary>The path of a document below <see cref="Directory"/>, such as <c>pairs/v3-specs.json</c>.</summary>
+        public static string NameOf(FixtureEntry document) => document.RelativePath[Directory.Length..];
+    }
+
+    /// <summary>
     /// RFC 8785, the JSON Canonicalization Scheme, as the RFC Editor publishes it: the source of the test vectors of the
     /// canonical JSON writer.
     /// </summary>
@@ -526,7 +574,7 @@ public static class FixtureCatalog
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, .. Trees.Written, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

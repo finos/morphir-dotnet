@@ -1,17 +1,22 @@
-/// Task 2.4: the writers against independent upstream IR. Each pinned upstream JSON document (see
+/// Task 2.4: the writers against independent upstream IR. Each pinned upstream JSON document (FixtureCatalog.UpstreamIr; see
 /// tests/Fixtures/MorphirIon/PROVENANCE.md) is read, written in its own version, and compared structurally
 /// with the original. Only the normalizations named below apply; every exclusion states its reason.
 module Morphir.Json.Tests.UpstreamIrTests
 
-open System.IO
+open Morphir.TestSupport.Fixtures
 open System.Text.Json
 open System.Text.Json.Nodes
 open Expecto
 open Morphir.Json.Classic
 open Morphir.Json.V4
 
-let private root =
-    Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "Fixtures", "MorphirIon")
+/// The pinned upstream documents, by their path below tests/Fixtures/MorphirIon, from the catalog.
+let private corpus =
+    FixtureCatalog.UpstreamIr.Documents
+    |> Seq.map (fun entry -> FixtureCatalog.UpstreamIr.NameOf entry, entry)
+    |> Map.ofSeq
+
+let private bytesOfDocument (name: string) = FixtureCatalog.ReadBytes corpus[name]
 
 /// Documents whose upstream spelling contradicts the pinned kit (conformance/deviations.md). They are
 /// compared as models: the written document must read back to the model of the original.
@@ -30,14 +35,7 @@ let private excluded =
         "A 3.1.0 Specs distribution: the classic writer writes Library distributions only."
     ]
 
-let private documents = [
-    for folder in [ "pairs"; "records"; "v4" ] do
-        for file in
-            Directory.GetFiles(Path.Combine(root, folder), "*.json")
-            |> Array.sort do
-            yield $"{folder}/{Path.GetFileName file}"
-    yield "mep/fixtures/plain-ir.json"
-]
+let private documents = corpus |> Map.keys |> List.ofSeq
 
 /// N1: an integer format version n equals the release string "n.0.0".
 let private normalizeVersion (node: JsonNode | null) =
@@ -210,7 +208,7 @@ let tests =
         // the 3.1.0 Specs included, reads as the classic reader reads it.
         for name in documents do
             test $"{name} is read by the strict classic reader as by the classic reader" {
-                let original = File.ReadAllBytes(Path.Combine(root, name))
+                let original = bytesOfDocument name
                 use document = JsonDocument.Parse(System.ReadOnlyMemory original)
 
                 if not ((string (document.RootElement.GetProperty "formatVersion")).StartsWith "4") then
@@ -242,7 +240,7 @@ let tests =
                 test $"{name} is excluded: {reason}" { Expect.isTrue (reason.Length > 0) "reason" }
             | None ->
                 test $"{name} is written structurally equal to the upstream document" {
-                    let original = File.ReadAllBytes(Path.Combine(root, name))
+                    let original = bytesOfDocument name
                     use document = JsonDocument.Parse(System.ReadOnlyMemory original)
                     let written = write document.RootElement
                     let again = write document.RootElement
