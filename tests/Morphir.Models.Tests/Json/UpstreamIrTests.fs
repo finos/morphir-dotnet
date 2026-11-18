@@ -28,12 +28,9 @@ let private kitDeviations =
         "pairs/v4-specs.json"
     ]
 
-/// Documents that no writer produces, with the reason.
-let private excluded =
-    Map.ofList [
-        "pairs/v3-specs.json",
-        "A 3.1.0 Specs distribution: the classic writer writes Library distributions only."
-    ]
+/// Documents that no writer produces, with the reason. Every pinned document has a writer: a 3.1.0 Specs is written
+/// with ClassicWireProfile.v3_1_0.
+let private excluded: Map<string, string> = Map.empty
 
 let private documents = corpus |> Map.keys |> List.ofSeq
 
@@ -170,9 +167,10 @@ let private write (element: JsonElement) =
         match ClassicJson.readDistribution element with
         | Ok document ->
             let profile =
-                match document.Version with
-                | 1 -> ClassicWireProfile.v1
-                | 2 -> ClassicWireProfile.v2
+                match document.Version, document.Distribution with
+                | 1, _ -> ClassicWireProfile.v1
+                | 2, _ -> ClassicWireProfile.v2
+                | _, Morphir.IR.Classic.Distribution.Specs _ -> ClassicWireProfile.v3_1_0
                 | _ -> ClassicWireProfile.v3
 
             match ClassicJsonWriter.writeJsonAttributes profile false document.Distribution with
