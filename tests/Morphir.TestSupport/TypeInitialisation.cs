@@ -34,6 +34,11 @@ namespace Morphir.TestSupport;
 /// violation in <c>tests/Morphir.Compilation.Mep.Tests/PlantedContention.fs</c> shows that it still finds a
 /// contended file.
 /// </para>
+/// <para>
+/// The result can differ between Debug and Release builds, because the optimizer changes the routes: in Release it
+/// inlines small functions into module values and keeps their arguments as hidden values of the module, whose getters
+/// the file's initialiser then calls. CI runs the guards in Release, so run them with <c>-c Release</c> too.
+/// </para>
 /// </remarks>
 public static class TypeInitialisation
 {
