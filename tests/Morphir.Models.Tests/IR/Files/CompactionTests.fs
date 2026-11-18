@@ -312,6 +312,33 @@ let private documentLiterals (element: JsonElement) =
 
     find element
 
+/// The content of each document literal of a document that is in the attributes form of a literal node, an object
+/// with the members attributes and literal, as JSON with no whitespace, in document order.
+let private attributedDocumentLiterals (element: JsonElement) =
+    let rec find (element: JsonElement) =
+        [
+            match element.ValueKind with
+            | JsonValueKind.Object ->
+                let mutable attributes = Unchecked.defaultof<JsonElement>
+                let mutable literal = Unchecked.defaultof<JsonElement>
+
+                if
+                    element.TryGetProperty("attributes", &attributes)
+                    && element.TryGetProperty("literal", &literal)
+                    && literal.ValueKind = JsonValueKind.Object
+                then
+                    yield! documentLiterals literal
+
+                for property in element.EnumerateObject() do
+                    yield! find property.Value
+            | JsonValueKind.Array ->
+                for item in element.EnumerateArray() do
+                    yield! find item
+            | _ -> ()
+        ]
+
+    find element
+
 /// The raw text of each number token of JSON text, in order.
 let private numberLexemes (bytes: byte array) =
     let mutable reader = Utf8JsonReader(ReadOnlySpan bytes)
@@ -501,6 +528,43 @@ let tests =
                         let bytes = Encoding.UTF8.GetBytes written[location]
                         Expect.equal (List.sort (numberLexemes bytes)) (List.sort (numberLexemes (Encoding.UTF8.GetBytes text))) $"{location} keeps its numbers' lexemes"
                         Expect.equal (documentLiterals (parse bytes)) (documentLiterals (parseText text)) $"{location} keeps its document literal"
+                }
+        ]
+
+        testList "A document literal in the attributes form is written as in the source" [
+            for name, distribution, aliased in
+                [ "declined", DistributionMother.typedDocument, false
+                  "compacted", DistributionMother.longNamesWithTypedDocument, true ] do
+                yield test $"in a {name} single file" {
+                    let plain = v4Bytes distribution
+                    let content = attributedDocumentLiterals (parse plain)
+                    Expect.equal content.Length 1 "the plain file holds the document literal in the attributes form"
+                    let bytes, wasAliased = compacted IrFamily.V4 (parse plain)
+                    Expect.equal wasAliased aliased $"the file is {name}"
+                    Expect.equal (attributedDocumentLiterals (parse bytes)) content "the content keeps its keys' order and its lexemes"
+
+                    Expect.equal
+                        (attributedDocumentLiterals (expandedDocument "model.json" bytes))
+                        content
+                        "the expanded content is the plain one"
+
+                    Expect.equal (List.sort (numberLexemes bytes)) (List.sort (numberLexemes plain)) "every number keeps its lexeme"
+                    Expect.isTrue (sameV4Model distribution) "the expanded file decodes to the same model"
+                }
+
+                yield test $"in the files of a {name} tree" {
+                    let tree = Trees.treeOf distribution
+                    Expect.isTrue (treeLossless tree) "the tree reads back as the same model"
+                    let plain = Driver.texts (writtenOk (Driver.write tree))
+                    let written = Driver.texts (writtenOk (Driver.writeCompacted tree))
+
+                    let holding = [ for KeyValue(location, text) in plain do if not (attributedDocumentLiterals (parseText text)).IsEmpty then location ]
+                    Expect.equal holding.Length 1 "one file of the tree holds the document literal in the attributes form"
+
+                    for location in holding do
+                        let bytes = Encoding.UTF8.GetBytes written[location]
+                        Expect.equal (attributedDocumentLiterals (parse bytes)) (attributedDocumentLiterals (parseText plain[location])) $"{location} keeps the content"
+                        Expect.equal (List.sort (numberLexemes bytes)) (List.sort (numberLexemes (Encoding.UTF8.GetBytes plain[location]))) $"{location} keeps its numbers' lexemes"
                 }
         ]
 

@@ -332,6 +332,38 @@ let longNamesWithExactNumbers: Distribution =
          >> withExactNumbers)
     |> buildV4
 
+/// <summary>
+/// The value of the attributes-form cases: <see cref="exactDocument"/> as a literal that states its inferred type, so
+/// its node is written <c>{"Literal": {"attributes": …, "literal": {"DocumentLiteral": …}}}</c>.
+/// </summary>
+let private withTypedDocument =
+    withValue (name "typed-document") (TypedConstant(DocumentContent exactDocument))
+
+/// <summary>
+/// A v4 library whose one value is <see cref="exactDocument"/> in the attributes form of a literal. Its file is too
+/// small for an alias, so compaction declines it.
+/// </summary>
+let typedDocument: Distribution =
+    aV4Library (packageName "acme/numbers")
+    |> withModule (modulePath "constants") withTypedDocument
+    |> buildV4
+
+/// <summary>
+/// <see cref="longNameUsedOften"/> with the value of <see cref="typedDocument"/> in its module: a file that compaction
+/// writes as an envelope, holding a document literal in the attributes form that it must keep as it is.
+/// </summary>
+let longNamesWithTypedDocument: Distribution =
+    aV4Library (packageName "acme/order-management")
+    |> withModule
+        (modulePath "pricing/discount-rules")
+        (let long = "discounted-amount-before-regional-sales-tax-adjustment"
+         let reference = Named(fqName "acme/order-management" "pricing/discount-rules" long, [])
+
+         withType (name long) (alias Sdk.int)
+         >> withType (name "order-total") (alias (RecordOf [ name "base", reference; name "bonus", reference; name "rebate", reference ]))
+         >> withTypedDocument)
+    |> buildV4
+
 /// <summary>A classic library whose one type is named <see cref="Names.nonAscii"/>, a name with an <c>é</c>.</summary>
 let nonAsciiName: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     aV3Library (packageName "my-org/menu")

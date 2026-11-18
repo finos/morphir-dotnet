@@ -65,6 +65,12 @@ type LiteralShape =
 type ValueShape =
     /// <summary>A constant: no inputs, a literal body, and the SDK type of the literal.</summary>
     | Constant of LiteralShape
+    /// <summary>
+    /// A constant whose literal node states its inferred type, the SDK type of the literal: v4 writes the node in its
+    /// attributes form, <c>{"Literal": {"attributes": …, "literal": …}}</c>. A classic literal always carries its type,
+    /// so a classic model writes it as a <c>Constant</c>.
+    /// </summary>
+    | TypedConstant of LiteralShape
     /// <summary>A one-input function that returns its input.</summary>
     | Identity of parameter: Name * parameterType: TypeExpr
     /// <summary>
@@ -433,6 +439,13 @@ module private ToV4 =
                 InputTypes = []
                 Body = ExpressionBody(output, Value.Literal(ValueAttributes.empty, literal value))
             }
+        | TypedConstant value ->
+            let output = typ (Sdk.typeOfLiteral value)
+
+            {
+                InputTypes = []
+                Body = ExpressionBody(output, Value.Literal({ ValueAttributes.empty with InferredType = Some output }, literal value))
+            }
         | Identity(parameter, parameterType) ->
             let input = typ parameterType
 
@@ -448,7 +461,8 @@ module private ToV4 =
 
     let valueSpecification (shape: ValueShape) : ValueSpecification =
         match shape with
-        | Constant value -> {
+        | Constant value
+        | TypedConstant value -> {
             Annotations = []
             Inputs = []
             Output = typ (Sdk.typeOfLiteral value)
@@ -560,7 +574,8 @@ module private ToClassic =
 
     let valueDefinition (shape: ValueShape) : ValueDefinition<unit, Type<unit>> =
         match shape with
-        | Constant value ->
+        | Constant value
+        | TypedConstant value ->
             let output = typ (Sdk.typeOfLiteral value)
 
             {
@@ -587,7 +602,8 @@ module private ToClassic =
 
     let valueSpecification (shape: ValueShape) : ValueSpecification<unit> =
         match shape with
-        | Constant value -> {
+        | Constant value
+        | TypedConstant value -> {
             Inputs = []
             Output = typ (Sdk.typeOfLiteral value)
           }
