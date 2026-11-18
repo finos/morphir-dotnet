@@ -56,4 +56,29 @@ let tests =
 
                 Expect.isEmpty [ for field in fields -> field.Name ] $"the static fields of {offerType.Name}"
         }
+
+        // The same rule for every source file of the assembly: no file initialiser starts the initialiser of a type
+        // of its file while the file has a second route in (TypeInitialisation of Morphir.TestSupport).
+        test "No source file of the assembly has a static initialiser that two threads can deadlock on" {
+            let contended =
+                Morphir.TestSupport.TypeInitialisation.ContendedFiles typeof<MepFrontend>.Assembly |> List.ofSeq
+
+            Expect.equal contended [] "the contended files"
+        }
+
+        // The guard must still find a contended file: PlantedContention.fs of this test assembly is one on purpose.
+        // If code generation changes so that the guard no longer sees it, this test fails instead of every guard
+        // passing while it checks nothing.
+        test "The guard finds the planted contended file of the test assembly" {
+            let contended =
+                Morphir.TestSupport.TypeInitialisation.ContendedFiles typeof<PlantedContention.PlantedHolder>.Assembly
+                |> List.ofSeq
+
+            Expect.equal
+                contended
+                [ "PlantedContention: routes [Morphir.Compilation.Mep.Tests.PlantedContention, "
+                  + "Morphir.Compilation.Mep.Tests.PlantedContention+PlantedHolder] start "
+                  + "[Morphir.Compilation.Mep.Tests.PlantedContention+PlantedHolder]" ]
+                "only the planted file, with both routes and the class it starts"
+        }
     ]

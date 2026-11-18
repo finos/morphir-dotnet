@@ -575,21 +575,32 @@ module internal NuGetConvention =
                     "extension.unsupported_package"
                     $"{runtimeConfig} names a shared framework, so the tool needs an installed .NET runtime; publish it self-contained or as Native AOT."
 
+/// The process-wide state of the NuGet provider. Module values, not class `static let` values: F# initialises the
+/// module values and the class `static let` values of a file in one initialiser, and that initialiser would start the
+/// provider's own type initialiser to write its fields. A thread that reads a module value of this file (NuGetFeeds,
+/// NuGetTrustRoots) and a thread that creates the first provider could then wait for each other; the CLR breaks that
+/// deadlock by letting one thread see the provider before its fields are set (FailStaticInit). With the state here the
+/// file's initialiser starts no other type initialiser.
+module private NuGetProviderState =
+    /// Guards the credential service and NUGET_SCRATCH.
+    let gate = obj ()
+    let mutable credentialsInteractive: bool option = None
+
+    /// NuGet's cache folder variable is process-wide, so the provider runs one NuGet operation at a time.
+    let operations = new SemaphoreSlim(1, 1)
+
 /// The NuGet source provider: <c>nuget:&lt;package-id&gt;[@&lt;version&gt;]</c> from nuget.org, V3 feeds and folder
 /// feeds, with the sources, mapping, credentials and signature policy of nuget.config. It only resolves and fetches;
 /// the installer checks and writes.
 [<Sealed>]
 type NuGetPackageProvider internal (home: string, workingDirectory: string, repositoryOf: NuGetFeeds.RepositoryOf) =
-    static let gate = obj ()
-    static let mutable credentialsInteractive: bool option = None
-
     /// NuGet's credential service: packageSourceCredentials of nuget.config, then credential provider plugins found
     /// as NuGet finds them. Non-interactive unless --interactive.
     static let configureCredentials (interactive: bool) =
-        lock gate (fun () ->
-            if credentialsInteractive <> Some interactive then
+        lock NuGetProviderState.gate (fun () ->
+            if NuGetProviderState.credentialsInteractive <> Some interactive then
                 NuGet.Credentials.DefaultCredentialServiceUtility.SetupDefaultCredentialService(StderrNuGetLogger(), not interactive)
-                credentialsInteractive <- Some interactive)
+                NuGetProviderState.credentialsInteractive <- Some interactive)
 
     static let request (release: ExtensionSourceRequest) =
         match release.Kind with
@@ -604,11 +615,9 @@ type NuGetPackageProvider internal (home: string, workingDirectory: string, repo
     /// NuGet keeps its HTTP cache (service index, repository signatures) and its lock files in its own folders even
     /// with NoCache. The provider points both into its private temporary folder under the Home for the duration of
     /// one operation, and restores them after it.
-    /// The variable is process-wide, so the provider runs one NuGet operation at a time.
-    static let operations = new SemaphoreSlim(1, 1)
-
+    /// The variable is process-wide, so the provider runs one NuGet operation at a time (NuGetProviderState.operations).
     static let withPrivateFolders (temporary: string) (work: unit -> Task<'T>) : Task<'T> = task {
-        do! operations.WaitAsync()
+        do! NuGetProviderState.operations.WaitAsync()
 
         try
             let names = [ "NUGET_HTTP_CACHE_PATH", "http-cache" ]
@@ -625,14 +634,14 @@ type NuGetPackageProvider internal (home: string, workingDirectory: string, repo
                 for name, value in previous do
                     Environment.SetEnvironmentVariable(name, value)
         finally
-            operations.Release() |> ignore
+            NuGetProviderState.operations.Release() |> ignore
     }
 
     /// NuGet reads its scratch folder (lock files) once per process and keeps it. So before its first NuGet call the
     /// provider points NUGET_SCRATCH at a stable folder under the Home, which a later operation of the same Home
     /// finds again. A process that used NuGet before keeps the folder NuGet chose then.
     static let usePrivateScratch (home: string) =
-        lock gate (fun () ->
+        lock NuGetProviderState.gate (fun () ->
             let scratch = Path.Combine(home, "tmp", "morphir-dotnet-nuget-scratch")
             Directory.CreateDirectory scratch |> ignore
             Environment.SetEnvironmentVariable("NUGET_SCRATCH", scratch))

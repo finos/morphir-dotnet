@@ -48,6 +48,7 @@
         <Compile Include="ContentTests.fs" />
         <Compile Include="FileTreeTests.fs" />
         <Compile Include="PublicationTests.fs" />
+        <Compile Include="FileReplacementTests.fs" />
         <Compile Include="FileProviderTests.fs" />
         <Compile Include="NetStandardTests.fs" />
         <Compile Include="Program.fs" />

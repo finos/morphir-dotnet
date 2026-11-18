@@ -211,9 +211,11 @@ public sealed partial class ConfigurationTransaction
                     if (entry.Backup is null) host.DeleteFile(entry.Target);
                     else
                     {
-                        if (host.Observe(entry.Backup) != new ConfigurationObservation(entry.Backup, ConfigurationObservationKind.File, entry.OriginalIdentity))
+                        var backup = new ConfigurationObservation(entry.Backup, ConfigurationObservationKind.File, entry.OriginalIdentity);
+                        if (host.Observe(entry.Backup) != backup) { unresolved.Add(entry.Target); continue; }
+                        if (!InstallWhenFree(entry.Backup, entry.Target, true,
+                            () => host.Observe(entry.Target) == candidate && host.Observe(entry.Backup) == backup))
                         { unresolved.Add(entry.Target); continue; }
-                        host.Install(entry.Backup, entry.Target, true);
                     }
                     fault?.Invoke(ConfigurationTransactionPhase.AfterRollback, entry.Target);
                     if (host.Observe(entry.Target) == expected) restored.Add(entry.Target); else unresolved.Add(entry.Target);
@@ -275,7 +277,7 @@ public sealed partial class ConfigurationTransaction
     }
 
     private ImmutableArray<string> RecoveryUnresolved(RecoveryDocument document, IEnumerable<ConfigurationArtifact> artifacts,
-        IReadOnlySet<string>? preservedDirectories = null, bool ignoreUnverified = false)
+        IReadOnlySet<string>? preservedDirectories = null, bool ignoreUnverified = false, IReadOnlySet<string>? untouchedTargets = null)
     {
         var unresolved = new HashSet<string>(ignoreUnverified ? [] : document.UnverifiedPaths, StringComparer.Ordinal);
         foreach (var path in document.PendingDirectories)
@@ -286,6 +288,9 @@ public sealed partial class ConfigurationTransaction
         }
         foreach (var entry in document.Entries)
         {
+            // Only the transaction that wrote the journal knows which targets it never tried to install; recovery
+            // passes none, so every target must hold its original or its candidate.
+            if (untouchedTargets?.Contains(entry.Target) == true) continue;
             var current = host.Observe(entry.Target);
             var original = new ConfigurationObservation(entry.Target, entry.OriginalKind, entry.OriginalIdentity);
             var candidate = new ConfigurationObservation(entry.Target, ConfigurationObservationKind.File, entry.CandidateIdentity);

@@ -53,12 +53,19 @@ type private UserCodeOptionsProvider() =
         severity <- ReportDiagnostic.Default
         false
 
+/// The options of each tree and additional text. A module value, not a class `static let` value: F# initialises the
+/// module values and the class `static let` values of a file in one initialiser, which would start the provider's type
+/// initialiser to write its field. A thread that reads a value of CSharpCompiler and a thread that creates the first
+/// provider could then wait for each other, and the CLR breaks that deadlock by letting one thread see the provider
+/// before its field is set (FailStaticInit).
+module private ModelOptionsDefaults =
+    let none = ModelOptions() :> AnalyzerConfigOptions
+
 type private ModelOptionsProvider() =
     inherit AnalyzerConfigOptionsProvider()
-    static let none = ModelOptions() :> AnalyzerConfigOptions
     override _.GlobalOptions = ModelOptions() :> AnalyzerConfigOptions
-    override _.GetOptions(_: SyntaxTree) = none
-    override _.GetOptions(_: AdditionalText) = none
+    override _.GetOptions(_: SyntaxTree) = ModelOptionsDefaults.none
+    override _.GetOptions(_: AdditionalText) = ModelOptionsDefaults.none
 
 /// <summary>Compiles the documents of a request with fixed options and fixed references.</summary>
 module internal CSharpCompiler =
