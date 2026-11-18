@@ -168,11 +168,14 @@ report names in `compactPolicy`. Every size it compares is the UTF-8 byte length
   policy writes it, one sequence for the four tables.
 - A name that a classic v3 slot could not give back, such as `FR2052A` as word arrays, is left as written.
 
-A compacted file is written in the canonical JSON of RFC 8785, members sorted, its string escapes and no whitespace,
-with no newline at the end, and with three exceptions that keep the model exactly as it is:
+A compacted file is written in the policy's written form: the member sorting and string escaping of RFC 8785
+canonical JSON and no whitespace, with no newline at the end, and with three exceptions that keep the model exactly as
+it is:
 
-- Numbers are written exactly as in the source: `9007199254740993`, `1.0` and `1e2` stay as they are, where RFC 8785
-  would write `9007199254740992`, `1` and `100`.
+- Numbers are written as the plain file writes them. IR v4 keeps each number's lexeme, so `9007199254740993`, `1.0`
+  and `1e2` stay as they are, where RFC 8785 would write `9007199254740992`, `1` and `100`. A classic v3 float is a
+  double, which the plain file writes in its shortest form, so in v3 `1.0` is written `1` and `1e2` is written `100`,
+  compacted or not; the value in the model does not change.
 - An object whose member order the IR schema gives a meaning keeps its order: the parameters of a v4 value, the
   `inputTypes` of a definition and the `inputs` of a specification, so function parameters keep their order.
 - The content of a `DocumentLiteral` is written exactly as in the source: its keys keep their order and its numbers
