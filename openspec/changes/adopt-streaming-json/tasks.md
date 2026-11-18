@@ -29,41 +29,44 @@ Work is on `feat/model-convert`, before `add-model-convert` group 6, which build
 ## 5. Integration checks
 
 - [ ] 5.1 Run the black-box suite on the Native AOT executable and verify every feature that reads JSON output passes.
-- [ ] 5.2 Verify every row of the traceability table below names a passing test, and `openspec validate adopt-streaming-json --strict` passes.
+- [x] 5.2 Verify every row of the traceability table below names a passing test, and `openspec validate adopt-streaming-json --strict` passes.
+  - Each row of the table names its tests by their final names; every one was run and passes (`JsonOutput.feature`, `Validation.feature`, `CSharpGenerationCommand.feature`, `ExtensionWorker.feature`'s help scenario, `Morphir.Tooling.Tests`, `Morphir.TestSupport.Tests` and the worker test of `Morphir.Conformance.Tests`). `openspec validate --all --strict` passes.
 
 ## Traceability
 
+Every scenario of this change and the test that proves it, by its final name: a scenario of a feature file of `tests/Morphir.BlackBox.Tests/Integration/` (an outline runs for each command of its examples), a TUnit test as `Class.Method`, or an Expecto test by its path of list names. Each row was run and passes at the commit that fills this table (5.2).
+
 | Capability | Scenario | Test |
 | --- | --- | --- |
-| cli-json-output | A bare flag streams | `JsonOutput.feature` |
-| cli-json-output | Unknown mode | `JsonOutput.feature`; parser unit tests (2.1) |
-| cli-json-output | Every line parses | `JsonOutput.feature` |
-| cli-json-output | A usage error still ends with completed | `JsonOutput.feature` |
-| cli-json-output | A command with nothing to stream | `JsonOutput.feature` |
-| cli-json-output | An early warning is visible before a slow stage ends | compile command tests with a slow fake frontend (3.1) |
-| cli-json-output | The two modes carry one report | `JsonOutput.feature` |
-| cli-json-output | A document is pipeable | `JsonOutput.feature` |
-| cli-json-output | The next argument stays the command's | `JsonOutput.feature`; parser unit tests (2.1) |
-| cli-json-output | A separated mode is refused with a hint | `JsonOutput.feature`; parser unit tests (2.1) |
-| cli-json-output | A log line goes to stderr | `JsonOutput.feature` |
-| cli-json-output | A named member in both modes | `JsonOutput.feature` (`extension list`) |
-| cli-json-output | The old flag is unknown | `JsonOutput.feature` |
-| cli-json-output | The worker's help result keeps its contract form | `ExtensionWorkerTests.Help_with_json_writes_one_command_result_with_the_build_identity_on_stdout` (each mode); `WorkerTests` "A help result wrapped in a completed record is refused" (Morphir.Conformance.Tests); black-box `ExtensionWorker.feature` "The help as JSON gives the build identity…" |
-| cli-model-compilation | Warnings from every stage in a successful report | existing compile tests, on `--json=document` (3.1) |
-| cli-model-compilation | Unsupported construct in JSON mode | existing compile tests, on `--json=document` (3.1) |
-| cli-model-compilation | Project-file warning before compilation ends | existing, unchanged |
-| cli-model-compilation | JSON mode is not streamed | compile command tests (3.1) |
-| cli-model-compilation | Events in order | compile command tests, on `--json` (3.1) |
-| cli-model-compilation | Failure still ends with completed | compile command tests, on `--json` (3.1) |
-| cli-model-compilation | Both JSON flags | compile command tests (3.1) |
-| cli-model-compilation | Cancellation | compile command tests, on `--json` (3.1) |
-| model-analyzers | JSON report is pipeable | validate black-box feature (3.2) |
-| model-analyzers | Both hosts agree | existing, on the new output (3.2) |
-| cli-csharp-generation | Structured semantic failure | existing C# generation tests (3.2) |
-| cli-csharp-generation | Unavailable provider option | existing C# generation tests (3.2) |
-| test-driver-contract | A JSON command writes one document | `tests/Morphir.TestSupport.Tests/Drivers` (2.3) |
-| test-driver-contract | A log line on standard output fails | `tests/Morphir.TestSupport.Tests/Drivers` (2.3) |
-| test-driver-contract | A stream gives its report | `tests/Morphir.TestSupport.Tests/Drivers` (2.3) |
+| cli-json-output | A bare flag streams | `JsonOutput.feature`: "A bare flag streams"; `OptionValueRewriteTests.ABareFlagStreams` |
+| cli-json-output | Unknown mode | `JsonOutput.feature`: "Unknown mode"; `OptionValueRewriteTests.AnUnknownModeIsRefusedAndTheKnownModesAreListed`, `OptionValueRewriteTests.TheColonSeparatorIsAcceptedQuietly` and `OptionValueRewriteTests.TheFormerBooleanValueIsRefused` |
+| cli-json-output | Every line parses | `JsonOutput.feature`: "Every line parses" |
+| cli-json-output | A usage error still ends with completed | `JsonOutput.feature`: "A usage error still ends with completed"; `CompileCommandTests.AUsageErrorStillEndsWithCompleted` |
+| cli-json-output | A command with nothing to stream | `JsonOutput.feature`: "A command with nothing to stream" |
+| cli-json-output | An early warning is visible before a slow stage ends | `CompileCommandTests.AnEarlyWarningIsVisibleBeforeASlowStageEnds` (a slow fake frontend) |
+| cli-json-output | The two modes carry one report | `JsonOutput.feature`: "The two modes carry one report"; `CompileCommandTests.TheStreamCarriesTheReportOfTheDocumentAndItsDiagnostics` |
+| cli-json-output | A document is pipeable | `JsonOutput.feature`: "A document is pipeable" |
+| cli-json-output | The next argument stays the command's | `JsonOutput.feature`: "The next argument stays the command's"; `OptionValueRewriteTests.TheNextArgumentStaysTheCommands` |
+| cli-json-output | A separated mode is refused with a hint | `JsonOutput.feature`: "A separated mode is refused with a hint"; `OptionValueRewriteTests.ASeparatedModeIsRefusedWithAHint` |
+| cli-json-output | A log line goes to stderr | `JsonOutput.feature`: "A log line goes to stderr" |
+| cli-json-output | A named member in both modes | `JsonOutput.feature`: "A named member in both modes" (`extension list`) |
+| cli-json-output | The old flag is unknown | `JsonOutput.feature`: "The old flag is unknown"; `CompileCommandTests.TheOldFlagIsUnknown` |
+| cli-json-output | The worker's help result keeps its contract form | `ExtensionWorkerTests.Help_with_json_writes_one_command_result_with_the_build_identity_on_stdout` (each mode); `Morphir.Conformance.Tests`: `WASM host worker adapter and runner (task 1.5)/A help result wrapped in a completed record is refused`; `ExtensionWorker.feature`: "The help as JSON gives the build identity and says that the worker is internal and experimental" |
+| cli-model-compilation | Warnings from every stage in a successful report | `CompileCommandTests.WarningsFromEveryStageInASuccessfulReport` (on `--json=document`) |
+| cli-model-compilation | Unsupported construct in JSON mode | `CompileCommandTests.UnsupportedConstructInJsonMode` (on `--json=document`) |
+| cli-model-compilation | Project-file warning before compilation ends | `CompileCommandTests.HumanModeStreamsAProjectFileWarningBeforeASlowFrontendCompletes` (existing, unchanged) |
+| cli-model-compilation | JSON mode is not streamed | `CompileCommandTests.JsonModeIsNotStreamed` |
+| cli-model-compilation | Events in order | `CompileCommandTests.EventsInOrder` (on `--json`) |
+| cli-model-compilation | Failure still ends with completed | `CompileCommandTests.FailureStillEndsWithCompleted` (on `--json`) |
+| cli-model-compilation | Both JSON flags | `CompileCommandTests.BothJsonFlags` |
+| cli-model-compilation | Cancellation | `CompileCommandTests.Cancellation` (on `--json`) |
+| model-analyzers | JSON report is pipeable | `Validation.feature`: "Standard output holds only the JSON report, and its exit code is the exit code of the process" |
+| model-analyzers | Both hosts agree | `Validation.feature`: "Both hosts write the same report apart from the host" (on the new output) |
+| cli-csharp-generation | Structured semantic failure | `CSharpGenerationCommand.feature`: "A semantic refusal is structured command data" |
+| cli-csharp-generation | Unavailable provider option | `CSharpGenerationCommand.feature`: "An unsupported C# language alias is an invocation failure" and "An older C# language version names the supported version" |
+| test-driver-contract | A JSON command writes one document | `JsonOutputAssertionsTests.OneDocumentGivesTheReport`, with `JsonOutputAssertionsTests.TextAfterTheDocumentFails` and `JsonOutputAssertionsTests.ACompletedRecordIsAStreamNotADocument` |
+| test-driver-contract | A log line on standard output fails | `JsonOutputAssertionsTests.ALogLineBeforeTheDocumentFailsAndShowsTheLine` and `JsonOutputAssertionsTests.ALogLineInAStreamFailsAndShowsTheLine` |
+| test-driver-contract | A stream gives its report | `JsonOutputAssertionsTests.AStreamGivesTheReportOfItsCompletedRecord` |
 
 ## Workflow follow-up
 

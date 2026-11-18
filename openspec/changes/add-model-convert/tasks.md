@@ -65,7 +65,8 @@ Depends on `adopt-streaming-json` group 2 for the `--json` convention.
 
 ## 7. Read compacted files (milestone 2)
 
-- [ ] 7.1 On a finos/morphir branch, edit `ir/name-compaction` to identify the envelope by schema URL, complete parent task 1.1 (grammar, tables, `$name`, `critical`, JSON Schema under `website/static/schemas`, valid and invalid examples as plain spec artifacts), and mark which requirements the whole-file reader and writer meet versus bounded reading; verify the parent's existing checks pass with no Rust change.
+- [x] 7.1 On a finos/morphir branch, edit `ir/name-compaction` to identify the envelope by schema URL, complete parent task 1.1 (grammar, tables, `$name`, `critical`, JSON Schema under `website/static/schemas`, valid and invalid examples as plain spec artifacts), and mark which requirements the whole-file reader and writer meet versus bounded reading; verify the parent's existing checks pass with no Rust change.
+  - Merged as finos/morphir#1185 (main `193dd687`): the spec, the envelope schema `website/static/schemas/ir-context/0.1.0-draft.1/document.schema.json`, the examples and the v4 schema fix; its checks passed (11 successful, 3 neutral), and it changes no Rust file.
 - [x] 7.2 Pin the parent examples in `FixtureCatalog` from that branch's commit, add `MorphirFileMother`, and verify the hash checks.
   - The 27 files of `docs/spec/ir/context/examples/` at finos/morphir `e0a3449c` (branch `feat/model-file-context`), byte-exact in `tests/Fixtures/MorphirContext/examples/` with `PROVENANCE.md`, served as `FixtureCatalog.Context` (its `cases.json` index read as `ContextExample`s). With 8.5 the pin moved to the merged commit `4fa51c8b`, which has 29 files: the two invalid examples `critical-not-a-list` and `mixed-case-entry` were added.
 - [x] 7.3 Implement envelope reading and expansion in the store and for single files (typed name positions only; classic arrays for v3 and canonical strings for v4; no relabel; context bytes counted toward limits), and verify the reading scenarios of `model-name-compaction`.
@@ -83,7 +84,8 @@ Depends on `adopt-streaming-json` group 2 for the `--json` convention.
 
 ## 8. Write compacted files (milestone 3)
 
-- [ ] 8.1 On the same finos/morphir branch, complete parent task 1.4: the policy `morphir.compact/0.1.0-draft.1` with JCS bytes and UTF-8 size, and its hand-derived fixed cases (v3 and v4 single files, each tree file kind, name used once, non-ASCII name, alias order, ties, table order, look-alike literals, a loss case), reviewed in the parent PR; verify the parent's checks pass with no Rust change.
+- [x] 8.1 On the same finos/morphir branch, complete parent task 1.4: the policy `morphir.compact/0.1.0-draft.1` with JCS bytes and UTF-8 size, and its hand-derived fixed cases (v3 and v4 single files, each tree file kind, name used once, non-ASCII name, alias order, ties, table order, look-alike literals, a loss case), reviewed in the parent PR; verify the parent's checks pass with no Rust change.
+  - Merged in finos/morphir#1185 (main `193dd687`), with the 19 hand-derived cases reviewed there; finos/morphir#1186 (main `4fa51c8b`) amended the written form (a value's parameters keep their order, numbers keep their source lexemes, a `DocumentLiteral` keeps its content as written) and added the cases `ordered-inputs` and `exact-numbers`. The checks of both passed, and neither changes a Rust file.
 - [x] 8.2 Add the AOT-safe JCS writer to `Morphir.Models` and verify the RFC 8785 test vectors and zero trim and AOT warnings.
   - `Morphir.Json.CanonicalJson` (`write`, `number`, `byteLength`) passes the vectors of RFC 8785 itself, pinned whole as `FixtureCatalog.Rfc8785` (every row of Appendix B, the bytes of Sections 3.2.2 and 3.2.4, the sorting sample of 3.2.3), plus "Non-ASCII content is measured as UTF-8" (`CanonicalJsonTests`). `Morphir.Models` builds for `net11.0`, `net10.0` and `netstandard2.0` with 0 warnings under its trim and AOT analyzers; the Native AOT publish of `morphir` is checked with 9.1.
 - [x] 8.3 Implement the writer policy and `--compact[=<mode>]` (bare means `names`, `=` only, unknown mode exits 2, report names mode and policy), and verify the parent's fixed cases byte for byte, `expand (compact f) = f`, determinism, and the compaction scenarios of `cli-model-conversion` and `model-name-compaction`.
@@ -102,98 +104,98 @@ Depends on `adopt-streaming-json` group 2 for the `--json` convention.
 ## 9. Integration checks
 
 - [ ] 9.1 Publish the Native AOT `morphir` and verify zero IL2026 and IL3050 warnings and that the black-box conversion features pass against it.
-- [ ] 9.2 Verify every row of the traceability table below names a passing test, and `openspec validate add-model-convert --strict` passes.
+- [x] 9.2 Verify every row of the traceability table below names a passing test, and `openspec validate add-model-convert --strict` passes.
+  - Each row of the table names its tests by their final names; every one was run and passes (`Morphir.Models.Tests`, `Morphir.Files.Tests`, `Morphir.IR.Pipeline.Tests`, `Morphir.Tooling.Tests`, `Morphir.TestSupport.Tests`, `Morphir.Build.Tests` and the black-box features of conversion, verification, JSON output and their documentation pages). `openspec validate --all --strict` passes.
 
 ## Traceability
 
-Every scenario of this change and the test that proves it. Unchanged scenarios of modified requirements keep their existing tests.
+Every scenario of this change and the test that proves it, by its final name: a scenario of a feature file (black box in `tests/Morphir.BlackBox.Tests/Integration/`, in process in `tests/Morphir.Tooling.Tests/Features/`), a TUnit test as `Class.Method`, or an Expecto test by its path of list names (`dotnet run --project <project> -- --join-with / --filter "<path>"`). Unchanged scenarios of modified requirements keep their existing tests. Each row was run and passes at the commit that fills this table (9.2).
 
 | Capability | Scenario | Test |
 | --- | --- | --- |
-| virtual-file-providers | A netstandard2.0 model library uses virtual file trees | `Morphir.Files.Tests`: netstandard consumer build test (2.2) |
-| virtual-file-providers | Existing pipeline behavior is unchanged | the moved and existing pipeline tests (2.1) |
-| virtual-file-providers | A file is found by its location | `Morphir.Files.Tests`: provider contract (2.3) |
-| virtual-file-providers | A missing file is reported as not existing | `Morphir.Files.Tests`: provider contract (2.3) |
-| virtual-file-providers | A directory lists its entries | `Morphir.Files.Tests`: provider contract (2.3) |
-| virtual-file-providers | Watching never signals a change | `Morphir.Files.Tests`: provider contract (2.3) |
-| virtual-file-providers | Embedded fixtures become a tree | `Morphir.Files.Tests`: provider builder (2.3) |
-| virtual-file-providers | Content is not read while building | `Morphir.Files.Tests`: provider builder (2.3) |
-| model-document-trees | Two spellings of one name have one address | `Morphir.Models.Tests`: addresses (4.1) |
-| model-document-trees | A dependency document is addressed by its package | `Morphir.Models.Tests`: addresses (4.1) |
-| model-document-trees | A v4 model round-trips | `Morphir.Models.Tests`: split/join law (4.1) |
-| model-document-trees | A v3 model round-trips | `Morphir.Models.Tests`: split/join law (4.1) |
-| model-document-trees | A long name is truncated and recorded | `Morphir.Models.Tests`: store (4.3), with "A path exactly at the budget is not truncated" |
-| model-document-trees | A dependency is written under a bare version segment | `Morphir.Models.Tests`: store (4.3) |
-| model-document-trees | Kit tree cases are met | `Morphir.Models.Tests`: store, v4 cases (4.3) and v3 cases (4.4); `ModelConversionKitCases.feature`, pinned by `KitCaseCoverageTests` (6.3) |
-| model-document-trees | Directory order does not change the model | `Morphir.Models.Tests`: store (4.3) |
-| model-document-trees | A v3 Library returns its original label | `Morphir.Models.Tests`: v3 store (4.4); `ModelConversion.feature` |
-| model-document-trees | A v3 Specs tree keeps 3.1.0 | `Morphir.Models.Tests`: v3 store (4.4) |
-| model-document-trees | Version and created are reported | `Morphir.Models.Tests`: store (4.3); `ModelConversion.feature` |
-| model-document-trees | A meta member does not change the model | `Morphir.Models.Tests`: store (4.3) |
-| model-document-trees | Ambiguous profile | `Morphir.Models.Tests`: refusals (4.5); `ModelConversion.feature` |
-| model-document-trees | A v3 manifest of another release | `Morphir.Models.Tests`: refusals (4.5) |
-| model-document-trees | Unknown member | `Morphir.Models.Tests`: refusals (4.5) |
-| model-document-trees | Path over the budget | `Morphir.Models.Tests`: refusals (4.5) |
-| model-document-trees | Missing definition file | `Morphir.Models.Tests`: refusals (4.5) |
-| model-document-trees | A file outside the tree | `Morphir.Models.Tests`: refusals (4.5) |
-| model-document-trees | Versioned dependency segment | `Morphir.Models.Tests`: refusals (4.5) |
-| model-document-trees | The same tree from two sources | `Morphir.Models.Tests`: v4 store (4.3) and v3 store (4.6) |
-| model-name-compaction | An unknown envelope is refused | `Morphir.Models.Tests`: envelope (7.4); `ModelConversionCompaction.feature` |
-| model-name-compaction | A compacted v3 single file expands to v3 | `Morphir.Models.Tests`: expansion (7.3); `ModelConversionCompaction.feature` |
-| model-name-compaction | A compacted tree value file expands in place | `Morphir.Models.Tests`: expansion (7.3) |
-| model-name-compaction | A literal that looks like an alias stays a literal | `Morphir.Models.Tests`: expansion (7.3) |
-| model-name-compaction | Classic and v4 slots expand differently | `Morphir.Models.Tests`: expansion (7.3) |
-| model-name-compaction | Unknown alias | `Morphir.Models.Tests`: context refusals (7.4); `ModelConversionCompaction.feature` |
-| model-name-compaction | Context after the document | `Morphir.Models.Tests`: context refusals (7.4); `ModelConversionCompaction.feature` |
-| model-name-compaction | Expand after compact | `Morphir.Models.Tests`: `CompactionTests` "Expand after compact" (8.3) |
-| model-name-compaction | A name used once stays spelled out | `Morphir.Models.Tests`: `CompactionTests` (8.3) |
-| model-name-compaction | Compaction that would be a loss is not applied | `Morphir.Models.Tests`: `CompactionTests` (8.3); `ModelConversionCompaction.feature` |
-| model-name-compaction | Non-ASCII content is measured as UTF-8 | `Morphir.Models.Tests`: `CanonicalJsonTests` and `CompactionTests` (8.2, 8.3) |
-| model-name-compaction | The parent's fixed cases match byte for byte | `Morphir.Models.Tests`: `CompactionTests` (8.3) |
-| cli-model-conversion | A directory is read as a tree | `ModelConversion.feature` |
-| cli-model-conversion | The IR version is kept | `ModelConversion.feature` |
-| cli-model-conversion | A single file is compacted and stays one file | `ModelConversionCompaction.feature` |
-| cli-model-conversion | A compacted tree becomes a plain single file | `ModelConversionCompaction.feature` |
-| cli-model-conversion | Nothing to do | `ModelConversion.feature` |
-| cli-model-conversion | Bare compact means names | `ModelConversionCompaction.feature` |
-| cli-model-conversion | Unknown mode | `ModelConversionCompaction.feature` |
-| cli-model-conversion | A compaction that no alias pays for is written plain, with a notice | `ModelConversionCompaction.feature`; `Features/ModelConvert/ModelConvert.feature` (in process) |
-| cli-model-conversion | A separated mode is refused with a hint | `ModelConversionCompaction.feature` |
-| cli-model-conversion | A refused tree writes nothing | `ModelConversion.feature` |
-| cli-model-conversion | A non-empty output is refused | `ModelConversion.feature` |
-| cli-model-conversion | Every written file is reported | `ModelConversion.feature`; `Features/ModelConvert/ModelConvert.feature` |
-| cli-model-conversion | Notices are in the report | `ModelConversion.feature` |
-| cli-model-commands | The group lists its commands | `ModelVerification.feature` |
-| cli-model-commands | A valid v3 model is valid | `ModelVerification.feature` |
-| cli-model-commands | A file without a format version is not valid | `ModelVerification.feature` |
-| cli-model-commands | The former command is unknown | `ModelVerification.feature` |
-| cli-model-commands | The report states its exit code | `ModelVerification.feature`; `JsonOutput.feature` (usage failure, pipeable document); `ModelVerifyDocumentation.feature` |
-| cli-model-commands | JSON output is written in quiet mode | `ModelVerification.feature`; `ModelVerifyDocumentation.feature` |
-| cli-model-commands | An error of a branch that another branch satisfies is not listed | `TreeVerificationTests.AnErrorOfABranchThatAnotherBranchSatisfiesIsNotListed` (5.4) |
-| cli-model-commands | A schema version that no IR has is a usage error | `ModelVerification.feature` (5.4) |
-| cli-model-commands | A valid v4 model is valid | `ModelVerification.feature` (5.4) |
-| cli-model-commands | An invalid v4 model names its error | `ModelVerification.feature` (5.4) |
-| cli-model-commands | A valid v4 tree is valid | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
-| cli-model-commands | A valid v3 tree is valid | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
-| cli-model-commands | A valid v4 tree is valid, A valid v3 tree is valid (on trees that `model convert` wrote) | `ModelConversion.feature`: "A valid v4 tree is valid when model convert wrote it", "A valid v3 tree is valid when model convert wrote it" (6.3) |
-| cli-model-commands | An error inside one tree file names the file | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
-| cli-model-commands | A broken tree rule is an error | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
-| cli-model-commands | A schema version that contradicts the manifest | `ModelVerification.feature` (5.5); `TreeVerificationTests` |
-| cli-model-commands | A compacted tree is verified after expansion | `ModelVerification.feature` (7.6) |
-| cli-model-commands | An invalid context fails verification | `ModelVerification.feature` (7.6) |
-| ir-model-writing | Version-specific spelling | existing writer tests, unchanged |
-| ir-model-writing | Unsupported output version | existing writer tests, extended (4.4) |
-| ir-model-writing | A classic Specs distribution at 3.1.0 | `Morphir.Models.Tests`: classic writer (4.4) |
-| test-driver-contract | A verification report | `ModelVerification.feature` report checks (5.1) |
-| test-driver-contract | A generation report | existing, unchanged |
-| test-driver-contract | A conversion report | `tests/Morphir.TestSupport.Tests/Drivers` (6.2) |
-| test-driver-contract | A feature file states intents only | `BlackBoxRulesTests.EachModelConversionFeatureStatesIntentsOnly` and the planted cases of `BlackBoxRules.IntentViolations` (6.2) |
-| test-driver-contract | A target without the capability skips the test | `tests/Morphir.TestSupport.Tests/Drivers` (6.2) |
-| test-authoring-guidance | A test that starts the CLI for one capability | skill review check (3.4) |
-| test-authoring-guidance | A feature file names a case by intent | skill review check (3.4) |
-| test-authoring-guidance | An unowned fixture fails a guard test | `FixtureOwnershipTests.AnUnownedFixtureFailsAGuardTest` (3.3) |
-| test-authoring-guidance | The skill gives the pattern | skill review check (3.4) |
-| test-authoring-guidance | the other scenarios of "The skill classifies a test in a fixed order" | existing, unchanged |
+| virtual-file-providers | A netstandard2.0 model library uses virtual file trees | `Morphir.Files.Tests`: `PlatformSpecific/A netstandard2.0 model library uses virtual file trees` |
+| virtual-file-providers | Existing pipeline behavior is unchanged | `Morphir.Files.Tests`: the moved `VFile` and `VFileTree` lists, among them `VFile Integration/should support full pipeline flow`; every test of `Morphir.IR.Pipeline.Tests` |
+| virtual-file-providers | A file is found by its location | `Morphir.Files.Tests`: `FileProviders/A file is found by its location` |
+| virtual-file-providers | A missing file is reported as not existing | `Morphir.Files.Tests`: `FileProviders/A missing file is reported as not existing` |
+| virtual-file-providers | A directory lists its entries | `Morphir.Files.Tests`: `FileProviders/A directory lists its entries` |
+| virtual-file-providers | Watching never signals a change | `Morphir.Files.Tests`: `FileProviders/Watching never signals a change` |
+| virtual-file-providers | Embedded fixtures become a tree | `Morphir.Files.Tests`: `FileProviders/Embedded fixtures become a tree` |
+| virtual-file-providers | Content is not read while building | `Morphir.Files.Tests`: `FileProviders/PlatformSpecific/Content is not read while building` |
+| model-document-trees | Two spellings of one name have one address | `Morphir.Models.Tests`: `Trees/Document addresses/Two spellings of one name have one address` |
+| model-document-trees | A dependency document is addressed by its package | `Morphir.Models.Tests`: `Trees/Document addresses/A dependency document is addressed by its package` |
+| model-document-trees | A v4 model round-trips | `Morphir.Models.Tests`: `Trees/V4 document trees/A v4 model round-trips`; `Store/V4 document tree store/read (write t) = t` |
+| model-document-trees | A v3 model round-trips | `Morphir.Models.Tests`: `Trees/Classic document trees/A v3 model round-trips`; `Store/Classic document tree store/read (write t) = t, by the single file each joins to` |
+| model-document-trees | A long name is truncated and recorded | `Morphir.Models.Tests`: `Store/V4 document tree store/A long name is truncated and recorded` and `Store/V4 document tree store/A path exactly at the budget is not truncated` |
+| model-document-trees | A dependency is written under a bare version segment | `Morphir.Models.Tests`: `Store/V4 document tree store/A dependency is written under a bare version segment` |
+| model-document-trees | Kit tree cases are met | `Morphir.Models.Tests`: `Store/V4 document tree store/Kit tree cases are met` and `Store/Classic document tree store/Kit tree cases are met`, with their `Kit file spellings are met` lists; `ModelConversionKitCases.feature` (a scenario per pinned case, named with its kit id), pinned by `KitCaseCoverageTests.EachPinnedKitCaseHasAScenarioNamedWithItsIdAndTitle` |
+| model-document-trees | Directory order does not change the model | `Morphir.Models.Tests`: `Store/V4 document tree store/Directory order does not change the model`; `Store/Classic document tree store/Directory order does not change a v3 model` |
+| model-document-trees | A v3 Library returns its original label | `Morphir.Models.Tests`: `Store/Classic document tree store/A v3 Library returns its original label`; `ModelConversion.feature`: "A v3 Library returns its original label" |
+| model-document-trees | A v3 Specs tree keeps 3.1.0 | `Morphir.Models.Tests`: `Store/Classic document tree store/A v3 Specs tree keeps 3.1.0` |
+| model-document-trees | Version and created are reported | `Morphir.Models.Tests`: `Store/V4 document tree store/Version and created are reported`; `ModelConversion.feature`: "Version and created are reported" |
+| model-document-trees | A meta member does not change the model | `Morphir.Models.Tests`: `Store/V4 document tree store/A meta member does not change the model` |
+| model-document-trees | Ambiguous profile | `Morphir.Models.Tests`: `Store/Refusals/Ambiguous profile`; `ModelConversion.feature`: "Ambiguous profile" |
+| model-document-trees | A v3 manifest of another release | `Morphir.Models.Tests`: `Store/Refusals/A v3 manifest of another release` |
+| model-document-trees | Unknown member | `Morphir.Models.Tests`: `Store/Refusals/Unknown member` |
+| model-document-trees | Path over the budget | `Morphir.Models.Tests`: `Store/Refusals/Path over the budget` |
+| model-document-trees | Missing definition file | `Morphir.Models.Tests`: `Store/Refusals/Missing definition file`; `Store/Refusals of a v3 tree/Missing definition file` |
+| model-document-trees | A file outside the tree | `Morphir.Models.Tests`: `Store/Refusals/A file outside the tree`; `Store/Refusals of a v3 tree/A file outside the tree` |
+| model-document-trees | Versioned dependency segment | `Morphir.Models.Tests`: `Store/Refusals/Versioned dependency segment` |
+| model-document-trees | The same tree from two sources | `Morphir.Models.Tests`: `Store/V4 document tree store/PlatformSpecific/The same tree from two sources` and `Store/Classic document tree store/PlatformSpecific/The same tree from two sources` |
+| model-name-compaction | An unknown envelope is refused | `Morphir.Models.Tests`: `Compacted Morphir files/An unknown envelope is refused`; `ModelConversionCompaction.feature`: "An undeclared envelope is refused" |
+| model-name-compaction | A compacted v3 single file expands to v3 | `Morphir.Models.Tests`: `Compacted Morphir files/A compacted v3 single file expands to v3`; `ModelConversionCompaction.feature`: "A compacted v3 single file expands to v3" |
+| model-name-compaction | A compacted tree value file expands in place | `Morphir.Models.Tests`: `Compacted Morphir files/A compacted tree value file expands in place` |
+| model-name-compaction | A literal that looks like an alias stays a literal | `Morphir.Models.Tests`: `Name positions/A literal that looks like an alias stays a literal` (each kind of literal, single file, legacy form, tree file and inline module) |
+| model-name-compaction | Classic and v4 slots expand differently | `Morphir.Models.Tests`: `Compacted Morphir files/Classic and v4 slots expand differently` |
+| model-name-compaction | Unknown alias | `Morphir.Models.Tests`: `Compacted Morphir files/Unknown alias`; `ModelConversionCompaction.feature`: "A refused context writes nothing" (its unknown-alias example) |
+| model-name-compaction | Context after the document | `Morphir.Models.Tests`: `Compacted Morphir files/Context after the document`; `ModelConversionCompaction.feature`: "A refused context writes nothing" (its context-after-document example) |
+| model-name-compaction | Expand after compact | `Morphir.Models.Tests`: `Compaction/Expand after compact` (every fixture document, kit tree file, policy input, plain twin, mother case as a single file and as a tree, and the generated single files and trees) |
+| model-name-compaction | A name used once stays spelled out | `Morphir.Models.Tests`: `Compaction/A name used once stays spelled out` and `Compaction/A name used once in a mother case stays spelled out` |
+| model-name-compaction | Compaction that would be a loss is not applied | `Morphir.Models.Tests`: `Compaction/Compaction that would be a loss is not applied`; `ModelConversionCompaction.feature`: "A compaction that no alias pays for is written plain, with a notice" |
+| model-name-compaction | Non-ASCII content is measured as UTF-8 | `Morphir.Models.Tests`: `Canonical JSON (RFC 8785)/Non-ASCII content is measured as UTF-8` and `Compaction/Non-ASCII content is measured as UTF-8` |
+| model-name-compaction | The parent's fixed cases match byte for byte | `Morphir.Models.Tests`: `Compaction/The parent's fixed cases match byte for byte` (the 21 cases at finos/morphir `4fa51c8b`) |
+| cli-model-conversion | A directory is read as a tree | `ModelConversion.feature`: "A directory is read as a tree" |
+| cli-model-conversion | The IR version is kept | `ModelConversion.feature`: "The IR version is kept" |
+| cli-model-conversion | A single file is compacted and stays one file | `ModelConversionCompaction.feature`: "A single file is compacted and stays one file" (v4 and v3); `ModelConvert/ModelConvert.feature` (in process): "A single file is compacted and stays one file" |
+| cli-model-conversion | A compacted tree becomes a plain single file | `ModelConversionCompaction.feature`: "A compacted tree becomes a plain single file" |
+| cli-model-conversion | Nothing to do | `ModelConversion.feature`: "Nothing to do"; `ModelConvert/ModelConvert.feature` (in process): "Nothing to do" |
+| cli-model-conversion | Bare compact means names | `ModelConversionCompaction.feature`: "Bare compact means names" |
+| cli-model-conversion | Unknown mode | `ModelConversionCompaction.feature`: "Unknown mode"; `ModelConvert/ModelConvert.feature` (in process): "An unknown compaction mode lists the known mode" |
+| cli-model-conversion | A compaction that no alias pays for is written plain, with a notice | `ModelConversionCompaction.feature`: "A compaction that no alias pays for is written plain, with a notice"; `ModelConvert/ModelConvert.feature` (in process): "A compacted output that no alias pays for is written plain, with a notice" |
+| cli-model-conversion | A separated mode is refused with a hint | `ModelConversionCompaction.feature`: "A separated mode is refused with a hint"; `ModelConvert/ModelConvert.feature` (in process): "A separated compaction mode is refused with a hint" |
+| cli-model-conversion | A refused tree writes nothing | `ModelConversion.feature`: "A refused tree writes nothing" |
+| cli-model-conversion | A non-empty output is refused | `ModelConversion.feature`: "A non-empty output is refused"; `ModelConvert/ModelConvert.feature` (in process): "An output that already holds content is refused before anything is read" |
+| cli-model-conversion | Every written file is reported | `ModelConversion.feature`: "Every written file is reported"; `ModelConvert/ModelConvert.feature` (in process): "Every written file is reported" |
+| cli-model-conversion | Notices are in the report | `ModelConversion.feature`: "Notices are in the report"; `ModelConvert/ModelConvert.feature` (in process): "Streamed notices equal the report's" |
+| cli-model-commands | The group lists its commands | `ModelVerification.feature`: "The group lists its commands" |
+| cli-model-commands | A valid v3 model is valid | `ModelVerification.feature`: "A valid v3 model is valid" |
+| cli-model-commands | A file without a format version is not valid | `ModelVerification.feature`: "A file without a format version is not valid" |
+| cli-model-commands | The former command is unknown | `ModelVerification.feature`: "The former command is unknown" |
+| cli-model-commands | The report states its exit code | `ModelVerification.feature`: "The report states its exit code as a JSON document" and "A usage failure as a JSON document states the exit code 2"; `JsonOutput.feature`: "A usage error still ends with completed" and "A document is pipeable" (their `model verify` examples); `ModelVerifyDocumentation.feature`: "Each documented command gives its documented output" |
+| cli-model-commands | JSON output is written in quiet mode | `ModelVerification.feature`: "JSON output is written in quiet mode"; `ModelVerifyDocumentation.feature`: "Each documented command gives its documented output" |
+| cli-model-commands | An error of a branch that another branch satisfies is not listed | `TreeVerificationTests.AnErrorOfABranchThatAnotherBranchSatisfiesIsNotListed` |
+| cli-model-commands | A schema version that no IR has is a usage error | `ModelVerification.feature`: "A schema version that no IR has is a usage error" |
+| cli-model-commands | A valid v4 model is valid | `ModelVerification.feature`: "A valid v4 model is valid" |
+| cli-model-commands | An invalid v4 model names its error | `ModelVerification.feature`: "An invalid v4 model names its error"; `VerifyModelHandlerTests.AV4ModelIsDecodedSoAnUnknownTypeTagIsNamedAtItsJsonPath` |
+| cli-model-commands | A valid v4 tree is valid | `ModelVerification.feature`: "A valid v4 tree is valid"; `ModelConversion.feature`: "A valid v4 tree is valid when model convert wrote it"; `TreeVerificationTests.EachTreeThatTheStoreWritesIsValid` |
+| cli-model-commands | A valid v3 tree is valid | `ModelVerification.feature`: "A valid v3 tree is valid"; `ModelConversion.feature`: "A valid v3 tree is valid when model convert wrote it"; `TreeVerificationTests.EachTreeThatTheStoreWritesIsValid` |
+| cli-model-commands | An error inside one tree file names the file | `ModelVerification.feature`: "An error inside one tree file names the file" and "The text of an error inside one tree file names the file"; `TreeVerificationTests.AnErrorInsideOneTreeFileNamesTheFileAndItsJsonLocation` |
+| cli-model-commands | A broken tree rule is an error | `ModelVerification.feature`: "A broken tree rule is an error"; `TreeVerificationTests.EachRefusalOfTheStoreIsAnErrorWithItsCodeAndFile` |
+| cli-model-commands | A schema version that contradicts the manifest | `ModelVerification.feature`: "A schema version that contradicts the manifest"; `TreeVerificationTests.ASchemaVersionThatContradictsTheManifestIsRefusedWithExitCode2` |
+| cli-model-commands | A compacted tree is verified after expansion | `ModelVerification.feature`: "A compacted tree is verified after expansion"; `TreeVerificationTests.ACompactedTreeIsVerifiedAfterExpansion` |
+| cli-model-commands | An invalid context fails verification | `ModelVerification.feature`: "An invalid context fails verification"; `TreeVerificationTests.AnInvalidContextFailsVerificationWithItsCodeAtItsFile`; `VerifyModelHandlerTests.AnInvalidContextOfASingleFileFailsVerification` |
+| ir-model-writing | Version-specific spelling | `Morphir.Models.Tests`: `ClassicJsonWriter/the version-spelling scenario` (existing, unchanged) |
+| ir-model-writing | Unsupported output version | `Morphir.Models.Tests`: `ClassicJsonWriter/Unsupported output version` (existing, extended with "a Library at 3.1.0 is refused, naming the supported set") |
+| ir-model-writing | A classic Specs distribution at 3.1.0 | `Morphir.Models.Tests`: `ClassicJsonWriter/A classic Specs distribution at 3.1.0` |
+| test-driver-contract | A verification report | `CapabilityDriverTests.ARealVerificationReportOfAValidModelReadsIsValid` and `CapabilityDriverTests.ARealVerificationReportOfAnInvalidModelHasItsErrors`; `ModelVerification.feature`: "The result of a valid file as JSON" |
+| test-driver-contract | A generation report | `CapabilityDriverTests.ARealGenerationReportReadsSuccessAndTheFilesOfTheRun` and `CapabilityDriverTests.AGenerationReportThatDisagreesWithTheExitCodeFails` (existing, unchanged) |
+| test-driver-contract | A conversion report | `ModelConversionDriverTests.AConversionReport` and `ModelConversionDriverTests.ARealConversionReportListsEachWrittenFileWithItsEvent` |
+| test-driver-contract | A feature file states intents only | `ModelConversionDriverTests.AFeatureFileStatesIntentsOnly`; `BlackBoxRulesTests.EachModelConversionFeatureStatesIntentsOnly`, with the planted cases of `BlackBoxRules.IntentViolations` in `BlackBoxRulesTests` |
+| test-driver-contract | A target without the capability skips the test | `ModelConversionDriverTests.ATargetWithoutTheCapabilitySkipsTheTest` |
+| test-authoring-guidance | A test that starts the CLI for one capability | review of the skill's procedure (3.4); the paths and black-box folders it names are checked by `TestManagerSkillTests.EachPathOfTheSkillIsInTheRepository` and `TestManagerSkillTests.EachFolderAndFileOfTheBlackBoxProjectThatTheSkillNamesIsThere` |
+| test-authoring-guidance | A feature file names a case by intent | `BlackBoxRulesTests.EachModelConversionFeatureStatesIntentsOnly` |
+| test-authoring-guidance | An unowned fixture fails a guard test | `FixtureOwnershipTests.AnUnownedFixtureFailsAGuardTest` |
+| test-authoring-guidance | The skill gives the pattern | review of the skill (3.4); the object mothers, `FixtureCatalog` and the other types it names are checked by `TestManagerSkillTests.EachTypeOfTheSkillIsATypeOfTheRepository` |
+| test-authoring-guidance | the other scenarios of "The skill classifies a test in a fixed order" | existing, unchanged (review of the skill); `TestManagerSkillTests` keeps the names that the skill gives |
 
 ## Workflow follow-up
 
