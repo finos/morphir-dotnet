@@ -30,7 +30,7 @@ Apply the repository's test-manager guidance before changing tests and its F# an
 
 ## 5. Package delivery and integration
 
-- [ ] 5.1 Register all three packages in dependency order in `LibraryPackages` and use the existing release metadata and version. Verify `PackLibs` yields the expected IDs, target-framework assets and dependency declarations. Document the NuGet.org package IDs and which package to install.
+- [x] 5.1 Register all three packages in dependency order in `LibraryPackages` and use the existing release metadata and version. Verify `PackLibs` yields the expected IDs, target-framework assets and dependency declarations. Document the NuGet.org package IDs and which package to install.
 - [ ] 5.2 Restore the locally packed libraries into fresh F# and C# consumers on net10.0 and net11.0 through the packaged-consumer test drivers. Run selection, bundle validation and N-Quads examples and inspect the restored dependency graph for each package installed alone.
 - [ ] 5.3 Run the knowledge validation scenarios against the packaged Native AOT CLI and verify the publish introduces no trim or AOT warnings. Run the repository's relevant build, test and OpenSpec verification targets before submitting the change.
 

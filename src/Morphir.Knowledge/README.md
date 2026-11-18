@@ -1,4 +1,12 @@
-# Morphir.Knowledge
+# Morphir knowledge libraries
+
+| NuGet package | Use it for |
+| --- | --- |
+| `Morphir.Knowledge` | Document and revision identity, text spans and selections, annotations, and typed links |
+| `Morphir.Knowledge.Okf` | OKF v0.2 and v0.3 parsing, syntax and semantic cursors, bundle loading, and validation |
+| `Morphir.Knowledge.Rdf` | RDF terms, graphs, datasets, graph and statement references, and N-Quads interchange |
+
+The libraries target .NET 10 and .NET 11. Reference the package for the capability you use. The OKF and RDF packages both refer to `Morphir.Knowledge`.
 
 ## Attach a comment to two passages
 
