@@ -1,0 +1,28 @@
+<!--
+  The host of the netstandard2.0 build of Morphir.Files, which a compiler or MSBuild host loads through Morphir.Models
+  and which no product program of this repository runs. It is a net11.0 program whose project reference takes the
+  netstandard2.0 build (SetTargetFramework): a plain reference would take the net11.0 build. The scenario "The host of
+  the netstandard2.0 virtual file library passes each of its checks" (tests/Morphir.BlackBox.Tests/Smoke/LibraryHosts.feature)
+  runs it. The solution build builds Morphir.Files for netstandard2.0 and this host with warnings as errors, so both
+  build with no warning.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <ProjectReference Include="../../src/Morphir.Files/Morphir.Files.fsproj" SetTargetFramework="TargetFramework=netstandard2.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+</Project>

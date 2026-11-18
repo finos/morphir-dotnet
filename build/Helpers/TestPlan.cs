@@ -173,8 +173,7 @@ public static class TestPlan
         TestSuite.TUnit("Morphir.Configuration.Microsoft.Tests", "--maximum-parallel-tests", "1"),
         TestSuite.Expecto("Morphir.Internal.CodeGeneration.Tests"),
         TestSuite.Expecto("Morphir.Models.Tests"),
-        // NetStandardTests builds src/Morphir.Files for netstandard2.0 under an artifacts path, which restores the project.
-        TestSuite.Expecto("Morphir.Files.Tests").WithSourceProjects(),
+        TestSuite.Expecto("Morphir.Files.Tests"),
         TestSuite.Expecto("Morphir.IR.Pipeline.Tests"),
         TestSuite.Expecto("Morphir.SDK.Tests"),
         // The tests of the package driver pack a project of the repository with no build, and LibraryHostDriverTests

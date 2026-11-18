@@ -22,6 +22,8 @@ public sealed class LibraryHostSteps(ILibraryHostDriver hosts, IScenarioWorkspac
     {
         "configuration-io-smoke" => ["--fixtures", workspace.CopyFixtureDirectory("Configuration").Path],
         "conformance-smoke" => [workspace.CopyFixtureDirectory("Conformance").Path],
+        // The folder below which the host publishes its tree.
+        "files-netstandard-smoke" => [workspace.Directory("published").Path],
         "morphirup" => MorphirupPlan(),
         _ => [],
     };

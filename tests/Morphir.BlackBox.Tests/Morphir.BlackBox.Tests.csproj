@@ -131,6 +131,7 @@
     <MorphirTestProgram Include="../Morphir.Configuration.Inspection.Smoke/Morphir.Configuration.Inspection.Smoke.csproj" Name="configuration-inspection-smoke" />
     <MorphirTestProgram Include="../Morphir.Configuration.Microsoft.Smoke/Morphir.Configuration.Microsoft.Smoke.csproj" Name="configuration-microsoft-smoke" />
     <MorphirTestProgram Include="../Morphir.Conformance.Smoke/Morphir.Conformance.Smoke.fsproj" Name="conformance-smoke" />
+    <MorphirTestProgram Include="../Morphir.Files.NetStandard.Smoke/Morphir.Files.NetStandard.Smoke.fsproj" Name="files-netstandard-smoke" />
     <MorphirTestProgram Include="../Morphir.Myriad.SystemTextJson.AotProbe/Morphir.Myriad.SystemTextJson.AotProbe.fsproj" Name="myriad-json-probe" />
     <MorphirTestProgram Include="../Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" Name="mep-probe" />
     <MorphirTestProgram Include="../Morphir.SDK.CSharp.AotProbe/Morphir.SDK.CSharp.AotProbe.csproj" Name="sdk-csharp-probe" />

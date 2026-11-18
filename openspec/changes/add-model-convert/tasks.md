@@ -115,7 +115,7 @@ Every scenario of this change and the test that proves it, by its final name: a 
 
 | Capability | Scenario | Test |
 | --- | --- | --- |
-| virtual-file-providers | A netstandard2.0 model library uses virtual file trees | `Morphir.Files.Tests`: `PlatformSpecific/A netstandard2.0 model library uses virtual file trees` |
+| virtual-file-providers | A netstandard2.0 model library uses virtual file trees | black box `Smoke/LibraryHosts.feature`: "The host of the netstandard2.0 virtual file library passes each of its checks" (the host `tests/Morphir.Files.NetStandard.Smoke`; the solution build builds it and the netstandard2.0 build of `Morphir.Files` with warnings as errors) |
 | virtual-file-providers | Existing pipeline behavior is unchanged | `Morphir.Files.Tests`: the moved `VFile` and `VFileTree` lists, among them `VFile Integration/should support full pipeline flow`; every test of `Morphir.IR.Pipeline.Tests` |
 | virtual-file-providers | A file is found by its location | `Morphir.Files.Tests`: `FileProviders/A file is found by its location` |
 | virtual-file-providers | A missing file is reported as not existing | `Morphir.Files.Tests`: `FileProviders/A missing file is reported as not existing` |

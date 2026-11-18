@@ -7,8 +7,6 @@
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <GenerateProgramFile>false</GenerateProgramFile>
         <IsPackable>false</IsPackable>
-        <!-- NetStandardHost is a project of its own that NetStandardTests.fs builds. -->
-        <DefaultItemExcludes>$(DefaultItemExcludes);NetStandardHost/**</DefaultItemExcludes>
     </PropertyGroup>
 
     <ItemGroup>
@@ -50,7 +48,6 @@
         <Compile Include="PublicationTests.fs" />
         <Compile Include="FileReplacementTests.fs" />
         <Compile Include="FileProviderTests.fs" />
-        <Compile Include="NetStandardTests.fs" />
         <Compile Include="TypeInitialisationTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
