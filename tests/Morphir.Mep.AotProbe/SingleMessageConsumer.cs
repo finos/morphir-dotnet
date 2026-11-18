@@ -76,5 +76,59 @@ internal static class SingleMessageConsumer
         output.AppendLine($"single-no-reply {Failure(failing)} {unanswered.Match(_ => 0, error => error.Code)}");
         var ended = await failing.RunAsync(token);
         output.AppendLine($"single-ended {ended.Match(() => "end-of-stream", () => "stopped", failure => $"framing {failure}")} {string.Join(' ', silent.Methods)}");
+
+        await RunBoundedGenerationAsync(output, host, token);
+    }
+
+    private static async Task RunBoundedGenerationAsync(StringBuilder output, PeerInfo peer, CancellationToken token)
+    {
+        const string supportJson = """
+            {"tuples":[{"protocolVersion":"0.2.0-draft.2","accessVersion":"0.1.0-draft.1","operation":"morphir.backend.generateModel","irVersion":"4.0.0","profile":"morphir-ir","codec":"morphir-json","layout":"document-tree","contextualEncoding":"plain"}],
+             "limits":{"maxFrameBytes":2048,"maxEncodedBytesPerExchange":2048,"maxDecodedBytesPerExchange":1024,"maxDocumentsPerBatch":1,"maxDepth":32,"maxNodes":64,"maxDiagnosticsPerExchange":2,"maxOutstandingRequests":1,"maxGuestStateBytes":1024,"maxHostCacheBytes":1024,"maxArtifactChunkBytes":128,"maxArtifactBytes":256,"maxTotalArtifactBytes":256,"maxSessionDiskBytes":1024,"maxSessionWorkUnits":256,"maxRounds":2,"maxCallMilliseconds":500,"maxSessionMilliseconds":2000}}
+            """;
+        var support = JsonSerializer.Deserialize(supportJson, MepJson.Default.ModelAccessSupport)
+            ?? throw new InvalidOperationException("No bounded offer.");
+        var claims = JsonSerializer.Deserialize(
+            Claims.Replace("0.2.0-draft.1", "0.2.0-draft.2", StringComparison.Ordinal),
+            MepJson.Default.CapabilityClaimSet) ?? throw new InvalidOperationException("No bounded claims.");
+        var capabilities = JsonSerializer.Deserialize(
+            $$"""{"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false},"modelAccess":{{supportJson}}}""",
+            MepJson.Default.ExtensionCapabilities) ?? throw new InvalidOperationException("No bounded capabilities.");
+        var methods = new Dictionary<string, MethodHandler>
+        {
+            [Method.GenerateModelStart.WireValue] = MethodHandler.Request(
+                MepJson.Default.ModelAccessStart, MepJson.Default.ModelAccessStep,
+                (request, _) => Task.FromResult(ModelAccessStep.NewContinue(request.SessionId, 1, [], [], []))),
+            [Method.GenerateModelAdvance.WireValue] = MethodHandler.Constant(
+                """{"state":"complete","sessionId":"probe","artifacts":[],"diagnostics":[]}"""),
+            [Method.GenerateModelCancel.WireValue] = MethodHandler.Constant("""{"sessionId":"retry"}"""),
+        };
+        var guest = new Guest(new GuestDefinition(claims, capabilities, methods));
+        var channel = new DispatcherChannel(guest.Dispatcher, (_, reply) => reply);
+        var session = HostSession.CreateWithModelAccess(channel, peer, support, null);
+        var initialized = await session.InitializeAsync(token);
+        var selected = initialized.Match(
+            value => value.Capabilities.ModelAccessOrNull() is { Tuples.Count: 1 }
+                ? value.ProtocolVersion.Value
+                : throw new InvalidOperationException("No model access was agreed."),
+            failure => throw new InvalidOperationException(failure.ToString()));
+        var snapshot = new ModelAccessSnapshot("s", "acme/probe", "r1", Sha256Digest.Create(new string('0', 64)), "root");
+        using var options = JsonDocument.Parse("{}");
+        var request = new ModelAccessStart("probe", snapshot, support.Tuples[0], "text", options.RootElement, [], support.Limits);
+        var start = await session.StartGenerationAsync(request, token);
+        var round = start.Match(
+            step => step.Match((_, number, _, _, _) => number, (_, _, _) => 0, (_, _) => 0),
+            error => throw new InvalidOperationException(error.ToString()));
+        var advance = await session.AdvanceGenerationAsync(new ModelAccessAdvance("probe", round, []), token);
+        var completed = advance.Match(
+            step => step.Match((_, _, _, _, _) => "-", (id, _, _) => id, (_, _) => "-"),
+            error => throw new InvalidOperationException(error.ToString()));
+        var replay = await session.AdvanceGenerationAsync(new ModelAccessAdvance("probe", round, []), token);
+        await session.StartGenerationAsync(
+            new ModelAccessStart("retry", snapshot, support.Tuples[0], "text", options.RootElement, [], support.Limits),
+            token);
+        var cancel = await session.CancelGenerationAsync(new ModelAccessCancel("retry"), token);
+        var cancelled = cancel.Match(ack => ack.SessionId, error => throw new InvalidOperationException(error.ToString()));
+        output.AppendLine($"bounded-generation {selected} {round} {completed} {replay.Match(_ => 0, error => error.Code)} {cancelled}");
     }
 }

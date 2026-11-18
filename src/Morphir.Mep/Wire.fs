@@ -495,7 +495,56 @@ type ModelTransportSupport =
     /// Stable text for diagnostics.
     override this.ToString() = $"{this.Tuples.Count} tuples, {this.Limits}"
 
-/// Parameters of morphir.initialize. An absent modelTransport means legacy-only.
+/// The physical encoding of a document in a bounded generation session.
+[<RequireQualifiedAccess>]
+type ModelAccessCodec =
+    | [<JsonName "morphir-json">] MorphirJson
+    | [<JsonName "morphir-yaml">] MorphirYaml
+
+/// How a bounded document carries file-local names.
+[<RequireQualifiedAccess>]
+type ModelAccessEncoding =
+    | [<JsonName "plain">] Plain
+    | [<JsonName "https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json">] ContextualDraft1
+
+/// One complete bounded-generation offer.
+type ModelAccessTuple =
+    { ProtocolVersion: ProtocolVersion
+      AccessVersion: SemanticVersion
+      Operation: ModelOperation
+      IrVersion: SemanticVersion
+      Profile: string
+      Codec: ModelAccessCodec
+      Layout: string
+      ContextualEncoding: ModelAccessEncoding }
+
+/// Separate ceilings for an exchange, resident state, output staging and cumulative work.
+type ModelAccessLimits =
+    { MaxFrameBytes: int
+      MaxEncodedBytesPerExchange: int
+      MaxDecodedBytesPerExchange: int
+      MaxDocumentsPerBatch: int
+      MaxDepth: int
+      MaxNodes: int
+      MaxDiagnosticsPerExchange: int
+      MaxOutstandingRequests: int
+      MaxGuestStateBytes: int
+      MaxHostCacheBytes: int
+      MaxArtifactChunkBytes: int
+      MaxArtifactBytes: int64
+      MaxTotalArtifactBytes: int64
+      MaxSessionDiskBytes: int64
+      MaxSessionWorkUnits: int64
+      MaxRounds: int
+      MaxCallMilliseconds: int
+      MaxSessionMilliseconds: int }
+
+/// The bounded tuples and ceilings offered by a peer or agreed during initialization.
+type ModelAccessSupport =
+    { Tuples: IReadOnlyList<ModelAccessTuple>
+      Limits: ModelAccessLimits }
+
+/// Parameters of morphir.initialize.
 type InitializeParams =
     {
         /// The MEP versions the host offers.
@@ -504,10 +553,15 @@ type InitializeParams =
         Host: PeerInfo
         /// The model-transport offer; left out when absent.
         ModelTransport: ModelTransportSupport option
+        /// The bounded model-access offer; left out when absent.
+        ModelAccess: ModelAccessSupport option
     }
 
     /// For C# callers: the model-transport offer, or null when absent (legacy-only).
     member this.ModelTransportOrNull() : ModelTransportSupport | null = Option.toObj this.ModelTransport
+
+    /// For C# callers: the bounded model-access offer, or null when absent.
+    member this.ModelAccessOrNull() : ModelAccessSupport | null = Option.toObj this.ModelAccess
 
     /// Stable text for diagnostics.
     override this.ToString() = $"Initialize from {this.Host}"
@@ -594,6 +648,8 @@ type ExtensionCapabilities =
         Workspace: WorkspaceCapability option
         /// The model-transport support; left out when absent (legacy-only).
         ModelTransport: ModelTransportSupport option
+        /// The bounded model-access support; left out when absent.
+        ModelAccess: ModelAccessSupport option
         /// Streaming support; always written, read as false when absent.
         [<JsonDefaultValue(false)>]
         Streaming: bool
@@ -622,6 +678,9 @@ type ExtensionCapabilities =
 
     /// For C# callers: the model-transport support, or null when absent (legacy-only).
     member this.ModelTransportOrNull() : ModelTransportSupport | null = Option.toObj this.ModelTransport
+
+    /// For C# callers: bounded model-access support, or null when absent.
+    member this.ModelAccessOrNull() : ModelAccessSupport | null = Option.toObj this.ModelAccess
 
     /// Stable text for diagnostics.
     override this.ToString() =
@@ -962,6 +1021,102 @@ type CompileModelRequest =
     /// Stable text for diagnostics.
     override this.ToString() = $"Compile {this.Package} ({this.LanguageId}) to {this.Output}"
 
+/// Scope to which the host binds one bounded generation operation.
+type ModelAccessSnapshot =
+    { SnapshotId: string
+      ModelId: string
+      Revision: string
+      ContextDigest: Sha256Digest
+      Scope: string }
+
+/// Named parameters of morphir.backend.generateModel.start.
+type ModelAccessStart =
+    { SessionId: string
+      Snapshot: ModelAccessSnapshot
+      Input: ModelAccessTuple
+      Target: string
+      Options: System.Text.Json.JsonElement
+      RequiredGuarantees: IReadOnlyList<ModelGuaranteeRequirement>
+      Limits: ModelAccessLimits }
+
+/// The role of a document within the generation view.
+[<RequireQualifiedAccess>]
+type ModelInventoryRole =
+    | Definition
+    | Specification
+
+/// An inventory module. Only modules can advertise a selection for their members.
+type ModelInventoryModule =
+    { DocumentId: string
+      PackageName: string
+      ModulePath: string
+      Role: ModelInventoryRole
+      MemberSelection: string option }
+
+/// A named type or value entry.
+type ModelInventoryMember =
+    { DocumentId: string
+      PackageName: string
+      ModulePath: string
+      Role: ModelInventoryRole
+      Name: string }
+
+/// A single-key inventory entry on the wire.
+[<RequireQualifiedAccess; JsonUnion(BaseEncoding = (JsonUnionEncoding.ExternalTag ||| JsonUnionEncoding.UnwrapSingleFieldCases))>]
+type ModelInventoryEntry =
+    | Module of ModelInventoryModule
+    | Type of ModelInventoryMember
+    | Value of ModelInventoryMember
+
+/// A request from the extension for the next advance.
+[<RequireQualifiedAccess; JsonUnion(BaseEncoding = (JsonUnionEncoding.InternalTag ||| JsonUnionEncoding.NamedFields ||| JsonUnionEncoding.AllowUnorderedTag), TagName = "kind")>]
+type ModelAccessRequest =
+    | Inventory of RequestId: string * Selection: string * PageSize: int * Cursor: string option
+    | Document of RequestId: string * DocumentId: string
+
+/// One reply to the matching request in the continuation.
+[<RequireQualifiedAccess; JsonUnion(BaseEncoding = (JsonUnionEncoding.InternalTag ||| JsonUnionEncoding.NamedFields ||| JsonUnionEncoding.AllowUnorderedTag), TagName = "kind")>]
+type ModelAccessDelivery =
+    | Inventory of RequestId: string * SnapshotId: string * Entries: IReadOnlyList<ModelInventoryEntry> * NextCursor: string option
+    | Document of RequestId: string * SnapshotId: string * DocumentId: string * DecodedByteLength: int * Sha256: Sha256Digest * Content: string
+
+/// Parameters of morphir.backend.generateModel.advance.
+type ModelAccessAdvance =
+    { SessionId: string
+      Round: int
+      Deliveries: IReadOnlyList<ModelAccessDelivery> }
+
+/// Parameters of morphir.backend.generateModel.cancel and its acknowledgement.
+type ModelAccessCancel = { SessionId: string }
+
+/// One chunk of a generated artifact. Content is padded base64 on the wire.
+type ModelArtifactChunk =
+    { Path: string
+      Offset: int64
+      DecodedByteLength: int
+      Sha256: Sha256Digest
+      Content: string
+      End: bool }
+
+/// The next step or terminal result of bounded generation.
+[<RequireQualifiedAccess; JsonUnion(BaseEncoding = (JsonUnionEncoding.InternalTag ||| JsonUnionEncoding.NamedFields ||| JsonUnionEncoding.AllowUnorderedTag), TagName = "state")>]
+type ModelAccessStep =
+    | Continue of SessionId: string * Round: int * Requests: IReadOnlyList<ModelAccessRequest> * Artifacts: IReadOnlyList<ModelArtifactChunk> * Diagnostics: IReadOnlyList<Diagnostic>
+    | Complete of SessionId: string * Artifacts: IReadOnlyList<ModelArtifactChunk> * Diagnostics: IReadOnlyList<Diagnostic>
+    | Failed of SessionId: string * Diagnostics: IReadOnlyList<Diagnostic>
+
+    /// For C# callers: handles the continuation, completion or operation failure.
+    member this.Match(
+        onContinue: Func<string, int, IReadOnlyList<ModelAccessRequest>, IReadOnlyList<ModelArtifactChunk>, IReadOnlyList<Diagnostic>, 'T>,
+        onComplete: Func<string, IReadOnlyList<ModelArtifactChunk>, IReadOnlyList<Diagnostic>, 'T>,
+        onFailed: Func<string, IReadOnlyList<Diagnostic>, 'T>
+    ) =
+        match this with
+        | Continue(id, round, requests, artifacts, diagnostics) ->
+            onContinue.Invoke(id, round, requests, artifacts, diagnostics)
+        | Complete(id, artifacts, diagnostics) -> onComplete.Invoke(id, artifacts, diagnostics)
+        | Failed(id, diagnostics) -> onFailed.Invoke(id, diagnostics)
+
 /// Parameters of morphir.backend.generateModel: generation from a retained model in one agreed input tuple. The
 /// model's profile, codec, envelope version and IR version must match the input tuple. Use GenerateModel.admit
 /// before generation: it checks the tuple, admits the envelope and establishes the required guarantees.
@@ -1083,6 +1238,9 @@ type Method =
     | CompileModel
     | Generate
     | GenerateModel
+    | GenerateModelStart
+    | GenerateModelAdvance
+    | GenerateModelCancel
     | Validate
     | Transform
     | WorkspaceDiscover
@@ -1104,6 +1262,9 @@ type Method =
         | CompileModel -> "morphir.frontend.compileModel"
         | Generate -> "morphir.backend.generate"
         | GenerateModel -> "morphir.backend.generateModel"
+        | GenerateModelStart -> "morphir.backend.generateModel.start"
+        | GenerateModelAdvance -> "morphir.backend.generateModel.advance"
+        | GenerateModelCancel -> "morphir.backend.generateModel.cancel"
         | Validate -> "morphir.validator.validate"
         | Transform -> "morphir.transform.transform"
         | WorkspaceDiscover -> "morphir.workspace.discover"
@@ -1133,6 +1294,9 @@ type Method =
            CompileModel
            Generate
            GenerateModel
+           GenerateModelStart
+           GenerateModelAdvance
+           GenerateModelCancel
            Validate
            Transform
            WorkspaceDiscover

@@ -59,7 +59,7 @@ type SessionState =
 /// The pure lifecycle rules (design SES-1).
 [<RequireQualifiedAccess>]
 module Lifecycle =
-    /// The only MEP version that morphir-dotnet speaks.
+    /// The default MEP version.
     let protocolVersion = ProtocolVersion.Create "0.2.0-draft.1"
 
     /// The versions that a morphir-dotnet host offers and a morphir-dotnet guest claims.
@@ -71,12 +71,15 @@ module Lifecycle =
     /// The shutdown result of the pinned transcripts.
     let shutdownResult = "{}"
 
-    /// Picks the common protocol version by exact match. No common version gives -32011.
-    let negotiateVersion (offered: IReadOnlyList<ProtocolVersion>) : Result<ProtocolVersion, RpcError> =
-        if offered |> Seq.contains protocolVersion then
-            Ok protocolVersion
-        else
+    let internal negotiateVersionFrom
+        (supported: IReadOnlyList<ProtocolVersion>)
+        (offered: IReadOnlyList<ProtocolVersion>)
+        : Result<ProtocolVersion, RpcError> =
+        match offered |> Seq.tryFind (fun version -> supported |> Seq.contains version) with
+        | Some version -> Ok version
+        | None ->
             let text = offered |> Seq.map _.Value |> String.concat ", "
+            let supportedText = supported |> Seq.map _.Value |> String.concat ", "
 
             // data has the same members as the upstream Rust guest sends.
             let data =
@@ -93,7 +96,7 @@ module Lifecycle =
                     writer.WriteEndArray()
                     writer.WriteStartArray "extensionVersions"
 
-                    for version in protocolVersions do
+                    for version in supported do
                         writer.WriteStringValue version.Value
 
                     writer.WriteEndArray()
@@ -105,8 +108,12 @@ module Lifecycle =
             Error
                 { RpcErrors.withMessage
                       ErrorCode.ProtocolVersionMismatch
-                      $"No common protocol version: the host offered [{text}] and the extension supports [{protocolVersion}]." with
+                      $"No common protocol version: the host offered [{text}] and the extension supports [{supportedText}]." with
                     Data = Some data }
+
+    /// Picks the common default version by exact match. No common version gives -32011.
+    let negotiateVersion (offered: IReadOnlyList<ProtocolVersion>) =
+        negotiateVersionFrom protocolVersions offered
 
     let private hasTuple (capabilities: ExtensionCapabilities) (operation: ModelOperation) =
         capabilities.ModelTransport
@@ -129,6 +136,14 @@ module Lifecycle =
         | Method.Generate ->
             Some("backend generation", capabilities.Backend |> Option.exists (fun backend -> backend.Generate))
         | Method.GenerateModel -> Some("backend model generation", hasTuple capabilities ModelOperation.GenerateModel)
+        | Method.GenerateModelStart
+        | Method.GenerateModelAdvance
+        | Method.GenerateModelCancel ->
+            Some(
+                "bounded model generation",
+                session.ProtocolVersion = ModelAccess.protocolVersion
+                && (capabilities.ModelAccess |> Option.exists (fun support -> support.Tuples.Count > 0))
+            )
         | Method.Validate -> Some("validation", hasType session ExtensionType.Validator)
         | Method.Transform -> Some("transformation", hasType session ExtensionType.Transform)
         | Method.WorkspaceDiscover ->
@@ -144,7 +159,7 @@ module Lifecycle =
 
     /// Decides an inbound message for the receiver, or an outbound message for the sender: the same rules apply
     /// to both. A method that MEP does not have is admitted, so that the dispatcher answers -32601.
-    let admit (state: SessionState) (wireMethod: string) (_kind: MethodKind) : Admission =
+    let admit (state: SessionState) (wireMethod: string) (kind: MethodKind) : Admission =
         let method = Method.Find wireMethod
 
         match state, method with
@@ -156,6 +171,9 @@ module Lifecycle =
         | SessionState.Initialized _, Some Method.Initialize ->
             // The upstream Rust and MoonBit guests both answer -32600 with this message.
             Admission.Refuse(RpcErrors.withMessage ErrorCode.InvalidRequest "Extension is already initialized")
+        | SessionState.Initialized _, Some(Method.GenerateModelStart | Method.GenerateModelAdvance | Method.GenerateModelCancel)
+            when kind <> MethodKind.Request ->
+            Admission.Refuse(RpcErrors.withMessage ErrorCode.InvalidRequest "Bounded generation requires a request ID.")
         | SessionState.Initialized session, Some method ->
             match capability session method with
             | Some(_, true)
