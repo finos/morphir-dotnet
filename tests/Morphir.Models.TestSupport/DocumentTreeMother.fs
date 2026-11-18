@@ -9,6 +9,7 @@ module Morphir.Models.TestSupport.DocumentTreeMother
 open System.Text.Json
 open Morphir.Files
 open Morphir.IR
+open Morphir.IR.Files
 open Morphir.IR.Trees
 open Morphir.IR.V4
 open Morphir.Models.TestSupport.DistributionBuilder
@@ -101,6 +102,140 @@ module BoundedOrders =
     let oversizedSelectedValue version byteCount =
         metadata version
         |> Driver.withFile orderLocation (String.replicate byteCount "x")
+
+
+    let private contextualText (text: string) =
+        text.Replace("SCHEMA", MorphirFile.Draft1Schema)
+
+    let manifestWithContextLast () =
+        let text =
+            """{"document":{"formatVersion":4,"distribution":"Library","package":{"$name":"p"},"pathBudget":256},"context":{"packagePaths":{"p":"acme/orders"},"prefixes":{"unused":"data"}},"$schema":"SCHEMA"}"""
+
+        Driver.ofTexts [ manifestLocation, contextualText text ]
+
+    let yamlManifestWithDuplicateContextEntry () =
+        let text =
+            """context:
+  names:
+    n: order
+    n: other
+document:
+  formatVersion: 4
+  distribution: Library
+  package: acme/orders
+  pathBudget: 256
+$schema: SCHEMA
+"""
+
+        Driver.ofTexts [ "manifest.yaml", contextualText text ]
+
+    let private v4Manifest =
+        """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":256}"""
+
+    let private v4SplitOrderModule =
+        """{"formatVersion":4,"path":"domain","values":["order"]}"""
+
+    let contextualInlineWithUnknownSiblingAlias () =
+        let text =
+            """{"$schema":"SCHEMA","context":{"modulePaths":{"m":"domain"},"fqNames":{"i":"morphir/SDK:basics#int"}},"document":{"formatVersion":4,"path":{"$name":"m"},"values":{"order":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Literal":{"IntegerLiteral":73}}}}},"broken":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Reference":{"$name":"missing"}}}}}}}}"""
+
+        Driver.ofTexts [ manifestLocation, v4Manifest; domainLocation, contextualText text ]
+
+    let private withSplitOrder text =
+        Driver.ofTexts [
+            manifestLocation, v4Manifest
+            domainLocation, v4SplitOrderModule
+            orderLocation, text
+        ]
+
+    let contextualOrderWithLiteralAndOptionalPrefixes () =
+        let text =
+            """{"$schema":"SCHEMA","context":{"prefixes":{"f":"ignored"},"fqNames":{"i":"morphir/SDK:basics#int"}},"document":{"formatVersion":4,"name":"order","def":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Literal":{"DocumentLiteral":{"ratio":1.0,"$name":"i","id":9007199254740993}}}}}}}}"""
+
+        let original =
+            contextualText text
+            + "\n"
+
+        withSplitOrder original, original
+
+    let contextualOrderWithUnknownCriticalPrefixes () =
+        let files, original = contextualOrderWithLiteralAndOptionalPrefixes ()
+
+        files
+        |> Driver.withFile
+            orderLocation
+            (original.Replace("\"context\":", "\"critical\":[\"context.prefixes\"],\"context\":"))
+
+    let contextualOrderWithExpandingAliases () =
+        let text =
+            """{"$schema":"SCHEMA","context":{"fqNames":{"q":"acme/orders:domain#LONG"}},"document":{"formatVersion":4,"name":"order","def":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"Tuple":[{"$name":"q"},{"$name":"q"},{"$name":"q"}]},"body":{"Literal":{"IntegerLiteral":73}}}}}}}"""
+
+        let selected = (contextualText text).Replace("LONG", String.replicate 500 "n")
+        withSplitOrder selected, System.Text.Encoding.UTF8.GetByteCount selected
+
+    let orderTypeLocation = "pkg/acme/orders/domain/order.type.json"
+
+    let contextualTypeFileWithValuePayload () =
+        let text =
+            """{"$schema":"SCHEMA","context":{"fqNames":{"i":"morphir/SDK:basics#int"}},"document":{"formatVersion":4,"name":"order","def":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Literal":{"IntegerLiteral":73}}}}}}}"""
+
+        Driver.ofTexts [
+            manifestLocation, v4Manifest
+            domainLocation, """{"formatVersion":4,"path":"domain","types":["order"]}"""
+            orderTypeLocation, contextualText text
+        ]
+
+    let private contextWithInvalidSpelling =
+        """{"$schema":"SCHEMA","context":{"names":{"n":"\uD800"}},"document":{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":256}}"""
+
+    let manifestWithInvalidContextSpelling () =
+        Driver.ofTexts [ manifestLocation, contextualText contextWithInvalidSpelling ]
+
+    let manifestWithInvalidContextKey () =
+        let text =
+            contextWithInvalidSpelling.Replace("\"n\":\"\\uD800\"", "\"\\uD800\":\"order\"")
+
+        Driver.ofTexts [ manifestLocation, contextualText text ]
+
+    let private manifestsWithContextTables jsonEntries yamlEntries =
+        let json =
+            """{"$schema":"SCHEMA","context":{"names":{ENTRIES}},"document":{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":256}}"""
+
+        let yaml =
+            """$schema: SCHEMA
+context:
+  names:
+ENTRIES
+document:
+  formatVersion: 4
+  distribution: Library
+  package: acme/orders
+  pathBudget: 256
+"""
+
+        let make location entries text =
+            Driver.ofTexts [ location, (contextualText text).Replace("ENTRIES", entries) ], location
+
+        [ make manifestLocation jsonEntries json; make "manifest.yaml" yamlEntries yaml ]
+
+    let manifestsWithOversizedContextSpelling () =
+        let long = String.replicate 1025 "n"
+        manifestsWithContextTables $"\"n\":\"{long}\"" $"    n: {long}"
+
+    let manifestsWithTooManyContextEntries () =
+        let ids = [ 0..16_384 ]
+
+        let jsonEntries =
+            ids
+            |> List.map (fun index -> $"\"n{index}\":\"order\"")
+            |> String.concat ","
+
+        let yamlEntries =
+            ids
+            |> List.map (fun index -> $"    n{index}: order")
+            |> String.concat "\n"
+
+        manifestsWithContextTables jsonEntries yamlEntries
 
 /// <summary>The stored tree of a v4 model: its split.</summary>
 let treeOf (distribution: Distribution) : StoredTree =

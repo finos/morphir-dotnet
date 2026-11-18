@@ -5,7 +5,6 @@ open System.Text.Json
 open Expecto
 open Morphir.Files
 open Morphir.IR
-open Morphir.IR.Files
 open Morphir.IR.Trees
 open Morphir.TestSupport.Fixtures
 
@@ -699,12 +698,7 @@ let profileTests =
                 }
 
         test "Context-last JSON is accepted in general mode and refused in streaming mode" {
-            let content =
-                """{"document":{"formatVersion":4,"distribution":"Library","package":{"$name":"p"},"pathBudget":256},"context":{"packagePaths":{"p":"acme/orders"},"prefixes":{"unused":"data"}},"$schema":"SCHEMA"}"""
-
-            let content = content.Replace("SCHEMA", MorphirFile.Draft1Schema)
-            let files = Map.ofList [ manifestLocation, VFile.ofText manifestLocation content ]
-            let source, _, _ = ordersSource (VFileTree.fromFileMap files)
+            let source, _, _ = ordersSource (Orders.manifestWithContextLast ())
 
             let result =
                 read (
@@ -727,44 +721,14 @@ let profileTests =
         }
 
         test "A YAML context duplicate is refused even when the schema marker follows it" {
-            let fields =
-                """context:
-  names:
-    n: order
-    n: other
-document:
-  formatVersion: 4
-  distribution: Library
-  package: acme/orders
-  pathBudget: 256
-$schema: SCHEMA
-"""
-
-            let fields = fields.Replace("SCHEMA", MorphirFile.Draft1Schema)
-            let name = "manifest.yaml"
-            let files = Map.ofList [ name, VFile.ofText name fields ]
-            let source, _, _ = ordersSource (VFileTree.fromFileMap files)
+            let source, _, _ = ordersSource (Orders.yamlManifestWithDuplicateContextEntry ())
 
             BoundedTreeReader.openTreeWithEncoding BoundedTreeEncoding.ContextualDraft1 1024L source
-            |> expectReadError "context.duplicate_entry" name
+            |> expectReadError "context.duplicate_entry" "manifest.yaml"
         }
 
         test "Contextual metadata does not resolve an unselected inline alias" {
-            let manifest =
-                """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":256}"""
-
-            let moduleText =
-                """{"$schema":"SCHEMA","context":{"modulePaths":{"m":"domain"},"fqNames":{"i":"morphir/SDK:basics#int"}},"document":{"formatVersion":4,"path":{"$name":"m"},"values":{"order":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Literal":{"IntegerLiteral":73}}}}},"broken":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Reference":{"$name":"missing"}}}}}}}}"""
-
-            let moduleText = moduleText.Replace("SCHEMA", MorphirFile.Draft1Schema)
-
-            let files =
-                Map.ofList [
-                    manifestLocation, VFile.ofText manifestLocation manifest
-                    moduleLocation, VFile.ofText moduleLocation moduleText
-                ]
-
-            let source, _, _ = ordersSource (VFileTree.fromFileMap files)
+            let source, _, _ = ordersSource (Orders.contextualInlineWithUnknownSiblingAlias ())
 
             let snapshot =
                 read (
@@ -801,27 +765,10 @@ $schema: SCHEMA
         }
 
         test "Selected contextual originals and literal lookalikes are preserved" {
-            let manifest =
-                """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":256}"""
+            let files, original = Orders.contextualOrderWithLiteralAndOptionalPrefixes ()
 
-            let moduleText = """{"formatVersion":4,"path":"domain","values":["order"]}"""
-
-            let original =
-                """{"$schema":"SCHEMA","context":{"prefixes":{"f":"ignored"},"fqNames":{"i":"morphir/SDK:basics#int"}},"document":{"formatVersion":4,"name":"order","def":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Literal":{"DocumentLiteral":{"ratio":1.0,"$name":"i","id":9007199254740993}}}}}}}}"""
-
-            let original =
-                original.Replace("SCHEMA", MorphirFile.Draft1Schema)
-                + "\n"
-
-            let openTree text =
-                let files =
-                    Map.ofList [
-                        manifestLocation, VFile.ofText manifestLocation manifest
-                        moduleLocation, VFile.ofText moduleLocation moduleText
-                        orderLocation, VFile.ofText orderLocation text
-                    ]
-
-                let provider = VFileProviders.asFileProvider (VFileTree.fromFileMap files)
+            let openTree files =
+                let provider = VFileProviders.asFileProvider files
 
                 read (
                     DocumentTreeStore.openSnapshotWithEncoding
@@ -832,7 +779,7 @@ $schema: SCHEMA
                 )
 
             let selection =
-                read (DocumentTreeStore.readMemberWithArtifact orderAddress (openTree original))
+                read (DocumentTreeStore.readMemberWithArtifact orderAddress (openTree files))
 
             Expect.equal selection.File orderLocation "The physical source is identified"
 
@@ -858,43 +805,22 @@ $schema: SCHEMA
                 | _ -> failtest "Expected a DocumentLiteral expression"
             | _ -> failtest "Expected a v4 value definition"
 
-            let critical =
-                original.Replace("\"context\":", "\"critical\":[\"context.prefixes\"],\"context\":")
+            let critical = openTree (Orders.contextualOrderWithUnknownCriticalPrefixes ())
 
-            DocumentTreeStore.readMemberWithArtifact orderAddress (openTree critical)
+            DocumentTreeStore.readMemberWithArtifact orderAddress critical
             |> expectReadError "context.unknown_critical" orderLocation
 
             DocumentTreeStore.resolveMemberAlias
                 orderAddress
                 [| "Public"; "ExpressionBody"; "body"; "Literal"; "DocumentLiteral"; "$name" |]
-                (openTree original)
+                (openTree files)
             |> expectReadError "context.not_an_alias" orderLocation
         }
 
         test "Expanded names cannot exceed the document byte budget" {
-            let manifest =
-                """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":256}"""
-
-            let moduleText = """{"formatVersion":4,"path":"domain","values":["order"]}"""
-
-            let selected =
-                """{"$schema":"SCHEMA","context":{"fqNames":{"q":"acme/orders:domain#LONG"}},"document":{"formatVersion":4,"name":"order","def":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"Tuple":[{"$name":"q"},{"$name":"q"},{"$name":"q"}]},"body":{"Literal":{"IntegerLiteral":73}}}}}}}"""
-
-            let selected =
-                selected
-                    .Replace("SCHEMA", MorphirFile.Draft1Schema)
-                    .Replace("LONG", String.replicate 500 "n")
-
-            Expect.isLessThan selected.Length 1024 "The encoded file fits the byte cap"
-
-            let files =
-                Map.ofList [
-                    manifestLocation, VFile.ofText manifestLocation manifest
-                    moduleLocation, VFile.ofText moduleLocation moduleText
-                    orderLocation, VFile.ofText orderLocation selected
-                ]
-
-            let source, _, _ = ordersSource (VFileTree.fromFileMap files)
+            let files, selectedBytes = Orders.contextualOrderWithExpandingAliases ()
+            Expect.isLessThan selectedBytes 1024 "The encoded file fits the byte cap"
+            let source, _, _ = ordersSource files
 
             let snapshot =
                 read (
@@ -909,25 +835,7 @@ $schema: SCHEMA
         }
 
         test "A type cannot resolve aliases using the value grammar" {
-            let manifest =
-                """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":256}"""
-
-            let moduleText = """{"formatVersion":4,"path":"domain","types":["order"]}"""
-            let typeLocation = "pkg/acme/orders/domain/order.type.json"
-
-            let selected =
-                """{"$schema":"SCHEMA","context":{"fqNames":{"i":"morphir/SDK:basics#int"}},"document":{"formatVersion":4,"name":"order","def":{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Literal":{"IntegerLiteral":73}}}}}}}"""
-
-            let selected = selected.Replace("SCHEMA", MorphirFile.Draft1Schema)
-
-            let files =
-                Map.ofList [
-                    manifestLocation, VFile.ofText manifestLocation manifest
-                    moduleLocation, VFile.ofText moduleLocation moduleText
-                    typeLocation, VFile.ofText typeLocation selected
-                ]
-
-            let source, _, _ = ordersSource (VFileTree.fromFileMap files)
+            let source, _, _ = ordersSource (Orders.contextualTypeFileWithValuePayload ())
 
             let snapshot =
                 read (
@@ -943,18 +851,17 @@ $schema: SCHEMA
                 address
                 [| "Public"; "ExpressionBody"; "outputType" |]
                 snapshot
-            |> expectReadError "context.not_an_alias" typeLocation
+            |> expectReadError "context.not_an_alias" Orders.orderTypeLocation
         }
 
         test "A context refuses invalid Unicode at the table entry or key" {
-            let manifest =
-                """{"$schema":"SCHEMA","context":{"names":{"n":"\uD800"}},"document":{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":256}}"""
+            let cases = [
+                Orders.manifestWithInvalidContextSpelling (), "context.names.n"
+                Orders.manifestWithInvalidContextKey (), "context.names"
+            ]
 
-            let manifest = manifest.Replace("SCHEMA", MorphirFile.Draft1Schema)
-            let invalidKey = manifest.Replace("\"n\":\"\\uD800\"", "\"\\uD800\":\"order\"")
-            for input, location in [ manifest, "context.names.n"; invalidKey, "context.names" ] do
-                let files = Map.ofList [ manifestLocation, VFile.ofText manifestLocation input ]
-                let source, _, _ = ordersSource (VFileTree.fromFileMap files)
+            for files, location in cases do
+                let source, _, _ = ordersSource files
 
                 let error =
                     BoundedTreeReader.openTreeWithEncoding
@@ -964,58 +871,32 @@ $schema: SCHEMA
                     |> StoreTestKit.refusal
                     |> List.exactlyOne
 
-                Expect.equal error.Code "context.invalid_entry" "Malformed Unicode is a context refusal"
-                Expect.stringContains error.Message location "The refusal names the malformed context location"
+                Expect.equal
+                    error.Code
+                    "context.invalid_entry"
+                    "Malformed Unicode is a context refusal"
+
+                Expect.stringContains
+                    error.Message
+                    location
+                    "The refusal names the malformed context location"
         }
 
         test "JSON and YAML both refuse tables above their entry and spelling limits" {
-            let verify expected file content =
-                let files = Map.ofList [ file, VFile.ofText file content ]
-                let source, _, _ = ordersSource (VFileTree.fromFileMap files)
+            let verify expected (files, location) =
+                let source, _, _ = ordersSource files
 
                 BoundedTreeReader.openTreeWithEncoding
                     BoundedTreeEncoding.ContextualDraft1
                     524288L
                     source
-                |> expectReadError expected file
+                |> expectReadError expected location
 
-            let json entries =
-                """{"$schema":"SCHEMA","context":{"names":{ENTRIES}},"document":{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":256}}"""
-                |> fun text ->
-                    text.Replace("SCHEMA", MorphirFile.Draft1Schema).Replace("ENTRIES", entries)
+            Orders.manifestsWithOversizedContextSpelling ()
+            |> List.iter (verify "context.name_too_long")
 
-            let yaml entries =
-                """$schema: SCHEMA
-context:
-  names:
-ENTRIES
-document:
-  formatVersion: 4
-  distribution: Library
-  package: acme/orders
-  pathBudget: 256
-"""
-                |> fun text ->
-                    text.Replace("SCHEMA", MorphirFile.Draft1Schema).Replace("ENTRIES", entries)
-
-            let long = String.replicate 1025 "n"
-            verify "context.name_too_long" "manifest.json" (json $"\"n\":\"{long}\"")
-            verify "context.name_too_long" "manifest.yaml" (yaml $"    n: {long}")
-
-            let ids = [ 0..16_384 ]
-
-            let jsonEntries =
-                ids
-                |> List.map (fun index -> $"\"n{index}\":\"order\"")
-                |> String.concat ","
-
-            let yamlEntries =
-                ids
-                |> List.map (fun index -> $"    n{index}: order")
-                |> String.concat "\n"
-
-            verify "context.too_many_entries" "manifest.json" (json jsonEntries)
-            verify "context.too_many_entries" "manifest.yaml" (yaml yamlEntries)
+            Orders.manifestsWithTooManyContextEntries ()
+            |> List.iter (verify "context.too_many_entries")
         }
 
         test "Refuses ambiguous manifests before opening either file" {
