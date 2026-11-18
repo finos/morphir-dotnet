@@ -67,7 +67,9 @@ The input's layout is detected: a file is a single-file model, and a directory i
 the layout that `--layout` names. Without `--layout`, the output keeps the layout of the input.
 
 - **`single-file`**: one IR JSON file, as `morphir compile` writes it. A v3 `Library` says `"formatVersion": 3`, and
-  a v3 `Specs` says `"formatVersion": "3.1.0"`.
+  a v3 `Specs` says `"formatVersion": "3.1.0"`. A v3 `Specs` has each type and value of a module in the
+  `{ "doc", "value" }` wrapper, with `"doc": null` for one with no documentation, as finos/morphir's 3.1.0 schema
+  requires, so [`morphir model verify`](model-verify.md) accepts the file that `model convert` writes.
 - **`document-tree`**: the layout of finos/morphir's document-tree specifications for
   [IR 4](https://github.com/finos/morphir/blob/main/docs/spec/ir/schemas/v4/document-tree-files.md) and [IR 3.1.0](https://github.com/finos/morphir/blob/main/docs/spec/ir/schemas/v3/document-tree-files.md), in the JSON
   profile. The tree holds `manifest.json`, a `module.json` for each module, and a `<name>.type.json` or

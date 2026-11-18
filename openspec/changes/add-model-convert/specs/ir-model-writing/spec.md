@@ -15,4 +15,4 @@ The system SHALL write library distributions as JSON for classic format versions
 
 #### Scenario: A classic Specs distribution at 3.1.0
 - **WHEN** a classic v3 Specs distribution is written for requested version `3.1.0`
-- **THEN** the document has `"formatVersion": "3.1.0"` and the Specs distribution tag, and reading it back gives an equal distribution
+- **THEN** the document has `"formatVersion": "3.1.0"`, the Specs distribution tag and each type and value of a module in the `{ "doc", "value" }` wrapper that the parent's 3.1.0 schema requires (a `null` doc for none), and reading it back gives an equal distribution

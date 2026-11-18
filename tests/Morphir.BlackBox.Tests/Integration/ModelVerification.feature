@@ -220,6 +220,13 @@ Feature: Verify a Morphir model
     And the verification report says that the model is not valid
     And an error of the verification report has the code "unknown_member" and names the place of the fault
 
+  Scenario: A v3 Specs single file with a member that the classic model has no place for is not valid
+    Given an IR v3 Specs model with an unknown member in one value specification
+    When I verify the model as JSON
+    Then the exit code is 1
+    And the verification report says that the model is not valid
+    And an error of the verification report has the code "unknown_member" and names the place of the fault
+
   Scenario: A compacted tree is verified after expansion
     Given the v4 tree of the name-context examples, with "every file" compacted
     When I verify the model as JSON

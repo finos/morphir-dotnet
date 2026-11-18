@@ -550,6 +550,8 @@ two steps have the same pattern.
 | Model verification | `Then the model was not verified` |
 | Model verification | `Then the verification report states the exit code {int}` |
 | Model | `Given a valid IR v{int} model` |
+| Model | `Given a valid IR v3 Specs model` |
+| Model | `Given an IR v3 Specs model with an unknown member in one value specification` |
 | Model | `Given an IR model with no format version` |
 | Model | `Given an IR model whose format version is a string` |
 | Model | `Given a model file that is not JSON` |
@@ -582,6 +584,7 @@ two steps have the same pattern.
 | Model conversion | `When I convert the plain twin of the model to a single file` |
 | Model conversion | `When I convert the plain twin of the model to a document tree` |
 | Model conversion | `When I verify the written tree as JSON` |
+| Model conversion | `When I verify the written single file as JSON` |
 | Model conversion | `Then the conversion succeeds` |
 | Model conversion | `Then the conversion fails with the exit code {int} and the diagnostic {string}` |
 | Model conversion | `Then the conversion report states the layouts {string} and {string}` |
@@ -603,6 +606,7 @@ two steps have the same pattern.
 | Model conversion | `Then the stream has the notices of the conversion report` |
 | Model conversion | `Then the conversion report has a notice {string} that names {string}` |
 | Model conversion | `Then the written single file says the format version {int}` |
+| Model conversion | `Then the written single file says the format version {string}` |
 | Model conversion | `Then every file of the written tree says the format version {string}` |
 | Model conversion | `Then the written single file is plain` |
 | Model conversion | `Then the written single file is compacted` |

@@ -165,6 +165,14 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
         run.Result = await verification.VerifyAsync(WrittenTree, new VerificationOptions { Json = JsonOutputArgument.Stream });
     }
 
+    /// <summary>Verifies the single file that the last conversion wrote, as JSON; the file is then the model of the scenario.</summary>
+    [When("I verify the written single file as JSON")]
+    public async Task VerifyTheWrittenSingleFile()
+    {
+        run.Model = WrittenFile;
+        run.Result = await verification.VerifyAsync(WrittenFile, new VerificationOptions { Json = JsonOutputArgument.Stream });
+    }
+
     private async Task Convert(ModelLocation input, ModelLayout? layout, CompactionArgument? compact = null)
     {
         // With no layout, the output has the layout of the input.
@@ -382,6 +390,14 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
         var formatVersion = JsonNode.Parse(workspace.ReadText(WrittenFile))!["formatVersion"];
         Report.Check(formatVersion is JsonValue value && value.GetValueKind() == JsonValueKind.Number && value.GetValue<int>() == version,
             $"The written file says the format version {formatVersion?.ToJsonString() ?? "nothing"}, not {version}.");
+    }
+
+    [Then("the written single file says the format version {string}")]
+    public void TheWrittenFileSaysTheReleaseFormatVersion(string version)
+    {
+        var formatVersion = JsonNode.Parse(workspace.ReadText(WrittenFile))!["formatVersion"];
+        Report.Check(formatVersion is JsonValue value && value.GetValueKind() == JsonValueKind.String && value.GetValue<string>() == version,
+            $"The written file says the format version {formatVersion?.ToJsonString() ?? "nothing"}, not \"{version}\".");
     }
 
     [Then("every file of the written tree says the format version {string}")]

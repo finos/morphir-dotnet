@@ -62,7 +62,10 @@ public class SchemaLoader
 
     private readonly ConcurrentDictionary<string, global::Json.Schema.JsonSchema> _cache = new();
 
-    /// <summary>The schema of the IR format version <paramref name="version"/>: <c>"1"</c> to <c>"4"</c>.</summary>
+    /// <summary>
+    /// The schema of the IR format version <paramref name="version"/>: <c>"1"</c> to <c>"4"</c>, or <c>"3.1.0"</c>, the
+    /// parent's schema of a v3 file that says <c>"3.1.0"</c>.
+    /// </summary>
     public Task<global::Json.Schema.JsonSchema> LoadSchemaAsync(string version, CancellationToken ct)
     {
         return Task.FromResult(_cache.GetOrAdd(version, LoadSchemaFromEmbeddedResource));

@@ -149,11 +149,12 @@ public static class VerifyModelHandler
             // 2. Detect or use specified version
             var version = GivenVersion(command) ?? VersionDetector.DetectVersion(jsonContent);
 
-            // 3. Validate against schema
+            // 3. Validate against schema. A v3 file that says "3.1.0", the form of a v3 Specs, has the parent's 3.1.0
+            //    schema; the older v3 schema accepts the integer 3 and a Library only.
             var statedV3 = version == "3" ? VersionDetector.StatedV3Version(jsonContent) : null;
             var validationResult = await validator.ValidateAsync(
                 jsonContent,
-                version,
+                statedV3 == VersionDetector.Release310 ? VersionDetector.Release310 : version,
                 ct);
 
             // 4. A v4 model, and a v3 model that states its version, is also decoded, which checks what the parent's

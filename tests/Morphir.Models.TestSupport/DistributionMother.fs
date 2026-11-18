@@ -448,3 +448,46 @@ module SingleFiles =
             definition.AsObject().["metadata"] <- JsonValue.Create "do-not-drop"
             Encoding.UTF8.GetBytes(root.ToJsonString())
         | Error error -> failwith $"v3Library is written as a single file: {error.Message}"
+
+    /// <summary>
+    /// <see cref="v3Specs"/> as the v3 single file that the classic writer writes at <c>"3.1.0"</c>, the one form of a
+    /// classic Specs: what <c>morphir model convert</c> writes for a v3 Specs. <c>FixtureCatalog.Models.V3Specs</c> pins
+    /// its bytes.
+    /// </summary>
+    let v3SpecsFile: byte array =
+        match ClassicJsonWriter.writeTyped ClassicWireProfile.v3_1_0 false v3Specs with
+        | Ok bytes -> bytes
+        | Error error -> failwith $"v3Specs is written as a single file: {error.Message}"
+
+    /// <summary>The JSON location of the member that <see cref="v3SpecsWithANestedUnknownMember"/> adds.</summary>
+    let v3SpecsNestedUnknownMember =
+        "$.distribution[3].modules[0][1].values[0][1].value.metadata"
+
+    /// <summary>
+    /// <see cref="v3SpecsFile"/> with a member <c>metadata</c> in the specification of the value
+    /// <c>default-currency</c>, beside its <c>inputs</c> and <c>output</c>, where the classic model has no place for it.
+    /// <c>FixtureCatalog.Models.V3SpecsWithAnUnknownMember</c> pins its bytes.
+    /// </summary>
+    let v3SpecsWithANestedUnknownMember: byte array =
+        let root = nonNull (JsonNode.Parse(Encoding.UTF8.GetString v3SpecsFile))
+        let modules = nonNull (nonNull (nonNull root["distribution"]).[3]).["modules"]
+        let values = nonNull (nonNull (nonNull modules[0]).[1]).["values"]
+        let specification = nonNull (nonNull (nonNull (nonNull values[0]).[1]).["value"])
+        specification.AsObject().["metadata"] <- JsonValue.Create "do-not-drop"
+        Encoding.UTF8.GetBytes(root.ToJsonString())
+
+    /// <summary>
+    /// <see cref="v3SpecsFile"/> with each type and value that has no documentation written bare, as the integer 3
+    /// profile writes it, where the 3.1.0 schema requires <c>{ "doc", "value" }</c>.
+    /// </summary>
+    let v3SpecsFileWithBareEntries: byte array =
+        match
+            ClassicJsonWriter.writeTyped
+                { ClassicWireProfile.v3_1_0 with
+                    EntryDocs = ClassicEntryDocStyle.Bare
+                }
+                false
+                v3Specs
+        with
+        | Ok bytes -> bytes
+        | Error error -> failwith $"v3Specs is written as a single file: {error.Message}"

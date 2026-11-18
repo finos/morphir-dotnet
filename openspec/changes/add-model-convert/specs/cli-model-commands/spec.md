@@ -14,7 +14,7 @@ The CLI SHALL offer a `model` command group holding `verify` and `convert`. `mor
 - **THEN** the help lists `verify` and `convert` with a one-line description each
 
 ### Requirement: Model verify keeps the behavior of the former IR verify
-For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL accept the same inputs and options, write the same report, and exit with the same codes as `morphir ir verify` did, apart from the changes that the requirements "The verify report states its exit code and its input" and "Model verify lists real errors and refuses unknown versions" state.
+For single files at classic versions 1, 2 and 3, `morphir model verify` SHALL accept the same inputs and options, write the same report, and exit with the same codes as `morphir ir verify` did, apart from the changes that the requirements "The verify report states its exit code and its input", "Model verify lists real errors and refuses unknown versions" and "Model verify checks a v3 single file as model convert reads it" state.
 
 #### Scenario: A valid v3 model is valid
 - **WHEN** a user runs `morphir model verify` on a valid IR v3 file
@@ -59,6 +59,17 @@ After the schema, `morphir model verify` SHALL decode a single-file IR v4 model 
 #### Scenario: An invalid v4 model names its error
 - **WHEN** a v4 model in the flattened module spelling has a type node with an unknown tag
 - **THEN** the command exits 1 and the error names the JSON path of that node
+
+### Requirement: Model verify checks a v3 single file as model convert reads it
+`morphir model verify` SHALL check a single file that says `"formatVersion": "3.1.0"`, the form of a v3 `Specs`, against the parent's published 3.1.0 schema, and report IR version 3. After the schema it SHALL decode a v3 single file that states `3` or `"3.1.0"` with the classic reader of `model convert`, and report a member that the classic model has no place for as `unknown_member` at its JSON path.
+
+#### Scenario: A v3 Specs file that convert wrote is valid
+- **WHEN** a v3 `Specs` single file is converted to a tree and back, and the written file is verified
+- **THEN** the command exits 0 and reports schema version v3
+
+#### Scenario: A v3 member with no place in the classic model is an error
+- **WHEN** a user runs `morphir model verify` on a v3 `Specs` single file whose value specification has an unknown member
+- **THEN** the command exits 1 with the `unknown_member` diagnostic at that member's JSON path
 
 ### Requirement: Model verify checks a document tree
 When the input is a directory holding a tree manifest, `morphir model verify` SHALL check the whole tree: every file against the parent's published schema for its file kind where one exists, every tree rule of `model-document-trees`, and every document's content. The version SHALL come from the manifest. Each error SHALL name the file and the place in it. The report SHALL state the layout `document-tree` and the number of files checked.

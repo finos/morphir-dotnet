@@ -27,6 +27,13 @@ before the catalog; the unit tests of `tests/Morphir.Tooling.Tests/TestData` kee
 `morphir-ir-v4.json` (pinned at finos/morphir `4fa51c8b`, see `src/Morphir.Tooling/Infrastructure/Schemas/PROVENANCE.md`)
 refuses the file, but locates the fault only at the module; `model verify` names the node by decoding the model
 (`FixtureCatalog.Models.V4WithAnUnknownTypeTag` gives its JSON Pointer).
+`specs-v3.json` is the v3 single file that the classic writer writes at `"3.1.0"` for `DistributionMother.v3Specs`
+(`DistributionMother.SingleFiles.v3SpecsFile`), the file that `model convert` writes for a v3 Specs, and
+`specs-unknown-member-v3.json` is that file with a member `metadata` in the specification of the value
+`default-currency`, where the classic model has no place for it
+(`DistributionMother.SingleFiles.v3SpecsWithANestedUnknownMember`). `WrittenTreeTests` in
+`tests/Morphir.Models.Tests` fails when the mother writes other bytes; write the two files again from the mother
+then, and update the hashes here and in `FixtureCatalog`.
 
 | File | Intent | SHA-256 |
 | --- | --- | --- |
@@ -42,3 +49,5 @@ refuses the file, but locates the fault only at the module; `model verify` names
 | `no-format-version.json` | a model with no format version | `fd1150056eed9943ac2944d91c00ae4a83a0faa3a486d88a582b4754904a268e` |
 | `string-format-version.json` | a model whose format version is a string | `a772afcac09350b2792fc894010e4cab06e0ee19bcc7225d717f3a0e037e0562` |
 | `daily-rate-unknown-type-tag-v4.json` | a v4 Library with an unknown tag in one type node | `7d25e4f44621846ab7264439d0ca457a1c4e9e1fcb66faf1f515000e95ee992b` |
+| `specs-v3.json` | a v3 Specs, as model convert writes it | `03e5bc1d910613719f9cd9fed8a91b21616b059979f0bab5e658e1b689b4fd93` |
+| `specs-unknown-member-v3.json` | a v3 Specs with a member that the classic model has no place for | `c5cb852f6bb21ac2969e1da8292bfbb68a51c7dc07391f4cb0fb8b046d022499` |

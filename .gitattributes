@@ -97,10 +97,13 @@ tests/Fixtures/MorphirIR/empty-library-v2.json text eol=lf
 tests/Fixtures/MorphirIR/no-format-version.json text eol=lf
 tests/Fixtures/MorphirIR/string-format-version.json text eol=lf
 tests/Fixtures/MorphirIR/daily-rate-unknown-type-tag-v4.json text eol=lf
+tests/Fixtures/MorphirIR/specs-v3.json -text
+tests/Fixtures/MorphirIR/specs-unknown-member-v3.json -text
 
-# The IR v4 schemas of finos/morphir, pinned byte for byte (src/Morphir.Tooling/Infrastructure/Schemas/PROVENANCE.md).
+# The IR v4 schemas and the IR 3.1.0 schema of finos/morphir, pinned byte for byte (src/Morphir.Tooling/Infrastructure/Schemas/PROVENANCE.md).
 src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v4.json -text
 src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v4-document-tree-files.json -text
+src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v3.1.0.json -text
 
 # RFC 8785 as the RFC Editor publishes it, the source of the JCS test vectors (tests/Fixtures/Rfc8785/PROVENANCE.md).
 tests/Fixtures/Rfc8785/** -text

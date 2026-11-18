@@ -213,6 +213,62 @@ public class VerifyModelHandlerTests
         result.FilesChecked.Should().Be(1);
     }
 
+    /// <summary>Verifies the bytes of a single file of a mother, written to a file of a sandbox.</summary>
+    private async Task<VerifyModelResult> VerifyBytes(byte[] bytes, int? schemaVersion = null)
+    {
+        await using var sandbox = TestSandbox.Create("morphir-verify-v3-");
+        var path = sandbox.PathOf("model.json");
+        await File.WriteAllBytesAsync(path, bytes);
+        return await VerifyModelHandler.Handle(new VerifyModel(path, schemaVersion), _validator, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// A v3 Specs single file says <c>"formatVersion": "3.1.0"</c>, which the older v3 schema of a Library does not
+    /// accept. It is checked against the parent's 3.1.0 schema (<c>Schemas/PROVENANCE.md</c>), so the file that
+    /// <c>model convert</c> writes for a Specs is valid.
+    /// </summary>
+    [Test]
+    [Arguments(null)]
+    [Arguments(3)]
+    public async Task AV3SpecsSingleFileThatTheWriterWritesIsValid(int? schemaVersion)
+    {
+        var result = await VerifyBytes(Morphir.Models.TestSupport.DistributionMother.SingleFiles.v3SpecsFile, schemaVersion);
+
+        result.Errors.Should().BeEmpty();
+        result.IsValid.Should().BeTrue();
+        result.ExitCode.Should().Be(0);
+        result.SchemaVersion.Should().Be("3");
+    }
+
+    /// <summary>
+    /// The 3.1.0 schema requires the <c>{ "doc", "value" }</c> wrapper for each type and value of a module, so a 3.1.0
+    /// file is checked against it: the same Specs with its entries bare, as the integer 3 profile writes them, is not
+    /// valid, with errors of the schema.
+    /// </summary>
+    [Test]
+    public async Task AV3SpecsSingleFileIsCheckedAgainstThe310Schema()
+    {
+        var result = await VerifyBytes(Morphir.Models.TestSupport.DistributionMother.SingleFiles.v3SpecsFileWithBareEntries);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().NotBeEmpty().And.OnlyContain(error => error.Code == null, "the schema's errors");
+    }
+
+    /// <summary>A 3.1.0 file is also read as <c>model convert</c> reads it, which names a member that the classic model has no place for.</summary>
+    [Test]
+    public async Task AV3SpecsSingleFileWithAMemberThatTheClassicModelHasNoPlaceForIsNotValid()
+    {
+        var result = await VerifyBytes(Morphir.Models.TestSupport.DistributionMother.SingleFiles.v3SpecsWithANestedUnknownMember);
+
+        result.IsValid.Should().BeFalse();
+        result.ExitCode.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Path = StoreLocation.Pointer(Morphir.Models.TestSupport.DistributionMother.SingleFiles.v3SpecsNestedUnknownMember),
+            Code = "unknown_member",
+        });
+    }
+
     /// <summary>
     /// Verifies the bytes of the parent's name-context example <paramref name="id"/>, or of its plain twin, written to a
     /// file of a sandbox.

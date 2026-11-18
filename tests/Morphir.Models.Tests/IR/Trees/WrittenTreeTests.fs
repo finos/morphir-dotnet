@@ -70,6 +70,35 @@ let tests =
                 Expect.equal (Option.ofObj faulty.Fault.File) (Some Invalid.financeDefaultCurrencyValueFile) "The fault is the missing value file"
             }
 
+            test "The v3 Specs single file of the catalog is what the classic writer writes for its mother case" {
+                Expect.sequenceEqual
+                    (FixtureCatalog.ReadBytes FixtureCatalog.Models.V3Specs)
+                    DistributionMother.SingleFiles.v3SpecsFile
+                    "Write it again from the mother if the writer changed on purpose"
+            }
+
+            test "The v3 Specs single file with an unknown member is its mother case" {
+                let faulty = FixtureCatalog.Models.V3SpecsWithAnUnknownMember
+
+                Expect.sequenceEqual
+                    (FixtureCatalog.ReadBytes faulty.Entry)
+                    DistributionMother.SingleFiles.v3SpecsWithANestedUnknownMember
+                    "Write it again from the mother if the writer changed on purpose"
+
+                Expect.equal
+                    (Option.ofObj faulty.Fault.JsonPointer)
+                    (Some(
+                        "/"
+                        + DistributionMother.SingleFiles.v3SpecsNestedUnknownMember
+                            .Substring(2)
+                            .Replace("][", "/")
+                            .Replace("[", "/")
+                            .Replace("]", "")
+                            .Replace(".", "/")
+                    ))
+                    "The fault is the mother's member"
+            }
+
             test "A module file that lists a value with no file is refused at the missing file's path" {
                 match Driver.read (Invalid.moduleListingAMissingValue ()) with
                 | Ok _ -> failtest "Expected the tree to be refused"

@@ -33,8 +33,9 @@ parent's v4 schema checks the types and values of a module in every spelling, su
 its errors for a fault inside a module name the module and each spelling it tried. The reader names the node itself:
 an error of the reader has the reader's `code`, such as `unknown_node`, and its JSON location in `Path`.
 
-An IR v3 file that states its version, `"formatVersion": 3` or `"3.1.0"`, is also read after the schema check, with
-the classic reader of [`morphir model convert`](model-convert.md). The v3 schemas leave the objects of a model open,
+An IR v3 file that states its version, `"formatVersion": 3` or `"3.1.0"`, is checked against the schema of that
+version (see [Schema version detection](#schema-version-detection)) and then read with the classic reader of
+[`morphir model convert`](model-convert.md). The v3 schemas leave the objects of a model open,
 so a member that the classic model has no place for passes them, and a conversion would lose it. The reader refuses
 it: an error with the code `unknown_member` at the member's JSON location, such as a member beside the `inputTypes`,
 `outputType` and `body` of a value definition. A v1 or v2 file, and a file that states no version, is checked
@@ -403,7 +404,9 @@ The command reads the version of a single file from its `formatVersion` member:
 - **v1**: `"formatVersion": 1`
 - **v2**: `"formatVersion": 2`
 - **v3**: `"formatVersion": 3` or `"3.1.0"`, and the default when the member is missing or states no version that the
-  command knows
+  command knows. A file that says `"3.1.0"`, the form of a v3 `Specs` that [`morphir model convert`](model-convert.md)
+  writes, is checked against finos/morphir's 3.1.0 schema, also with `--schema-version=3`; any other v3 file
+  against the older v3 schema, which accepts the integer `3` and a `Library` only. Both report the schema version `3`.
 - **v4**: `"formatVersion": 4`, or a v4 release such as `"4.0.0"`
 
 A document tree takes its version from its manifest: a `formatVersion` of major 3 is a v3 tree, and any other a v4

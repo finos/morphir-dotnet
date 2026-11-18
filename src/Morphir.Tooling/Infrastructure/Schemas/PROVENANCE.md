@@ -24,12 +24,35 @@ An earlier copy, with three local changes:
   accepts the inferred types that morphir-elm writes as attributes, for example
   in `website/static/ir/examples/v3/greeting-example.json`.
 
-Later upstream changes are not taken yet. finos/morphir#986 (IR 3.1.0) adds
-`Specs` distributions and string format versions, and requires the
-`{ "doc", "value" }` wrapper for each type and value of a module. The classic v3
-writer of morphir-dotnet writes a type or value with no documentation without
-that wrapper, so the whole upstream schema would reject the output of
-`morphir compile`. Take it together with a change to that writer.
+`morphir-ir-v3.json` checks a single file with the integer `"formatVersion": 3`
+(and a file that states no version). Later upstream changes are not taken into
+it: finos/morphir#986 (IR 3.1.0) adds `Specs` distributions and string format
+versions, and requires the `{ "doc", "value" }` wrapper for each type and value
+of a module. The integer 3 profile of the classic writer writes a type or value
+with no documentation without that wrapper, so the upstream schema would reject
+the output of `morphir compile`.
+
+## v3.1.0
+
+`morphir-ir-v3.1.0.json` checks a single file that says `"formatVersion":
+"3.1.0"`, the form of a v3 `Specs`, which the older copy above refuses. It is
+the upstream v3 schema since finos/morphir#986, copied unchanged from
+`website/static/schemas/morphir-ir-v3.json` of finos/morphir at `main` commit
+`4fa51c8b9a8634f8779e0e6b9900fc14b049da06`, the commit of the v4 schemas below,
+with `git cat-file blob <commit>:<path>`. Only the `.json` file is pinned, and
+`.gitattributes` keeps its bytes.
+
+| File | Upstream path | Git blob | SHA-256 |
+| --- | --- | --- | --- |
+| `morphir-ir-v3.1.0.json` | `website/static/schemas/morphir-ir-v3.json` | `e58c10cb6eabab802a338cec242bf50a69a7d4d5` | `415356be102706c87cdb7753d64d1db2df0fa4b10afcf51dd154871edcf13cdd` |
+
+The 3.1.0 profile of the classic writer (`ClassicWireProfile.v3_1_0`) writes the
+`{ "doc", "value" }` wrapper with a `null` doc for a type or value with no
+documentation, so the file that `morphir model convert` writes for a v3 `Specs`
+passes this schema. Like the older copy, it leaves the objects of a model open;
+`model verify` then reads a v3 file that states its version with
+`ClassicJson.readDistributionStrict`, which names a member that the classic
+model has no place for (`unknown_member`).
 
 ## v4 and the v4 document-tree files
 

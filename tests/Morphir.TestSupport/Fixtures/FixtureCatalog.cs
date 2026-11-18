@@ -109,6 +109,27 @@ public static class FixtureCatalog
             V4DailyRateUnknownTypeTag,
             new FixtureFault(null, "/distribution/Library/def/modules/inventory/values/daily-rate/ExpressionBody/outputType", []));
 
+        /// <summary>
+        /// A v3 Specs single file, <c>"formatVersion": "3.1.0"</c>, as <c>model convert</c> writes it: the classic
+        /// writer's file of <c>DistributionMother.v3Specs</c> (<c>DistributionMother.SingleFiles.v3SpecsFile</c>).
+        /// </summary>
+        public static FixtureEntry V3Specs { get; } = new(
+            "a v3 Specs, as model convert writes it", "MorphirIR/specs-v3.json",
+            "03e5bc1d910613719f9cd9fed8a91b21616b059979f0bab5e658e1b689b4fd93", Provenance);
+
+        /// <summary>
+        /// <see cref="V3Specs"/> with a member <c>metadata</c> in the specification of the value <c>default-currency</c>,
+        /// where the classic model has no place for it (<c>DistributionMother.SingleFiles.v3SpecsWithANestedUnknownMember</c>).
+        /// </summary>
+        public static FixtureEntry V3SpecsWithAnUnknownMemberFile { get; } = new(
+            "a v3 Specs with a member that the classic model has no place for", "MorphirIR/specs-unknown-member-v3.json",
+            "c5cb852f6bb21ac2969e1da8292bfbb68a51c7dc07391f4cb0fb8b046d022499", Provenance);
+
+        /// <summary><see cref="V3SpecsWithAnUnknownMemberFile"/> and the JSON location of its member, which a reader refuses with <c>unknown_member</c>.</summary>
+        public static FaultyFixtureModel V3SpecsWithAnUnknownMember { get; } = new(
+            V3SpecsWithAnUnknownMemberFile,
+            new FixtureFault(null, "/distribution/3/modules/0/1/values/0/1/value/metadata", ["'metadata'"]));
+
         /// <summary>Text that is not JSON.</summary>
         public static FixtureEntry Malformed { get; } = new(
             "a model file that is not JSON", "MorphirIR/malformed-model.txt",
@@ -138,7 +159,8 @@ public static class FixtureCatalog
         public static IReadOnlyList<FixtureEntry> All { get; } =
         [
             V3Library, V3DailyRate, V4DailyRate, V3DailyRateTypeMismatch, V3ConstantFolding, V4ConstantFolding, Malformed,
-            V1EmptyLibrary, V2EmptyLibrary, NoFormatVersion, StringFormatVersion, V4DailyRateUnknownTypeTag,
+            V1EmptyLibrary, V2EmptyLibrary, NoFormatVersion, StringFormatVersion, V4DailyRateUnknownTypeTag, V3Specs,
+            V3SpecsWithAnUnknownMemberFile,
         ];
     }
 

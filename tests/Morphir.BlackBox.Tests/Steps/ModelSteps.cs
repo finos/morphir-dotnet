@@ -53,6 +53,18 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
     [Given("a v4 tree whose manifest has a version and a created date")]
     public void AV4TreeWithAVersionAndACreatedDate() => TheCatalogTree(FixtureCatalog.Trees.AcmeDemoTree);
 
+    /// <summary>A v3 Specs single file, <c>"formatVersion": "3.1.0"</c>, as <c>model convert</c> writes it: <see cref="FixtureCatalog.Models.V3Specs"/>.</summary>
+    [Given("a valid IR v3 Specs model")]
+    public void AValidV3SpecsModel() => TheCatalogModel(FixtureCatalog.Models.V3Specs);
+
+    /// <summary>The v3 Specs single file with a member that the classic model has no place for, and where that member is.</summary>
+    [Given("an IR v3 Specs model with an unknown member in one value specification")]
+    public void AV3SpecsModelWithAnUnknownMember()
+    {
+        TheCatalogModel(FixtureCatalog.Models.V3SpecsWithAnUnknownMember.Entry);
+        run.Fault = FixtureCatalog.Models.V3SpecsWithAnUnknownMember.Fault;
+    }
+
     /// <summary>A single-file v4 model with one type node whose tag no type node has, and where that node is.</summary>
     [Given("an IR v4 model with an unknown tag in one type node")]
     public void AV4ModelWithAnUnknownTypeTag()

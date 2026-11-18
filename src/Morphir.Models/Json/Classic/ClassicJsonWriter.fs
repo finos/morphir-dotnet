@@ -46,6 +46,17 @@ type ClassicModuleDocStyle =
     /// <summary><c>"doc": null</c> (version 3, as the upstream kit, writer and schema have it).</summary>
     | NullWhenAbsent
 
+/// <summary>How a classic wire version writes a type or a value of a module that has no documentation.</summary>
+[<RequireQualifiedAccess>]
+type ClassicEntryDocStyle =
+    /// <summary>The entry itself, with no <c>{ "doc", "value" }</c> wrapper (versions 1 to 3).</summary>
+    | Bare
+    /// <summary>
+    /// <c>{ "doc": null, "value": entry }</c> (version 3.1.0): finos/morphir's 3.1.0 schema, <c>morphir-ir-v3.json</c>,
+    /// requires the wrapper for each type and value of a module, with a doc that is a string or null.
+    /// </summary>
+    | NullDoc
+
 /// <summary>The distribution kind a classic wire profile writes, with the tag its version spells.</summary>
 [<RequireQualifiedAccess>]
 type ClassicProfileDistribution =
@@ -75,6 +86,8 @@ type ClassicWireProfile = {
     Distribution: ClassicProfileDistribution
     /// <summary>How a module without documentation is written.</summary>
     ModuleDocs: ClassicModuleDocStyle
+    /// <summary>How a type or value of a module without documentation is written.</summary>
+    EntryDocs: ClassicEntryDocStyle
 }
 
 /// <summary>The classic wire profiles.</summary>
@@ -90,6 +103,7 @@ module ClassicWireProfile =
         Modules = ClassicModuleListStyle.Records
         Distribution = ClassicProfileDistribution.Library "library"
         ModuleDocs = ClassicModuleDocStyle.OmitWhenAbsent
+        EntryDocs = ClassicEntryDocStyle.Bare
     }
 
     /// <summary>Classic format version 2: a Library.</summary>
@@ -102,6 +116,7 @@ module ClassicWireProfile =
         Modules = ClassicModuleListStyle.Pairs
         Distribution = ClassicProfileDistribution.Library "Library"
         ModuleDocs = ClassicModuleDocStyle.OmitWhenAbsent
+        EntryDocs = ClassicEntryDocStyle.Bare
     }
 
     /// <summary>Classic format version 3: a Library, with the integer <c>"formatVersion": 3</c>.</summary>
@@ -114,6 +129,7 @@ module ClassicWireProfile =
         Modules = ClassicModuleListStyle.Pairs
         Distribution = ClassicProfileDistribution.Library "Library"
         ModuleDocs = ClassicModuleDocStyle.NullWhenAbsent
+        EntryDocs = ClassicEntryDocStyle.Bare
     }
 
     /// <summary>
@@ -130,6 +146,7 @@ module ClassicWireProfile =
         Modules = ClassicModuleListStyle.Pairs
         Distribution = ClassicProfileDistribution.Specs "Specs"
         ModuleDocs = ClassicModuleDocStyle.NullWhenAbsent
+        EntryDocs = ClassicEntryDocStyle.NullDoc
     }
 
     /// <summary>Every declared classic profile, in version order.</summary>
@@ -291,9 +308,15 @@ module ClassicJsonWriter =
             w.Json.WriteEndObject()
 
     let private documented (w: Writer<_, _>) (writeValue: 'v -> unit) (value: Documented<'v>) =
-        match value with
-        | WithoutDocumentation inner -> writeValue inner
-        | WithDocumentation(doc, inner) ->
+        match value, w.Profile.EntryDocs with
+        | WithoutDocumentation inner, ClassicEntryDocStyle.Bare -> writeValue inner
+        | WithoutDocumentation inner, ClassicEntryDocStyle.NullDoc ->
+            w.Json.WriteStartObject()
+            w.Json.WriteNull "doc"
+            w.Json.WritePropertyName "value"
+            writeValue inner
+            w.Json.WriteEndObject()
+        | WithDocumentation(doc, inner), _ ->
             w.Json.WriteStartObject()
             w.Json.WriteString("doc", doc)
             w.Json.WritePropertyName "value"
