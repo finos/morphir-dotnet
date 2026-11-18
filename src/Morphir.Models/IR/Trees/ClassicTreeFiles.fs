@@ -40,7 +40,8 @@ type internal ClassicModuleFile =
 /// <c>path</c>: each is an <c>unknown_member</c>. A <c>def</c> wrapper has only <c>access</c> and <c>value</c>, a
 /// documented entry only <c>doc</c> and <c>value</c>, and a <c>spec</c> no <c>access</c>: anything else is
 /// <c>invalid_distribution_shape</c> at <c>#/def</c> or <c>#/spec</c>. A payload that is not the classic JSON of its
-/// kind is <c>invalid_type</c>.
+/// kind is <c>invalid_type</c>, and a member below the wrapper that no classic v3 shape has, at any depth, is
+/// <c>unknown_member</c> at that member (<c>ClassicMembers</c>), so no conversion drops it.
 /// </remarks>
 module internal ClassicTreeFiles =
     open V4JsonDecoding
