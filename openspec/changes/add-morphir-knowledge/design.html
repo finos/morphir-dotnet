@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-morphir-knowledge</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-morphir-knowledge</h1>
+<p class="meta">OpenSpec design</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and scope</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Release plan</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>The <a href="proposal.md">proposal</a> introduces knowledge libraries and a bundle validation command.
+The .NET CLI already composes commands through <code>Morphir.Tooling</code>, and <code>Morphir.Files</code>
+exposes virtual files and Microsoft file-provider adapters. Existing library releases use a dependency-ordered package
+inventory in the Nuke build.</p>
+<p>In the example below, a reviewer opens <code>metrics/net-revenue.md</code> in an OKF bundle, selects
+two non-adjacent passages from a saved revision, and links them to an approved RDF statement about the definition
+of net revenue. CI validates the bundle, and another .NET consumer reads the RDF dataset from N-Quads.</p>
+
+<h2 id="goals">Goals and scope</h2>
+<p>Keep parsing, selection and graph addressing usable by libraries and give the CLI the same conformance results.
+A package consumer chooses OKF, RDF, or the shared knowledge contracts according to the data it works with.</p>
+<p>Review applications own persistence, presentation and decisions about moving annotations across revisions.
+Interchange adapters can project these contracts to Web Annotation, and RDF engines can use the dataset API for
+storage, query or inference. Those integrations have their own delivery scope.</p>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="pkg-1">PKG-1. Package dependencies follow actual use</h3>
+<table>
+<thead><tr><th>NuGet package</th><th>Public surface</th><th>Dependencies introduced here</th></tr></thead>
+<tbody>
+<tr><td><code>Morphir.Knowledge</code></td><td>Shared IRI and identity types, source ranges, selections, annotations and links</td><td>F# and .NET runtime libraries</td></tr>
+<tr><td><code>Morphir.Knowledge.Okf</code></td><td>OKF documents, AST and CST cursors, bundle loading and validation</td><td><code>Morphir.Knowledge</code>, <code>Morphir.Files</code>, Markdig and YamlDotNet</td></tr>
+<tr><td><code>Morphir.Knowledge.Rdf</code></td><td>RDF 1.1 terms, graphs, datasets, flat quads and the N-Quads codec</td><td><code>Morphir.Knowledge</code></td></tr>
+</tbody>
+</table>
+<p>A consumer can add a typed annotation body or a new target using a generic envelope. Format adapters supply their
+own projection and serialization functions, which lets an application compose the features it needs without a central
+registry or an RDF engine dependency. The C# CLI references the OKF package through <code>Morphir.Tooling</code>.</p>
+
+<h3 id="okf-1">OKF-1. One source and document root for both trees</h3>
+<p><code>OkfDocument</code> owns one immutable source snapshot. The CST contains the YAML frontmatter envelope, YAML
+syntax, and Markdown syntax. The AST exposes the YAML value tree and Markdown blocks and inlines under a single
+root. Once the bundle path and OKF version are known, typed views interpret concept, index and log metadata. In
+particular, OKF field decoding must leave unknown keys inspectable and report invalid known values where they occur.</p>
+<pre><code class="language-fsharp">type Frontmatter =
+    | Absent
+    | Parsed of YamlNode
+    | Invalid of SourceSpan
+
+type OkfDocumentAst =
+    { Frontmatter: Frontmatter
+      Body: MarkdownNode }
+
+type OkfDocument =
+    member Source: OkfSource
+    member Syntax: SyntaxNode
+    member Ast: OkfDocumentAst
+
+type OkfParseResult =
+    | ParsedDocument of OkfDocument * Diagnostic list
+    | UnreadableSource of Diagnostic</code></pre>
+<p>For the first implementation, recognize the exact OKF fence lines at the document boundary, use YamlDotNet tokens
+and parser events for YAML, and enable Markdig precise positions, trivia, GFM tables and footnotes. Adapt both
+libraries into Morphir-owned trees and translate their positions into the original document coordinate system.
+The delimiter recognizer owns the OKF rule that the closing fence is exactly <code>---</code>.</p>
+<p>The disposable proof on .NET 10 and 11 used Markdig 1.6.0 and the repository's YamlDotNet 16.3.0.
+A depth-first walk of 58 leaves reproduced all 278 original bytes. A block-close callback captured an unused
+footnote, and the adapter recovered a table alignment row from the source. The proof also retained the body
+after a fenced YAML error and handled a header-only table at EOF. Full CST coverage still requires structured
+syntax beyond those fixtures, including Markdown reference definitions, nested constructs, YAML collections and
+unresolved citation spellings. Unexplained spans are evidence to improve the projection, with explicit error
+nodes for malformed regions. See the <a href="specs/okf-documents/spec.md">document contract</a> and
+<a href="https://github.com/xoofx/markdig/blob/main/src/Markdig/Extensions/Footnotes/FootnoteParser.cs">Markdig footnote processing</a>.</p>
+
+<h3 id="okf-2">OKF-2. Cursors traverse immutable trees</h3>
+<p>Both trees expose the same typed cursor operations, including parent, first child, adjacent siblings and
+a source-ordered pre-order walk bounded by the starting subtree. An enter callback returns continue, skip children,
+or stop. A shared cursor implementation uses each tree's child and span accessors. The visitor sees one document
+snapshot and follows structural edges; bundle links resolve through explicit lookup. This keeps visits finite when
+two concepts link to each other.</p>
+<pre><code class="language-fsharp">type VisitControl = Continue | SkipChildren | Stop
+
+val syntax: OkfDocument -&gt; Cursor&lt;SyntaxNode&gt;
+val ast: OkfDocument -&gt; Cursor&lt;AstNode&gt;
+val walk: (Cursor&lt;'Node&gt; -&gt; VisitControl) -&gt; Cursor&lt;'Node&gt; -&gt; unit</code></pre>
+
+<h3 id="okf-3">OKF-3. Load and validate a knowledge bundle</h3>
+<p>Load <code>KnowledgeBundle</code> from a virtual file tree or provider. The CLI opens a physical root using
+contained path resolution. Retain unreadable document results per member and index the paths of documents and assets
+so one malformed concept does not hide other findings. Concept IDs are their bundle-relative Markdown paths with
+the suffix removed. The resolver distinguishes relative and root-relative OKF paths and treats external targets as
+such. The physical loader enforces containment before opening a file and the lookup path never turns an external
+reference into a file or network read.</p>
+<p>Use <code>--okf-version</code> when supplied, then the supported version declared by the root index, with v0.3 as
+the undeclared default. An unknown declaration yields best-effort findings and an unverified conformance result.
+Version-specific rules decide how to treat ordinary Markdown and older path conventions. Use <code>--policy morphir</code>
+to enforce the repository's root index, local link, index-description, and source-citation checks. A link can fail
+Morphir policy while the bundle remains conformant to OKF. The <code>--json</code> route writes one structured report
+to stdout using the existing CLI output conventions. Human output and JSON derive from the same sorted findings.</p>
+<p>Conformance references the <a href="https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/main/SPEC.md">v0.2 specification</a>
+and the <a href="https://github.com/open-knowledge-format/open-knowledge-format/blob/main/SPEC.md">v0.3 specification</a>.
+See the <a href="specs/okf-bundle-validation/spec.md">bundle validation contract</a>.</p>
+
+<h3 id="ann-1">ANN-1. Attach selections to immutable revisions</h3>
+<p>The review application binds the parsed text to a document version. <code>DocumentId</code> wraps a validated absolute
+<code>Iri</code>, independent of bundle path. Keep the IRI spelling and use ordinal equality for identity, as for RDF.
+A source provider issues a nonempty <code>RevisionId</code> scoped to the document, such as a Git commit or persisted
+editor snapshot key. The pair must resolve to the same text whenever it is reopened. An interchange adapter can
+assign an IRI to the pair when it needs a public version resource. See <a href="https://www.w3.org/TR/rdf11-concepts/#section-IRIs">RDF IRI equality</a>.</p>
+<pre><code class="language-fsharp">/// A zero-based position in UTF-16 code units.
+[&lt;Struct; IsReadOnly&gt;]
+type TextOffset = private TextOffset of int
+
+[&lt;Struct; IsReadOnly&gt;]
+type SourceSpan = private SourceSpan of TextOffset * TextOffset
+
+type DocumentVersion =
+    { Document: DocumentId
+      Revision: RevisionId }
+
+type TextSelection =
+    member Version: DocumentVersion
+    member Ranges: ImmutableArray&lt;SourceSpan&gt;
+
+type Annotation&lt;'Target, 'Body&gt; =
+    { Id: AnnotationId
+      Target: 'Target
+      Body: 'Body
+      Provenance: AnnotationProvenance }
+
+type KnowledgeLink&lt;'Source, 'Target&gt; =
+    { Id: LinkId
+      Source: 'Source
+      Predicate: Iri
+      Target: 'Target }</code></pre>
+<p>Use smart constructors to reject negative offsets and reversed endpoints. Both coordinates use the same offset
+type, and the zero-initialized span is the valid empty range at the start. A source validates the upper bound.
+Use value options for optional spans. A selection's constructor additionally rejects empty and overlapping ranges
+and sorts valid ranges into source order. Each selection represents all of its ranges together. The application can
+supply a review body or dictionary-concept IRI and can independently attach links to a text selection, graph or
+statement. An annotation is separate data and preserves the source version and bytes.</p>
+<p>Moving a review to a later version is an explicit application decision. If an adapter adds quote-based
+reanchoring, it must distinguish a unique match, ambiguous matches and missing text. A Web Annotation adapter must
+convert UTF-16 ranges to code-point offsets in the exported representation and preserve the group of disjoint
+ranges. See the <a href="specs/knowledge-annotations/spec.md">annotation contract</a> and
+<a href="https://www.w3.org/TR/annotation-model/#sets-of-bodies-and-targets">Web Annotation grouping guidance</a>.</p>
+
+<h3 id="rdf-1">RDF-1. A graph and a statement have different addresses</h3>
+<p>The two passages support the triple about net revenue in the approved graph. The same triple can also be in
+the draft graph. An RDF dataset retains the default graph and a map of named graphs, including empty ones.
+A versioned dataset reference identifies the immutable dataset snapshot. A graph target adds its graph location,
+and a statement target adds its quad. Separate authored claims can share the same quad and carry different
+identities and provenance.</p>
+<pre><code class="language-fsharp">type GraphName =
+    | IriName of Iri
+    | BlankNodeName of BlankNodeId
+
+type GraphLocation =
+    | DefaultGraph
+    | NamedGraph of GraphName
+
+type Quad =
+    { Subject: RdfSubject
+      Predicate: Iri
+      Object: RdfObject
+      Graph: GraphLocation }
+
+type GraphRef =
+    { Dataset: DatasetVersion
+      Graph: GraphLocation }
+
+type StatementRef =
+    { Dataset: DatasetVersion
+      Quad: Quad }</code></pre>
+<p>Expose <code>Quad.toTriple</code> and <code>Quad.ofTriple</code> for graph-level callers. Typed subject, predicate
+and object terms enforce valid RDF positions. Literal values preserve their RDF lexical spelling and datatype or
+language tag. Blank-node identities are local to the input import, with one label map across all graphs in a
+single N-Quads document. The same lexical label in another import allocates a different identity. The dataset
+projection keeps graph membership and set semantics independent of serialization labels.</p>
+
+<h3 id="rdf-2">RDF-2. N-Quads reads and writes the RDF 1.1 model</h3>
+<p>Use a focused UTF-8 N-Quads codec in the RDF library and exercise the W3C positive and negative parser cases.
+The optional fourth term selects a named graph, with the default graph used when it is absent. Import and export
+must preserve dataset structure up to blank-node renaming. The writer checks for empty named graphs before it
+writes. The caller can explicitly allow their omission and receives the list of omitted graphs.</p>
+<p>Use RDF 1.1 to define the public interchange behavior. An adapter for RDF 1.2 triple terms and reifiers can
+map the authored-statement identity separately when that interchange profile is added.
+See the <a href="specs/rdf-datasets/spec.md">dataset contract</a>,
+<a href="https://www.w3.org/TR/rdf11-concepts/#section-dataset">RDF 1.1 datasets</a> and
+<a href="https://www.w3.org/TR/n-quads/">N-Quads</a>.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Markdown parser spans and renderer nodes can omit or reorder concrete syntax.</td><td>Keep original source
+ranges and capture syntax before rendering transformations. Compare exact output and inspect traversal on CommonMark,
+table, footnote, reference-link and recovery fixtures.</td></tr>
+<tr><td>Byte offsets and code-unit offsets diverge for non-ASCII input.</td><td>Normalize adapter locations to
+whole-document UTF-16, derive output from original UTF-8, and test astral characters and mixed line endings.</td></tr>
+<tr><td>Optional dependency boundaries can drift as APIs grow.</td><td>Verify package dependency graphs and compile
+consumers against installed packages. Run the CLI validation path in the native offering before release.</td></tr>
+<tr><td>New IDs may require permission to create packages on NuGet.org.</td><td>Have the release owner verify the
+trusted-publishing policy's owner, package pattern and new-package scope before the approved first publication.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Release plan</h2>
+<p>Use the repository library target-framework property for both frameworks and register the three projects in
+<code>LibraryPackages</code> before dependent packages. <code>PackLibs</code> builds and validates the package inventory.
+Use a local feed to verify F# and C# consumers and dependency closure before release. The existing
+<code>deployment.yml</code> workflow calls <code>PublishLibs</code> after testing and obtaining a short-lived NuGet
+credential. The approved release publishes the libraries in dependency order and verifies each version through
+NuGet.org. See the <a href="specs/knowledge-nuget-packages/spec.md">NuGet contract</a>,
+<a href="tasks.md">implementation tasks</a> and <a href="https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing#select-scopes">NuGet policy scopes</a>.</p>
+
+</main>
+</body>
+</html>
