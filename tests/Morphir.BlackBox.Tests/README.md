@@ -156,6 +156,8 @@ two steps have the same pattern.
 | Packages | `Then each reference between the Morphir assemblies of the package below {string} has the assembly version of the changelog` |
 | Packages | `Then the package has no assembly` |
 | Packages | `Then the package depends only on {string} at exactly its own version` |
+| Packages | `When fresh F# and C# consumers use the {string} knowledge package on {string}` |
+| Packages | `Then both knowledge consumers complete the example with their expected dependencies` |
 | Package consumer | `When I build the consumer` |
 | Package consumer | `When I build the consumer with no restore` |
 | Package consumer | `When I build the consumer and it fails` |
