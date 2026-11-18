@@ -116,6 +116,9 @@ internal static class SingleMessageConsumer
         using var options = JsonDocument.Parse("{}");
         var request = new ModelAccessStart("probe", snapshot, support.Tuples[0], "text", options.RootElement, [], support.Limits);
         var start = await session.StartGenerationAsync(request, token);
+        output.AppendLine(start.Match(
+            step => $"bounded-text {request} / {step}",
+            error => throw new InvalidOperationException(error.ToString())));
         var round = start.Match(
             step => step.Match((_, number, _, _, _) => number, (_, _, _) => 0, (_, _) => 0),
             error => throw new InvalidOperationException(error.ToString()));

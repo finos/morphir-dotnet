@@ -13,6 +13,7 @@ open System.Threading.Tasks
 open Expecto
 open Morphir.Mep
 open Morphir.Mep.Tests.Transcripts
+open Morphir.TestSupport.Fixtures
 
 module CF = Morphir.Mep.Tests.ConnectionTests.ConformanceFixture
 
@@ -94,7 +95,7 @@ let private dispatch (guest: Guest) (text: string) =
 let private code (node: JsonNode) =
     node["error"] |> Option.ofObj |> Option.map (fun error -> (error["code"] |> nonNull).GetValue<int>())
 
-let private modelAccessTranscript = read "session-model-access.md"
+let private modelAccessTranscript = readFixture FixtureCatalog.Mep.BoundedGenerationSession
 let private boundedInitialize = modelAccessTranscript[0].Text
 let private boundedGuestResult = modelAccessTranscript[1].Text
 let private boundedStart = modelAccessTranscript[3].Text

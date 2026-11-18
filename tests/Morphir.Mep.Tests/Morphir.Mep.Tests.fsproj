@@ -22,7 +22,7 @@
     <ProjectReference Include="../../src/Morphir.Myriad.SystemTextJson.Annotations/Morphir.Myriad.SystemTextJson.Annotations.csproj" />
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
     <ProjectReference Include="../Morphir.Mep.AotProbe/Morphir.Mep.AotProbe.csproj" PrivateAssets="all" />
-    <None Include="../Fixtures/Mep/**" Link="Fixtures/Mep/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Fixtures/Mep/**" Exclude="../Fixtures/Mep/session-model-access.md" Link="Fixtures/Mep/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="Proposal/ValidateModelTypes.fs" />
     <FSharpJsonContext Include="Proposal/ValidateModelTypes.fs" Name="ProposalJson" Namespace="Morphir.Mep.Tests.Proposal" Naming="CamelCase" SkippableOptionFields="Always" UnionEncoding="Default, UnwrapFieldlessTags" UnionTagNaming="CamelCase" />
     <Compile Include="Transcripts.fs" />

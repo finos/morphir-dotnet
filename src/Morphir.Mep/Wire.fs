@@ -501,11 +501,21 @@ type ModelAccessCodec =
     | [<JsonName "morphir-json">] MorphirJson
     | [<JsonName "morphir-yaml">] MorphirYaml
 
+    override this.ToString() =
+        match this with
+        | MorphirJson -> "morphir-json"
+        | MorphirYaml -> "morphir-yaml"
+
 /// How a bounded document carries file-local names.
 [<RequireQualifiedAccess>]
 type ModelAccessEncoding =
     | [<JsonName "plain">] Plain
     | [<JsonName "https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json">] ContextualDraft1
+
+    override this.ToString() =
+        match this with
+        | Plain -> "plain"
+        | ContextualDraft1 -> "contextual draft.1"
 
 /// One complete bounded-generation offer.
 type ModelAccessTuple =
@@ -517,6 +527,9 @@ type ModelAccessTuple =
       Codec: ModelAccessCodec
       Layout: string
       ContextualEncoding: ModelAccessEncoding }
+
+    override this.ToString() =
+        $"{this.ProtocolVersion} {this.Operation} IR {this.IrVersion} ({this.Profile}/{this.Codec}/{this.Layout}, {this.ContextualEncoding})"
 
 /// Separate ceilings for an exchange, resident state, output staging and cumulative work.
 type ModelAccessLimits =
@@ -539,10 +552,14 @@ type ModelAccessLimits =
       MaxCallMilliseconds: int
       MaxSessionMilliseconds: int }
 
+    override this.ToString() = $"Model access limits ({this.MaxFrameBytes} bytes per frame, {this.MaxRounds} rounds)"
+
 /// The bounded tuples and ceilings offered by a peer or agreed during initialization.
 type ModelAccessSupport =
     { Tuples: IReadOnlyList<ModelAccessTuple>
       Limits: ModelAccessLimits }
+
+    override this.ToString() = $"Model access ({this.Tuples.Count} tuples)"
 
 /// Parameters of morphir.initialize.
 type InitializeParams =
@@ -1029,6 +1046,8 @@ type ModelAccessSnapshot =
       ContextDigest: Sha256Digest
       Scope: string }
 
+    override this.ToString() = $"Snapshot {this.SnapshotId} of {this.ModelId} at {this.Revision}"
+
 /// Named parameters of morphir.backend.generateModel.start.
 type ModelAccessStart =
     { SessionId: string
@@ -1039,11 +1058,18 @@ type ModelAccessStart =
       RequiredGuarantees: IReadOnlyList<ModelGuaranteeRequirement>
       Limits: ModelAccessLimits }
 
+    override this.ToString() = $"Start generation {this.SessionId} for {this.Target}"
+
 /// The role of a document within the generation view.
 [<RequireQualifiedAccess>]
 type ModelInventoryRole =
     | Definition
     | Specification
+
+    override this.ToString() =
+        match this with
+        | Definition -> "definition"
+        | Specification -> "specification"
 
 /// An inventory module. Only modules can advertise a selection for their members.
 type ModelInventoryModule =
@@ -1053,6 +1079,8 @@ type ModelInventoryModule =
       Role: ModelInventoryRole
       MemberSelection: string option }
 
+    override this.ToString() = $"Module {this.DocumentId} ({this.Role})"
+
 /// A named type or value entry.
 type ModelInventoryMember =
     { DocumentId: string
@@ -1061,6 +1089,8 @@ type ModelInventoryMember =
       Role: ModelInventoryRole
       Name: string }
 
+    override this.ToString() = $"Member {this.DocumentId} ({this.Role})"
+
 /// A single-key inventory entry on the wire.
 [<RequireQualifiedAccess; JsonUnion(BaseEncoding = (JsonUnionEncoding.ExternalTag ||| JsonUnionEncoding.UnwrapSingleFieldCases))>]
 type ModelInventoryEntry =
@@ -1068,11 +1098,22 @@ type ModelInventoryEntry =
     | Type of ModelInventoryMember
     | Value of ModelInventoryMember
 
+    override this.ToString() =
+        match this with
+        | Module entry -> entry.ToString()
+        | Type entry -> $"Type {entry.DocumentId} ({entry.Role})"
+        | Value entry -> $"Value {entry.DocumentId} ({entry.Role})"
+
 /// A request from the extension for the next advance.
 [<RequireQualifiedAccess; JsonUnion(BaseEncoding = (JsonUnionEncoding.InternalTag ||| JsonUnionEncoding.NamedFields ||| JsonUnionEncoding.AllowUnorderedTag), TagName = "kind")>]
 type ModelAccessRequest =
     | Inventory of RequestId: string * Selection: string * PageSize: int * Cursor: string option
     | Document of RequestId: string * DocumentId: string
+
+    override this.ToString() =
+        match this with
+        | Inventory(id, selection, _, _) -> $"Inventory request {id} for {selection}"
+        | Document(id, document) -> $"Document request {id} for {document}"
 
 /// One reply to the matching request in the continuation.
 [<RequireQualifiedAccess; JsonUnion(BaseEncoding = (JsonUnionEncoding.InternalTag ||| JsonUnionEncoding.NamedFields ||| JsonUnionEncoding.AllowUnorderedTag), TagName = "kind")>]
@@ -1080,14 +1121,24 @@ type ModelAccessDelivery =
     | Inventory of RequestId: string * SnapshotId: string * Entries: IReadOnlyList<ModelInventoryEntry> * NextCursor: string option
     | Document of RequestId: string * SnapshotId: string * DocumentId: string * DecodedByteLength: int * Sha256: Sha256Digest * Content: string
 
+    override this.ToString() =
+        match this with
+        | Inventory(id, snapshot, _, _) -> $"Inventory delivery {id} from {snapshot}"
+        | Document(id, snapshot, document, _, _, _) -> $"Document delivery {id} of {document} from {snapshot}"
+
 /// Parameters of morphir.backend.generateModel.advance.
 type ModelAccessAdvance =
     { SessionId: string
       Round: int
       Deliveries: IReadOnlyList<ModelAccessDelivery> }
 
+    override this.ToString() = $"Advance generation {this.SessionId} at round {this.Round}"
+
 /// Parameters of morphir.backend.generateModel.cancel and its acknowledgement.
-type ModelAccessCancel = { SessionId: string }
+type ModelAccessCancel =
+    { SessionId: string }
+
+    override this.ToString() = $"Cancel generation {this.SessionId}"
 
 /// One chunk of a generated artifact. Content is padded base64 on the wire.
 type ModelArtifactChunk =
@@ -1098,12 +1149,20 @@ type ModelArtifactChunk =
       Content: string
       End: bool }
 
+    override this.ToString() = $"Artifact {this.Path} at {this.Offset} ({this.DecodedByteLength} bytes)"
+
 /// The next step or terminal result of bounded generation.
 [<RequireQualifiedAccess; JsonUnion(BaseEncoding = (JsonUnionEncoding.InternalTag ||| JsonUnionEncoding.NamedFields ||| JsonUnionEncoding.AllowUnorderedTag), TagName = "state")>]
 type ModelAccessStep =
     | Continue of SessionId: string * Round: int * Requests: IReadOnlyList<ModelAccessRequest> * Artifacts: IReadOnlyList<ModelArtifactChunk> * Diagnostics: IReadOnlyList<Diagnostic>
     | Complete of SessionId: string * Artifacts: IReadOnlyList<ModelArtifactChunk> * Diagnostics: IReadOnlyList<Diagnostic>
     | Failed of SessionId: string * Diagnostics: IReadOnlyList<Diagnostic>
+
+    override this.ToString() =
+        match this with
+        | Continue(id, round, _, _, _) -> $"Continue generation {id} at round {round}"
+        | Complete(id, _, _) -> $"Complete generation {id}"
+        | Failed(id, _) -> $"Generation {id} failed"
 
     /// For C# callers: handles the continuation, completion or operation failure.
     member this.Match(

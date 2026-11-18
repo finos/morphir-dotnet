@@ -597,6 +597,14 @@ public static class FixtureCatalog
         }
     }
 
+    /// <summary>The pinned bounded-generation transcript from finos/morphir.</summary>
+    public static class Mep
+    {
+        public static FixtureEntry BoundedGenerationSession { get; } = new(
+            "the shared MEP bounded-generation orders session", "Mep/session-model-access.md",
+            "2b564178596e1c7420fc8c689b31e7dbd68dabaed3d57ac0e9497ce21886cb34", "Mep/PROVENANCE.md");
+    }
+
     /// <summary>The frozen bounded-generation receipt, schema and replay controls from finos/morphir.</summary>
     public static class BoundedGenerationReceipts
     {
@@ -670,7 +678,7 @@ public static class FixtureCatalog
 
 
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

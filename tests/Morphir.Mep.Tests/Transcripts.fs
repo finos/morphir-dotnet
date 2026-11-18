@@ -6,6 +6,7 @@ module Morphir.Mep.Tests.Transcripts
 open System
 open System.IO
 open System.Text.Json.Nodes
+open Morphir.TestSupport.Fixtures
 
 /// Who sent a message.
 type Direction =
@@ -28,10 +29,7 @@ let consumerBuild = new System.Threading.SemaphoreSlim(1, 1)
 let fixture name =
     Path.Combine(AppContext.BaseDirectory, "Fixtures", "Mep", name)
 
-/// The messages of a pinned transcript, in order.
-let read name =
-    let lines = File.ReadAllLines(fixture name)
-
+let private parse (lines: string array) =
     let rec loop index entries =
         if index >= lines.Length then
             List.rev entries
@@ -60,6 +58,15 @@ let read name =
             | _ -> loop (index + 1) entries
 
     loop 0 []
+
+/// The messages of a legacy transcript, in order.
+let read name =
+    File.ReadAllLines(fixture name) |> parse
+
+/// The messages of a transcript pinned by the shared fixture catalog.
+let readFixture entry =
+    let text = FixtureCatalog.ReadText entry
+    text.ReplaceLineEndings("\n").Split('\n') |> parse
 
 /// The three pinned transcripts.
 let all =
