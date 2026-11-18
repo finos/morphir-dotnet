@@ -639,7 +639,10 @@ type NuGetPackageProvider internal (home: string, workingDirectory: string, repo
 
     /// NuGet reads its scratch folder (lock files) once per process and keeps it. So before its first NuGet call the
     /// provider points NUGET_SCRATCH at a stable folder under the Home, which a later operation of the same Home
-    /// finds again. A process that used NuGet before keeps the folder NuGet chose then.
+    /// finds again. A process that used NuGet before keeps the folder NuGet chose then. A process that serves several
+    /// Homes keeps the folder of the first one for all of them (ConcurrencyUtilities.BasePath of NuGet.Common): NuGet
+    /// creates that folder again before each lock, but a lock fails, as extension.io_error, when the folder is deleted
+    /// while NuGet takes it.
     static let usePrivateScratch (home: string) =
         lock NuGetProviderState.gate (fun () ->
             let scratch = Path.Combine(home, "tmp", "morphir-dotnet-nuget-scratch")

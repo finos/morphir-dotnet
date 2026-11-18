@@ -153,7 +153,31 @@ let private install (sandbox: TestSandbox) (text: string) (source: string option
 let private lockNode (sandbox: TestSandbox) =
     nonNull (JsonNode.Parse(File.ReadAllText(Path.Combine(home sandbox, "locks", "extensions", "com.acme.python.json"))))
 
+let private refusedWith code (result: InstallationResult<'T>) =
+    result.Match(
+        Func<'T, unit>(fun _ -> failtestf "Expected %s" code),
+        Func<InstallationFailure, unit>(fun failure -> Expect.equal failure.Code code failure.Message)
+    )
+
+/// The Home that NuGet serves first in this test process. NuGet chooses its lock folder at its first lock and keeps
+/// it for the process (ConcurrencyUtilities.BasePath, from NuGetEnvironment's cached temporary folder), and the
+/// provider points it at the first Home it serves. Each test deletes its own Home, so the first NuGet call of the
+/// process uses this Home, which lives until the process exits: no test deletes the folder that another test locks in.
+let private processHome =
+    lazy
+        (let sandbox = TestSandbox.Create()
+         AppDomain.CurrentDomain.ProcessExit.Add(fun _ -> sandbox.Dispose())
+         let feed = Directory.CreateDirectory(Path.Combine(sandbox.Root, "feed")).FullName
+         install sandbox "nuget:Acme.Morphir.Missing@1.0.0" (Some feed) |> refusedWith "extension.nuget_not_found"
+         let scratch = NuGet.Common.NuGetEnvironment.GetFolderPath NuGet.Common.NuGetFolderPath.Temp
+
+         if not (scratch.StartsWith(home sandbox, StringComparison.Ordinal)) then
+             failtestf "NuGet already chose its lock folder %s before the first provider call of the tests" scratch
+
+         sandbox)
+
 let private withSandbox action =
+    processHome.Force() |> ignore
     use sandbox = TestSandbox.Create()
     let cleanup = PackageTests.packageCleanup sandbox
 
@@ -174,12 +198,6 @@ let private runChild (sandbox: TestSandbox) (arguments: string list) (environmen
         start.Environment[name] <- value
 
     ChildProcess.RunAsync(start, TimeSpan.FromMinutes 2.0, ct).GetAwaiter().GetResult()
-
-let private refusedWith code (result: InstallationResult<'T>) =
-    result.Match(
-        Func<'T, unit>(fun _ -> failtestf "Expected %s" code),
-        Func<InstallationFailure, unit>(fun failure -> Expect.equal failure.Code code failure.Message)
-    )
 
 let private parsing =
     testList "NuGetSourceRequest" [
@@ -375,6 +393,16 @@ let private folderFeed =
                 | Some(failure: InstallationFailure) ->
                     Expect.equal failure.Code "extension.nuget_not_found" failure.Message
                     Expect.stringContains failure.Message (Path.GetFullPath feed.Folder) "the source")
+        }
+        test "the cleanup of a test leaves NuGet's lock folder of the process" {
+            withSandbox (fun sandbox ->
+                let feed = layoutA sandbox "1.2.3"
+                install sandbox "nuget:Acme.Morphir.Missing@1.0.0" (Some feed.Folder) |> refusedWith "extension.nuget_not_found")
+
+            // NuGet keeps the lock folder it chose first for the whole process. A test Home that is deleted while
+            // another test takes a NuGet lock there fails that test with extension.io_error.
+            let locks = Path.Combine(NuGet.Common.NuGetEnvironment.GetFolderPath NuGet.Common.NuGetFolderPath.Temp, "lock")
+            Expect.isTrue (Directory.Exists locks) $"NuGet's lock folder {locks} outlives the test"
         }
         test "without a version the highest stable version is selected" {
             withSandbox (fun sandbox ->
