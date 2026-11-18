@@ -25,6 +25,12 @@ type MorphirFile<'doc> = {
     Document: 'doc
 }
 
+[<RequireQualifiedAccess>]
+type internal ContextOrder =
+    | WholeFile
+    | Bounded
+    | Streaming
+
 /// <summary>
 /// Reads Morphir files, plain or compacted, and expands a compacted file's document to the plain document it stands
 /// for. A file is compacted when its top-level object has <c>$schema</c>, which no plain Morphir document has.
@@ -65,9 +71,12 @@ module MorphirFile =
     [<CompiledName("IsDeclared")>]
     let isDeclared (schema: string) =
         declaredSchemas
-        |> List.exists (fun url -> String.Equals(url.OriginalString, schema, StringComparison.Ordinal))
+        |> List.exists (fun url ->
+            String.Equals(url.OriginalString, schema, StringComparison.Ordinal)
+        )
 
-    let private error code file message : StoreError = StoreErrors.error code (Some file) message
+    let private error code file message : StoreError =
+        StoreErrors.error code (Some file) message
 
     /// <summary>
     /// The IR family of a document by its <c>formatVersion</c>: classic v3 for the string <c>"3"</c> or one that starts
@@ -90,7 +99,8 @@ module MorphirFile =
                     || text.StartsWith("3.", StringComparison.Ordinal)
                 | JsonValueKind.Number ->
                     version.TryGetDouble(&number)
-                    && number >= 3.0
+                    && number
+                       >= 3.0
                     && number < 4.0
                 | _ -> false
             )
@@ -131,14 +141,24 @@ module MorphirFile =
         with :? JsonException ->
             false
 
-    let private envelope (limits: ContextLimits) file (root: JsonElement) : Result<MorphirFile<JsonElement>, StoreError list> =
+    let private envelope
+        orderPolicy
+        (limits: ContextLimits)
+        file
+        (root: JsonElement)
+        : Result<MorphirFile<JsonElement>, StoreError list> =
         let members, duplicates = NameContext.membersOnce file "The envelope" root
-        let find name = members |> List.tryFindIndex (fun (key, _) -> key = name)
+
+        let find name =
+            members
+            |> List.tryFindIndex (fun (key, _) -> key = name)
 
         let schemaText =
             members
             |> List.pick (fun (key, value) -> if key = "$schema" then Some value else None)
-            |> fun value -> if value.ValueKind = JsonValueKind.String then nonNull (value.GetString()) else value.GetRawText()
+            |> fun value ->
+                NameContext.tryString value
+                |> Option.defaultWith value.GetRawText
 
         let declared =
             declaredSchemas
@@ -146,7 +166,10 @@ module MorphirFile =
 
         match declared with
         | None ->
-            let urls = declaredSchemas |> List.map (fun url -> url.OriginalString) |> String.concat ", "
+            let urls =
+                declaredSchemas
+                |> List.map (fun url -> url.OriginalString)
+                |> String.concat ", "
 
             Error [
                 error
@@ -158,55 +181,138 @@ module MorphirFile =
             let memberAt index = snd members[index]
 
             let order =
-                match find "context", find "document" with
-                | Some contextAt, Some documentAt when documentAt < contextAt ->
-                    [ error "context.after_document" file "The document comes before the context; the context must come first." ]
+                match orderPolicy, find "context", find "document", find "$schema" with
+                | ContextOrder.Bounded, _, _, _ -> []
+                | _, Some contextAt, Some documentAt, _ when documentAt < contextAt -> [
+                    error
+                        "context.after_document"
+                        file
+                        "The document comes before the context; the context must come first."
+                  ]
+                | ContextOrder.Streaming, _, Some documentAt, Some schemaAt when
+                    documentAt < schemaAt
+                      ->
+                      [
+                          error
+                              "context.after_document"
+                              file
+                              "The document comes before $schema; a streaming reader needs the envelope and context first."
+                      ]
                 | _ -> []
 
-            let missing =
-                [
-                    for name in [ "context"; "document" ] do
-                        match find name with
-                        | Some index when (memberAt index).ValueKind = JsonValueKind.Object -> ()
-                        | Some _ -> error "context.invalid_envelope" file $"The envelope's {name} is not an object."
-                        | None -> error "context.invalid_envelope" file $"The envelope has no {name}."
-                ]
+            let missing = [
+                for name in [ "context"; "document" ] do
+                    match find name with
+                    | Some index when (memberAt index).ValueKind = JsonValueKind.Object -> ()
+                    | Some _ ->
+                        error
+                            "context.invalid_envelope"
+                            file
+                            $"The envelope's {name} is not an object."
+                    | None -> error "context.invalid_envelope" file $"The envelope has no {name}."
+            ]
 
             let critical, criticalProblems =
                 match find "critical" with
                 | None -> [], []
                 | Some index when (memberAt index).ValueKind = JsonValueKind.Array ->
                     let items = [ for item in (memberAt index).EnumerateArray() -> item ]
+                    let paths = List.choose NameContext.tryString items
 
-                    if items |> List.exists (fun item -> item.ValueKind <> JsonValueKind.String) then
-                        [], [ error "context.invalid_envelope" file "The envelope's critical is not a list of strings." ]
+                    if
+                        paths.Length
+                        <> items.Length
+                    then
+                        [],
+                        [
+                            error
+                                "context.invalid_envelope"
+                                file
+                                "The envelope's critical is not a list of strings."
+                        ]
                     else
-                        let paths = items |> List.map (fun item -> nonNull (item.GetString()))
-
                         paths,
                         paths
-                        |> List.filter (fun path -> not (List.contains path NameContext.recognizedCritical))
+                        |> List.filter (fun path ->
+                            not (List.contains path NameContext.recognizedCritical)
+                        )
                         |> List.map (fun path ->
                             error
                                 "context.unknown_critical"
                                 file
                                 $"The envelope marks '{path}' critical, and this reader does not recognize it."
                         )
-                | Some _ -> [], [ error "context.invalid_envelope" file "The envelope's critical is not a list of strings." ]
+                | Some _ ->
+                    [],
+                    [
+                        error
+                            "context.invalid_envelope"
+                            file
+                            "The envelope's critical is not a list of strings."
+                    ]
 
             let context, contextProblems =
                 match find "context" with
-                | Some index when (memberAt index).ValueKind = JsonValueKind.Object -> NameContext.read limits file critical (memberAt index)
+                | Some index when (memberAt index).ValueKind = JsonValueKind.Object ->
+                    NameContext.read limits file critical (memberAt index)
                 | _ -> NameContext.empty critical, []
 
-            match duplicates @ order @ missing @ criticalProblems @ contextProblems with
+            match
+                duplicates
+                @ order
+                @ missing
+                @ criticalProblems
+                @ contextProblems
+            with
             | [] ->
-                Ok {
-                    Schema = Some schema
-                    Context = Some context
-                    Document = (memberAt (Option.get (find "document"))).Clone()
-                }
+                Ok
+                    {
+                        Schema = Some schema
+                        Context = Some context
+                        Document = (memberAt (Option.get (find "document"))).Clone()
+                    }
             | problems -> Error problems
+
+    let internal readEnvelopeRoot orderPolicy limits file (root: JsonElement) =
+        let mutable schema = Unchecked.defaultof<JsonElement>
+
+        if
+            root.ValueKind = JsonValueKind.Object
+            && root.TryGetProperty("$schema", &schema)
+        then
+            envelope orderPolicy limits file root
+        else
+            Ok
+                {
+                    Schema = None
+                    Context = None
+                    Document = root.Clone()
+                }
+
+    let internal readEnvelopeWithOrder
+        orderPolicy
+        (limits: ContextLimits)
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        : Result<MorphirFile<JsonElement>, StoreError list> =
+        try
+            use document =
+                JsonDocument.Parse(
+                    withoutByteOrderMark bytes,
+                    JsonDocumentOptions(MaxDepth = limits.MaxDepth)
+                )
+
+            readEnvelopeRoot orderPolicy limits file document.RootElement
+        with :? JsonException as problem ->
+            if isJsonAtAnyDepth (withoutByteOrderMark bytes) then
+                Error [
+                    error
+                        "depth_limit_exceeded"
+                        file
+                        $"The file is nested more than {limits.MaxDepth} levels deep."
+                ]
+            else
+                Error [ error "invalid_json" file problem.Message ]
 
     /// <summary>
     /// Reads a Morphir file's bytes, named <paramref name="file"/> in every diagnostic: a plain file has no schema and
@@ -214,33 +320,8 @@ module MorphirFile =
     /// UTF-8 byte order mark is skipped. C# calls this <c>ReadEnvelope</c>.
     /// </summary>
     [<CompiledName("ReadEnvelope")>]
-    let readEnvelope
-        (limits: ContextLimits)
-        (file: string)
-        (bytes: ReadOnlyMemory<byte>)
-        : Result<MorphirFile<JsonElement>, StoreError list> =
-        try
-            use document =
-                JsonDocument.Parse(withoutByteOrderMark bytes, JsonDocumentOptions(MaxDepth = limits.MaxDepth))
-
-            let root = document.RootElement
-            let mutable schema = Unchecked.defaultof<JsonElement>
-
-            if root.ValueKind = JsonValueKind.Object && root.TryGetProperty("$schema", &schema) then
-                envelope limits file root
-            else
-                Ok {
-                    Schema = None
-                    Context = None
-                    Document = root.Clone()
-                }
-        with :? JsonException as problem ->
-            if isJsonAtAnyDepth (withoutByteOrderMark bytes) then
-                Error [
-                    error "depth_limit_exceeded" file $"The file is nested more than {limits.MaxDepth} levels deep."
-                ]
-            else
-                Error [ error "invalid_json" file problem.Message ]
+    let readEnvelope limits file bytes =
+        readEnvelopeWithOrder ContextOrder.WholeFile limits file bytes
 
     /// <summary>
     /// The plain document of a file: a plain file's document as it is, or a compacted file's document with each

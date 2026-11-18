@@ -47,6 +47,15 @@ module internal V4TreeFiles =
 
     let private fileMembers = TreeFileCodec.fileMembers checkVersion
 
+    let checkFileVersion root =
+        TreeFileCodec.guarded (fun () ->
+            fileMembers root
+            |> ignore
+        )
+
+    let readNodeHeader holdsDefinitions root =
+        TreeFileCodec.readNode checkVersion (fun _ _ -> ()) (fun _ _ -> ()) holdsDefinitions root
+
     let private kindText (kind: V4DistributionKind) =
         match kind with
         | V4DistributionKind.LibraryKind -> "Library"

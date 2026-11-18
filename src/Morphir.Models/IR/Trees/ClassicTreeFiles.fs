@@ -76,6 +76,15 @@ module internal ClassicTreeFiles =
 
     let private fileMembers = TreeFileCodec.fileMembers checkVersion
 
+    let checkFileVersion root =
+        TreeFileCodec.guarded (fun () ->
+            fileMembers root
+            |> ignore
+        )
+
+    let readNodeHeader holdsDefinitions root =
+        TreeFileCodec.readNode checkVersion (fun _ _ -> ()) (fun _ _ -> ()) holdsDefinitions root
+
     let private formatVersion (json: Utf8JsonWriter) =
         json.WriteString("formatVersion", FormatVersion)
 
@@ -165,13 +174,21 @@ module internal ClassicTreeFiles =
             checkDefinition location element
 
             ClassicTypeDocument.DefinedType(
-                payload ClassicJsonDecoder.typeDefinitionEntry ClassicMembers.typeDefinitionEntry location element
+                payload
+                    ClassicJsonDecoder.typeDefinitionEntry
+                    ClassicMembers.typeDefinitionEntry
+                    location
+                    element
             )
         else
             checkSpecification location element
 
             ClassicTypeDocument.SpecifiedType(
-                payload ClassicJsonDecoder.typeSpecificationEntry ClassicMembers.typeSpecificationEntry location element
+                payload
+                    ClassicJsonDecoder.typeSpecificationEntry
+                    ClassicMembers.typeSpecificationEntry
+                    location
+                    element
             )
 
     let private valueDocument holdsDefinitions location element =
@@ -179,13 +196,21 @@ module internal ClassicTreeFiles =
             checkDefinition location element
 
             ClassicValueDocument.DefinedValue(
-                payload ClassicJsonDecoder.valueDefinitionEntry ClassicMembers.valueDefinitionEntry location element
+                payload
+                    ClassicJsonDecoder.valueDefinitionEntry
+                    ClassicMembers.valueDefinitionEntry
+                    location
+                    element
             )
         else
             checkSpecification location element
 
             ClassicValueDocument.SpecifiedValue(
-                payload ClassicJsonDecoder.valueSpecificationEntry ClassicMembers.valueSpecificationEntry location element
+                payload
+                    ClassicJsonDecoder.valueSpecificationEntry
+                    ClassicMembers.valueSpecificationEntry
+                    location
+                    element
             )
 
     /// <summary>

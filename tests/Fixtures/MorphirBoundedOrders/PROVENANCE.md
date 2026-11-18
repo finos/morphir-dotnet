@@ -42,3 +42,44 @@ The shared fixture catalog owns these files. Bounded reader tests open the embed
 | `v4/plain-yaml/pkg/acme/orders/domain/order.type.yaml` | `557e0df61d43341e0163cbc1588f31737ae9e3a71d6a46b56468ba8da0a48b45` |
 | `v4/plain-yaml/pkg/acme/orders/domain/order.value.yaml` | `b9f627924c280a8d4bd064139db38b782891f7564f928b87ab3398e9923c5c78` |
 | `v4/plain-yaml/pkg/acme/orders/domain/total-in-_usd.value.yaml` | `e5fe89e9adb3211f987583804132d55eaf30b33a8e474fc128db5face8cb720c` |
+
+The 36 contextual documents below preserve the bytes of [the same shared corpus](https://github.com/finos/morphir/tree/177371fa7a6199b7f177a8c1d886f583ee57e813/spec/mck/bounded-generation/fixtures/acme-orders).
+
+| File | SHA-256 |
+| --- | --- |
+| `v3.1/contextual-json/deps/morphir/_sdk/@/basics/add.value.json` | `c2cb8924aa3820614f4fde953265512be6fe87aabb9687548f55710109c5bb3b` |
+| `v3.1/contextual-json/deps/morphir/_sdk/@/basics/int.type.json` | `7ec7004dcece668d34211e4a90b25365477ee96c4e7973676e2cc72d084bf755` |
+| `v3.1/contextual-json/deps/morphir/_sdk/@/basics/module.json` | `9ffd7f011f6cccc2491fa94263ccb5591935a97ec00b92f11da1c3438b85ab38` |
+| `v3.1/contextual-json/manifest.json` | `650507f6f808c59f8114453bf9cb2517bd2affe97819b6fded58a538adc3c930` |
+| `v3.1/contextual-json/pkg/acme/orders/audit/module.json` | `4c6d31dc53bdd878e2bb57afc43678b91d7428f026aedbf17e9c99cffc963791` |
+| `v3.1/contextual-json/pkg/acme/orders/domain/module.json` | `f43986af381b890a652f26c69519afc8293e4ac7daed4b96464628439b909217` |
+| `v3.1/contextual-json/pkg/acme/orders/domain/order.type.json` | `94f0fd96a052690745b8d7a118737357189beca015bc2654869d12d6ad58301e` |
+| `v3.1/contextual-json/pkg/acme/orders/domain/order.value.json` | `db0d0ee2e2200a252849efa4708e1599f675c6b2c8d05b2088b43c6d4f472d17` |
+| `v3.1/contextual-json/pkg/acme/orders/domain/total-in-_usd.value.json` | `1885e3b748bb4c4564ab1d420999fe2847d1292d1c056908c46f287a991d9844` |
+| `v3.1/contextual-yaml/deps/morphir/_sdk/@/basics/add.value.yaml` | `7fd60a4ae08775acd1d402c88172438451c98a165aae43a7ccad18fc2000c06d` |
+| `v3.1/contextual-yaml/deps/morphir/_sdk/@/basics/int.type.yaml` | `6832cac69b727a1c4c4f7da35cd0b3231f7c57ba23644b653b58c53282843dab` |
+| `v3.1/contextual-yaml/deps/morphir/_sdk/@/basics/module.yaml` | `5e470f56c26dc3c09e9ed9ffcc825fc3d8e2a527427973b7f0e556f07d4cb452` |
+| `v3.1/contextual-yaml/manifest.yaml` | `87de6576a564b4948779c687eaf47f9b60b4bdf5e47a058cc5bced4bfe33885a` |
+| `v3.1/contextual-yaml/pkg/acme/orders/audit/module.yaml` | `b63eb8e4d645d5ff662e5bfcc5468a462b2b24532c8f8d1a6ab66dadfe659e8a` |
+| `v3.1/contextual-yaml/pkg/acme/orders/domain/module.yaml` | `3dd4e97f73113c73b603b2b3cca1dc5372a8701474afe7a4437f8a771cb74880` |
+| `v3.1/contextual-yaml/pkg/acme/orders/domain/order.type.yaml` | `4ad4cce7243213474ce72750c6ff561495a30e3f51db03cfffea1412a3fb0522` |
+| `v3.1/contextual-yaml/pkg/acme/orders/domain/order.value.yaml` | `35dd385bbffb207ffc253152f2b18e2d1b25841b0ac53e144de30df9467e8306` |
+| `v3.1/contextual-yaml/pkg/acme/orders/domain/total-in-_usd.value.yaml` | `b4b537a6c29557f4c768bd34eaa2f9aff5e03823b71db9d3f34898f9338dcec1` |
+| `v4/contextual-json/deps/morphir/_sdk/@/basics/add.value.json` | `250b426de0516e1a1b35167565657272add6ed4f773ab65e0fd9163aac04581e` |
+| `v4/contextual-json/deps/morphir/_sdk/@/basics/int.type.json` | `b1a8e7b33039224bb85ba5bbbbf0cbfa9a17213c46b90e47b5c6b098b23aff43` |
+| `v4/contextual-json/deps/morphir/_sdk/@/basics/module.json` | `0a4cd495c97cd3ed46dc4e5f0169dc76620f82978ea4a6366402ebf45a63ae53` |
+| `v4/contextual-json/manifest.json` | `dc765f931bd12dad3dbb9a7367ff907c8122e1c485758b6dcd4f43037224fd79` |
+| `v4/contextual-json/pkg/acme/orders/audit/module.json` | `436d562855210a0a6946a16b5ac1ef405036c7604e32b72a5e5044207cf1d112` |
+| `v4/contextual-json/pkg/acme/orders/domain/module.json` | `11ebadc15ca3b7d932c07eefbca3eef6f5ea2d116ff1d091c0102c2a9c49f3aa` |
+| `v4/contextual-json/pkg/acme/orders/domain/order.type.json` | `81f7e0d6fcbc524504c305caca4970596b2a8d7f4c82d1e03636600f59d85213` |
+| `v4/contextual-json/pkg/acme/orders/domain/order.value.json` | `dbc695403c12e5d2af6a8ab7d5ae5d8e16b8ba333ff4b60c5499620825bc1229` |
+| `v4/contextual-json/pkg/acme/orders/domain/total-in-_usd.value.json` | `6d668cc8651bcb2b90906286d09377dce9e5dbc1f564c1a3200b0f3f8a44435a` |
+| `v4/contextual-yaml/deps/morphir/_sdk/@/basics/add.value.yaml` | `d38845a4cc251ef3d0116c456987d8f2da9084ec3c0529bf412078f8541c5531` |
+| `v4/contextual-yaml/deps/morphir/_sdk/@/basics/int.type.yaml` | `5ac936d834f5d1c860e6e77b756344571c3d1615d505bf147ad39ab66f07197d` |
+| `v4/contextual-yaml/deps/morphir/_sdk/@/basics/module.yaml` | `ea51ad7e89eddd43cef86039bca32aabc18289096d1c5e3fc9e7006e6597c8f2` |
+| `v4/contextual-yaml/manifest.yaml` | `07e3c9905604d32d5ee81d1454b40265bd3e747018d97c68c07e66db52e0c5a2` |
+| `v4/contextual-yaml/pkg/acme/orders/audit/module.yaml` | `c3e4b5cff4f47396e27e4b9bb9f171c0aa3304cfa814d56db84b6b4c5dafc1fd` |
+| `v4/contextual-yaml/pkg/acme/orders/domain/module.yaml` | `facf19da57f2b184ee4df0744e129f49c556521117e6e90ffb65318f9b385edb` |
+| `v4/contextual-yaml/pkg/acme/orders/domain/order.type.yaml` | `ae93f6990dfcdf4f0de6bda7ec73c02abbe470ed469f837546f7b9fa34d1768a` |
+| `v4/contextual-yaml/pkg/acme/orders/domain/order.value.yaml` | `d937a64df6112da43a39344f802ed19cf354ae06c9677bc66b69a701fc53ff13` |
+| `v4/contextual-yaml/pkg/acme/orders/domain/total-in-_usd.value.yaml` | `bb8b6ae644f5484caed867c55cf81f666c550b5589168396471b3dbb1877ed2d` |

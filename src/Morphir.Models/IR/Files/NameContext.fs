@@ -97,14 +97,27 @@ module internal NameContext =
         "document"
     ]
 
-    let private error code file message : StoreError = StoreErrors.error code (Some file) message
+    let private error code file message : StoreError =
+        StoreErrors.error code (Some file) message
 
     /// An alias id: ASCII letters and digits, starting with a letter.
-    let private isAliasId (id: string) =
+    let isAliasId (id: string) =
         id.Length > 0
         && Char.IsAsciiLetter id[0]
         && id
            |> Seq.forall Char.IsAsciiLetterOrDigit
+
+    let tryString (element: JsonElement) =
+        if
+            element.ValueKind
+            <> JsonValueKind.String
+        then
+            None
+        else
+            try
+                Option.ofObj (element.GetString())
+            with :? InvalidOperationException ->
+                None
 
     /// <summary>
     /// Whether a text is a name by the grammar of the parent's <c>docs/spec/draft/names.md</c>: segments joined by
@@ -114,7 +127,10 @@ module internal NameContext =
     let isName (text: string) =
         let isAscii (accepts: char -> bool) (segment: string) =
             segment
-            |> Seq.forall (fun c -> accepts c || Char.IsAsciiDigit c)
+            |> Seq.forall (fun c ->
+                accepts c
+                || Char.IsAsciiDigit c
+            )
 
         let isSegment (segment: string) =
             segment.Length > 0
@@ -145,7 +161,14 @@ module internal NameContext =
     let membersOnce file (where: string) (element: JsonElement) =
         let seen = HashSet<string>(StringComparer.Ordinal)
 
-        let members = [ for property in element.EnumerateObject() -> property.Name, property.Value ]
+        let mutable invalidKey = false
+        let members = [
+            for property in element.EnumerateObject() do
+                try yield property.Name, property.Value
+                with
+                | :? InvalidOperationException
+                | :? JsonException -> invalidKey <- true
+        ]
 
         let duplicates =
             members
@@ -156,7 +179,13 @@ module internal NameContext =
                 error "context.duplicate_entry" file $"{where} has the member '{name}' more than once."
             )
 
-        members, duplicates
+        if invalidKey then
+            let code =
+                if where.StartsWith("context.", StringComparison.Ordinal) then "context.invalid_entry"
+                else "context.invalid_envelope"
+            members, error code file $"{where} contains a member name that is not valid Unicode." :: duplicates
+        else
+            members, duplicates
 
     /// <summary>
     /// One table: each id with its spelling, within the limits. A spelling is admitted when
@@ -174,18 +203,21 @@ module internal NameContext =
         : Map<string, TableEntry<'v>> * StoreError list =
         let where = $"context.{tableName}"
 
-        if element.ValueKind <> JsonValueKind.Object then
+        if
+            element.ValueKind
+            <> JsonValueKind.Object
+        then
             Map.empty, [ error "context.invalid_entry" file $"{where} is not an object." ]
         else
-            let entries, duplicates = membersOnce file where element
+            let rawCount = element.EnumerateObject() |> Seq.length
 
             let count =
-                if entries.Length > limits.MaxEntries then
+                if rawCount > limits.MaxEntries then
                     [
                         error
                             "context.too_many_entries"
                             file
-                            $"{where} has {entries.Length} entries, and a table holds at most {limits.MaxEntries}."
+                            $"{where} has {rawCount} entries, and a table holds at most {limits.MaxEntries}."
                     ]
                 else
                     []
@@ -198,37 +230,51 @@ module internal NameContext =
                             file
                             $"{where} has the alias id '{id}'; an id is ASCII letters and digits, starting with a letter."
                     )
-                elif value.ValueKind <> JsonValueKind.String then
-                    Error(error "context.invalid_entry" file $"{where}.{id} is not a string.")
                 else
-                    let spelling = nonNull (value.GetString())
-                    let bytes = Encoding.UTF8.GetByteCount spelling
-
-                    if bytes > limits.MaxNameLength then
+                    match tryString value with
+                    | None ->
                         Error(
                             error
-                                "context.name_too_long"
+                                "context.invalid_entry"
                                 file
-                                $"{where}.{id} is {bytes} bytes long, and a spelling has at most {limits.MaxNameLength}."
+                                $"{where}.{id} is not a valid Unicode string."
                         )
-                    elif not (isSpelling spelling) then
-                        Error(error "context.invalid_entry" file $"{where}.{id} is '{spelling}', which is not {kind}.")
-                    else
-                        match parse spelling with
-                        | Ok parsed -> Ok(id, { Spelling = spelling; Value = parsed })
-                        | Error message ->
+                    | Some spelling ->
+                        let bytes = Encoding.UTF8.GetByteCount spelling
+
+                        if bytes > limits.MaxNameLength then
+                            Error(
+                                error
+                                    "context.name_too_long"
+                                    file
+                                    $"{where}.{id} is {bytes} bytes long, and a spelling has at most {limits.MaxNameLength}."
+                            )
+                        elif not (isSpelling spelling) then
                             Error(
                                 error
                                     "context.invalid_entry"
                                     file
-                                    $"{where}.{id} is '{spelling}', which is not {kind}: {message}"
+                                    $"{where}.{id} is '{spelling}', which is not {kind}."
                             )
+                        else
+                            match parse spelling with
+                            | Ok parsed -> Ok(id, { Spelling = spelling; Value = parsed })
+                            | Error message ->
+                                Error(
+                                    error
+                                        "context.invalid_entry"
+                                        file
+                                        $"{where}.{id} is '{spelling}', which is not {kind}: {message}"
+                                )
 
             // The count is checked first, so an oversized table is refused without reading each entry.
             if not count.IsEmpty then
-                Map.empty, duplicates @ count
+                Map.empty, count
             else
-                let results = entries |> List.map read
+                let entries, duplicates = membersOnce file where element
+                let results =
+                    entries
+                    |> List.map read
 
                 let found =
                     results
@@ -247,7 +293,9 @@ module internal NameContext =
                         | Ok _ -> None
                     )
 
-                found, duplicates @ problems
+                found,
+                duplicates
+                @ problems
 
     let empty critical : FileContext = {
         Names = Map.empty
