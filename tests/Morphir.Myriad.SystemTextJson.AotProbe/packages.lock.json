@@ -47,11 +47,18 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
-          "Morphir.Files": "[1.0.0, )"
+          "Morphir.Files": "[1.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
         }
       },
       "morphir.myriad.systemtextjson.annotations": {
         "type": "Project"
+      },
+      "YamlDotNet": {
+        "type": "CentralTransitive",
+        "requested": "[16.3.0, )",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     }
   }

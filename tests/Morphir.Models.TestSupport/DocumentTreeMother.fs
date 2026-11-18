@@ -12,8 +12,95 @@ open Morphir.IR
 open Morphir.IR.Trees
 open Morphir.IR.V4
 open Morphir.Models.TestSupport.DistributionBuilder
+open Morphir.TestSupport.Fixtures
 
 module Driver = DocumentTreeStoreDriver
+
+/// The frozen bounded orders example and its named reader test variants.
+module BoundedOrders =
+    let manifestLocation = "manifest.json"
+    let domainLocation = "pkg/acme/orders/domain/module.json"
+    let orderLocation = "pkg/acme/orders/domain/order.value.json"
+    let totalLocation = "pkg/acme/orders/domain/total-in-_usd.value.json"
+
+    let catalogDocuments version profile =
+        let prefix = $"{FixtureCatalog.BoundedOrders.Directory}{version}/{profile}/"
+
+        FixtureCatalog.BoundedOrders.Files
+        |> Seq.filter (fun entry ->
+            entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal)
+        )
+        |> Seq.map (fun entry -> entry.RelativePath.Substring(prefix.Length), entry)
+        |> Map.ofSeq
+
+    let private plainJson version locations =
+        let documents = catalogDocuments version "plain-json"
+
+        locations
+        |> List.map (fun location -> location, FixtureCatalog.ReadText(documents[location]))
+        |> Driver.ofTexts
+
+    let private metadataLocations = [ manifestLocation; domainLocation ]
+
+    let metadata version = plainJson version metadataLocations
+
+    let moduleMetadata version =
+        plainJson
+            version
+            (metadataLocations
+             @ [ "pkg/acme/orders/audit/module.json"; "deps/morphir/_sdk/@/basics/module.json" ])
+
+    let selectedValues version =
+        plainJson
+            version
+            (metadataLocations
+             @ [ orderLocation; totalLocation ])
+
+    let private withDomainValues (values: string) files =
+        let root = Driver.jsonAt domainLocation files
+        root["values"] <- Nodes.JsonNode.Parse values
+        Driver.withFile domainLocation (root.ToJsonString()) files
+
+    let duplicateListedValue version =
+        metadata version
+        |> withDomainValues """["order","order"]"""
+
+    let malformedInlineValue version =
+        metadata version
+        |> withDomainValues """{"order":false}"""
+
+    let selectedValueWithWrongName version =
+        selectedValues version
+        |> Driver.copied totalLocation orderLocation
+
+    let private filesWithOrder version =
+        plainJson
+            version
+            (metadataLocations
+             @ [ orderLocation ])
+
+    let private orderDefinition files =
+        let definition = (Driver.jsonAt orderLocation files)["def"]
+        (nonNull definition).ToJsonString()
+
+    let alternateInlineValueWithMalformedSibling version =
+        let files = filesWithOrder version
+        let definition = orderDefinition files
+
+        files
+        |> Driver.withoutFile orderLocation
+        |> withDomainValues $"""{{"a-b":{definition},"total-in-USD":false}}"""
+
+    let inlineAndSplitValue version =
+        let files = filesWithOrder version
+        let definition = orderDefinition files
+
+        files
+        |> withDomainValues $"""{{"order":{definition}}}"""
+
+    let oversizedSelectedValue version byteCount =
+        metadata version
+        |> Driver.withFile orderLocation (String.replicate byteCount "x")
 
 /// <summary>The stored tree of a v4 model: its split.</summary>
 let treeOf (distribution: Distribution) : StoredTree =
@@ -493,6 +580,29 @@ module Invalid =
     let manifestThatFailsOnClose () : VFileTree =
         written noModules
         |> Driver.withFailingClose "manifest.json"
+
+    let private streamedManifestWithPadding padding =
+        let location = "manifest.json"
+        let files = written noModules
+        let limit = System.Text.Encoding.UTF8.GetByteCount((Driver.texts files)[location])
+
+        let streamed, bytesRead =
+            files
+            |> Driver.withText
+                location
+                (fun manifest ->
+                    manifest
+                    + System.String(' ', padding)
+                )
+            |> Driver.withReadCounter location
+
+        streamed, limit, bytesRead
+
+    /// <summary>A streamed manifest that fits exactly within the byte limit.</summary>
+    let streamedManifestAtReadLimit () = streamedManifestWithPadding 0
+
+    /// <summary>A streamed manifest with 64 whitespace bytes beyond the byte limit.</summary>
+    let streamedManifestOverReadLimit () = streamedManifestWithPadding 64
 
     /// <summary><see cref="acmeDemo"/> with a module file of <c>billing</c> whose text is not JSON.</summary>
     let moduleFileThatIsNotJson () : VFileTree =

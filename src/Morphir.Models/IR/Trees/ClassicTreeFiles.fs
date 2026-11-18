@@ -253,13 +253,9 @@ module internal ClassicTreeFiles =
     /// Reads a module file. A module of a package definition (<paramref name="holdsDefinitions"/>) with no
     /// <c>access</c> is public; a module specification has no <c>access</c>.
     /// </summary>
-    let readModule
-        (holdsDefinitions: bool)
-        (root: JsonElement)
-        : Result<ClassicModuleFile, V4JsonError> =
+    let private readModuleWith inlineType inlineValue (holdsDefinitions: bool) (root: JsonElement) =
         TreeFileCodec.guarded (fun () ->
-            // The attributes of an inline entry outlive the document they were parsed from.
-            let values = fileMembers (root.Clone())
+            let values = fileMembers root
 
             closed
                 "$"
@@ -287,8 +283,8 @@ module internal ClassicTreeFiles =
             TreeFileCodec.readModule
                 [ "path" ]
                 access
-                (typeDocument holdsDefinitions)
-                (valueDocument holdsDefinitions)
+                inlineType
+                inlineValue
                 (fun access doc typeNames valueNames -> {
                     Access = access
                     Doc = doc
@@ -297,6 +293,27 @@ module internal ClassicTreeFiles =
                 })
                 values
         )
+
+    let readModule
+        (holdsDefinitions: bool)
+        (root: JsonElement)
+        : Result<ClassicModuleFile, V4JsonError> =
+        // The attributes of an inline entry outlive the document they were parsed from.
+        readModuleWith
+            (typeDocument holdsDefinitions)
+            (valueDocument holdsDefinitions)
+            holdsDefinitions
+            (root.Clone())
+
+    /// Reads inventory metadata and inline names without decoding their payloads.
+    let readModuleInventory holdsDefinitions =
+        readModuleWith (fun _ _ -> ()) (fun _ _ -> ()) holdsDefinitions
+
+    let readInlineType holdsDefinitions location (element: JsonElement) =
+        TreeFileCodec.guarded (fun () -> typeDocument holdsDefinitions location (element.Clone()))
+
+    let readInlineValue holdsDefinitions location (element: JsonElement) =
+        TreeFileCodec.guarded (fun () -> valueDocument holdsDefinitions location (element.Clone()))
 
     /// A payload written by the classic writer into the file's JSON. The writer's error stops the write, which gives
     /// it as its error.

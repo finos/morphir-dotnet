@@ -117,7 +117,8 @@
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "Morphir.Files": "[1.0.0, )",
-          "System.Text.Json": "[11.0.0, )"
+          "System.Text.Json": "[11.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
         }
       },
       "Microsoft.Extensions.FileProviders.Abstractions": {
@@ -138,6 +139,12 @@
           "System.Memory": "4.6.3",
           "System.Runtime.CompilerServices.Unsafe": "6.1.2"
         }
+      },
+      "YamlDotNet": {
+        "type": "CentralTransitive",
+        "requested": "[16.3.0, )",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     },
     "net10.0": {
@@ -170,7 +177,8 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
-          "Morphir.Files": "[1.0.0, )"
+          "Morphir.Files": "[1.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
         }
       },
       "Microsoft.Extensions.FileProviders.Abstractions": {
@@ -187,6 +195,12 @@
         "requested": "[11.0.0, )",
         "resolved": "11.0.0",
         "contentHash": "HH2akbW2HeY/xeZJA5UceuQQX+1Pv/Kxrz/x4XPoH6wYDtgPIlBeOTZlQXlT+b50b1Ym/xfP+WJCX9FW4uLBXQ=="
+      },
+      "YamlDotNet": {
+        "type": "CentralTransitive",
+        "requested": "[16.3.0, )",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     },
     "net11.0": {
@@ -218,8 +232,15 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
-          "Morphir.Files": "[1.0.0, )"
+          "Morphir.Files": "[1.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
         }
+      },
+      "YamlDotNet": {
+        "type": "CentralTransitive",
+        "requested": "[16.3.0, )",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     }
   }

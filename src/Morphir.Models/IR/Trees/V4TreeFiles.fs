@@ -166,10 +166,7 @@ module internal V4TreeFiles =
     /// specification keeps what it states, which <c>V4DocumentTree.join</c> checks. Module annotations have no place
     /// in a 4.0.0 module file, so the document has none.
     /// </summary>
-    let readModule
-        (holdsDefinitions: bool)
-        (root: JsonElement)
-        : Result<V4ModuleFile, V4JsonError> =
+    let private readModuleWith inlineType inlineValue (holdsDefinitions: bool) (root: JsonElement) =
         TreeFileCodec.guarded (fun () ->
             let values = fileMembers root
 
@@ -194,18 +191,6 @@ module internal V4TreeFiles =
                 | None when holdsDefinitions -> Some Public
                 | None -> None
 
-            let inlineType location element =
-                if holdsDefinitions then
-                    DefinedType(V4JsonDistributions.controlledTypeDefinition location element)
-                else
-                    SpecifiedType(V4JsonDistributions.typeSpecification location element)
-
-            let inlineValue location element =
-                if holdsDefinitions then
-                    DefinedValue(V4JsonDistributions.controlledValueDefinition location element)
-                else
-                    SpecifiedValue(V4JsonDistributions.valueSpecification location element)
-
             TreeFileCodec.readModule
                 [ "path"; "module" ]
                 access
@@ -220,6 +205,38 @@ module internal V4TreeFiles =
                 })
                 values
         )
+
+    let private inlineType holdsDefinitions location element =
+        if holdsDefinitions then
+            DefinedType(V4JsonDistributions.controlledTypeDefinition location element)
+        else
+            SpecifiedType(V4JsonDistributions.typeSpecification location element)
+
+    let private inlineValue holdsDefinitions location element =
+        if holdsDefinitions then
+            DefinedValue(V4JsonDistributions.controlledValueDefinition location element)
+        else
+            SpecifiedValue(V4JsonDistributions.valueSpecification location element)
+
+    let readInlineType holdsDefinitions location element =
+        TreeFileCodec.guarded (fun () -> inlineType holdsDefinitions location element)
+
+    let readInlineValue holdsDefinitions location element =
+        TreeFileCodec.guarded (fun () -> inlineValue holdsDefinitions location element)
+
+    let readModule
+        (holdsDefinitions: bool)
+        (root: JsonElement)
+        : Result<V4ModuleFile, V4JsonError> =
+        readModuleWith
+            (inlineType holdsDefinitions)
+            (inlineValue holdsDefinitions)
+            holdsDefinitions
+            root
+
+    /// Reads inventory metadata and inline names without decoding their payloads.
+    let readModuleInventory holdsDefinitions =
+        readModuleWith (fun _ _ -> ()) (fun _ _ -> ()) holdsDefinitions
 
     /// <summary>Writes a type file: <c>formatVersion</c>, <c>name</c>, then <c>def</c> or <c>spec</c>.</summary>
     let writeType (name: Name) (document: V4TypeDocument) : Result<byte array, V4WriteError> =
@@ -259,12 +276,8 @@ module internal V4TreeFiles =
         : Result<Name * V4TypeDocument, V4JsonError> =
         TreeFileCodec.readNode
             checkVersion
-            (fun location element ->
-                DefinedType(V4JsonDistributions.controlledTypeDefinition location element)
-            )
-            (fun location element ->
-                SpecifiedType(V4JsonDistributions.typeSpecification location element)
-            )
+            (inlineType true)
+            (inlineType false)
             holdsDefinitions
             root
 
@@ -276,11 +289,7 @@ module internal V4TreeFiles =
         : Result<Name * V4ValueDocument, V4JsonError> =
         TreeFileCodec.readNode
             checkVersion
-            (fun location element ->
-                DefinedValue(V4JsonDistributions.controlledValueDefinition location element)
-            )
-            (fun location element ->
-                SpecifiedValue(V4JsonDistributions.valueSpecification location element)
-            )
+            (inlineValue true)
+            (inlineValue false)
             holdsDefinitions
             root
