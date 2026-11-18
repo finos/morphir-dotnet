@@ -36,6 +36,6 @@ Apply the repository's test-manager guidance before changing tests and its F# an
 
 ## Workflow follow-up
 
-- Link the morphir-dotnet tracking issue before the first pull request. Follow repository review, archive and release approval rules.
+- Reference [finos/morphir-dotnet#682](https://github.com/finos/morphir-dotnet/issues/682) in the pull request. Follow repository review and release approval rules.
 - Before the first approved release with these packages, verify that the NuGet trusted-publishing policy for `deployment.yml` covers first publication under all three IDs.
 - Through that approved release, publish using `PublishLibs` and verify that all three package IDs resolve at the released version on NuGet.org.

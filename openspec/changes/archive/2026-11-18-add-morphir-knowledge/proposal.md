@@ -26,7 +26,7 @@ Morphir knowledge bundles need a .NET validator for CI, and .NET consumers need 
 
 ## Tracking
 
-Link the morphir-dotnet tracking issue before the first pull request.
+This change is tracked in [finos/morphir-dotnet#682](https://github.com/finos/morphir-dotnet/issues/682).
 
 ## Impact
 
