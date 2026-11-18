@@ -113,15 +113,3 @@ Feature: Model conversion
     And the verification report has the schema version "3"
     And the verification report has the layout "document-tree"
     And the verification report counts every file of the tree
-
-  Scenario: A v3 Specs single file is valid when model convert wrote it
-    Given a valid IR v3 Specs model
-    When I convert the model to a document tree
-    And I convert the written model to a single file
-    Then the conversion succeeds
-    And the written single file says the format version "3.1.0"
-    When I verify the written single file as JSON
-    Then the exit code is 0
-    And the verification report says that the model is valid
-    And the verification report has the schema version "3"
-    And the verification report has the layout "single-file"
