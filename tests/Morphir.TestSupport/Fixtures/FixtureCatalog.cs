@@ -597,6 +597,27 @@ public static class FixtureCatalog
         }
     }
 
+    /// <summary>The frozen bounded-generation receipt, schema and replay controls from finos/morphir.</summary>
+    public static class BoundedGenerationReceipts
+    {
+        private const string Directory = "MorphirBoundedGenerationReceipts/";
+        private const string Provenance = Directory + "PROVENANCE.md";
+
+        public static FixtureEntry Controls { get; } = new(
+            "the fixed bounded-generation receipt replay controls", Directory + "receipt.controls.json",
+            "b5be6a8bbcc8a24306499ed58c529180569e75df0a392da511ac014b5fb88f3e", Provenance);
+
+        public static FixtureEntry Schema { get; } = new(
+            "the bounded-generation receipt schema", Directory + "receipt.schema.json",
+            "daea631f7b6ded1ff981395d7477c66827ffdb9fd4f17a59458d1e1576602b07", Provenance);
+
+        public static FixtureEntry Sample { get; } = new(
+            "the synthetic qualifying WASM receipt", Directory + "fixtures/receipt-qualified-wasm.json",
+            "48097614346a2a302cdd43959fdc03d949e05279e027c0a6d9692b1bf918d735", Provenance);
+
+        public static IReadOnlyList<FixtureEntry> Files { get; } = [Controls, Schema, Sample];
+    }
+
     /// <summary>The frozen orders plain document trees for v3.1 and v4, in JSON and YAML.</summary>
     public static class BoundedOrders
     {
@@ -649,7 +670,7 @@ public static class FixtureCatalog
 
 
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

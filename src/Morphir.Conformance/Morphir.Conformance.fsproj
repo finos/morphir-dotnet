@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="FSharp.Core" />
     <PackageReference Include="Gherkin" />
+    <PackageReference Include="JsonSchema.Net" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Types.fs" />
@@ -19,6 +20,7 @@
     <Compile Include="JsonComparison.fs" />
     <Compile Include="Runner.fs" />
     <Compile Include="Report.fs" />
+    <Compile Include="BoundedGeneration/Receipt.fs" />
     <Compile Include="FrontendAdapter.fs" />
     <Compile Include="CliAdapter.fs" />
     <Compile Include="WasmHost/Model.fs" />
