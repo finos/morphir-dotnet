@@ -35,6 +35,7 @@
         <Compile Include="WorkerTests.fs" />
         <Compile Include="ReportTests.fs" />
         <Compile Include="ReportContractTests.fs" />
+        <Compile Include="BoundedGenerationReceiptTests.fs" />
         <Compile Include="CommandTests.fs" />
         <Compile Include="GuestKitFakeGuest.fs" />
         <Compile Include="GuestKitProvenanceTests.fs" />

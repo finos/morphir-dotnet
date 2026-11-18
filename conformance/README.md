@@ -208,3 +208,21 @@ Kit manifests, profiles, claims planning, additional adapters, provenance review
 records, report checking and literate documentation belong to the full
 compatibility-kit change. The seed keeps those additions on the same reader,
 content model and runner.
+
+## Bounded-generation receipt replay
+
+`Morphir.Conformance.BoundedGeneration.Receipt.check` checks a bounded-generation
+receipt against the exact draft schema and an independent `CaseExpectation`. Load
+the schema and expectation from the selected kit and case. The expectation binds
+the receipt to the kit contract, suite, case ID and expected output digest.
+
+For an admitted receipt, the checker recomputes correctness and resources
+separately. A failed or unrun outcome can be a valid record. A refusal means the
+receipt itself cannot be used as evidence, for example because its schema,
+expectation, critical members or claimed outcomes disagree with the check.
+
+The conformance tests replay the parent kit's 19 frozen controls. They include
+successful replay, missing measurements, exceeded limits and forged claims.
+The controls exercise the checker with synthetic evidence. Generation
+qualification uses receipts from measured host and guest runs. See the
+[parent receipt contract](https://github.com/finos/morphir/blob/177371fa7a6199b7f177a8c1d886f583ee57e813/spec/mck/bounded-generation/receipt.md).
