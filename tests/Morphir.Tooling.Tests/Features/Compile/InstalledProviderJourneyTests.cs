@@ -75,7 +75,7 @@ public sealed class InstalledProviderJourneyTests
         {
             var compiled = sandbox.PathOf(label + "-compiled");
             var generated = sandbox.PathOf(label + "-generated");
-            var compile = await Run("compile", "--language", "fsharp", "--input", pricing, "--package-name", "acme/demo", "--ir-version", "4", "--output", compiled, "--out-dir", sandbox.PathOf(label + "-out"), "--extension-id", "org.finos.morphir.fsharp-frontend", "--json");
+            var compile = await Run("compile", "--language", "fsharp", "--input", pricing, "--package-name", "acme/demo", "--ir-version", "4", "--output", compiled, "--out-dir", sandbox.PathOf(label + "-out"), "--extension-id", "org.finos.morphir.fsharp-frontend", "--json=document");
             using var compileReport = JsonDocument.Parse(compile.StandardOutput);
             var frontend = compileReport.RootElement.GetProperty("provider");
             frontend.GetProperty("role").GetString().Should().Be("frontend");

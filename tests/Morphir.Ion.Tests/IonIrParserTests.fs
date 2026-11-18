@@ -6,6 +6,7 @@ open System
 open System.IO
 open System.Text.Json
 open Expecto
+open Morphir.Files
 open Morphir.IR.Pipeline
 open Morphir.Json.Classic
 open Morphir.Ion
@@ -13,6 +14,7 @@ open Morphir.Ion.Tests
 
 module Sample =
     // README-SAMPLE-START
+    open Morphir.Files
     open Morphir.IR.Pipeline
     open Morphir.Ion
 

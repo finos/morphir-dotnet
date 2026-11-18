@@ -5,6 +5,7 @@ using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Features.Validate;
 using Morphir.Tooling.Infrastructure;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -38,9 +39,9 @@ public sealed class OfferingReportTests
 
     private static JsonDocument List(HostIdentity host)
     {
-        var stdout = new List<string>();
-        ExtensionListCommand.Execute(Registry(host), true, stdout.Add, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
-        return JsonDocument.Parse(string.Join('\n', stdout));
+        var stdout = new StringWriter();
+        ExtensionListCommand.Execute(Registry(host), JsonOutputMode.Document, stdout, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
+        return JsonDocument.Parse(stdout.ToString());
     }
 
     private static JsonElement Entry(JsonDocument document, string id) =>

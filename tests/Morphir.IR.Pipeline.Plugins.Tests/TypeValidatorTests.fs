@@ -5,6 +5,7 @@ open Morphir.IR
 open Morphir.IR.Classic
 open Morphir.IR.Classic.AccessControlled
 open Morphir.IR.Classic.Documented
+open Morphir.Files
 open Morphir.IR.Pipeline
 open Morphir.IR.Pipeline.Plugins
 

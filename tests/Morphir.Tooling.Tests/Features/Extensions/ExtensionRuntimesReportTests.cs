@@ -4,6 +4,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Morphir.Extensions;
 using Morphir.Tooling.Features.Extensions;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -39,9 +40,9 @@ public sealed class ExtensionRuntimesReportTests
 
     private static (int Exit, string Stdout) Run(HostIdentity host, WasmRuntime runtime, bool json)
     {
-        var stdout = new List<string>();
-        var exit = ExtensionRuntimesCommand.Execute(host, runtime, json, stdout.Add);
-        return (exit, string.Join('\n', stdout).Replace("\r\n", "\n"));
+        var stdout = new StringWriter();
+        var exit = ExtensionRuntimesCommand.Execute(host, runtime, json ? JsonOutputMode.Document : JsonOutputMode.None, stdout);
+        return (exit, stdout.ToString().Replace("\r\n", "\n").TrimEnd('\n'));
     }
 
     private static JsonElement Json(HostIdentity host, WasmRuntime runtime)

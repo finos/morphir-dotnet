@@ -5,7 +5,7 @@ open System.Threading.Tasks
 open Morphir.IR
 open Morphir.IR.Classic
 open Morphir.IR.Model
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.IR.Pipeline.Plugins
 open Morphir.Extensions
 

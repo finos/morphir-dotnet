@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using Foundatio.Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using Morphir.CodeGeneration.FSharp;
+using Morphir.Tooling.Cli;
 using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Generate;
@@ -15,7 +16,7 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
     private readonly Option<string?> _output = new("--output") { Description = "Owned output directory" };
     private readonly Option<string?> _format = new("--input-format") { Description = "auto, json or ion" };
     private readonly Option<string[]> _options = new("--option") { Description = "Backend KEY=VALUE option, repeatable", AllowMultipleArgumentsPerToken = false, Arity = ArgumentArity.OneOrMore };
-    private readonly Option<bool> _json = new("--json") { Description = "Output one JSON report" };
+    private readonly Option<string> _json = JsonOutputOption.Create();
     private readonly Option<string?> _project = new("--project") { Description = "Project directory, workspace member path or project name, for input from a prior compile and its configuration" };
     private readonly Option<string?> _config = new("--config") { Description = "Explicit configuration file, for input from a prior compile and [codegen.<target>].extension" };
     private readonly Option<string?> _extension = new("--extension") { Description = "Backend extension; overrides [codegen.<target>].extension" };
@@ -30,10 +31,10 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
         {
             var invocation = Bind(result);
             if (invocation.Extension is not null && invocation.ExtensionId is not null)
-                return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation, "invalid-arguments", "Choose --extension or --extension-id, not both.")), invocation), result.GetValue(_json));
+                return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation, "invalid-arguments", "Choose --extension or --extension-id, not both.")), invocation), JsonOutputOption.ModeOf(result));
             var mediator = services.GetRequiredService<IMediator>();
             var generated = await mediator.InvokeAsync<Outcome<GenerationSuccess>>(new GenerateRequest(invocation, new(Environment.CurrentDirectory)), ct);
-            return Render(GenerationReport.From(generated, invocation), result.GetValue(_json));
+            return Render(GenerationReport.From(generated, invocation), JsonOutputOption.ModeOf(result));
         });
     }
 
@@ -47,13 +48,13 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
         ExtensionId = result.GetValue(_extensionId),
     };
 
-    public int HandleParseErrors(ParseResult result)
+    public int HandleParseErrors(ParseResult result, IReadOnlyList<string> messages)
     {
         var failure = new GenerationFailure(GenerationFailureKind.Invocation,
-            result.Errors.Select(error => new GenerationDiagnostic("invalid-arguments", error.Message)).ToImmutableArray());
-        // A bad value for an option cannot be read. Parser diagnostics still use the requested JSON mode.
-        var json = result.Tokens.Any(token => token.Value is "--json" or "--json=true");
-        return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(failure), new()), json);
+            messages.Select(message => new GenerationDiagnostic("invalid-arguments", message)).ToImmutableArray());
+        // A parse error has no valid parse result, so the output mode comes from the tokens (JSON-4).
+        var mode = JsonOutputOption.ScanTokens([.. result.Tokens.Select(token => token.Value)]);
+        return Render(GenerationReport.From(new Outcome<GenerationSuccess>.Failure(failure), new()), mode);
     }
 
     /// <summary>
@@ -71,11 +72,11 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
             ? [$"warning: {backend ?? "the backend"} did not format the generated files, because this host cannot run the formatter (Fantomas needs dynamic code, which Native AOT does not have). The files are the generator's unformatted text. Pass --option format=false to ask for that text explicitly, or use dotnet-morphir for formatted files."]
             : [];
 
-    private static int Render(GenerationReport report, bool json)
+    private static int Render(GenerationReport report, JsonOutputMode mode)
     {
         // Warnings go to stderr in every mode; stdout holds only the report or the artifact paths.
         foreach (var warning in Warnings(report)) Console.Error.WriteLine(warning);
-        if (json) ConsoleOutputHelper.WriteLineToStdout(report.ToJson());
+        if (mode != JsonOutputMode.None) JsonReportOutput.Write(ConsoleOutputHelper.Stdout, mode, report, GenerationReport.JsonInfo);
         else
         {
             foreach (var artifact in report.Artifacts) ConsoleOutputHelper.WriteLineToStdout(artifact);

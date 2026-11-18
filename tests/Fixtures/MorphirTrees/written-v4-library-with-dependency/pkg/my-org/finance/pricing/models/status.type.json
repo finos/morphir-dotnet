@@ -1,0 +1,21 @@
+{
+  "formatVersion": 4,
+  "name": "status",
+  "def": {
+    "Public": {
+      "CustomTypeDefinition": {
+        "typeParams": [],
+        "access": "Public",
+        "constructors": {
+          "open": [],
+          "paid": [
+            [
+              "amount",
+              "morphir/SDK:basics#int"
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

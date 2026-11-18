@@ -118,6 +118,7 @@ public class BlackBoxSessionTests
         first.Configuration.Should().NotBeNull();
         first.Migration.Should().NotBeNull();
         first.Extensions.Should().NotBeNull();
+        first.Conversion.Should().NotBeNull();
         (await first.Validation.ValidateAsync(first.Workspace.File("Cli", "valid-ir-v3.json"))).ShouldExitWith(0);
         first.CliOf(MorphirHost.Native).Should().BeSameAs(first.Cli);
         first.CliOf(MorphirHost.DotnetTool).Host.Should().Be(MorphirHost.DotnetTool);

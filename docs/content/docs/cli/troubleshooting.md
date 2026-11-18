@@ -13,8 +13,8 @@ Use exact target `csharp`, numeric `language-version=15`, and an optional
 literal C# namespace. These invocations fail with exit 2 before publication:
 
 ```powershell
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=preview --json
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option namespace=true --json
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=preview --json=document
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option namespace=true --json=document
 ```
 
 The first requires a numeric profile. The second supplies a JSON Boolean where
@@ -24,8 +24,8 @@ a namespace string is required. Use `--option language-version=15` and
 unescaped reserved words are refused with a located namespace diagnostic.
 Use `@` for reserved words, for example `namespace=@class.Models`.
 
-In JSON mode, parse the single stdout report and inspect `failureKind` and
-`diagnostics`. Structured diagnostics are report data; JSON failures need not
+With `--json=document`, parse the single stdout report and inspect `failureKind`
+and `diagnostics`; with `--json`, read the `report` of the one `completed` line. Structured diagnostics are report data; JSON failures need not
 duplicate their text on stderr. Without `--json`, human diagnostics use stderr.
 Exit 1 identifies unsupported or invalid model semantics; exit 2 identifies
 invocation or operational failures; cancellation before publication returns 130.
@@ -93,10 +93,22 @@ This guide covers common issues you may encounter when using the Morphir .NET CL
 
 ### "File does not exist" Error
 
-**Problem:**
+**Problem:** `morphir model verify morphir-ir.json` writes a result that is not valid, and exits with 1:
 ```
-Error: File does not exist: morphir-ir.json
+Validation Result: ✗ INVALID
+File: /work/morphir-ir.json
+Schema Version: unknown (auto)
+Timestamp: 2025-12-15 10:30:00 UTC
+
+Found 1 validation error(s):
+
+  Path: $
+  Message: File does not exist: /work/morphir-ir.json
+  Expected: Existing file
+  Found: File not found
 ```
+
+The message gives the full path that the command looked for.
 
 **Solutions:**
 
@@ -107,14 +119,14 @@ Error: File does not exist: morphir-ir.json
 
 2. **Use absolute path:**
    ```bash
-   morphir ir verify /full/path/to/morphir-ir.json
+   morphir model verify /full/path/to/morphir-ir.json
    ```
 
 3. **Check current directory:**
    ```bash
    pwd
    cd /path/to/ir/files
-   morphir ir verify morphir-ir.json
+   morphir model verify morphir-ir.json
    ```
 
 ### Malformed JSON Errors
@@ -150,18 +162,20 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
 
 1. **Explicitly specify version:**
    ```bash
-   morphir ir verify --schema-version 3 morphir-ir.json
+   morphir model verify --schema-version 3 morphir-ir.json
    ```
 
-2. **Check formatVersion field** (for v2/v3):
+2. **Check formatVersion field** (for every version):
    ```bash
    cat morphir-ir.json | jq '.formatVersion'
    ```
 
 3. **Verify IR structure:**
-   - **v1**: No `formatVersion` field
+   - **v1**: `"formatVersion": 1`
    - **v2**: `"formatVersion": 2`
-   - **v3**: `"formatVersion": 3`
+   - **v3**: `"formatVersion": 3` or `"3.1.0"`, and the default when the member is missing
+   - **v4**: `"formatVersion": 4`, or a release such as `"4.0.0"`
+   - A document tree takes its version from its `manifest.json`
 
 ### Validation Fails but IR Appears Correct
 
@@ -173,15 +187,16 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
 2. **Check schema documentation** - [Schema Specifications](/docs/spec/schemas/)
 3. **Validate against different versions:**
    ```bash
-   morphir ir verify --schema-version 1 morphir-ir.json
-   morphir ir verify --schema-version 2 morphir-ir.json
-   morphir ir verify --schema-version 3 morphir-ir.json
+   morphir model verify --schema-version 1 morphir-ir.json
+   morphir model verify --schema-version 2 morphir-ir.json
+   morphir model verify --schema-version 3 morphir-ir.json
+   morphir model verify --schema-version 4 morphir-ir.json
    ```
 
 4. **Compare with known-good IR:**
    ```bash
    # Validate a reference file
-   morphir ir verify reference-morphir-ir.json
+   morphir model verify reference-morphir-ir.json
    ```
 
 5. **Check for common issues:**
@@ -189,6 +204,21 @@ Message: Malformed JSON: 'i' is an invalid start of a value. LineNumber: 6
    - Missing required fields
    - Incorrect array structure
    - Type mismatches
+
+### A document tree is not valid
+
+**Problem:** `morphir model verify` on a directory reports a tree error.
+
+- **`tree.missing_manifest`** (exit code 1): the directory has no `manifest.json` at its root. Give the root directory
+  of the tree, the directory that holds `manifest.json`.
+- **`missing_member`** (exit code 1): a file of the tree lacks a required member, or a module file lists a type or a
+  value that has no file in the tree. `file` names the file that lacks the member, or the missing file of a listed name. Add the
+  member, or write the missing file or remove the name from the module file.
+- **`verify.schema_version_conflict`** (exit code 2): `--schema-version` contradicts the version that the manifest
+  states, or is not 3 or 4 on a directory with no readable manifest. Leave out `--schema-version`: a tree takes its
+  version from its manifest.
+
+See [Document trees](model-verify.md#document-trees) for the files of a tree and the checks.
 
 ## Configuration
 
@@ -281,12 +311,12 @@ If a commit fails after some replacements, inspect the reported restored/unresol
 
 1. **Use `--quiet` mode** to reduce output overhead:
    ```bash
-   morphir ir verify --quiet morphir-ir.json
+   morphir model verify --quiet morphir-ir.json
    ```
 
 2. **Validate in parallel** (for multiple files):
    ```bash
-   find . -name "*.json" | xargs -P 4 -I {} morphir ir verify --quiet {}
+   find . -name "*.json" | xargs -P 4 -I {} morphir model verify --quiet {}
    ```
 
 3. **Phase 2 improvements** (coming soon):
@@ -310,7 +340,7 @@ If a commit fails after some replacements, inspect the reported restored/unresol
 
 3. **Increase available memory** (if using Docker):
    ```bash
-   docker run --memory 2g morphir-cli ir verify morphir-ir.json
+   docker run --memory 2g morphir-cli model verify morphir-ir.json
    ```
 
 ## CI/CD Integration Issues
@@ -325,7 +355,7 @@ If a commit fails after some replacements, inspect the reported restored/unresol
 # GitHub Actions
 - name: Validate IR
   run: |
-    morphir ir verify morphir-ir.json
+    morphir model verify morphir-ir.json
     if [ $? -ne 0 ]; then
       echo "Validation failed"
       exit 1
@@ -338,7 +368,7 @@ Or use `set -e` in bash scripts:
 #!/bin/bash
 set -e  # Exit on any error
 
-morphir ir verify morphir-ir.json
+morphir model verify morphir-ir.json
 echo "Validation succeeded!"
 ```
 
@@ -350,16 +380,17 @@ echo "Validation succeeded!"
 
 1. **Verify JSON format:**
    ```bash
-   morphir ir verify --json morphir-ir.json | jq .
+   morphir model verify --json=document morphir-ir.json | jq .
    ```
 
 2. **Save to file:**
    ```bash
-   morphir ir verify --json morphir-ir.json > validation-result.json
+   morphir model verify --json=document morphir-ir.json > validation-result.json
    ```
 
 3. **Check for extra output:**
-   - Use `--quiet` with `--json` to suppress non-JSON output
+   - A bare `--json` writes JSON Lines that end with one `completed` record; a tool that reads one document needs
+     `--json=document`. See [Machine output](_index.md#machine-output).
    - Some logging may appear on stderr
 
 ### Permission Denied in Docker
@@ -376,7 +407,7 @@ Permission denied: /app/morphir-ir.json
 RUN chmod +r /app/*.json
 
 # Or when running
-docker run -v $(pwd):/app:ro morphir-cli ir verify /app/morphir-ir.json
+docker run -v $(pwd):/app:ro morphir-cli model verify /app/morphir-ir.json
 ```
 
 ## Error Message Reference
@@ -571,8 +602,8 @@ The CLI should create directories automatically. If this fails:
 
 ## Compile failures
 
-Use `--json` and read `failureKind` and `diagnostics`, or `--json-lines` and read the last `completed`
-record. Exit code 1 is a source or model error; exit code 2 is an invocation, configuration, selection or
+Use `--json=document` and read `failureKind` and `diagnostics`, or `--json` and read the `report` of the
+last `completed` record. Exit code 1 is a source or model error; exit code 2 is an invocation, configuration, selection or
 I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
 
 | Code | Cause | Fix |
@@ -639,12 +670,12 @@ See [morphir generate](../generate/) for the complete command contract.
 
 - [CLI Reference](../cli/) - Complete command documentation
 - [Management Commands](./management/) - Dist, tool, and extension management
-- [morphir ir verify](./ir-verify/) - Detailed verification command reference
+- [morphir model verify](./model-verify/) - Detailed verification command reference
 - [Schema Specifications](/docs/spec/schemas/) - IR schema documentation
 
 ## Project migration blocks or cannot write
 
-Run `morphir project migrate --dry-run --json` and inspect `ledger`, `conflicts`,
+Run `morphir project migrate --dry-run --json=document` and inspect `ledger`, `conflicts`,
 `verification` and `diagnostics`. Unsupported nonempty classic shapes and values
 TOML cannot represent must be reconciled explicitly. A conflicting target is
 never overwritten, even when an ambient override makes normal loading look equal.
@@ -660,7 +691,7 @@ retains the original classic source and never edits workspace membership.
 
 ## Workspace migration blocks or needs recovery
 
-Run `morphir workspace migrate <directory> --dry-run --json` and inspect
+Run `morphir workspace migrate <directory> --dry-run --json=document` and inspect
 `inventory`, `projects`, `diagnostics`, and `verified`. The selected directory is
 the boundary even if it has no workspace. A child invocation does not adopt its
 parent or siblings. Excluded candidates, default skipped directories, links,
@@ -694,4 +725,5 @@ Every JSON result, including parse or host-initialization failure, follows the
 [workspace result schema](https://github.com/finos/morphir-dotnet/blob/main/docs/spec/schemas/workspace-migration-result.schema.json).
 Exit 0 means applicable preview, success, or valid-workspace no-op. Exit 2 means
 blocked, invalid, failed, or recovery required. Diagnostics go to stderr and stdout
-contains one JSON document when `--json` is supplied.
+contains one JSON document with `--json=document`, or one `completed` record whose
+`report` is that result with `--json`.

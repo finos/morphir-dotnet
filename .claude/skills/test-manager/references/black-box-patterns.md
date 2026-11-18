@@ -65,6 +65,7 @@ public sealed class CorpusTests : BlackBoxTest
 
 ## A fixture
 
+- A new model, tree or file comes from an object mother case, or from `FixtureCatalog` when its exact bytes come from a contract (see "Test data" in `SKILL.md`). The scenario names it by intent, and its step writes it into the workspace. The rules below are for the fixtures that the project already has.
 - Put a fixture file below `tests/Morphir.BlackBox.Tests/Fixtures/`. The build copies the folder to the output.
 - When the file has one source in the repository (an example, a shared fixture below `tests/Fixtures/`), link it in the project file. Do not copy it.
 - When a program made the file, add a `README.md` beside it that says how to make it again. Example: `Fixtures/WireForms/README.md`.

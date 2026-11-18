@@ -30,15 +30,24 @@ public sealed class ExtensionWorkerTests
 
     // --- Help and usage -------------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// The pinned contract fixes the help result (adopt-streaming-json, "The worker's help result keeps its contract
+    /// form"): every JSON mode writes one morphir/command-result, with no completed wrapper.
+    /// </summary>
     [Test]
-    public async Task Help_with_json_writes_one_command_result_with_the_build_identity_on_stdout()
+    [Arguments("--json")]
+    [Arguments("--json=stream")]
+    [Arguments("--json=document")]
+    public async Task Help_with_json_writes_one_command_result_with_the_build_identity_on_stdout(string json)
     {
-        var run = await RunAsync(["--help", "--json"], []);
+        var run = await RunAsync(["--help", json], []);
 
         run.ExitCode.Should().Be(0);
         run.StderrLines.Should().BeEmpty();
         using var result = JsonDocument.Parse(run.Stdout);
         var root = result.RootElement;
+        root.TryGetProperty("event", out _).Should().BeFalse("the result has no completed wrapper");
+        root.TryGetProperty("report", out _).Should().BeFalse("the result has no completed wrapper");
         root.GetProperty("profile").GetString().Should().Be("morphir/command-result");
         root.GetProperty("command").GetString().Should().Be("extension worker");
         root.GetProperty("state").GetString().Should().Be("succeeded");

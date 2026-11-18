@@ -1,0 +1,10 @@
+{
+  "formatVersion": "3.1.0",
+  "path": "api",
+  "types": [
+    "money"
+  ],
+  "values": [
+    "zero"
+  ]
+}

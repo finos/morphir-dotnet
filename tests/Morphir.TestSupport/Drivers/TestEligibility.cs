@@ -11,7 +11,7 @@ namespace Morphir.TestSupport.Drivers;
 /// </summary>
 public enum DriverCapability
 {
-    /// <summary>The <c>ir verify</c> command.</summary>
+    /// <summary>The <c>model verify</c> command.</summary>
     ModelVerification,
 
     /// <summary>The <c>generate</c> command.</summary>
@@ -76,6 +76,9 @@ public enum DriverCapability
     /// Only the development build has them.
     /// </summary>
     BuiltPrograms,
+
+    /// <summary>The <c>model convert</c> command (<see cref="IModelConversionDriver"/>).</summary>
+    ModelConversion,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -118,6 +121,7 @@ public static class DriverCapabilities
         [
             DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Compilation, DriverCapability.Configuration,
             DriverCapability.Migration, DriverCapability.Extensions, DriverCapability.ModelValidation, DriverCapability.ToolRouting,
+            DriverCapability.ModelConversion,
         ];
         if (host is MorphirHost.Managed or MorphirHost.DotnetTool) commands = commands.Add(DriverCapability.InProcessFSharpFrontend);
         // The programs and the extension guests are build output of the development build: a published target has none.

@@ -29,13 +29,13 @@ Feature: The commands of the compile page give their documented output
   @host-tool @needs-in-process-fsharp-frontend
   Scenario: Each documented command of the dotnet tool gives its documented output
     Then the page documents these commands
-      | command                                                                                                                                      |
-      | dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --target fsharp --generate-output generated --json |
-      | dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --json                                  |
-      | dotnet-morphir compile --language fsharp --input broken/Pricing.fs --package-name acme/demo --json                                           |
-      | dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --ir-version 4.1.0-draft.1 --json                     |
-      | morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --json                                                       |
-      | dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --ir-version 3 --json-lines             |
+      | command                                                                                                                                                          |
+      | dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --target fsharp --generate-output generated --json=document |
+      | dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --json=document                                             |
+      | dotnet-morphir compile --language fsharp --input broken/Pricing.fs --package-name acme/demo --json=document                                                      |
+      | dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --ir-version 4.1.0-draft.1 --json=document                                |
+      | morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --json=document                                                                  |
+      | dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --package-name acme/demo --ir-version 3 --json                                       |
     When I run each documented command of the host in the work area
     Then each documented command gives its documented output
 

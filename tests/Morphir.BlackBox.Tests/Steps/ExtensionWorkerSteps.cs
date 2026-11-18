@@ -122,19 +122,19 @@ public sealed class ExtensionWorkerSteps(IProcessSessionDriver sessions, DriverS
     [Then("standard output of the worker is one command result whose build identity is 64 hexadecimal digits")]
     public void StandardOutputIsOneCommandResult()
     {
+        // The pinned contract fixes the form: one morphir/command-result, with no completed wrapper (HelpResultOf fails on one).
         var text = Encoding.UTF8.GetString(Exit.StandardOutput);
         Expect(!text.TrimEnd('\n').Contains('\n'), "The command result is not one line.");
-        using var document = JsonDocument.Parse(text);
-        Expect(document.RootElement.GetProperty("profile").GetString() == "morphir/command-result", "Standard output is not a morphir/command-result.");
-        Expect(System.Text.RegularExpressions.Regex.IsMatch(document.RootElement.GetProperty("result").GetProperty("buildIdentity").GetString() ?? "", "^[0-9a-f]{64}$"),
+        var result = ExtensionWorker.HelpResultOf(Exit);
+        Expect(result.GetProperty("profile").GetString() == "morphir/command-result", "Standard output is not a morphir/command-result.");
+        Expect(System.Text.RegularExpressions.Regex.IsMatch(result.GetProperty("result").GetProperty("buildIdentity").GetString() ?? "", "^[0-9a-f]{64}$"),
             "The build identity is not 64 hexadecimal digits.");
     }
 
     [Then("the help in the command result contains {string}")]
     public void TheHelpContains(string text)
     {
-        using var document = JsonDocument.Parse(Exit.StandardOutput);
-        Expect(document.RootElement.GetProperty("result").GetProperty("help").GetString()?.Contains(text, StringComparison.Ordinal) == true,
+        Expect(ExtensionWorker.HelpResultOf(Exit).GetProperty("result").GetProperty("help").GetString()?.Contains(text, StringComparison.Ordinal) == true,
             $"The help does not contain '{text}'.");
     }
 

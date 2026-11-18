@@ -2,8 +2,8 @@ using Morphir.Extensions;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Morphir.CodeGeneration.FSharp;
+using Morphir.Files;
 using Morphir.IR.Model;
-using Morphir.IR.Pipeline;
 
 namespace Morphir.Tooling.Features.Generate;
 

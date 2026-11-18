@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 using FluentAssertions;
 using Morphir.TestSupport.Drivers;
+using Morphir.TestSupport.Fixtures;
 
 namespace Morphir.TestSupport.Tests.Drivers;
 
 /// <summary>
-/// The drivers of the <c>ir verify</c> and <c>generate</c> commands and their report types (design DRV-1 and
+/// The drivers of the <c>model verify</c> and <c>generate</c> commands and their report types (design DRV-1 and
 /// ASRT-1 of the change consolidate-black-box-tests). The command line tests use a recording CLI driver; the report
 /// tests run the real commands of the development build.
 /// </summary>
@@ -49,13 +50,72 @@ public class CapabilityDriverTests
         var model = workspace.File("my models", "valid ir.json");
 
         await new ModelVerificationDriver(cli).VerifyAsync(model);
-        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { SchemaVersion = 3, Json = true });
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { SchemaVersion = 3, Json = JsonOutputArgument.Stream });
         await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Quiet = true });
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Document });
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream.Then("--no-such-option") });
 
-        cli.Commands[0].Should().Equal("ir", "verify", model.Path);
-        cli.Commands[1].Should().Equal("ir", "verify", model.Path, "--schema-version", "3", "--json");
-        cli.Commands[2].Should().Equal("ir", "verify", model.Path, "--quiet");
+        cli.Commands[0].Should().Equal("model", "verify", model.Path);
+        // The --json argument comes before the path, so the path is the argument after a bare --json.
+        cli.Commands[1].Should().Equal("model", "verify", "--json", model.Path, "--schema-version", "3");
+        cli.Commands[2].Should().Equal("model", "verify", model.Path, "--quiet");
+        cli.Commands[3].Should().Equal("model", "verify", "--json=document", model.Path);
+        // An unknown option ends the command line, so the parser cannot take it as the path.
+        cli.Commands[4].Should().Equal("model", "verify", "--json", model.Path, "--no-such-option");
         model.Path.Should().Contain(" ");
+    }
+
+    [Test]
+    public async Task VerifyTakesTheDirectoryOfATreeAsOneArgument()
+    {
+        await using var workspace = Workspace();
+        var cli = new RecordingCli();
+        var tree = workspace.Directory("my models", "a tree");
+
+        await new ModelVerificationDriver(cli).VerifyAsync(tree, new VerificationOptions { Json = JsonOutputArgument.Document });
+
+        cli.Commands[0].Should().Equal("model", "verify", "--json=document", tree.Path);
+    }
+
+    [Test]
+    public async Task ARealVerificationReportOfATreeReadsItsLayoutItsFilesAndTheFileAndCodeOfAnError()
+    {
+        await using var workspace = Workspace();
+        var faulty = FixtureCatalog.Trees.WrittenV4WithAMissingValueFile;
+        var tree = workspace.WriteTree(faulty.Tree, "my models", "a tree");
+
+        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(tree, new VerificationOptions { Json = JsonOutputArgument.Document });
+        var report = VerificationReport.Of(result);
+
+        result.ShouldExitWith(1);
+        report.ShouldBeInvalid();
+        report.Layout.Should().Be("document-tree");
+        report.FilesChecked.Should().Be(faulty.Tree.Files.Count);
+        report.CompactedFiles.Should().BeEmpty();
+        report.SchemaVersion.Should().Be("4");
+        var error = report.ShouldHaveAnErrorAt(faulty.Fault, "missing_member");
+        error.File.Should().Be(faulty.Fault.File);
+        error.Code.Should().Be("missing_member");
+        ((Action)(() => report.ShouldHaveAnErrorAt(faulty.Fault, "unknown_member"))).Should().Throw<CommandAssertionException>()
+            .WithMessage("*no error unknown_member*").WithMessage("*missing_member*");
+        ((Action)(() => report.ShouldHaveAnErrorAt(faulty.Fault with { File = "manifest.json" }))).Should().Throw<CommandAssertionException>();
+    }
+
+    [Test]
+    public async Task ARealVerificationReportOfASingleFileHasItsLayoutAndNoFileInItsErrors()
+    {
+        await using var workspace = Workspace();
+        var faulty = FixtureCatalog.Models.V4WithAnUnknownTypeTag;
+        var model = workspace.File("my models", "model.json");
+        workspace.WriteBytes(model, FixtureCatalog.ReadBytes(faulty.Entry));
+
+        var report = VerificationReport.Of(await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream }));
+
+        report.Layout.Should().Be("single-file");
+        report.FilesChecked.Should().Be(1);
+        report.SchemaVersion.Should().Be("4");
+        report.Errors.Should().OnlyContain(error => error.File == null, "a single file has no file of a tree");
+        report.ShouldHaveAnErrorAt(faulty.Fault, "unknown_node").Path.Should().Be(faulty.Fault.JsonPointer);
     }
 
     [Test]
@@ -69,7 +129,7 @@ public class CapabilityDriverTests
         await new GenerationDriver(cli).GenerateAsync(model, "csharp", output);
         await new GenerationDriver(cli).GenerateAsync(model, "csharp", output, new GenerationOptions
         {
-            Json = false,
+            Json = null,
             InputFormat = "json",
             Options = ["namespace=Pricing.Generated", "language-version=14"],
         });
@@ -89,14 +149,17 @@ public class CapabilityDriverTests
         await using var workspace = Workspace();
         var model = workspace.CopyFixture("Cli/valid-ir-v3.json", "my models/valid ir.json");
 
-        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = true });
+        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream });
         var report = VerificationReport.Of(result);
 
         result.ShouldExitWith(0);
         report.IsValid.Should().BeTrue();
         report.SchemaVersion.Should().Be("3");
         report.DetectionMethod.Should().Be("auto");
+        report.FilePath.Should().EndWith("valid ir.json");
         report.Errors.Should().BeEmpty();
+        report.ExitCode.Should().Be(0);
+        report.ShouldStateTheExitCode(0);
         report.ShouldBeValid();
         ((Action)(() => report.ShouldBeInvalid())).Should().Throw<CommandAssertionException>().WithMessage("*IsValid is true*");
     }
@@ -107,12 +170,14 @@ public class CapabilityDriverTests
         await using var workspace = Workspace();
         var model = workspace.CopyFixture("Cli/invalid-missing-formatversion.json");
 
-        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = true });
+        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream });
         var report = VerificationReport.Of(result);
 
         result.ShouldExitWith(1);
         report.IsValid.Should().BeFalse();
         report.Errors.Should().ContainSingle().Which.Message.Should().Contain("formatVersion");
+        report.ExitCode.Should().Be(1);
+        ((Action)(() => report.ShouldStateTheExitCode(2))).Should().Throw<CommandAssertionException>().WithMessage("*exit code 1, not 2*");
         report.ShouldBeInvalid();
         ((Action)(() => report.ShouldBeValid())).Should().Throw<CommandAssertionException>()
             .WithMessage("*IsValid is false*").WithMessage("*formatVersion*").WithMessage("*command: *");
@@ -124,6 +189,23 @@ public class CapabilityDriverTests
         var read = () => VerificationReport.Of(Result(0, "{ \"success\": true }"));
 
         read.Should().Throw<CommandAssertionException>().WithMessage("*IsValid*");
+    }
+
+    [Test]
+    public void AVerificationReportThatStatesNoExitCodeFailsTheExitCodeCheck()
+    {
+        var report = VerificationReport.Of(Result(1, "{ \"IsValid\": false }"));
+
+        report.ExitCode.Should().BeNull();
+        ((Action)(() => report.ShouldStateTheExitCode(1))).Should().Throw<CommandAssertionException>().WithMessage("*exit code null, not 1*");
+    }
+
+    [Test]
+    public void AVerificationReportWhoseExitCodeIsNotTheExitCodeOfTheRunFails()
+    {
+        var report = VerificationReport.Of(Result(1, "{ \"IsValid\": false, \"exitCode\": 2 }"));
+
+        ((Action)(() => report.ShouldStateTheExitCode(2))).Should().Throw<CommandAssertionException>().WithMessage("*the run exits with 1*");
     }
 
     [Test]

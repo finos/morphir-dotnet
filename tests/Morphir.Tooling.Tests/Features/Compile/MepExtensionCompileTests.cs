@@ -50,7 +50,7 @@ public sealed class MepExtensionCompileTests
         mep.Write("Pricing.fs", Source);
         using var local = new CompileWorkspace();
         local.Write("Pricing.fs", Source);
-        const string common = "--json --language fsharp --input Pricing.fs --package-name acme/demo --ir-version ";
+        const string common = "--json=document --language fsharp --input Pricing.fs --package-name acme/demo --ir-version ";
 
         var (exit, report) = await Compile(mep, null, common + version + " --extension " + Guest);
         using var _ = report;
@@ -73,7 +73,7 @@ public sealed class MepExtensionCompileTests
         workspace.Write("Pricing.fs", Source);
         var missing = Path.Combine(workspace.Root, "no-such-guest");
         var (exit, report) = await Compile(workspace, null,
-            "--json --language fsharp --input Pricing.fs --package-name acme/demo --extension " + missing);
+            "--json=document --language fsharp --input Pricing.fs --package-name acme/demo --extension " + missing);
         using var _ = report;
         exit.Should().Be(2, report.RootElement.GetRawText());
         report.RootElement.GetRawText().Should().Contain("extension.unavailable").And.Contain("no-such-guest");

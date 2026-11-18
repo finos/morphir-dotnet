@@ -56,6 +56,9 @@ public interface IConfigurationDriver
 
     /// <summary>Runs <c>config</c> with <paramref name="arguments"/> (the operation and its options) in the machine of the scenario.</summary>
     Task<CommandResult> ConfigureAsync(IReadOnlyList<string> arguments, ScenarioMachine machine, CancellationToken cancellation = default);
+
+    /// <summary>Runs <c>config</c> with <paramref name="arguments"/> and then the <c>--json</c> argument <paramref name="json"/>.</summary>
+    Task<CommandResult> ConfigureAsync(IReadOnlyList<string> arguments, JsonOutputArgument json, ScenarioMachine machine, CancellationToken cancellation = default);
 }
 
 /// <summary>Builds the command line of <c>config</c> and gives it to the CLI driver.</summary>
@@ -65,6 +68,9 @@ public sealed class ConfigurationDriver(ICliDriver cli) : IConfigurationDriver
 
     public Task<CommandResult> ConfigureAsync(IReadOnlyList<string> arguments, ScenarioMachine machine, CancellationToken cancellation = default) =>
         cli.RunAsync(["config", .. arguments], machine.RunOptions(), cancellation);
+
+    public Task<CommandResult> ConfigureAsync(IReadOnlyList<string> arguments, JsonOutputArgument json, ScenarioMachine machine, CancellationToken cancellation = default) =>
+        ConfigureAsync([.. arguments, .. json.Words, .. json.Trailing], machine, cancellation);
 }
 
 /// <summary>
@@ -114,7 +120,7 @@ public static class ReportPath
 }
 
 /// <summary>
-/// The JSON report of <c>config ... --json</c>: an inspection (<c>get</c>, <c>show</c>, <c>path</c>,
+/// The report of <c>config ... --json</c>, in either form: an inspection (<c>get</c>, <c>show</c>, <c>path</c>,
 /// <c>explain</c>) or an edit (<c>set</c>, <c>unset</c>). Its <c>exitCode</c> must agree with the exit code of the
 /// command.
 /// </summary>
@@ -141,7 +147,7 @@ public sealed class ConfigurationReport : JsonCommandReport
             : throw new CommandAssertionException("The configuration report has no list sources.", Result),
     ];
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static ConfigurationReport Of(CommandResult result) => new(result);
 
     /// <summary>The outcome of an edit is <paramref name="outcome"/>.</summary>

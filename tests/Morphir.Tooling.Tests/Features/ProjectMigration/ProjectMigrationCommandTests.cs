@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Morphir.Tooling.Features.ProjectMigration;
 
 using Morphir.Tooling.Infrastructure;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.ProjectMigration;
 
@@ -48,7 +49,7 @@ public sealed class ProjectMigrationCommandTests
         var host = new ObservingHost();
         var root = new RootCommand();
         root.Subcommands.Add(new ProjectMigrationCommand(host));
-        root.Parse(["migrate", "--json", .. controls]).Invoke().Should().Be(2);
+        OptionValueRewrite.Parse(root, ["migrate", "--json", .. controls]).Invoke().Should().Be(2);
         host.Calls.Should().Be(0);
     }
 
@@ -61,7 +62,7 @@ public sealed class ProjectMigrationCommandTests
         root.Subcommands.Add(new ProjectMigrationCommand(host));
         // The boundary must contain the current directory (discovery-containment), and reaches the host resolved.
         var boundary = Path.GetFullPath(Environment.CurrentDirectory);
-        root.Parse(["migrate", "orders/morphir.json", "--output", "orders/.config/morphir/config.toml", "--dry-run", "--json", "--discovery-boundary", boundary]).Invoke().Should().Be(2);
+        OptionValueRewrite.Parse(root, ["migrate", "orders/morphir.json", "--output", "orders/.config/morphir/config.toml", "--dry-run", "--json", "--discovery-boundary", boundary]).Invoke().Should().Be(2);
         host.Calls.Should().Be(1);
         host.Invocation.Should().Be(new ProjectMigrationInvocation("orders/morphir.json", "orders/.config/morphir/config.toml",
             Path.GetFullPath(Containment.Resolve(boundary, true, new Dictionary<string, string>(), Environment.CurrentDirectory).Value!.Boundary), true));
@@ -75,7 +76,7 @@ public sealed class ProjectMigrationCommandTests
         var root = new RootCommand();
         root.Subcommands.Add(new ProjectMigrationCommand(host));
         var elsewhere = Path.Combine(Path.GetTempPath(), "morphir-elsewhere-" + Guid.NewGuid().ToString("N"));
-        root.Parse(["migrate", "--dry-run", "--json", "--discovery-boundary", elsewhere]).Invoke().Should().Be(2);
+        OptionValueRewrite.Parse(root, ["migrate", "--dry-run", "--json", "--discovery-boundary", elsewhere]).Invoke().Should().Be(2);
         host.Calls.Should().Be(0);
     }
 
@@ -87,7 +88,7 @@ public sealed class ProjectMigrationCommandTests
         var provider = new ProjectCommandProvider(host);
         ((IMorphirHostInitializationErrorHandler)provider).HandleHostInitializationFailure();
         provider.RegisterCommands(root, new ServiceCollection());
-        root.Parse(["project", "migrate", "--json"]).Invoke().Should().Be(2);
+        OptionValueRewrite.Parse(root, ["project", "migrate", "--json"]).Invoke().Should().Be(2);
         host.Calls.Should().Be(0);
     }
 
@@ -98,7 +99,7 @@ public sealed class ProjectMigrationCommandTests
         var host = new ObservingHost { Fail = true };
         var root = new RootCommand();
         root.Subcommands.Add(new ProjectMigrationCommand(host));
-        root.Parse(["migrate", "--json"]).Invoke().Should().Be(2);
+        OptionValueRewrite.Parse(root, ["migrate", "--json"]).Invoke().Should().Be(2);
         host.Calls.Should().Be(1);
     }
 }

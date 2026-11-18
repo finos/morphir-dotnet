@@ -192,11 +192,12 @@ run `generate` again when the rules change.
 
 ## 6. Check the IR in CI
 
-Use `--json` for a machine-readable report. The exit code is 0, 1 (a source error) or
-2 (a setup error).
+Use `--json=document` for one machine-readable report, or `--json` to stream the compile events as JSON Lines that
+end with the report (see [machine output]({{< relref "/docs/cli#machine-output" >}})). The exit code is 0, 1 (a
+source error) or 2 (a setup error).
 
 ```bash
-dotnet-morphir compile --json | jq '{success, modules, diagnostics}'
+dotnet-morphir compile --json=document | jq '{success, modules, diagnostics}'
 ```
 
 ```json
@@ -243,7 +244,7 @@ compile succeeded: 3 module(s), IR version 4, /work/acme/.morphir/out/compile.de
 | F# rules to IR | `dotnet-morphir compile` |
 | IR to C# | `dotnet-morphir generate --target csharp --output <dir>` |
 | Both in one run | `dotnet-morphir compile --target csharp --generate-output <dir>` |
-| CI check | `dotnet-morphir compile --json`, `dotnet-morphir validate --input <ir>` |
+| CI check | `dotnet-morphir compile --json=document`, `dotnet-morphir validate --input <ir> --json=document` |
 
 Next: [compile F# with the native executable]({{< relref "/docs/guides/compile-with-native-morphir" >}}),
 or read the [`compile` reference]({{< relref "/docs/cli/compile" >}}).

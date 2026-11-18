@@ -6,6 +6,7 @@ open System.Runtime.InteropServices
 open System.Text.Json
 open Morphir.IR.Classic
 open Morphir.IR.Model
+open Morphir.Files
 open Morphir.IR.Pipeline
 open Morphir.IR.Pipeline.Plugins
 

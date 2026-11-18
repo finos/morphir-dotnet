@@ -1,6 +1,7 @@
 module Morphir.IR.Pipeline.Tests.ProcessorTests
 
 open Expecto
+open Morphir.Files
 open Morphir.IR.Pipeline
 
 let private configuredKey = Property.create<bool> "test.configured"

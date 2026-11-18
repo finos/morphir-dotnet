@@ -10,7 +10,7 @@ namespace Morphir;
 
 // JSON source generator context for AOT compilation
 [JsonSourceGenerationOptions(WriteIndented = true)]
-[JsonSerializable(typeof(Tooling.Features.VerifyIR.VerifyIRResult))]
+[JsonSerializable(typeof(Tooling.Features.ModelVerify.VerifyModelResult))]
 internal partial class MorphirJsonContext : JsonSerializerContext
 {
 }

@@ -1629,24 +1629,29 @@ module V4JsonWriter =
                 (at "$" "formatVersion")
                 $"The v4 writer does not write format version {Versioning.version other}."
 
+    /// <summary>The deepest nesting of JSON that the writer writes: the default of System.Text.Json.</summary>
+    [<Literal>]
+    let MaxWriteDepth = 1000
+
     let private run
         (indented: bool)
         (write: Utf8JsonWriter -> unit)
         : Result<byte array, V4WriteError> =
         let buffer = ArrayBufferWriter<byte>()
 
-        try
-            use json =
-                new Utf8JsonWriter(
-                    buffer,
-                    JsonWriterOptions(
-                        Indented = indented,
-                        IndentSize = 2,
-                        NewLine = "\n",
-                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                    )
+        use json =
+            new Utf8JsonWriter(
+                buffer,
+                JsonWriterOptions(
+                    Indented = indented,
+                    IndentSize = 2,
+                    NewLine = "\n",
+                    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                    MaxDepth = MaxWriteDepth
                 )
+            )
 
+        try
             write json
             json.Flush()
             Ok(buffer.WrittenSpan.ToArray())
@@ -1659,7 +1664,8 @@ module V4JsonWriter =
                     Location = "$"
                     Message = "The model is nested too deeply to write."
                 }
-        | :? InvalidOperationException as failure ->
+        // The writer's own refusal of a nesting deeper than it goes; any other InvalidOperationException is a bug.
+        | :? InvalidOperationException as failure when json.CurrentDepth >= MaxWriteDepth ->
             Error
                 {
                     Rule = "depth_limit_exceeded"
@@ -1711,3 +1717,44 @@ module V4JsonWriter =
     /// <summary>Writes a pattern.</summary>
     let writePattern (indented: bool) (node: Pattern) : Result<byte array, V4WriteError> =
         run indented (fun json -> pattern json "$" node)
+
+    // The parts of a document that the files of a v4 document tree hold. V4TreeFiles builds each tree file from
+    // them, so a tree file spells a type, a value or an entry point exactly as a single document does.
+
+    /// Runs a write, giving its bytes or the error it raised.
+    let internal writeWith (indented: bool) (write: Utf8JsonWriter -> unit) = run indented write
+
+    /// Stops a write that <c>writeWith</c> runs with an error of its own, which the write then gives.
+    let internal failWith (error: V4WriteError) : 'a = raise (V4WriteFailure error)
+
+    /// Writes a type definition with its access as the key: { "Public": { doc, variant } }.
+    let internal typeDefinitionNode (json: Utf8JsonWriter) location definition =
+        accessControlled json (documentedTypeDefinition json) location definition
+
+    /// Writes a value definition with its access as the key: { "Public": { doc, body } }.
+    let internal valueDefinitionNode (json: Utf8JsonWriter) location definition =
+        accessControlled json (documentedValueDefinition json) location definition
+
+    /// Writes a documented type specification: { doc, variant }.
+    let internal typeSpecificationNode (json: Utf8JsonWriter) location specification =
+        documentedTypeSpecification json location specification
+
+    /// Writes a documented value specification: { doc, inputs, output }.
+    let internal valueSpecificationNode (json: Utf8JsonWriter) location specification =
+        documentedValueSpecification json location specification
+
+    /// Writes entry points in order.
+    let internal entryPointsNode (json: Utf8JsonWriter) location entries =
+        entryPoints json location entries
+
+    /// Writes a name's canonical string, refusing a name that has none.
+    let internal nameNode (json: Utf8JsonWriter) location (name: Name) =
+        nameValue json location name
+
+    /// Writes a path's canonical string, refusing a path that has none.
+    let internal pathNode (json: Utf8JsonWriter) location (path: Path) =
+        json.WriteStringValue(pathText location path)
+
+    /// Writes a doc member when there is a doc.
+    let internal docMember (json: Utf8JsonWriter) location (text: string option) =
+        doc json location text

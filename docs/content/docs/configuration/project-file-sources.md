@@ -90,7 +90,7 @@ way. Frontend selection, not the provider, then decides whether the language is 
 Example:
 
 ```text
-dotnet-morphir compile --project-file src/Acme.CarRental.fsproj --package-name acme/car-rental --json
+dotnet-morphir compile --project-file src/Acme.CarRental.fsproj --package-name acme/car-rental --json=document
 ```
 
 For a project that declares `Rates.fs` then `Pricing.fs`, the report has

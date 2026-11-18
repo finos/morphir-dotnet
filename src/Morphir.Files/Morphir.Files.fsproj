@@ -1,0 +1,57 @@
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  the netstandard2.0 target of this library (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK refuses
+  them for netstandard2.0 (NETSDK1207), so that target keeps them local and off. The other targets keep the values of the
+  publish. The application still compiles and trims this assembly.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!-- netstandard2.0: Morphir.Models references this library, and a compiler host loads Morphir.Models. -->
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks);netstandard2.0</TargetFrameworks>
+        <RootNamespace>Morphir.Files</RootNamespace>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <Description>Virtual files shared by morphir-dotnet frontends, backends and models: VFile, VFileTree and PropertyBag.</Description>
+        <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees these types as oblivious. -->
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <!-- Trimming and AOT analyzers for the frameworks that support them. netstandard2.0 supports neither (NETSDK1210, NETSDK1212). -->
+    <PropertyGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsTrimmable>true</IsTrimmable>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <!-- IFileProvider, which FileProviders.fs implements over a tree and reads into one. It brings Microsoft.Extensions.Primitives. -->
+        <PackageReference Include="Microsoft.Extensions.FileProviders.Abstractions" />
+    </ItemGroup>
+
+    <!--
+      netstandard2.0 has no System.Text.Json, which reads and writes publication manifests. The package also brings
+      System.Memory (ReadOnlyMemory, spans) and System.Buffers, as it does for Morphir.Models. Polyfill.fs adds the
+      members of newer frameworks that this library calls.
+    -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="System.Text.Json" />
+        <Compile Include="Polyfill.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="Property.fs" />
+        <Compile Include="File.fs" />
+        <Compile Include="FileReplacement.fs" />
+        <Compile Include="FileTree.fs" />
+        <Compile Include="FileProviders.fs" />
+    </ItemGroup>
+
+</Project>

@@ -1,17 +1,22 @@
-/// Task 2.4: the writers against independent upstream IR. Each pinned upstream JSON document (see
+/// Task 2.4: the writers against independent upstream IR. Each pinned upstream JSON document (FixtureCatalog.UpstreamIr; see
 /// tests/Fixtures/MorphirIon/PROVENANCE.md) is read, written in its own version, and compared structurally
 /// with the original. Only the normalizations named below apply; every exclusion states its reason.
 module Morphir.Json.Tests.UpstreamIrTests
 
-open System.IO
+open Morphir.TestSupport.Fixtures
 open System.Text.Json
 open System.Text.Json.Nodes
 open Expecto
 open Morphir.Json.Classic
 open Morphir.Json.V4
 
-let private root =
-    Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "Fixtures", "MorphirIon")
+/// The pinned upstream documents, by their path below tests/Fixtures/MorphirIon, from the catalog.
+let private corpus =
+    FixtureCatalog.UpstreamIr.Documents
+    |> Seq.map (fun entry -> FixtureCatalog.UpstreamIr.NameOf entry, entry)
+    |> Map.ofSeq
+
+let private bytesOfDocument (name: string) = FixtureCatalog.ReadBytes corpus[name]
 
 /// Documents whose upstream spelling contradicts the pinned kit (conformance/deviations.md). They are
 /// compared as models: the written document must read back to the model of the original.
@@ -23,21 +28,11 @@ let private kitDeviations =
         "pairs/v4-specs.json"
     ]
 
-/// Documents that no writer produces, with the reason.
-let private excluded =
-    Map.ofList [
-        "pairs/v3-specs.json",
-        "A 3.1.0 Specs distribution: the classic writer writes Library distributions only."
-    ]
+/// Documents that no writer produces, with the reason. Every pinned document has a writer: a 3.1.0 Specs is written
+/// with ClassicWireProfile.v3_1_0.
+let private excluded: Map<string, string> = Map.empty
 
-let private documents = [
-    for folder in [ "pairs"; "records"; "v4" ] do
-        for file in
-            Directory.GetFiles(Path.Combine(root, folder), "*.json")
-            |> Array.sort do
-            yield $"{folder}/{Path.GetFileName file}"
-    yield "mep/fixtures/plain-ir.json"
-]
+let private documents = corpus |> Map.keys |> List.ofSeq
 
 /// N1: an integer format version n equals the release string "n.0.0".
 let private normalizeVersion (node: JsonNode | null) =
@@ -172,9 +167,10 @@ let private write (element: JsonElement) =
         match ClassicJson.readDistribution element with
         | Ok document ->
             let profile =
-                match document.Version with
-                | 1 -> ClassicWireProfile.v1
-                | 2 -> ClassicWireProfile.v2
+                match document.Version, document.Distribution with
+                | 1, _ -> ClassicWireProfile.v1
+                | 2, _ -> ClassicWireProfile.v2
+                | _, Morphir.IR.Classic.Distribution.Specs _ -> ClassicWireProfile.v3_1_0
                 | _ -> ClassicWireProfile.v3
 
             match ClassicJsonWriter.writeJsonAttributes profile false document.Distribution with
@@ -206,13 +202,43 @@ let tests =
                 Expect.contains documents name $"{name} is pinned"
         }
 
+        // The strict reader refuses only a member that no classic v3 shape has: every upstream classic v3 document,
+        // the 3.1.0 Specs included, reads as the classic reader reads it.
+        for name in documents do
+            test $"{name} is read by the strict classic reader as by the classic reader" {
+                let original = bytesOfDocument name
+                use document = JsonDocument.Parse(System.ReadOnlyMemory original)
+
+                if not ((string (document.RootElement.GetProperty "formatVersion")).StartsWith "4") then
+                    // Attributes are JSON elements of each read's own document, so the reads compare as written bytes.
+                    let written (read: ClassicDocument) =
+                        let profile =
+                            match read.Distribution with
+                            | Morphir.IR.Classic.Distribution.Specs _ -> ClassicWireProfile.v3_1_0
+                            | Morphir.IR.Classic.Distribution.Library _ -> ClassicWireProfile.v3
+
+                        match ClassicJsonWriter.writeJsonAttributes profile false read.Distribution with
+                        | Ok bytes -> bytes
+                        | Error error -> failtest $"classic write: {error.Rule}: {error.Message}"
+
+                    match ClassicJson.readDistribution document.RootElement,
+                          ClassicJson.readDistributionStrict document.RootElement with
+                    | Ok read, Ok strict ->
+                        Expect.equal strict.Version read.Version "the same version"
+
+                        if read.Version = 3 then
+                            Expect.sequenceEqual (written strict) (written read) "the same model"
+                    | Ok _, Error error -> failtest $"strict read: {error.Rule} at {error.Location}: {error.Message}"
+                    | Error error, _ -> failtest $"classic read: {error.Rule}: {error.Message}"
+            }
+
         for name in documents do
             match Map.tryFind name excluded with
             | Some reason ->
                 test $"{name} is excluded: {reason}" { Expect.isTrue (reason.Length > 0) "reason" }
             | None ->
                 test $"{name} is written structurally equal to the upstream document" {
-                    let original = File.ReadAllBytes(Path.Combine(root, name))
+                    let original = bytesOfDocument name
                     use document = JsonDocument.Parse(System.ReadOnlyMemory original)
                     let written = write document.RootElement
                     let again = write document.RootElement

@@ -72,7 +72,7 @@ The Pipeline currently handles **single files** flowing through transformations.
 
 ### Layer 2: VFileTree (NEW) 🆕
 
-**Status**: Implemented, and the F# backend runs on it. The [Morphir.IR.Pipeline README](../../src/Morphir.IR.Pipeline/README.md) documents the API as built, and the code in this document is the original proposal. The main differences are that stages are generic rather than `obj`-based, `VFile.Content` is text, bytes or a re-openable stream, extra data lives in typed property bags, and one run returns a `VFileTree`. See [typed-pipeline-myriad](../../openspec/changes/archive/2026-11-01-typed-pipeline-myriad/design.html).
+**Status**: Implemented, and the F# backend runs on it. The [Morphir.Files README](../../src/Morphir.Files/README.md) and the [Morphir.IR.Pipeline README](../../src/Morphir.IR.Pipeline/README.md) document the API as built, and the code in this document is the original proposal. The main differences are that stages are generic rather than `obj`-based, `VFile.Content` is text, bytes or a re-openable stream, extra data lives in typed property bags, and one run returns a `VFileTree`. `VFile`, `VFileTree` and `PropertyBag` have since moved from `Morphir.IR.Pipeline` to `Morphir.Files`, in the namespace `Morphir.Files`. See [typed-pipeline-myriad](../../openspec/changes/archive/2026-11-01-typed-pipeline-myriad/design.html).
 
 **Location**: `Morphir.IR.Pipeline/FileTree.fs` (new file in existing project)
 
@@ -591,7 +591,7 @@ let mapPackageDefinitionToTree (packageDef: Package.Definition<unit>)
 
 ### Compatibility Layer: Conversion Functions
 
-The code below is the original proposal. The implementation differs in three ways, and the [Morphir.IR.Pipeline README](../../src/Morphir.IR.Pipeline/README.md#migrate-from-morphir-elm) covers the migration patterns:
+The code below is the original proposal. The implementation differs in three ways, and the [Morphir.Files README](../../src/Morphir.Files/README.md#migrate-from-morphir-elm) covers the migration patterns:
 
 - `toFileMap` keys leave out the root tree's `Path` and always use forward slashes.
 - `fromFileMap` rewrites each file's path to be relative to its directory, so a round trip keeps the same keys.
@@ -1019,7 +1019,7 @@ TreeProcessor.processTree : VFileTree -> Result<VFileTree, VFileTree>
 
 ## References
 
-- [VFile (Existing)](../../src/Morphir.IR.Pipeline/File.fs)
+- [VFile (Existing)](../../src/Morphir.Files/File.fs)
 - [MorphirProcessor (Existing)](../../src/Morphir.IR.Pipeline/Processor.fs)
 - [F# Frontend PRD](./PRD-fsharp-frontend.md)
 - [F# Frontend DocumentTree Proposal](./fsharp-frontend-document-tree.md)

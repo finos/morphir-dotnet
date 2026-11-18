@@ -6,7 +6,7 @@ serialize the model.
 
 ```fsharp
 open Morphir.IR.Model
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.CodeGeneration.FSharp
 
 let generateLibrary (model: VersionedModel) =

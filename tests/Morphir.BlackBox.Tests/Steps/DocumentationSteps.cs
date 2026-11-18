@@ -36,12 +36,41 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
     [Given("the section {string} of the documentation page {string}")]
     public void TheSectionOfTheDocumentationPage(string section, string page)
     {
-        var text = Page(page);
-        var start = text.IndexOf($"## {section}\n", StringComparison.Ordinal);
-        if (start < 0) throw new InvalidOperationException($"The page {page} has no section {section}.");
-        var end = text.IndexOf("\n## ", start + 1, StringComparison.Ordinal);
-        _section = end < 0 ? text[start..] : text[start..end];
+        _section = Section(Page(page), section) ?? throw new InvalidOperationException($"The page {page} has no section {section}.");
         _commands = Parse(_section);
+    }
+
+    /// <summary>
+    /// The section of a page whose heading line, at any level, is <paramref name="section"/>. It ends at the next
+    /// heading of the same or a higher level, so a deeper heading is part of it. A line in a fenced code block, such
+    /// as a <c>#</c> comment of a bash block, is no heading.
+    /// </summary>
+    private static string? Section(string text, string section)
+    {
+        var lines = text.Split('\n');
+        int? start = null;
+        var level = 0;
+        var fenced = false;
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var line = lines[index];
+            if (line.TrimStart().StartsWith("```", StringComparison.Ordinal)) fenced = !fenced;
+            if (fenced || !line.StartsWith('#')) continue;
+            var hashes = line.TakeWhile(character => character == '#').Count();
+            if (line.Length <= hashes || line[hashes] != ' ') continue;
+            if (start is null)
+            {
+                if (line[(hashes + 1)..] != section) continue;
+                start = index;
+                level = hashes;
+            }
+            else if (hashes <= level)
+            {
+                return string.Join('\n', lines[start.Value..index]);
+            }
+        }
+
+        return start is null ? null : string.Join('\n', lines[start.Value..]);
     }
 
     [Then("the page documents these commands")]
@@ -60,10 +89,104 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
     [When("I run each documented command of the host on the model")]
     public Task RunEachCommandOnTheModel() => RunEach(arguments => arguments.Replace("model.json", $"\"{run.Model.Path}\"", StringComparison.Ordinal));
 
+    /// <summary>Runs each documented command of the host, with the directory <c>model/</c> as the model tree of the scenario.</summary>
+    [When("I run each documented command of the host on the model tree")]
+    public Task RunEachCommandOnTheModelTree()
+    {
+        var tree = run.ModelTree ?? throw new InvalidOperationException("The scenario has no model tree before this step.");
+        return RunEach(arguments => arguments.Replace(" model/", $" \"{tree.Path}\"", StringComparison.Ordinal));
+    }
+
     /// <summary>Runs each documented command of the host, with the paths <c>src/</c> and <c>broken/</c> in the work area.</summary>
     [When("I run each documented command of the host in the work area")]
     public Task RunEachCommandInTheWorkArea() =>
         RunEach(arguments => WorkAreaPath().Replace(arguments, match => workspace.Directory(match.Groups[1].Value).Path + "/"));
+
+    /// <summary>
+    /// Runs each documented command of the host as the page writes it, with the work area as the working directory, so
+    /// a relative path of the page is a path of the work area. A report then names each path as the page does, and
+    /// <see cref="EachCommandGivesItsDocumentedOutput"/> compares the paths of a report too.
+    /// </summary>
+    [When("I run each documented command of the host as written in the work area")]
+    public async Task RunEachCommandAsWrittenInTheWorkArea()
+    {
+        _asWritten = true;
+        _ran.Clear();
+        foreach (var command in Commands.Where(command => command.Host == HostCommand))
+        {
+            var result = await cli.RunCommandLineAsync(command.Arguments, new CliRunOptions { Timeout = TimeSpan.FromSeconds(180), WorkingDirectory = workspace.Work.Path });
+            _ran.Add((command, result));
+            run.Result = result;
+        }
+
+        if (_ran.Count == 0) throw new InvalidOperationException($"The page documents no command of the host {HostCommand}.");
+    }
+
+    /// <summary>
+    /// Runs each documented command of the host in the work area, with the variables of the documented
+    /// <c>export</c> lines of the section. <c>$PWD</c> in a value is the work area.
+    /// </summary>
+    [When("I run each documented command of the host with the exported variables of the section")]
+    public async Task RunEachCommandWithTheExportedVariables()
+    {
+        var variables = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var export in Commands.Where(command => command.Host == "export"))
+        {
+            foreach (var assignment in export.Arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = assignment.Split('=', 2);
+                if (parts.Length != 2) throw new InvalidOperationException($"The export line has no value in {assignment}.");
+                variables[parts[0]] = parts[1].Replace("$PWD", workspace.Work.Path, StringComparison.Ordinal);
+            }
+        }
+
+        if (variables.Count == 0) throw new InvalidOperationException("The section exports no variable.");
+        _ran.Clear();
+        foreach (var command in Commands.Where(command => command.Host == HostCommand))
+        {
+            var result = await cli.RunCommandLineAsync(command.Arguments, new CliRunOptions { Timeout = TimeSpan.FromSeconds(120), Environment = variables });
+            _ran.Add((command, result));
+            run.Result = result;
+        }
+
+        if (_ran.Count == 0) throw new InvalidOperationException($"The section documents no command of the host {HostCommand}.");
+    }
+
+    /// <summary>
+    /// The JSON report of each command has each member of the JSON block of the section, with the same value. The
+    /// block is the members of the report, without the braces of the report. A <c>boundary</c> member shows an
+    /// example path, and it must be the work area.
+    /// </summary>
+    [Then("the report of each documented command has the members of the JSON block of the section")]
+    public void TheReportHasTheMembersOfTheJsonBlock()
+    {
+        var block = JsonBlock().Match(_section ?? throw new InvalidOperationException("The scenario has no section before this step."));
+        if (!block.Success) throw new InvalidOperationException("The section has no json block.");
+        var body = block.Groups["body"].Value.Trim();
+        var documented = JsonNode.Parse(body.StartsWith('{') ? body : "{" + body + "}")!.AsObject();
+        foreach (var (_, result) in _ran)
+        {
+            var report = JsonNode.Parse(result.StandardOutput)!.AsObject();
+            foreach (var (name, value) in documented)
+            {
+                Check(report[name] is not null, $"The report has no member {name}.", result);
+                var actual = report[name]!.DeepClone();
+                var expected = value?.DeepClone();
+                if (actual is JsonObject actualObject && expected is JsonObject expectedObject && expectedObject.ContainsKey("boundary"))
+                {
+                    var boundary = actualObject["boundary"]?.GetValue<string>().Replace('\\', '/').TrimEnd('/');
+                    Check(boundary == workspace.Work.Path.Replace('\\', '/').TrimEnd('/'), $"The boundary of the report is {boundary}, not the work area {workspace.Work.Path}.", result);
+                    actualObject.Remove("boundary");
+                    expectedObject.Remove("boundary");
+                }
+
+                Check(JsonNode.DeepEquals(actual, expected), $"The member {name} of the report is {actual?.ToJsonString()}, not the documented {expected?.ToJsonString()}.", result);
+            }
+        }
+    }
+
+    [GeneratedRegex("```json\\n(?<body>.*?)\\n```", RegexOptions.Singleline)]
+    private static partial Regex JsonBlock();
 
     [Then("each documented command exits with {int}")]
     public void EachCommandExitsWith(int exitCode)
@@ -73,7 +196,7 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
 
     /// <summary>
     /// The output of each command is its documented output: the same JSON, apart from the members that the page shows
-    /// with an example path, or the same text.
+    /// with an example path, line by line for a documented stream, or the same text.
     /// </summary>
     [Then("each documented command gives its documented output")]
     public void EachCommandGivesItsDocumentedOutput()
@@ -82,8 +205,9 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
         {
             var actual = result.StandardOutput.Trim().Replace("\r\n", "\n").Split('\n');
             Check(actual.Length == command.Output.Length, $"The command {command.Arguments} wrote {actual.Length} lines, and the page documents {command.Output.Length}.", result);
-            if (command.Arguments.EndsWith("--json-lines", StringComparison.Ordinal))
+            if (command.Output.Length > 0 && command.Output[0].StartsWith("{\"event\":", StringComparison.Ordinal))
             {
+                // A documented stream (--json): each line is one record.
                 for (var line = 0; line < actual.Length; line++)
                     Check(Normalize(actual[line], result) == Normalize(command.Output[line], result: null), $"Line {line + 1} of {command.Arguments} is not the documented line.", result);
             }
@@ -127,6 +251,9 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
     }
 
     private string? _section;
+
+    // The documented commands ran as written, so the paths of a report are the paths of the page.
+    private bool _asWritten;
 
     [Given("the morphir.toml of the section in the project directory {string}")]
     public void TheMorphirTomlOfTheSection(string directory)
@@ -241,14 +368,19 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
 
     /// <summary>
     /// The JSON text without the members that the page shows with an example path: <c>output</c>,
-    /// <c>sources.root</c> and <c>generation.output</c> of a compile report, and <c>input</c>, which must be the
-    /// model of the scenario when the scenario has one.
+    /// <c>sources.root</c> and <c>generation.output</c> of a compile report, <c>input</c>, which must be the
+    /// model of the scenario when the scenario has one, and <c>FilePath</c> (the same rule) and <c>Timestamp</c> of a
+    /// verification report. A command that ran as written keeps its paths, which are the paths of the page.
     /// </summary>
     private string Normalize(string json, CommandResult? result)
     {
         var node = JsonNode.Parse(json)!;
         var report = node["report"]?.AsObject() ?? (node is JsonObject root && (root.ContainsKey("success") || root.ContainsKey("exitCode")) ? root : null);
-        if (report is not null)
+        if (report is not null && _asWritten)
+        {
+            report.Remove("Timestamp");
+        }
+        else if (report is not null)
         {
             report.Remove("output");
             report["sources"]?.AsObject().Remove("root");
@@ -256,6 +388,15 @@ public sealed partial class DocumentationSteps(ICliDriver cli, IScenarioWorkspac
             if (result is not null && report["input"] is { } input && run.HasModel)
                 Check(input.GetValue<string>() == run.Model.Path, $"The input of the report is {input}, not the model {run.Model.Path}.", result);
             report.Remove("input");
+
+            // A verification report (model verify) names its file in FilePath and the time of its run in Timestamp.
+            if (report.ContainsKey("IsValid"))
+            {
+                if (result is not null && report["FilePath"] is { } file && run.HasModel)
+                    Check(file.GetValue<string>() == run.Model.Path, $"The file of the report is {file}, not the model {run.Model.Path}.", result);
+                report.Remove("FilePath");
+                report.Remove("Timestamp");
+            }
         }
 
         return node.ToJsonString();

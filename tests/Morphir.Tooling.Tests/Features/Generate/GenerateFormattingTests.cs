@@ -172,7 +172,7 @@ public class GenerateFormattingTests
 
         var guest = Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-backend.dll");
         var run = await RunCli(sandbox, "generate", "--input", ir, "--target", "fsharp", "--output", sandbox.PathOf("guest"),
-            "--extension", guest, "--option", "format=false", "--json");
+            "--extension", guest, "--option", "format=false", "--json=document");
         run.ExitCode.Should().Be(0, run.CombinedOutput);
         var report = JsonNode.Parse(run.StandardOutput)!;
         report["backendTransport"]!.GetValue<string>().Should().Be("mep");
@@ -185,7 +185,7 @@ public class GenerateFormattingTests
     {
         using var sandbox = TestSandbox.Create("morphir-format-host-");
         var run = await RunWithoutDynamicCode(sandbox, "generate", "--input", Model, "--target", "fsharp", "--output", sandbox.PathOf("nodyn"),
-            "--option", "format=false", "--json");
+            "--option", "format=false", "--json=document");
         run.ExitCode.Should().Be(0, run.CombinedOutput);
         run.StandardError.Should().NotContain("warning");
         JsonNode.Parse(run.StandardOutput)!["formatting"]!.GetValue<string>().Should().Be("off");

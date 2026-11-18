@@ -71,7 +71,7 @@ public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace 
     {
         var work = Packaged.NewWorkDirectory();
         workspace.WriteText(work.Folder.File("my sources", "Rates.fs"), "module Acme.Demo.Rates\n\nlet dailyRate (days: int) : int = days * 40\n");
-        await RunAsync(["compile", "--language", "fsharp", "--input", "my sources/Rates.fs", "--package-name", "acme/demo", "--json"], RuntimeAccess.Visible, work);
+        await RunAsync(["compile", "--language", "fsharp", "--input", "my sources/Rates.fs", "--package-name", "acme/demo", "--json=document"], RuntimeAccess.Visible, work);
     }
 
     [When("I validate the model fixture {string} with the installed artifact")]
@@ -102,9 +102,9 @@ public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace 
     [Then("the installed artifact lists the extensions of its host")]
     public void TheArtifactListsItsHost()
     {
-        using var report = JsonDocument.Parse(Result.StandardOutput);
-        var ids = report.RootElement.GetProperty("extensions").EnumerateArray().Select(entry => entry.GetProperty("id").GetString()).ToHashSet();
-        Expect(report.RootElement.GetProperty("host").GetString() == ExtensionListReport.HostName(drivers.Host)
+        var report = ExtensionListReport.Of(new CommandResult(Installation.LaunchPath, Result.ExitCode, Result.StandardOutput, Result.StandardError, TimeSpan.Zero, []));
+        var ids = report.Extensions.Select(entry => entry.Id).ToHashSet();
+        Expect(report.Host == ExtensionListReport.HostName(drivers.Host)
             && new[] { "morphir.csharp", "morphir.fsharp", "morphir.type-validator" }.All(ids.Contains), $"The extension list is not the list of the host.\n{Result.Describe()}");
     }
 
@@ -170,8 +170,7 @@ public sealed class PackagedArtifactSteps(DriverSet drivers, IScenarioWorkspace 
 
         var help = await ExtensionWorker.HelpAsync(Packaged.Sessions, options);
         Expect(help.ExitCode == 0, help.Describe());
-        using var document = JsonDocument.Parse(help.StandardOutput);
-        var identity = document.RootElement.GetProperty("result").GetProperty("buildIdentity").GetString()!;
+        var identity = ExtensionWorker.HelpResultOf(help).GetProperty("result").GetProperty("buildIdentity").GetString()!;
         Expect(System.Text.RegularExpressions.Regex.IsMatch(identity, "^[0-9a-f]{64}$"), "extension worker --help --json does not give the build identity.");
 
         await using var session = await Packaged.Sessions.StartAsync(ExtensionWorker.ServeArguments(guest.Path, identity), options);

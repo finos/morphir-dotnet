@@ -1,5 +1,7 @@
 namespace Morphir.IR.Pipeline
 
+open Morphir.Files
+
 /// <summary>
 /// Computation expression builder for creating MorphirProcessor pipelines.
 /// Provides a declarative, F#-idiomatic API for pipeline construction.

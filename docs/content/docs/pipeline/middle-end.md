@@ -41,7 +41,7 @@ In this example, `model.json` is a classic model of IR version 3 with the module
 command upgrades the model, runs the passes before the backend on the upgraded model, and then generates:
 
 ```bash
-$ morphir generate --input model.json --target csharp --output gen --json
+$ morphir generate --input model.json --target csharp --output gen --json=document
 {
   "success": true,
   "exitCode": 0,
@@ -265,7 +265,7 @@ or a fixed point rewrites a child of a replacement, the record names the node of
 replaced, with its source location. The record of the enclosing replacement stays. A chain of upgrade steps follows the same
 rule.
 
-With `--json`, `morphir generate` and `morphir compile` report the passes that ran. The member `passes` is written only when a
+In their JSON report (`--json` or `--json=document`), `morphir generate` and `morphir compile` report the passes that ran. The member `passes` is written only when a
 pass ran, or when no pass ran and an upgrade before the stage moved or replaced a node. In that case `ran` is empty and
 `applications` holds the records of the upgrade:
 

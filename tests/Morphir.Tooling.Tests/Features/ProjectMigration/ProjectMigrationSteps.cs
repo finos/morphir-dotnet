@@ -157,7 +157,7 @@ public sealed class ProjectMigrationSteps : IDisposable
     private async Task Run(string[] arguments, bool json, bool boundaryFlag = true)
     {
         if (File.Exists(Target)) _targetTimestamp = File.GetLastWriteTimeUtc(Target);
-        string[] command = [.. new[] { "project", "migrate" }.Concat(arguments).Concat(json ? ["--json"] : []).Concat(boundaryFlag ? ["--discovery-boundary", _root] : [])];
+        string[] command = [.. new[] { "project", "migrate" }.Concat(arguments).Concat(json ? ["--json=document"] : []).Concat(boundaryFlag ? ["--discovery-boundary", _root] : [])];
         var result = await DevelopmentCli.RunAsync(command, _working, _environment);
         _exit = result.ExitCode; _stdout = result.StandardOutput; _stderr = result.StandardError;
     }

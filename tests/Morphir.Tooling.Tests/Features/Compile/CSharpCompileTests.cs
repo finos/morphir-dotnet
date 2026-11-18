@@ -26,7 +26,7 @@ public sealed class CSharpCompileTests
     {
         using var workspace = new CompileWorkspace();
         workspace.Write("Rates.cs", Rates);
-        var run = await Compile(workspace, "--json --input Rates.cs --package-name acme/demo");
+        var run = await Compile(workspace, "--json=document --input Rates.cs --package-name acme/demo");
         run.Exit.Should().Be(0, run.Text);
         using var report = JsonDocument.Parse(run.Text);
         report.RootElement.GetProperty("success").GetBoolean().Should().BeTrue();
@@ -42,7 +42,7 @@ public sealed class CSharpCompileTests
         using var workspace = new CompileWorkspace();
         workspace.Write("Loop.cs",
             "namespace Acme.Demo.Rates;\n\npublic static class Pricing\n{\n    public static int Total(int[] xs)\n    {\n        foreach (var x in xs) { }\n        return 0;\n    }\n}\n");
-        var run = await Compile(workspace, "--json --input Loop.cs --package-name acme/demo");
+        var run = await Compile(workspace, "--json=document --input Loop.cs --package-name acme/demo");
         run.Exit.Should().Be(1, run.Text);
         using var report = JsonDocument.Parse(run.Text);
         report.RootElement.GetProperty("success").GetBoolean().Should().BeFalse();
@@ -56,7 +56,7 @@ public sealed class CSharpCompileTests
     {
         using var workspace = new CompileWorkspace();
         workspace.Write("Bad.cs", "namespace Acme.Demo.Rates;\n\npublic static class Pricing\n{\n    public static int Bad() => \"text\";\n}\n");
-        var run = await Compile(workspace, "--json --input Bad.cs --package-name acme/demo");
+        var run = await Compile(workspace, "--json=document --input Bad.cs --package-name acme/demo");
         run.Exit.Should().Be(1, run.Text);
         using var report = JsonDocument.Parse(run.Text);
         report.RootElement.GetProperty("diagnostics").EnumerateArray().Select(diagnostic => diagnostic.GetProperty("code").GetString())
@@ -77,12 +77,12 @@ public sealed class CSharpCompileTests
     {
         using var workspace = new CompileWorkspace();
         workspace.Write("Totals.cs", Totals);
-        var plain = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        var plain = await Compile(workspace, "--json=document --input Totals.cs --package-name acme/demo");
         plain.Exit.Should().Be(0, plain.Text);
         ValueKinds(workspace).Should().Be("no LetRecursion", "a fold is List.foldl by default");
 
         workspace.Write("morphir.toml", "[frontend.csharp]\nloop_lowering = \"recursion\"\n");
-        var byKey = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        var byKey = await Compile(workspace, "--json=document --input Totals.cs --package-name acme/demo");
         byKey.Exit.Should().Be(0, byKey.Text);
         var keyIr = File.ReadAllText(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json"));
         ValueKinds(workspace).Should().Be("LetRecursion", "the key lowers the loop to recursion");
@@ -90,7 +90,7 @@ public sealed class CSharpCompileTests
         // The assembly attribute, with no key, gives the same IR. It is at the end of the first line, so no location moves.
         File.Delete(workspace.PathOf("morphir.toml"));
         workspace.Write("Totals.cs", Totals.Replace("using System.Collections.Generic;", "using System.Collections.Generic; [assembly: Morphir.MorphirLoop(Morphir.LoopLowering.Recursion)]", StringComparison.Ordinal));
-        var byAttribute = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        var byAttribute = await Compile(workspace, "--json=document --input Totals.cs --package-name acme/demo");
         byAttribute.Exit.Should().Be(0, byAttribute.Text);
         File.ReadAllText(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json")).Should().Be(keyIr, "the key and the attribute have the same effect");
     }
@@ -101,7 +101,7 @@ public sealed class CSharpCompileTests
         using var workspace = new CompileWorkspace();
         workspace.Write("Totals.cs", Totals.Replace("    public static int Total", "    [Morphir.MorphirLoop(Morphir.LoopLowering.Traversal)]\n    public static int Total", StringComparison.Ordinal));
         workspace.Write("morphir.toml", "[frontend.csharp]\nloop_lowering = \"recursion\"\n");
-        var run = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        var run = await Compile(workspace, "--json=document --input Totals.cs --package-name acme/demo");
         run.Exit.Should().Be(0, run.Text);
         ValueKinds(workspace).Should().Be("no LetRecursion", "the attribute on the member wins over morphir.toml");
     }
@@ -115,7 +115,7 @@ public sealed class CSharpCompileTests
         using var workspace = new CompileWorkspace();
         workspace.Write("Totals.cs", Totals);
         workspace.Write("morphir.toml", "[frontend.csharp]\n" + line + "\n");
-        var run = await Compile(workspace, "--json --input Totals.cs --package-name acme/demo");
+        var run = await Compile(workspace, "--json=document --input Totals.cs --package-name acme/demo");
         run.Exit.Should().Be(2, run.Text);
         using var report = JsonDocument.Parse(run.Text);
         report.RootElement.GetProperty("success").GetBoolean().Should().BeFalse();

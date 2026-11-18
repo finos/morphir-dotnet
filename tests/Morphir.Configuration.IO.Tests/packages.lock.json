@@ -201,7 +201,10 @@
         }
       },
       "morphir.testsupport": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "YamlDotNet": "[16.3.0, )"
+        }
       },
       "CsToml": {
         "type": "CentralTransitive",

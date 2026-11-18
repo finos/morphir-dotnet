@@ -3,7 +3,7 @@ module Morphir.Analyzers.Tests.MessageMappingTests
 open System
 open System.IO
 open Expecto
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Analyzers
 
 [<Tests>]

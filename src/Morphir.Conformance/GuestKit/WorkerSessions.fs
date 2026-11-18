@@ -15,47 +15,6 @@ open Morphir.Mep
 open Morphir.Conformance
 open Morphir.Conformance.WasmHost
 
-/// How long the sessions of a WorkerSessions factory may take.
-[<Sealed>]
-type WorkerSessionLimits private (sessionLimit: TimeSpan, exitWait: TimeSpan) =
-    /// The longest span Task.Delay takes: 4294967294 ms, about 49.7 days.
-    static let longest = TimeSpan.FromMilliseconds 4294967294.0
-
-    static let defaults =
-        WorkerSessionLimits(TimeSpan.FromMinutes 10.0, TimeSpan.FromSeconds 10.0)
-
-    static let check (name: string) (what: string) (span: TimeSpan) =
-        if span <= TimeSpan.Zero || span > longest then
-            raise (
-                ArgumentOutOfRangeException(
-                    name,
-                    span,
-                    $"The {what} must be positive and at most 4294967294 ms, the longest span Task.Delay takes."
-                )
-            )
-
-    /// The defaults: a worker may run 10 minutes, which is more than one call deadline of extism-kernel-v1 for each
-    /// request of a model-tier session, and EndAsync waits 10 seconds for it to exit, as the model-tier runner waits
-    /// for a session to end after morphir.exit. Every read returns the same instance.
-    static member Default = defaults
-
-    /// Limits with these spans. Each must be positive and at most 4294967294 ms, the longest span Task.Delay takes;
-    /// otherwise this throws ArgumentOutOfRangeException.
-    static member Create(sessionLimit: TimeSpan, exitWait: TimeSpan) =
-        check (nameof sessionLimit) "session limit" sessionLimit
-        check (nameof exitWait) "exit wait" exitWait
-        WorkerSessionLimits(sessionLimit, exitWait)
-
-    /// How long a worker may run from its start. A worker still running then has its process tree stopped, which
-    /// ends its session: every request still waiting gets an error.
-    member _.SessionLimit = sessionLimit
-
-    /// How long EndAsync waits for a worker to exit by itself before it stops the worker's process tree.
-    member _.ExitWait = exitWait
-
-    /// Stable text for diagnostics.
-    override _.ToString() = $"session limit {sessionLimit}, exit wait {exitWait}"
-
 /// What a WorkerSessions factory saw of one worker process: its arguments, how it ended and every line it wrote on
 /// stderr. Only the factory builds one.
 [<Sealed>]
@@ -296,17 +255,22 @@ module internal WorkerSessionCheck =
             yield $"the worker wrote {otherLines} stderr lines that are not morphir/command-event documents"
     ]
 
+/// The fixed waits of a live worker. Module values, not class `static let` values: F# initialises the class
+/// `static let` values of a file in one initialiser, which starts the type initialiser of each class whose fields it
+/// writes. With two such classes in a file, two threads that use them for the first time could wait for each other;
+/// the CLR breaks that deadlock by letting one thread see a class before its fields are set (FailStaticInit).
+module private LiveWorkerWaits =
+    let killWait = TimeSpan.FromSeconds 10.0
+
+    /// How long the factory keeps reading stderr after the worker ended. A descendant that holds the pipe open is not
+    /// waited for longer.
+    let drainWait = TimeSpan.FromSeconds 2.0
+
 /// One running worker process and what it wrote on stderr.
 [<Sealed>]
 type internal LiveWorker
     (purpose: KitSessionPurpose, proc: Process, input: WorkerInput, arguments: IReadOnlyList<string>, limits: WorkerSessionLimits)
     =
-    static let killWait = TimeSpan.FromSeconds 10.0
-
-    /// How long the factory keeps reading stderr after the worker ended. A descendant that holds the pipe open is not
-    /// waited for longer.
-    static let drainWait = TimeSpan.FromSeconds 2.0
-
     let id = proc.Id
     let clock = Stopwatch.StartNew()
     let gate = obj ()
@@ -372,8 +336,8 @@ type internal LiveWorker
         let! _ = Task.WhenAny(exited, exitWait ())
         stop ()
         watchdogCancel.Cancel()
-        let! _ = Task.WhenAny(readStderr, Task.Delay drainWait)
-        let! _ = Task.WhenAny(exited, Task.Delay killWait)
+        let! _ = Task.WhenAny(readStderr, Task.Delay LiveWorkerWaits.drainWait)
+        let! _ = Task.WhenAny(exited, Task.Delay LiveWorkerWaits.killWait)
         let! _ = watchdog
 
         try
@@ -459,7 +423,7 @@ type internal LiveWorker
 /// A session factory for ModelTierRunner.RunAsync that runs each session the runner asks for in a new worker
 /// process: `<host> [host arguments] extension worker --abi extism-kernel-v1 --module <module> --build-identity
 /// <identity> --json`, the arguments of the wasm-host corpus's worker convention, with the build identity that the
-/// host's `extension worker --help --json` reports. The session is a HostSession over the worker's stdout and stdin;
+/// host's `extension worker --help --json` reports in its one morphir/command-result. The session is a HostSession over the worker's stdout and stdin;
 /// the factory reads the worker's stderr events. EndAsync waits for each worker to exit, stops the process tree of one
 /// that does not, and reports each worker's end and events. Disposing the factory stops every worker still running and
 /// releases each worker's process.

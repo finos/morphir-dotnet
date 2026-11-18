@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Test data for the Morphir models: a test-data builder, the named cases of the distribution mother, and the
+         FsCheck generators built on the builder. Test projects reference it; it is never packed or shipped. -->
+    <PropertyGroup>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <RootNamespace>Morphir.Models.TestSupport</RootNamespace>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="FsCheck" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Models\Morphir.Models.fsproj" />
+        <ProjectReference Include="..\..\src\Morphir.Files\Morphir.Files.fsproj" />
+        <!-- FixtureCatalog: the parent's name-context examples that MorphirFileMother serves as trees of files. -->
+        <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="DistributionBuilder.fs" />
+        <Compile Include="DistributionMother.fs" />
+        <Compile Include="Generators.fs" />
+        <Compile Include="DocumentTreeStoreDriver.fs" />
+        <Compile Include="DocumentTreeMother.fs" />
+        <Compile Include="MorphirFileMother.fs" />
+        <Compile Include="NamePositionMother.fs" />
+    </ItemGroup>
+
+</Project>

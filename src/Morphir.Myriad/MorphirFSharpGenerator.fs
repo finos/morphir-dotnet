@@ -5,7 +5,7 @@ namespace Morphir.Myriad
 open System
 open Myriad.Core
 open Morphir.CodeGeneration.FSharp
-open Morphir.IR.Pipeline
+open Morphir.Files
 
 /// Converts one selected module from a classic Morphir library into F# source.
 [<MyriadGenerator("morphir-fsharp")>]

@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using Morphir.IR.Pipeline;
+using Morphir.Files;
 
 namespace Morphir.Tooling.Features.Generate;
 

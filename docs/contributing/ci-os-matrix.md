@@ -42,6 +42,12 @@ Mark a test that uses the real file system, paths, line endings, processes, the 
 system API, native code or sockets, directly or through the code under test. A test with no marker has no Windows and
 macOS coverage in a pull request. If you are not sure, mark the test.
 
+A test gets its models, trees and files from an object mother or from `FixtureCatalog` (see "Test data" in
+`.agents/skills/test-manager/SKILL.md`). Neither one uses the file system: a mother builds its case in memory, and
+the catalog serves the files below `tests/Fixtures` as resources embedded in `Morphir.TestSupport`. A test that only
+reads its data that way needs no marker for it. A test that writes that data to disk, into a `TestSandbox` or into
+the workspace of a scenario with `FixtureTrees.WriteTree`, uses the file system and has the marker.
+
 The black-box project `tests/Morphir.BlackBox.Tests` needs no marker on a test. Each of its tests starts the product
 on the operating system of the run, so the assembly has the marker, and each operating system runs each of its
 groups (see [The black-box groups](#the-black-box-groups)).

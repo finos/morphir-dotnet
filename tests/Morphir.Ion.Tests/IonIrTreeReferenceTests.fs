@@ -7,6 +7,7 @@ open System
 open System.IO
 open System.Text.RegularExpressions
 open Expecto
+open Morphir.Files
 open Morphir.IR.Pipeline
 open Morphir.Ion
 open Morphir.Ion.Tests

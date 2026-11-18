@@ -1,5 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using Morphir.TestSupport.Fixtures;
+
 namespace Morphir.BlackBox.Tests.Steps;
 
 /// <summary>The state that the step classes of one scenario share: the model, and the result of the last command.</summary>
@@ -31,4 +33,19 @@ public sealed class ScenarioRun
 
     /// <summary>The model of the scenario that is a tree of files, or null when the model is one file.</summary>
     public WorkspaceDirectory? ModelTree { get; set; }
+
+    /// <summary>The model of the scenario: its tree when it has one, or else its file.</summary>
+    public ModelLocation ModelLocation => ModelTree is { } tree ? tree : Model;
+
+    /// <summary>Where the model of the scenario is wrong, when a step gave it a faulty case of the catalog.</summary>
+    public FixtureFault? Fault { get; set; }
+
+    /// <summary>
+    /// The plain twin of a compacted model of the scenario: the same model with no file compacted, in the workspace
+    /// beside it, when a step gave the model a compacted case of the catalog.
+    /// </summary>
+    public ModelLocation? PlainTwin { get; set; }
+
+    /// <summary>The files of the model of the scenario that are compacted, as paths from the root of its tree.</summary>
+    public IReadOnlyList<string> CompactedFiles { get; set; } = [];
 }

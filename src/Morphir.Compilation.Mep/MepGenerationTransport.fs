@@ -24,18 +24,21 @@ type MepGenerationTransport =
           EnvelopeVersion = SemanticVersion.Create "0.1.0-draft.1"
           IrVersion = SemanticVersion.Create irVersion }
 
-    static let v4 = json "4.0.0"
-    static let classic = json "3.0.0"
-    static let offered: IReadOnlyList<ModelTransportTuple> = [| v4; classic |]
+    // Functions, not values: a class `static let` value is a static field behind an F# init check. When two threads
+    // start the type initialisers of two types that need each other, the CLR breaks the deadlock by letting one thread
+    // see this type before its initialiser has finished, and the init check then throws (FailStaticInit). With no
+    // static field the type has no initialiser to meet. The tuples are records, so each call gives an equal value.
+    static let v4 () = json "4.0.0"
+    static let classic () = json "3.0.0"
 
     /// <summary>The JSON IR 4.0.0 tuple: an IR v4 model with formatVersion 4 or "4.0.0".</summary>
-    static member V4Tuple = v4
+    static member V4Tuple = v4 ()
 
     /// <summary>The JSON IR 3.0.0 tuple: a classic model with formatVersion 3 or "3.0.0".</summary>
-    static member ClassicTuple = classic
+    static member ClassicTuple = classic ()
 
     /// <summary>The tuples a host offers, IR 4.0.0 first.</summary>
-    static member Tuples = offered
+    static member Tuples: IReadOnlyList<ModelTransportTuple> = [| v4 (); classic () |]
 
     /// <summary>
     /// The tuple that a model of the family and declared format version needs, for C# callers: true and the tuple, or
@@ -50,8 +53,8 @@ type MepGenerationTransport =
         ) : bool =
         let needed =
             match family with
-            | ModelFamily.V4 -> if version = "4" || version = "4.0.0" then Some v4 else None
-            | ModelFamily.Classic -> if version = "3" || version = "3.0.0" then Some classic else None
+            | ModelFamily.V4 -> if version = "4" || version = "4.0.0" then Some(v4 ()) else None
+            | ModelFamily.Classic -> if version = "3" || version = "3.0.0" then Some(classic ()) else None
 
         match needed with
         | Some found ->

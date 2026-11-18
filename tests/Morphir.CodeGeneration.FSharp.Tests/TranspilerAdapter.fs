@@ -2,7 +2,7 @@
 /// focused on what they check.
 module Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
 
-open Morphir.IR.Pipeline
+open Morphir.Files
 
 type GeneratedModule = {
     ModulePath: string

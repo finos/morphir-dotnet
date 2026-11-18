@@ -100,6 +100,11 @@
     <PackageVersion Include="LanguageExt.Core" Version="$(LanguageExtVersion)" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
+    <!-- IFileProvider for Morphir.Files (netstandard2.0 too). 11.0.0 is the version that Microsoft.Extensions.Configuration
+         11.0.0 already brings; Embedded and Physical are for the tests of Morphir.Files only. -->
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Embedded" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.FileProviders.Physical" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.3.2" />
@@ -131,6 +136,8 @@
     <PackageVersion Include="Eleven19.IonDotnet" Version="0.1.4" />
     <PackageVersion Include="Expecto" Version="10.2.3" />
     <PackageVersion Include="Expecto.FsCheck" Version="10.2.3" />
+    <!-- The version that Expecto.FsCheck resolves; Morphir.Models.TestSupport builds its generators on it. -->
+    <PackageVersion Include="FsCheck" Version="2.16.5" />
     <PackageVersion Include="Verify.Expecto" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.TUnit" Version="$(VerifyVersion)" />
     <PackageVersion Include="Verify.Xunit" Version="$(VerifyVersion)" />

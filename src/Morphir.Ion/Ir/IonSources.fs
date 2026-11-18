@@ -1,7 +1,7 @@
 namespace Morphir.Ion
 
 open System
-open Morphir.IR.Pipeline
+open Morphir.Files
 
 /// Reading the bytes of a file or a tree's file.
 module internal IonSources =

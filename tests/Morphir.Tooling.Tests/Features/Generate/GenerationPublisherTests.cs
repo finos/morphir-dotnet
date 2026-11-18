@@ -1,7 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.FSharp.Collections;
-using Morphir.IR.Pipeline;
+using Morphir.Files;
 using Morphir.Tooling.Features.Generate;
 
 using Morphir.TestSupport;

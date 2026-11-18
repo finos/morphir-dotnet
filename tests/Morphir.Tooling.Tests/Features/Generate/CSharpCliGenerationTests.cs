@@ -27,7 +27,7 @@ public sealed class CSharpCliGenerationTests : IDisposable
     private async Task<CliExecutionResult> Invoke(string input, bool json = true, string? output = null, params string[] options)
     {
         var arguments = new List<string> { "generate", "--input", input, "--target", "csharp", "--output", output ?? Output };
-        if (json) arguments.Add("--json");
+        if (json) arguments.Add("--json=document");
         foreach (var option in options) { arguments.Add("--option"); arguments.Add(option); }
         return await CliTestHelper.ForTarget()
             .ExecuteCommandAsync(string.Join(" ", arguments.Select(Quote)), timeout: TimeSpan.FromSeconds(60));

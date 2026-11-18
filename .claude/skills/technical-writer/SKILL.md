@@ -838,7 +838,7 @@ sequenceDiagram
     participant C as CLI
     participant V as Validator
 
-    U->>C: morphir verify file.json
+    U->>C: morphir model verify file.json
     activate C
     C->>V: Validate(content)
     V-->>C: Result

@@ -1,0 +1,13 @@
+{
+  "formatVersion": 4,
+  "name": "total",
+  "def": {
+    "Public": {
+      "ExpressionBody": {
+        "inputTypes": {},
+        "outputType": "morphir/SDK:basics#int",
+        "body": { "Literal": { "IntegerLiteral": 0 } }
+      }
+    }
+  }
+}

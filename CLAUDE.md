@@ -158,7 +158,7 @@ See [scripts/README.md](scripts/README.md#remove-claude-coauthorfsx) for complet
 - All logging → **stderr only**
 - Stdout → command output (JSON, results) only
 - Use Serilog: `standardErrorFromLevel: LogEventLevel.Verbose`
-- Test: `morphir verify file.json --json | jq` must work
+- Test: `morphir model verify file.json --json | jq` must work
 
 Rationale: Scriptability and Unix philosophy (stdout = data, stderr = diagnostics)
 

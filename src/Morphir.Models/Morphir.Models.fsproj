@@ -37,6 +37,11 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <PackageReference Include="FSharp.Core" />
     </ItemGroup>
 
+    <!-- Virtual files and trees, which the document-tree store of the model reads and writes without touching the disk. -->
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Files\Morphir.Files.fsproj" />
+    </ItemGroup>
+
     <!-- netstandard2.0 has no System.Text.Json and lacks some members of newer frameworks; Polyfill.fs adds them. -->
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
         <PackageReference Include="System.Text.Json" />
@@ -79,11 +84,18 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="IR/V4/Module.fs" />
         <Compile Include="IR/V4/Distribution.fs" />
         <Compile Include="IR/VersionedModel.fs" />
+        <Compile Include="IR/Trees/TreeStems.fs" />
+        <Compile Include="IR/Trees/DocumentAddress.fs" />
+        <Compile Include="IR/Trees/DocumentTree.fs" />
+        <Compile Include="IR/Trees/TreeJoin.fs" />
+        <Compile Include="IR/Trees/V4DocumentTree.fs" />
+        <Compile Include="IR/Trees/ClassicDocumentTree.fs" />
         <Compile Include="IR/DSL/Names.fs" />
         <Compile Include="IR/DSL/DSL.fs" />
         <Compile Include="Json/MorphirJsonOptions.fs" />
         <Compile Include="Json/Encode.fs" />
         <Compile Include="Json/Decode.fs" />
+        <Compile Include="Json/CanonicalJson.fs" />
         <Compile Include="Json/Codecs/NameCodec.fs" />
         <Compile Include="Json/Codecs/PathCodec.fs" />
         <Compile Include="Json/Codecs/FQNameCodec.fs" />
@@ -97,6 +109,26 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="Json/V4/V4JsonDistributions.fs" />
         <Compile Include="Json/V4/V4Json.fs" />
         <Compile Include="Json/V4/V4JsonWriter.fs" />
+        <!-- The document-tree store maps trees to files with the v4 codecs, so it comes after them. -->
+        <Compile Include="IR/Trees/TreeStoreTypes.fs" />
+        <!-- Morphir files, plain or compacted with a name context; the store reads every tree file through them. -->
+        <Compile Include="IR/Files/NameContext.fs" />
+        <Compile Include="IR/Files/ContextExpansion.fs" />
+        <Compile Include="IR/Files/MorphirFile.fs" />
+        <Compile Include="IR/Files/CompactionPolicy.fs" />
+        <Compile Include="IR/Trees/TreeFileCodec.fs" />
+        <Compile Include="IR/Trees/V4TreeFiles.fs" />
+        <Compile Include="IR/Trees/ClassicTreeFiles.fs" />
+        <Compile Include="IR/Trees/TreeLayout.fs" />
+        <Compile Include="IR/Trees/TreeFileSource.fs" />
+        <Compile Include="IR/Trees/TreeReader.fs" />
+        <Compile Include="IR/Trees/TreeWriter.fs" />
+        <Compile Include="IR/Trees/V4TreeWriter.fs" />
+        <Compile Include="IR/Trees/V4TreeReader.fs" />
+        <Compile Include="IR/Trees/ClassicTreeWriter.fs" />
+        <Compile Include="IR/Trees/ClassicTreeReader.fs" />
+        <Compile Include="IR/Trees/DocumentTreeStore.fs" />
+        <Compile Include="IR/Trees/StoredModel.fs" />
     </ItemGroup>
 
     <ItemGroup>

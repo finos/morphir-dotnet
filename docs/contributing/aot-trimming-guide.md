@@ -444,7 +444,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 // Define all types that need serialization
-[JsonSerializable(typeof(VerifyIRResult))]
+[JsonSerializable(typeof(VerifyModelResult))]
 [JsonSerializable(typeof(Config))]
 [JsonSerializable(typeof(Package))]
 [JsonSerializable(typeof(Module))]
@@ -457,7 +457,7 @@ public partial class MorphirJsonContext : JsonSerializerContext
 }
 
 // Usage
-var result = new VerifyIRResult(
+var result = new VerifyModelResult(
     IsValid: true,
     SchemaVersion: "3",
     FilePath: "test.json",
@@ -465,8 +465,8 @@ var result = new VerifyIRResult(
     Timestamp: DateTime.UtcNow
 );
 
-var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRResult);
-var deserialized = JsonSerializer.Deserialize(json, MorphirJsonContext.Default.VerifyIRResult);
+var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyModelResult);
+var deserialized = JsonSerializer.Deserialize(json, MorphirJsonContext.Default.VerifyModelResult);
 ```
 
 #### F# Example
@@ -573,7 +573,7 @@ builder.Services.AddWolverine(opts =>
 {
     // Explicitly register handlers instead of auto-discovery
     opts.Discovery.DisableConventionalDiscovery();
-    opts.Handlers.AddHandler<VerifyIRHandler>();
+    opts.Handlers.AddHandler<VerifyModelHandler>();
     opts.Handlers.AddHandler<OtherHandler>();
 });
 ```
@@ -670,7 +670,7 @@ dotnet publish -c Release -r linux-x64 /p:PublishAot=true
 ./bin/Release/net10.0/linux-x64/publish/morphir --help
 
 # Test IR verification (example)
-./bin/Release/net10.0/linux-x64/publish/morphir ir verify tests/TestData/valid-ir-v3.json
+./bin/Release/net10.0/linux-x64/publish/morphir model verify tests/TestData/valid-ir-v3.json
 
 echo "AOT build tests passed!"
 ```

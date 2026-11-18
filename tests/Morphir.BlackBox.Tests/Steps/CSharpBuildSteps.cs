@@ -17,7 +17,7 @@ public sealed partial class CSharpBuildSteps(IPackageDriver packages, IScenarioW
     private const string ProjectFile = "Consumer.csproj";
 
     /// <summary>The packages that a C# consumer restores from the feed: the package and its Morphir dependencies, and the SDK.</summary>
-    private static readonly string[] Packages = ["Morphir.Lang.CSharp", "Morphir.Models", "Morphir.Compilation", "Morphir.MiddleEnd", "Morphir.SDK.CSharp"];
+    private static readonly string[] Packages = ["Morphir.Lang.CSharp", "Morphir.Models", "Morphir.Files", "Morphir.Compilation", "Morphir.MiddleEnd", "Morphir.SDK.CSharp"];
 
     // The folders of the generated files below the consumer: EmitCompilerGeneratedFiles of the source generator, and the
     // output folder of the MSBuild target.

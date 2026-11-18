@@ -173,24 +173,26 @@ Feature: Route morphir mck to the separately installed morphir-mck
 
   @needs-built-extensions
   Scenario Outline: Another unknown command starts nothing
-    Given the stub of a tool "morphir-lint" is on the search path
+    Given the stub of a tool "morphir-<command>" is on the search path
     And the tool exits with 42
-    When I run the command "lint src" on the search path
+    When I run the command "<command> <arguments>" on the search path
     Then the exit code is neither 0 nor 42
     And the command ran on the "<host>" host
     And standard output is not a report of the tool
-    And the output contains "lint"
-    And the tool alone with the arguments "src" exits with 42
+    And the command fails and names "<command>" as an unknown command
+    And the tool alone with the arguments "<arguments>" exits with 42
 
     @host-native
     Examples: The native host
-      | host   |
-      | native |
+      | host   | command | arguments         |
+      | native | lint    | src               |
+      | native | ir      | verify model.json |
 
     @host-tool
     Examples: The tool host
-      | host |
-      | tool |
+      | host | command | arguments         |
+      | tool | lint    | src               |
+      | tool | ir      | verify model.json |
 
   @needs-built-extensions
   Scenario Outline: The help lists mck

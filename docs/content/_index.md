@@ -88,7 +88,7 @@ dotnet tool install -g Morphir
 morphir info
 
 # Validate Morphir IR
-morphir verify model.json
+morphir model verify model.json
 
 # Run a Morphir plugin
 morphir run <plugin-path>

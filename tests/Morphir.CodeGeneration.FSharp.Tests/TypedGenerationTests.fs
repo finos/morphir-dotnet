@@ -4,7 +4,7 @@ open System.Text.Json
 open Expecto
 open Morphir.IR
 open Morphir.IR.Model
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Testing
 open Morphir.Testing.GenerationConformance
 open Morphir.CodeGeneration.FSharp
@@ -63,7 +63,7 @@ let tests =
                     []
                     """
 open Morphir.IR.Model
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.CodeGeneration.FSharp
 let generateLibrary (model: VersionedModel) =
     Transpiler.generateModel model (VFile.fromPath "retained/model.ion")

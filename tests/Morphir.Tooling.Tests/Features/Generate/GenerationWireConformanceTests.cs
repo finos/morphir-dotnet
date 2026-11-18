@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
-using Morphir.IR.Pipeline;
+using Morphir.Files;
 using Morphir.Testing;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Tests.Integration.CLI;
@@ -29,7 +29,7 @@ public sealed class GenerationWireConformanceTests : IDisposable
         if (TestRunSettings.Parse(Environment.GetEnvironmentVariable, File.Exists).Target is TestTarget.Executable)
         {
             var output = Path.Combine(_root, "published-" + Guid.NewGuid().ToString("N"));
-            var response = await CliTestHelper.ForTarget().ExecuteCommandAsync($"generate --input \"{path}\" --target fsharp --output \"{output}\" --json", timeout: TimeSpan.FromSeconds(60));
+            var response = await CliTestHelper.ForTarget().ExecuteCommandAsync($"generate --input \"{path}\" --target fsharp --output \"{output}\" --json=document", timeout: TimeSpan.FromSeconds(60));
             using var report = JsonDocument.Parse(response.StandardOutput);
             report.RootElement.GetProperty("exitCode").GetInt32().Should().Be(response.ExitCode);
             if (response.ExitCode != 0) return Generated.NewError(ListModule.OfSeq(report.RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString()!)));

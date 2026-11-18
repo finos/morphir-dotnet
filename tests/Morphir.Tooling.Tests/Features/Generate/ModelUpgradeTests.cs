@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 using FluentAssertions;
 using Morphir.Extensions;
+using Morphir.Files;
 using Morphir.IR.Model;
-using Morphir.IR.Pipeline;
 using Morphir.TestSupport;
 using Morphir.Tooling.Features.Generate;
 

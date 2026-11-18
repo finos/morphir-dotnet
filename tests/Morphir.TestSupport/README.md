@@ -22,7 +22,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | --- | --- |
 | `IScenarioWorkspace` (`ScenarioWorkspace`) | The contained folder of one test: the work area, the home, the Morphir home, the temporary directory, the fixture copies, and the list of files written since a `WorkspaceMark`. A step gets a file as a `WorkspaceFile` or a `WorkspaceDirectory`. |
 | `ICliDriver` (`CliDriver`) | Runs one command line on one host of the target and returns a `CommandResult`. It contains the process in the workspace, gives it a time limit (`CliRunOptions`), and holds a place of the `ProcessGate`. It starts a built assembly with `dotnet`, not with `dotnet run`. |
-| `IModelVerificationDriver` (`ModelVerificationDriver`) | The `ir verify` command as an intent, with `VerificationOptions`. Its report is `VerificationReport`. |
+| `IModelVerificationDriver` (`ModelVerificationDriver`) | The `model verify` command as an intent, on a `ModelLocation` (a single file or the directory of a document tree), with `VerificationOptions`. Its report is `VerificationReport`. |
 | `IGenerationDriver` (`GenerationDriver`) | The `generate` command as an intent, with `GenerationOptions`. Its report is `GenerationReport`. |
 | `BlackBoxSession` | One for each test process. It reads the environment once, resolves the target to its own artifact (`CliArtifacts`), makes the one eligibility decision of a test, and makes a `DriverSet` for a test. It records the Morphir locations of the machine at the start (`MachineTripwire`), and at the end of the run it prints the skip counts and fails if a test changed those locations. |
 | `DriverSet` | The workspace and the drivers of one test on one host. `DriverSet.CliOf` gives the CLI driver of another host of the target, for a test that compares the hosts (`@needs-all-hosts`). |
@@ -41,6 +41,7 @@ It calls a driver interface, and the driver owns the folder, the processes and t
 | `IExtensionDriver` (`ExtensionDriver`) | The `extension list` and `extension runtimes` commands, with `ExtensionListOptions`. Their reports are `ExtensionListReport` and `ExtensionRuntimesReport`. |
 | `IExtensionInstallDriver` (`ExtensionInstallDriver`) | The `extension install` command, with `ExtensionInstallOptions`: it writes a NuGet folder feed with a layout A extension package, installs into the extension home of the scenario with `--home` and `--no-probe`, and reads that home. Its report is `ExtensionInstallationReport`, the installed catalog, lock and store files and the NuGet provenance of a lock: the command writes no JSON report. |
 | `IModelValidationDriver` (`ModelValidationDriver`) | The `validate` command, with `ValidationOptions`. Its report is `ValidationReport`. |
+| `IModelConversionDriver` (`ModelConversionDriver`) | The `model convert` command, with `ConversionOptions`: the input and the output as a `ModelLocation` (a `WorkspaceFile` or a `WorkspaceDirectory`), the target `ModelLayout`, and the compaction as a `CompactionArgument`. Its report is `ConversionReport`. |
 | `ExtensionArtifacts` | The files of the extension guests of the development build (`BuiltExtension`), from the assembly metadata that `build/Morphir.ExtensionArtifacts.targets` writes. Only the development build has them (`@needs-built-extensions`). |
 | `CliRunOptions.WithoutDynamicCode` | Runs an assembly host with the dynamic-code switch of the runtime off, as in a Native AOT executable, from a copy of its runtime configuration in the workspace (`@needs-host-without-dynamic-code`). |
 | `ExtensionPlatform` | The platform of this machine as the extension reports name it, for example `osx-arm64`, and the platform with no WASM runtime (`win-x64`). |
@@ -58,12 +59,24 @@ that the command wrote in the work area. Two layers check it:
 
 - `CommandResultAssertions` has the general checks: the exit code, exactly one JSON document on standard output, a
   written file, text on standard error. These checks read no field of a report.
-- A report type has the checks of its own command. `VerificationReport` reads the field `IsValid`.
+- `JsonOutputAssertions` has the checks of the two machine-output forms: `JsonOutputAssertions.ReportOfDocument`
+  (a `--json=document` run: exactly one JSON document, which is a report), `JsonOutputAssertions.ReportOfStream` and
+  `JsonOutputAssertions.Events` (a `--json` run: JSON Lines, each line an object with an `event` member, and one
+  `completed` record on the last line, whose `report` it returns). `JsonOutputAssertions.ReportOfEither` takes either
+  form; every report type reads its report through it. A failure names the line at fault.
+- `JsonOutputArgument` is the `--json` argument that a driver puts on a command line: `Stream` (a bare `--json`, the
+  default of the drivers that read a report), `Document` (`--json=document`), and, for a test of the convention,
+  `JsonOutputArgument.WithMode`, `JsonOutputArgument.Separated`, `JsonOutputArgument.FormerStreamingFlag` and
+  `JsonOutputArgument.Then` (an option that the command does not have, at the end of
+  the command line). The drivers of `model verify` and the migrations put it right before their positional input.
+- A report type has the checks of its own command. `VerificationReport` reads the fields `IsValid`, `exitCode`,
+  `layout`, `filesChecked` and `compactedFiles`, and the `file` and `code` of each error; `VerificationReport.ShouldHaveAnErrorAt`
+  finds the error at a `FixtureFault`.
   `GenerationReport` reads the field `success`, and fails when the field disagrees with the exit code.
-- The reports of the other command families derive from `JsonCommandReport`: one JSON object, a field `exitCode`
-  that agrees with the exit code, and the list `diagnostics` as `ReportDiagnostic` items. `CompilationReport` and
-  `ValidationReport` also read `success`; `ConfigurationReport` and `MigrationReport` read `outcome`. A path in a
-  configuration or migration report has the form of `ReportPath`.
+- The reports of the other command families derive from `JsonCommandReport`: one JSON object (a document, or the
+  `report` of a stream), a field `exitCode` that agrees with the exit code, and the list `diagnostics` as
+  `ReportDiagnostic` items. `CompilationReport`, `ValidationReport` and `ConversionReport` also read `success`; `ConfigurationReport` and
+  `MigrationReport` read `outcome`. A path in a configuration or migration report has the form of `ReportPath`.
 
 Each failure is a `CommandAssertionException`. Its message has the command line, the exit code and both streams.
 
@@ -179,7 +192,7 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that host. A test with no host tag runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs` | The test needs that `DriverCapability`. `@needs-built-programs`: the build output and the project files of the programs of the repository; only the development build has them. |
 | `@needs-development-packages` | The test packs a project of the development build (`IPackageDriver`). Only the target `dev` has it. |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-model-conversion`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | The test needs that `DriverCapability`: a command family, the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
 | `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form` | The test needs an installed packaged offering; a Native AOT executable of a release (`aot`, `native-aot`); a target whose form is known (each target except `executable`). |
 | `@needs-wasm-guests` | The test runs a WASM guest. Each platform except Windows x64 has it: there the host refuses each guest (#609). `DriverCapabilities.Of` takes the platform; the default is this machine. |
 
@@ -193,6 +206,35 @@ exactly one reason. `SkipCounts` counts the skips by `SkipKind`, and the test pr
 5. Add the tag to this document and to `tests/Morphir.BlackBox.Tests/README.md`.
 
 Add an interface in the change that has its first two scenarios, not before.
+
+## The fixture catalog
+
+`FixtureCatalog` (namespace `Morphir.TestSupport.Fixtures`) is the one owner of the files below `tests/Fixtures`
+that tests reach by intent. Each `FixtureEntry` has its intent, its path below `tests/Fixtures`, its SHA-256 and the
+`PROVENANCE.md` that has its row. The files are embedded in this assembly, so a test reads them with
+`FixtureCatalog.ReadBytes` or `FixtureCatalog.ReadText` without knowing where the repository is.
+
+- `FixtureCatalog.Kit` holds the pinned kit files of finos/morphir (`tests/Fixtures/MorphirTrees/PROVENANCE.md`) as
+  reference data. `FixtureCatalog.Kit.DocumentTree` gives each tree case as a `KitTreeCase`: its id, its title, its
+  tree files as JSON, its canonical single file and its diagnostic. `FixtureCatalog.Kit.FileSpellings` gives each
+  case that pins one manifest file's spelling as a `KitFileSpelling`: its id, its title, the file's name in a tree,
+  its canonical JSON and the other spellings a reader accepts. `KitTreeCaseReader` reads both and raises on a
+  step form it does not know; `YamlToJson` translates the kit's YAML spellings and refuses what the kit's YAML
+  profile forbids.
+- `FixtureCatalog.Models` holds the IR fixtures of `tests/Fixtures/MorphirIR` by intent, for example `V3Library`.
+- `FixtureCatalog.Trees` holds document trees written by hand for this repository, each file at its location in the
+  tree: `FixtureCatalog.Trees.AcmeDemo` is the v4 tree of `tests/Fixtures/MorphirTrees/acme-demo`, which "The same
+  tree from two sources" reads from a directory and from resources that `tests/Morphir.Models.Tests` embeds.
+  It also holds the trees that the document-tree store wrote from mother cases, as `FixtureTree`s:
+  `WrittenV4LibraryWithDependency` and `WrittenV3LibraryWithDependency` (the store is the writer of `model convert`), and
+  the faulty trees `WrittenV4WithAnUnknownTypeTag` and `WrittenV4WithAMissingValueFile`, each a `FaultyFixtureTree`
+  with its `FixtureFault` (the file, the JSON Pointer and the words of the fault). A tree that differs in one file is
+  another tree, `FixtureTree.Without` that file or `FixtureTree.WithFile` another entry. `FixtureTrees.WriteTree` writes a tree into a
+  workspace. A test of `tests/Morphir.Models.Tests` (`Store.Written trees of the catalog`) keeps the written trees
+  equal to what the store writes.
+- `FixtureCatalog.ExistingOwners` lists, as a `FixtureOwner` each, the folders that test projects owned before the
+  catalog. `FixtureCatalog.UnownedFiles` gives the files that have no owner, and
+  `tests/Morphir.Build.Tests/Helpers/FixtureOwnershipTests.cs` fails on each.
 
 ## A test outside the black-box project
 

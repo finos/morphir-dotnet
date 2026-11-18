@@ -9,8 +9,8 @@ namespace Morphir.TestSupport.Drivers;
 /// <summary>The options of <c>extension list</c>.</summary>
 public sealed record ExtensionListOptions
 {
-    /// <summary>Write one JSON report to standard output. Default true.</summary>
-    public bool Json { get; init; } = true;
+    /// <summary>The <c>--json</c> argument, or null for the table of a person. Default the stream.</summary>
+    public JsonOutputArgument? Json { get; init; } = JsonOutputArgument.Stream;
 
     /// <summary>List only the extensions of this machine (<c>--local</c>).</summary>
     public bool Local { get; init; }
@@ -88,8 +88,11 @@ public interface IExtensionDriver
 
     Task<CommandResult> ListAsync(ExtensionListOptions? options = null, CancellationToken cancellation = default);
 
-    /// <summary>Runs <c>extension runtimes</c>, with <c>--json</c> when <paramref name="json"/> is true.</summary>
-    Task<CommandResult> RuntimesAsync(bool json = true, CancellationToken cancellation = default);
+    /// <summary>Runs <c>extension runtimes --json</c>: the report in a stream.</summary>
+    Task<CommandResult> RuntimesAsync(CancellationToken cancellation = default);
+
+    /// <summary>Runs <c>extension runtimes</c> with the <c>--json</c> argument <paramref name="json"/>, or with none (the text) when it is null.</summary>
+    Task<CommandResult> RuntimesAsync(JsonOutputArgument? json, CancellationToken cancellation = default);
 }
 
 /// <summary>Builds the command lines of <c>extension</c> and gives them to the CLI driver.</summary>
@@ -112,12 +115,14 @@ public sealed class ExtensionDriver(ICliDriver cli, ExtensionArtifacts? guests =
             arguments.Add(platform);
         }
 
-        if (options.Json) arguments.Add("--json");
+        if (options.Json is { } json) arguments.AddRange([.. json.Words, .. json.Trailing]);
         return cli.RunAsync(arguments, cancellation: cancellation);
     }
 
-    public Task<CommandResult> RuntimesAsync(bool json = true, CancellationToken cancellation = default) =>
-        cli.RunAsync(json ? ["extension", "runtimes", "--json"] : ["extension", "runtimes"], cancellation: cancellation);
+    public Task<CommandResult> RuntimesAsync(CancellationToken cancellation = default) => RuntimesAsync(JsonOutputArgument.Stream, cancellation);
+
+    public Task<CommandResult> RuntimesAsync(JsonOutputArgument? json, CancellationToken cancellation = default) =>
+        cli.RunAsync(["extension", "runtimes", .. json?.Words ?? [], .. json?.Trailing ?? []], cancellation: cancellation);
 }
 
 /// <summary>One extension of an extension list report.</summary>
@@ -179,7 +184,7 @@ public sealed class ExtensionListReport : JsonCommandReport
 
     public IReadOnlyList<ListedExtension> Extensions { get; }
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static ExtensionListReport Of(CommandResult result) => new(result);
 
     /// <summary>The entry with <paramref name="id"/>; a report with no such entry is a failure of the check.</summary>
@@ -280,7 +285,7 @@ public sealed class ExtensionRuntimesReport : JsonCommandReport
     /// <summary>True on Windows x64, where the host reports that it cannot run guests (#609).</summary>
     public bool IsWindowsX64 => Platform == "win-x64";
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static ExtensionRuntimesReport Of(CommandResult result) => new(result);
 
     private static ExtensionRuntime Runtime(JsonElement item)

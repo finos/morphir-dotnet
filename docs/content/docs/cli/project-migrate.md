@@ -8,7 +8,7 @@ description: "Preview and apply a loss-checked migration from classic morphir.js
 # project migrate
 
 ```sh
-morphir project migrate [path] [--output path] [--dry-run] [--json] [--discovery-boundary directory]
+morphir project migrate [path] [--output path] [--dry-run] [--json[=stream|document]] [--discovery-boundary directory]
 ```
 
 Migrate one classic project configuration to TOML. The command maps classic
@@ -29,7 +29,7 @@ manifest path.
 | --- | --- |
 | `--output path` | Choose a supported TOML primary layout at the same project location |
 | `--dry-run` | Return the complete plan without creating or changing files |
-| `--json` | Emit one structured JSON result on stdout |
+| `--json[=stream\|document]` | Write the structured result on stdout: a bare `--json` writes one `completed` record that holds it, `--json=document` the result alone. See [Machine output](_index.md#machine-output) |
 | `--discovery-boundary directory` | Bound discovery to this directory tree. Default: `MORPHIR_DISCOVERY_BOUNDARY`, else the filesystem root. The current directory and `path` must lie inside it; otherwise the command fails with exit code 2 and a `discovery.boundary` diagnostic before reading anything |
 
 Migration always excludes machine and personal configuration, so `MORPHIR_ISOLATED` does not apply. See [containment from the environment]({{< relref "config.md#containment-from-the-environment" >}}).
@@ -102,7 +102,7 @@ other supported source settings remain in the field ledger and conversion.
 morphir project migrate --dry-run
 
 # Preview one member in JSON for CI review.
-morphir project migrate packages/orders/morphir.json --dry-run --json > migration.json
+morphir project migrate packages/orders/morphir.json --dry-run --json=document > migration.json
 
 # Use a dot-config primary at the same project location.
 morphir project migrate packages/orders \
@@ -110,7 +110,7 @@ morphir project migrate packages/orders \
 
 # Apply the default adjacent target, then verify the repeat is unchanged.
 morphir project migrate packages/orders
-morphir project migrate packages/orders --json
+morphir project migrate packages/orders --json=document
 ```
 
 Relative output arguments resolve from the invocation directory. This command

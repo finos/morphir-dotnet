@@ -8,7 +8,7 @@ weight: 30
 
 A plugin is one typed step in a pipeline. It receives the model, can change it or report on it, and passes it on. This guide covers the plugin contract, how plugins fail, the plugins in `Morphir.IR.Pipeline.Plugins`, and how to test your own.
 
-The [pipeline README](https://github.com/finos/morphir-dotnet/blob/main/src/Morphir.IR.Pipeline/README.md) covers parsers, compilers, file content and publishing.
+The [pipeline README](https://github.com/finos/morphir-dotnet/blob/main/src/Morphir.IR.Pipeline/README.md) covers parsers and compilers, and the [Morphir.Files README](https://github.com/finos/morphir-dotnet/blob/main/src/Morphir.Files/README.md) covers file content and publishing.
 
 ## The plugin contract
 
@@ -28,6 +28,7 @@ type Plugin<'T> =
 The smallest plugin:
 
 ```fsharp
+open Morphir.Files
 open Morphir.IR.Pipeline
 
 let double = Plugin.create "double" (fun (value: int) file -> (Some (value * 2), file))

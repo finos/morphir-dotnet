@@ -6,7 +6,7 @@ using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 using Microsoft.FSharp.Collections;
 using Morphir.CodeGeneration.FSharp;
-using Morphir.IR.Pipeline;
+using Morphir.Files;
 using Morphir.Myriad.Hosting;
 
 namespace Morphir.Myriad.Build;

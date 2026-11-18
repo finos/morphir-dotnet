@@ -1,7 +1,7 @@
 module Morphir.CodeGeneration.FSharp.Tests.GenerationRequirementsTests
 
 open Expecto
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Testing
 open Morphir.CodeGeneration.FSharp
 open Morphir.CodeGeneration.FSharp.Tests.TranspilerAdapter
