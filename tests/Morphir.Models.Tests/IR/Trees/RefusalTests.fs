@@ -399,6 +399,36 @@ let tests =
                 Expect.stringContains error.Message "'since'" "It names the member"
             }
 
+            // The classic decoder passes over a member it does not know; the store refuses it, so no write drops it.
+            test "A nested member that the classic model has no place for, in a type file" {
+                let error =
+                    expectOne
+                        (Invalid.v3TypeFileWithANestedUnknownMember ())
+                        "unknown_member"
+                        (Some Invalid.v3InvoiceTypeFile)
+                        (Invalid.v3NestedUnknownTypeMember + ":")
+
+                Expect.stringContains error.Message "'metadata'" "It names the member"
+            }
+
+            test "A nested member that the classic model has no place for, in a value file" {
+                expectOne
+                    (Invalid.v3ValueFileWithANestedUnknownMember ())
+                    "unknown_member"
+                    (Some Invalid.v3DefaultCurrencyValueFile)
+                    (Invalid.v3NestedUnknownValueMember + ":")
+                |> ignore
+            }
+
+            test "A member that the classic model has no place for, in a spec" {
+                expectOne
+                    (Invalid.v3SpecWithANestedUnknownMember ())
+                    "unknown_member"
+                    (Some Invalid.v3DefaultCurrencyValueFile)
+                    "$.spec.metadata:"
+                |> ignore
+            }
+
             test "Missing definition file" {
                 let error = oneError (Invalid.v3ModuleListingAMissingType ())
 

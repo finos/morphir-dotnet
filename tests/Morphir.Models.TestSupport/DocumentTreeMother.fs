@@ -597,6 +597,51 @@ module Invalid =
         files
         |> Driver.withMember v3InvoiceTypeFile "def" (definition.ToJsonString())
 
+    /// <summary>The JSON location of the member that <see cref="v3TypeFileWithANestedUnknownMember"/> adds.</summary>
+    let v3NestedUnknownTypeMember = "$.def.value[2][2][0].metadata"
+
+    /// <summary>
+    /// <see cref="v3LibraryWithDependency"/> with a member <c>metadata</c> in the first field of the record that the
+    /// type <c>invoice</c> aliases, beside the field's <c>name</c> and <c>tpe</c>: deep in the classic payload, where
+    /// the classic model has no place for it.
+    /// </summary>
+    let v3TypeFileWithANestedUnknownMember () : VFileTree =
+        let files = written v3LibraryWithDependency
+        let definition = (nonNull (Driver.jsonAt v3InvoiceTypeFile files).["def"]).AsObject()
+        let field = (nonNull (nonNull (nonNull (nonNull definition["value"]).[2]).[2]).[0]).AsObject()
+        field["metadata"] <- Nodes.JsonValue.Create "do-not-drop"
+
+        files
+        |> Driver.withMember v3InvoiceTypeFile "def" (definition.ToJsonString())
+
+    /// <summary>The JSON location of the member that <see cref="v3ValueFileWithANestedUnknownMember"/> adds.</summary>
+    let v3NestedUnknownValueMember = "$.def.value.metadata"
+
+    /// <summary>
+    /// <see cref="v3LibraryWithDependency"/> with a member <c>metadata</c> in the value definition of
+    /// <c>default-currency</c>, beside its <c>inputTypes</c>, <c>outputType</c> and <c>body</c>, where the classic model
+    /// has no place for it. <c>FixtureCatalog.Trees.WrittenV3WithANestedUnknownMember</c> pins its files.
+    /// </summary>
+    let v3ValueFileWithANestedUnknownMember () : VFileTree =
+        let files = written v3LibraryWithDependency
+        let definition = (nonNull (Driver.jsonAt v3DefaultCurrencyValueFile files).["def"]).AsObject()
+        (nonNull definition["value"]).AsObject().["metadata"] <- Nodes.JsonValue.Create "do-not-drop"
+
+        files
+        |> Driver.withMember v3DefaultCurrencyValueFile "def" (definition.ToJsonString())
+
+    /// <summary>
+    /// <see cref="v3Specs"/> with a member <c>metadata</c> in the specification of the value <c>default-currency</c>,
+    /// beside its <c>inputs</c> and <c>output</c>: refused at <c>$.spec.metadata</c>.
+    /// </summary>
+    let v3SpecWithANestedUnknownMember () : VFileTree =
+        let files = written v3Specs
+        let spec = (nonNull (Driver.jsonAt v3DefaultCurrencyValueFile files).["spec"]).AsObject()
+        spec["metadata"] <- Nodes.JsonValue.Create "do-not-drop"
+
+        files
+        |> Driver.withMember v3DefaultCurrencyValueFile "spec" (spec.ToJsonString())
+
     /// <summary><see cref="v3Library"/> with no file for the type <c>invoice</c>, which its module file lists.</summary>
     let v3ModuleListingAMissingType () : VFileTree =
         v3Files ()

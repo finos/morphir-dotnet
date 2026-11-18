@@ -87,7 +87,12 @@ tree
 A tree is read in the sorted order of its paths, so the order in which a disk lists files does not change the model.
 Reading a tree drops the manifest's `layout` and `pathBudget`, which describe the tree, not the model. It also drops
 a v4 manifest's `version` and `created`, which a single file cannot carry, and reports a notice for each one. Content
-that a single file cannot carry is never dropped silently.
+that a single file cannot carry is never dropped silently. A classic v3 member that the classic model has no place
+for, at any depth of a v3 single file or of a v3 tree file's `def` or `spec`, is refused with `unknown_member` at
+that member's JSON location, in either layout, so a conversion never loses it. The one member that is not kept is
+one that finos/morphir's IR v4 rules tell a reader to ignore: a member beside the `value` of an expanded v4 literal,
+such as `future` in `{ "FloatLiteral": { "future": true, "value": 4.0 } }` (its kit cases `values-0046` and
+`values-0047`).
 
 Only IR v3 and IR v4 models are converted, since document trees exist only for those versions. A v1 or v2 file is
 refused with `model.unsupported_version`.
@@ -325,6 +330,7 @@ and in the `diagnostics` events.
 | `model.output_not_empty` | 1 | `--output` exists and is not an empty directory for a tree: an existing file, a directory with an entry, or any directory when a single file is written. |
 | `model.output_overlaps_input` | 1 | `--output` is the input, is inside it, or holds it. |
 | `model.unsupported_version` | 1 | The input is IR v1 or v2, which has no document tree. |
+| `unknown_member` | 1 | A classic v3 input, a single file or a tree file, has a member that the classic model has no place for, such as a member beside the `inputTypes`, `outputType` and `body` of a value definition. The message starts with the member's JSON location. |
 | `context.undeclared_schema` | 1 | A file has a top-level `$schema` that this version does not know as a compaction envelope. |
 | `context.unknown_alias`, `context.duplicate_entry`, `context.unknown_critical`, `context.too_many_entries`, `context.name_too_long`, `context.after_document`, `context.invalid_envelope`, `context.invalid_entry` | 1 | A compacted file breaks a rule of its envelope or its context; see [Context refusals](#context-refusals). |
 | `depth_limit_exceeded` | 1 | The model is nested too deeply. In the read stage: a single file deeper than 4,096 levels, as written or once its references are expanded, or a tree file deeper than 512. In the write stage: a file that the writer would nest deeper than about 1,000 levels, or a tree file deeper than 512, which a read of the tree would refuse; the diagnostic names the output file. |

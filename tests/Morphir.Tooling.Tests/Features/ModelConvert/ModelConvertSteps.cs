@@ -18,6 +18,7 @@ public sealed class ModelConvertSteps : IAsyncDisposable
 {
     private readonly ModelConvertCommandDriver _driver = new();
     private string? _fileInTheWay;
+    private (string? File, string Location)? _unknownMember;
     private string? _fileInTheWayBefore;
     private ModelLocation? _input;
     private ModelLocation? _output;
@@ -110,6 +111,29 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     /// <summary>The parent's type file whose envelope schema URL no version of morphir declares, as a single file.</summary>
     [Given("a single-file model in an envelope whose schema this version does not declare")]
     public void SingleFileInAnUndeclaredEnvelope() => PlaceFile(FixtureCatalog.Context.Example("undeclared-schema").File);
+
+    /// <summary>
+    /// The mother's v3 tree with a member <c>metadata</c> in the definition of the value <c>default-currency</c>, where
+    /// the classic model has no place for it, and where that member is.
+    /// </summary>
+    [Given("a v3 document tree with an unknown member in one value definition")]
+    public void V3TreeWithAnUnknownMember()
+    {
+        PlaceTree(Morphir.Models.TestSupport.DocumentTreeMother.Invalid.v3ValueFileWithANestedUnknownMember());
+        _unknownMember = (
+            Morphir.Models.TestSupport.DocumentTreeMother.Invalid.v3DefaultCurrencyValueFile,
+            Morphir.Models.TestSupport.DocumentTreeMother.Invalid.v3NestedUnknownValueMember);
+    }
+
+    /// <summary>The mother's v3 single file with the same member in the same value, and where that member is.</summary>
+    [Given("a v3 single-file model with an unknown member in one value definition")]
+    public void V3SingleFileWithAnUnknownMember()
+    {
+        var file = Workspace.File("models", "model.json");
+        Workspace.WriteBytes(file, Morphir.Models.TestSupport.DistributionMother.SingleFiles.v3LibraryWithANestedUnknownMember);
+        Place(file);
+        _unknownMember = (null, Morphir.Models.TestSupport.DistributionMother.SingleFiles.v3NestedUnknownMember);
+    }
 
     [Given("a single-file model that is not JSON")]
     public void SingleFileThatIsNotJson() => PlaceFile(FixtureCatalog.Models.Malformed);
@@ -415,6 +439,20 @@ public sealed class ModelConvertSteps : IAsyncDisposable
                 && diagnostic.Message.Contains(words, StringComparison.Ordinal));
 
     /// <summary>The written single file is a plain document: it has no top-level <c>$schema</c>.</summary>
+    /// <summary>
+    /// The diagnostic is at the file of the member (the input itself for a single file), and its message starts with
+    /// the member's JSON location and names it.
+    /// </summary>
+    [Then("the diagnostic {string} names the member that the classic model has no place for")]
+    public void TheDiagnosticNamesTheUnknownMember(string code)
+    {
+        var (file, location) = _unknownMember ?? throw new InvalidOperationException("The scenario has no model with an unknown member.");
+        var expected = file is null ? Input.Path : ModelConvertPathsInTest.Join(Input.Path, file);
+        var diagnostic = Report.Diagnostics.Should().ContainSingle(found => found.Code == code).Which;
+        diagnostic.Location.Should().Be(expected);
+        diagnostic.Message.Should().StartWith(location + ":").And.Contain("'metadata'");
+    }
+
     [Then("the single file is plain")]
     public void TheSingleFileIsPlain() => IsPlain(Output.Path);
 
@@ -532,6 +570,15 @@ public sealed class ModelConvertSteps : IAsyncDisposable
     }
 
     private void PlaceTree(FixtureTree tree) => _input = Workspace.WriteTree(tree, "models", "tree");
+
+    /// <summary>Writes the files of a mother's tree below <c>models/tree</c>.</summary>
+    private void PlaceTree(Morphir.Files.VFileTree files)
+    {
+        var tree = Workspace.MakeDirectory("models", "tree");
+        foreach (var file in Morphir.Models.TestSupport.DocumentTreeStoreDriver.texts(files))
+            Workspace.WriteText(tree.File(file.Key.Split('/')), file.Value);
+        _input = tree;
+    }
 
     private void Place(WorkspaceFile file) => _input = file;
 

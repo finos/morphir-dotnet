@@ -33,6 +33,13 @@ parent's v4 schema checks the types and values of a module in every spelling, su
 its errors for a fault inside a module name the module and each spelling it tried. The reader names the node itself:
 an error of the reader has the reader's `code`, such as `unknown_node`, and its JSON location in `Path`.
 
+An IR v3 file that states its version, `"formatVersion": 3` or `"3.1.0"`, is also read after the schema check, with
+the classic reader of [`morphir model convert`](model-convert.md). The v3 schemas leave the objects of a model open,
+so a member that the classic model has no place for passes them, and a conversion would lose it. The reader refuses
+it: an error with the code `unknown_member` at the member's JSON location, such as a member beside the `inputTypes`,
+`outputType` and `body` of a value definition. A v1 or v2 file, and a file that states no version, is checked
+against its schema only.
+
 Use it to:
 - **Catch structural errors** before other tools read a model
 - **Validate generated IR** from Morphir compilers and from [`morphir model convert`](model-convert.md)
@@ -210,7 +217,8 @@ The version comes from the manifest: a v4 tree says `"formatVersion": 4`, and ea
   `DistributionManifestFile` for `manifest.json`, `ModuleManifestFile` for `module.json`, `TypeDefinitionFile` for a
   type file and `ValueDefinitionFile` for a value file. Then every rule of a tree and every document, as
   `morphir model convert` reads the tree.
-- **IR v3:** every rule of a tree and every document. The parent publishes no schema of the v3 tree files.
+- **IR v3:** every rule of a tree and every document, so a member of a `def` or `spec` that the classic model has no
+  place for is `unknown_member` at that member. The parent publishes no schema of the v3 tree files.
 
 Each error names its file (`file`, from the root of the tree) and the JSON location in that file (`Path`). An error of
 a rule of the tree has the diagnostic code of the parent's tree specification, such as `missing_member` for a value

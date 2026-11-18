@@ -111,7 +111,8 @@ internal partial class VerifyModelJsonContext : JsonSerializerContext;
 /// <summary>
 /// Verifies a model: a directory is a document tree (<see cref="TreeVerification"/>), and any other path a single
 /// file, checked against the schema of its IR version. A v4 single file is also decoded with
-/// <c>V4Json.readDistribution</c>, as a tree's documents are, and the decoder's error is an error of the report. A
+/// <c>V4Json.readDistribution</c>, as a tree's documents are, and a v3 single file that states its version with
+/// <c>ClassicJson.readDistributionStrict</c>, as <c>model convert</c> reads it; the decoder's error is an error of the report. A
 /// compacted single file is expanded first (<see cref="CompactedFiles"/>), and its plain document is checked; a
 /// refused envelope or context is an error with its <c>context.</c> code.
 /// </summary>
@@ -149,15 +150,19 @@ public static class VerifyModelHandler
             var version = GivenVersion(command) ?? VersionDetector.DetectVersion(jsonContent);
 
             // 3. Validate against schema
+            var statedV3 = version == "3" ? VersionDetector.StatedV3Version(jsonContent) : null;
             var validationResult = await validator.ValidateAsync(
                 jsonContent,
                 version,
                 ct);
 
-            // 4. A v4 model is also decoded, which checks what the parent's v4 schema leaves open.
+            // 4. A v4 model, and a v3 model that states its version, is also decoded, which checks what the parent's
+            //    schemas leave open: a v3 member that the classic model has no place for is unknown_member.
             var errors = validationResult.Errors;
             if (version == "4")
                 errors = [.. errors, .. await Infrastructure.JsonSchema.SchemaValidator.DecodeV4Async(jsonContent, ct)];
+            else if (statedV3 is not null)
+                errors = [.. errors, .. await Infrastructure.JsonSchema.SchemaValidator.DecodeClassicAsync(jsonContent, ct)];
 
             // An error of an expanded document is located in the file as written: inside the envelope's document.
             if (expandedFile)

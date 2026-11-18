@@ -37,6 +37,13 @@ Feature: Model conversion
     And the diagnostic "missing_member" names the place of the fault
     And nothing is at the output
 
+  Scenario: A member that the classic model has no place for is refused, not dropped
+    Given the tree that the store writes from a v3 Library with a dependency, with "an unknown member in one value definition"
+    When I convert the model to a single file
+    Then the conversion fails with the exit code 1 and the diagnostic "unknown_member"
+    And the diagnostic "unknown_member" names the place of the fault
+    And nothing is at the output
+
   Scenario: A non-empty output is refused
     Given a valid IR v4 model
     And the output is a directory that holds a file

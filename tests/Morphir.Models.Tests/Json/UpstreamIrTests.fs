@@ -206,6 +206,36 @@ let tests =
                 Expect.contains documents name $"{name} is pinned"
         }
 
+        // The strict reader refuses only a member that no classic v3 shape has: every upstream classic v3 document,
+        // the 3.1.0 Specs included, reads as the classic reader reads it.
+        for name in documents do
+            test $"{name} is read by the strict classic reader as by the classic reader" {
+                let original = File.ReadAllBytes(Path.Combine(root, name))
+                use document = JsonDocument.Parse(System.ReadOnlyMemory original)
+
+                if not ((string (document.RootElement.GetProperty "formatVersion")).StartsWith "4") then
+                    // Attributes are JSON elements of each read's own document, so the reads compare as written bytes.
+                    let written (read: ClassicDocument) =
+                        let profile =
+                            match read.Distribution with
+                            | Morphir.IR.Classic.Distribution.Specs _ -> ClassicWireProfile.v3_1_0
+                            | Morphir.IR.Classic.Distribution.Library _ -> ClassicWireProfile.v3
+
+                        match ClassicJsonWriter.writeJsonAttributes profile false read.Distribution with
+                        | Ok bytes -> bytes
+                        | Error error -> failtest $"classic write: {error.Rule}: {error.Message}"
+
+                    match ClassicJson.readDistribution document.RootElement,
+                          ClassicJson.readDistributionStrict document.RootElement with
+                    | Ok read, Ok strict ->
+                        Expect.equal strict.Version read.Version "the same version"
+
+                        if read.Version = 3 then
+                            Expect.sequenceEqual (written strict) (written read) "the same model"
+                    | Ok _, Error error -> failtest $"strict read: {error.Rule} at {error.Location}: {error.Message}"
+                    | Error error, _ -> failtest $"classic read: {error.Rule}: {error.Message}"
+            }
+
         for name in documents do
             match Map.tryFind name excluded with
             | Some reason ->

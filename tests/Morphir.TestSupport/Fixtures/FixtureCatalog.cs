@@ -187,6 +187,8 @@ public static class FixtureCatalog
 
         private const string WrittenV4UnknownTypeTagDirectory = "MorphirTrees/written-v4-unknown-type-tag/";
 
+        private const string WrittenV3UnknownMemberDirectory = "MorphirTrees/written-v3-unknown-member/";
+
         /// <summary>The directory of the module <c>pricing/models</c> of <c>my-org/finance</c> in the written trees.</summary>
         private const string Pricing = "pkg/my-org/finance/pricing/models/";
 
@@ -223,11 +225,15 @@ public static class FixtureCatalog
             WrittenFile(WrittenV4UnknownTypeTagDirectory, "the written v4 tree with an unknown type tag", Pricing + "invoice.type.json",
                 "ca2b3a89a1a982fe7a59c6c491920ee365fde3ef5fdc555e451290e9fde43039");
 
+        private static readonly FixtureEntry WrittenV3UnknownMemberFile =
+            WrittenFile(WrittenV3UnknownMemberDirectory, "the written v3 tree with an unknown member", Pricing + "default-currency.value.json",
+                "c81f9241cefa03c9175359e652176c3ba74292b66612abf97ec1903a51f6cacf");
+
         /// <summary>
         /// The files of the trees that the document-tree store wrote from cases of the distribution mother.
         /// <c>WrittenTreeTests</c> in <c>tests/Morphir.Models.Tests</c> fails when the store writes other bytes.
         /// </summary>
-        public static IReadOnlyList<FixtureEntry> Written { get; } = [.. WrittenV4Files, .. WrittenV3Files, WrittenV4UnknownTypeTagFile];
+        public static IReadOnlyList<FixtureEntry> Written { get; } = [.. WrittenV4Files, .. WrittenV3Files, WrittenV4UnknownTypeTagFile, WrittenV3UnknownMemberFile];
 
         /// <summary>
         /// The tree of <c>DistributionMother.v4LibraryWithDependency</c> (<c>my-org/finance</c>, module
@@ -252,6 +258,17 @@ public static class FixtureCatalog
             WrittenV4LibraryWithDependency.WithFile(Pricing + "invoice.type.json", WrittenV4UnknownTypeTagFile,
                 "the written v4 tree with an unknown tag in one type node"),
             new FixtureFault(Pricing + "invoice.type.json", "/def/Public/TypeAliasDefinition/typeExp", []));
+
+        /// <summary>
+        /// <see cref="WrittenV3LibraryWithDependency"/> with a member <c>metadata</c> in the definition of the value
+        /// <c>default-currency</c>, beside its <c>inputTypes</c>, <c>outputType</c> and <c>body</c>, where the classic
+        /// model has no place for it: <c>DocumentTreeMother.Invalid.v3ValueFileWithANestedUnknownMember</c>. A reader
+        /// refuses it with <c>unknown_member</c> at the member, so no conversion drops it.
+        /// </summary>
+        public static FaultyFixtureTree WrittenV3WithANestedUnknownMember { get; } = new(
+            WrittenV3LibraryWithDependency.WithFile(Pricing + "default-currency.value.json", WrittenV3UnknownMemberFile,
+                "the written v3 tree with an unknown member in one value definition"),
+            new FixtureFault(Pricing + "default-currency.value.json", "/def/value/metadata", ["'metadata'"]));
 
         /// <summary>
         /// <see cref="WrittenV4LibraryWithDependency"/> with no file for the value <c>default-currency</c>, which the

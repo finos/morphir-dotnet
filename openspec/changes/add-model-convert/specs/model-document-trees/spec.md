@@ -70,6 +70,10 @@ Joining a tree SHALL drop the manifest's `layout` and `pathBudget` members, whic
 - **WHEN** a v4 tree whose manifest has `version` and `created` is joined
 - **THEN** the result holds a notice naming `version` and a notice naming `created`
 
+#### Scenario: A classic member with no place in the model is refused
+- **WHEN** a v3 tree file's `def` or `spec`, or a v3 single file, holds a member at any depth that the classic v3 model has no place for
+- **THEN** reading is refused with `unknown_member` at that member's JSON location in its file, and nothing is converted
+
 ### Requirement: The reserved meta member is ignored
 Reading a tree file SHALL ignore a top-level `$meta` member. Writing SHALL never emit one.
 

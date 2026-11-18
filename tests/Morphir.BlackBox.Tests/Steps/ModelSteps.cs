@@ -74,17 +74,18 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
         _ => throw new ArgumentOutOfRangeException(nameof(version), version, "The catalog has a written tree of the versions 3 and 4."),
     });
 
-    /// <summary>The written v4 tree with one fault, and where the fault is.</summary>
-    [Given("the tree that the store writes from a v4 Library with a dependency, with {string}")]
-    public void TheWrittenTreeWithAFault(string fault)
+    /// <summary>The written v3 or v4 tree with one fault, and where the fault is.</summary>
+    [Given("the tree that the store writes from a v{int} Library with a dependency, with {string}")]
+    public void TheWrittenTreeWithAFault(int version, string fault)
     {
-        var faulty = fault switch
+        var faulty = (version, fault) switch
         {
-            "an unknown tag in one type node" => FixtureCatalog.Trees.WrittenV4WithAnUnknownTypeTag,
-            "no file for one value" => FixtureCatalog.Trees.WrittenV4WithAMissingValueFile,
-            "a second manifest in the YAML profile" => FixtureCatalog.Trees.WrittenV4WithASecondManifestInTheYamlProfile,
+            (4, "an unknown tag in one type node") => FixtureCatalog.Trees.WrittenV4WithAnUnknownTypeTag,
+            (4, "no file for one value") => FixtureCatalog.Trees.WrittenV4WithAMissingValueFile,
+            (4, "a second manifest in the YAML profile") => FixtureCatalog.Trees.WrittenV4WithASecondManifestInTheYamlProfile,
+            (3, "an unknown member in one value definition") => FixtureCatalog.Trees.WrittenV3WithANestedUnknownMember,
             _ => throw new ArgumentOutOfRangeException(nameof(fault), fault,
-                "Use 'an unknown tag in one type node', 'no file for one value' or 'a second manifest in the YAML profile'."),
+                "Use v4 with 'an unknown tag in one type node', 'no file for one value' or 'a second manifest in the YAML profile', or v3 with 'an unknown member in one value definition'."),
         };
         TheCatalogTree(faulty.Tree);
         run.Fault = faulty.Fault;

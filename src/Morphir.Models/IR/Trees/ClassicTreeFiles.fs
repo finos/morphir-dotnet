@@ -89,11 +89,21 @@ module internal ClassicTreeFiles =
         | other ->
             fail "invalid_distribution_shape" location $"'{other}' is not a v3 distribution kind."
 
-    /// A payload decoded by the classic reader, whose failure is the payload's invalid_type.
-    let private payload (decode: string -> JsonElement -> 'a) location element =
+    /// A payload decoded by the classic reader, whose failure is the payload's invalid_type, then checked for a member
+    /// that the classic model has no place for (ClassicMembers), which is unknown_member at that member.
+    let private payload
+        (decode: string -> JsonElement -> 'a)
+        (members: string -> JsonElement -> unit)
+        location
+        element
+        =
         try
-            decode location element
+            let decoded = decode location element
+            members location element
+            decoded
         with
+        | ClassicJsonFailure error when error.Rule = "unknown_member" ->
+            fail "unknown_member" error.Location error.Message
         | ClassicJsonFailure error -> fail "invalid_type" error.Location error.Message
         | :? InvalidOperationException as problem -> fail "invalid_type" location problem.Message
         | :? FormatException as problem -> fail "invalid_type" location problem.Message
@@ -150,13 +160,13 @@ module internal ClassicTreeFiles =
             checkDefinition location element
 
             ClassicTypeDocument.DefinedType(
-                payload ClassicJsonDecoder.typeDefinitionEntry location element
+                payload ClassicJsonDecoder.typeDefinitionEntry ClassicMembers.typeDefinitionEntry location element
             )
         else
             checkSpecification location element
 
             ClassicTypeDocument.SpecifiedType(
-                payload ClassicJsonDecoder.typeSpecificationEntry location element
+                payload ClassicJsonDecoder.typeSpecificationEntry ClassicMembers.typeSpecificationEntry location element
             )
 
     let private valueDocument holdsDefinitions location element =
@@ -164,13 +174,13 @@ module internal ClassicTreeFiles =
             checkDefinition location element
 
             ClassicValueDocument.DefinedValue(
-                payload ClassicJsonDecoder.valueDefinitionEntry location element
+                payload ClassicJsonDecoder.valueDefinitionEntry ClassicMembers.valueDefinitionEntry location element
             )
         else
             checkSpecification location element
 
             ClassicValueDocument.SpecifiedValue(
-                payload ClassicJsonDecoder.valueSpecificationEntry location element
+                payload ClassicJsonDecoder.valueSpecificationEntry ClassicMembers.valueSpecificationEntry location element
             )
 
     /// <summary>

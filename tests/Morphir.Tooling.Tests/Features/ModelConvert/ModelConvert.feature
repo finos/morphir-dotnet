@@ -125,6 +125,20 @@ Feature: Model convert
     And the report states IR version "3"
     And every file at the output is plain
 
+  Scenario: A v3 tree with a member that the classic model has no place for is refused, not dropped
+    Given a v3 document tree with an unknown member in one value definition
+    When I convert the model to a single file
+    Then the conversion fails with exit code 1 and the diagnostic "unknown_member"
+    And the diagnostic "unknown_member" names the member that the classic model has no place for
+    And nothing is at the output
+
+  Scenario: A v3 single file with a member that the classic model has no place for is refused, not dropped
+    Given a v3 single-file model with an unknown member in one value definition
+    When I convert the model to a document tree
+    Then the conversion fails with exit code 1 and the diagnostic "unknown_member"
+    And the diagnostic "unknown_member" names the member that the classic model has no place for
+    And nothing is at the output
+
   Scenario: A tree with one compacted file other than the manifest is not nothing to do
     Given a v4 document tree with only its value file compacted
     When I convert the model without changing its layout

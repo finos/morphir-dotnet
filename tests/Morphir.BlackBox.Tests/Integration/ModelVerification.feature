@@ -213,6 +213,13 @@ Feature: Verify a Morphir model
     And the verification report says that the model is not valid
     And an error of the verification report has the code "missing_member" and names the place of the fault
 
+  Scenario: A member of a v3 tree that the classic model has no place for is an error
+    Given the tree that the store writes from a v3 Library with a dependency, with "an unknown member in one value definition"
+    When I verify the model as JSON
+    Then the exit code is 1
+    And the verification report says that the model is not valid
+    And an error of the verification report has the code "unknown_member" and names the place of the fault
+
   Scenario: A compacted tree is verified after expansion
     Given the v4 tree of the name-context examples, with "every file" compacted
     When I verify the model as JSON

@@ -95,6 +95,27 @@ public class SchemaValidator
         }];
     }
 
+    /// <summary>
+    /// Decodes a single-file classic v3 model with <c>ClassicJson.readDistributionStrict</c>, the reader that
+    /// <c>model convert</c> uses, and gives its error with the JSON location as a JSON Pointer and the reader's rule
+    /// as the code; or none. It names a member that the classic model has no place for (<c>unknown_member</c>),
+    /// which the v3 schemas leave open, so a model that a conversion would lose content of is not valid. It runs on
+    /// the stack of schema evaluation, as <see cref="DecodeV4Async"/> does.
+    /// </summary>
+    public static async Task<List<Features.ModelVerify.ValidationError>> DecodeClassicAsync(string jsonContent, CancellationToken ct)
+    {
+        using var jsonDocument = JsonDocument.Parse(jsonContent, ModelDocumentOptions);
+        var root = jsonDocument.RootElement;
+        var read = await OnLargeStack(() => Morphir.Json.Classic.ClassicJson.readDistributionStrict(root), "Morphir IR v3 decoding", ct);
+        if (read.IsOk) return [];
+
+        var error = read.ErrorValue;
+        return [new Features.ModelVerify.ValidationError(Features.ModelVerify.StoreLocation.Pointer(error.Location), error.Message)
+        {
+            Code = error.Rule,
+        }];
+    }
+
     /// <summary>Runs <paramref name="work"/> on a thread with the stack of <see cref="LargeStack.Size"/>.</summary>
     private static Task<T> OnLargeStack<T>(Func<T> work, string name, CancellationToken ct) => LargeStack.RunAsync(work, name, ct);
 

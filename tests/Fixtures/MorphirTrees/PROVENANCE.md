@@ -34,7 +34,7 @@ A YAML file or canonical spelling is translated to JSON. A JSON spelling is kept
 
 A v4 document tree written by hand for this repository, not kit data. Its own `acme-demo/PROVENANCE.md` describes it and has its hashes.
 
-## The written trees: `written-v4-library-with-dependency/`, `written-v3-library-with-dependency/` and `written-v4-unknown-type-tag/`
+## The written trees: `written-v4-library-with-dependency/`, `written-v3-library-with-dependency/`, `written-v4-unknown-type-tag/` and `written-v3-unknown-member/`
 
 Trees that the document-tree store of `src/Morphir.Models` wrote, with its default options (path budget 4000, no compaction), from cases of the mothers of `tests/Morphir.Models.TestSupport`. `model convert` writes a tree through the same store; a check of the trees that `model convert` itself writes is task 6.3 of `add-model-convert`. They are on disk for the tests that need a tree as files, such as the black-box scenarios of `model verify` in `tests/Morphir.BlackBox.Tests/Integration/ModelVerification.feature`, which cannot build a tree with the store. `FixtureCatalog.Trees` in `tests/Morphir.TestSupport` serves them as `FixtureTree`s.
 
@@ -43,6 +43,7 @@ Trees that the document-tree store of `src/Morphir.Models` wrote, with its defau
 | `written-v4-library-with-dependency/` | `DocumentTreeMother.v4LibraryWithDependency`, the split of `DistributionMother.v4LibraryWithDependency` |
 | `written-v3-library-with-dependency/` | `DocumentTreeMother.v3LibraryWithDependency`, the classic split of `DistributionMother.v3LibraryWithDependency` with numbered attribute slots |
 | `written-v4-unknown-type-tag/` | The one file of `DocumentTreeMother.Invalid.typeFileWithAnUnknownTypeTag` that differs from the written v4 tree: the type expression of `invoice` has the tag `Struct` |
+| `written-v3-unknown-member/` | The one file of `DocumentTreeMother.Invalid.v3ValueFileWithANestedUnknownMember` that differs from the written v3 tree: the definition of `default-currency` has a member `metadata`, which the classic model has no place for |
 
 `WrittenTreeTests` in `tests/Morphir.Models.Tests` fails when the store or a mother case writes other bytes. When that change is meant, write the files again from the mother cases, with `DocumentTreeStoreDriver.write` and `DocumentTreeStoreDriver.texts`, as UTF-8 with no byte order mark, and update the hashes here and in `FixtureCatalog`. The tree with no file for one value, `DocumentTreeMother.Invalid.moduleListingAMissingValue`, is the written v4 tree without `pkg/my-org/finance/pricing/models/default-currency.value.json`, so it has no files of its own.
 
@@ -67,3 +68,4 @@ Trees that the document-tree store of `src/Morphir.Models` wrote, with its defau
 | `written-v3-library-with-dependency/pkg/my-org/finance/pricing/models/same-invoice.value.json` | `b269aaa997d9b9ac1e314a69025e4f8450b0ba09173aa735c46f2bc1789cba7b` |
 | `written-v3-library-with-dependency/pkg/my-org/finance/pricing/models/status.type.json` | `ff987a5f45e2bd1973cea494d0e091ff7c2fed788f24ded79b5b6179cf1b767f` |
 | `written-v4-unknown-type-tag/pkg/my-org/finance/pricing/models/invoice.type.json` | `ca2b3a89a1a982fe7a59c6c491920ee365fde3ef5fdc555e451290e9fde43039` |
+| `written-v3-unknown-member/pkg/my-org/finance/pricing/models/default-currency.value.json` | `c81f9241cefa03c9175359e652176c3ba74292b66612abf97ec1903a51f6cacf` |

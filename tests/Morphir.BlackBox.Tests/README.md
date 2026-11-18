@@ -555,7 +555,7 @@ two steps have the same pattern.
 | Model | `Given a model file that is not JSON` |
 | Model | `Given an IR v4 model with an unknown tag in one type node` |
 | Model | `Given the tree that the store writes from a v{int} Library with a dependency` |
-| Model | `Given the tree that the store writes from a v4 Library with a dependency, with {string}` |
+| Model | `Given the tree that the store writes from a v{int} Library with a dependency, with {string}` |
 | Model | `Given a valid IR v{int} model in the file {string}` |
 | Model | `Given a valid IR v4 model with two modules` |
 | Model | `Given a v4 tree whose manifest has a version and a created date` |

@@ -150,7 +150,8 @@ type StoredModel internal (form: ModelForm) =
 
     /// <summary>
     /// Reads a single-file model: a <c>formatVersion</c> of 4 or <c>4.x</c> as IR 4 (<c>V4Json</c>), any other as a
-    /// classic model (<c>ClassicJson</c>), which must be IR 3. A codec error keeps its rule as the code, with its JSON
+    /// classic model (<c>ClassicJson.readDistributionStrict</c>), which must be IR 3 and is refused with <c>unknown_member</c>
+    /// when it holds a member that the classic model has no place for. A codec error keeps its rule as the code, with its JSON
     /// location at the start of the message.
     /// </summary>
     static member TryReadSingleFile
@@ -165,7 +166,7 @@ type StoredModel internal (form: ModelForm) =
                 | Ok document -> Ok(StoredModel(V4File document.Distribution))
                 | Error error -> Error(one error.Rule $"{error.Location}: {error.Message}")
             else
-                match ClassicJson.readDistribution root with
+                match ClassicJson.readDistributionStrict root with
                 | Ok document when document.Version = 3 -> Ok(StoredModel(ClassicFile document.Distribution))
                 | Ok document ->
                     Error(

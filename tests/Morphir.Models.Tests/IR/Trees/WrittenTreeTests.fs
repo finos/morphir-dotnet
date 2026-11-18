@@ -58,6 +58,12 @@ let tests =
                 Expect.equal (Option.ofObj faulty.Fault.File) (Some Invalid.financeInvoiceTypeFile) "The fault is in the type file"
             }
 
+            test "The written v3 tree with an unknown member is its invalid mother case" {
+                let faulty = FixtureCatalog.Trees.WrittenV3WithANestedUnknownMember
+                expectSameFiles (Invalid.v3ValueFileWithANestedUnknownMember ()) faulty.Tree
+                Expect.equal (Option.ofObj faulty.Fault.File) (Some Invalid.v3DefaultCurrencyValueFile) "The fault is in the value file"
+            }
+
             test "The written v4 tree with no file for one value is its invalid mother case" {
                 let faulty = FixtureCatalog.Trees.WrittenV4WithAMissingValueFile
                 expectSameFiles (Invalid.moduleListingAMissingValue ()) faulty.Tree

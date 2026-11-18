@@ -108,6 +108,21 @@ let tests =
                     entry.Intent
         }
 
+        test "A classic single file with a member that the classic model has no place for is refused, not dropped" {
+            use document = JsonDocument.Parse(ReadOnlyMemory DistributionMother.SingleFiles.v3LibraryWithANestedUnknownMember)
+            let mutable model = Unchecked.defaultof<StoredModel>
+            let mutable problems = Unchecked.defaultof<_>
+
+            Expect.isFalse (StoredModel.TryReadSingleFile(document.RootElement, &model, &problems)) "the file is refused"
+            let problem = Expect.wantSome (Seq.tryExactlyOne problems) "one problem"
+            Expect.equal problem.Code "unknown_member" "the code"
+
+            Expect.stringStarts
+                problem.Message
+                (DistributionMother.SingleFiles.v3NestedUnknownMember + ":")
+                "the message starts with the member's JSON location"
+        }
+
         test "A codec error keeps the codec's rule" {
             match read (FixtureCatalog.ReadBytes FixtureCatalog.Models.NoFormatVersion) with
             | Ok _ -> failtest "Expected a model with no format version to be refused"

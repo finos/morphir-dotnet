@@ -272,6 +272,9 @@ public class TreeVerificationTests
         ["v3ManifestOfAnotherRelease"] = DocumentTreeMother.Invalid.v3ManifestOfAnotherRelease,
         ["v3ModuleListingAMissingType"] = DocumentTreeMother.Invalid.v3ModuleListingAMissingType,
         ["v3PayloadThatIsNotClassicJson"] = DocumentTreeMother.Invalid.v3PayloadThatIsNotClassicJson,
+        ["v3TypeFileWithANestedUnknownMember"] = DocumentTreeMother.Invalid.v3TypeFileWithANestedUnknownMember,
+        ["v3ValueFileWithANestedUnknownMember"] = DocumentTreeMother.Invalid.v3ValueFileWithANestedUnknownMember,
+        ["v3SpecWithANestedUnknownMember"] = DocumentTreeMother.Invalid.v3SpecWithANestedUnknownMember,
     };
 
     /// <summary>The names of <see cref="InvalidTreeCases"/>, so a test is named by its case.</summary>
@@ -309,6 +312,25 @@ public class TreeVerificationTests
             File = DocumentTreeMother.Invalid.financeInvoiceTypeFile,
             Path = "/def/Public/TypeAliasDefinition/typeExp",
             Code = "unknown_node",
+        });
+    }
+
+    /// <summary>
+    /// A member deep in a classic payload that the classic model has no place for is an error at its JSON Pointer, so
+    /// a tree that a conversion would lose content of is not valid.
+    /// </summary>
+    [Test]
+    public async Task AV3MemberThatTheClassicModelHasNoPlaceForIsUnknownMemberAtItsPointer()
+    {
+        var result = await Verify(DocumentTreeMother.Invalid.v3ValueFileWithANestedUnknownMember());
+
+        result.IsValid.Should().BeFalse();
+        result.ExitCode.Should().Be(1);
+        result.Errors.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            File = DocumentTreeMother.Invalid.v3DefaultCurrencyValueFile,
+            Path = "/def/value/metadata",
+            Code = "unknown_member",
         });
     }
 

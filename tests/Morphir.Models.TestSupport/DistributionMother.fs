@@ -421,3 +421,30 @@ let windowsReservedStems: Distribution =
          |> List.map (fun device -> withType device (alias Sdk.string))
          |> List.reduce (>>))
     |> buildV4
+
+/// <summary>Single files written from cases of this mother with one change, for the tests that read a file.</summary>
+module SingleFiles =
+    open System.Text
+    open System.Text.Json.Nodes
+    open Morphir.Json.Classic
+
+    /// <summary>The JSON location of the member that <see cref="v3LibraryWithANestedUnknownMember"/> adds.</summary>
+    let v3NestedUnknownMember =
+        "$.distribution[3].modules[0][1].value.values[0][1].value.metadata"
+
+    /// <summary>
+    /// <see cref="v3Library"/> as a v3 single file, with a member <c>metadata</c> in the definition of its value
+    /// <c>default-currency</c>, beside its <c>inputTypes</c>, <c>outputType</c> and <c>body</c>, where the classic
+    /// model has no place for it.
+    /// </summary>
+    let v3LibraryWithANestedUnknownMember: byte array =
+        match ClassicJsonWriter.writeTyped ClassicWireProfile.v3 true v3Library with
+        | Ok bytes ->
+            let root = nonNull (JsonNode.Parse(Encoding.UTF8.GetString bytes))
+            let modules = nonNull (nonNull (nonNull root["distribution"]).[3]).["modules"]
+            let moduleDefinition = nonNull (nonNull (nonNull (nonNull modules[0]).[1]).["value"])
+            let values = nonNull moduleDefinition["values"]
+            let definition = nonNull (nonNull (nonNull (nonNull values[0]).[1]).["value"])
+            definition.AsObject().["metadata"] <- JsonValue.Create "do-not-drop"
+            Encoding.UTF8.GetBytes(root.ToJsonString())
+        | Error error -> failwith $"v3Library is written as a single file: {error.Message}"
