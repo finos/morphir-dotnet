@@ -150,6 +150,31 @@ let contentReadingTests =
         }
         |> testLabel "PlatformSpecific"
 
+        test "the C# open of a file opens its content, an empty stream for absent content, or gives the read failure" {
+            let bytesOf (stream: Stream) =
+                use stream = stream
+                use buffer = new MemoryStream()
+                stream.CopyTo buffer
+                buffer.ToArray()
+
+            let opened, stream, error = (VFile.create "a.txt" "hello").TryOpenRead()
+            Expect.isTrue opened "text content opens"
+            Expect.equal (bytesOf stream) (Encoding.UTF8.GetBytes "hello") "the stream of openRead"
+            Expect.isNull (box error) "an open gives no error"
+
+            let opened, stream, _ = (VFile.fromPath "a.txt").TryOpenRead()
+            Expect.isTrue opened "absent content opens"
+            Expect.isEmpty (bytesOf stream) "as an empty stream"
+
+            let failure = IOException "gone"
+            let opened, stream, error = (VFile.create "a.txt" (failingSource failure)).TryOpenRead()
+            Expect.isFalse opened "a source that fails does not open"
+            Expect.isNull (box stream) "a refused open gives no stream"
+
+            match error with
+            | ContentError.ReadFailed (_, cause) -> Expect.isTrue (obj.ReferenceEquals(cause, failure)) "the error of openRead"
+        }
+
         test "openRead should encode text as UTF-8 without a byte order mark" {
             match VFileContent.openRead (VFileContent.Text "é") with
             | Ok stream ->

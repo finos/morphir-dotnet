@@ -1,6 +1,18 @@
 // Compiled for netstandard2.0 only (see Morphir.Files.fsproj). The members have the names and shapes of the
 // members of newer frameworks, so no call site changes: a call site that needs an extension member opens
 // Morphir.Compat under #if NETSTANDARD2_0.
+namespace System.Diagnostics.CodeAnalysis
+
+open System
+
+/// netstandard2.0 has no MaybeNullWhenAttribute. The C# compiler reads the attribute by its name, as it reads the
+/// framework's, for the out parameters of the Try members.
+[<AttributeUsage(AttributeTargets.Parameter, Inherited = false)>]
+[<Sealed>]
+type internal MaybeNullWhenAttribute(returnValue: bool) =
+    inherit Attribute()
+    member _.ReturnValue = returnValue
+
 namespace System
 
 open System.Collections.Generic

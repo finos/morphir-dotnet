@@ -1285,6 +1285,16 @@ module ClassicJson =
         )
 
     /// <summary>
+    /// For C# callers that check a document and need no model: the error of <see cref="readDistributionStrict"/>, or
+    /// null when the document reads. C# calls this <c>ReadDistributionStrictError</c>.
+    /// </summary>
+    [<CompiledName("ReadDistributionStrictError")>]
+    let readDistributionStrictError (root: JsonElement) : ClassicJsonError | null =
+        match readDistributionStrict root with
+        | Result.Ok _ -> null
+        | Result.Error error -> error
+
+    /// <summary>
     /// Reads a classic document into the typed form that <c>ClassicJsonWriter.writeTyped</c> writes: type
     /// attributes become unit, and each value attribute is read as the value's type. With the classic writers,
     /// a model read at one classic version can be written at another without a change of family.

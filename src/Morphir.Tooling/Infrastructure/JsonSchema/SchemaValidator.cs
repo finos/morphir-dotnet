@@ -85,10 +85,9 @@ public class SchemaValidator
     {
         using var jsonDocument = JsonDocument.Parse(jsonContent, ModelDocumentOptions);
         var root = jsonDocument.RootElement;
-        var read = await OnLargeStack(() => Morphir.Json.V4.V4Json.readDistribution(root), "Morphir IR v4 decoding", ct);
-        if (read.IsOk) return [];
+        var error = await OnLargeStack(() => Morphir.Json.V4.V4Json.ReadDistributionError(root), "Morphir IR v4 decoding", ct);
+        if (error is null) return [];
 
-        var error = read.ErrorValue;
         return [new Features.ModelVerify.ValidationError(Features.ModelVerify.StoreLocation.Pointer(error.Location), error.Message)
         {
             Code = error.Rule,
@@ -106,10 +105,9 @@ public class SchemaValidator
     {
         using var jsonDocument = JsonDocument.Parse(jsonContent, ModelDocumentOptions);
         var root = jsonDocument.RootElement;
-        var read = await OnLargeStack(() => Morphir.Json.Classic.ClassicJson.readDistributionStrict(root), "Morphir IR v3 decoding", ct);
-        if (read.IsOk) return [];
+        var error = await OnLargeStack(() => Morphir.Json.Classic.ClassicJson.ReadDistributionStrictError(root), "Morphir IR v3 decoding", ct);
+        if (error is null) return [];
 
-        var error = read.ErrorValue;
         return [new Features.ModelVerify.ValidationError(Features.ModelVerify.StoreLocation.Pointer(error.Location), error.Message)
         {
             Code = error.Rule,

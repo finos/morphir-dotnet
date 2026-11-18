@@ -210,10 +210,9 @@ public sealed class DiskModelConversionStore : IModelConversionStore
     {
         var encoding = MorphirFile.IsDeclared(schema) ? ModelConvertNames.Compacted : null;
         // A compacted file is read as deep as a plain one, as written and once expanded.
-        var expanded = MorphirFile.ReadPlainDocument(ContextLimitsModule.draft1.WithMaxDepth(MaxDepth), source.Given, bytes);
-        return expanded.IsOk
-            ? ReadPlainSingleFile(source, expanded.ResultValue, encoding)
-            : ModelRead.Refused(encoding, [.. expanded.ErrorValue.Select(error => ConvertDiagnostic.Failure(error.Code, error.Message, source.Given))]);
+        return MorphirFile.TryReadPlainDocument(ContextLimitsModule.draft1.WithMaxDepth(MaxDepth), source.Given, bytes, out var document, out var errors)
+            ? ReadPlainSingleFile(source, document, encoding)
+            : ModelRead.Refused(encoding, [.. errors.Select(error => ConvertDiagnostic.Failure(error.Code, error.Message, source.Given))]);
     }
 
     /// <summary>The code of a file nested more deeply than a reader reads or a writer writes.</summary>
@@ -266,10 +265,9 @@ public sealed class DiskModelConversionStore : IModelConversionStore
     /// </summary>
     private static ModelRead ReadTree(ModelSource source)
     {
-        var loaded = VFileTreeModule.loadFromDisk(source.FullPath);
-        if (loaded.IsError)
-            return ModelRead.Refused(null, ConvertDiagnostic.Failure(ModelConvertCodes.ReadFailed, "The directory cannot be read: " + TreeLoadErrorModule.describe(loaded.ErrorValue) + ".", source.Given));
-        var read = DocumentTreeStore.Read(ReadOptionsModule.defaults, loaded.ResultValue);
+        if (!VFileTree.TryLoadFromDisk(source.FullPath, out var loaded, out var failure))
+            return ModelRead.Refused(null, ConvertDiagnostic.Failure(ModelConvertCodes.ReadFailed, "The directory cannot be read: " + TreeLoadErrorModule.describe(failure) + ".", source.Given));
+        var read = DocumentTreeStore.Read(ReadOptionsModule.defaults, loaded);
         if (StoredModel.TryOfTreeRead(read, out var model, out var notices, out var compactedFiles, out var problems))
             return new ModelRead(model, compactedFiles.Count > 0 ? ModelConvertNames.Compacted : ModelConvertNames.Plain, [],
                 [.. notices.Select(notice => ConvertDiagnostic.Of(notice, source.Given))]);

@@ -1061,3 +1061,32 @@ type VFileTree with
 
         VFileTree.fromFileMap (Map.ofList [ for KeyValue(path, file) in ordered -> path, file ])
         |> VFileTree.set VFileTree.declaredOrder [ for KeyValue(path, _) in ordered -> path ]
+
+    /// <summary>
+    /// For C# callers: each file of the tree with its location, as <see cref="VFileTree.toFileMap"/> gives them: in the
+    /// ordinal order of the locations, with a later file at a location in place of an earlier one, and with no file
+    /// that has no path.
+    /// </summary>
+    member tree.FilesByLocation: System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, VFile>> =
+        [| for KeyValue(location, file) in VFileTree.toFileMap tree -> System.Collections.Generic.KeyValuePair(location, file) |]
+        :> System.Collections.Generic.IReadOnlyList<_>
+
+    /// <summary>
+    /// For C# callers: <see cref="VFileTree.loadFromDisk"/>, as true with the tree in <paramref name="tree"/>, or as
+    /// false with the reason in <paramref name="error"/>.
+    /// </summary>
+    static member TryLoadFromDisk
+        (
+            rootDir: string,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] tree: byref<VFileTree>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] error: byref<TreeLoadError>
+        ) : bool =
+        match VFileTree.loadFromDisk rootDir with
+        | Result.Ok loaded ->
+            tree <- loaded
+            error <- Unchecked.defaultof<_>
+            true
+        | Result.Error failure ->
+            tree <- Unchecked.defaultof<_>
+            error <- failure
+            false

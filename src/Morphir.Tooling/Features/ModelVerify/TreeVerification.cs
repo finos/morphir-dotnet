@@ -37,15 +37,14 @@ public static class TreeVerification
     public static Task<VerifyModelResult> VerifyDirectoryAsync(
         string directory, int? schemaVersion, SchemaValidator validator, CancellationToken ct)
     {
-        var loaded = VFileTreeModule.loadFromDisk(directory);
-        if (loaded.IsError)
+        if (!VFileTree.TryLoadFromDisk(directory, out var loaded, out var failure))
         {
             return Task.FromResult(Result(directory, schemaVersion?.ToString(CultureInfo.InvariantCulture) ?? "unknown",
                 schemaVersion.HasValue ? "manual" : "manifest", 0,
-                [new ValidationError("$", TreeLoadErrorModule.describe(loaded.ErrorValue)) { Code = UnreadableDirectory }]));
+                [new ValidationError("$", TreeLoadErrorModule.describe(failure)) { Code = UnreadableDirectory }]));
         }
 
-        return VerifyAsync(loaded.ResultValue, directory, schemaVersion, validator, ct);
+        return VerifyAsync(loaded, directory, schemaVersion, validator, ct);
     }
 
     /// <summary>
@@ -103,10 +102,8 @@ public static class TreeVerification
         }
 
         // An error in an expanded file is located in the file as written: inside the envelope's document.
-        var read = DocumentTreeStore.Read(limits, tree);
-        if (read.IsError)
-            errors.AddRange(read.ErrorValue.Select(ErrorOf).Select(error =>
-                error.File is { } file && expandedFiles.Contains(file) ? CompactedFiles.InDocument(error) : error));
+        errors.AddRange(DocumentTreeStore.ReadErrors(limits, tree).Select(ErrorOf).Select(error =>
+            error.File is { } file && expandedFiles.Contains(file) ? CompactedFiles.InDocument(error) : error));
 
         return Result(filePath, version ?? "unknown", detection, files.Count, errors) with { CompactedFiles = compactedFiles };
     }
@@ -116,7 +113,7 @@ public static class TreeVerification
     /// order. A YAML file counts, though the store refuses it, as it is a file of the tree that was checked.
     /// </summary>
     private static List<(string Location, VFile File)> TreeFiles(VFileTree tree) =>
-        [.. VFileTreeModule.toFileMap(tree)
+        [.. tree.FilesByLocation
             .Where(entry => entry.Key.EndsWith(".json", StringComparison.Ordinal)
                 || entry.Key.EndsWith(".yaml", StringComparison.Ordinal)
                 || entry.Key.EndsWith(".yml", StringComparison.Ordinal))
@@ -192,12 +189,10 @@ public static class TreeVerification
     /// </summary>
     private static string? Text(VFile file, long limit)
     {
-        if (OptionModule.ToObj(file.Content) is not { } content) return "";
-        var opened = VFileContentModule.openRead(content);
-        if (opened.IsError) return null;
+        if (!file.TryOpenRead(out var opened, out _)) return null;
+        using var stream = opened;
         try
         {
-            using var stream = opened.ResultValue;
             using var buffer = new MemoryStream();
             var chunk = new byte[81920];
             int count;

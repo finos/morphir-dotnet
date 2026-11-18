@@ -142,3 +142,15 @@ module DocumentTreeStore =
                     |> Result.bind (fun (manifest, _) -> V4TreeReader.readV4 compacted options manifest others)
             )
         )
+
+    /// <summary>
+    /// For C# callers that check a tree and need no model: each error of <see cref="read"/>, in the order the read
+    /// found them, or none when the tree reads. C# calls this <c>ReadErrors</c>.
+    /// </summary>
+    [<CompiledName("ReadErrors")>]
+    let readErrors
+        (options: ReadOptions, files: Morphir.Files.VFileTree)
+        : System.Collections.Generic.IReadOnlyList<StoreError> =
+        match read options files with
+        | Ok _ -> Array.empty<StoreError> :> System.Collections.Generic.IReadOnlyList<StoreError>
+        | Error errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>

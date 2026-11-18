@@ -361,6 +361,22 @@ let vfileTreeTransformationTests =
 [<Tests>]
 let vfileTreeConversionTests =
     testList "VFileTree Conversions" [
+        test "the C# files by location are the entries of toFileMap, in its order" {
+            let tree =
+                VFileTree.empty
+                |> VFileTree.addFile (VFile.create "b.fs" "b")
+                |> VFileTree.addFile (VFile.create "src/a.fs" "first")
+                |> VFileTree.addFile (VFile.create "src/a.fs" "second")
+                |> VFileTree.addFile { VFile.empty with Content = Some(VFileContent.Text "no path") }
+
+            Expect.equal
+                [ for KeyValue(location, file) in tree.FilesByLocation -> location, textOf file ]
+                [ for KeyValue(location, file) in VFileTree.toFileMap tree -> location, textOf file ]
+                "each located file, a later one at a location in place of an earlier one"
+
+            Expect.equal [ for entry in tree.FilesByLocation -> entry.Key ] [ "b.fs"; "src/a.fs" ] "in the ordinal order of the locations"
+        }
+
         test "toFileMap keys should be forward-slash paths relative to the tree root" {
             let subSubTree =
                 VFileTree.create "deep" TreeConfig.empty
@@ -1165,6 +1181,22 @@ let vfileTreeLoadFromDiskTests =
                     (VFileTree.loadFromDisk filePath)
                     (Result.Error (TreeLoadError.DirectoryNotFound filePath))
                     "a file is not a directory")
+        }
+
+        test "the C# load gives the tree of loadFromDisk, or its error" {
+            withTempDir (fun temp ->
+                writeFile temp "sub/nested.fs" "nested"
+
+                let read, tree, error = VFileTree.TryLoadFromDisk temp
+                Expect.isTrue read "the directory loads"
+                Expect.equal (stringMap tree) (stringMap (VFileTree.loadFromDisk temp |> loaded)) "the tree of loadFromDisk"
+                Expect.isNull (box error) "a load gives no error"
+
+                let missing = Path.Combine(temp, "missing")
+                let read, tree, error = VFileTree.TryLoadFromDisk missing
+                Expect.isFalse read "a missing directory does not load"
+                Expect.isNull (box tree) "a refused load gives no tree"
+                Expect.equal error (TreeLoadError.DirectoryNotFound missing) "the error of loadFromDisk")
         }
 
         test "describe should name the missing directory" {

@@ -2,7 +2,9 @@ namespace Morphir.Files
 
 open System
 open System.ComponentModel
+open System.Diagnostics.CodeAnalysis
 open System.IO
+open System.Runtime.InteropServices
 open System.Text
 
 /// <summary>
@@ -203,6 +205,31 @@ type VFile =
         /// <summary>Typed data for plugin communication</summary>
         Data: PropertyBag
     }
+
+    /// <summary>
+    /// For C# callers: opens a new stream over the content, as true with the stream in <paramref name="stream"/>, or
+    /// as false with the reason in <paramref name="error"/> (<see cref="VFileContent.openRead"/>). A file with no
+    /// content opens an empty stream. The caller owns and disposes the stream.
+    /// </summary>
+    member this.TryOpenRead
+        (
+            [<Out; MaybeNullWhen(false)>] stream: byref<Stream>,
+            [<Out; MaybeNullWhen(true)>] error: byref<ContentError>
+        ) : bool =
+        let opened =
+            match this.Content with
+            | None -> Result.Ok(new MemoryStream(Array.empty<byte>, false) :> Stream)
+            | Some content -> VFileContent.openRead content
+
+        match opened with
+        | Result.Ok value ->
+            stream <- value
+            error <- Unchecked.defaultof<_>
+            true
+        | Result.Error failure ->
+            stream <- Unchecked.defaultof<_>
+            error <- failure
+            false
 
 /// <summary>
 /// Resolves the content types accepted by <c>VFile.create</c> at compile time. Implementation

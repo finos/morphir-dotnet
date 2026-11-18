@@ -90,6 +90,42 @@ let tests =
                 }
         ]
 
+        test "The C# read of a file's bytes gives the plain document or each refusal" {
+            let valid = Mother.example "v4-type"
+            let mutable document = Unchecked.defaultof<JsonElement>
+            let mutable errors = null
+
+            let read =
+                MorphirFile.tryReadPlainDocument (
+                    ContextLimits.draft1,
+                    fileName valid,
+                    ReadOnlyMemory(Mother.bytesOf valid.Id),
+                    &document,
+                    &errors
+                )
+
+            Expect.isTrue read "a valid example reads"
+            Expect.equal (json document) (json (expanded valid.Id)) "the plain document of readPlainDocument"
+            Expect.isNull errors "a read gives no errors"
+
+            let refused = Mother.example "unknown-alias"
+
+            let read =
+                MorphirFile.tryReadPlainDocument (
+                    ContextLimits.draft1,
+                    fileName refused,
+                    ReadOnlyMemory(Mother.bytesOf refused.Id),
+                    &document,
+                    &errors
+                )
+
+            Expect.isFalse read "an invalid example is refused"
+            Expect.equal
+                (List.ofSeq (nonNull errors))
+                (refusal (MorphirFile.readPlainDocument ContextLimits.draft1 (fileName refused) (ReadOnlyMemory(Mother.bytesOf refused.Id))))
+                "each refusal of readPlainDocument, in order"
+        }
+
         test "Only a declared schema URL is declared" {
             Expect.isTrue (MorphirFile.isDeclared MorphirFile.Draft1Schema) "the draft.1 envelope"
             Expect.isFalse (MorphirFile.isDeclared (MorphirFile.Draft1Schema.ToUpperInvariant())) "URLs compare ordinally"

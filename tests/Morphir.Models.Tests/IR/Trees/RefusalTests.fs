@@ -38,6 +38,18 @@ let private written tree =
 let tests =
     testList "Store" [
         testList "Refusals" [
+            test "The C# check of a tree gives the errors of its read, and none for a tree that reads" {
+                for files in [ Invalid.typeInTwoPlaces (); Invalid.noManifest (); Invalid.bothManifestProfiles () ] do
+                    Expect.equal
+                        (List.ofSeq (DocumentTreeStore.readErrors (ReadOptions.defaults, files)))
+                        (readRefused files)
+                        "each error of the read, in order"
+
+                Expect.isEmpty
+                    (DocumentTreeStore.readErrors (ReadOptions.defaults, written DocumentTreeMother.acmeDemo))
+                    "a tree that the store wrote reads"
+            }
+
             test "Ambiguous profile" {
                 let error = oneError (Invalid.bothManifestProfiles ())
 

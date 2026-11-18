@@ -62,7 +62,8 @@ internal static class CompactedFiles
     /// </summary>
     public static Expansion Expand(string file, string json)
     {
-        var expanded = MorphirFile.ReadPlainDocument(ContextLimitsModule.draft1, file, Encoding.UTF8.GetBytes(json));
-        return expanded.IsOk ? new(expanded.ResultValue.GetRawText(), []) : new(null, [.. expanded.ErrorValue]);
+        return MorphirFile.TryReadPlainDocument(ContextLimitsModule.draft1, file, Encoding.UTF8.GetBytes(json), out var document, out var errors)
+            ? new(document.GetRawText(), [])
+            : new(null, errors);
     }
 }

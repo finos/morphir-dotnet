@@ -5,6 +5,9 @@ open Morphir.Compat
 #endif
 
 open System
+open System.Collections.Generic
+open System.Diagnostics.CodeAnalysis
+open System.Runtime.InteropServices
 open System.Text.Json
 open Morphir.IR.Trees
 
@@ -269,3 +272,27 @@ module MorphirFile =
         : Result<JsonElement, StoreError list> =
         readEnvelope limits file bytes
         |> Result.bind (fun morphirFile -> expand limits (familyOf morphirFile.Document) file morphirFile)
+
+    /// <summary>
+    /// For C# callers: <see cref="readPlainDocument"/>, as true with the plain document in <paramref name="document"/>,
+    /// or as false with each refusal in <paramref name="errors"/>, in the order the reader found them. C# calls this
+    /// <c>TryReadPlainDocument</c>.
+    /// </summary>
+    [<CompiledName("TryReadPlainDocument")>]
+    let tryReadPlainDocument
+        (
+            limits: ContextLimits,
+            file: string,
+            bytes: ReadOnlyMemory<byte>,
+            [<Out>] document: byref<JsonElement>,
+            [<Out; MaybeNullWhen(true)>] errors: byref<IReadOnlyList<StoreError>>
+        ) : bool =
+        match readPlainDocument limits file bytes with
+        | Ok plain ->
+            document <- plain
+            errors <- Unchecked.defaultof<_>
+            true
+        | Error found ->
+            document <- Unchecked.defaultof<_>
+            errors <- List.toArray found
+            false

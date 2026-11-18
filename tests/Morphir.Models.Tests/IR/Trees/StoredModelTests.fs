@@ -123,6 +123,29 @@ let tests =
                 "the message starts with the member's JSON location"
         }
 
+        test "The C# checks of a single file give the codec's error, or null for a file that reads" {
+            let v4Error (bytes: byte array) =
+                use document = JsonDocument.Parse(ReadOnlyMemory bytes)
+                V4Json.readDistributionError document.RootElement, V4Json.readDistribution document.RootElement
+
+            let classicError (bytes: byte array) =
+                use document = JsonDocument.Parse(ReadOnlyMemory bytes)
+                ClassicJson.readDistributionStrictError document.RootElement
+
+            let error, read = v4Error (v4Bytes DistributionMother.v4LibraryWithOneModule)
+            Expect.isNull error "a v4 file that reads"
+            Expect.isOk read "readDistribution reads it"
+
+            let error, read = v4Error (FixtureCatalog.ReadBytes FixtureCatalog.Models.NoFormatVersion)
+            Expect.equal (Error(nonNull error)) (read |> Result.map ignore) "the error of readDistribution"
+
+            Expect.isNull (classicError (classicBytes ClassicWireProfile.v3 DistributionMother.v3Library)) "a v3 file that reads"
+
+            let error = nonNull (classicError DistributionMother.SingleFiles.v3LibraryWithANestedUnknownMember)
+            Expect.equal error.Rule "unknown_member" "the error of readDistributionStrict"
+            Expect.equal error.Location DistributionMother.SingleFiles.v3NestedUnknownMember "at the member's JSON location"
+        }
+
         test "A codec error keeps the codec's rule" {
             match read (FixtureCatalog.ReadBytes FixtureCatalog.Models.NoFormatVersion) with
             | Ok _ -> failtest "Expected a model with no format version to be refused"
