@@ -83,5 +83,7 @@ let tests =
                   File.WriteAllText(pagePath, expected, UTF8Encoding(false))
 
               Expect.isTrue (File.Exists pagePath) $"{pagePath} exists; run with UPDATE_SNAPSHOTS=1"
-              Expect.equal (File.ReadAllText pagePath) expected "The page is generated from the catalog; run with UPDATE_SNAPSHOTS=1"
+              // The repository stores the page with LF; a checkout with core.autocrlf=true writes it with CRLF.
+              let onDisk = (File.ReadAllText pagePath).Replace("\r\n", "\n")
+              Expect.equal onDisk expected "The page is generated from the catalog; run with UPDATE_SNAPSHOTS=1"
           } ]
