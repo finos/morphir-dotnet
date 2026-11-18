@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using Microsoft.FSharp.Core;
 using Morphir.Files;
 using Morphir.IR.Files;
 using Morphir.IR.Trees;
@@ -226,7 +225,7 @@ public static class TreeVerification
         var (pointer, message) = StoreLocation.Split(error.Message);
         return new ValidationError(pointer, message)
         {
-            File = OptionModule.ToObj(error.File),
+            File = error.FileOrNull,
             Code = error.Code,
         };
     }

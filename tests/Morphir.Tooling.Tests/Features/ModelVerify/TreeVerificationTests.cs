@@ -296,7 +296,7 @@ public class TreeVerificationTests
         {
             var (pointer, message) = StoreLocation.Split(error.Message);
             result.Errors.Should().ContainSingle(
-                reported => reported.Code == error.Code && reported.File == OptionModule.ToObj(error.File)
+                reported => reported.Code == error.Code && reported.File == error.FileOrNull
                     && reported.Path == pointer && reported.Message == message,
                 $"{name}: the store's {error.Code} is an error of the report with its file and its JSON location");
         }

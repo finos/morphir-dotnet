@@ -50,6 +50,14 @@ let tests =
                     "a tree that the store wrote reads"
             }
 
+            test "The C# file of an error is its path, or null for an error of the whole tree" {
+                let ofTheTree = oneError (Invalid.noManifest ())
+                Expect.isNull ofTheTree.FileOrNull "an error of the whole tree has no file"
+
+                let ofAFile = expectOne (Invalid.v3ManifestOfAnotherRelease ()) "version_mismatch" (Some "manifest.json") "$.formatVersion"
+                Expect.equal ofAFile.FileOrNull "manifest.json" "an error of a file has its path"
+            }
+
             test "Ambiguous profile" {
                 let error = oneError (Invalid.bothManifestProfiles ())
 

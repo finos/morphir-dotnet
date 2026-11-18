@@ -60,6 +60,9 @@ type StoreError =
         Message: string
     }
 
+    /// <summary>For C# callers: the file, as a physical path from the tree's root, or null for an error of the whole tree.</summary>
+    member this.FileOrNull: string | null = Option.toObj this.File
+
     /// <summary>The code, the file and the message.</summary>
     override this.ToString() =
         match this.File with
