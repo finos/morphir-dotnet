@@ -303,6 +303,17 @@ public class TreeVerificationTests
     }
 
     [Test]
+    public async Task AStreamThatFailsOnCloseReportsTheUnreadableFile()
+    {
+        var result = await Verify(DocumentTreeMother.Invalid.manifestThatFailsOnClose());
+
+        result.IsValid.Should().BeFalse();
+        result.ExitCode.Should().Be(1);
+        result.Errors.Should().ContainSingle(error =>
+            error.File == "manifest.json" && error.Code == "tree.unreadable_file");
+    }
+
+    [Test]
     public async Task AnErrorInsideOneTreeFileNamesTheFileAndItsJsonLocation()
     {
         var result = await Verify(DocumentTreeMother.Invalid.typeFileWithAnUnknownTypeTag());

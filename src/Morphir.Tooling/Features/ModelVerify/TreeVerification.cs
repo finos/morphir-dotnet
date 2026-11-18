@@ -189,9 +189,9 @@ public static class TreeVerification
     private static string? Text(VFile file, long limit)
     {
         if (!file.TryOpenRead(out var opened, out _)) return null;
-        using var stream = opened;
         try
         {
+            using var stream = opened;
             using var buffer = new MemoryStream();
             var chunk = new byte[81920];
             int count;

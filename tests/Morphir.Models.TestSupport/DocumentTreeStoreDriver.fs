@@ -4,6 +4,8 @@
 /// </summary>
 module Morphir.Models.TestSupport.DocumentTreeStoreDriver
 
+open System.IO
+open System.Text
 open System.Text.Json
 open System.Text.Json.Nodes
 open Morphir.Files
@@ -150,6 +152,24 @@ let withUnreadableFile (location: string) (files: VFileTree) : VFileTree =
 
     VFileTree.toFileMap files
     |> Map.add location unreadable
+    |> VFileTree.fromFileMap
+
+type private FailingCloseStream(bytes: byte array) =
+    inherit MemoryStream(bytes, writable = false)
+
+    override _.Dispose(disposing) =
+        base.Dispose(disposing)
+
+        if disposing then
+            raise (IOException "The test stream failed to close.")
+
+/// <summary>The same files with one file that can be read but whose stream fails on close.</summary>
+let withFailingClose (location: string) (files: VFileTree) : VFileTree =
+    let bytes = Encoding.UTF8.GetBytes((texts files)[location])
+    let source = StreamSource(fun () -> new FailingCloseStream(bytes))
+
+    VFileTree.toFileMap files
+    |> Map.add location (VFile.ofStream location source)
     |> VFileTree.fromFileMap
 
 /// <summary>The same files with a copy of the file at <paramref name="location"/> at <paramref name="copy"/>.</summary>

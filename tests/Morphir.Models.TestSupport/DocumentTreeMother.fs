@@ -489,6 +489,11 @@ module Invalid =
         acmeFiles ()
         |> Driver.withUnreadableFile invoiceTypeFile
 
+    /// <summary><see cref="noModules"/> with a readable manifest whose stream fails on close.</summary>
+    let manifestThatFailsOnClose () : VFileTree =
+        written noModules
+        |> Driver.withFailingClose "manifest.json"
+
     /// <summary><see cref="acmeDemo"/> with a module file of <c>billing</c> whose text is not JSON.</summary>
     let moduleFileThatIsNotJson () : VFileTree =
         acmeFiles ()
