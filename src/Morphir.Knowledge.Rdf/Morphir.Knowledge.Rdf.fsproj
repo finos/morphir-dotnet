@@ -16,5 +16,6 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="Dataset.fs" />
+        <Compile Include="NQuads.fs" />
     </ItemGroup>
 </Project>

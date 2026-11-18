@@ -677,6 +677,15 @@ public static class FixtureCatalog
     }
 
 
+    /// <summary>The W3C RDF 1.1 N-Quads syntax cases for the dataset codec.</summary>
+    public static class RdfNQuads
+    {
+        /// <summary>The positive and negative syntax inputs with their expected outcomes.</summary>
+        public static FixtureEntry Corpus { get; } = new(
+            "the RDF 1.1 N-Quads syntax cases", "RdfNQuads/rdf11-syntax.json",
+            "a0c3dd336f6335e85627f9a49e79f01e16d07036dc7aac02c66dc4718f773a4a", "RdfNQuads/PROVENANCE.md");
+    }
+
     /// <summary>The CommonMark examples for the OKF document parser.</summary>
     public static class OkfDocuments
     {
@@ -687,7 +696,7 @@ public static class FixtureCatalog
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, OkfDocuments.CommonMark, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, OkfDocuments.CommonMark, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

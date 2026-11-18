@@ -14,9 +14,11 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../../src/Morphir.Knowledge.Rdf/Morphir.Knowledge.Rdf.fsproj" />
+        <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
     </ItemGroup>
     <ItemGroup>
         <Compile Include="DatasetTests.fs" />
+        <Compile Include="NQuadsTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 </Project>
