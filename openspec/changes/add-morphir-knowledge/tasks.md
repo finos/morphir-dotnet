@@ -16,9 +16,9 @@ Apply the repository's test-manager guidance before changing tests and its F# an
 
 ## 3. Knowledge bundles and CLI
 
-- [ ] 3.1 Load physical and virtual bundles with root-relative document and asset lookup and per-member failures. Verify parity between input providers, safe physical containment and deterministic ordering with the same contents.
-- [ ] 3.2 Implement version selection and typed document views, OKF v0.2 and v0.3 conformance, and version-specific link resolution. Verify ordinary Markdown classification, reserved files, nested frontmatter, declared and overridden versions, and internal, missing and external targets against pinned spec cases and a representative Morphir bundle.
-- [ ] 3.3 Add opt-in Morphir policy and source-located findings for local links, root indexes, index descriptions and citations. Verify that base OKF conformance and policy outcomes remain independently visible.
+- [x] 3.1 Load physical and virtual bundles with root-relative document and asset lookup and per-member failures. Verify parity between input providers, safe physical containment and deterministic ordering with the same contents.
+- [x] 3.2 Implement version selection and typed document views, OKF v0.2 and v0.3 conformance, and version-specific link resolution. Verify ordinary Markdown classification, reserved files, nested frontmatter, declared and overridden versions, and internal, missing and external targets against pinned spec cases and a representative Morphir bundle.
+- [x] 3.3 Add opt-in Morphir policy and source-located findings for local links, root indexes, index descriptions and citations. Verify that base OKF conformance and policy outcomes remain independently visible.
 - [ ] 3.4 Register `morphir knowledge validate` in the shared CLI composition and document examples for text and JSON. Verify help, version override, policy, JSON-only stdout and exit codes 0, 1 and 2 through black-box integration scenarios on the test drivers.
 
 ## 4. RDF datasets and N-Quads

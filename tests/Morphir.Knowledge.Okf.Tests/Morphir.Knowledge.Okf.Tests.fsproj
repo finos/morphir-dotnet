@@ -17,6 +17,7 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="DocumentTests.fs" />
+        <Compile Include="BundleTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 </Project>

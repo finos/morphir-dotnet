@@ -17,6 +17,7 @@
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Morphir.Knowledge/Morphir.Knowledge.fsproj" />
+        <ProjectReference Include="../Morphir.Files/Morphir.Files.fsproj" />
     </ItemGroup>
     <ItemGroup>
         <Compile Include="DocumentModel.fs" />
@@ -25,5 +26,7 @@
         <Compile Include="YamlSyntax.fs" />
         <Compile Include="MarkdownSyntax.fs" />
         <Compile Include="OkfDocument.fs" />
+        <Compile Include="KnowledgeBundle.fs" />
+        <Compile Include="BundleValidation.fs" />
     </ItemGroup>
 </Project>

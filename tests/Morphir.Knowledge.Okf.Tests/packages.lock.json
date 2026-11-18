@@ -109,6 +109,12 @@
         "resolved": "0.11.4",
         "contentHash": "IC1h5g0NeJGHIUgzM1P82ld57knhP0IcQfrYITDPXlNpMYGUrsG5TxuaWTjaeqDNQMBDNZkB8L0rBnwsY6JHuQ=="
       },
+      "morphir.files": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )"
+        }
+      },
       "morphir.knowledge": {
         "type": "Project",
         "dependencies": {
@@ -120,6 +126,7 @@
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "Markdig": "[1.6.0, )",
+          "Morphir.Files": "[1.0.0, )",
           "Morphir.Knowledge": "[1.0.0, )",
           "YamlDotNet": "[16.3.0, )"
         }
