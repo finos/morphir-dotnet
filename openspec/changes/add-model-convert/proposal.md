@@ -1,5 +1,7 @@
 # Proposal
 
+Tracking issue: [finos/morphir-dotnet#674](https://github.com/finos/morphir-dotnet/issues/674). Landed in [#673](https://github.com/finos/morphir-dotnet/pull/673).
+
 ## Why
 
 A Morphir model is one large JSON file today. finos/morphir discussion #214 asked for the same model as a directory of small files (a document tree) that people can browse with ordinary tools and that a WASM extension with tight memory can read one piece at a time. The parent repository has since specified those trees for IR 3.1.0 and IR 4, and a name-compaction encoding that interns long names per file, but morphir-dotnet can neither write nor read them: `compile` refuses `ir.layout = "document-tree"`, and `generate` and `validate` refuse JSON trees.
