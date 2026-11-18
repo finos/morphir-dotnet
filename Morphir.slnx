@@ -56,6 +56,7 @@
     <Project Path="src/Morphir.Files/Morphir.Files.fsproj" />
     <Project Path="src/Morphir.Knowledge/Morphir.Knowledge.fsproj" />
     <Project Path="src/Morphir.Knowledge.Okf/Morphir.Knowledge.Okf.fsproj" />
+    <Project Path="src/Morphir.Knowledge.Rdf/Morphir.Knowledge.Rdf.fsproj" />
     <Project Path="src/Morphir.IR.Pipeline/Morphir.IR.Pipeline.fsproj" />
     <Project Path="src/Morphir.IR.Pipeline.Plugins/Morphir.IR.Pipeline.Plugins.fsproj" />
     <Project Path="src/Morphir.Tool/Morphir.Tool.csproj" />
@@ -98,6 +99,7 @@
     <Project Path="tests/Morphir.Files.Tests/Morphir.Files.Tests.fsproj" />
     <Project Path="tests/Morphir.Knowledge.Tests/Morphir.Knowledge.Tests.fsproj" />
     <Project Path="tests/Morphir.Knowledge.Okf.Tests/Morphir.Knowledge.Okf.Tests.fsproj" />
+    <Project Path="tests/Morphir.Knowledge.Rdf.Tests/Morphir.Knowledge.Rdf.Tests.fsproj" />
     <Project Path="tests/Morphir.Files.NetStandard.Smoke/Morphir.Files.NetStandard.Smoke.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Tests/Morphir.IR.Pipeline.Tests.fsproj" />
     <Project Path="tests/Morphir.IR.Pipeline.Plugins.Tests/Morphir.IR.Pipeline.Plugins.Tests.fsproj" />

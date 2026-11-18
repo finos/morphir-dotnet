@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <Description>RDF 1.1 terms, datasets, and N-Quads interchange for Morphir Knowledge</Description>
+        <PackageTags>$(PackageTags);morphir;knowledge;rdf;n-quads</PackageTags>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <ProjectReference Include="../Morphir.Knowledge/Morphir.Knowledge.fsproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="Dataset.fs" />
+    </ItemGroup>
+</Project>

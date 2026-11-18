@@ -23,8 +23,8 @@ Apply the repository's test-manager guidance before changing tests and its F# an
 
 ## 4. RDF datasets and N-Quads
 
-- [ ] 4.1 Add `Morphir.Knowledge.Rdf` with typed RDF 1.1 terms, a flat quad and triple conversions, and default and named graphs. Verify valid term positions, literal lexical forms, set membership and graph-local equality.
-- [ ] 4.2 Add versioned graph and statement references and separate authored claim identity. Verify empty graph annotation, evidence links targeting one graph among two with the same triple, and independent provenance on two claims about one quad. Document the addressing and blank-node scope.
+- [x] 4.1 Add `Morphir.Knowledge.Rdf` with typed RDF 1.1 terms, a flat quad and triple conversions, and default and named graphs. Verify valid term positions, literal lexical forms, set membership and graph-local equality.
+- [x] 4.2 Add versioned graph and statement references and separate authored claim identity. Verify empty graph annotation, evidence links targeting one graph among two with the same triple, and independent provenance on two claims about one quad. Document the addressing and blank-node scope.
 - [ ] 4.3 Implement UTF-8 N-Quads reading and typed findings. Verify grammar, escapes, graph label types and per-input blank-node scope against pinned W3C cases and local integration examples.
 - [ ] 4.4 Implement N-Quads writing and the explicit empty named graph omission option. Verify dataset isomorphism on round-trip, cross-graph blank nodes and no bytes emitted for an empty named graph unless omission is allowed. Document file exchange and diagnostics.
 
