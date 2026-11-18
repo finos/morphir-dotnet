@@ -85,6 +85,7 @@ module FSharpGuest =
           Backend = Some backend
           Workspace = None
           ModelTransport = Some support
+          ModelAccess = None
           Streaming = false
           Incremental = false
           Cancellation = false

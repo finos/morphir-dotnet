@@ -744,6 +744,7 @@ type ExtensionEntry =
             Backend = backend
             Workspace = None
             ModelTransport = None
+            ModelAccess = None
             Streaming = false
             Incremental = false
             Cancellation = false

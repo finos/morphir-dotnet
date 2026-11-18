@@ -130,6 +130,8 @@ let consumer =
               "csharp-end end-of-stream"
               "csharp-failure invalid-result"
               "csharp-diagnostic unsolicited null"
-              "csharp-member m" ] do
+              "csharp-member m"
+              "bounded-text Start generation probe for text / Continue generation probe at round 1"
+              "bounded-generation 0.2.0-draft.2 1 probe -32602 retry" ] do
             Expect.stringContains output line "C# surface line"
     }

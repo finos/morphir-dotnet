@@ -20,3 +20,10 @@ License and original notice are included in this directory.
 | `model-transport.cases.json` | `spec/mep/mck/model-transport.cases.json` | `bdb5af4812305fd06663b31756d88a4202663da7366bcbd20ec5a744e83a077d` |
 | `protocol-errors.md` | `spec/mep/smithy/transcripts/protocol-errors.md` | `8c7580c3fad350917b54dec71997d14d8afd0297aaf15f5330d5901f3ae21d77` |
 | `session-model-transport.md` | `spec/mep/smithy/transcripts/session-model-transport.md` | `6de90f2264717211ed9dbb5f181c3bcb8835e380c9feeb2a7f2aaebae4ddf22f` |
+
+The bounded-generation draft.2 transcript is a separate pin. It uses the same
+license and notice and does not replace the earlier model-transport fixtures.
+
+| Local file | Upstream commit and path | SHA-256 |
+| --- | --- | --- |
+| `session-model-access.md` | `177371fa7a6199b7f177a8c1d886f583ee57e813:spec/mep/smithy/transcripts/session-model-access.md` | `2b564178596e1c7420fc8c689b31e7dbd68dabaed3d57ac0e9497ce21886cb34` |
