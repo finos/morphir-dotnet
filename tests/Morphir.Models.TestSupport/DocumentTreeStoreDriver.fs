@@ -66,6 +66,10 @@ let jsonAt (location: string) (files: VFileTree) : JsonObject =
     | :? JsonObject as root -> root
     | _ -> failwith $"{location} does not hold a JSON object."
 
+/// The options of a file that a change writes: indented with LF, as the store writes, whatever the platform's newline,
+/// so the pinned files written from a mother's change are the same on every platform.
+let private indented = JsonSerializerOptions(WriteIndented = true, NewLine = "\n")
+
 /// <summary>
 /// The same files with one top-level member added to the file at a location: the member's JSON value is parsed
 /// from <paramref name="json"/>.
@@ -80,7 +84,7 @@ let withMember
     root[memberName] <- JsonNode.Parse json
 
     texts files
-    |> Map.add location (root.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
+    |> Map.add location (root.ToJsonString(indented))
     |> Map.toList
     |> ofTexts
 
@@ -123,7 +127,7 @@ let withoutMember (location: string) (memberName: string) (files: VFileTree) : V
     |> ignore
 
     texts files
-    |> Map.add location (root.ToJsonString(JsonSerializerOptions(WriteIndented = true)))
+    |> Map.add location (root.ToJsonString(indented))
     |> Map.toList
     |> ofTexts
 

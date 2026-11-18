@@ -249,7 +249,7 @@ public static class FixtureCatalog
 
         private static readonly FixtureEntry WrittenV3UnknownMemberFile =
             WrittenFile(WrittenV3UnknownMemberDirectory, "the written v3 tree with an unknown member", Pricing + "default-currency.value.json",
-                "c81f9241cefa03c9175359e652176c3ba74292b66612abf97ec1903a51f6cacf");
+                "3ef45299fb3ec24473042a452859b166301ed230b1118b4aade65d45c192ae22");
 
         /// <summary>
         /// The files of the trees that the document-tree store wrote from cases of the distribution mother.

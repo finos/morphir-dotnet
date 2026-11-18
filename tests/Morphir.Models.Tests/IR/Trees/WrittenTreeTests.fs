@@ -35,6 +35,8 @@ let private expectSameFiles (files: VFileTree) (tree: FixtureTree) =
 
     for KeyValue(location, text) in expected do
         Expect.equal actual[location] text $"{location} of '{tree.Intent}' is what the mother case has. Write it again from the mother if the store changed on purpose:\n{text}"
+        // A pinned file is the same on every platform: its lines end with LF, as the store and the driver write them.
+        Expect.isFalse (actual[location].Contains (char 13)) $"{location} of '{tree.Intent}' has no CR"
 
 [<Tests>]
 let tests =

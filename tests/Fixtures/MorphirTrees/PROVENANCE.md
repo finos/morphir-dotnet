@@ -45,7 +45,7 @@ Trees that the document-tree store of `src/Morphir.Models` wrote, with its defau
 | `written-v4-unknown-type-tag/` | The one file of `DocumentTreeMother.Invalid.typeFileWithAnUnknownTypeTag` that differs from the written v4 tree: the type expression of `invoice` has the tag `Struct` |
 | `written-v3-unknown-member/` | The one file of `DocumentTreeMother.Invalid.v3ValueFileWithANestedUnknownMember` that differs from the written v3 tree: the definition of `default-currency` has a member `metadata`, which the classic model has no place for |
 
-`WrittenTreeTests` in `tests/Morphir.Models.Tests` fails when the store or a mother case writes other bytes. When that change is meant, write the files again from the mother cases, with `DocumentTreeStoreDriver.write` and `DocumentTreeStoreDriver.texts`, as UTF-8 with no byte order mark, and update the hashes here and in `FixtureCatalog`. The tree with no file for one value, `DocumentTreeMother.Invalid.moduleListingAMissingValue`, is the written v4 tree without `pkg/my-org/finance/pricing/models/default-currency.value.json`, so it has no files of its own.
+`WrittenTreeTests` in `tests/Morphir.Models.Tests` fails when the store or a mother case writes other bytes. When that change is meant, write the files again from the mother cases, with `DocumentTreeStoreDriver.write` and `DocumentTreeStoreDriver.texts`, as UTF-8 with no byte order mark and LF line ends on every platform (the files are `-text`, so `.gitattributes` keeps their bytes, and `WrittenTreeTests` refuses a CR), and update the hashes here and in `FixtureCatalog`. The tree with no file for one value, `DocumentTreeMother.Invalid.moduleListingAMissingValue`, is the written v4 tree without `pkg/my-org/finance/pricing/models/default-currency.value.json`, so it has no files of its own.
 
 | File | SHA-256 |
 | --- | --- |
@@ -68,4 +68,4 @@ Trees that the document-tree store of `src/Morphir.Models` wrote, with its defau
 | `written-v3-library-with-dependency/pkg/my-org/finance/pricing/models/same-invoice.value.json` | `b269aaa997d9b9ac1e314a69025e4f8450b0ba09173aa735c46f2bc1789cba7b` |
 | `written-v3-library-with-dependency/pkg/my-org/finance/pricing/models/status.type.json` | `ff987a5f45e2bd1973cea494d0e091ff7c2fed788f24ded79b5b6179cf1b767f` |
 | `written-v4-unknown-type-tag/pkg/my-org/finance/pricing/models/invoice.type.json` | `ca2b3a89a1a982fe7a59c6c491920ee365fde3ef5fdc555e451290e9fde43039` |
-| `written-v3-unknown-member/pkg/my-org/finance/pricing/models/default-currency.value.json` | `c81f9241cefa03c9175359e652176c3ba74292b66612abf97ec1903a51f6cacf` |
+| `written-v3-unknown-member/pkg/my-org/finance/pricing/models/default-currency.value.json` | `3ef45299fb3ec24473042a452859b166301ed230b1118b4aade65d45c192ae22` |
