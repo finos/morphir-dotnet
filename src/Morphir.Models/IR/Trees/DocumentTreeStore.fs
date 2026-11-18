@@ -65,15 +65,16 @@ module DocumentTreeStore =
     /// alias was worth its cost there, in the declared order; set on the tree that a write with
     /// <c>Compact = Some Names</c> returns, and not on a plain write.
     /// </summary>
-    let plainFiles: Morphir.Files.Property<string list> =
-        TreeWriter.plainFiles
+    let plainFiles: Morphir.Files.Property<string list> = TreeWriter.plainFiles
 
     /// <summary>
     /// The files that a compacted write left plain (<see cref="plainFiles"/>), or none for a tree that a plain write
     /// gave. C# calls this <c>PlainFilesOf</c>.
     /// </summary>
     [<CompiledName("PlainFilesOf")>]
-    let plainFilesOf (files: Morphir.Files.VFileTree) : System.Collections.Generic.IReadOnlyList<string> =
+    let plainFilesOf
+        (files: Morphir.Files.VFileTree)
+        : System.Collections.Generic.IReadOnlyList<string> =
         match Morphir.Files.VFileTree.tryGet plainFiles files with
         | Some paths -> Array.ofList paths :> System.Collections.Generic.IReadOnlyList<string>
         | None -> Array.empty<string> :> System.Collections.Generic.IReadOnlyList<string>
@@ -103,7 +104,7 @@ module DocumentTreeStore =
     /// Reads a tree from files. The manifest's <c>formatVersion</c> chooses the version: a manifest of major 3 is
     /// read as a classic v3 tree, which says <c>"3.1.0"</c> in every file, and any other as a v4 tree. The files are
     /// taken by their location in the tree, whatever order the tree lists them in. A JSON file is part of the tree, a
-    /// <c>.yaml</c> or <c>.yml</c> file is refused as this store reads the JSON profile only, and any other file is
+    /// <c>.yaml</c> or <c>.yml</c> file is refused as the whole-tree read accepts only the JSON profile, and any other file is
     /// ignored. The tree read must join (<c>V4DocumentTree.join</c>, <c>ClassicDocumentTree.join</c>). A v4
     /// manifest's <c>version</c> and <c>created</c> are dropped with a notice each; its <c>layout</c> and
     /// <c>pathBudget</c> describe the tree and are dropped silently. A package metadata file, <c>package.json</c> in a
@@ -139,7 +140,9 @@ module DocumentTreeStore =
                     )
                 else
                     TreeFileSource.decode manifestLocation V4TreeFiles.readManifest bytes
-                    |> Result.bind (fun (manifest, _) -> V4TreeReader.readV4 compacted options manifest others)
+                    |> Result.bind (fun (manifest, _) ->
+                        V4TreeReader.readV4 compacted options manifest others
+                    )
             )
         )
 
@@ -149,8 +152,41 @@ module DocumentTreeStore =
     /// </summary>
     [<CompiledName("ReadErrors")>]
     let readErrors
-        (options: ReadOptions, files: Morphir.Files.VFileTree)
-        : System.Collections.Generic.IReadOnlyList<StoreError> =
+        (
+            options: ReadOptions,
+            files: Morphir.Files.VFileTree
+        ) : System.Collections.Generic.IReadOnlyList<StoreError> =
         match read options files with
         | Ok _ -> Array.empty<StoreError> :> System.Collections.Generic.IReadOnlyList<StoreError>
-        | Error errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>
+        | Error errors ->
+            List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>
+
+    /// Open a revision-bound document tree without reading its modules or definitions.
+    /// MaxFiles bounds directory entries inspected for each next-module lookup.
+    /// The revision must identify an immutable view or a held read lease.
+    [<CompiledName("OpenSnapshot")>]
+    let openSnapshot
+        (options: ReadOptions)
+        (revision: unit -> string)
+        (provider: Microsoft.Extensions.FileProviders.IFileProvider)
+        : Result<BoundedTreeSnapshot, StoreError list> =
+        if options.MaxFiles < 1 then
+            Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
+        else
+            TreeFileSource.fromFileProvider options.MaxFiles revision provider
+            |> BoundedTreeReader.openTree options.MaxFileBytes
+
+    /// Read the next page of modules in the selected package.
+    [<CompiledName("PageModules")>]
+    let pageModules limit cursor package snapshot =
+        BoundedTreeReader.modules limit cursor package snapshot
+
+    /// Read the next page of members listed by the selected module.
+    [<CompiledName("PageMembers")>]
+    let pageMembers limit cursor address snapshot =
+        BoundedTreeReader.members limit cursor address snapshot
+
+    /// Decode one selected type or value with its version-specific attributes.
+    [<CompiledName("ReadMember")>]
+    let readMember address snapshot =
+        BoundedTreeReader.readMember address snapshot

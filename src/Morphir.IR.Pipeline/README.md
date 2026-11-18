@@ -68,3 +68,34 @@ Messages from the input file move to the output tree. So does data a plugin stor
 ```fsharp
 let onFirst = Plugin.focus fst (fun value (_, rest: string) -> (value, rest)) (Plugin.create "double" (fun (n: int) file -> (Some (n * 2), file)))
 ```
+
+## Read a document tree by page
+
+Use `DocumentTreeStore.openSnapshot` when a generator needs to discover modules and read selected definitions. It accepts a file provider directly and reads the manifest first. This example reads the first member of the first module.
+
+```fsharp
+open Microsoft.Extensions.FileProviders
+open Morphir.IR.Trees
+
+let firstBody revision (provider: IFileProvider) =
+    DocumentTreeStore.openSnapshot ReadOptions.defaults revision provider
+    |> Result.bind (fun snapshot ->
+        DocumentTreeStore.pageModules 1 None snapshot.Package snapshot
+        |> Result.bind (fun modules ->
+            match modules.Items with
+            | [] -> Ok None
+            | first :: _ ->
+                DocumentTreeStore.pageMembers 1 None first.Address snapshot
+                |> Result.bind (fun members ->
+                    match members.Items with
+                    | [] -> Ok None
+                    | memberInfo :: _ ->
+                        DocumentTreeStore.readMember memberInfo.Address snapshot
+                        |> Result.map Some)))
+```
+
+Pass `page.Next` back to the same page operation with the same selection to keep going. Use `snapshot.Dependencies` to page a dependency's specifications. A cursor belongs to one snapshot and one selection.
+
+The reader supports plain v3.1 and v4 trees in JSON and YAML. Module paging scans directory metadata in the requested package. Member paging reads the selected module's metadata, and `readMember` decodes one selected type or value with its version-specific attributes. Inline definitions share their containing module's file limit. `ReadOptions.MaxFileBytes` caps each file, and `MaxFiles` caps the directory entries examined per next-module lookup. The file-provider adapter rescans metadata to find each next module in ordinal order.
+
+The revision callback must identify an immutable view or a held read lease. If it reports a different revision, the reader refuses further operations on the snapshot. A file provider alone cannot supply that guarantee for a mutable directory. The owner of the view keeps it valid until paging and selected reads finish.

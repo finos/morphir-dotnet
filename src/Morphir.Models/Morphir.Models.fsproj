@@ -35,6 +35,7 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="YamlDotNet" />
     </ItemGroup>
 
     <!-- Virtual files and trees, which the document-tree store of the model reads and writes without touching the disk. -->
@@ -121,6 +122,8 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="IR/Trees/ClassicTreeFiles.fs" />
         <Compile Include="IR/Trees/TreeLayout.fs" />
         <Compile Include="IR/Trees/TreeFileSource.fs" />
+        <Compile Include="IR/Trees/TreeYaml.fs" />
+        <Compile Include="IR/Trees/BoundedTreeReader.fs" />
         <Compile Include="IR/Trees/TreeReader.fs" />
         <Compile Include="IR/Trees/TreeWriter.fs" />
         <Compile Include="IR/Trees/V4TreeWriter.fs" />

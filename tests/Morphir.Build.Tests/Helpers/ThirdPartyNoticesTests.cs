@@ -115,7 +115,7 @@ public class ThirdPartyNoticesTests
         Directory.GetFiles(fallbacks, "*.txt").Select(Path.GetFileNameWithoutExtension).Order(StringComparer.Ordinal)
             .Should().Equal("CsToml", "FSharp.Core", "Microsoft.Extensions.Primitives", "NuGet.Common", "NuGet.Configuration",
                 "NuGet.Credentials", "NuGet.Frameworks", "NuGet.Packaging", "NuGet.Protocol", "NuGet.Versioning", "Semver",
-                "System.IO.Hashing", "System.Security.Cryptography.Pkcs");
+                "System.IO.Hashing", "System.Security.Cryptography.Pkcs", "YamlDotNet");
     }
 
     [Test]

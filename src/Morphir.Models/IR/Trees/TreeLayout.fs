@@ -51,6 +51,25 @@ module internal TreeLayout =
         | Own(Module _)
         | Dependency(_, Module _) -> None
 
+    let private packageSegments (PackageName own) dependency =
+        match dependency with
+        | None ->
+            "pkg"
+            :: stems own
+        | Some(PackageName package) ->
+            "deps"
+            :: stems package
+            @ [ TreeStems.BareVersionSegment ]
+
+    let private trailingDirectory segments =
+        String.concat "/" segments
+        + "/"
+
+    /// The root directory for the own package or a dependency, with a trailing slash.
+    let packageDirectory own dependency =
+        packageSegments own dependency
+        |> trailingDirectory
+
     /// The directory of an address's file, with a trailing slash, or "" for the manifest.
     let directoryOf (own: PackageName) (address: DocumentAddress) =
         let modulePath (inner: ModuleDocumentAddress) =
@@ -59,27 +78,18 @@ module internal TreeLayout =
             | TypeDef(ModulePath path, _)
             | ValueDef(ModulePath path, _) -> stems path
 
-        let segments =
-            match address with
-            | Manifest -> []
-            | Own inner ->
-                let (PackageName package) = own
-
-                "pkg"
-                :: stems package
+        match address with
+        | Manifest -> ""
+        | Own inner ->
+            trailingDirectory (
+                packageSegments own None
                 @ modulePath inner
-            | Dependency(PackageName package, inner) ->
-                "deps"
-                :: stems package
-                @ TreeStems.BareVersionSegment
-                  :: modulePath inner
-
-        segments
-        |> List.map (fun segment ->
-            segment
-            + "/"
-        )
-        |> String.concat ""
+            )
+        | Dependency(package, inner) ->
+            trailingDirectory (
+                packageSegments own (Some package)
+                @ modulePath inner
+            )
 
     let byOrdinal (paths: ('a * string) list) =
         paths
