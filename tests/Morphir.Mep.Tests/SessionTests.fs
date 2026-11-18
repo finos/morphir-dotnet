@@ -597,6 +597,7 @@ let private replay (entries: Entry list) (skip: Set<int>) =
 type private Recording(inner: Stream) =
     inherit Stream()
     let recorded = new MemoryStream()
+    member _.BytesWritten = lock recorded (fun () -> recorded.Length)
     member _.Frames =
         let copy = new MemoryStream(recorded.ToArray())
 
@@ -767,14 +768,15 @@ let tests =
               let toHost = Pipe()
               let hostWrites = new Recording(toGuest.Writer.AsStream())
               let guestWrites = new Recording(toHost.Writer.AsStream())
+              let hostReads = new CF.ObservedRead(toHost.Reader.AsStream())
               let guestRun = guest.RunAsync(toGuest.Reader.AsStream(), guestWrites, CancellationToken.None)
               let initialize = decode MepJson.Default.InitializeParams expectedParams
 
               let host =
-                  HostSession(toHost.Reader.AsStream(), hostWrites, initialize.Host, Option.toObj initialize.ModelTransport)
+                  HostSession(hostReads, hostWrites, initialize.Host, Option.toObj initialize.ModelTransport)
 
               let hostRun = host.RunAsync CancellationToken.None
-              let wait (task: Task<'T>) = task.Wait(TimeSpan.FromSeconds 10.) |> ignore; task.Result
+              let wait (operation: Task<'T>) = operation.WaitAsync(TimeSpan.FromSeconds 10.).GetAwaiter().GetResult()
 
               Expect.isOk (wait (host.DescribeAsync CancellationToken.None)) "describe"
               let session = wait (host.InitializeAsync CancellationToken.None)
@@ -788,7 +790,9 @@ let tests =
               | Error error -> Expect.equal error.Code -32014 "The host refuses to send after shutdown"
               | Ok _ -> failtest "Ping after shutdown"
 
-              host.ExitAsync().Wait()
+              // Enter the read after the shutdown response before exit changes the host's local state.
+              wait (hostReads.AfterBytes guestWrites.BytesWritten)
+              host.ExitAsync().WaitAsync(TimeSpan.FromSeconds 10.).GetAwaiter().GetResult()
               Expect.equal (wait guestRun) ConnectionEnd.Stopped "The guest stops at exit"
               toHost.Writer.Complete()
               Expect.equal (wait hostRun) ConnectionEnd.EndOfStream "The host reads to the end"
