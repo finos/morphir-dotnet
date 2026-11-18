@@ -79,6 +79,9 @@ public enum DriverCapability
 
     /// <summary>The <c>model convert</c> command (<see cref="IModelConversionDriver"/>).</summary>
     ModelConversion,
+
+    /// <summary>The <c>knowledge validate</c> command.</summary>
+    KnowledgeValidation,
 }
 
 /// <summary>The tags of the capabilities, and the capabilities that the drivers of a target and a host support.</summary>
@@ -121,7 +124,7 @@ public static class DriverCapabilities
         [
             DriverCapability.ModelVerification, DriverCapability.Generation, DriverCapability.Compilation, DriverCapability.Configuration,
             DriverCapability.Migration, DriverCapability.Extensions, DriverCapability.ModelValidation, DriverCapability.ToolRouting,
-            DriverCapability.ModelConversion,
+            DriverCapability.ModelConversion, DriverCapability.KnowledgeValidation,
         ];
         if (host is MorphirHost.Managed or MorphirHost.DotnetTool) commands = commands.Add(DriverCapability.InProcessFSharpFrontend);
         // The programs and the extension guests are build output of the development build: a published target has none.

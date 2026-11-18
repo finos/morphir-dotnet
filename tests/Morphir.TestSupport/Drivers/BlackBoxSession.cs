@@ -35,6 +35,7 @@ public sealed class DriverSet : IAsyncDisposable
         ExtensionInstallation = new ExtensionInstallDriver(Cli, workspace);
         ToolRouting = new ToolRoutingDriver(Cli, workspace, guests);
         Validation = new ModelValidationDriver(Cli);
+        KnowledgeValidation = new KnowledgeValidationDriver(Cli);
         Conversion = new ModelConversionDriver(Cli);
         LibraryHosts = new LibraryHostDriver(programs, workspace);
         BuiltFiles = new ArtifactInspectionDriver(programs);
@@ -109,6 +110,9 @@ public sealed class DriverSet : IAsyncDisposable
     public IExtensionInstallDriver ExtensionInstallation { get; }
 
     public IModelValidationDriver Validation { get; }
+
+    /// <summary>The <c>knowledge validate</c> command.</summary>
+    public IKnowledgeValidationDriver KnowledgeValidation { get; }
 
     /// <summary>The <c>model convert</c> command.</summary>
     public IModelConversionDriver Conversion { get; }

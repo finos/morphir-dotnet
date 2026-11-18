@@ -57,6 +57,7 @@ project links today (`Fixtures/Models/`) keep working; a new one comes through t
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build: the packed packages, a Native AOT publish, or a published executable. A group run does not select it. |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that entry point. With no host tag, a test runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs`, `@needs-development-packages` | A capability that the test needs from the drivers. `@needs-built-programs`: the build output of the programs of the repository that are not the CLI (library hosts, probes, morphirup); only the development build has them. `@needs-development-packages`: the test packs a project of the development build into the feed of its workspace (`IPackageDriver`). |
+| `@needs-knowledge-validation` | The knowledge bundle validation command. |
 | `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-model-conversion`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`, `model convert`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
 | `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form`, `@needs-wasm-guests` | A capability that the test needs from the drivers (see `tests/Morphir.TestSupport/README.md`): a packaged installation, a Native AOT executable, a target of one known form, or the WASM guests of the host. `@needs-wasm-guests` is not on Windows x64 (#609). |
 
@@ -482,6 +483,17 @@ two steps have the same pattern.
 | Tutorial | `When I validate the IR that the example installed in {string}` |
 | Tutorial | `When I compile the example with the target {string} and the generated output {string}` |
 | Model validation | `When I validate the model` |
+| Knowledge validation | `Given a knowledge bundle containing project documentation` |
+| Knowledge validation | `Given a knowledge bundle with malformed frontmatter` |
+| Knowledge validation | `Given a knowledge bundle with an unresolved local link` |
+| Knowledge validation | `Given a knowledge bundle directory that is missing` |
+| Knowledge validation | `When I check the knowledge bundle as JSON` |
+| Knowledge validation | `When I check the knowledge bundle as OKF {string}` |
+| Knowledge validation | `When I check the knowledge bundle under Morphir policy` |
+| Knowledge validation | `When I ask how to validate a knowledge bundle` |
+| Knowledge validation | `Then the knowledge report uses OKF {string} with conformance {string}` |
+| Knowledge validation | `Then the knowledge report has the diagnostic {string}` |
+| Knowledge validation | `Then the knowledge report has a located finding in the malformed concept` |
 | Model validation | `When I validate the model as JSON` |
 | Model validation | `When I validate the model as JSON with the arguments {string}` |
 | Model validation | `Then validation exits with {int} and one JSON report` |

@@ -67,6 +67,7 @@ public static class MorphirApplication
             .AddScenario<CSharpFrontendScenario>()
             .AddScenario<ManagementScenario>()
             .AddScenario<ValidationScenario>()
+            .AddScenario<KnowledgeScenario>()
             .AddScenario<ConfigurationScenario>()
             .AddScenario<ProjectScenario>()
             .AddScenario<WorkspaceScenario>()
