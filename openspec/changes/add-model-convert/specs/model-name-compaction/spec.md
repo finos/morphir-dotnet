@@ -74,10 +74,10 @@ Writing a compacted file SHALL follow one named writer policy that the parent co
 
 #### Scenario: Compaction that would be a loss is not applied
 - **WHEN** no name in a file saves more than its table entry costs
-- **THEN** the written file is the plain document in canonical JSON, with no envelope, and the result says no alias was worth its cost
+- **THEN** the written file is the plain document in the policy's written form, with no envelope, and the result says no alias was worth its cost
 
 ### Requirement: Compacted output has one canonical byte form
-A compacted file SHALL be written in RFC 8785 canonical JSON. Every size comparison of the policy SHALL use the UTF-8 byte length of that form. Writing the same document twice SHALL give identical bytes, and the bytes SHALL equal the parent contract's fixed expected bytes for each of its cases.
+A compacted file SHALL be in the policy's written form: RFC 8785 member sorting and string escaping, no whitespace, numbers as their source lexemes, and order-carrying members and `DocumentLiteral` content in source order. Every size comparison of the policy SHALL use the UTF-8 byte length of that form. Writing the same document twice SHALL give identical bytes, and the bytes SHALL equal the parent contract's fixed expected bytes for each of its cases.
 
 #### Scenario: Non-ASCII content is measured as UTF-8
 - **WHEN** a file holds a documentation string with `é` and the policy weighs the file's size

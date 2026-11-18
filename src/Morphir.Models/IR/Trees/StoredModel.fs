@@ -259,8 +259,8 @@ type StoredModel internal (form: ModelForm) =
     /// Writes a single-file form as indented JSON: IR 4 with <c>"formatVersion": 4</c>, a classic <c>Library</c> with
     /// <c>"formatVersion": 3</c> and a classic <c>Specs</c> with <c>"formatVersion": "3.1.0"</c>, classic attributes
     /// as they were read. With <paramref name="compact"/>, the file is written under the writer policy
-    /// <c>morphir.compact/0.1.0-draft.1</c> (<c>CompactionPolicy</c>) and stays one file: an envelope in canonical JSON
-    /// when an alias is worth its cost, or else the plain document in canonical JSON. <paramref name="compacted"/>
+    /// <c>morphir.compact/0.1.0-draft.1</c> (<c>CompactionPolicy</c>) and stays one file, in the policy's written
+    /// form: an envelope when an alias is worth its cost, or else the plain document. <paramref name="compacted"/>
     /// says which: true for an envelope. Throws <see cref="InvalidOperationException"/> for a tree.
     /// </summary>
     member _.TryWriteSingleFile

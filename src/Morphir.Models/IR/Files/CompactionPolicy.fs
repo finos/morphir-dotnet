@@ -27,28 +27,29 @@ open ContextExpansion
 /// position is a candidate's occurrence only when expansion would give its value back: a v4 string, or a v3 tree
 /// file's envelope member, whose text is a spelling of the table's type within the limits of draft.1; or a classic
 /// slot whose word arrays read as a spelling that reads back as those same words. A spelling that a classic slot cannot
-/// hold, such as <c>FR2052A</c>, is never aliased there. An occurrence weighs the bytes of its value in the canonical
-/// JSON (RFC 8785) of the plain file: a string with its quotes, or the classic word arrays.
+/// hold, such as <c>FR2052A</c>, is never aliased there. An occurrence weighs the bytes of its value in the plain file
+/// as the policy writes it (its written form, below): a string with its quotes, or the classic word arrays.
 /// </para>
 /// <para>
-/// Candidates are taken in the order of their first occurrence in the canonical JSON of the plain file, which is the
-/// order of a walk of the document with each object's members sorted as JCS sorts them. Two outermost positions never
-/// start at the same offset, so the further keys of the policy (the spelling, then the table) never decide. Each
-/// candidate takes the next id of the bijective base-26 sequence <c>a</c> … <c>z</c>, <c>aa</c>, … when its saving, the
-/// sum over its occurrences of the occurrence's bytes less the 12 + len(id) bytes of a reference, is greater than the
-/// len(id) + len(spelling) + 6 bytes of its table entry; a candidate that stays spelled out takes no id, and a table
-/// holds at most 16,384 entries. The envelope is written only when the savings are greater than what it adds: 118
-/// fixed bytes, len(table) + 5 for each table that holds an entry, len(id) + len(spelling) + 5 for each entry and a
-/// comma between two entries. Otherwise the file is the plain document in canonical JSON.
+/// Candidates are taken in the order of their first occurrence in the plain file as the policy writes it, which is the
+/// order of a walk of the document with each object's members sorted as JCS sorts them, except the objects whose
+/// members keep their order. Two outermost positions never start at the same offset, so the further keys of the policy
+/// (the spelling, then the table) never decide. Each candidate takes the next id of the bijective base-26 sequence
+/// <c>a</c> … <c>z</c>, <c>aa</c>, … when its saving, the sum over its occurrences of the occurrence's bytes less the
+/// 12 + len(id) bytes of a reference, is greater than the len(id) + len(spelling) + 6 bytes of its table entry; a
+/// candidate that stays spelled out takes no id, and a table holds at most 16,384 entries. The envelope is written only
+/// when the savings are greater than what it adds: 118 fixed bytes, len(table) + 5 for each table that holds an entry,
+/// len(id) + len(spelling) + 5 for each entry and a comma between two entries. Otherwise the file is the plain
+/// document, in the same written form.
 /// </para>
 /// <para>
-/// The file is written in the policy's form (<c>CanonicalJson.writeSourceForm</c>; the controller's rulings of
-/// add-model-convert, to which the parent's policy is being amended): object members sorted by their UTF-16 code units,
-/// the string escapes of RFC 8785 and no whitespace, except that every number keeps its source lexeme, an object whose
-/// members' order the IR schema says is the model's keeps its members in document order (a v4 value's parameters, a
-/// definition's <c>inputTypes</c> and a specification's <c>inputs</c>: <c>Shape.KeepsOrder</c>), and the content of a
-/// v4 <c>DocumentLiteral</c> keeps its member order everywhere inside it (<c>Shape.Verbatim</c>). Every size is the
-/// UTF-8 byte length of the file so written, and first use is the order of that file.
+/// The file is written in the policy's written form (<c>CanonicalJson.writeSourceForm</c>, as the parent's policy
+/// text gives it since finos/morphir 4fa51c8b): object members sorted by their UTF-16 code units as RFC 8785 sorts
+/// them, the string escapes of RFC 8785 and no whitespace, except that every number keeps its source lexeme, an
+/// object whose members' order the IR schema says is the model's keeps its members in document order (a v4 value's
+/// parameters, a definition's <c>inputTypes</c> and a specification's <c>inputs</c>: <c>Shape.KeepsOrder</c>), and
+/// the content of a v4 <c>DocumentLiteral</c> keeps its member order everywhere inside it (<c>Shape.Verbatim</c>).
+/// Every size is the UTF-8 byte length of the file so written, and first use is the order of that file.
 /// </para>
 /// </remarks>
 [<RequireQualifiedAccess>]
@@ -178,7 +179,7 @@ module CompactionPolicy =
         | ModulePathsTable -> spell classicPath CanonicalNames.pathToString NameContext.isPath CanonicalNames.parsePath
         | FqNamesTable -> spell classicFqName CanonicalNames.fqNameToString NameContext.isFqName CanonicalNames.parseFQName
 
-    /// The bytes of a classic slot's arrays in canonical JSON.
+    /// The bytes of a classic slot's arrays in the written form, which writes them as RFC 8785 does.
     let rec private classicBytes (element: JsonElement) : int =
         match element.ValueKind with
         | JsonValueKind.Array ->
@@ -186,7 +187,7 @@ module CompactionPolicy =
             2 + max 0 (items.Length - 1) + List.sum items
         | _ -> CanonicalJson.byteLength (nonNull (element.GetString()))
 
-    /// An occurrence at a position: its table, its spelling and its bytes in canonical JSON.
+    /// An occurrence at a position: its table, its spelling and its bytes in the written form.
     let private occurrence (shape: Shape) (element: JsonElement) =
         match shape.Reference with
         | Some(table, CanonicalString) when element.ValueKind = JsonValueKind.String ->
@@ -229,10 +230,11 @@ module CompactionPolicy =
     let private token (name: string) = name.Replace("~", "~0").Replace("/", "~1")
 
     /// <summary>
-    /// Walks the plain document in the order of the file as written, and records each occurrence of a candidate and
-    /// each object that keeps its members' order (<c>Shape.KeepsOrder</c>). The file as written is canonical JSON,
-    /// whose objects have their members sorted, except an object that keeps its members' order. A position inside an
-    /// occurrence is not walked: candidates are taken at the outermost positions.
+    /// Walks the plain document in the order of the file as written, and records each occurrence of a candidate, each
+    /// object that keeps its members' order (<c>Shape.KeepsOrder</c>) and each value carried verbatim
+    /// (<c>Shape.Verbatim</c>). The file as written has the members of its objects sorted, except an object that keeps
+    /// its members' order and every object inside a verbatim value. A position inside an occurrence is not walked:
+    /// candidates are taken at the outermost positions.
     /// </summary>
     let rec private collect (found: Found) (pointer: string) (shape: Shape) (element: JsonElement) =
         RuntimeHelpers.EnsureSufficientExecutionStack()
@@ -340,11 +342,12 @@ module CompactionPolicy =
 
     /// <summary>
     /// The bytes of a plain Morphir file of <paramref name="family"/> under the policy, and whether an alias was worth
-    /// its cost: the envelope of <c>ir-context</c> 0.1.0-draft.1 in canonical JSON (RFC 8785) with the aliases the
-    /// policy chooses, or, when no alias is worth its cost or the envelope would not make the file smaller, the plain
-    /// document in canonical JSON. Both are in the policy's form: numbers as their source lexemes, and the member order
-    /// of a v4 value's parameters and of a document literal's content kept. Expanding the bytes gives the document back. The same document always gives the same
-    /// bytes. C# calls this <c>Compact</c>.
+    /// its cost: the envelope of <c>ir-context</c> 0.1.0-draft.1 with the aliases the policy chooses, or, when no alias
+    /// is worth its cost or the envelope would not make the file smaller, the plain document. Both are in the policy's
+    /// written form: the member sorting and string escaping of RFC 8785 and no whitespace, with numbers as their source
+    /// lexemes, and the members of a v4 value's parameters and the content of a document literal in source order.
+    /// Expanding the bytes gives the document back. The same document always gives the same bytes. C# calls this
+    /// <c>Compact</c>.
     /// </summary>
     /// <remarks>
     /// The document must be plain: a top-level <c>$schema</c>, which marks an envelope, is refused with

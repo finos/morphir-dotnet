@@ -234,7 +234,7 @@ $ morphir model convert --input morphir-ir.json --output daily-rate.json --compa
     {
       "code": "model.compaction_declined",
       "severity": "info",
-      "message": "No alias was worth its cost under morphir.compact/0.1.0-draft.1, so the file is written as its plain document in canonical JSON.",
+      "message": "No alias was worth its cost under morphir.compact/0.1.0-draft.1, so the file is written as its plain document in the policy's written form.",
       "location": "daily-rate.json"
     }
   ]
@@ -252,7 +252,7 @@ compacted-tree
 Its stderr holds the notice and the summary:
 
 ```text
-compacted-tree: info model.compaction_declined: No alias was worth its cost under morphir.compact/0.1.0-draft.1 in 2 of the 3 files, so they are written as their plain documents in canonical JSON.
+compacted-tree: info model.compaction_declined: No alias was worth its cost under morphir.compact/0.1.0-draft.1 in 2 of the 3 files, so they are written as their plain documents in the policy's written form.
 model convert: wrote 3 file(s) to compacted-tree: IR 4, single-file to document-tree, compacted; 1 notice(s)
 ```
 
@@ -370,7 +370,7 @@ Notices have the severity `info` and do not fail the run:
 | --- | --- |
 | `tree.dropped_manifest_member` | A v4 manifest's `version` or `created` has no place in a single file and was dropped. The message names the member. |
 | `tree.ignored_file` | A package metadata file, `package.json` in a package directory of `pkg/` or `deps/`, is not part of the model and was ignored. Other files that are neither JSON nor YAML are ignored with no notice. |
-| `model.compaction_declined` | With `--compact`, no alias was worth its cost in the single file, or in some files of a tree, so they are written as their plain documents in canonical JSON. For a tree, one notice at the output counts the files. |
+| `model.compaction_declined` | With `--compact`, no alias was worth its cost in the single file, or in some files of a tree, so they are written as their plain documents in the policy's written form. For a tree, one notice at the output counts the files. |
 
 ## JSON output
 

@@ -405,7 +405,8 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
 
     /// <summary>
     /// The written single file is one file in a compaction envelope of the schema that the policy's compacted cases
-    /// name, in the canonical JSON (RFC 8785) that the policy writes: <c>$schema</c> first, on one line.
+    /// name, in the policy's written form (members sorted as RFC 8785 sorts them, no whitespace): <c>$schema</c>
+    /// first, on one line.
     /// </summary>
     [Then("the written single file is compacted")]
     public void TheWrittenFileIsCompacted()
@@ -414,7 +415,7 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
         var schema = JsonNode.Parse(text)!.AsObject()["$schema"]?.GetValue<string>();
         Report.Check(schema == PolicySchema, $"The written file {WrittenFile.Name} is not in an envelope of {PolicySchema}: its $schema is {schema ?? "missing"}.");
         Report.Check(text.StartsWith("{\"$schema\":", StringComparison.Ordinal) && !text.Contains('\n', StringComparison.Ordinal),
-            $"The written file {WrittenFile.Name} is not canonical JSON: it does not start with its $schema on one line.");
+            $"The written file {WrittenFile.Name} is not in the policy's written form: it does not start with its $schema on one line.");
     }
 
     /// <summary>

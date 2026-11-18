@@ -429,7 +429,7 @@ public sealed class ModelConvertSteps : IAsyncDisposable
 
     /// <summary>
     /// The written single file is one envelope of the schema that the policy's compacted cases name, and it is
-    /// canonical JSON: members sorted, no whitespace.
+    /// in the policy's written form: members sorted as RFC 8785 sorts them, no whitespace.
     /// </summary>
     [Then("the single file is compacted")]
     public void TheSingleFileIsCompacted()

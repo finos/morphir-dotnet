@@ -111,7 +111,7 @@ public static class ModelConvertCodes
 
     /// <summary>
     /// A notice of a compacted write: no alias was worth its cost in the single file, or in some files of a tree, so
-    /// they are the plain document in canonical JSON under the writer policy.
+    /// they are the plain document in the writer policy's written form.
     /// </summary>
     public const string CompactionDeclined = "model.compaction_declined";
 }

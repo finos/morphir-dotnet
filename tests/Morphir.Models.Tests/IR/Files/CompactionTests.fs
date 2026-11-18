@@ -674,7 +674,7 @@ let tests =
                     let bytes, aliased = compacted (MorphirFile.familyOf input) input
                     Expect.isFalse aliased "the result says no alias was worth its cost"
                     Expect.isFalse (isEnvelope bytes) "no envelope"
-                    Expect.sequenceEqual bytes (CanonicalJson.write input) "the plain document in canonical JSON"
+                    Expect.sequenceEqual bytes (Mother.policyExpectedBytes id) "the plain document in the policy's written form, as the parent's case gives it"
                 }
 
             yield test "savings one byte above the overhead are applied" {

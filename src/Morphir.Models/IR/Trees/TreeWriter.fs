@@ -54,8 +54,8 @@ module internal TreeWriter =
             false
 
     /// <summary>
-    /// The files of a compacted write that the writer policy wrote plain, in canonical JSON, because no alias was worth
-    /// its cost there, in the declared order. A plain write does not set it.
+    /// The files of a compacted write that the writer policy wrote plain, in its written form, because no alias was
+    /// worth its cost there, in the declared order. A plain write does not set it.
     /// </summary>
     let plainFiles: Morphir.Files.Property<string list> =
         Morphir.Files.Property.create "morphir.document-tree.plain-files"

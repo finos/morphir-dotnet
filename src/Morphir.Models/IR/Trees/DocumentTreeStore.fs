@@ -61,7 +61,7 @@ module DocumentTreeStore =
         TreeWriter.locations
 
     /// <summary>
-    /// The files of a compacted write that the writer policy wrote as plain documents in canonical JSON, because no
+    /// The files of a compacted write that the writer policy wrote as plain documents in its written form, because no
     /// alias was worth its cost there, in the declared order; set on the tree that a write with
     /// <c>Compact = Some Names</c> returns, and not on a plain write.
     /// </summary>

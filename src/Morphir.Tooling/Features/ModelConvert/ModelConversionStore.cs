@@ -331,7 +331,7 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         if (!model.TryWriteSingleFile(target.Compact, out var bytes, out var compacted, out var problems))
             return ModelWrite.Refused([.. problems.Select(problem => ConvertDiagnostic.Of(problem, target.Given))]);
         IReadOnlyList<ConvertDiagnostic> notices = target.Compact && !compacted
-            ? [CompactionDeclined($"No alias was worth its cost under {CompactionPolicy.Id}, so the file is written as its plain document in canonical JSON.", target.Given)]
+            ? [CompactionDeclined($"No alias was worth its cost under {CompactionPolicy.Id}, so the file is written as its plain document in the policy's written form.", target.Given)]
             : [];
         string? staging = null;
         try
@@ -384,7 +384,7 @@ public sealed class DiskModelConversionStore : IModelConversionStore
 
     /// <summary>
     /// The notice of a compacted tree with files that no alias paid for: how many of its files are the plain document
-    /// in canonical JSON, at the output. None for a plain write, or when every file has an alias worth its cost.
+    /// in the policy's written form, at the output. None for a plain write, or when every file has an alias worth its cost.
     /// </summary>
     private static IReadOnlyList<ConvertDiagnostic> TreeNotices(VFileTree tree, int files, ModelTarget target)
     {
@@ -392,7 +392,7 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         if (count == 0)
             return [];
         return [CompactionDeclined(
-            $"No alias was worth its cost under {CompactionPolicy.Id} in {count} of the {files} files, so they are written as their plain documents in canonical JSON.",
+            $"No alias was worth its cost under {CompactionPolicy.Id} in {count} of the {files} files, so they are written as their plain documents in the policy's written form.",
             target.Given)];
     }
 
