@@ -30,6 +30,13 @@ public enum ConsoleControlEvent
 /// Ctrl+Break. No window opens at any point. The helper prints the UTC time right before the event is generated, so the
 /// test measures from the event and not from the helper's start-up.
 /// </para>
+/// <para>
+/// <b>Ctrl+C ignored by inheritance.</b> A Windows process can ignore Ctrl+C as an attribute of its own, which
+/// <c>CREATE_NEW_PROCESS_GROUP</c> sets and each child inherits, and while it is set <c>CTRL_C_EVENT</c> calls no
+/// handler of the process. An agent, a shell or a runner that starts the test process that way passes the attribute to
+/// each worker, and the worker then runs on through a Ctrl+C. <see cref="LetChildrenTakeCtrlC"/> clears the attribute
+/// of the test process before a session starts, so the target takes Ctrl+C as in a user's console.
+/// </para>
 /// </remarks>
 public static class ConsoleInterrupt
 {
@@ -37,6 +44,22 @@ public static class ConsoleInterrupt
 
     [DllImport("libc", EntryPoint = "kill", SetLastError = true)]
     static extern int Kill(int pid, int signal);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
+
+    /// <summary>
+    /// On Windows, clears the attribute that makes this process ignore Ctrl+C, so each process that it starts afterwards
+    /// takes Ctrl+C. Call it before the start of a process that a test interrupts with <see cref="ConsoleControlEvent.CtrlC"/>.
+    /// This process then takes a Ctrl+C of its own console too, as it does when a user starts it from a console.
+    /// </summary>
+    public static void LetChildrenTakeCtrlC()
+    {
+        if (OperatingSystem.IsWindows() && !SetConsoleCtrlHandler(IntPtr.Zero, false))
+        {
+            throw new InvalidOperationException($"SetConsoleCtrlHandler(NULL, FALSE) failed: error {Marshal.GetLastPInvokeError()}");
+        }
+    }
 
     /// <summary>
     /// The gate of the helper. The target of an interrupt is usually a session that holds a slot of

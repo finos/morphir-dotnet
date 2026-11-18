@@ -225,6 +225,8 @@ public sealed class ProcessSessionDriver : IProcessSessionDriver
         }
 
         if (options?.WorkingDirectory is { } directory) info.WorkingDirectory = directory;
+        // The session inherits whether it ignores Ctrl+C from this process, and a test interrupts it as a user does.
+        ConsoleInterrupt.LetChildrenTakeCtrlC();
         var session = new ProcessSession(commandLine);
         await session.StartAsync(info, options?.Timeout ?? DefaultTimeout, _gate, cancellation).ConfigureAwait(false);
         return session;

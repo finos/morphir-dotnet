@@ -1,5 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.Runtime.InteropServices;
 using System.Text;
 using FluentAssertions;
 using Morphir.TestSupport.Drivers;
@@ -60,6 +61,31 @@ public class ProcessSessionDriverTests
         exit.FromInterruptToExit.Should().NotBeNull();
         exit.FromInterruptToExit!.Value.Should().BeGreaterThanOrEqualTo(TimeSpan.Zero).And.BeLessThan(TimeSpan.FromSeconds(10));
     }
+
+    // A Windows process can start with Ctrl+C ignored: CREATE_NEW_PROCESS_GROUP sets that attribute, and each child
+    // inherits it. A test process started that way by an agent, a shell or a runner gave the attribute to each session,
+    // so CTRL_C_EVENT reached no handler and the session hung until its time limit. A session takes Ctrl+C as in a
+    // user's console, whatever the test process inherited. The test leaves its process with Ctrl+C ignored only up to
+    // the start of the session: the driver enables it again there.
+    [Test]
+    public async Task ACtrlCInterruptsTheSessionAlsoWhenTheTestProcessIgnoresCtrlC()
+    {
+        if (!OperatingSystem.IsWindows()) Skip.Test("Only a Windows process inherits whether it ignores Ctrl+C.");
+        SetConsoleCtrlHandler(IntPtr.Zero, true).Should().BeTrue("the test process ignores Ctrl+C, as a process of a new process group does");
+        var (workspace, sessions, script) = await Arrange("""{"modules":{"*":[{"stderr":"ready"},{"hang":true}]}}""");
+        await using var _ = workspace;
+        await using var session = await sessions.StartAsync(["--script", script, "extension", "worker"]);
+        (await session.WaitUntilAsync(() => session.StandardError.Any(line => line.Text == "ready"), TimeSpan.FromSeconds(30))).Should().BeTrue();
+
+        await session.InterruptAsync(ConsoleControlEvent.CtrlC);
+        var exit = await session.WaitForExitAsync(TimeSpan.FromSeconds(10));
+
+        exit.ExitCode.Should().NotBeNull("Ctrl+C ends the fake, which has no handler of its own; " + exit.Describe());
+        exit.ExitCode.Should().NotBe(0, exit.Describe());
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
 
     // The session of the target holds a slot of the shared gate for its whole life. With a share of one slot, an
     // interrupt that waited for a slot of the same gate waited until the time limit of the session stopped its target.
