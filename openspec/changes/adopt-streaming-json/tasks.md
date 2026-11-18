@@ -28,7 +28,8 @@ Work is on `feat/model-convert`, before `add-model-convert` group 6, which build
 
 ## 5. Integration checks
 
-- [ ] 5.1 Run the black-box suite on the Native AOT executable and verify every feature that reads JSON output passes.
+- [x] 5.1 Run the black-box suite on the Native AOT executable and verify every feature that reads JSON output passes.
+  - Run on osx-arm64 at `d574dbf8` with `MORPHIR_TEST_TARGET=aot`: `JsonOutput.feature` 73 passed, 2 skipped by design (a log line of `generate` needs dynamic code, which the AOT host lacks), and every other feature that reads JSON output passes; the whole black-box suite has no failure (integration 483 passed, 119 skipped by host or capability). The ILC step of the publish gives no IL2026 and no IL3050, which closes the zero-warning check of 2.2.
 - [x] 5.2 Verify every row of the traceability table below names a passing test, and `openspec validate adopt-streaming-json --strict` passes.
   - Each row of the table names its tests by their final names; every one was run and passes (`JsonOutput.feature`, `Validation.feature`, `CSharpGenerationCommand.feature`, `ExtensionWorker.feature`'s help scenario, `Morphir.Tooling.Tests`, `Morphir.TestSupport.Tests` and the worker test of `Morphir.Conformance.Tests`). `openspec validate --all --strict` passes.
 
