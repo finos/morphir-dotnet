@@ -8,43 +8,33 @@ open Morphir.IR
 open Morphir.IR.Trees
 open Morphir.TestSupport.Fixtures
 
-let private domain = ModulePath(Path [ Name [ "domain" ] ])
-let private manifestLocation = "manifest.json"
-let private moduleLocation = "pkg/acme/orders/domain/module.json"
-let private orderLocation = "pkg/acme/orders/domain/order.value.json"
-let private totalLocation = "pkg/acme/orders/domain/total-in-_usd.value.json"
+module Orders = Morphir.Models.TestSupport.DocumentTreeMother.BoundedOrders
 
-// Metadata from the frozen acme/orders plain JSON trees at parent 3f3157318.
+let private domain = ModulePath(Path [ Name [ "domain" ] ])
+let private manifestLocation = Orders.manifestLocation
+let private moduleLocation = Orders.domainLocation
+let private orderLocation = Orders.orderLocation
+let private totalLocation = Orders.totalLocation
+
+let private jsonVersions = [ "v3.1", "\"3.1.0\""; "v4", "4" ]
+
 // The source refuses any unexpected lookup so a split body cannot be read by discovery.
-let private ordersSource version editListing =
+let private ordersSource files =
+    let files = VFileTree.toFileMap files
     let mutable revision = "orders-1"
     let lookedUp = ResizeArray<string>()
 
-    let manifest =
-        """{"formatVersion":%VERSION%,"distribution":"Library","package":"acme/orders","pathBudget":4000,"dependencies":["morphir/SDK"]}"""
-            .Replace("%VERSION%", version)
-
-    let listing =
-        """{"formatVersion":%VERSION%,"path":"domain","doc":"Order totals.","types":["order"],"values":["order","total-in-USD"]}"""
-            .Replace("%VERSION%", version)
-
-    let files =
-        dict [
-            manifestLocation, VFile.ofText manifestLocation manifest
-            moduleLocation, VFile.ofText moduleLocation (editListing listing)
-        ]
-
     let source: TreeFileSource.SnapshotSource = {
         Revision = fun () -> revision
-        ContainsFile = files.ContainsKey
+        ContainsFile = fun location -> Map.containsKey location files
         NextModule = fun _ _ _ -> failtest "Member reads do not enumerate modules"
         FindFile =
             fun location ->
                 lookedUp.Add location
 
-                match files.TryGetValue location with
-                | true, file -> Some file
-                | _ -> failtestf "Unexpected file lookup during discovery: %s" location
+                match Map.tryFind location files with
+                | Some file -> Some file
+                | None -> failtestf "Unexpected file lookup during discovery: %s" location
     }
 
     source, lookedUp, (fun () -> revision <- "orders-2")
@@ -53,37 +43,6 @@ let private read =
     function
     | Ok result -> result
     | Result.Error errors -> failtestf "Expected a successful read, got %A" errors
-
-let private valueFixture version file =
-    let path =
-        $"{FixtureCatalog.BoundedOrders.Directory}{version}/plain-json/pkg/acme/orders/domain/{file}"
-
-    FixtureCatalog.BoundedOrders.Files
-    |> Seq.find (fun entry -> entry.RelativePath = path)
-    |> FixtureCatalog.ReadText
-
-let private selectedOrders version sourceVersion =
-    let source, lookedUp, _ = ordersSource sourceVersion id
-    let lookup = source.FindFile
-
-    { source with
-        ContainsFile =
-            fun location ->
-                location = orderLocation
-                || location = totalLocation
-                || source.ContainsFile location
-        FindFile =
-            fun location ->
-                match location with
-                | path when
-                    path = orderLocation
-                    || path = totalLocation
-                    ->
-                    lookedUp.Add path
-                    Some(VFile.ofText path (valueFixture version (System.IO.Path.GetFileName path)))
-                | _ -> lookup location
-    },
-    lookedUp
 
 let private orderAddress = Own(ValueDef(domain, Name [ "order" ]))
 
@@ -194,9 +153,9 @@ let private verifyOrdersTypeAndSpecifications orderType sdkType sdkValue =
 [<Tests>]
 let tests =
     testList "Bounded document-tree inventory" [
-        for version in [ "\"3.1.0\""; "4" ] do
-            test $"Metadata pages and cursor binding for IR {version}" {
-                let source, lookedUp, advance = ordersSource version id
+        for version, formatVersion in jsonVersions do
+            test $"Metadata pages and cursor binding for IR {formatVersion}" {
+                let source, lookedUp, advance = ordersSource (Orders.metadata version)
                 let snapshot = read (BoundedTreeReader.openTree 1024L source)
                 let selection = Own(Module domain)
 
@@ -249,11 +208,8 @@ let tests =
                     "A changed revision cannot resume the page"
             }
 
-            test $"Metadata rejects a duplicate after the page boundary for IR {version}" {
-                let duplicate (listing: string) =
-                    listing.Replace("\"total-in-USD\"", "\"order\"")
-
-                let source, lookedUp, _ = ordersSource version duplicate
+            test $"Metadata rejects a duplicate after the page boundary for IR {formatVersion}" {
+                let source, lookedUp, _ = ordersSource (Orders.duplicateListedValue version)
                 let snapshot = read (BoundedTreeReader.openTree 1024L source)
 
                 let errors =
@@ -272,11 +228,8 @@ let tests =
                     "No definition file is consulted"
             }
 
-            test $"Metadata does not decode inline bodies for IR {version}" {
-                let inlineValue (listing: string) =
-                    listing.Replace("""["order","total-in-USD"]""", """{"order":false}""")
-
-                let source, lookedUp, _ = ordersSource version inlineValue
+            test $"Metadata does not decode inline bodies for IR {formatVersion}" {
+                let source, lookedUp, _ = ordersSource (Orders.malformedInlineValue version)
                 let snapshot = read (BoundedTreeReader.openTree 1024L source)
                 let page = read (BoundedTreeReader.members 2 None (Own(Module domain)) snapshot)
 
@@ -294,37 +247,14 @@ let tests =
     ]
 
 let private moduleSource version =
-    let source, lookedUp, advance = ordersSource version id
+    let source, lookedUp, advance = ordersSource (Orders.moduleMetadata version)
     let audit = "pkg/acme/orders/audit/module"
     let orders = "pkg/acme/orders/domain/module"
     let sdk = "deps/morphir/_sdk/@/basics/module"
     let enumerated = ResizeArray<string * string option>()
 
-    let files =
-        dict [
-            audit
-            + ".json",
-            """{"formatVersion":%V%,"path":"audit","access":"Private"}"""
-                .Replace("%V%", version)
-            sdk
-            + ".json",
-            """{"formatVersion":%V%,"path":"basics","types":["int"]}"""
-                .Replace("%V%", version)
-        ]
-
     let recording =
         { source with
-            ContainsFile =
-                fun path ->
-                    files.ContainsKey path
-                    || source.ContainsFile path
-            FindFile =
-                fun path ->
-                    match files.TryGetValue path with
-                    | true, value ->
-                        lookedUp.Add path
-                        Some(VFile.ofText path value)
-                    | _ -> source.FindFile path
             NextModule =
                 fun _ prefix after ->
                     enumerated.Add(prefix, after)
@@ -346,7 +276,7 @@ let private moduleSource version =
 let modulePages =
     testList "Bounded module inventory" [
         test "A noncanonical direct module selection never reaches storage" {
-            let source, lookedUp, _, _ = moduleSource "4"
+            let source, lookedUp, _, _ = moduleSource "v4"
             let snapshot = read (BoundedTreeReader.openTree 1024L source)
             let badModule = ModulePath(Path [ Name [ ".." ]; Name [ "domain" ] ])
 
@@ -366,8 +296,8 @@ let modulePages =
                 "A bad selection never reaches the file source"
         }
 
-        for version in [ "\"3.1.0\""; "4" ] do
-            test $"Pages private and public modules with a package-scoped cursor in {version}" {
+        for version, formatVersion in jsonVersions do
+            test $"Pages private and public modules with a package-scoped cursor in {formatVersion}" {
                 let source, lookedUp, enumerated, advance = moduleSource version
                 let snapshot = read (BoundedTreeReader.openTree 1024L source)
                 let package = PackageName(Path [ Name [ "acme" ]; Name [ "orders" ] ])
@@ -461,7 +391,7 @@ let modulePages =
             let package = PackageName(Path [ Name [ "acme" ]; Name [ "orders" ] ])
 
             for path in [ "pkg/acme/orders/../domain/module"; "deps/morphir/_sdk/@/basics/module" ] do
-                let source, lookedUp, _, _ = moduleSource "4"
+                let source, lookedUp, _, _ = moduleSource "v4"
 
                 let unsafe =
                     { source with
@@ -478,7 +408,7 @@ let modulePages =
                     [ manifestLocation ]
                     "A misplaced path never reaches file lookup"
 
-            let source, lookedUp, _, _ = moduleSource "4"
+            let source, lookedUp, _, _ = moduleSource "v4"
             let repeated = "pkg/acme/orders/audit/module"
 
             let unordered =
@@ -505,9 +435,9 @@ let modulePages =
 [<Tests>]
 let selectedReads =
     testList "Bounded selected document bodies" [
-        for version, sourceVersion in [ "v3.1", "\"3.1.0\""; "v4", "4" ] do
+        for version in [ "v3.1"; "v4" ] do
             test $"Reads the final-page reference and its selected value in {version}" {
-                let source, lookedUp = selectedOrders version sourceVersion
+                let source, lookedUp, _ = ordersSource (Orders.selectedValues version)
                 let snapshot = read (BoundedTreeReader.openTree 1024L source)
                 let selection = Own(Module domain)
                 let first = read (BoundedTreeReader.members 2 None selection snapshot)
@@ -539,25 +469,8 @@ let selectedReads =
             }
 
             test $"Checks selected membership and file identity in {version}" {
-                let source, lookedUp = selectedOrders version sourceVersion
-
-                let actual =
-                    { source with
-                        FindFile =
-                            fun location ->
-                                if location = orderLocation then
-                                    lookedUp.Add location
-
-                                    Some(
-                                        VFile.ofText
-                                            location
-                                            (valueFixture version "total-in-_usd.value.json")
-                                    )
-                                else
-                                    source.FindFile location
-                    }
-
-                let snapshot = read (BoundedTreeReader.openTree 1024L actual)
+                let source, lookedUp, _ = ordersSource (Orders.selectedValueWithWrongName version)
+                let snapshot = read (BoundedTreeReader.openTree 1024L source)
                 let unlisted = Own(ValueDef(domain, Name [ "unlisted" ]))
 
                 BoundedTreeReader.readMember unlisted snapshot
@@ -574,16 +487,9 @@ let selectedReads =
 
             test
                 $"Reads an alternately spelled inline name without decoding its malformed sibling in {version}" {
-                use order = JsonDocument.Parse(valueFixture version "order.value.json")
-                let payload = order.RootElement.GetProperty("def").GetRawText()
+                let source, lookedUp, _ =
+                    ordersSource (Orders.alternateInlineValueWithMalformedSibling version)
 
-                let inlineListing (listing: string) =
-                    let values =
-                        """{"a-b":%VALUE%,"total-in-USD":false}""".Replace("%VALUE%", payload)
-
-                    listing.Replace("""["order","total-in-USD"]""", values)
-
-                let source, lookedUp, _ = ordersSource sourceVersion inlineListing
                 let snapshot = read (BoundedTreeReader.openTree 1024L source)
                 let selected = Own(ValueDef(domain, Name [ "a"; "b" ]))
                 let body = read (BoundedTreeReader.readMember selected snapshot)
@@ -613,23 +519,8 @@ let selectedReads =
             }
 
             test $"Enforces the byte cap on the selected body in {version}" {
-                let source, _, _ = ordersSource sourceVersion id
-
-                let capped =
-                    { source with
-                        ContainsFile =
-                            fun location ->
-                                location = orderLocation
-                                || source.ContainsFile location
-                        FindFile =
-                            fun location ->
-                                if location = orderLocation then
-                                    Some(VFile.ofText location (String.replicate 1025 "x"))
-                                else
-                                    source.FindFile location
-                    }
-
-                let snapshot = read (BoundedTreeReader.openTree 1024L capped)
+                let source, _, _ = ordersSource (Orders.oversizedSelectedValue version 1025)
+                let snapshot = read (BoundedTreeReader.openTree 1024L source)
 
                 BoundedTreeReader.readMember orderAddress snapshot
                 |> expectReadError "tree.file_too_large" orderLocation
@@ -637,16 +528,8 @@ let selectedReads =
     ]
 
 let private frozenOrdersFiles version profile =
-    let prefix = $"{FixtureCatalog.BoundedOrders.Directory}{version}/{profile}/"
     let opened = ResizeArray<string>()
-
-    let documents =
-        FixtureCatalog.BoundedOrders.Files
-        |> Seq.filter (fun entry ->
-            entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal)
-        )
-        |> Seq.map (fun entry -> entry.RelativePath.Substring(prefix.Length), entry)
-        |> Map.ofSeq
+    let documents = Orders.catalogDocuments version profile
 
     let files =
         documents
@@ -1128,22 +1011,7 @@ let providerTests =
         }
 
         test "Refuses a selected inline member which has a split sidecar" {
-            use order = JsonDocument.Parse(valueFixture "v4" "order.value.json")
-            let payload = order.RootElement.GetProperty("def").GetRawText()
-
-            let inlineListing (listing: string) =
-                let values = """{"order":%VALUE%}""".Replace("%VALUE%", payload)
-                listing.Replace("""["order","total-in-USD"]""", values)
-
-            let underlying, lookedUp, _ = ordersSource "4" inlineListing
-
-            let source =
-                { underlying with
-                    ContainsFile =
-                        fun path ->
-                            path = orderLocation
-                            || underlying.ContainsFile path
-                }
+            let source, lookedUp, _ = ordersSource (Orders.inlineAndSplitValue "v4")
 
             let snapshot = read (BoundedTreeReader.openTree 1024L source)
 
