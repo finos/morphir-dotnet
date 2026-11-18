@@ -1,10 +1,10 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Foundatio.Mediator;
+using Morphir.Files;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Scenarios;
 using Morphir.Testing;
-using Morphir.IR.Pipeline;
 
 using Morphir.TestSupport;
 

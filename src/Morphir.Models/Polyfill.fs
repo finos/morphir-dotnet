@@ -53,6 +53,7 @@ namespace Morphir.Compat
 
 open System
 open System.Collections.Generic
+open System.Security.Cryptography
 
 [<AutoOpen>]
 module internal BclExtensions =
@@ -71,6 +72,19 @@ module internal BclExtensions =
         member this.StartsWith(value: char) = this.Length > 0 && this.[0] = value
         member this.EndsWith(value: char) = this.Length > 0 && this.[this.Length - 1] = value
         member this.Split(separator: string) = this.Split([| separator |], StringSplitOptions.None)
+
+    type System.Text.Encoding with
+        /// The text of UTF-8 bytes in a span; netstandard2.0 decodes only an array.
+        member this.GetString(bytes: ReadOnlySpan<byte>) = this.GetString(bytes.ToArray())
+
+    type Convert with
+        /// Upper-case hexadecimal digits, as Convert.ToHexString writes them.
+        static member ToHexString(bytes: byte[]) = BitConverter.ToString(bytes).Replace("-", "")
+
+    type SHA256 with
+        static member HashData(source: byte[]) : byte[] =
+            use sha = SHA256.Create()
+            sha.ComputeHash source
 
     type Dictionary<'K, 'V> with
         member this.TryAdd(key: 'K, value: 'V) =

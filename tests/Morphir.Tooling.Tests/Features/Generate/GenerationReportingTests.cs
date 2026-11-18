@@ -60,7 +60,7 @@ public sealed class GenerationReportingTests
             var input = GenerationInputFixtures.DailyRate(root, "3", "json");
             var output = Path.Combine(root, "output");
             var slow = new SlowBackend();
-            using var app = MorphirCli.CreateBuilder(["generate", "--input", input, "--target", "slow", "--output", output, "--json"])
+            using var app = MorphirCli.CreateBuilder(["generate", "--input", input, "--target", "slow", "--output", output, "--json=document"])
                 .AddScenario<GenerationScenario>().ConfigureServices(services => services.AddSingleton<IGenerationBackend>(slow)).Build();
             using var cancellation = new CancellationTokenSource();
             var running = app.RunAsync(cancellation.Token);

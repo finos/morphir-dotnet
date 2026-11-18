@@ -130,7 +130,7 @@ Generate C# through the existing CLI, with numeric profiles and a validated
 optional namespace:
 
 ```powershell
-morphir generate --input model.json --target csharp --output generated --option language-version=14 --option namespace=Example.Generated --json
+morphir generate --input model.json --target csharp --output generated --option language-version=15 --option namespace=Example.Generated --json
 ```
 
 The [C# walkthrough](docs/content/docs/getting-started/morphir-to-csharp.md)

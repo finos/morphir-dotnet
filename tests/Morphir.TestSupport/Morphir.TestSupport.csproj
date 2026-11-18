@@ -10,6 +10,42 @@
     <RootNamespace>Morphir.TestSupport</RootNamespace>
   </PropertyGroup>
 
+  <!-- The kit's YAML spellings, translated to JSON by FixtureCatalog. Tests only: the product reads JSON. -->
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+
+  <!-- The files that FixtureCatalog owns, embedded under their path below tests/Fixtures; see Fixtures/FixtureCatalog.cs. -->
+  <ItemGroup>
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/kit/*.feature" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/kit/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIR/*.json;../Fixtures/MorphirIR/*.txt" LogicalName="Morphir.TestSupport.Fixtures/MorphirIR/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/Rfc8785/rfc8785.txt" LogicalName="Morphir.TestSupport.Fixtures/Rfc8785/rfc8785.txt" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/examples/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/examples/valid/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/valid/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/examples/expanded/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/expanded/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/examples/invalid/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/invalid/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/policy/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/policy/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirContext/naming/naming-conformance.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/naming/naming-conformance.json" />
+    <!-- One directory per policy case; the resource name uses / whatever the platform's separator. -->
+    <EmbeddedResource Include="../Fixtures/MorphirContext/policy/cases/**/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/policy/cases/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
+    <!-- Each file of a hand-written tree, named by its location in the tree. -->
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/zero.value.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/zero.value.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/manifest.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/manifest.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/invoice-line.type.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/invoice-line.type.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/invoice.type.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/invoice.type.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/module.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/module.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/total.value.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/pkg/acme/demo/billing/total.value.json" />
+    <!-- The trees that the document-tree store wrote from mother cases, each file named by its location in the tree. -->
+    <EmbeddedResource Include="../Fixtures/MorphirTrees/written-*/**/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/$([System.String]::Copy('%(RecursiveDir)').Replace('\','/'))%(Filename)%(Extension)" />
+    <!-- The upstream IR documents of MorphirIon that the readers and writers are checked against (FixtureCatalog.UpstreamIr). -->
+    <EmbeddedResource Include="../Fixtures/MorphirIon/pairs/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/pairs/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/records/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/records/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/v4/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/v4/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/mep/fixtures/plain-ir.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/mep/fixtures/plain-ir.json" />
+  </ItemGroup>
+
   <!-- The child process of ChildProcess tests and of ConsoleInterrupt: see ProcessHelper. -->
   <Import Project="build/Morphir.ProcessHelper.targets" />
 

@@ -257,7 +257,7 @@ morphir-ir.json (format version 3)
 | **Gen** | `morphir-elm gen --target=Scala` | *(Planned backend generation)* |
 | **Develop** | `morphir-elm develop` (web UI) | `Morphir.Live` (Blazor WASM) |
 | **Test** | `morphir-elm test` (morphir-tests.json) | `./build.sh --target Test` (TUnit/BDD) |
-| **Verify** | *(Not present)* | `morphir ir verify <file>` (JSON schema validation) |
+| **Verify** | *(Not present)* | `morphir model verify <file>` (JSON schema validation) |
 
 **Lesson**: morphir-elm focuses on authoring/generation; morphir-dotnet focuses on consumption/validation.
 
@@ -525,7 +525,7 @@ public async Task Distribution_ShouldMatchSnapshot() {
 ```csharp
 [Test]
 public async Task CLI_VerifyIR_ShouldOutputJSON() {
-    var output = await RunCli("ir verify morphir-ir.json --json");
+    var output = await RunCli("model verify morphir-ir.json --json");
     var result = JsonSerializer.Deserialize<VerifyIRResult>(output);
     result.IsValid.Should().BeTrue();
 }
@@ -730,11 +730,11 @@ morphir-elm gen --target=Scala
 ```bash
 # Via dotnet tool
 dotnet tool install -g Morphir.Tool
-morphir ir verify morphir-ir.json
+morphir model verify morphir-ir.json
 
 # Via native executable
-./morphir ir verify morphir-ir.json  # Linux/macOS
-morphir.exe ir verify morphir-ir.json  # Windows
+./morphir model verify morphir-ir.json  # Linux/macOS
+morphir.exe model verify morphir-ir.json  # Windows
 ```
 
 ---
@@ -765,8 +765,8 @@ morphir-elm develop                      # Launch web UI
 morphir-elm test                         # Run test suite
 
 # morphir-dotnet
-morphir ir verify <file>                 # Validate IR JSON
-morphir ir verify <file> --json          # JSON output
+morphir model verify <file>                 # Validate IR JSON
+morphir model verify <file> --json          # JSON output
 morphir --version                        # Version info
 ```
 

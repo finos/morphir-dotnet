@@ -139,7 +139,7 @@ public sealed class ConfigurationEditingSteps : IDisposable
 
     private async Task Run(string[] arguments, bool boundaryFlag = true)
     {
-        string[] command = [.. new[] { "config" }.Concat(arguments).Concat(boundaryFlag ? ["--json", "--discovery-boundary", _root] : ["--json"])];
+        string[] command = [.. new[] { "config" }.Concat(arguments).Concat(boundaryFlag ? ["--json=document", "--discovery-boundary", _root] : ["--json=document"])];
         var environment = new Dictionary<string, string>();
         foreach (var key in new[] { "HOME", "USERPROFILE", "APPDATA", "PROGRAMDATA", "XDG_CONFIG_HOME" }) environment[key] = Path.Combine(_root, "home");
         foreach (var pair in _environment) environment[pair.Key] = pair.Value;

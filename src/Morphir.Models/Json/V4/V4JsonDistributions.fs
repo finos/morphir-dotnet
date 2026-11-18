@@ -280,8 +280,7 @@ module internal V4JsonDistributions =
           _ -> fail "invalid_type" location "The tagged array has the wrong number of items."
         | tag, _ -> fail "unknown_node" location $"'{tag}' is not a type specification."
 
-    let private typeSpecification =
-        documented typeSpecificationMembers typeSpecificationArray
+    let typeSpecification = documented typeSpecificationMembers typeSpecificationArray
 
     /// Reads inputs as an object keyed by name, or as the legacy array of pairs.
     let private inputs location (element: JsonElement) =
@@ -302,20 +301,20 @@ module internal V4JsonDistributions =
             Output = required location [ "output" ] typ values
         }
 
-    let private valueSpecification = documented valueSpecificationMembers notAnObject
+    let valueSpecification = documented valueSpecificationMembers notAnObject
 
     let private optionalMap location key decode values =
         optional location [ key ] (orderedNameMap decode) values
         |> Option.defaultValue OrderedMap.empty
 
-    let private controlledTypeDefinition =
+    let controlledTypeDefinition =
         accessControlled
             (fun location values ->
                 documentedMembers location typeDefinitionMembers typeDefinitionArray values
             )
             typeDefinition
 
-    let private controlledValueDefinition =
+    let controlledValueDefinition =
         accessControlled
             (fun location values ->
                 documentedMembers location valueDefinitionMembers notAnObject values
@@ -413,7 +412,7 @@ module internal V4JsonDistributions =
             Doc = optional location [ "doc" ] text values
         }
 
-    let private entryPoints location element =
+    let entryPoints location element =
         members location element
         |> List.map (fun (key, item) -> key, entryPoint (memberAt location key) item)
 
@@ -564,7 +563,7 @@ module internal V4JsonDistributions =
 
     /// Checks the format version before any v4 decoding, so a document of another version gets a version
     /// diagnostic rather than an incidental one.
-    let private formatVersion (values: Members) =
+    let formatVersion (values: Members) =
         match
             values
             |> List.filter (fun (key, _) -> key = "formatVersion")

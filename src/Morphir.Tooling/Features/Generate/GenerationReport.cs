@@ -66,7 +66,10 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
         _ => 2
     };
 
-    public string ToJson() => JsonSerializer.Serialize(this, GenerationJsonContext.Default.GenerationReport);
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>The source-generated contract of the report, for the shared JSON output writer.</summary>
+    public static System.Text.Json.Serialization.Metadata.JsonTypeInfo<GenerationReport> JsonInfo => GenerationJsonContext.Default.GenerationReport;
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]

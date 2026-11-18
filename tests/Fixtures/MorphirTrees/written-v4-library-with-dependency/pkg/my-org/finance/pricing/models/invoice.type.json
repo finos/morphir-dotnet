@@ -1,0 +1,19 @@
+{
+  "formatVersion": 4,
+  "name": "invoice",
+  "def": {
+    "Public": {
+      "TypeAliasDefinition": {
+        "typeParams": [],
+        "typeExp": {
+          "Record": {
+            "fields": {
+              "amount": "morphir/SDK:basics#int",
+              "currency": "morphir/SDK:string#string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

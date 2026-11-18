@@ -50,10 +50,10 @@ type CliAdapterOptions = {
 }
 
 /// <summary>
-/// The <c>cli</c> adapter (MCK-1): it drives any <c>morphir</c> executable through <c>compile --json-lines</c>, the
+/// The <c>cli</c> adapter (MCK-1): it drives any <c>morphir</c> executable through <c>compile --json</c>, the
 /// <c>completed</c> record and the written IR. It uses only the documented command line
 /// (<c>docs/content/docs/cli/compile.md</c>): the options <c>--project</c>, <c>--input</c>, <c>--project-file</c>,
-/// <c>--ir-version</c> and <c>--json-lines</c>, the <c>project.name</c> and <c>project.exposed_modules</c> keys of
+/// <c>--ir-version</c> and <c>--json</c> (a bare flag: the stream), the <c>project.name</c> and <c>project.exposed_modules</c> keys of
 /// <c>morphir.toml</c>, the JSON Lines record format, the report members <c>success</c>, <c>exitCode</c>,
 /// <c>sources</c>, <c>output</c> and <c>diagnostics</c>, and the exit codes. It ignores unknown records and members.
 /// </summary>
@@ -532,7 +532,7 @@ module CliAdapter =
                             caseDirectory
                             "--ir-version"
                             input.IrVersion
-                            "--json-lines"
+                            "--json"
                         ]
                         @ sources
                         @ options.ExtraArguments

@@ -30,6 +30,10 @@ public sealed record ExtensionListReport(
     public static ExtensionListReport Failure(HostIdentity host, RegistryError error) =>
         Identity(host, [], error.Diagnostics.Select(diagnostic => new ExtensionListDiagnostic(diagnostic.Code.WireValue, diagnostic.Message)).ToArray());
 
+    /// <summary>The report of a usage error: no extensions, and one diagnostic <paramref name="code"/> for each message.</summary>
+    public static ExtensionListReport Usage(HostIdentity host, string code, IEnumerable<string> messages) =>
+        Identity(host, [], messages.Select(message => new ExtensionListDiagnostic(code, message)).ToArray());
+
     private static ExtensionListReport Identity(HostIdentity host, IReadOnlyList<ExtensionListEntry> entries, IReadOnlyList<ExtensionListDiagnostic>? diagnostics)
     {
         var prerequisites = host.PrerequisitesOrNull;
@@ -79,7 +83,10 @@ public sealed record ExtensionListReport(
             entry.CapabilitySummary);
     }
 
-    public string ToJson() => JsonSerializer.Serialize(this, ExtensionListJsonContext.Default.ExtensionListReport);
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>The source-generated contract of the report, for the shared JSON output writer.</summary>
+    public static System.Text.Json.Serialization.Metadata.JsonTypeInfo<ExtensionListReport> JsonInfo => ExtensionListJsonContext.Default.ExtensionListReport;
 }
 
 public sealed record ExtensionListEntry(string Id, string Name, string Version, string? Description, IReadOnlyList<string> Types,

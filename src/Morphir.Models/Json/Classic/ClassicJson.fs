@@ -746,6 +746,27 @@ module internal ClassicJsonDecoder =
             Doc = optionalDoc location element
         }
 
+    // The entries of a module's types and values without their names: the def and spec payloads of the files of a
+    // classic v3 document tree, read as the entries of a v3 module list are.
+
+    /// The entry of a module definition's types: { "access", "value": { "doc", "value" } }.
+    let typeDefinitionEntry location element =
+        let ctx = { Version = 3; ForGeneration = false }
+        access ctx location (fun location -> documented true location (typeDefinition ctx)) element
+
+    /// The entry of a module definition's values: { "access", "value": { "doc", "value": { … } } }.
+    let valueDefinitionEntry location element =
+        let ctx = { Version = 3; ForGeneration = false }
+        access ctx location (fun location -> documented true location (definition ctx)) element
+
+    /// The entry of a module specification's types: { "doc", "value" }.
+    let typeSpecificationEntry location element =
+        documented true location (typeSpecification { Version = 3; ForGeneration = false }) element
+
+    /// The entry of a module specification's values: { "doc", "value": { "inputs", "output" } }.
+    let valueSpecificationEntry location element =
+        documented true location (valueSpecification { Version = 3; ForGeneration = false }) element
+
     /// Module lists keep version 1's objects, and later versions' pairs.
     let private modulesOf (ctx: ClassicContext) location key decodeModule (modules: JsonElement) =
         if ctx.Version = 1 then
@@ -965,6 +986,241 @@ module internal ClassicJsonDecoder =
 
         version, package, packageDefinition true ctx (item "$" 3 distribution)
 
+/// The members of a classic v3 document that the classic model has no place for. The decoder reads the members it
+/// knows and passes over any other, so a document it accepts can hold content that a write would drop. This walk
+/// follows the classic v3 shapes of a document the decoder has accepted and refuses the first object member that no
+/// shape names, with unknown_member at that member's JSON location (the decoder's dotted form, as
+/// V4JsonDecoding.memberAt spells it). Attributes are carried as they are, so it does not enter them. It raises
+/// ClassicJsonFailure, as the decoder does.
+module internal ClassicMembers =
+    let private memberAt (location: string) (name: string) =
+        if
+            name <> ""
+            && name
+               |> Seq.forall (fun c ->
+                   Char.IsAsciiLetterOrDigit c
+                   || c = '-'
+                   || c = '_'
+               )
+        then
+            location
+            + "."
+            + name
+        else
+            location
+            + "[\""
+            + name
+            + "\"]"
+
+    let private itemAt (location: string) (index: int) =
+        location
+        + "["
+        + index.ToString(CultureInfo.InvariantCulture)
+        + "]"
+
+    /// Refuses a member of an object outside the names that its shape has.
+    let private closed location (allowed: string list) (element: JsonElement) =
+        if element.ValueKind = JsonValueKind.Object then
+            for property in element.EnumerateObject() do
+                if not (List.contains property.Name allowed) then
+                    ClassicJsonDecoder.fail
+                        "unknown_member"
+                        (memberAt location property.Name)
+                        $"Unknown member '{property.Name}': the classic v3 model has no place for it, so it would be lost."
+
+    let private items (element: JsonElement) =
+        if element.ValueKind = JsonValueKind.Array then
+            element.EnumerateArray()
+            |> Seq.toList
+        else
+            []
+
+    /// Walks the item at an index of an array, when it has one.
+    let private at index walk location (element: JsonElement) =
+        match List.tryItem index (items element) with
+        | Some item -> walk (itemAt location index) item
+        | None -> ()
+
+    /// Walks a member of an object, when it has one.
+    let private under (name: string) walk location (element: JsonElement) =
+        let mutable found = Unchecked.defaultof<JsonElement>
+
+        if
+            element.ValueKind = JsonValueKind.Object
+            && element.TryGetProperty(name, &found)
+        then
+            walk (memberAt location name) found
+
+    let private each walk location (element: JsonElement) =
+        items element
+        |> List.iteri (fun index item -> walk (itemAt location index) item)
+
+    /// The second items of a list of pairs, such as a module list or a record's fields.
+    let private pairs walk = each (at 1 walk)
+
+    let private tag (element: JsonElement) =
+        match items element with
+        | first :: _ when first.ValueKind = JsonValueKind.String -> first.GetString()
+        | _ -> null
+
+    let rec private typ location (element: JsonElement) =
+        RuntimeHelpers.EnsureSufficientExecutionStack()
+
+        match tag element with
+        | "Reference" -> at 3 (each typ) location element
+        | "Tuple" -> at 2 (each typ) location element
+        | "Record" -> at 2 fields location element
+        | "ExtensibleRecord" -> at 3 fields location element
+        | "Function" ->
+            at 2 typ location element
+            at 3 typ location element
+        | _ -> ()
+
+    and private fields location element =
+        each
+            (fun location field ->
+                closed location [ "name"; "tpe" ] field
+                under "tpe" typ location field
+            )
+            location
+            element
+
+    // Patterns and literals hold no object but attributes, so a value walks no pattern.
+    let rec private value location (element: JsonElement) =
+        RuntimeHelpers.EnsureSufficientExecutionStack()
+        let walk index = at index value location element
+
+        match tag element with
+        | "Tuple"
+        | "List" -> at 2 (each value) location element
+        | "Record" -> at 2 (pairs value) location element
+        | "Field" -> walk 2
+        | "Apply" ->
+            walk 2
+            walk 3
+        | "Lambda" -> walk 3
+        | "LetDefinition" ->
+            at 3 definition location element
+            walk 4
+        | "LetRecursion" ->
+            at 2 (pairs definition) location element
+            walk 3
+        | "Destructure" ->
+            walk 3
+            walk 4
+        | "IfThenElse" ->
+            walk 2
+            walk 3
+            walk 4
+        | "PatternMatch" ->
+            walk 2
+            at 3 (pairs value) location element
+        | "UpdateRecord" ->
+            walk 2
+            at 3 (pairs value) location element
+        | _ -> ()
+
+    and private definition location element =
+        closed location [ "inputTypes"; "outputType"; "body" ] element
+        under "inputTypes" (each (at 2 typ)) location element
+        under "outputType" typ location element
+        under "body" value location element
+
+    /// A documented entry, { "doc", "value" }, or the bare entry, as the decoder tells them apart.
+    let private documented walk location (element: JsonElement) =
+        let mutable doc = Unchecked.defaultof<JsonElement>
+
+        if
+            element.ValueKind = JsonValueKind.Object
+            && element.TryGetProperty("doc", &doc)
+        then
+            closed location [ "doc"; "value" ] element
+            under "value" walk location element
+        else
+            walk location element
+
+    let private accessControlled walk location element =
+        closed location [ "access"; "value" ] element
+        under "value" walk location element
+
+    let private constructors = pairs (each (at 1 typ))
+
+    let private typeDefinition location element =
+        match tag element with
+        | "TypeAliasDefinition" -> at 2 typ location element
+        | "CustomTypeDefinition" -> at 2 (accessControlled constructors) location element
+        | _ -> ()
+
+    let private typeSpecification location element =
+        match tag element with
+        | "TypeAliasSpecification" -> at 2 typ location element
+        | "CustomTypeSpecification" -> at 2 constructors location element
+        | "DerivedTypeSpecification" ->
+            at
+                2
+                (fun location details ->
+                    closed location [ "baseType"; "fromBaseType"; "toBaseType" ] details
+                    under "baseType" typ location details
+                )
+                location
+                element
+        | _ -> ()
+
+    let private valueSpecification location element =
+        closed location [ "inputs"; "output" ] element
+        under "inputs" (each (at 1 typ)) location element
+        under "output" typ location element
+
+    /// The entry of a module definition's types: { "access", "value": { "doc", "value" } }.
+    let typeDefinitionEntry location element =
+        accessControlled (documented typeDefinition) location element
+
+    /// The entry of a module definition's values: { "access", "value": { "doc", "value": { … } } }.
+    let valueDefinitionEntry location element =
+        accessControlled (documented definition) location element
+
+    /// The entry of a module specification's types: { "doc", "value" }.
+    let typeSpecificationEntry location element =
+        documented typeSpecification location element
+
+    /// The entry of a module specification's values: { "doc", "value": { "inputs", "output" } }.
+    let valueSpecificationEntry location element =
+        documented valueSpecification location element
+
+    let private moduleDefinition location element =
+        closed location [ "types"; "values"; "doc" ] element
+        under "types" (pairs typeDefinitionEntry) location element
+        under "values" (pairs valueDefinitionEntry) location element
+
+    let private moduleSpecification location element =
+        closed location [ "types"; "values"; "doc" ] element
+        under "types" (pairs typeSpecificationEntry) location element
+        under "values" (pairs valueSpecificationEntry) location element
+
+    let private packageSpecification location element =
+        closed location [ "modules" ] element
+        under "modules" (pairs moduleSpecification) location element
+
+    let private packageDefinition location element =
+        closed location [ "modules" ] element
+        under "modules" (pairs (accessControlled moduleDefinition)) location element
+
+    /// A whole v3 document that the decoder has read: { "formatVersion", "distribution" }.
+    let document (root: JsonElement) =
+        closed "$" [ "formatVersion"; "distribution" ] root
+
+        under
+            "distribution"
+            (fun location distribution ->
+                at 2 (pairs packageSpecification) location distribution
+
+                match tag distribution with
+                | "Specs" -> at 3 packageSpecification location distribution
+                | _ -> at 3 packageDefinition location distribution
+            )
+            "$"
+            root
+
 /// <summary>A complete classic IR document with typed attributes, the form the classic writer writes.</summary>
 type TypedClassicDocument = {
     /// <summary>The classic major version: 1, 2 or 3.</summary>
@@ -976,13 +1232,9 @@ type TypedClassicDocument = {
 /// <summary>Reads complete classic IR JSON documents.</summary>
 [<RequireQualifiedAccess>]
 module ClassicJson =
-    /// <summary>
-    /// Reads a v1, v2 or v3 Library, or a Specs distribution at 3.1.0, including dependency specifications.
-    /// </summary>
-    /// <remarks>The result keeps no reference to the document that holds <paramref name="root"/>.</remarks>
-    let readDistribution (root: JsonElement) : Result<ClassicDocument, ClassicJsonError> =
+    let private guarded (read: unit -> ClassicDocument) : Result<ClassicDocument, ClassicJsonError> =
         try
-            Result.Ok(ClassicJsonDecoder.document (root.Clone()))
+            Result.Ok(read ())
         with
         | ClassicJsonFailure error -> Result.Error error
         | :? InvalidOperationException as error ->
@@ -1006,6 +1258,41 @@ module ClassicJson =
                     Location = "$"
                     Message = "The document is nested too deeply to read."
                 }
+
+    /// <summary>
+    /// Reads a v1, v2 or v3 Library, or a Specs distribution at 3.1.0, including dependency specifications.
+    /// </summary>
+    /// <remarks>The result keeps no reference to the document that holds <paramref name="root"/>.</remarks>
+    let readDistribution (root: JsonElement) : Result<ClassicDocument, ClassicJsonError> =
+        guarded (fun () -> ClassicJsonDecoder.document (root.Clone()))
+
+    /// <summary>
+    /// Reads as <see cref="readDistribution"/> does, and refuses a v3 document with a member that the classic model
+    /// has no place for, which a write of the model would drop: an unknown member of any object of the document
+    /// outside its attributes, which are kept as they are, is the error <c>unknown_member</c> at that member's JSON location. A v1 or v2 document is
+    /// read as <see cref="readDistribution"/> reads it.
+    /// </summary>
+    /// <remarks>The result keeps no reference to the document that holds <paramref name="root"/>.</remarks>
+    let readDistributionStrict (root: JsonElement) : Result<ClassicDocument, ClassicJsonError> =
+        guarded (fun () ->
+            let root = root.Clone()
+            let document = ClassicJsonDecoder.document root
+
+            if document.Version = 3 then
+                ClassicMembers.document root
+
+            document
+        )
+
+    /// <summary>
+    /// For C# callers that check a document and need no model: the error of <see cref="readDistributionStrict"/>, or
+    /// null when the document reads. C# calls this <c>ReadDistributionStrictError</c>.
+    /// </summary>
+    [<CompiledName("ReadDistributionStrictError")>]
+    let readDistributionStrictError (root: JsonElement) : ClassicJsonError | null =
+        match readDistributionStrict root with
+        | Result.Ok _ -> null
+        | Result.Error error -> error
 
     /// <summary>
     /// Reads a classic document into the typed form that <c>ClassicJsonWriter.writeTyped</c> writes: type

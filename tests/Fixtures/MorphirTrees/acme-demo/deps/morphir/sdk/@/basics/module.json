@@ -1,0 +1,6 @@
+{
+  "formatVersion": 4,
+  "path": "basics",
+  "types": ["money"],
+  "values": ["zero"]
+}

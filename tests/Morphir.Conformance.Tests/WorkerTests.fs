@@ -89,6 +89,29 @@ let tests =
                 "the same first 63 digits"
         }
 
+        // adopt-streaming-json, "The worker's help result keeps its contract form": the pinned contract states one
+        // morphir/command-result, so a host that wraps it in a completed record is refused.
+        test "A help result wrapped in a completed record is refused" {
+            let record =
+                """{"event":"completed","report":{"profile":"morphir/command-result","result":{"help":"h","buildIdentity":"IDENTITY"}}}"""
+
+            Expect.isError (Worker.parseHelp (record.Replace("IDENTITY", Identity) + "\n")) "a completed wrapper"
+        }
+
+        test "The build identity is read from one morphir/command-result document" {
+            let result =
+                """{"profile":"morphir/command-result","result":{"help":"h","buildIdentity":"IDENTITY"}}"""
+
+            Expect.equal
+                (Worker.parseHelp (result.Replace("IDENTITY", Identity) + "\n"))
+                (Ok Identity)
+                "the identity of the document"
+        }
+
+        test "A help result without a build identity is refused" {
+            Expect.isError (Worker.parseHelp """{"profile":"morphir/command-result"}""") "no result.buildIdentity"
+        }
+
         test "A frame is a Content-Length header and the compact UTF-8 body" {
             let frame = (suiteCase "extism/echo").Case.Runs.Head.Frames.Head
             let body = Json.compact frame.Value

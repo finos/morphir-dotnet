@@ -66,7 +66,7 @@ public class CommandFamilyDriverTests
             ExtensionId = "org.finos.morphir.fsharp-frontend",
             Arguments = ["--target", "fsharp"],
         });
-        await new CompilationDriver(cli).CompileAsync(new CompilationOptions { Output = CompilationOutput.JsonLines });
+        await new CompilationDriver(cli).CompileAsync(new CompilationOptions { Output = CompilationOutput.Document });
 
         cli.Commands[0].Arguments.Should().Equal("compile", "--json", "--project", project.Path, "--input", rates.Path, pricing.Path, "--ir-version", "4");
         cli.Commands[1].Arguments.Should().Equal(
@@ -74,7 +74,7 @@ public class CommandFamilyDriverTests
             "--package-name", "acme/demo", "--output", workspace.Directory("my project", "dist").Path, "--out-dir", workspace.Directory("out dir").Path,
             "--target", "csharp", "--generate-output", workspace.Directory("gen code").Path, "--extension-id", "org.finos.morphir.fsharp-frontend",
             "--target", "fsharp");
-        cli.Commands[2].Arguments.Should().Equal("compile", "--json-lines");
+        cli.Commands[2].Arguments.Should().Equal("compile", "--json=document");
         cli.Commands[0].Options!.Timeout.Should().Be(CompilationDriver.Timeout);
         project.Path.Should().Contain(" ");
     }
@@ -115,6 +115,38 @@ public class CommandFamilyDriverTests
     }
 
     [Test]
+    public async Task ConfigurationAndMigrationPutTheJsonArgumentOfTheirIntent()
+    {
+        await using var workspace = Workspace();
+        var cli = new RecordingCli();
+        var machine = new ScenarioMachine(workspace.Directory("my app", "src"));
+        var project = workspace.Directory("my app", "classic project");
+
+        await new ConfigurationDriver(cli).ConfigureAsync(["show", "--isolated"], JsonOutputArgument.Document, machine);
+        await new ConfigurationDriver(cli).ConfigureAsync(["show"], JsonOutputArgument.Separated("document"), machine);
+        await new MigrationDriver(cli).MigrateProjectAsync(JsonOutputArgument.Stream, [project.Path, "--dry-run"], machine);
+        await new MigrationDriver(cli).MigrateWorkspaceAsync(JsonOutputArgument.WithMode("lines"), ["--dry-run"], machine);
+        await new MigrationDriver(cli).MigrateWorkspaceAsync(JsonOutputArgument.FormerStreamingFlag, ["--dry-run"], machine);
+        await new MigrationDriver(cli).MigrateProjectAsync(JsonOutputArgument.Stream.Then("--no-such-option"), [project.Path], machine);
+
+        cli.Commands.Select(command => command.Arguments).Should().BeEquivalentTo(
+            new IReadOnlyList<string>[]
+            {
+                ["config", "show", "--isolated", "--json=document"],
+                ["config", "show", "--json", "document"],
+                // The path is the argument right after the bare --json.
+                ["project", "migrate", "--json", project.Path, "--dry-run"],
+                ["workspace", "migrate", "--json=lines", "--dry-run"],
+                // An unknown option ends the command line, so the parser cannot take it as the value of an input.
+                ["workspace", "migrate", "--dry-run", "--json-lines"],
+                ["project", "migrate", "--json", project.Path, "--no-such-option"],
+            },
+            options => options.WithStrictOrdering());
+        cli.Commands.Should().OnlyContain(command => command.Options!.WorkingDirectory == machine.WorkingDirectory.Path);
+        project.Path.Should().Contain(" ");
+    }
+
+    [Test]
     public async Task ExtensionAndValidationBuildTheirCommandLines()
     {
         await using var workspace = Workspace();
@@ -122,11 +154,14 @@ public class CommandFamilyDriverTests
         var model = workspace.File("my models", "daily rate.json");
 
         await new ExtensionDriver(cli).ListAsync();
-        await new ExtensionDriver(cli).ListAsync(new ExtensionListOptions { Json = false, Local = true, Platform = "linux-x64" });
+        await new ExtensionDriver(cli).ListAsync(new ExtensionListOptions { Json = null, Local = true, Platform = "linux-x64" });
         await new ExtensionDriver(cli).RuntimesAsync();
-        await new ExtensionDriver(cli).RuntimesAsync(json: false);
+        await new ExtensionDriver(cli).RuntimesAsync(json: null);
         await new ModelValidationDriver(cli).ValidateAsync(model);
-        await new ModelValidationDriver(cli).ValidateAsync(model, new ValidationOptions { Json = true, Arguments = ["--no-such-option"] });
+        await new ModelValidationDriver(cli).ValidateAsync(model, new ValidationOptions { Json = JsonOutputArgument.Stream, Arguments = ["--no-such-option"] });
+        await new ExtensionDriver(cli).ListAsync(new ExtensionListOptions { Json = JsonOutputArgument.Document });
+        await new ExtensionDriver(cli).RuntimesAsync(JsonOutputArgument.WithMode("lines"));
+        await new ModelValidationDriver(cli).ValidateAsync(model, new ValidationOptions { Json = JsonOutputArgument.Separated("document") });
 
         cli.Commands.Select(command => command.Arguments).Should().BeEquivalentTo(
             new IReadOnlyList<string>[]
@@ -137,6 +172,9 @@ public class CommandFamilyDriverTests
                 ["extension", "runtimes"],
                 ["validate", "--input", model.Path],
                 ["validate", "--input", model.Path, "--no-such-option", "--json"],
+                ["extension", "list", "--json=document"],
+                ["extension", "runtimes", "--json=lines"],
+                ["validate", "--input", model.Path, "--json", "document"],
             },
             options => options.WithStrictOrdering());
     }
@@ -306,8 +344,8 @@ public class CommandFamilyDriverTests
         var model = workspace.CopyFixture("Cli/valid-ir-v3.json", "my models/valid ir.json");
         var driver = new ModelValidationDriver(Cli(workspace));
 
-        var valid = ValidationReport.Of(await driver.ValidateAsync(model, new ValidationOptions { Json = true }));
-        var usage = ValidationReport.Of(await driver.ValidateAsync(model, new ValidationOptions { Json = true, Arguments = ["--no-such-option"] }));
+        var valid = ValidationReport.Of(await driver.ValidateAsync(model, new ValidationOptions { Json = JsonOutputArgument.Stream }));
+        var usage = ValidationReport.Of(await driver.ValidateAsync(model, new ValidationOptions { Json = JsonOutputArgument.Stream, Arguments = ["--no-such-option"] }));
 
         valid.Result.ShouldExitWith(0);
         valid.Success.Should().BeTrue();

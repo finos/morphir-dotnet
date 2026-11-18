@@ -151,8 +151,15 @@ module Worker =
     /// The arguments that `--help --json` takes.
     let helpArguments = [ "extension"; "worker"; "--help"; "--json" ]
 
+    /// True when the output is a record of a JSON Lines stream (an `event` member), as a `completed` wrapper is.
+    let private isRecord (root: JsonElement) =
+        root.ValueKind = JsonValueKind.Object
+        && fst (root.TryGetProperty "event")
+
     /// Reads the build identity from the stdout of `extension worker --help --json`: the one
-    /// `morphir/command-result` document and its `result.buildIdentity` of 64 hexadecimal digits.
+    /// `morphir/command-result` document that the pinned contract states, and its `result.buildIdentity` of 64
+    /// hexadecimal digits. A host that wraps the result in a `completed` record (the stream convention of
+    /// adopt-streaming-json, which the contract overrides here) is refused, so qualification catches it.
     let parseHelp (stdout: string) : Result<string, string> =
         try
             use document = JsonDocument.Parse(stdout.Trim())
@@ -160,6 +167,7 @@ module Worker =
 
             let identity =
                 match root.ValueKind with
+                | JsonValueKind.Object when isRecord root -> None
                 | JsonValueKind.Object ->
                     match root.TryGetProperty "result" with
                     | true, result when result.ValueKind = JsonValueKind.Object ->
@@ -171,6 +179,9 @@ module Worker =
                 | _ -> None
 
             match identity with
+            | _ when isRecord root ->
+                Error
+                    "The help output is a stream record, not the one morphir/command-result that the contract states"
             | Some text when hexIdentity.IsMatch text -> Ok text
             | Some text -> Error $"result.buildIdentity \"{text}\" is not 64 hexadecimal digits"
             | None -> Error "The help document has no string result.buildIdentity"

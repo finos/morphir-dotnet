@@ -9,30 +9,6 @@ open System.Text.Json
 open System.Text.RegularExpressions
 open Morphir.Conformance
 
-/// A small Result builder for the readers of this suite.
-module internal ResultSyntax =
-    type ResultBuilder() =
-        member _.Bind(result: Result<'T, 'E>, next: 'T -> Result<'U, 'E>) = Result.bind next result
-        member _.Return(value: 'T) : Result<'T, 'E> = Ok value
-        member _.ReturnFrom(result: Result<'T, 'E>) = result
-        member _.Zero() : Result<unit, 'E> = Ok()
-
-    let result = ResultBuilder()
-
-    /// The values of a list of results, or the first error.
-    let all (results: Result<'T, 'E> list) : Result<'T list, 'E> =
-        let folder (item: Result<'T, 'E>) (rest: Result<'T list, 'E>) =
-            match item, rest with
-            | Ok value, Ok values ->
-                Ok(
-                    value
-                    :: values
-                )
-            | Error error, _ -> Error error
-            | Ok _, Error error -> Error error
-
-        List.foldBack folder results (Ok [])
-
 /// Reads the pinned JSON corpus of the WASM host kit into the case model. The reader exists to
 /// generate the features and to check them; the runner reads the features. Every member, matcher
 /// and convention of the corpus must be one this reader knows: a newer corpus fails with an

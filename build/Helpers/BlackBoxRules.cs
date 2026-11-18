@@ -608,4 +608,83 @@ public static class BlackBoxRules
 
         return violations.ToImmutable();
     }
+
+    // ---- A feature file states intents only ---------------------------------------------------------------------
+
+    static readonly Regex StepLine = new(@"^(Given|When|Then|And|But|\*)\s", RegexOptions.CultureInvariant);
+
+    // What a step that states an intent does not hold, each with the words of a violation.
+    static readonly (string What, Regex Pattern)[] PastTheIntent =
+    [
+        ("a command line", new(@"(?<![\w/.-])(?:dotnet-)?morphir(?:\.exe)?\s+[a-z][\w-]*", RegexOptions.CultureInvariant)),
+        ("an option", new(@"(?<![\w-])--[A-Za-z][\w-]*", RegexOptions.CultureInvariant)),
+        ("a fixture path", new(@"(?<![\w.-])(?:[\w.-]+[/\\])+[\w.-]+|(?<![\w/\\.-])[\w-]+\.(?:json|ya?ml|txt|md|ion|toml|feature)\b", RegexOptions.CultureInvariant)),
+        ("inline JSON", new(@"[{\[]\s*""", RegexOptions.CultureInvariant)),
+    ];
+
+    /// <summary>The capability tag whose features state intents only (<see cref="IntentViolations"/>).</summary>
+    public const string IntentGuardedCapability = "needs-model-conversion";
+
+    /// <summary>The end of the name of a documentation feature, whose subject is the command lines of a page.</summary>
+    public const string DocumentationFeatureSuffix = "Documentation.feature";
+
+    /// <summary>
+    /// Whether <see cref="IntentViolations"/> applies to a feature file: a feature with a test that has the tag
+    /// <c>@needs-model-conversion</c>, except a documentation feature (<c>*Documentation.feature</c>), which lists the
+    /// command lines of a page on purpose.
+    /// </summary>
+    public static bool StatesIntentsOnly(string file, string text) =>
+        !file.EndsWith(DocumentationFeatureSuffix, StringComparison.Ordinal)
+        && ParseFeature(file, text).Any(test => test.Tags.Contains(IntentGuardedCapability));
+
+    /// <summary>
+    /// The steps of a feature file state intents only (test-driver-contract, "A feature file states intents only"):
+    /// a step or a table row holds no command line of <c>morphir</c>, no option such as <c>--layout</c>, no fixture
+    /// path or file name, and no inline JSON, and a step has no doc string. A step names the case, the layout and the
+    /// compaction, and the driver builds the command line. The description of a feature or a scenario is not a step.
+    /// </summary>
+    public static ImmutableArray<RuleViolation> IntentViolations(string file, string text)
+    {
+        const string rule = "intents-only";
+        var violations = ImmutableArray.CreateBuilder<RuleViolation>();
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        string? step = null;
+        var stepLine = 0;
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var line = lines[index].Trim();
+            void Found(string at, int number, string what) =>
+                violations.Add(new(rule, file, number, $"'{at}' has {what}. A feature file states intents only: its steps name the case, the layout and the compaction, and the driver builds the command line."));
+
+            if (line.StartsWith("\"\"\"", StringComparison.Ordinal) || line.StartsWith("```", StringComparison.Ordinal))
+            {
+                var fence = line[..3];
+                Found(step ?? line, step is null ? index + 1 : stepLine, "a doc string, which holds the data of the case");
+                while (++index < lines.Length && !lines[index].Trim().StartsWith(fence, StringComparison.Ordinal))
+                {
+                }
+
+                continue;
+            }
+
+            if (StepLine.IsMatch(line))
+            {
+                step = line;
+                stepLine = index + 1;
+            }
+            else if (!line.StartsWith('|'))
+            {
+                if (line.Length > 0 && !line.StartsWith('#')) step = null;
+                continue;
+            }
+
+            foreach (var (what, pattern) in PastTheIntent)
+            {
+                if (pattern.Match(line) is { Success: true } match)
+                    Found(line, index + 1, $"{what}: {match.Value}");
+            }
+        }
+
+        return violations.ToImmutable();
+    }
 }

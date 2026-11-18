@@ -40,7 +40,7 @@ public sealed class WasmHostCommandTests
         var parsed = root.Parse(arguments);
         using var gate = await ProcessGate.Shared.EnterAsync();
         var exit = parsed.Errors.Count > 0 && parsed.CommandResult.Command is IMorphirParseErrorHandler handler
-            ? handler.HandleParseErrors(parsed)
+            ? handler.HandleParseErrors(parsed, Morphir.Tooling.Cli.OptionValueRewrite.ErrorMessages(parsed))
             : await parsed.InvokeAsync();
         return new Invocation(exit, stdout.ToString(), stderr.ToString());
     }

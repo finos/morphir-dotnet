@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.CommandLine;
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Morphir.Extensions;
 using Morphir.Extensions.Wasm;
+using Morphir.Tooling.Cli;
 using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Extensions;
@@ -14,27 +16,51 @@ namespace Morphir.Tooling.Features.Extensions;
 /// <summary>
 /// <c>morphir extension runtimes</c> (task 4.2 of <c>add-wasm-extension-host</c>, design RPT-1): whether this host can
 /// run WASM extensions, with the engine, the profiles and the bounds it enforces, or the reason it cannot. It loads no
-/// module. The report is written to stdout, as text or one JSON document, and the command exits with 0 in both
-/// states: reporting an unavailable runtime is the command's result, not its failure.
+/// module. The report is written to stdout, as text, as the one <c>completed</c> record of <c>--json</c> or as one JSON
+/// document with <c>--json=document</c>, and the command exits with 0 in both states: reporting an unavailable runtime
+/// is the command's result, not its failure.
 /// </summary>
-public sealed class ExtensionRuntimesCommand : Command
+public sealed class ExtensionRuntimesCommand : Command, IMorphirParseErrorHandler
 {
-    private readonly Option<bool> _json = new("--json") { Description = "Output one JSON document" };
+    private readonly IServiceProvider _services;
+    private readonly Option<string> _json = JsonOutputOption.Create();
 
     public ExtensionRuntimesCommand(IServiceProvider services) : base("runtimes", "Report the extension runtimes of this host and whether each is available")
     {
+        _services = services;
         Options.Add(_json);
-        SetAction(result => Execute(services.GetRequiredService<HostIdentity>(), services.GetRequiredService<WasmRuntime>(), result.GetValue(_json),
-            ConsoleOutputHelper.WriteLineToStdout));
+        SetAction(result => Execute(services.GetRequiredService<HostIdentity>(), services.GetRequiredService<WasmRuntime>(), JsonOutputOption.ModeOf(result),
+            ConsoleOutputHelper.Stdout));
     }
 
     /// <summary>Writes the report of <paramref name="runtime"/> to <paramref name="stdout"/>; returns the exit code, 0.</summary>
-    public static int Execute(HostIdentity host, WasmRuntime runtime, bool json, Action<string> stdout)
+    public static int Execute(HostIdentity host, WasmRuntime runtime, JsonOutputMode mode, TextWriter stdout)
     {
         ArgumentNullException.ThrowIfNull(stdout);
         var report = ExtensionRuntimesReport.Of(host, runtime);
-        stdout(json ? report.ToJson() : report.ToText());
+        if (mode != JsonOutputMode.None) JsonReportOutput.Write(stdout, mode, report, ExtensionRuntimesReport.JsonInfo);
+        else stdout.WriteLine(report.ToText());
         return 0;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// In a JSON mode the report of a usage error has no runtime and one diagnostic for each message, with exit code
+    /// 2; the runtime is not probed. In text mode each message goes to stderr.
+    /// </remarks>
+    public int HandleParseErrors(ParseResult result, IReadOnlyList<string> messages)
+    {
+        var mode = JsonOutputOption.ScanTokens([.. result.Tokens.Select(token => token.Value)]);
+        if (mode == JsonOutputMode.None)
+        {
+            foreach (var message in messages) Console.Error.WriteLine($"Error: {ExtensionListCommand.InvalidArgumentsCode}: {message}");
+            return ExtensionRuntimesReport.UsageExitCode;
+        }
+
+        var report = ExtensionRuntimesReport.Usage(_services.GetRequiredService<HostIdentity>(), _services.GetRequiredService<WasmRuntime>().Platform,
+            ExtensionListCommand.InvalidArgumentsCode, messages);
+        JsonReportOutput.Write(ConsoleOutputHelper.Stdout, mode, report, ExtensionRuntimesReport.JsonInfo);
+        return ExtensionRuntimesReport.UsageExitCode;
     }
 }
 
@@ -44,13 +70,20 @@ public sealed class ExtensionRuntimesCommand : Command
 /// libraries it was built with. No build identity of the deployment offering exists at run time yet, so the report has
 /// no <c>deployment</c> member and never guesses one from the executable's name or path.
 /// </summary>
+[JsonConverter(typeof(ExtensionRuntimesReportConverter))]
 public sealed class ExtensionRuntimesReport
 {
-    private ExtensionRuntimesReport(MorphirHost host, string platform, WasmRuntimeAvailability wasm)
+    /// <summary>The exit code of a usage error.</summary>
+    public const int UsageExitCode = 2;
+
+    private readonly IReadOnlyList<(string Code, string Message)>? _usage;
+
+    private ExtensionRuntimesReport(MorphirHost host, string platform, WasmRuntimeAvailability wasm, IReadOnlyList<(string Code, string Message)>? usage = null)
     {
         Host = host;
         Platform = platform;
         Wasm = wasm;
+        _usage = usage;
     }
 
     /// <summary>The host.</summary>
@@ -70,6 +103,21 @@ public sealed class ExtensionRuntimesReport
         return new ExtensionRuntimesReport(host.Host, runtime.Platform, runtime.Availability);
     }
 
+    /// <summary>
+    /// The report of a usage error: <c>host</c>, <c>platform</c>, no runtime, one diagnostic <paramref name="code"/> for
+    /// each message and <c>exitCode</c> 2. The runtime is not probed.
+    /// </summary>
+    public static ExtensionRuntimesReport Usage(HostIdentity host, string platform, string code, IEnumerable<string> messages)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(messages);
+        // A usage report writes no runtime, so its availability is never read.
+        return new ExtensionRuntimesReport(host.Host, platform, null!, [.. messages.Select(message => (code, message))]);
+    }
+
+    /// <summary>The source-generated contract of the report, for the shared JSON output writer.</summary>
+    public static JsonTypeInfo<ExtensionRuntimesReport> JsonInfo => ExtensionRuntimesJsonContext.Default.ExtensionRuntimesReport;
+
     private WasmRuntimeUnavailableReason? Reason => Wasm.Match<WasmRuntimeUnavailableReason?>(available: () => null, unavailable: reason => reason);
 
     /// <summary>The bytes of the memory ceiling the host gives each linear memory of a session.</summary>
@@ -81,46 +129,62 @@ public sealed class ExtensionRuntimesReport
     /// <summary>
     /// One JSON document: <c>host</c>, <c>platform</c> and <c>runtimes</c>, with one <c>wasm</c> entry. An available entry
     /// has <c>engine</c>, <c>profiles</c> and <c>bounds</c>; an unavailable one has <c>reason</c> and <c>engine</c>, the
-    /// engine this build carries.
+    /// engine this build carries. The report of a usage error has no runtime, and has <c>diagnostics</c> and
+    /// <c>exitCode</c>.
     /// </summary>
-    public string ToJson()
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>Writes the report of <see cref="ToJson"/> with <paramref name="writer"/>, which sets the indentation.</summary>
+    internal void Write(Utf8JsonWriter writer)
     {
-        using var buffer = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true }))
+        writer.WriteStartObject();
+        writer.WriteString("host", Host.WireValue);
+        writer.WriteString("platform", Platform);
+        writer.WriteStartArray("runtimes");
+        if (_usage is not null)
         {
-            writer.WriteStartObject();
-            writer.WriteString("host", Host.WireValue);
-            writer.WriteString("platform", Platform);
-            writer.WriteStartArray("runtimes");
-            writer.WriteStartObject();
-            writer.WriteString("kind", "wasm");
-            if (Reason is { } reason)
+            writer.WriteEndArray();
+            writer.WriteStartArray("diagnostics");
+            foreach (var (code, message) in _usage)
             {
-                writer.WriteBoolean("available", false);
-                writer.WriteString("reason", reason.WireValue);
-                WriteEngine(writer);
-            }
-            else
-            {
-                writer.WriteBoolean("available", true);
-                WriteEngine(writer);
-                writer.WriteStartArray("profiles");
-                foreach (var profile in Profiles) writer.WriteStringValue(profile);
-                writer.WriteEndArray();
-                writer.WriteStartObject("bounds");
-                writer.WriteNumber("memoryBytes", MemoryBytes);
-                // The engine meters fuel and is interrupted by epochs in every session (WasmEngine), so both are enforced.
-                writer.WriteString("deadline", "enforced");
-                writer.WriteString("budget", "enforced");
+                writer.WriteStartObject();
+                writer.WriteString("code", code);
+                writer.WriteString("message", message);
                 writer.WriteEndObject();
             }
 
-            writer.WriteEndObject();
             writer.WriteEndArray();
+            writer.WriteNumber("exitCode", UsageExitCode);
+            writer.WriteEndObject();
+            return;
+        }
+
+        writer.WriteStartObject();
+        writer.WriteString("kind", "wasm");
+        if (Reason is { } reason)
+        {
+            writer.WriteBoolean("available", false);
+            writer.WriteString("reason", reason.WireValue);
+            WriteEngine(writer);
+        }
+        else
+        {
+            writer.WriteBoolean("available", true);
+            WriteEngine(writer);
+            writer.WriteStartArray("profiles");
+            foreach (var profile in Profiles) writer.WriteStringValue(profile);
+            writer.WriteEndArray();
+            writer.WriteStartObject("bounds");
+            writer.WriteNumber("memoryBytes", MemoryBytes);
+            // The engine meters fuel and is interrupted by epochs in every session (WasmEngine), so both are enforced.
+            writer.WriteString("deadline", "enforced");
+            writer.WriteString("budget", "enforced");
             writer.WriteEndObject();
         }
 
-        return Encoding.UTF8.GetString(buffer.ToArray());
+        writer.WriteEndObject();
+        writer.WriteEndArray();
+        writer.WriteEndObject();
     }
 
     private static void WriteEngine(Utf8JsonWriter writer)
@@ -154,3 +218,17 @@ public sealed class ExtensionRuntimesReport
         return string.Join('\n', lines);
     }
 }
+
+/// <summary>Writes an <see cref="ExtensionRuntimesReport"/> with its own writer code; the report is never read back.</summary>
+internal sealed class ExtensionRuntimesReportConverter : JsonConverter<ExtensionRuntimesReport>
+{
+    public override ExtensionRuntimesReport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        throw new NotSupportedException("An extension runtimes report is written, never read.");
+
+    public override void Write(Utf8JsonWriter writer, ExtensionRuntimesReport value, JsonSerializerOptions options) => value.Write(writer);
+}
+
+/// <summary>The indented JSON contract of <c>extension runtimes --json=document</c>; the record of <c>--json</c> is compact.</summary>
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(ExtensionRuntimesReport))]
+internal partial class ExtensionRuntimesJsonContext : JsonSerializerContext;

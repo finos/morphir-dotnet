@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
+using Morphir.Tooling.Cli;
 using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.ProjectMigration;
@@ -33,7 +34,7 @@ public sealed class ProjectMigrationCommand : Command, IMorphirParseErrorHandler
     private readonly Option<string?> _output = new("--output") { Description = "Same-project TOML primary output" };
     private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "Bound discovery to this directory (default: MORPHIR_DISCOVERY_BOUNDARY, else the filesystem root)" };
     private readonly Option<bool> _dryRun = new("--dry-run") { Description = "Preview without writing" };
-    private readonly Option<bool> _json = new("--json") { Description = "Emit one redacted structured JSON result" };
+    private readonly Option<string> _json = JsonOutputOption.Create();
 
     public ProjectMigrationCommand(IProjectMigrationHost host, bool initializationFailed = false) : base("migrate", "Migrate one classic project configuration to TOML")
     {
@@ -44,12 +45,18 @@ public sealed class ProjectMigrationCommand : Command, IMorphirParseErrorHandler
         SetAction(Execute);
     }
 
-    public int HandleParseErrors(ParseResult parsed) => Render(ProjectMigrationReport.Failure("project.migrate_usage",
-        "Expected one project directory or classic morphir.json and supported migration options."), parsed.Tokens.Any(token => token.Value is "--json" or "--json=true"));
+    /// <summary>
+    /// Renders the parse errors as one <c>project.migrate_usage</c> failure with the messages of the host that quote no
+    /// value (<see cref="OptionValueRewrite.RedactedErrorMessages"/>), for example an unknown <c>--json</c> mode or the
+    /// hint <c>--json=document</c>: the redacted report repeats no raw input. A parse error has no valid parse result, so the output mode comes from the tokens (JSON-4).
+    /// </summary>
+    public int HandleParseErrors(ParseResult parsed, IReadOnlyList<string> messages) => Render(ProjectMigrationReport.Failure("project.migrate_usage",
+        string.Join(" ", ["Expected one project directory or classic morphir.json and supported migration options.", .. OptionValueRewrite.RedactedErrorMessages(parsed)])),
+        JsonOutputOption.ScanTokens([.. parsed.Tokens.Select(token => token.Value)]));
 
     private int Execute(ParseResult parsed)
     {
-        var json = parsed.GetValue(_json) || parsed.Tokens.Any(token => token.Value is "--json" or "--json=true");
+        var json = JsonOutputOption.ModeOf(parsed);
         var dryRun = parsed.GetValue(_dryRun);
         if (new[] { parsed.GetValue(_path), parsed.GetValue(_output), parsed.GetValue(_boundary) }.Any(value => value is not null && string.IsNullOrWhiteSpace(value)))
             return Render(ProjectMigrationReport.Failure("project.migrate_usage", "Path, output and discovery boundary must be nonempty.", dryRun), json);
@@ -66,13 +73,13 @@ public sealed class ProjectMigrationCommand : Command, IMorphirParseErrorHandler
         { return Render(ProjectMigrationReport.Failure("project.migrate_io", "Migration could not read or write the selected project. Check paths and permissions.", dryRun), json); }
     }
 
-    private static int Render(ProjectMigrationReport report, bool json)
+    private static int Render(ProjectMigrationReport report, JsonOutputMode json)
     {
         foreach (var diagnostic in report.Diagnostics)
             Console.Error.WriteLine($"{diagnostic.Path ?? "project"}: {diagnostic.Code}: {diagnostic.Message}");
         foreach (var artifact in report.RecoveryArtifacts)
             Console.Error.WriteLine($"recovery\t{artifact.Kind}\t{artifact.Path}\t{artifact.TransactionId}");
-        if (json) ConsoleOutputHelper.WriteLineToStdout(report.ToJson());
+        if (json != JsonOutputMode.None) JsonReportOutput.Write(ConsoleOutputHelper.Stdout, json, report, ProjectMigrationReport.JsonInfo);
         else
         {
             ConsoleOutputHelper.WriteLineToStdout($"{report.Outcome}\t{report.Source?.Path ?? "project"}\t{report.Target?.Path ?? ""}");

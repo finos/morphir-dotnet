@@ -5,6 +5,7 @@ using System.Text;
 using Foundatio.Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using Morphir.Compilation;
+using Morphir.Tooling.Cli;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
 
 namespace Morphir.Tooling.Features.Compile;
@@ -12,7 +13,7 @@ namespace Morphir.Tooling.Features.Compile;
 /// <summary>The output streams of the compile command. Stdout holds only command output.</summary>
 public interface ICompileOutput
 {
-    /// <summary>Standard output, for the report, the JSON Lines records or the published path.</summary>
+    /// <summary>Standard output, for the JSON output or the published path.</summary>
     Stream StandardOutput { get; }
 
     /// <summary>Standard error, for human-mode diagnostics and the summary.</summary>
@@ -33,8 +34,8 @@ public sealed class ConsoleCompileOutput : ICompileOutput
 
 /// <summary>
 /// <c>morphir compile</c>: CLI binding and presentation only (CLI-1). The handler owns orchestration. Human mode
-/// streams each stage's diagnostics to stderr as the stage completes; <c>--json</c> writes one report;
-/// <c>--json-lines</c> writes the event stream (STRM-2).
+/// streams each stage's diagnostics to stderr as the stage completes; <c>--json</c> streams the compile events as
+/// JSON Lines and ends with the report (STRM-2); <c>--json=document</c> writes the report alone (adopt-streaming-json).
 /// </summary>
 public sealed class CompileCommand : Command, IMorphirParseErrorHandler
 {
@@ -52,8 +53,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     private readonly Option<string?> _config = new("--config") { Description = "Explicit configuration file" };
     private readonly Option<string?> _project = new("--project") { Description = "Project directory, workspace member path or project name" };
     private readonly Option<string?> _irVersion = new("--ir-version") { Description = "IR format version, for example 3, 4 or 4.0.0; overrides ir.format_version" };
-    private readonly Option<bool> _json = new("--json") { Description = "Output one JSON report" };
-    private readonly Option<bool> _jsonLines = new("--json-lines") { Description = "Output compile events as JSON Lines, ending with the report" };
+    private readonly Option<string> _json = JsonOutputOption.Create();
     private readonly Option<bool> _typesOnly = new("--types-only") { Description = "Not implemented; rejected" };
     private readonly Option<string?> _output = new("--output", "-o") { Description = "Install a copy of the IR in this directory. Files that an earlier install did not write stay unchanged" };
     private readonly Option<string?> _outDir = new("--out-dir") { Description = "Out root for the compile task; overrides MORPHIR_OUT_DIR and workspace.out_dir" };
@@ -72,7 +72,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     public CompileCommand(IServiceProvider services) : base("compile", "Compile source code to Morphir IR")
     {
         _services = services;
-        foreach (var option in new Option[] { _language, _extension, _extensionId, _input, _projectFile, _packageName, _config, _project, _irVersion, _json, _jsonLines, _typesOnly, _output, _outDir })
+        foreach (var option in new Option[] { _language, _extension, _extensionId, _input, _projectFile, _packageName, _config, _project, _irVersion, _json, _typesOnly, _output, _outDir })
             Options.Add(option);
         // CLI-2: compile can continue into generation.
         foreach (var option in new Option[] { _target, _generateOutput, _generateOptions })
@@ -80,11 +80,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
         SetAction(async (result, ct) =>
         {
             var output = Output;
-            var json = result.GetValue(_json);
-            var jsonLines = result.GetValue(_jsonLines);
-            if (json && jsonLines)
-                return await RenderInvocationAsync(output, [Invalid("The options --json and --json-lines cannot be combined. Use one.")], Mode.JsonLines);
-            var mode = jsonLines ? Mode.JsonLines : json ? Mode.Json : Mode.Human;
+            var mode = JsonOutputOption.ModeOf(result);
             if (result.GetValue(_extension) is not null && result.GetValue(_extensionId) is not null)
                 return await RenderInvocationAsync(output, [Invalid("Choose --extension or --extension-id, not both.")], mode);
             var context = Context;
@@ -92,10 +88,11 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
                 context.WorkingDirectory);
             if (!target.TryGetValue(out var generation))
                 return await RenderInvocationAsync(output, target.Diagnostics, mode);
+            var jsonOutput = JsonOutput(output, mode);
             var observer = mode switch
             {
-                Mode.JsonLines => (ICompileEventObserver)new JsonLinesObserver(new JsonLinesWriter(output.StandardOutput)),
-                Mode.Human => new HumanObserver(output.StandardError),
+                JsonOutputMode.Stream => (ICompileEventObserver)new JsonLinesObserver(new JsonLinesWriter(jsonOutput!)),
+                JsonOutputMode.None => new HumanObserver(output.StandardError),
                 _ => null
             };
             var mediator = services.GetRequiredService<IMediator>();
@@ -110,7 +107,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
             if (report.Generation is { } generated)
                 foreach (var warning in Morphir.Tooling.Features.Generate.GenerateCommand.FormattingWarnings(generated.Formatting, generated.Backend ?? generated.Target))
                     await output.StandardError.WriteLineAsync(warning);
-            await RenderAsync(output, report, mode, CancellationToken.None);
+            await RenderAsync(output, report, mode, jsonOutput, CancellationToken.None);
             return report.ExitCode;
         });
     }
@@ -118,8 +115,6 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     private ICompileOutput Output => _services.GetService<ICompileOutput>() ?? new ConsoleCompileOutput();
 
     private CompileContext Context => _services.GetService<CompileContextSource>()?.Current() ?? CompileContext.Current();
-
-    private enum Mode { Human, Json, JsonLines }
 
     private CompileOverrides Bind(ParseResult result) => new()
     {
@@ -138,35 +133,36 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     };
 
     /// <inheritdoc />
-    public int HandleParseErrors(ParseResult result)
+    public int HandleParseErrors(ParseResult result, IReadOnlyList<string> messages)
     {
-        var mode = result.Tokens.Any(token => token.Value is "--json-lines" or "--json-lines=true") ? Mode.JsonLines
-            : result.Tokens.Any(token => token.Value is "--json" or "--json=true") ? Mode.Json
-            : Mode.Human;
-        return RenderInvocationAsync(Output, result.Errors.Select(error => Invalid(error.Message)), mode).GetAwaiter().GetResult();
+        // A parse error has no valid parse result, so the output mode comes from the tokens (JSON-4).
+        var mode = JsonOutputOption.ScanTokens([.. result.Tokens.Select(token => token.Value)]);
+        return RenderInvocationAsync(Output, messages.Select(Invalid), mode).GetAwaiter().GetResult();
     }
 
     private static Diagnostic Invalid(string message) => Diagnostic.Create(Severity.Error, CompileCodes.InvalidArguments, message, null);
 
-    private static async Task<int> RenderInvocationAsync(ICompileOutput output, IEnumerable<Diagnostic> diagnostics, Mode mode)
+    private static async Task<int> RenderInvocationAsync(ICompileOutput output, IEnumerable<Diagnostic> diagnostics, JsonOutputMode mode)
     {
         var report = CompileReport.Invocation(diagnostics);
-        if (mode == Mode.Human)
+        if (mode == JsonOutputMode.None)
             foreach (var diagnostic in report.Diagnostics) await output.StandardError.WriteLineAsync(Human(diagnostic));
-        await RenderAsync(output, report, mode, CancellationToken.None);
+        await RenderAsync(output, report, mode, JsonOutput(output, mode), CancellationToken.None);
         return report.ExitCode;
     }
 
-    private static async Task RenderAsync(ICompileOutput output, CompileReport report, Mode mode, CancellationToken ct)
+    /// <summary>The shared JSON output writer of <paramref name="mode"/>, or null in human mode.</summary>
+    private static JsonOutputWriter<CompileReport>? JsonOutput(ICompileOutput output, JsonOutputMode mode) =>
+        mode == JsonOutputMode.None ? null : JsonLinesWriter.Output(output.StandardOutput, mode);
+
+    private static async Task RenderAsync(ICompileOutput output, CompileReport report, JsonOutputMode mode, JsonOutputWriter<CompileReport>? jsonOutput,
+        CancellationToken ct)
     {
         switch (mode)
         {
-            case Mode.JsonLines:
-                await new JsonLinesWriter(output.StandardOutput).WriteCompletedAsync(report, ct);
-                break;
-            case Mode.Json:
-                await output.StandardOutput.WriteAsync(Encoding.UTF8.GetBytes(report.ToJson() + "\n"), ct);
-                await output.StandardOutput.FlushAsync(ct);
+            case JsonOutputMode.Stream or JsonOutputMode.Document:
+                // Stream mode writes the completed record; document mode writes the report alone.
+                jsonOutput!.Completed(report);
                 break;
             default:
                 await output.StandardError.WriteLineAsync(Summary(report));

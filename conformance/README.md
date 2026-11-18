@@ -37,7 +37,7 @@ order. The adapter has no project-file provider, so a project-file row keeps the
 document order of the case; the `cli` adapter checks real project-file expansion.
 
 The `cli` adapter (`CliAdapter.create`) drives any `morphir` executable, for
-example `dotnet-morphir`, through `compile --json-lines`. It uses only the
+example `dotnet-morphir`, through `compile --json`. It uses only the
 documented command line (`docs/content/docs/cli/compile.md`). For each case it
 writes a new project directory with a `morphir.toml` (`project.name` and
 `project.exposed_modules`) and the documents under `src/`, and it gives the

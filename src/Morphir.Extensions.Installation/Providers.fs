@@ -307,10 +307,21 @@ module internal ProviderResults =
         return output.ToArray()
     }
 
+/// The bounds of the documents that the providers read. Literals, not class `static let` values: F# initialises the
+/// class `static let` values of a file in one initialiser, which starts the type initialiser of each class whose
+/// fields it writes. With two such classes in this file, two threads that create the first local and the first
+/// GitHub provider could wait for each other; the CLR breaks that deadlock by letting one thread see a provider
+/// before its bound is set (FailStaticInit). A literal is no field.
+module private ProviderBounds =
+    [<Literal>]
+    let MaximumDescriptor = 8 * 1024 * 1024
+
+    [<Literal>]
+    let MaximumDocument = 8 * 1024 * 1024
+
 /// The local developer provider: an explicit descriptor and archive inside a registered repository.
 [<Sealed>]
 type LocalRepositoryProvider() =
-    static let maximumDescriptor = 8 * 1024 * 1024
 
     override _.ToString() = "local"
 
@@ -333,10 +344,10 @@ type LocalRepositoryProvider() =
 
                 use release = FileSafety.openRelative repository (Path.GetFullPath declaration.Release)
 
-                if release.Length > int64 maximumDescriptor then
+                if release.Length > int64 ProviderBounds.MaximumDescriptor then
                     Operations.fail "extension.local_refused" "Local declaration exceeds its 8 MiB bound."
 
-                let! descriptor = ProviderResults.readBounded release maximumDescriptor "extension.local_refused" ct
+                let! descriptor = ProviderResults.readBounded release ProviderBounds.MaximumDescriptor "extension.local_refused" ct
 
                 let plan = PackagePlan.Read(descriptor, platform) |> ProviderResults.unwrap
 
@@ -391,7 +402,6 @@ type LocalRepositoryProvider() =
 /// <c>GITHUB_TOKEN</c> or <c>GH_TOKEN</c> when set.
 [<Sealed>]
 type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string | null) =
-    static let maximumDocument = 8 * 1024 * 1024
     let token = Option.ofObj token
 
     static let environmentToken () : string | null =
@@ -467,7 +477,7 @@ type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string | null)
             refuse response what
 
         use! body = response.Content.ReadAsStreamAsync ct
-        let! bytes = ProviderResults.readBounded body maximumDocument "extension.github_refused" ct
+        let! bytes = ProviderResults.readBounded body ProviderBounds.MaximumDocument "extension.github_refused" ct
         return bytes
     }
 
@@ -483,7 +493,7 @@ type GitHubReleaseProvider(http: HttpClient, apiBase: Uri, token: string | null)
                 refuse response what
 
             use! body = response.Content.ReadAsStreamAsync ct
-            let! bytes = ProviderResults.readBounded body maximumDocument "extension.github_refused" ct
+            let! bytes = ProviderResults.readBounded body ProviderBounds.MaximumDocument "extension.github_refused" ct
 
             return
                 match Syntax.parseJson bytes with

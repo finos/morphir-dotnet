@@ -183,6 +183,11 @@ public static class MepConsumer
         await host.ExitAsync();
         output.AppendLine($"session-guest-end {await guestRun}");
         await toHost.Writer.CompleteAsync();
-        output.AppendLine($"session-host-end {await hostRun}");
+        // The host's read loop sees morphir.exit only after a frame: when the reply to the late ping is read before
+        // ExitAsync marks the session done, the loop ends at the end of the stream; when ExitAsync runs first, the
+        // loop ends with Stopped. The order is a race between the read loop and this method's continuation, so both
+        // are one clean end here, and the built and the published program write the same line.
+        var hostEnd = await hostRun;
+        output.AppendLine($"session-host-end {hostEnd.Match(() => "clean", () => "clean", failure => $"framing {failure}")}");
     }
 }

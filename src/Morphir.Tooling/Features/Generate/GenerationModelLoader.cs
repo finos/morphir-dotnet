@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Microsoft.FSharp.Collections;
+using Morphir.Files;
 using Morphir.IR.Model;
-using Morphir.IR.Pipeline;
 using Morphir.Ion;
 
 namespace Morphir.Tooling.Features.Generate;

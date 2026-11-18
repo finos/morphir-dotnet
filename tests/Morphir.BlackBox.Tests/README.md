@@ -40,6 +40,15 @@ group on its class (`[Category("smoke")]`), and gets its drivers from the base c
 A test that needs a product assembly in the test process is not a black-box test. It stays in the test project of
 its library. A test that needs both an artifact and a product assembly is two tests.
 
+## Test data
+
+A scenario names its model, tree or file by intent (`Given a v3 Library model with a dependency`), never by a path
+or inline JSON. Its step gets the case from an object mother, or from `FixtureCatalog` of `tests/Morphir.TestSupport`
+when the exact bytes come from a contract (the pinned kit cases, `FixtureCatalog.Kit`), and writes it into the
+workspace. Each file below `tests/Fixtures` has one owner in the catalog and a provenance row;
+`FixtureOwnershipTests` in `tests/Morphir.Build.Tests/Helpers` fails on a file with no owner. The fixtures that this
+project links today (`Fixtures/Models/`) keep working; a new one comes through the catalog.
+
 ## Tags
 
 | Tag | Meaning |
@@ -48,7 +57,7 @@ its library. A test that needs both an artifact and a product assembly is two te
 | `@lane` with one of `@packages`, `@native-aot`, `@published` | The test needs more than the development build: the packed packages, a Native AOT publish, or a published executable. A group run does not select it. |
 | `@host-native`, `@host-managed`, `@host-tool` | The test runs on that entry point. With no host tag, a test runs on the default host of the run. |
 | `@needs-model-verification`, `@needs-generation`, `@needs-in-process-fsharp-frontend`, `@needs-self-contained-frontend`, `@needs-built-programs`, `@needs-development-packages` | A capability that the test needs from the drivers. `@needs-built-programs`: the build output of the programs of the repository that are not the CLI (library hosts, probes, morphirup); only the development build has them. `@needs-development-packages`: the test packs a project of the development build into the feed of its workspace (`IPackageDriver`). |
-| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
+| `@needs-compilation`, `@needs-configuration`, `@needs-migration`, `@needs-extensions`, `@needs-model-validation`, `@needs-model-conversion`, `@needs-built-extensions`, `@needs-host-without-dynamic-code`, `@needs-all-hosts`, `@needs-unprofiled-build`, `@needs-tool-routing` | A command family that the test needs from the drivers (`compile`, `config`, the migrations, `extension`, `validate`, `model convert`), the extension guests of the development build, a host with the dynamic-code switch of the runtime off, each host of the target in one test, a host that no release profile built, or the routing of a command to an external tool. |
 | `@needs-packaged-installation`, `@needs-native-aot-executable`, `@needs-known-form`, `@needs-wasm-guests` | A capability that the test needs from the drivers (see `tests/Morphir.TestSupport/README.md`): a packaged installation, a Native AOT executable, a target of one known form, or the WASM guests of the host. `@needs-wasm-guests` is not on Windows x64 (#609). |
 
 Before the first step, one decision says if the test runs: the lane, then the host, then the capabilities. A test
@@ -77,6 +86,7 @@ two steps have the same pattern.
 | CLI | `Then standard error does not contain {string}` |
 | CLI | `Then standard output does not contain {string}` |
 | CLI | `Then standard output contains {string}` |
+| CLI | `Then standard error is empty` |
 | Model | `Given the model fixture {string}` |
 | Model | `Given the model tree fixture {string}` |
 | Model | `Given no model file {string}` |
@@ -444,9 +454,12 @@ two steps have the same pattern.
 | Documentation | `Then the page documents these commands` |
 | Documentation | `Given the source file {string}:` |
 | Documentation | `When I run each documented command of the host on the model` |
+| Documentation | `When I run each documented command of the host on the model tree` |
 | Documentation | `When I run each documented command of the host in the work area` |
 | Documentation | `Then each documented command exits with {int}` |
 | Documentation | `Then each documented command gives its documented output` |
+| Documentation | `When I run each documented command of the host with the exported variables of the section` |
+| Documentation | `Then the report of each documented command has the members of the JSON block of the section` |
 | Documentation | `Given the morphir.toml of the section in the project directory {string}` |
 | Documentation | `When I run the documented commands of the section in the project directory {string}` |
 | Documentation | `Given the first C# code block of the documentation page {string} as the file {string}` |
@@ -455,6 +468,7 @@ two steps have the same pattern.
 | Documentation | `Then the file {string} contains the C# block {int} of the section` |
 | Documentation | `Then the documented compile writes the path of the published IR of the project {string}` |
 | Documentation | `Then the documented generate writes its documented files to {string} of the project {string}` |
+| Documentation | `When I run each documented command of the host as written in the work area` |
 | Tutorial | `Then each marked code block of the tutorial is the file of the example that it names` |
 | Tutorial | `Then the first F# code block of the page {string} is the file {string} of the example` |
 | Tutorial | `Given a copy of the example of the tutorial` |
@@ -519,6 +533,91 @@ two steps have the same pattern.
 | Tool routing | `Then the tool alone with the arguments {string} exits with {int}` |
 | Model verification | `When I verify the model with the schema version {int} as JSON` |
 | Model verification | `Then the verification report has the detection method {string}` |
+| Model verification | `When I verify the model in quiet mode as JSON` |
+| Model verification | `When I ask for the help of the model commands` |
+| Model verification | `When I verify the model with the former command` |
+| Model verification | `When I verify the model as a JSON document` |
+| Model verification | `When I verify the model as a JSON document with an option that it does not have` |
+| Model verification | `Then the verification report has the layout {string}` |
+| Model verification | `Then the verification report counts every file of the tree` |
+| Model verification | `Then the verification report lists every compacted file of the tree` |
+| Model verification | `Then an error of the verification report names the place of the fault` |
+| Model verification | `Then an error of the verification report has the code {string} and names the place of the fault` |
+| Model verification | `Then an error of the verification report has the code {string} and names the versions {int} and {int}` |
+| Model verification | `Then the output names the file of the fault` |
+| Model verification | `Then the help lists the command {string} with a description` |
+| Model verification | `Then the command fails and names {string} as an unknown command` |
+| Model verification | `Then the model was not verified` |
+| Model verification | `Then the verification report states the exit code {int}` |
+| Model | `Given a valid IR v{int} model` |
+| Model | `Given a valid IR v3 Specs model` |
+| Model | `Given an IR v3 Specs model with an unknown member in one value specification` |
+| Model | `Given an IR model with no format version` |
+| Model | `Given an IR model whose format version is a string` |
+| Model | `Given a model file that is not JSON` |
+| Model | `Given an IR v4 model with an unknown tag in one type node` |
+| Model | `Given the tree that the store writes from a v{int} Library with a dependency` |
+| Model | `Given the tree that the store writes from a v{int} Library with a dependency, with {string}` |
+| Model | `Given a valid IR v{int} model in the file {string}` |
+| Model | `Given a valid IR v4 model with two modules` |
+| Model | `Given a v4 tree whose manifest has a version and a created date` |
+| Model | `Given the compacted v{int} single file of the name-context examples` |
+| Model | `Given the compacted v{int} single file of the name-context examples in the file {string}` |
+| Model | `Given the v{int} tree of the name-context examples, with {string} compacted` |
+| Model | `Given the v4 tree of the name-context examples, with {string} in its type file` |
+| Model conversion | `Given the tree of the kit case {string}` |
+| Model conversion | `Given the tree of the kit case {string} with the rejected document of the kit case {string} as its type file` |
+| Model conversion | `Given a tree with the file of the kit case {string}` |
+| Model conversion | `Given a tree with the accepted file spelling of the kit case {string}` |
+| Model conversion | `Given the plain v{int} single file of the compaction policy's cases` |
+| Model conversion | `Given the plain v{int} single file of the compaction policy's cases in the file {string}` |
+| Model conversion | `Given the output is a directory that holds a file` |
+| Model conversion | `When I convert the model to a single file` |
+| Model conversion | `When I convert the model to a document tree` |
+| Model conversion | `When I convert the model without changing its layout or its encoding` |
+| Model conversion | `When I compact the model` |
+| Model conversion | `When I compact the model to a document tree` |
+| Model conversion | `When I convert the model with the compaction mode {string}` |
+| Model conversion | `When I convert the model with the compaction mode {string} after a space` |
+| Model conversion | `When I convert the written model to a single file` |
+| Model conversion | `When I convert the written model to a document tree` |
+| Model conversion | `When I compact the written model` |
+| Model conversion | `When I convert the plain twin of the model to a single file` |
+| Model conversion | `When I convert the plain twin of the model to a document tree` |
+| Model conversion | `When I verify the written tree as JSON` |
+| Model conversion | `When I verify the written single file as JSON` |
+| Model conversion | `Then the conversion succeeds` |
+| Model conversion | `Then the conversion fails with the exit code {int} and the diagnostic {string}` |
+| Model conversion | `Then the conversion report states the layouts {string} and {string}` |
+| Model conversion | `Then the conversion report states the encodings {string} and {string}` |
+| Model conversion | `Then the conversion report states no input encoding` |
+| Model conversion | `Then the conversion report states the IR version {string}` |
+| Model conversion | `Then the conversion report names the compaction mode {string} and the writer policy of the pinned cases` |
+| Model conversion | `Then the diagnostic {string} suggests {string}` |
+| Model conversion | `Then the diagnostic {string} suggests the compaction mode {string} with an equals sign` |
+| Model conversion | `Then the conversion report has the notice {string}` |
+| Model conversion | `Then the diagnostic {string} names the input as {string}` |
+| Model conversion | `Then the diagnostic {string} names the place of the fault` |
+| Model conversion | `Then the diagnostic {string} names the output` |
+| Model conversion | `Then the file in the output is unchanged` |
+| Model conversion | `Then nothing is at the output` |
+| Model conversion | `Then the conversion report lists every file of the written tree` |
+| Model conversion | `Then the stream has one fileWritten record for each written file` |
+| Model conversion | `Then the conversion report has {int} notices` |
+| Model conversion | `Then the stream has the notices of the conversion report` |
+| Model conversion | `Then the conversion report has a notice {string} that names {string}` |
+| Model conversion | `Then the written single file says the format version {int}` |
+| Model conversion | `Then the written single file says the format version {string}` |
+| Model conversion | `Then every file of the written tree says the format version {string}` |
+| Model conversion | `Then the written single file is plain` |
+| Model conversion | `Then the written single file is compacted` |
+| Model conversion | `Then the written tree has a compacted file` |
+| Model conversion | `Then the last two written single files are the same` |
+| Model conversion | `Then the last two written trees are the same` |
+| Model conversion | `Then the written single file is the canonical spelling of the kit case` |
+| Model conversion | `Then the written tree has the files of the kit case` |
+| Model conversion | `Then the written tree has the file of the kit case in its canonical spelling` |
+| Model conversion | `Then the conversion fails with the diagnostic of the kit case at the rejected file` |
 | Extension list | `When I list the extensions as JSON` |
 | Extension list | `When I list the extensions as JSON on the other host` |
 | Extension list | `Then the extension list names the host of the run` |
@@ -615,6 +714,29 @@ two steps have the same pattern.
 | Install scripts | `Then the install script says {string}` |
 | Install scripts | `Then the install script installed morphirup` |
 | Install scripts | `Then the install script installed nothing` |
+| JSON output | `Given the input of {string}` |
+| JSON output | `Given the input of {string} that makes it write a log line` |
+| JSON output | `When I run {string} with a bare JSON flag` |
+| JSON output | `When I run {string} with the JSON document` |
+| JSON output | `When I run {string} with the JSON output {string}` |
+| JSON output | `When I run {string} with the JSON mode {string}` |
+| JSON output | `When I run {string} with the JSON mode {string} after a space` |
+| JSON output | `When I run {string} with a bare JSON flag and an option that it does not have` |
+| JSON output | `When I run {string} with the former streaming flag` |
+| JSON output | `When I run {string} with a bare JSON flag right before its input` |
+| JSON output | `When I run {string} with a bare JSON flag and then with the JSON document` |
+| JSON output | `When I list the extensions with a bare JSON flag and then with the JSON document` |
+| JSON output | `Then standard output is JSON Lines that end with one completed record` |
+| JSON output | `Then every line of standard output is a JSON record with an event, and only the last is completed` |
+| JSON output | `Then standard output is one completed record` |
+| JSON output | `Then the output names the JSON modes {string} and {string}` |
+| JSON output | `Then the report of {string} states the usage failure` |
+| JSON output | `Then the document is the report of the completed record` |
+| JSON output | `Then standard output is one report document whose exit code is the exit code of the command` |
+| JSON output | `Then the report of {string} names its input` |
+| JSON output | `Then standard error has a line` |
+| JSON output | `Then standard output is the JSON output {string}` |
+| JSON output | `Then the member {string} is at the top of the document and at the top of the report of the completed record` |
 
 The scenarios that pull request 3 of the change `consolidate-black-box-tests` moved keep the step texts of their old
 features, so that each moved scenario has its old steps and its old checks. Some of those steps say one thing in the

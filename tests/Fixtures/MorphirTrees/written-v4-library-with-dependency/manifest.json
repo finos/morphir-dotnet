@@ -1,0 +1,9 @@
+{
+  "formatVersion": 4,
+  "distribution": "Library",
+  "package": "my-org/finance",
+  "pathBudget": 4000,
+  "dependencies": [
+    "morphir/SDK"
+  ]
+}

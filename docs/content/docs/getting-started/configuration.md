@@ -116,7 +116,7 @@ For this example, start with a classic project whose only primary is the JSON fi
 Preview the conversion, then apply it to that member:
 
 ```bash
-morphir project migrate packages/orders/morphir.json --dry-run --json > migration-plan.json
+morphir project migrate packages/orders/morphir.json --dry-run --json=document > migration-plan.json
 morphir project migrate packages/orders/morphir.json
 morphir project migrate packages/orders/morphir.json --json # unchanged repeat
 ```
@@ -174,8 +174,8 @@ invoking from a child deliberately limits the operation to that child.
 Use JSON in automation and retain the result when application fails:
 
 ```bash
-morphir workspace migrate . --dry-run --json > workspace-preview.json
-morphir workspace migrate . --json > workspace-result.json
+morphir workspace migrate . --dry-run --json=document > workspace-preview.json
+morphir workspace migrate . --json=document > workspace-result.json
 morphir workspace migrate . --json # unchanged repeat
 ```
 
@@ -196,7 +196,7 @@ color = false
 The shared loader accepts explicitly selected profiles. This command selects the profile and captures JSON output:
 
 ```bash
-morphir config show --isolated --discovery-boundary . --profiles ci --json > effective-config.json
+morphir config show --isolated --discovery-boundary . --profiles ci --json=document > effective-config.json
 ```
 
 This excludes machine configuration and personal overrides while retaining the selected profile. Environment values still participate. Stdout contains JSON; diagnostics go to stderr. Merely setting `CI=true` does not activate a named profile through the shared loader. Legacy cache callers retain their separate `CiProfileMode` behavior.

@@ -19,8 +19,8 @@ description: "Experimental and internal: serve one WASM extension module over st
 ```console
 morphir extension worker --abi <profile> --module <path> --build-identity <hex>
     [--request-bytes <n>] [--response-bytes <n>] [--call-ms <n>] [--instructions <n>]
-    [--memory-pages <n>] [--json]
-morphir extension worker --help [--json]
+    [--memory-pages <n>] [--json[=stream|document]]
+morphir extension worker --help [--json[=stream|document]]
 ```
 
 Both executables have it: `morphir` and `dotnet-morphir`, and so does the managed `morphir` built from
@@ -55,8 +55,8 @@ and writes `started`.
 | `--call-ms <n>` | `30000` (`10000` for `morphir-bytes-v1`) | The deadline of each `handle` call, in milliseconds. |
 | `--instructions <n>` | `5000000000` | The instruction budget of each call, in Wasmtime fuel units, from 1 to 9007199254740991, the range the contract states. |
 | `--memory-pages <n>` | `4096` (256 MiB) | The ceiling of the guest's memory, in 64 KiB pages, from 1 to 65536. This host has one limit for every memory of a session, so it applies to the Extism kernel's memory too, as the contract allows. Below the default the two hosts differ: the MoonBit host leaves the kernel at 256 MiB. A value outside the range is a usage error, exit 2, before the module is read. |
-| `--json` | off | Write the report as `morphir/command-event` lines. |
-| `--help`, `-h` | | Write the help on stdout and serve nothing. With `--json`, write one `morphir/command-result` whose `result.buildIdentity` is the identity to pass. |
+| `--json[=stream\|document]` | off | Write the report as `morphir/command-event` lines. The worker takes a mode after `=` as every command does, and every mode gives the same output: the pinned contract fixes it, not the [machine output](_index.md#machine-output) convention. A mode that is not `stream` or `document` is a usage error. |
+| `--help`, `-h` | | Write the help on stdout and serve nothing. With `--json` (in any mode), write one `morphir/command-result` whose `result.buildIdentity` is the identity to pass, with no `completed` wrapper. |
 
 The defaults and the range of `--instructions` are the pinned contract's
 (`tests/Fixtures/MepWasm/wasm-execution-profiles.json`, `worker.arguments`). The contract states no
@@ -74,6 +74,10 @@ also when one of them has uncommitted changes.
 $ morphir extension worker --help --json
 {"profile":"morphir/command-result","contractVersion":"0.1.0","command":"extension worker","state":"succeeded","exitCode":0,"result":{"help":"...","buildIdentity":"e4d9...531d"},"diagnostics":[]}
 ```
+
+The pinned profile contract states this form, so the worker does not follow the stream convention of the other
+commands: there is no `completed` wrapper. The conformance runner of this repository refuses a host whose help result
+has one.
 
 ## Output
 

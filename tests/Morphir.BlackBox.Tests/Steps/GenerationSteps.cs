@@ -24,7 +24,7 @@ public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriv
     public Task GenerateFromTheModel(string target) => Generate(target, new GenerationOptions());
 
     [When("I generate {string} from the model as text")]
-    public Task GenerateFromTheModelAsText(string target) => Generate(target, new GenerationOptions { Json = false });
+    public Task GenerateFromTheModelAsText(string target) => Generate(target, new GenerationOptions { Json = null });
 
     [When("I generate {string} from the model with the option {string}")]
     public Task GenerateWithTheOption(string target, string option) => Generate(target, new GenerationOptions { Options = [option] });
@@ -329,7 +329,7 @@ public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriv
     public Task GenerateWithoutDynamicCode(string target) => Generate(target, new GenerationOptions { WithoutDynamicCode = true });
 
     [When("I generate {string} from the model as text on a host without dynamic code")]
-    public Task GenerateAsTextWithoutDynamicCode(string target) => Generate(target, new GenerationOptions { Json = false, WithoutDynamicCode = true });
+    public Task GenerateAsTextWithoutDynamicCode(string target) => Generate(target, new GenerationOptions { Json = null, WithoutDynamicCode = true });
 
     [When("I generate {string} from the model on a host without dynamic code with the option {string}")]
     public Task GenerateWithoutDynamicCodeWithTheOption(string target, string option) =>

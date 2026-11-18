@@ -1,6 +1,7 @@
 using System.Text;
 using FluentAssertions;
 using Morphir.Configuration.IO;
+using TUnit.Core.Enums;
 
 namespace Morphir.Configuration.IO.Tests;
 
@@ -78,6 +79,76 @@ public sealed class ConfigurationRecoveryTests
         {
             if (resolved) Directory.Delete(root, true);
             else Console.Error.WriteLine("Retained recovery drift evidence: " + root);
+        }
+    }
+
+    // Recovery restores a backup with the same replacement as an edit. On Windows it waits for a handle without
+    // delete sharing, and it keeps a change that the holder of that handle made during the wait. The handle is
+    // released from the retry hook, so no timing decides the outcome.
+    [Test]
+    [RunOn(OS.Windows)]
+    [Arguments(false)]
+    [Arguments(true)]
+    public void RecoveryWaitsForAShortLivedHandleAndKeepsAChangeMadeDuringTheWait(bool changedDuringWait)
+    {
+        var root = ProjectPath.join(Path.GetTempPath(), "batch-recovery-wait-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var resolved = false;
+        try
+        {
+            var target = root + "/morphir.toml";
+            File.WriteAllText(target, "original=1\n");
+            var failed = new ConfigurationTransaction(fault: (phase, _) =>
+            {
+                if (phase is ConfigurationTransactionPhase.AfterInstall or ConfigurationTransactionPhase.BeforeRollback) throw new IOException("injected");
+            }).Apply(Plan(root, target));
+            var journal = failed.Artifacts.First(a => a.Kind == ConfigurationArtifactKind.Journal).Path;
+            FileStream? holder = null;
+            var retries = 0;
+            ConfigurationTransactionResult recovered;
+            try
+            {
+                recovered = new ConfigurationTransaction(fault: (phase, _) =>
+                {
+                    // A scanner reads, and shares reading and writing but not deletion.
+                    if (phase == ConfigurationTransactionPhase.BeforeRollback)
+                        holder = new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    if (phase == ConfigurationTransactionPhase.BeforeInstallRetry) retries++;
+                    if (phase == ConfigurationTransactionPhase.BeforeInstallRetry && holder is { CanRead: true })
+                    {
+                        if (changedDuringWait)
+                        {
+                            using var writer = new FileStream(target, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+                            writer.SetLength(0);
+                            writer.Write(Encoding.UTF8.GetBytes("user=true\n"));
+                            writer.Flush(true);
+                        }
+                        holder.Dispose();
+                    }
+                }).Recover(journal);
+            }
+            finally { holder?.Dispose(); }
+            retries.Should().Be(1, "the first restore met the handle");
+            if (changedDuringWait)
+            {
+                recovered.Status.Should().Be(ConfigurationTransactionStatus.RecoveryRequired);
+                recovered.UnresolvedPaths.Should().Contain(target);
+                File.ReadAllText(target).Should().Be("user=true\n");
+                File.Exists(journal).Should().BeTrue();
+                File.WriteAllText(target, "candidate=true\n");
+                new ConfigurationTransaction().Recover(journal).Status.Should().Be(ConfigurationTransactionStatus.RolledBack);
+            }
+            else
+            {
+                recovered.Status.Should().Be(ConfigurationTransactionStatus.RolledBack, recovered.Code);
+                File.ReadAllText(target).Should().Be("original=1\n");
+            }
+            resolved = true;
+        }
+        finally
+        {
+            if (resolved) Directory.Delete(root, true);
+            else Console.Error.WriteLine("Retained recovery wait evidence: " + root);
         }
     }
 

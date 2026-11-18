@@ -25,10 +25,11 @@ morphirup run -- validate --input .morphir/out/compile.dest/morphir-ir.json
 The exit code is 0 when there are no errors, so you can use the command in a script or a CI job. The checks find
 type mismatches, such as a string where the model declares an int.
 
-For a report that a script can read, add `--json`:
+For one report that a script can read, add `--json=document` (a bare `--json` writes the same report in one
+`completed` line; see [machine output]({{< relref "/docs/cli#machine-output" >}})):
 
 ```shell
-morphirup run -- validate --input .morphir/out/compile.dest/morphir-ir.json --json
+morphirup run -- validate --input .morphir/out/compile.dest/morphir-ir.json --json=document
 ```
 
 ```json
@@ -60,9 +61,8 @@ Error: unsupported-version: ...\bad-ir.json at $.formatVersion: Expected a class
 
 ## Check against the JSON schema
 
-`morphir ir verify <file>` checks a file against the JSON schema of IR formats 1, 2 and 3. Today it also reports
-errors for IR that `compile` writes, in format 4 and in format 3, so use `validate` for those files. See the
-[ir verify reference]({{< relref "/docs/cli/ir-verify" >}}).
+`morphir model verify <file-or-tree>` checks a model against the JSON schema of IR formats 1 to 4, or a document
+tree. See the [model verify reference]({{< relref "/docs/cli/model-verify" >}}).
 
 ## Next steps
 

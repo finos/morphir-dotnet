@@ -7,8 +7,8 @@ namespace Morphir.TestSupport.Drivers;
 /// <summary>The options of <c>validate</c>.</summary>
 public sealed record ValidationOptions
 {
-    /// <summary>Write one JSON report to standard output.</summary>
-    public bool Json { get; init; }
+    /// <summary>The <c>--json</c> argument, or null for the text of a person.</summary>
+    public JsonOutputArgument? Json { get; init; }
 
     /// <summary>More arguments, after the others. For a scenario whose subject is an option that the command refuses.</summary>
     public IReadOnlyList<string> Arguments { get; init; } = [];
@@ -29,13 +29,13 @@ public sealed class ModelValidationDriver(ICliDriver cli) : IModelValidationDriv
         options ??= new ValidationOptions();
         var arguments = new List<string> { "validate", "--input", input.Path };
         arguments.AddRange(options.Arguments);
-        if (options.Json) arguments.Add("--json");
+        if (options.Json is { } json) arguments.AddRange([.. json.Words, .. json.Trailing]);
         return cli.RunAsync(arguments, cancellation: cancellation);
     }
 }
 
 /// <summary>
-/// The JSON report of <c>validate --json</c>. It states success in the field <c>success</c>, which must agree with
+/// The report of <c>validate --json</c>, in either form. It states success in the field <c>success</c>, which must agree with
 /// the exit code of the command, as its field <c>exitCode</c> must.
 /// </summary>
 public sealed class ValidationReport : JsonCommandReport
@@ -67,6 +67,6 @@ public sealed class ValidationReport : JsonCommandReport
     /// <summary>The path of the model, as the command line gave it.</summary>
     public string? Input => Text("input");
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON document.</summary>
+    /// <summary>Reads the report from standard output, in either form of <see cref="JsonOutputAssertions"/>.</summary>
     public static ValidationReport Of(CommandResult result) => new(result);
 }

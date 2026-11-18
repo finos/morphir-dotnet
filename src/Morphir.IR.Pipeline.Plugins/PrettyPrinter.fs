@@ -2,6 +2,7 @@ namespace Morphir.IR.Pipeline.Plugins
 
 open Morphir.IR
 open Morphir.IR.Classic
+open Morphir.Files
 open Morphir.IR.Pipeline
 open System.Text
 

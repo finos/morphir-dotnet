@@ -906,7 +906,7 @@ let contractTests =
                 let v4Tree =
                     Morphir.CodeGeneration.FSharp.Transpiler.generateModel
                         v4
-                        (Morphir.IR.Pipeline.VFile.fromPath "order-v4")
+                        (Morphir.Files.VFile.fromPath "order-v4")
 
                 Expect.isEmpty (diagnosticsOf v4Tree) "v4 model generates without errors"
                 let v4Modules = modulesOf v4Tree

@@ -166,7 +166,7 @@ Console.WriteLine("Processing..."); // This goes to stdout!
 **Why**:
 - Stdout is for command output only (JSON, formatted results)
 - Stderr is for diagnostics and logging
-- Enables: `./morphir ir verify file.json --json | jq .`
+- Enables: `./morphir model verify file.json --json | jq .`
 
 See AGENTS.md Section 5 for complete details.
 

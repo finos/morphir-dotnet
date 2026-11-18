@@ -5,6 +5,7 @@ using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Features.Validate;
 using Morphir.Tooling.Infrastructure;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -32,11 +33,12 @@ public sealed class ExtensionListCommandTests
 
     private static (int Exit, List<string> Out, string Err) Run(ExtensionRegistry registry, bool json)
     {
-        var stdout = new List<string>();
+        var stdout = new StringWriter();
         var stderr = new StringWriter();
-        var exit = ExtensionListCommand.Execute(registry, json, stdout.Add, stderr, TerminalProfile.Plain);
+        var exit = ExtensionListCommand.Execute(registry, json ? JsonOutputMode.Document : JsonOutputMode.None, stdout, stderr, TerminalProfile.Plain);
         // The table keeps the platform's line breaks (CRLF on Windows); the assertions compare LF text.
-        return (exit, stdout.Select(text => text.Replace("\r\n", "\n")).ToList(), stderr.ToString());
+        var text = stdout.ToString().Replace("\r\n", "\n").TrimEnd('\n');
+        return (exit, text.Length == 0 ? [] : [text], stderr.ToString());
     }
 
     [Test]
@@ -57,9 +59,9 @@ public sealed class ExtensionListCommandTests
     [Category("PlatformSpecific")]
     public void ATerminalProfileStylesTheTableAndPlainOutputDoesNot()
     {
-        var styled = new List<string>();
-        ExtensionListCommand.Execute(Registry(Native), false, styled.Add, new StringWriter(), new TerminalProfile(true, 120));
-        string.Join('\n', styled).Should().Contain("\u001b[");
+        var styled = new StringWriter();
+        ExtensionListCommand.Execute(Registry(Native), JsonOutputMode.None, styled, new StringWriter(), new TerminalProfile(true, 120));
+        styled.ToString().Should().Contain("\u001b[");
         var (_, plain, _) = Run(Registry(Native), json: false);
         string.Join('\n', plain).Should().NotContain("\u001b[");
     }

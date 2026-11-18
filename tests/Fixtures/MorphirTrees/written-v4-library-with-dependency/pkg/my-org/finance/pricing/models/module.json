@@ -1,0 +1,12 @@
+{
+  "formatVersion": 4,
+  "path": "pricing/models",
+  "types": [
+    "invoice",
+    "status"
+  ],
+  "values": [
+    "default-currency",
+    "same-invoice"
+  ]
+}

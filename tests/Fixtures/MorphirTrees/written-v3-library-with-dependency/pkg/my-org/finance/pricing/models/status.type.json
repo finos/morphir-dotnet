@@ -1,0 +1,61 @@
+{
+  "formatVersion": "3.1.0",
+  "name": "status",
+  "def": {
+    "access": "Public",
+    "value": [
+      "CustomTypeDefinition",
+      [],
+      {
+        "access": "Public",
+        "value": [
+          [
+            [
+              "open"
+            ],
+            []
+          ],
+          [
+            [
+              "paid"
+            ],
+            [
+              [
+                [
+                  "amount"
+                ],
+                [
+                  "Reference",
+                  {
+                    "slot": 6
+                  },
+                  [
+                    [
+                      [
+                        "morphir"
+                      ],
+                      [
+                        "s",
+                        "d",
+                        "k"
+                      ]
+                    ],
+                    [
+                      [
+                        "basics"
+                      ]
+                    ],
+                    [
+                      "int"
+                    ]
+                  ],
+                  []
+                ]
+              ]
+            ]
+          ]
+        ]
+      }
+    ]
+  }
+}

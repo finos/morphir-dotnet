@@ -1,7 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Concurrent;
-using System.Text.Json;
+using System.Text;
 
 namespace Morphir.TestSupport.Drivers;
 
@@ -28,9 +28,24 @@ public static class ExtensionWorker
         var help = await HelpAsync(sessions).ConfigureAwait(false);
         if (help.ExitCode != 0)
             throw new InvalidOperationException($"extension worker --help --json did not exit with 0: {help.Describe()}");
-        using var document = JsonDocument.Parse(help.StandardOutput);
-        return document.RootElement.GetProperty("result").GetProperty("buildIdentity").GetString()!;
+        return HelpResultOf(help).GetProperty("result").GetProperty("buildIdentity").GetString()!;
     });
+
+    /// <summary>
+    /// The <c>morphir/command-result</c> of <c>extension worker --help --json</c>: exactly one JSON document, as the
+    /// pinned contract states. Output that is a record of a stream (a <c>completed</c> wrapper, with an <c>event</c>
+    /// member) fails: the contract's form overrides the stream convention here.
+    /// </summary>
+    public static System.Text.Json.JsonElement HelpResultOf(SessionExit help)
+    {
+        ArgumentNullException.ThrowIfNull(help);
+        var result = new CommandResult(string.Join(' ', Command) + " --help --json", help.ExitCode ?? -1, Encoding.UTF8.GetString(help.StandardOutput),
+            string.Join(Environment.NewLine, help.StandardError.Select(line => line.Text)), help.ExitedAt, []);
+        var document = result.ShouldWriteOneJsonDocument();
+        return document.ValueKind == System.Text.Json.JsonValueKind.Object && document.TryGetProperty(JsonOutputAssertions.EventMember, out _)
+            ? throw new CommandAssertionException("The help result is a record of a stream, not the one morphir/command-result of the contract.", result)
+            : document;
+    }
 
     /// <summary>Runs <c>extension worker --help --json</c> to its exit.</summary>
     public static async Task<SessionExit> HelpAsync(IProcessSessionDriver sessions, ProcessSessionOptions? options = null)

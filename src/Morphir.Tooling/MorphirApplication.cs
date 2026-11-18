@@ -61,7 +61,7 @@ public static class MorphirApplication
         var builder = MorphirCli
             .CreateBuilder(args, "Morphir command line")
             .ConfigureServices(services => services.AddSingleton(host))
-            .AddScenario<IrToolingScenario>()
+            .AddScenario<ModelToolingScenario>()
             .AddScenario<GenerationScenario>()
             .AddScenario<CompilationScenario>()
             .AddScenario<CSharpFrontendScenario>()

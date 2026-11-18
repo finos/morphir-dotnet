@@ -4,6 +4,7 @@
 /// needs. The decision is in F#, with an exhaustive match on the model family, so C# callers do not test cases.
 module Morphir.Compilation.Mep.Tests.MepGenerationTransportTests
 
+open System.Reflection
 open Expecto
 open Morphir.Compilation.Mep
 open Morphir.IR.Model
@@ -42,5 +43,42 @@ let tests =
                   ModelFamily.V4, "3", None
                   ModelFamily.V4, "4.1.0", None ] do
                 Expect.equal (tupleOf family version) expected $"{family} {version}"
+        }
+
+        // A class `static let` value is a static field behind an F# init check. When two threads start the type
+        // initialisers of two types that need each other, the CLR breaks the deadlock by letting one thread see a type
+        // whose initialiser has not finished, and the init check then throws (FailStaticInit). Offers made by functions
+        // leave the types without a static field, so concurrent first use has no initialiser to meet.
+        test "The offer types have no static field for concurrent first use to meet" {
+            for offerType in [ typeof<MepGenerationTransport>; typeof<MepFrontend> ] do
+                let fields =
+                    offerType.GetFields(BindingFlags.Static ||| BindingFlags.Public ||| BindingFlags.NonPublic ||| BindingFlags.DeclaredOnly)
+
+                Expect.isEmpty [ for field in fields -> field.Name ] $"the static fields of {offerType.Name}"
+        }
+
+        // The same rule for every source file of the assembly: no file initialiser starts the initialiser of a type
+        // of its file while the file has a second route in (TypeInitialisation of Morphir.TestSupport).
+        test "No source file of the assembly has a static initialiser that two threads can deadlock on" {
+            let contended =
+                Morphir.TestSupport.TypeInitialisation.ContendedFiles typeof<MepFrontend>.Assembly |> List.ofSeq
+
+            Expect.equal contended [] "the contended files"
+        }
+
+        // The guard must still find a contended file: PlantedContention.fs of this test assembly is one on purpose.
+        // If code generation changes so that the guard no longer sees it, this test fails instead of every guard
+        // passing while it checks nothing.
+        test "The guard finds the planted contended file of the test assembly" {
+            let contended =
+                Morphir.TestSupport.TypeInitialisation.ContendedFiles typeof<PlantedContention.PlantedHolder>.Assembly
+                |> List.ofSeq
+
+            Expect.equal
+                contended
+                [ "PlantedContention: routes [Morphir.Compilation.Mep.Tests.PlantedContention, "
+                  + "Morphir.Compilation.Mep.Tests.PlantedContention+PlantedHolder] start "
+                  + "[Morphir.Compilation.Mep.Tests.PlantedContention+PlantedHolder]" ]
+                "only the planted file, with both routes and the class it starts"
         }
     ]

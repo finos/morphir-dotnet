@@ -19,20 +19,29 @@ module WriterCodes =
     /// <summary>The writer received a model of another family.</summary>
     let FamilyMismatch = DiagnosticCode.Create "compile.ir_family_mismatch"
 
+/// The versions that the writers of this file declare. Module values, not class `static let` values: F# initialises the
+/// module values and the class `static let` values of a file in one initialiser, which starts the type initialiser of
+/// each class whose fields it writes. A thread that reads WriterCodes and a thread that creates the first writer could
+/// then wait for each other, and the CLR breaks that deadlock by letting one thread see a writer before its versions
+/// are set (FailStaticInit), as concurrent compiles can. With the values here the file's initialiser starts no type
+/// initialiser.
+module private WriterVersions =
+    let classic = [ Versioning.Classic 1; Versioning.Classic 2; Versioning.Classic 3 ]
+
+    let classicProfiles = [
+        Versioning.Classic 1, ClassicWireProfile.v1
+        Versioning.Classic 2, ClassicWireProfile.v2
+        Versioning.Classic 3, ClassicWireProfile.v3
+    ]
+
+    let v4 = [ Versioning.Classic 4 ]
+
 /// <summary>
 /// Writes classic library models as JSON for format versions 1, 2 and 3 (IRW-1). Type attributes are empty
 /// objects and value attributes are the values' types.
 /// </summary>
 [<Sealed>]
 type ClassicIrWriter() =
-    static let versions = [ Versioning.Classic 1; Versioning.Classic 2; Versioning.Classic 3 ]
-
-    static let profiles = [
-        Versioning.Classic 1, ClassicWireProfile.v1
-        Versioning.Classic 2, ClassicWireProfile.v2
-        Versioning.Classic 3, ClassicWireProfile.v3
-    ]
-
     /// <summary>The identity of the classic JSON writer.</summary>
     static member Identity = ComponentId.Create "morphir-dotnet.classic-json"
 
@@ -103,12 +112,12 @@ type ClassicIrWriter() =
     interface IIrWriter with
         member _.Identity = ClassicIrWriter.Identity
         member _.Family = ModelFamily.Classic
-        member _.Versions = List.toArray versions :> IReadOnlyList<_>
+        member _.Versions = List.toArray WriterVersions.classic :> IReadOnlyList<_>
 
         member _.Write(target, options, model) =
             match
                 model,
-                profiles
+                WriterVersions.classicProfiles
                 |> List.tryFind (fun (version, _) ->
                     FormatVersion.sameVersion version target.Version
                 )
@@ -150,8 +159,6 @@ type ClassicIrWriter() =
 /// </summary>
 [<Sealed>]
 type V4IrWriter() =
-    static let versions = [ Versioning.Classic 4 ]
-
     /// <summary>The identity of the v4 JSON writer.</summary>
     static member Identity = ComponentId.Create "morphir-dotnet.v4-json"
 
@@ -160,7 +167,7 @@ type V4IrWriter() =
     interface IIrWriter with
         member _.Identity = V4IrWriter.Identity
         member _.Family = ModelFamily.V4
-        member _.Versions = List.toArray versions :> IReadOnlyList<_>
+        member _.Versions = List.toArray WriterVersions.v4 :> IReadOnlyList<_>
 
         member _.Write(target, options, model) =
             match model with
@@ -172,7 +179,7 @@ type V4IrWriter() =
                 ]
             | FamilyModel.V4 _ when
                 not (
-                    versions
+                    WriterVersions.v4
                     |> List.exists (FormatVersion.sameVersion target.Version)
                 )
                 ->

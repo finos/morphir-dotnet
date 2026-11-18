@@ -15,12 +15,12 @@ the report gives the reason.
 ## Synopsis
 
 ```console
-morphir extension runtimes [--json]
-dotnet-morphir extension runtimes [--json]
+morphir extension runtimes [--json[=stream|document]]
+dotnet-morphir extension runtimes [--json[=stream|document]]
 ```
 
 **Options:**
-- `--json`: Write one JSON document on stdout.
+- `--json[=stream|document]`: Write the report as JSON on stdout: a bare `--json` writes one `completed` record that holds it, `--json=document` the report alone. See [Machine output](_index.md#machine-output). A usage error in a JSON mode is a report with no runtime, `diagnostics` (`extension.invalid_arguments`) and `exitCode` 2.
 
 ## Description
 
@@ -33,7 +33,7 @@ only built-in extensions, and every other command that needs no WASM never load 
 or broken engine therefore cannot break them.
 
 The command exits with 0 whether the runtime is available or not: the report is the result. Logs and
-diagnostics go to stderr, so `morphir extension runtimes --json | jq` works.
+diagnostics go to stderr, so `morphir extension runtimes --json=document | jq` works.
 
 ## Output
 

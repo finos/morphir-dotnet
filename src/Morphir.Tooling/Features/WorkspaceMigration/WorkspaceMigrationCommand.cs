@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
+using Morphir.Tooling.Cli;
 using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.WorkspaceMigration;
@@ -33,7 +34,7 @@ public sealed class WorkspaceMigrationCommand : Command, IMorphirParseErrorHandl
     private readonly Option<string[]> _include = new("--include") { Description = "Root-relative candidate pattern; repeatable", Arity = ArgumentArity.OneOrMore, AllowMultipleArgumentsPerToken = false };
     private readonly Option<string[]> _exclude = new("--exclude") { Description = "Root-relative exclusion pattern; repeatable", Arity = ArgumentArity.OneOrMore, AllowMultipleArgumentsPerToken = false };
     private readonly Option<bool> _dryRun = new("--dry-run") { Description = "Preview the complete aggregate without writing" };
-    private readonly Option<bool> _json = new("--json") { Description = "Emit one redacted structured JSON result" };
+    private readonly Option<string> _json = JsonOutputOption.Create();
     private readonly Option<string?> _boundary = new("--discovery-boundary") { Description = "The directory must lie inside this boundary (default: MORPHIR_DISCOVERY_BOUNDARY, else the filesystem root)" };
 
     public WorkspaceMigrationCommand(IWorkspaceMigrationHost host, bool initializationFailed = false) : base("migrate", "Adopt classic projects within one bounded workspace")
@@ -45,14 +46,18 @@ public sealed class WorkspaceMigrationCommand : Command, IMorphirParseErrorHandl
         SetAction(Execute);
     }
 
-    public int HandleParseErrors(ParseResult parsed) => Render(WorkspaceMigrationReport.Failure("workspace.migrate_usage",
-        "Expected one bounded directory and supported workspace migration options."), WantsJson(parsed));
-
-    private static bool WantsJson(ParseResult parsed) => parsed.Tokens.Any(token => token.Value is "--json" or "--json=true");
+    /// <summary>
+    /// Renders the parse errors as one <c>workspace.migrate_usage</c> failure with the messages of the host that quote no
+    /// value (<see cref="OptionValueRewrite.RedactedErrorMessages"/>), for example an unknown <c>--json</c> mode or the
+    /// hint <c>--json=document</c>: the redacted report repeats no raw input. A parse error has no valid parse result, so the output mode comes from the tokens (JSON-4).
+    /// </summary>
+    public int HandleParseErrors(ParseResult parsed, IReadOnlyList<string> messages) => Render(WorkspaceMigrationReport.Failure("workspace.migrate_usage",
+        string.Join(" ", ["Expected one bounded directory and supported workspace migration options.", .. OptionValueRewrite.RedactedErrorMessages(parsed)])),
+        JsonOutputOption.ScanTokens([.. parsed.Tokens.Select(token => token.Value)]));
 
     private int Execute(ParseResult parsed)
     {
-        var json = parsed.GetValue(_json) || WantsJson(parsed);
+        var json = JsonOutputOption.ModeOf(parsed);
         var dryRun = parsed.GetValue(_dryRun);
         var directory = parsed.GetValue(_directory);
         var includes = parsed.GetValue(_include) ?? [];
@@ -77,7 +82,7 @@ public sealed class WorkspaceMigrationCommand : Command, IMorphirParseErrorHandl
         { return Render(WorkspaceMigrationReport.Failure("workspace.migrate_io", "Workspace migration could not read or write the bounded root. Check paths and permissions.", dryRun), json); }
     }
 
-    private static int Render(WorkspaceMigrationReport report, bool json)
+    private static int Render(WorkspaceMigrationReport report, JsonOutputMode json)
     {
         foreach (var diagnostic in report.Diagnostics)
             Console.Error.WriteLine($"{diagnostic.Path ?? "workspace"}: {diagnostic.Code}: {diagnostic.Message}");
@@ -85,7 +90,7 @@ public sealed class WorkspaceMigrationCommand : Command, IMorphirParseErrorHandl
             Console.Error.WriteLine($"recovery\t{artifact.Kind}\t{artifact.Path}\t{artifact.TransactionId}");
         foreach (var path in report.UnresolvedPaths) Console.Error.WriteLine($"unresolved\t{path}");
         foreach (var directory in report.UncertainDirectories) Console.Error.WriteLine($"uncertain-directory\t{directory}");
-        if (json) ConsoleOutputHelper.WriteLineToStdout(report.ToJson());
+        if (json != JsonOutputMode.None) JsonReportOutput.Write(ConsoleOutputHelper.Stdout, json, report, WorkspaceMigrationReport.JsonInfo);
         else
         {
             ConsoleOutputHelper.WriteLineToStdout($"{report.Outcome}\t{report.RootPath ?? "workspace"}\t{report.WorkspaceTarget ?? ""}");

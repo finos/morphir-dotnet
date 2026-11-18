@@ -1,0 +1,35 @@
+{
+  "formatVersion": "3.1.0",
+  "name": "money",
+  "spec": [
+    "TypeAliasSpecification",
+    [],
+    [
+      "Reference",
+      {
+        "slot": 1
+      },
+      [
+        [
+          [
+            "morphir"
+          ],
+          [
+            "s",
+            "d",
+            "k"
+          ]
+        ],
+        [
+          [
+            "basics"
+          ]
+        ],
+        [
+          "int"
+        ]
+      ],
+      []
+    ]
+  ]
+}

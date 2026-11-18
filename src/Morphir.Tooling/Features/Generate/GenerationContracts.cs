@@ -2,9 +2,9 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Text.Json;
 using Morphir.Extensions;
+using Morphir.Files;
 using Morphir.IR;
 using Morphir.IR.Model;
-using Morphir.IR.Pipeline;
 
 namespace Morphir.Tooling.Features.Generate;
 

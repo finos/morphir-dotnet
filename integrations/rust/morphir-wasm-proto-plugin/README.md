@@ -78,7 +78,7 @@ Once installed via proto, use Morphir as normal:
 morphir --version
 
 # Use Morphir commands
-morphir ir verify my-ir-file.json
+morphir model verify my-ir-file.json
 ```
 
 ## Development

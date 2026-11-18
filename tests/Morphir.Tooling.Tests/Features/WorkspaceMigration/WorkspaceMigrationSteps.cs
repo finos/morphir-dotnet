@@ -206,7 +206,7 @@ public sealed class WorkspaceMigrationSteps : IDisposable
 
     [When("I migrate the workspace with boundary {string} and {string}")]
     public Task MigrateWithBoundary(string boundary, string arguments) =>
-        Run(["workspace", "migrate", .. arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--discovery-boundary", Placeholder(boundary), "--json"]);
+        Run(["workspace", "migrate", .. arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--discovery-boundary", Placeholder(boundary), "--json=document"]);
 
     [Then("workspace migration diagnostics include {string}")]
     public void WorkspaceDiagnostic(string code) => _report!.RootElement.GetProperty("diagnostics").EnumerateArray()
@@ -216,7 +216,7 @@ public sealed class WorkspaceMigrationSteps : IDisposable
     public void WorkspaceDiagnosticNames(string text) => _report!.RootElement.GetProperty("diagnostics").EnumerateArray()
         .Select(d => d.GetProperty("message").GetString()).Should().Contain(message => message!.Contains(text, StringComparison.Ordinal));
     [When("I migrate the workspace with {string}")]
-    public Task Migrate(string arguments) => Run(["workspace", "migrate", .. arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json"]);
+    public Task Migrate(string arguments) => Run(["workspace", "migrate", .. arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries), "--json=document"]);
 
     [When("I migrate the workspace with human output")]
     public Task Human() => Run(["workspace", "migrate", "--dry-run"]);

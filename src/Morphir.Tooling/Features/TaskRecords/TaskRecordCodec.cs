@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using Morphir.Files;
 
 namespace Morphir.Tooling.Features.TaskRecords;
 
@@ -272,6 +273,10 @@ public static class TaskRecordCodec
 }
 
 /// <summary>Reads and writes record files. A write goes through a temporary file and a rename.</summary>
+/// <remarks>On Windows the rename waits a bounded time while another process (a virus scanner or a search indexer)
+/// holds the record open (<see cref="FileReplacement"/>). The writer holds the task's lock, so no other Morphir run
+/// writes the record meanwhile; anything that changes it during the wait is outside that protocol. The rename then
+/// does not go ahead, so the write cannot drop what that writer wrote, and the write fails as an I/O error.</remarks>
 internal static class RecordFile
 {
     public static RecordReading Read(string path)
@@ -297,7 +302,11 @@ internal static class RecordFile
         };
     }
 
-    public static void Write(string path, TaskRecord record)
+    public static void Write(string path, TaskRecord record) => Write(path, record, afterWait: null);
+
+    /// <param name="afterWait">Runs after each wait for another handle, before the record is checked again. Tests
+    /// use it to release or change the record without timing.</param>
+    internal static void Write(string path, TaskRecord record, Action? afterWait)
     {
         var directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
@@ -309,11 +318,25 @@ internal static class RecordFile
                 stream.Write(TaskRecordCodec.Encode(record));
                 stream.Flush(flushToDisk: true);
             }
-            File.Move(temporary, path, overwrite: true);
+            var before = Snapshot(path);
+            var replaced = FileReplacement.Replace(() => File.Move(temporary, path, overwrite: true), () =>
+            {
+                afterWait?.Invoke();
+                var now = Snapshot(path);
+                return now is null ? before is null : before is not null && now.AsSpan().SequenceEqual(before);
+            });
+            if (!replaced) throw new IOException($"The task record {path} changed while its replacement waited for another handle");
         }
         finally
         {
             if (File.Exists(temporary)) File.Delete(temporary);
         }
+    }
+
+    // The bytes of the record, or null when there is none.
+    private static byte[]? Snapshot(string path)
+    {
+        try { return File.ReadAllBytes(path); }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException) { return null; }
     }
 }

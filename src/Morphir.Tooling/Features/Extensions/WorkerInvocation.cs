@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using Morphir.Extensions.Wasm;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Features.Extensions;
 
@@ -93,7 +94,11 @@ public abstract record WorkerInvocation
     /// <summary>Serve the module with these options.</summary>
     public sealed record Serve(WorkerOptions Options) : WorkerInvocation;
 
-    /// <summary>Show the help and serve nothing: the text, or with <c>--json</c> one <c>morphir/command-result</c>.</summary>
+    /// <summary>
+    /// Show the help and serve nothing: the text, or with <c>--json</c> in any mode one <c>morphir/command-result</c>.
+    /// The pinned contract fixes that form (adopt-streaming-json, "Output fixed by a cross-host contract keeps that
+    /// contract's form"), so the mode changes nothing and there is no <c>completed</c> wrapper.
+    /// </summary>
     public sealed record Help(bool Json) : WorkerInvocation
     {
         internal static readonly Lazy<string> Text = new(Render);
@@ -105,14 +110,18 @@ public abstract record WorkerInvocation
     public sealed record Invalid(string Message, bool Json) : WorkerInvocation;
 
     /// <summary>Reads the arguments after <c>extension worker</c>. Options take their value as the next argument or
-    /// after <c>=</c>, in any order. <c>--help</c> (or <c>-h</c>) anywhere shows the help.</summary>
+    /// after <c>=</c>, in any order. <c>--json</c> takes a mode only after <c>=</c>, as every command does
+    /// (<c>--json[=stream|document]</c>); the worker's output is fixed by the pinned contract, so every mode gives the
+    /// same output. <c>--help</c> (or <c>-h</c>) anywhere shows the help.</summary>
     public static WorkerInvocation Parse(IReadOnlyList<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        var json = arguments.Contains(JsonFlag);
+        var json = arguments.Any(IsJsonFlag);
         if (arguments.Any(argument => argument is HelpFlag or "-h"))
         {
-            return new Help(json);
+            return arguments.Where(IsJsonFlag).All(argument => argument == JsonFlag || IsMode(argument[(JsonFlag.Length + 1)..]))
+                ? new Help(json)
+                : new Invalid(UnknownMode, json);
         }
 
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -125,7 +134,7 @@ public abstract record WorkerInvocation
             var inline = equals > 0 ? token[(equals + 1)..] : null;
             if (name == JsonFlag)
             {
-                if (inline is not null) return new Invalid($"{JsonFlag} takes no value", json);
+                if (inline is not null && !IsMode(inline)) return new Invalid(UnknownMode, json);
                 if (!flags.Add(name)) return new Invalid($"{JsonFlag} is given twice", json);
             }
             else if (Valued.Contains(name))
@@ -149,6 +158,15 @@ public abstract record WorkerInvocation
 
         return Read(values, json);
     }
+
+    /// <summary>The error of a <c>--json</c> value that is not a mode.</summary>
+    const string UnknownMode = $"{JsonFlag} takes the mode stream or document, after =";
+
+    static bool IsJsonFlag(string argument) =>
+        argument == JsonFlag || argument.StartsWith(JsonFlag + "=", StringComparison.Ordinal);
+
+    /// <summary>True for a mode of <c>--json=&lt;mode&gt;</c>: <c>stream</c> or <c>document</c>.</summary>
+    static bool IsMode(string value) => JsonOutputOption.Modes.Contains(value);
 
     static WorkerInvocation Read(Dictionary<string, string> values, bool json)
     {
@@ -249,7 +267,9 @@ public abstract record WorkerInvocation
                                          {U(instructions.Maximum)}. Default {U(contract.InstructionBudget)}.
               {MemoryPages} <n>         The ceiling of each linear memory, in 64 KiB pages, from 1 to {MaxMemoryPages}.
                                          Default {N(pages)} ({N(contract.MemoryCeilingBytes / (1024 * 1024))} MiB).
-              {JsonFlag}                     Write the stderr report as morphir/command-event lines.
+              {JsonFlag}                     Write the stderr report as morphir/command-event lines. A mode
+                                         (--json=stream or --json=document) is accepted and changes nothing:
+                                         the pinned contract fixes the output.
               {HelpFlag}, -h                 Show this help on stdout and serve nothing. With --json, write one
                                          morphir/command-result whose result.buildIdentity is the identity to pass.
 

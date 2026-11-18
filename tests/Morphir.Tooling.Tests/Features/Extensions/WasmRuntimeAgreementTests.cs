@@ -9,6 +9,7 @@ using Morphir.TestSupport;
 using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Infrastructure;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -58,9 +59,9 @@ public sealed class WasmRuntimeAgreementTests
 
     private static JsonElement List(ExtensionRegistry registry)
     {
-        var stdout = new List<string>();
-        ExtensionListCommand.Execute(registry, json: true, stdout.Add, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
-        using var document = JsonDocument.Parse(string.Join('\n', stdout));
+        var stdout = new StringWriter();
+        ExtensionListCommand.Execute(registry, JsonOutputMode.Document, stdout, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
+        using var document = JsonDocument.Parse(stdout.ToString());
         return document.RootElement.Clone();
     }
 
@@ -69,9 +70,9 @@ public sealed class WasmRuntimeAgreementTests
 
     private static JsonElement Runtimes(WasmRuntime runtime)
     {
-        var stdout = new List<string>();
-        ExtensionRuntimesCommand.Execute(Native, runtime, json: true, stdout.Add).Should().Be(0);
-        using var document = JsonDocument.Parse(string.Join('\n', stdout));
+        var stdout = new StringWriter();
+        ExtensionRuntimesCommand.Execute(Native, runtime, JsonOutputMode.Document, stdout).Should().Be(0);
+        using var document = JsonDocument.Parse(stdout.ToString());
         return document.RootElement.GetProperty("runtimes")[0].Clone();
     }
 
@@ -120,8 +121,7 @@ public sealed class WasmRuntimeAgreementTests
         var registry = new ExtensionRegistry([BuiltIns()], Native, counting.Runtime);
 
         List(registry).GetProperty("extensions").EnumerateArray().Should().OnlyContain(entry => entry.GetProperty("available").GetBoolean());
-        var text = new List<string>();
-        ExtensionListCommand.Execute(registry, json: false, text.Add, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
+        ExtensionListCommand.Execute(registry, JsonOutputMode.None, new StringWriter(), new StringWriter(), TerminalProfile.Plain).Should().Be(0);
 
         counting.Runtime.HasProbed.Should().BeFalse();
         counting.Probes.Should().Be(0);

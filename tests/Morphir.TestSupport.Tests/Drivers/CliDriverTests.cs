@@ -89,7 +89,7 @@ public class CliDriverTests
         await using var workspace = Workspace();
         var model = workspace.CopyFixture("Cli/valid-ir-v3.json");
 
-        var result = await Driver(workspace, MorphirHost.Native).RunAsync(["ir", "verify", model.Path]);
+        var result = await Driver(workspace, MorphirHost.Native).RunAsync(["model", "verify", model.Path]);
 
         result.ShouldExitWith(0).OutputShouldContain("✓ VALID");
     }
@@ -111,7 +111,7 @@ public class CliDriverTests
         await using var workspace = Workspace();
         var model = workspace.CopyFixture("Cli/valid-ir-v3.json", "my models/valid ir.json");
 
-        var result = await Driver(workspace, MorphirHost.Native).RunAsync(["ir", "verify", model.Path]);
+        var result = await Driver(workspace, MorphirHost.Native).RunAsync(["model", "verify", model.Path]);
 
         result.ShouldExitWith(0).OutputShouldContain("VALID");
     }
@@ -122,7 +122,7 @@ public class CliDriverTests
         await using var workspace = Workspace();
         var model = workspace.CopyFixture("Cli/valid-ir-v3.json", "my models/valid ir.json");
 
-        var result = await Driver(workspace, MorphirHost.Native).RunCommandLineAsync($"ir verify \"{model.Path}\"");
+        var result = await Driver(workspace, MorphirHost.Native).RunCommandLineAsync($"model verify \"{model.Path}\"");
 
         result.ShouldExitWith(0).OutputShouldContain("VALID");
     }

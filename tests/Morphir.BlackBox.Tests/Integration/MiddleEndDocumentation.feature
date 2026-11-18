@@ -9,8 +9,8 @@ Feature: The documented upgrade of a classic model gives its documented report
     Given the section "The current IR" of the documentation page "pipeline/middle-end.md"
     And the model fixture "Models/daily-rate-v3.json" as "model.json"
     Then the page documents these commands
-      | command                                                                 |
-      | morphir generate --input model.json --target csharp --output gen --json |
+      | command                                                                          |
+      | morphir generate --input model.json --target csharp --output gen --json=document |
     When I run each documented command of the host on the model
     Then each documented command exits with 0
     And each documented command gives its documented output

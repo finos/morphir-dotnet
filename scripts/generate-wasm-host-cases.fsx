@@ -15,6 +15,7 @@
 
 #load "wasm-host/Artifacts.fs"
 #load "../src/Morphir.Conformance/WasmHost/Model.fs"
+#load "../src/Morphir.Conformance/WasmHost/ResultSyntax.fs"
 #load "../src/Morphir.Conformance/WasmHost/CorpusJson.fs"
 #load "../src/Morphir.Conformance/WasmHost/CaseIds.fs"
 #load "../src/Morphir.Conformance/WasmHost/FeatureWriter.fs"

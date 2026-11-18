@@ -42,9 +42,10 @@ The tree reader does not enforce the header's `pathBudget`. It accepts the membe
 
 An Ion error becomes `ParseError.InvalidInput`, with `RuleId` set to the error's `Code`. For a tree, `Path` is the file's location and `Location` is the place in it. For a single file, `Path` is empty, because the file is the input, and `Location` is the place in it. A file that cannot be read becomes `ParseError.Failed` with the file's path and the exception.
 
-Pipeline has its own `Error` case for message severity, so the sample spells out `Result.Error`. The sample is compiled by the tests, which also check that this text matches it.
+`Morphir.Files` has its own `Error` case for message severity, so the sample spells out `Result.Error`. The sample is compiled by the tests, which also check that this text matches it.
 
 ```fsharp
+open Morphir.Files
 open Morphir.IR.Pipeline
 open Morphir.Ion
 

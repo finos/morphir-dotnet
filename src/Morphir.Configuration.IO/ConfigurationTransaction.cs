@@ -38,7 +38,10 @@ public sealed class ConfigurationTransactionPlan
 }
 
 public enum ConfigurationTransactionStatus { Written, Unchanged, Conflict, IoFailure, RolledBack, RecoveryRequired }
-public enum ConfigurationTransactionPhase { BeforeStage, BeforeInstall, AfterInstall, BeforeRollback, AfterRollback, BeforeCleanup }
+/// <summary>Points at which a fault hook runs. <see cref="BeforeInstallRetry"/> runs after the wait for another
+/// handle on the destination and before the precondition is checked again; it never runs where no such handle
+/// stops an installation.</summary>
+public enum ConfigurationTransactionPhase { BeforeStage, BeforeInstall, AfterInstall, BeforeRollback, AfterRollback, BeforeCleanup, BeforeInstallRetry }
 public enum ConfigurationArtifactKind { Stage, Backup, Journal, Directory }
 public sealed record ConfigurationArtifact(string Path, ConfigurationArtifactKind Kind, string TransactionId);
 /// <summary>A host operation failed after creating artifacts it could not remove.
@@ -50,6 +53,11 @@ public sealed class ConfigurationArtifactFailureException : IOException
     public ConfigurationArtifactFailureException(IEnumerable<ConfigurationArtifact> artifacts, Exception? innerException = null)
         : base("Configuration host retained artifacts after an I/O failure", innerException) => Artifacts = artifacts.ToImmutableArray();
 }
+
+/// <summary>The native host could not install a file because another handle holds the destination. Neither the
+/// staged file nor the destination changed, so the transaction may check its preconditions and try again.</summary>
+internal sealed class ConfigurationTargetBusyException(string destination, Exception innerException)
+    : IOException("Another handle holds " + destination, innerException);
 
 public sealed record ConfigurationTransactionResult(
     ConfigurationTransactionStatus Status,
@@ -318,7 +326,17 @@ public sealed partial class ConfigurationTransaction
                 fault?.Invoke(ConfigurationTransactionPhase.BeforeInstall, change.Path);
                 if (!StagesMatch() || !ObservationsMatch()) throw new ConflictException();
                 attempted.Add((change, backup));
-                host.Install(stage, change.Path, change.Expected.Kind == ConfigurationObservationKind.File);
+                // While the host reports the target busy, neither file has changed, so the change is not attempted
+                // during the wait, and every precondition is checked again before the next attempt.
+                bool UnchangedDuringWait()
+                {
+                    attempted.RemoveAt(attempted.Count - 1);
+                    if (!StagesMatch() || !ObservationsMatch()) return false;
+                    attempted.Add((change, backup));
+                    return true;
+                }
+                if (!InstallWhenFree(stage, change.Path, change.Expected.Kind == ConfigurationObservationKind.File, UnchangedDuringWait))
+                    throw new ConflictException();
                 fault?.Invoke(ConfigurationTransactionPhase.AfterInstall, change.Path);
             }
             if (!StagesMatch() || !ObservationsMatch()) throw new ConflictException();
@@ -371,7 +389,9 @@ public sealed partial class ConfigurationTransaction
                             new ConfigurationObservation(backup, ConfigurationObservationKind.File, change.Expected.Identity))
                         { unresolved.Add(change.Path); continue; }
                         if (backup is null) host.DeleteFile(change.Path);
-                        else host.Install(backup, change.Path, true);
+                        else if (!InstallWhenFree(backup, change.Path, true, () => host.Observe(change.Path) == candidate
+                            && host.Observe(backup) == new ConfigurationObservation(backup, ConfigurationObservationKind.File, change.Expected.Identity)))
+                        { unresolved.Add(change.Path); continue; }
                         fault?.Invoke(ConfigurationTransactionPhase.AfterRollback, change.Path);
                         if (host.Observe(change.Path) == change.Expected) restored.Add(change.Path);
                         else unresolved.Add(change.Path);
@@ -387,7 +407,10 @@ public sealed partial class ConfigurationTransaction
                     return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_recovery_required", targets,
                         Retained(artifacts))
                     { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = unresolved.Distinct().ToImmutableArray() };
-                if (!TryCleanup(artifacts, false, document, artifactEvidence, partialArtifacts))
+                // A target that this transaction never tried to install holds what another writer left there, if
+                // anything changed it; that is the conflict to report, not a reason to keep this transaction's files.
+                var untouched = targets.Where(t => !attempted.Any(a => a.Change.Path == t)).ToHashSet(StringComparer.Ordinal);
+                if (!TryCleanup(artifacts, false, document, artifactEvidence, partialArtifacts, untouchedTargets: untouched))
                     return new(ConfigurationTransactionStatus.RecoveryRequired, "config.edit_cleanup_required", targets, Retained(artifacts))
                     { RestoredPaths = restored.ToImmutableArray(), UnresolvedPaths = targets };
                 return new(error is ConflictException ? ConfigurationTransactionStatus.Conflict
@@ -415,7 +438,7 @@ public sealed partial class ConfigurationTransaction
 
     private bool TryCleanup(List<ConfigurationArtifact> artifacts, bool committed, RecoveryDocument? document,
         IReadOnlyDictionary<string, ConfigurationObservation>? evidence = null, IReadOnlySet<string>? partialArtifacts = null,
-        IReadOnlySet<string>? preservedDirectories = null)
+        IReadOnlySet<string>? preservedDirectories = null, IReadOnlySet<string>? untouchedTargets = null)
     {
         if (artifacts.Count == 0) return true;
         try
@@ -423,7 +446,7 @@ public sealed partial class ConfigurationTransaction
             fault?.Invoke(ConfigurationTransactionPhase.BeforeCleanup, artifacts[0].Path);
             var cleanupDirectories = artifacts.Where(a => a.Kind == ConfigurationArtifactKind.Directory).Select(a => a.Path)
                 .Concat(preservedDirectories ?? new HashSet<string>()).ToHashSet(StringComparer.Ordinal);
-            if (CleanupUnresolved(artifacts, document, evidence, partialArtifacts, cleanupDirectories).Length > 0) return false;
+            if (CleanupUnresolved(artifacts, document, evidence, partialArtifacts, cleanupDirectories, untouchedTargets).Length > 0) return false;
             // Keep metadata outside newly created directories until directory cleanup is proven.
             // A committed witness remains last, above all destinations, throughout cleanup.
             var directories = artifacts.Where(a => a.Kind == ConfigurationArtifactKind.Directory).Select(a => a.Path).ToHashSet(StringComparer.Ordinal);
@@ -433,7 +456,7 @@ public sealed partial class ConfigurationTransaction
                 : artifact.Path.EndsWith("-journal-committed", StringComparison.Ordinal) ? 4 : 3;
             foreach (var artifact in artifacts.OrderBy(Order).ThenByDescending(a => a.Path.Length))
             {
-                if (CleanupUnresolved([artifact], document, evidence, partialArtifacts, cleanupDirectories).Length > 0) return false;
+                if (CleanupUnresolved([artifact], document, evidence, partialArtifacts, cleanupDirectories, untouchedTargets).Length > 0) return false;
                 if (artifact.Kind == ConfigurationArtifactKind.Directory)
                 {
                     host.DeleteDirectory(artifact.Path);
@@ -449,7 +472,7 @@ public sealed partial class ConfigurationTransaction
 
     private ImmutableArray<string> CleanupUnresolved(IEnumerable<ConfigurationArtifact> artifacts, RecoveryDocument? document,
         IReadOnlyDictionary<string, ConfigurationObservation>? evidence, IReadOnlySet<string>? partialArtifacts,
-        IReadOnlySet<string>? preservedDirectories)
+        IReadOnlySet<string>? preservedDirectories, IReadOnlySet<string>? untouchedTargets)
     {
         var list = artifacts.ToArray();
         var unresolved = new HashSet<string>(StringComparer.Ordinal);
@@ -461,7 +484,8 @@ public sealed partial class ConfigurationTransaction
                 unresolved.Add(artifact.Path);
         }
         if (document is not null)
-            unresolved.UnionWith(RecoveryUnresolved(document, list.Where(a => partialArtifacts?.Contains(a.Path) != true), preservedDirectories, ignoreUnverified: true));
+            unresolved.UnionWith(RecoveryUnresolved(document, list.Where(a => partialArtifacts?.Contains(a.Path) != true), preservedDirectories,
+                ignoreUnverified: true, untouchedTargets: untouchedTargets));
         return unresolved.Order(StringComparer.Ordinal).ToImmutableArray();
     }
 
@@ -474,6 +498,33 @@ public sealed partial class ConfigurationTransaction
 
     private static ConfigurationObservation CandidateObservation(ConfigurationFileChange change) =>
         new(change.Path, ConfigurationObservationKind.File, NativeConfigurationTransactionHost.Hash(change.Content.AsSpan()));
+    private const int InstallAttempts = 10;
+
+    /// <summary>Installs a staged file, waiting a bounded time (about 2.6 seconds over 10 attempts) while the host
+    /// reports that another handle holds the destination. The host reports that only when neither file has
+    /// changed. The wait gives another writer time to change the files, so <paramref name="unchanged"/> checks the
+    /// precondition again before every further attempt; false stops without installing, and the caller then keeps
+    /// what the other writer wrote. The coordination lease (the named writer mutex) stays held during the wait, so
+    /// other Morphir writers wait as well. After the last attempt the busy error is thrown as before.</summary>
+    /// <returns>True when the file was installed; false when a precondition no longer held.</returns>
+    private bool InstallWhenFree(string stage, string destination, bool overwrite, Func<bool> unchanged)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                host.Install(stage, destination, overwrite);
+                return true;
+            }
+            catch (ConfigurationTargetBusyException) when (attempt < InstallAttempts)
+            {
+                Thread.Sleep(Math.Min(20 << (attempt - 1), 500));
+                fault?.Invoke(ConfigurationTransactionPhase.BeforeInstallRetry, destination);
+                if (!unchanged()) return false;
+            }
+        }
+    }
+
     private sealed class ConflictException : IOException;
     private sealed class OwnershipException : IOException;
     private static bool IsIo(Exception error) => error is IOException or UnauthorizedAccessException or NotSupportedException;
@@ -637,13 +688,27 @@ public sealed class NativeConfigurationTransactionHost : IConfigurationTransacti
 
     public void Install(string stagedPath, string destination, bool overwrite)
     {
-        if (overwrite)
+        if (!overwrite)
         {
-            if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(stagedPath, File.GetUnixFileMode(destination));
-            File.Replace(stagedPath, destination, null);
+            File.Move(stagedPath, destination);
+            return;
         }
-        else File.Move(stagedPath, destination);
+        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(stagedPath, File.GetUnixFileMode(destination));
+        // Windows refuses to replace a file that another process holds open without delete sharing, and a virus
+        // scanner or a search indexer opens a file just after it is written. ReplaceFile then fails before it changes
+        // either file. The host reports that as busy; the transaction waits and checks its preconditions again
+        // before it tries once more.
+        try { File.Replace(stagedPath, destination, null); }
+        catch (IOException error) when (IsHeldByAnotherHandle(error)) { throw new ConfigurationTargetBusyException(destination, error); }
     }
+
+    // The Win32 errors of ReplaceFile that leave both files unchanged: the file to replace could not be removed
+    // (ERROR_UNABLE_TO_REMOVE_REPLACED), or a file could not be opened (ERROR_SHARING_VIOLATION,
+    // ERROR_LOCK_VIOLATION). ERROR_UNABLE_TO_MOVE_REPLACEMENT and its second form change the files, so they are not
+    // busy errors.
+    private static bool IsHeldByAnotherHandle(IOException error) =>
+        OperatingSystem.IsWindows() && (error.HResult & unchecked((int)0xFFFF0000)) == unchecked((int)0x80070000)
+            && (error.HResult & 0xFFFF) is 1175 or 32 or 33;
     public void DeleteFile(string path) => File.Delete(path);
     public void DeleteDirectory(string path)
     {

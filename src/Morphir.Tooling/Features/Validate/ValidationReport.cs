@@ -49,7 +49,10 @@ public sealed record ValidationReport(string Host, bool Success, int ExitCode, s
     [JsonIgnore]
     public bool Stopped => Family is null;
 
-    public string ToJson() => JsonSerializer.Serialize(this, ValidationJsonContext.Default.ValidationReport);
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>The source-generated contract of the report, for the shared JSON output writer.</summary>
+    public static System.Text.Json.Serialization.Metadata.JsonTypeInfo<ValidationReport> JsonInfo => ValidationJsonContext.Default.ValidationReport;
 
     /// <summary>The text output: a table of the diagnostics, a line for each analyzer that did not run, and a summary line.</summary>
     public string ToText(TerminalProfile terminal)

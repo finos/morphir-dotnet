@@ -4,6 +4,7 @@ using Morphir.Extensions;
 using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Infrastructure;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -34,9 +35,9 @@ public sealed class ExtensionListWasmTests
 
     private static string Run(ExtensionRegistry registry, bool json)
     {
-        var stdout = new List<string>();
-        ExtensionListCommand.Execute(registry, json, stdout.Add, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
-        return string.Join('\n', stdout).Replace("\r\n", "\n");
+        var stdout = new StringWriter();
+        ExtensionListCommand.Execute(registry, json ? JsonOutputMode.Document : JsonOutputMode.None, stdout, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
+        return stdout.ToString().Replace("\r\n", "\n").TrimEnd('\n');
     }
 
     private static Dictionary<string, (string Delivery, bool Available)> Entries(string json)

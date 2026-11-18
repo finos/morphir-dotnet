@@ -14,14 +14,14 @@ public sealed class ValidationSteps(IModelValidationDriver validation, DriverSet
     public async Task ValidateTheModel() => run.Result = await validation.ValidateAsync(run.Model);
 
     [When("I validate the model as JSON")]
-    public async Task ValidateTheModelAsJson() => run.Result = await validation.ValidateAsync(run.Model, new ValidationOptions { Json = true });
+    public async Task ValidateTheModelAsJson() => run.Result = await validation.ValidateAsync(run.Model, new ValidationOptions { Json = JsonOutputArgument.Stream });
 
     /// <summary>The words of <paramref name="arguments"/> are more arguments of the command, after the input.</summary>
     [When("I validate the model as JSON with the arguments {string}")]
     public async Task ValidateTheModelWithTheArguments(string arguments) =>
         run.Result = await validation.ValidateAsync(run.Model, new ValidationOptions
         {
-            Json = true,
+            Json = JsonOutputArgument.Stream,
             Arguments = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries),
         });
 
@@ -47,7 +47,7 @@ public sealed class ValidationSteps(IModelValidationDriver validation, DriverSet
     public async Task ValidateOnBothHosts()
     {
         foreach (var host in new[] { MorphirHost.Native, MorphirHost.DotnetTool })
-            _byHost[host] = await drivers.ValidationOf(host).ValidateAsync(run.Model, new ValidationOptions { Json = true });
+            _byHost[host] = await drivers.ValidationOf(host).ValidateAsync(run.Model, new ValidationOptions { Json = JsonOutputArgument.Stream });
         run.Result = _byHost[MorphirHost.DotnetTool];
     }
 

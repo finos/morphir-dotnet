@@ -64,10 +64,10 @@ let generate (version: string) (json: string) : Result<GeneratedSource list, str
     versioned version json
     |> Result.bind (fun model ->
         let tree =
-            Transpiler.generateModel model (Morphir.IR.Pipeline.VFile.fromPath "model.json")
+            Transpiler.generateModel model (Morphir.Files.VFile.fromPath "model.json")
 
-        if Morphir.IR.Pipeline.VFileTree.hasErrors tree then
-            Morphir.IR.Pipeline.VFileTree.collectMessages tree
+        if Morphir.Files.VFileTree.hasErrors tree then
+            Morphir.Files.VFileTree.collectMessages tree
             |> List.map (fun message ->
                 let rule = Option.defaultValue "" message.RuleId
                 $"{rule}: {message.Message}"
@@ -75,12 +75,12 @@ let generate (version: string) (json: string) : Result<GeneratedSource list, str
             |> String.concat "; "
             |> fun messages -> Error $"The F# backend refused the model: {messages}"
         else
-            Morphir.IR.Pipeline.VFileTree.tryGet Transpiler.manifest tree
+            Morphir.Files.VFileTree.tryGet Transpiler.manifest tree
             |> Option.defaultValue []
             |> List.map (fun entry ->
                 match
-                    Morphir.IR.Pipeline.VFileTree.findFile entry.Location tree
-                    |> Option.map Morphir.IR.Pipeline.VFile.readText
+                    Morphir.Files.VFileTree.findFile entry.Location tree
+                    |> Option.map Morphir.Files.VFile.readText
                 with
                 | Some(Ok source) ->
                     Ok

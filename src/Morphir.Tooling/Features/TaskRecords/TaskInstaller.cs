@@ -4,7 +4,7 @@ using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.FSharp.Collections;
-using Morphir.IR.Pipeline;
+using Morphir.Files;
 using Morphir.Tooling.Features.Generate;
 
 namespace Morphir.Tooling.Features.TaskRecords;

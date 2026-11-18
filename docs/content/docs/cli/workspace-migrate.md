@@ -16,7 +16,7 @@ The same operation is available to embedded hosts without invoking this command.
 ```text
 morphir workspace migrate [<directory>]
     [--include <pattern>]... [--exclude <pattern>]...
-    [--dry-run] [--json] [--discovery-boundary <directory>]
+    [--dry-run] [--json[=stream|document]] [--discovery-boundary <directory>]
 ```
 
 `<directory>` defaults to the current directory. It must name an existing directory.
@@ -37,7 +37,7 @@ Workspace migration never reads machine or personal configuration, so
 | `--include <pattern>` | Include candidate project directories matching a root-relative pattern; repeatable |
 | `--exclude <pattern>` | Exclude candidate project directories; repeatable |
 | `--dry-run` | Return the complete verified plan and write nothing |
-| `--json` | Write one redacted JSON result to stdout; diagnostics remain on stderr |
+| `--json[=stream\|document]` | Write the redacted result to stdout: a bare `--json` writes one `completed` record that holds it, `--json=document` the result alone; diagnostics remain on stderr. See [Machine output](_index.md#machine-output) |
 | `--discovery-boundary <directory>` | Outer limit the directory must lie within. Default: `MORPHIR_DISCOVERY_BOUNDARY`, else the filesystem root. A directory outside it fails with exit code 2 and a `discovery.boundary` diagnostic, and nothing is written |
 | `--help` | Show usage without discovery or migration |
 
@@ -130,8 +130,8 @@ relative to that project report. Sensitive settings and opaque secret references
 are redacted throughout the reports; reference targets are never resolved.
 
 ```bash
-morphir workspace migrate . --dry-run --json > workspace-preview.json
-morphir workspace migrate . --json > workspace-result.json
+morphir workspace migrate . --dry-run --json=document > workspace-preview.json
+morphir workspace migrate . --json=document > workspace-result.json
 morphir workspace migrate . --json # unchanged after successful adoption
 ```
 
@@ -182,7 +182,7 @@ adoption effect does not permit a different source directory.
 CI should inspect the exit code and retain a failed JSON result as an artifact:
 
 ```bash
-morphir workspace migrate "$REPOSITORY" --dry-run --json > workspace-plan.json
+morphir workspace migrate "$REPOSITORY" --dry-run --json=document > workspace-plan.json
 ```
 
 A preview still requires independent review before choosing to apply it. No

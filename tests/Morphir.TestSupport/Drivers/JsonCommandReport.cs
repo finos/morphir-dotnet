@@ -9,7 +9,8 @@ namespace Morphir.TestSupport.Drivers;
 public sealed record ReportDiagnostic(string Code, string Message, string? Severity, string? Location);
 
 /// <summary>
-/// The parts that the JSON reports of the command families share: one JSON document on standard output, a field
+/// The parts that the JSON reports of the command families share: the report on standard output, in either form of
+/// <see cref="JsonOutputAssertions"/> (one document, or a stream that ends with its <c>completed</c> record), a field
 /// <c>exitCode</c> that agrees with the exit code of the process, and a list <c>diagnostics</c>. A report type of a
 /// command derives from it and adds the fields of its command.
 /// </summary>
@@ -22,7 +23,7 @@ public abstract class JsonCommandReport
     {
         Result = result;
         Name = name;
-        Document = result.ShouldWriteOneJsonDocument(MaxDepth);
+        Document = result.ReportOfEither(MaxDepth);
         if (Document.ValueKind != JsonValueKind.Object)
             throw new CommandAssertionException($"The {name} report is not a JSON object.", result);
         if (Document.TryGetProperty("exitCode", out var code) && code.ValueKind == JsonValueKind.Number && code.GetInt32() != result.ExitCode)
@@ -36,7 +37,7 @@ public abstract class JsonCommandReport
     /// <summary>The result of the command that wrote the report.</summary>
     public CommandResult Result { get; }
 
-    /// <summary>The report as one JSON object, for a check of a field that this type does not name.</summary>
+    /// <summary>The report as one JSON object, for a check of a field that this type does not name. Of a stream, it is the <c>report</c> of the <c>completed</c> record.</summary>
     public JsonElement Document { get; }
 
     public IReadOnlyList<ReportDiagnostic> Diagnostics { get; }
@@ -85,7 +86,8 @@ public abstract class JsonCommandReport
     protected string DescribeDiagnostics() =>
         Diagnostics.Count == 0 ? "no diagnostic" : string.Join("; ", Diagnostics.Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}"));
 
-    private static ReportDiagnostic Diagnostic(JsonElement item)
+    /// <summary>Reads one item of a list of diagnostics: <c>code</c>, <c>message</c>, <c>severity</c> and <c>location</c>.</summary>
+    protected static ReportDiagnostic Diagnostic(JsonElement item)
     {
         string? Field(JsonElement element, string name) =>
             element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
@@ -109,6 +111,6 @@ public sealed class CommandReport : JsonCommandReport
     {
     }
 
-    /// <summary>Reads the report from standard output, which must be exactly one JSON object.</summary>
+    /// <summary>Reads the report from standard output: one JSON object, or a stream that ends with its <c>completed</c> record.</summary>
     public static CommandReport Of(CommandResult result) => new(result);
 }

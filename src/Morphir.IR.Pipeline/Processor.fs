@@ -1,5 +1,7 @@
 namespace Morphir.IR.Pipeline
 
+open Morphir.Files
+
 /// <summary>
 /// The details of malformed input reported by a parser.
 /// </summary>

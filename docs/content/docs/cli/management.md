@@ -221,8 +221,8 @@ An extension adds a capability to Morphir, such as a code generator. The plan is
 [Morphir extension model PRD](../../contributing/design/prds/morphir-extension-model.md).
 
 ```bash
-morphir extension list [--json] [--platform <rid>] [--local]
-morphir extension runtimes [--json]
+morphir extension list [--json[=stream|document]] [--platform <rid>] [--local]
+morphir extension runtimes [--json[=stream|document]]
 morphir extension repository add <name> --directory <absolute-path> --home <absolute-home> --local-developer [--dry-run]
 morphir extension install github:<owner>/<repo>[@<version-or-tag>] --home <absolute-home> --no-probe [--dry-run]
 morphir extension install nuget:<package-id>[@<version>] [--source <name|url|folder>] [--configfile <path>] [--interactive] --home <absolute-home> --no-probe [--dry-run]
@@ -391,11 +391,15 @@ In a terminal the table has styled borders and headers and fits the terminal wid
 `NO_COLOR` is set, the table has no ANSI codes. The table is for people: scripts use `--json`.
 
 **Options:**
-- `--json`: Write one JSON document on stdout.
+- `--json[=stream|document]`: Write the list as JSON on stdout: a bare `--json` writes one `completed` record whose
+  `report` is the list, `--json=document` the list alone, as one document. See [Machine output](_index.md#machine-output).
+  A usage error in a JSON mode is a list with no extensions and a `diagnostics` array (`extension.invalid_arguments`),
+  exit code 2.
 - `--platform <rid>`, `--local`: Select installed extensions. There are none until step 3 of the PRD, so these
   options do not change the result now. Built-in extensions always appear.
 
-With `--json`, from the Native AOT `morphir` for Windows ARM64:
+With `--json=document`, from the Native AOT `morphir` for Windows ARM64 (with `--json`, this is the `report` of the
+one `completed` line):
 
 ```json
 {
@@ -510,9 +514,9 @@ the top-level `prerequisites`, and never reports one of the four names. It still
 | `capabilities.backend` | The MEP backend claim: targets, IR versions in their declared spelling, and `generate`. |
 | `capabilities.validator` | The IR versions that a validator reads, in the spelling of the model readers. This is a morphir-dotnet report member: MEP `0.2.0-draft.1` has no validator capability, so hosts do not write it into MEP messages. |
 
-Logs and diagnostics go to stderr, so `morphir extension list --json | jq` works. If two extensions have the same id,
-the command exits with code 2 and names each duplicate id (`extension.duplicate_id`). With `--json`, the document then
-has an empty `extensions` array and a `diagnostics` array.
+Logs and diagnostics go to stderr, so `morphir extension list --json=document | jq` works. If two extensions have the
+same id, the command exits with code 2 and names each duplicate id (`extension.duplicate_id`). In a JSON mode, the
+report then has an empty `extensions` array and a `diagnostics` array.
 
 ### Extension ids
 

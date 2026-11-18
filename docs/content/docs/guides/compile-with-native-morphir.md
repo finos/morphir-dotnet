@@ -84,7 +84,7 @@ extension = "morphir-fsharp-frontend"
 ```
 
 ```bash
-morphir compile --json | jq '{success, frontend, extension: .origins.extension.key}'
+morphir compile --json=document | jq '{success, frontend, extension: .origins.extension.key}'
 ```
 
 ```json

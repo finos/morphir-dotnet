@@ -38,7 +38,6 @@
         <Compile Include="IonIrPairTests.fs" />
         <Compile Include="IonIrKitTests.fs" />
         <Compile Include="IonIrReadmeTests.fs" />
-        <Compile Include="TreeStemTests.fs" />
         <Compile Include="IonIrTreeTests.fs" />
         <Compile Include="IonIrTreeReferenceTests.fs" />
         <Compile Include="IonIrParserTests.fs" />
