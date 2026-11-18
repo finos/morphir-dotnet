@@ -256,29 +256,30 @@ let private treeLossless (tree: StoredTree) =
     | losses -> failwith (String.concat Environment.NewLine losses)
 
 /// The same document with the members of each object in the reverse order, except a value's parameters, whose order
-/// is the model's: the same model, written otherwise.
+/// is the model's, and the content of a DocumentLiteral, which the IR carries as it is written: the same model,
+/// written otherwise.
 let private reversedMembers (element: JsonElement) =
-    let rec reverse (keepOrder: bool) (node: JsonNode | null) : JsonNode | null =
+    let rec reverse (keepOrder: bool) (verbatim: bool) (node: JsonNode | null) : JsonNode | null =
         match node with
         | :? JsonObject as o ->
             let members = List.ofSeq o
             let copy = JsonObject()
 
-            for KeyValue(name, value) in (if keepOrder then members else List.rev members) do
-                copy[name] <- reverse (holdsParameters name) value
+            for KeyValue(name, value) in (if keepOrder || verbatim then members else List.rev members) do
+                copy[name] <- reverse (holdsParameters name) (verbatim || name = "DocumentLiteral") value
 
             copy
         | :? JsonArray as a ->
             let copy = JsonArray()
 
             for item in a do
-                copy.Add(reverse false item)
+                copy.Add(reverse false verbatim item)
 
             copy
         | null -> null
         | other -> other.DeepClone()
 
-    parseText ((nonNull (reverse false (JsonNode.Parse(element.GetRawText())))).ToJsonString())
+    parseText ((nonNull (reverse false false (JsonNode.Parse(element.GetRawText())))).ToJsonString())
 
 /// The JSON of a value with no whitespace, its members in their order and its numbers as their lexemes.
 let private verbatim (element: JsonElement) =

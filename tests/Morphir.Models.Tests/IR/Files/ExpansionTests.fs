@@ -197,6 +197,22 @@ let tests =
             | other -> failtestf "Expected one diagnostic, got %A" other
         }
 
+        test "A critical member that is not a list" {
+            match refusedWith "critical-not-a-list" with
+            | [ e ] ->
+                Expect.equal e.Code "context.invalid_envelope" "the code"
+                Expect.stringContains e.Message "critical is not a list of strings" "the member"
+            | other -> failtestf "Expected one diagnostic, got %A" other
+        }
+
+        test "A table entry with a mixed-case segment" {
+            match refusedWith "mixed-case-entry" with
+            | [ e ] ->
+                Expect.equal e.Code "context.invalid_entry" "the code"
+                Expect.stringContains e.Message "'morphir/Sdk:basics#int'" "the spelling"
+            | other -> failtestf "Expected one diagnostic, got %A" other
+        }
+
         testList "Each compacted policy case expands to its input" [
             for policyCase in Mother.policyCases |> List.filter (fun policyCase -> policyCase.Compacted) ->
                 test policyCase.Id {

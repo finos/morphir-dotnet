@@ -133,12 +133,13 @@ public class FixtureCatalogTests
         FixtureCatalog.Context.MaxSpellingBytes.Should().Be(1024);
 
         var examples = FixtureCatalog.Context.Examples;
-        examples.Should().HaveCount(17);
+        examples.Should().HaveCount(19);
         examples.Where(example => example.IsValid).Should().HaveCount(10)
             .And.OnlyContain(example => example.Expanded != null && example.File.RelativePath.StartsWith("MorphirContext/examples/valid/"));
         examples.Where(example => !example.IsValid).Select(example => example.Expected).Should().BeEquivalentTo(
             "context.undeclared_schema", "context.unknown_alias", "context.duplicate_entry", "context.unknown_critical",
-            "context.too_many_entries", "context.name_too_long", "context.after_document");
+            "context.too_many_entries", "context.name_too_long", "context.after_document", "context.invalid_envelope",
+            "context.invalid_entry");
 
         var v3Type = FixtureCatalog.Context.Example("v3-type");
         (v3Type.Ir, v3Type.Kind).Should().Be((3, "type"));
@@ -176,7 +177,7 @@ public class FixtureCatalogTests
         FixtureCatalog.Context.Policy.Name.Should().Be("morphir.compact/0.1.0-draft.1");
 
         var cases = FixtureCatalog.Context.Policy.All;
-        cases.Should().HaveCount(19);
+        cases.Should().HaveCount(21);
         cases.Select(policyCase => policyCase.Id).Should().OnlyHaveUniqueItems();
         cases.Where(policyCase => !policyCase.Compacted).Select(policyCase => policyCase.Id).Should().BeEquivalentTo(
             "v4-manifest", "v3-manifest", "loss", "loss-boundary-declined");

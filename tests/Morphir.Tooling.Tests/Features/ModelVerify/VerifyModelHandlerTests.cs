@@ -154,22 +154,32 @@ public class VerifyModelHandlerTests
     }
 
     /// <summary>
-    /// The parent's v4 schema checks the types and values of a module only in the wrapper <c>{ "access", "value" }</c>
-    /// (see <c>Schemas/PROVENANCE.md</c>): in the flattened spelling that morphir-dotnet writes, a type node with an
-    /// unknown tag passes the schema. When this test fails, the parent's schema closed the gap.
+    /// The parent's v4 schema checks the types and values of a module in every spelling of the module, the flattened
+    /// <c>{ "access", "types", "values" }</c> that morphir-dotnet writes among them (see <c>Schemas/PROVENANCE.md</c>).
+    /// It refuses the module that holds a type node with an unknown tag, and accepts the same module without it.
     /// </summary>
     [Test]
-    public async Task TheV4SchemaAloneAcceptsAnUnknownTypeTagInAFlattenedModule()
+    public async Task TheV4SchemaRefusesAnUnknownTypeTagInAFlattenedModule()
     {
-        var json = FixtureCatalog.ReadText(FixtureCatalog.Models.V4DailyRateUnknownTypeTag);
+        var faulty = await _validator.ValidateAsync(
+            FixtureCatalog.ReadText(FixtureCatalog.Models.V4DailyRateUnknownTypeTag), "4", CancellationToken.None);
+        var valid = await _validator.ValidateAsync(
+            FixtureCatalog.ReadText(FixtureCatalog.Models.V4DailyRate), "4", CancellationToken.None);
 
-        var result = await _validator.ValidateAsync(json, "4", CancellationToken.None);
-
-        result.IsValid.Should().BeTrue("the pinned v4 schema does not check the values of a flattened module");
+        faulty.IsValid.Should().BeFalse("the pinned v4 schema checks the values of a flattened module");
+        // The schema tries each distribution kind and each module spelling, so it reports the alternatives it tried
+        // too; the module that holds the node is among the places it names.
+        faulty.Errors.Should().Contain(error => error.Path.StartsWith("/distribution/Library/def/modules/inventory", StringComparison.Ordinal),
+            "the schema names the module that holds the node");
+        valid.IsValid.Should().BeTrue("the same flattened module with a known type node passes the schema");
     }
 
+    /// <summary>
+    /// The schema locates the fault only at the module, whose spellings it tries in turn; the v4 reader, which
+    /// <c>model verify</c> runs after the schema, names the node itself.
+    /// </summary>
     [Test]
-    public async Task AV4ModelIsDecodedSoAnUnknownTypeTagInAFlattenedModuleIsAnError()
+    public async Task AV4ModelIsDecodedSoAnUnknownTypeTagIsNamedAtItsJsonPath()
     {
         await using var sandbox = TestSandbox.Create("morphir-verify-v4-");
         var faulty = FixtureCatalog.Models.V4WithAnUnknownTypeTag;
@@ -181,7 +191,8 @@ public class VerifyModelHandlerTests
         result.IsValid.Should().BeFalse();
         result.ExitCode.Should().Be(1);
         result.SchemaVersion.Should().Be("4");
-        var error = result.Errors.Should().ContainSingle().Which;
+        result.Errors.Where(error => error.Code is null).Should().NotBeEmpty("the schema refuses the module too");
+        var error = result.Errors.Should().ContainSingle(error => error.Code != null).Which;
         error.Path.Should().Be(faulty.Fault.JsonPointer);
         error.Code.Should().Be("unknown_node");
         error.File.Should().BeNull("a single file has no file of a tree");
@@ -264,6 +275,8 @@ public class VerifyModelHandlerTests
     [Arguments("undeclared-schema", "context.undeclared_schema", false)]
     [Arguments("unknown-alias", "context.unknown_alias", true)]
     [Arguments("context-after-document", "context.after_document", true)]
+    [Arguments("critical-not-a-list", "context.invalid_envelope", true)]
+    [Arguments("mixed-case-entry", "context.invalid_entry", true)]
     public async Task AnInvalidContextOfASingleFileFailsVerification(string id, string code, bool declared)
     {
         var result = await VerifyContextExample(id);

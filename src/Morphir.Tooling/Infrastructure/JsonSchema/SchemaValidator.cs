@@ -76,10 +76,10 @@ public class SchemaValidator
     /// <summary>
     /// Decodes a single-file IR v4 model with <c>V4Json.readDistribution</c>, the reader of every v4 spelling, and
     /// gives its error with the JSON location as a JSON Pointer and the reader's rule as the code; or none. The
-    /// parent's <c>morphir-ir-v4.json</c> checks the types and values of a module only in the wrapper
-    /// <c>{ "access", "value" }</c>, so the decode is what checks them in the canonical and flattened spellings
-    /// (see <c>Schemas/PROVENANCE.md</c>). It runs on the stack of schema evaluation, as decoding recurses for each
-    /// level of the model.
+    /// parent's <c>morphir-ir-v4.json</c> checks the types and values of a module in every spelling, but it tries the
+    /// spellings in turn, so it locates a fault in a module only at the module; the decode names the node itself, and
+    /// checks every rule of the reader (see <c>Schemas/PROVENANCE.md</c>). It runs on the stack of schema evaluation,
+    /// as decoding recurses for each level of the model.
     /// </summary>
     public static async Task<List<Features.ModelVerify.ValidationError>> DecodeV4Async(string jsonContent, CancellationToken ct)
     {

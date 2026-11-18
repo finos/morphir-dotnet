@@ -6,7 +6,7 @@ The kit is reference data here, not a suite that this repository runs. `FixtureC
 
 ## `kit/`
 
-Copied unchanged from `spec/ir/mck/` in [finos/morphir](https://github.com/finos/morphir) at commit `9776c7010b5528a9fa68b4af79d9c971dce73ccd` (2026-11-16, `origin/main`), with `git cat-file blob <commit>:<path>`. `FixtureCatalogTests` in `tests/Morphir.TestSupport.Tests` checks the embedded bytes against the catalog, and `FixtureOwnershipTests` in `tests/Morphir.Build.Tests` checks the files on disk against this table.
+Copied unchanged from `spec/ir/mck/` in [finos/morphir](https://github.com/finos/morphir) at `main` commit `4fa51c8b9a8634f8779e0e6b9900fc14b049da06` (2026-11-17), with `git cat-file blob <commit>:<path>`. The three files have the same blobs as at `9776c7010b5528a9fa68b4af79d9c971dce73ccd` (2026-11-16), the commit of the first copy. `FixtureCatalogTests` in `tests/Morphir.TestSupport.Tests` checks the embedded bytes against the catalog, and `FixtureOwnershipTests` in `tests/Morphir.Build.Tests` checks the files on disk against this table.
 
 | File | Upstream path | Git blob | SHA-256 |
 | --- | --- | --- | --- |

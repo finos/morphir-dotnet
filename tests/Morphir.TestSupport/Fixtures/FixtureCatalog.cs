@@ -97,8 +97,8 @@ public static class FixtureCatalog
         /// <summary>
         /// <see cref="V4DailyRate"/> with the output type of its value spelled as a node with the tag <c>Struct</c>,
         /// which no type node has, in the flattened module spelling of <see cref="V4DailyRate"/>. The parent's v4
-        /// schema checks a module's types and values only in the wrapper <c>{ "access", "value" }</c>, so the schema
-        /// alone accepts this file, and <c>model verify</c> finds the node by decoding it.
+        /// schema refuses this file but locates the fault only at the module, and <c>model verify</c> names the node by
+        /// decoding it.
         /// </summary>
         public static FixtureEntry V4DailyRateUnknownTypeTag { get; } = new(
             "a v4 Library with an unknown tag in one type node", "MorphirIR/daily-rate-unknown-type-tag-v4.json",
@@ -306,7 +306,7 @@ public static class FixtureCatalog
             new($"the name-context example {path}", ExamplesDirectory + path, sha256, Provenance);
 
         /// <summary>The index of the examples: each case's file, IR version, file kind, expected outcome and twin.</summary>
-        public static FixtureEntry Cases { get; } = ExampleFile("cases.json", "af1a59afdfbd8ae17c7724512f9ce8739df81fcafd6f78128a58e77d71dfa2dc");
+        public static FixtureEntry Cases { get; } = ExampleFile("cases.json", "5b0d7d4da904c8752f61298750245f87596978c4a983898649d0ced1e2e2e8a0");
 
         /// <summary>Each example file and expanded twin, by its path below <see cref="ExamplesDirectory"/>.</summary>
         public static IReadOnlyList<FixtureEntry> ExampleFiles { get; } =
@@ -322,7 +322,9 @@ public static class FixtureCatalog
             ExampleFile("expanded/v4-type.json", "7802da9f3c6d409d3f20e4f1b7f969de7ba7b69b021e2cf4a15e48313fab8f7e"),
             ExampleFile("expanded/v4-value.json", "a33aa101c97101bb3ed38d1a560b1735eee9acd285e00410f6d88c6fb193de2d"),
             ExampleFile("invalid/context-after-document.json", "eb748071304c955bb0cd9e3a2d158894c889d749797cb0d9a4317c1ed5697d36"),
+            ExampleFile("invalid/critical-not-a-list.json", "132661b9d83c52978db782520e3453602a3fba217e211f5cd174bfe58cff0b15"),
             ExampleFile("invalid/duplicate-entry.json", "10e58f219400543684d371f1a427875d56289d2b22a60cfa0e42b0d6b7aba440"),
+            ExampleFile("invalid/mixed-case-entry.json", "59269e99f8e87272de2826d9926cccaf6dd061a071a287f08de670e733fce059"),
             ExampleFile("invalid/name-too-long.json", "42c85f4a0caae1b875c3afd671b0596294808549037a853ec596cd5aa92008fb"),
             ExampleFile("invalid/too-many-entries.json", "f86c270d0a61607d62dbd356039b687bec9c493b2be5e35fc0078ae3987d757c"),
             ExampleFile("invalid/undeclared-schema.json", "49bbc95d6d8599edcbfbd81033f65a33d81b50a7365ae2d108132003ff329f08"),
@@ -359,17 +361,19 @@ public static class FixtureCatalog
                 (PolicyFile($"cases/{id}/input.json", inputSha256), PolicyFile($"cases/{id}/expected.json", expectedSha256));
 
             /// <summary>The index of the cases: each case's IR version, file kind and whether the policy compacts it.</summary>
-            public static FixtureEntry Cases { get; } = PolicyFile("cases.json", "30a1f81fb36de0c16d27fd2da0ae5b945d0b044ca8ea4b453aeb344c64e3d7c6");
+            public static FixtureEntry Cases { get; } = PolicyFile("cases.json", "73d59160c3af6fa1468ab9816415b0e1a01a9d69e394abf56b8e213c075ab60a");
 
             private static readonly IReadOnlyList<(FixtureEntry Input, FixtureEntry Expected)> CaseEntries =
             [
                 CaseFiles("alias-allocation-order", "b0849cd38a8eecbc8434abb70c5691c3eb436d542c30e552d03774da3fbd5bb6", "8bbe9b9f71b6ffa5572a98128e2b7898d8f0d2d3c4994bcebaf6a896376e1650"),
+                CaseFiles("exact-numbers", "c760fce5ec62da6bea51d324c88a3159c34a1950f4d3ec09e6d6611da76efb97", "7895d1d3f39c426641b9b7a5283d1e7a7cc6fd75da26751f3e1eeb307fdc8f54"),
                 CaseFiles("look-alike-literal", "17003e3d0805c5534a0806dc3a42550cffeb2668e94dd66d3a59e9199eb2d526", "4330a6a96238922e067a1ebc96a8406be1f9508a8717542fe20d7ff7fd786989"),
                 CaseFiles("loss", "8b190fa3bc42529434b9ea60c77672ef6c181343238eb74e0bde2f32bdff1d47", "e4f4751f3575d340623fe0877c37a94dfc7bc60c2003aa84ed3011f88b8e3f99"),
                 CaseFiles("loss-boundary-accepted", "5754658c078ef7e2a6c91556d109b9b12092f04b7697d3a02ac8718bdbf17cd1", "31894d067ae94b82ead16537ee5171d0681546ba60078b936b4146059a2f1065"),
                 CaseFiles("loss-boundary-declined", "508b1976472a382daa84f5a820431e26ee96aeed4d4bce89249f00a585948d24", "f7f0f6e84b735cf6b826d691ece0072268ea868c5b16a95927050e4230cffc32"),
                 CaseFiles("name-used-once", "a92482d6cf13773b925a895fc81e3d1d8fc32ae580ac9a5b14566d7fa07df654", "773e28d958fe38b2c7d680bcf9464cddcdee2f1edce99f9383673629c48e0785"),
                 CaseFiles("non-ascii-content", "2c1976d2746d2da17cfd173423b848d6f356f6b104ff10f472d5e83ee2fce299", "7a514d56dbc6fa3669222c14d3a45382a008bc800b697214dc451100ccc433c1"),
+                CaseFiles("ordered-inputs", "47d233546f5d55713a63ca467f3ed06b3f93adf180e6d48f07282642f26c1bc9", "237926afbea6eaba0130d7d19a39a4a6c0a0a676e6524e25651641008b292b3a"),
                 CaseFiles("table-order", "7a3b8852fc440c12f95580046373bd22475232162bc5065b91daa0e408096a78", "f0d935742646e528a1887ded40ae85bac1ac513f0dc14fd6e21738cb67e45f70"),
                 CaseFiles("tie", "2918018c96afe65ff3f965472cca003d19be799eb0cddb51bfbd35c79686f267", "9d6d101e7de67aeab176b16b71ef740e9c254573382c066bdc7a7201cfafa8a4"),
                 CaseFiles("v3-manifest", "15a9ac21999f566db71818b281293d3e0ba6d207c8c01fba9bb542a564d86be1", "931931d96940b4cefe0c72f12b23f247d207ff13229a959cc8ad4371d345f226"),

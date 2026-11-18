@@ -24,8 +24,8 @@ hand in this repository. The four files of `model verify` (`empty-library-v1.jso
 before the catalog; the unit tests of `tests/Morphir.Tooling.Tests/TestData` keep their own copies.
 `daily-rate-unknown-type-tag-v4.json` is `daily-rate-v4.json` with the output type of `daily-rate` spelled
 `{"Struct":{}}`, a type node with a tag that no type node has, in the same flattened module spelling. The parent's
-`morphir-ir-v4.json` checks the types and values of a module only in the wrapper `{"access": ..., "value": {...}}`, so
-the schema alone accepts the file; `model verify` finds the node by decoding the model
+`morphir-ir-v4.json` (pinned at finos/morphir `4fa51c8b`, see `src/Morphir.Tooling/Infrastructure/Schemas/PROVENANCE.md`)
+refuses the file, but locates the fault only at the module; `model verify` names the node by decoding the model
 (`FixtureCatalog.Models.V4WithAnUnknownTypeTag` gives its JSON Pointer).
 
 | File | Intent | SHA-256 |

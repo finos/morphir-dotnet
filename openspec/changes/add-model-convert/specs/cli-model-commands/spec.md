@@ -54,7 +54,7 @@ The JSON report of `morphir model verify` SHALL state the exit code of the run i
 - **THEN** the command exits 0 and reports schema version v4
 
 ### Requirement: Model verify decodes an IR v4 single file
-After the schema, `morphir model verify` SHALL decode a single-file IR v4 model with the v4 reader, as the documents of a tree are decoded, and report the reader's error with its JSON path. The parent's schema checks a module's types and values only in the `{ "access", "value" }` wrapper; the decode checks them in every spelling that the reader accepts.
+After the schema, `morphir model verify` SHALL decode a single-file IR v4 model with the v4 reader, as the documents of a tree are decoded, and report the reader's error with its JSON path. The parent's schema checks a module's types and values in every spelling, but locates a fault in them only at the module; the decode names the node at fault.
 
 #### Scenario: An invalid v4 model names its error
 - **WHEN** a v4 model in the flattened module spelling has a type node with an unknown tag

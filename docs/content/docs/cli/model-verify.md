@@ -28,10 +28,10 @@ file, the command detects the schema version from the file, or you can give the 
 the version comes from the tree's manifest; see [Document trees](#document-trees).
 
 An IR v4 file is also read with the v4 reader of Morphir after the schema check, as the files of a tree are. The
-parent's v4 schema checks the types and values of a module only when the module is written as
-`{ "access": ..., "value": {...} }`; the reader checks them in every spelling, such as the flattened
-`{ "access": "Public", "types": {...}, "values": {...} }` that Morphir writes. An error of the reader has the reader's
-`code`, such as `unknown_node`, and its JSON location in `Path`.
+parent's v4 schema checks the types and values of a module in every spelling, such as the flattened
+`{ "access": "Public", "types": {...}, "values": {...} }` that Morphir writes, but it tries the spellings in turn, so
+its errors for a fault inside a module name the module and each spelling it tried. The reader names the node itself:
+an error of the reader has the reader's `code`, such as `unknown_node`, and its JSON location in `Path`.
 
 Use it to:
 - **Catch structural errors** before other tools read a model

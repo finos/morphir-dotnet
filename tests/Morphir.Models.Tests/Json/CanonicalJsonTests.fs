@@ -223,18 +223,27 @@ let tests =
             }
         ]
 
-        // The parent's compaction policy fixes its expected bytes in canonical JSON, worked out by hand.
-        testList "Each policy case's expected bytes are canonical JSON" [
+        // The parent's compaction policy fixes its expected bytes in its written form, worked out by hand: RFC 8785
+        // except that numbers keep their source lexemes, a value's parameters keep their order and the content of a
+        // DocumentLiteral is kept as written. The order is the test's own reading of the policy, by member name.
+        testList "Each policy case's expected bytes are in the policy's written form" [
+            let policyOrder (pointer: string) =
+                let tokens = pointer.Split '/'
+
+                if Array.contains "DocumentLiteral" tokens then CanonicalJson.MemberOrder.KeptThroughout
+                elif tokens[tokens.Length - 1] = "inputTypes" || tokens[tokens.Length - 1] = "inputs" then CanonicalJson.MemberOrder.Kept
+                else CanonicalJson.MemberOrder.Sorted
+
             for policyCase in MorphirFileMother.policyCases ->
                 test policyCase.Id {
                     let expected = MorphirFileMother.policyExpectedBytes policyCase.Id
-                    Expect.sequenceEqual (CanonicalJson.write (parse (utf8 expected))) expected "the parent's bytes are their own canonical form"
+                    Expect.sequenceEqual (CanonicalJson.writeSourceForm policyOrder (parse (utf8 expected))) expected "the parent's bytes are their own written form"
 
                     if not policyCase.Compacted then
                         Expect.sequenceEqual
-                            (CanonicalJson.write (MorphirFileMother.policyInput policyCase.Id))
+                            (CanonicalJson.writeSourceForm policyOrder (MorphirFileMother.policyInput policyCase.Id))
                             expected
-                            "a declined case is its input in canonical JSON"
+                            "a declined case is its input in the written form"
                 }
         ]
     ]
