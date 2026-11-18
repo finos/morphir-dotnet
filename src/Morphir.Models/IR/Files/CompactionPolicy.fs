@@ -42,11 +42,13 @@ open ContextExpansion
 /// comma between two entries. Otherwise the file is the plain document in canonical JSON.
 /// </para>
 /// <para>
-/// The file is written in canonical JSON, with one exception (the controller's ruling of add-model-convert, to which
-/// the parent's policy is being amended): an object whose members' order the IR schema says is the model's keeps its
-/// members in document order. In v4 these are the parameters of a value, a definition's <c>inputTypes</c> and a
-/// specification's <c>inputs</c> (<c>Shape.KeepsOrder</c>). Strings, numbers and whitespace are canonical everywhere,
-/// every size is measured on the file so written, and first use is the order of that file.
+/// The file is written in the policy's form (<c>CanonicalJson.writeSourceForm</c>; the controller's rulings of
+/// add-model-convert, to which the parent's policy is being amended): object members sorted by their UTF-16 code units,
+/// the string escapes of RFC 8785 and no whitespace, except that every number keeps its source lexeme, an object whose
+/// members' order the IR schema says is the model's keeps its members in document order (a v4 value's parameters, a
+/// definition's <c>inputTypes</c> and a specification's <c>inputs</c>: <c>Shape.KeepsOrder</c>), and the content of a
+/// v4 <c>DocumentLiteral</c> keeps its member order everywhere inside it (<c>Shape.Verbatim</c>). Every size is the
+/// UTF-8 byte length of the file so written, and first use is the order of that file.
 /// </para>
 /// </remarks>
 [<RequireQualifiedAccess>]
@@ -214,7 +216,14 @@ module CompactionPolicy =
         mutable Next: int
         References: ResizeArray<Table * string>
         Ordered: HashSet<string>
+        Verbatim: HashSet<string>
     }
+
+    /// How the written form orders the members of the object or array at a JSON Pointer of the document.
+    let private memberOrder (found: Found) (pointer: string) =
+        if found.Verbatim.Contains pointer then CanonicalJson.MemberOrder.KeptThroughout
+        elif found.Ordered.Contains pointer then CanonicalJson.MemberOrder.Kept
+        else CanonicalJson.MemberOrder.Sorted
 
     /// A member name as a JSON Pointer reference token (RFC 6901).
     let private token (name: string) = name.Replace("~", "~0").Replace("/", "~1")
@@ -243,6 +252,9 @@ module CompactionPolicy =
 
             candidate.Count <- candidate.Count + 1L
             candidate.Bytes <- candidate.Bytes + int64 bytes
+        | None when shape.Verbatim ->
+            // Carried verbatim: no typed position inside, and every object keeps its order.
+            found.Verbatim.Add pointer |> ignore
         | None ->
             match shape.Reference, referenceId element with
             | Some(table, _), Some referenced -> found.References.Add((table, referenced))
@@ -330,14 +342,14 @@ module CompactionPolicy =
     /// The bytes of a plain Morphir file of <paramref name="family"/> under the policy, and whether an alias was worth
     /// its cost: the envelope of <c>ir-context</c> 0.1.0-draft.1 in canonical JSON (RFC 8785) with the aliases the
     /// policy chooses, or, when no alias is worth its cost or the envelope would not make the file smaller, the plain
-    /// document in canonical JSON. In both, an object that carries its members' order, such as a v4 value's
-    /// parameters, keeps it. Expanding the bytes gives the document back. The same document always gives the same
+    /// document in canonical JSON. Both are in the policy's form: numbers as their source lexemes, and the member order
+    /// of a v4 value's parameters and of a document literal's content kept. Expanding the bytes gives the document back. The same document always gives the same
     /// bytes. C# calls this <c>Compact</c>.
     /// </summary>
     /// <remarks>
     /// The document must be plain: a top-level <c>$schema</c>, which marks an envelope, is refused with
     /// <c>unknown_member</c>, and a reference object at a typed name position with <c>invalid_type</c>. A value that
-    /// canonical JSON cannot hold (a lone surrogate, a number outside the range of a double, a member named twice) is
+    /// the written form cannot hold (a lone surrogate, a member named twice) is
     /// <c>invalid_json</c>, and a document nested more deeply than the canonical JSON writer reads (1,024 levels), or
     /// than the stack holds, is <c>depth_limit_exceeded</c>. The errors name no file; a caller adds it.
     /// </remarks>
@@ -359,6 +371,7 @@ module CompactionPolicy =
                 Next = 0
                 References = ResizeArray()
                 Ordered = HashSet(StringComparer.Ordinal)
+                Verbatim = HashSet(StringComparer.Ordinal)
             }
 
             let walked =
@@ -368,13 +381,13 @@ module CompactionPolicy =
                 with :? InsufficientExecutionStackException ->
                     false
 
-            // The file as written: canonical JSON, with the members of an order-carrying object in document order.
+            // The file as written: the policy's form (CanonicalJson.writeSourceForm).
             let plain =
                 if not walked then
                     Error(tooDeep ())
                 else
                     try
-                        Ok(CanonicalJson.writeKeepingOrder found.Ordered.Contains document)
+                        Ok(CanonicalJson.writeSourceForm (memberOrder found) document)
                     with
                     | :? JsonException -> Error(tooDeep ())
                     | :? InsufficientExecutionStackException -> Error(tooDeep ())
@@ -472,11 +485,13 @@ module CompactionPolicy =
                                 JsonDocument.Parse(ReadOnlyMemory(buffer.ToArray()), JsonDocumentOptions(MaxDepth = maxDepth))
 
                             // The document is the envelope's member document, so its objects are below /document.
-                            let keepsOrder (pointer: string) =
-                                pointer.StartsWith("/document", StringComparison.Ordinal)
-                                && found.Ordered.Contains(pointer.Substring "/document".Length)
+                            let envelopeOrder (pointer: string) =
+                                if pointer.StartsWith("/document", StringComparison.Ordinal) then
+                                    memberOrder found (pointer.Substring "/document".Length)
+                                else
+                                    CanonicalJson.MemberOrder.Sorted
 
-                            Ok(CanonicalJson.writeKeepingOrder keepsOrder envelope.RootElement, true)
+                            Ok(CanonicalJson.writeSourceForm envelopeOrder envelope.RootElement, true)
                         with
                         | :? JsonException
                         | :? InsufficientExecutionStackException -> Error(tooDeep ())

@@ -239,21 +239,48 @@ let private pointerOf (path: string list) =
 /// A member name as a JSON Pointer reference token: <c>~</c> as <c>~0</c> and <c>/</c> as <c>~1</c>.
 let private token (name: string) = name.Replace("~", "~0").Replace("/", "~1")
 
-let rec private readNode (keepsOrder: string -> bool) (path: string list) (reader: byref<Utf8JsonReader>) : Node =
+/// <summary>How <see cref="writeSourceForm"/> writes the members of an object, or of the objects inside an array.</summary>
+[<RequireQualifiedAccess>]
+type MemberOrder =
+    /// <summary>Sorted by their UTF-16 code units, as RFC 8785 sorts them.</summary>
+    | Sorted
+    /// <summary>In their order in the value, for this object; the objects inside it are asked again.</summary>
+    | Kept
+    /// <summary>In their order in the value, for this object or array and every object inside it.</summary>
+    | KeptThroughout
+
+/// How a value is written: its numbers in the ECMAScript form of RFC 8785 or as their source lexemes, and the order of
+/// the members of each object, by its JSON Pointer; no order function sorts every object.
+type private Form = {
+    SourceNumbers: bool
+    Order: (string -> MemberOrder) option
+}
+
+let rec private readNode (form: Form) (throughout: bool) (path: string list) (reader: byref<Utf8JsonReader>) : Node =
+    let orderHere () =
+        match throughout, form.Order with
+        | true, _ -> MemberOrder.KeptThroughout
+        | false, Some order -> order (pointerOf path)
+        | false, None -> MemberOrder.Sorted
+
     match reader.TokenType with
     | JsonTokenType.Null -> Literal "null"
     | JsonTokenType.True -> Literal "true"
     | JsonTokenType.False -> Literal "false"
+    | JsonTokenType.Number when form.SourceNumbers -> Literal(tokenText &reader)
     | JsonTokenType.Number -> Literal(number (tokenNumber &reader))
     | JsonTokenType.String -> Text(tokenString &reader)
     | JsonTokenType.StartArray ->
+        let inside = orderHere () = MemberOrder.KeptThroughout
         let items = ResizeArray()
 
         while reader.Read() && reader.TokenType <> JsonTokenType.EndArray do
-            items.Add(readNode keepsOrder (string items.Count :: path) &reader)
+            items.Add(readNode form inside (string items.Count :: path) &reader)
 
         Items(List.ofSeq items)
     | JsonTokenType.StartObject ->
+        let order = orderHere ()
+        let inside = order = MemberOrder.KeptThroughout
         let members = ResizeArray()
         let names = HashSet<string>(StringComparer.Ordinal)
 
@@ -264,13 +291,13 @@ let rec private readNode (keepsOrder: string -> bool) (path: string list) (reade
                 refuse $"the object has the member \"{name}\" twice"
 
             reader.Read() |> ignore
-            members.Add((name, readNode keepsOrder (token name :: path) &reader))
+            members.Add((name, readNode form inside (token name :: path) &reader))
 
-        if keepsOrder (pointerOf path) then
-            Members(List.ofSeq members)
-        else
+        if order = MemberOrder.Sorted then
             // Ordinal comparison compares UTF-16 code units as unsigned integers (RFC 8785 section 3.2.3).
             Members(members |> List.ofSeq |> List.sortWith (fun (a, _) (b, _) -> String.CompareOrdinal(a, b)))
+        else
+            Members(List.ofSeq members)
     | other -> refuse $"unexpected token {other}"
 
 let rec private appendNode (output: StringBuilder) (node: Node) =
@@ -302,25 +329,13 @@ let rec private appendNode (output: StringBuilder) (node: Node) =
 
         output.Append '}' |> ignore
 
-/// <summary>
-/// The RFC 8785 canonical form of a JSON value, as UTF-8 bytes, except that the members of each object for which
-/// <paramref name="keepsOrder"/> holds keep their order in the value. The predicate is given the object's JSON Pointer
-/// (RFC 6901): <c>""</c> for the value itself, <c>"/def/ExpressionBody/inputTypes"</c> for an object below it. Strings,
-/// numbers and the absence of whitespace are those of RFC 8785 everywhere. C# calls this <c>WriteKeepingOrder</c>.
-/// </summary>
-/// <exception cref="T:System.ArgumentException">The value holds a lone surrogate, a number outside the range of a
-/// double, or an object with the same member twice.</exception>
-/// <exception cref="T:System.PlatformNotSupportedException">As for <see cref="write"/>.</exception>
-[<CompiledName("WriteKeepingOrder")>]
-let writeKeepingOrder (keepsOrder: string -> bool) (element: JsonElement) : byte array =
-#if NETSTANDARD2_0
-    runtimeChecked.Force()
-#endif
+/// Reads a value in a form and writes it.
+let private writeIn (form: Form) (element: JsonElement) : byte array =
     let mutable reader =
         Utf8JsonReader(ReadOnlySpan(Encoding.UTF8.GetBytes(element.GetRawText())), JsonReaderOptions(MaxDepth = MaxDepth))
 
     reader.Read() |> ignore
-    let node = readNode keepsOrder [] &reader
+    let node = readNode form false [] &reader
     let output = StringBuilder()
     appendNode output node
     utf8.GetBytes(output.ToString())
@@ -331,4 +346,24 @@ let writeKeepingOrder (keepsOrder: string -> bool) (element: JsonElement) : byte
 /// <exception cref="T:System.PlatformNotSupportedException">The <c>netstandard2.0</c> build is loaded on a runtime
 /// other than .NET Core 3.0 or later, such as .NET Framework, whose number formatting and parsing are not those of
 /// RFC 8785. It refuses every value, numbers or not, so that the output never depends on what the value holds.</exception>
-let write (element: JsonElement) : byte array = writeKeepingOrder (fun _ -> false) element
+let write (element: JsonElement) : byte array =
+#if NETSTANDARD2_0
+    runtimeChecked.Force()
+#endif
+    writeIn { SourceNumbers = false; Order = None } element
+
+/// <summary>
+/// The written form of the compaction policy <c>morphir.compact/0.1.0-draft.1</c> (as the parent amends it), as UTF-8
+/// bytes: RFC 8785 with two changes. Every number is written as its source lexeme, exactly as the value spells it,
+/// never in the ECMAScript form, so <c>9007199254740993</c>, <c>1.0</c> and <c>1e2</c> stay as they are. And the
+/// members of an object are sorted by their UTF-16 code units unless <paramref name="memberOrder"/>, given the JSON
+/// Pointer (RFC 6901) of the object or of an array around it (<c>""</c> for the value itself), says to keep them in
+/// their order: for that object (<c>Kept</c>, such as a v4 value's parameters), or for it and everything inside it
+/// (<c>KeptThroughout</c>, such as the content of a document literal). Strings have the escapes of RFC 8785, and there
+/// is no whitespace. C# calls this <c>WriteSourceForm</c>.
+/// </summary>
+/// <exception cref="T:System.ArgumentException">The value holds a lone surrogate, or an object with the same member
+/// twice.</exception>
+[<CompiledName("WriteSourceForm")>]
+let writeSourceForm (memberOrder: string -> MemberOrder) (element: JsonElement) : byte array =
+    writeIn { SourceNumbers = true; Order = Some memberOrder } element

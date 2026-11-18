@@ -57,6 +57,11 @@ module internal ContextExpansion =
         /// keeps such an object's members in document order and sorts every other object's.
         /// </summary>
         KeepsOrder: bool
+        /// <summary>
+        /// Whether the value is carried verbatim, as the content of a v4 <c>DocumentLiteral</c> is: a writer keeps the
+        /// member order of every object inside it, as it keeps every number's lexeme. It holds no typed position.
+        /// </summary>
+        Verbatim: bool
     }
 
     let private opaque: Shape = {
@@ -64,6 +69,7 @@ module internal ContextExpansion =
         Member = fun _ _ _ -> None
         Item = fun _ _ -> None
         KeepsOrder = false
+        Verbatim = false
     }
 
     let private position table spelling = { opaque with Reference = Some(table, spelling) }
@@ -102,6 +108,7 @@ module internal ContextExpansion =
             Member = fun container name value -> both (a.Member container name value) (b.Member container name value)
             Item = fun container index -> both (a.Item container index) (b.Item container index)
             KeepsOrder = a.KeepsOrder || b.KeepsOrder
+            Verbatim = a.Verbatim || b.Verbatim
         }
 
     let private hasMember (name: string) (element: JsonElement) =
@@ -186,6 +193,7 @@ module internal ContextExpansion =
             Member = fun _ tag _ -> typeNode tag
             Item = fun _ _ -> Some(typ ())
             KeepsOrder = false
+            Verbatim = false
         }
 
         and private typeNode tag =
@@ -244,11 +252,22 @@ module internal ContextExpansion =
         let private compact memberName (inner: Shape) =
             union inner (withAttributes (fun key -> if key = memberName then Some inner else None))
 
+        /// The content of a document literal, carried verbatim ("any JSON value, carried verbatim", the v4 schema).
+        let private documentContent = { opaque with Verbatim = true }
+
+        /// A literal: <c>{ "DocumentLiteral": … }</c> holds its document verbatim, and the other literals hold no
+        /// position.
+        let private literal = members (fun key -> if key = "DocumentLiteral" then Some documentContent else None)
+
         /// A literal payload: the literal itself, or an object of attributes beside <c>literal</c>.
         let private literalPayload () =
             membersOf (fun payload key _ ->
-                if hasMember "literal" payload && isAttributes key then
-                    Some(valueAttributes ())
+                if hasMember "literal" payload then
+                    if isAttributes key then Some(valueAttributes ())
+                    elif key = "literal" then Some literal
+                    else None
+                elif key = "DocumentLiteral" then
+                    Some documentContent
                 else
                     None
             )

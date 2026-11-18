@@ -156,24 +156,31 @@ names, paths and fully qualified names that the file repeats get an alias in its
 them as `{"$name": "<id>"}`. The IR version stays the same, and expanding the file gives the plain document back.
 
 Which names get an alias is fixed by finos/morphir's writer policy `morphir.compact/0.1.0-draft.1`, which the
-report names in `compactPolicy`. Every size it compares is the UTF-8 byte length of the RFC 8785 canonical JSON of
-the file, so a non-ASCII letter of a doc string weighs two bytes or more:
+report names in `compactPolicy`. Every size it compares is the UTF-8 byte length of the file as the policy writes it
+(see below), so a non-ASCII letter of a doc string weighs two bytes or more, and a number weighs its lexeme:
 
 - A name gets an alias only when its occurrences save more bytes than its table entry costs. A name written once
   never does as a v4 string; a fully qualified name in classic v3 word arrays can, since the arrays are longer than
   its spelling.
 - The envelope is written only when the aliases save more than the envelope adds: 118 bytes of its own, the header
   of each table and each entry. Otherwise compaction is declined.
-- Ids are `a`, `b`, ... `z`, `aa`, `ab`, ... in the order in which the names are first used in the canonical JSON of
-  the plain file, one sequence for the four tables.
+- Ids are `a`, `b`, ... `z`, `aa`, `ab`, ... in the order in which the names are first used in the plain file as the
+  policy writes it, one sequence for the four tables.
 - A name that a classic v3 slot could not give back, such as `FR2052A` as word arrays, is left as written.
 
-A compacted file is written in canonical JSON: members sorted, no whitespace, no newline at the end. A file whose
-compaction is declined is its plain document in canonical JSON, with no envelope. There is one exception to the
-sorting: an object whose member order the IR schema gives a meaning keeps its order. These are the parameters of a v4
-value, the `inputTypes` of a definition and the `inputs` of a specification, so function parameters keep their
-order. The keys of a v4 map, such as record fields, module members, constructors and dependencies, may come back in
-sorted order when the file is read, which does not change the model.
+A compacted file is written in the canonical JSON of RFC 8785, members sorted, its string escapes and no whitespace,
+with no newline at the end, and with three exceptions that keep the model exactly as it is:
+
+- Numbers are written exactly as in the source: `9007199254740993`, `1.0` and `1e2` stay as they are, where RFC 8785
+  would write `9007199254740992`, `1` and `100`.
+- An object whose member order the IR schema gives a meaning keeps its order: the parameters of a v4 value, the
+  `inputTypes` of a definition and the `inputs` of a specification, so function parameters keep their order.
+- The content of a `DocumentLiteral` is written exactly as in the source: its keys keep their order and its numbers
+  their lexemes, everywhere inside it.
+
+A file whose compaction is declined is its plain document in the same form, with no envelope. The keys of a v4 map,
+such as record fields, module members, constructors and dependencies, may come back in sorted order when the file is
+read, which does not change the model.
 
 Here `order-total.json` is a plain IR v4 model whose one value uses the type
 `acme/order-management:pricing/discount-rules#discounted-amount-before-regional-sales-tax-adjustment` three times.

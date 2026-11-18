@@ -282,6 +282,56 @@ let v4SpecsWithUnsortedParameters: Distribution =
     |> withModule (modulePath "rates") withUnsortedParameters
     |> buildV4Specs
 
+/// <summary>
+/// The document of <c>exactNumbers</c>: an object whose keys are not in sorted order (<c>zeta</c> before
+/// <c>alpha</c>), with numbers whose ECMAScript form differs from their lexeme, nested in an array and an object.
+/// </summary>
+let exactDocument: DocumentValue =
+    let objectOf (entries: (string * DocumentValue) list) =
+        match OrderedMap.ofList entries with
+        | Ok map -> DocumentObject map
+        | Error key -> invalidArg (nameof entries) $"The key {key} repeats."
+
+    objectOf [
+        "zeta", DocumentNumber "1.0"
+        "alpha", DocumentArray [ DocumentNumber "12345678901234567890123"; DocumentNumber "1e2"; objectOf [ "b", DocumentNumber "-0"; "a", DocumentString "x" ] ]
+        "mid", objectOf [ "y", DocumentBool true; "x", DocumentNull ]
+    ]
+
+/// The values of the exact-number cases: an integer one past 2^53, which a double cannot hold, the floats 1.0 and
+/// 1e2, and <see cref="exactDocument"/>.
+let private withExactNumbers =
+    withValue (name "beyond-double") (Constant(WholeValue 9007199254740993L))
+    >> withValue (name "one") (Constant(FloatText "1.0"))
+    >> withValue (name "hundred") (Constant(FloatText "1e2"))
+    >> withValue (name "document") (Constant(DocumentContent exactDocument))
+
+/// <summary>
+/// A v4 library whose literals are spelled in ways canonical JSON would change: <c>9007199254740993</c>, <c>1.0</c>,
+/// <c>1e2</c>, and a document literal with unsorted keys and nested numbers. Its file is too small for an alias, so
+/// compaction declines it.
+/// </summary>
+let exactNumbers: Distribution =
+    aV4Library (packageName "acme/numbers")
+    |> withModule (modulePath "constants") withExactNumbers
+    |> buildV4
+
+/// <summary>
+/// <see cref="longNameUsedOften"/> with the literals of <see cref="exactNumbers"/> in its module: a file that
+/// compaction writes as an envelope, holding numbers and a document literal that it must keep as they are.
+/// </summary>
+let longNamesWithExactNumbers: Distribution =
+    aV4Library (packageName "acme/order-management")
+    |> withModule
+        (modulePath "pricing/discount-rules")
+        (let long = "discounted-amount-before-regional-sales-tax-adjustment"
+         let reference = Named(fqName "acme/order-management" "pricing/discount-rules" long, [])
+
+         withType (name long) (alias Sdk.int)
+         >> withType (name "order-total") (alias (RecordOf [ name "base", reference; name "bonus", reference; name "rebate", reference ]))
+         >> withExactNumbers)
+    |> buildV4
+
 /// <summary>A classic library whose one type is named <see cref="Names.nonAscii"/>, a name with an <c>é</c>.</summary>
 let nonAsciiName: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     aV3Library (packageName "my-org/menu")

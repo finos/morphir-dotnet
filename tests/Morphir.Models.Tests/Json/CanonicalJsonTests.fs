@@ -80,42 +80,68 @@ let tests =
             Expect.sequenceEqual values vectors.SortedValues "the order of Section 3.2.3"
         }
 
-        test "An object that keeps its order is written in document order, and its strings canonically" {
-            let sample = parse vectors.SortingSample
+        testList "The policy's form" [
+            let sorted (_: string) = CanonicalJson.MemberOrder.Sorted
 
-            let keptOrder =
-                use document = JsonDocument.Parse(CanonicalJson.writeKeepingOrder (fun pointer -> pointer = "") sample)
-                [ for property in document.RootElement.EnumerateObject() -> property.Name ]
+            /// The raw text of each number token of JSON text, in order.
+            let numbers (bytes: byte array) =
+                let mutable reader = Utf8JsonReader(ReadOnlySpan bytes)
+                let lexemes = ResizeArray()
 
-            Expect.sequenceEqual keptOrder [ for property in sample.EnumerateObject() -> property.Name ] "the document's order"
-            Expect.sequenceEqual (CanonicalJson.writeKeepingOrder (fun _ -> false) sample) (CanonicalJson.write sample) "no kept order is RFC 8785"
+                while reader.Read() do
+                    if reader.TokenType = JsonTokenType.Number then
+                        lexemes.Add(Encoding.UTF8.GetString(reader.ValueSpan))
 
-            Expect.equal
-                (Encoding.UTF8.GetString(CanonicalJson.writeKeepingOrder (fun pointer -> pointer = "") (parse vectors.PrimitiveSample)).Length)
-                (Encoding.UTF8.GetString(CanonicalJson.write (parse vectors.PrimitiveSample)).Length)
-                "only the order of the members changes: the escapes and numbers are canonical"
-        }
+                List.ofSeq lexemes
 
-        test "An object below the root is named by its JSON Pointer" {
-            // The sorting sample, nested at /a~1b/0, keeps its order there and nowhere else.
-            let nested =
-                written (fun writer ->
-                    writer.WriteStartObject()
-                    writer.WriteNumber("z", 0)
-                    writer.WriteStartArray "a/b"
-                    writer.WriteRawValue vectors.SortingSample
-                    writer.WriteEndArray()
-                    writer.WriteEndObject()
-                )
+            test "keeps each number's lexeme, where RFC 8785 rewrites it" {
+                let sample = parse vectors.PrimitiveSample
+                let source = numbers (Encoding.UTF8.GetBytes(sample.GetRawText()))
+                Expect.sequenceEqual (numbers (CanonicalJson.writeSourceForm sorted sample)) source "the source lexemes"
+                Expect.notEqual (numbers (CanonicalJson.write sample)) source "RFC 8785 writes the sample's numbers otherwise"
+            }
 
-            let kept = CanonicalJson.writeKeepingOrder (fun pointer -> pointer = "/a~1b/0") nested
-            use document = JsonDocument.Parse kept
-            let root = [ for property in document.RootElement.EnumerateObject() -> property.Name ]
-            let item = document.RootElement.GetProperty("a/b").[0]
-            let inner = [ for property in item.EnumerateObject() -> property.Name ]
-            Expect.equal root [ "a/b"; "z" ] "the root is sorted"
-            Expect.sequenceEqual inner [ for property in (parse vectors.SortingSample).EnumerateObject() -> property.Name ] "the named object keeps its order"
-        }
+            test "sorts members and escapes strings as RFC 8785 does" {
+                let sample = parse vectors.SortingSample
+                Expect.sequenceEqual (CanonicalJson.writeSourceForm sorted sample) (CanonicalJson.write sample) "a sample with no number"
+            }
+
+            test "keeps the order of an object it is told to" {
+                let sample = parse vectors.SortingSample
+                let kept = CanonicalJson.writeSourceForm (fun pointer -> if pointer = "" then CanonicalJson.MemberOrder.Kept else CanonicalJson.MemberOrder.Sorted) sample
+                use document = JsonDocument.Parse kept
+                let names = [ for property in document.RootElement.EnumerateObject() -> property.Name ]
+                Expect.sequenceEqual names [ for property in sample.EnumerateObject() -> property.Name ] "the document's order"
+            }
+
+            test "names an object below the root by its JSON Pointer, and keeps order throughout when told to" {
+                // The sorting sample inside the array /a~1b, inside an object that is sorted.
+                let nested =
+                    written (fun writer ->
+                        writer.WriteStartObject()
+                        writer.WriteNumber("z", 0)
+                        writer.WriteStartArray "a/b"
+                        writer.WriteRawValue vectors.SortingSample
+                        writer.WriteEndArray()
+                        writer.WriteEndObject()
+                    )
+
+                let order (wanted: string) (memberOrder: CanonicalJson.MemberOrder) (pointer: string) =
+                    if pointer = wanted then memberOrder else CanonicalJson.MemberOrder.Sorted
+
+                let namesOf (bytes: byte array) =
+                    use document = JsonDocument.Parse bytes
+                    let item = document.RootElement.GetProperty("a/b").[0]
+                    [ for property in document.RootElement.EnumerateObject() -> property.Name ], [ for property in item.EnumerateObject() -> property.Name ]
+
+                let documentOrder = [ for property in (parse vectors.SortingSample).EnumerateObject() -> property.Name ]
+
+                for kept in [ namesOf (CanonicalJson.writeSourceForm (order "/a~1b/0" CanonicalJson.MemberOrder.Kept) nested)
+                              namesOf (CanonicalJson.writeSourceForm (order "/a~1b" CanonicalJson.MemberOrder.KeptThroughout) nested) ] do
+                    Expect.equal (fst kept) [ "a/b"; "z" ] "the root is sorted"
+                    Expect.sequenceEqual (snd kept) documentOrder "the object inside keeps its order"
+            }
+        ]
 
         test "Writing the same value twice gives the same bytes" {
             let value = parse vectors.PrimitiveSample

@@ -3,6 +3,7 @@
 using FluentAssertions;
 using Morphir.TestSupport;
 using Morphir.Tooling.Features.ModelConvert;
+using TUnit.Core.Enums;
 
 namespace Morphir.Tooling.Tests.Features.ModelConvert;
 
@@ -75,6 +76,59 @@ public sealed class ModelConversionStoreTests
         var read = await store.ReadAsync(new ModelSource(compacted, "deep.json", Morphir.IR.Trees.ModelLayout.SingleFile), CancellationToken.None);
         var plainRead = await store.ReadAsync(new ModelSource(twin, "deep-plain.json", Morphir.IR.Trees.ModelLayout.SingleFile), CancellationToken.None);
         return (read, plainRead);
+    }
+
+    // As a scanner does: it reads, and shares reading and writing but not deletion, so the file cannot be moved.
+    private static FileStream HoldWithoutDeleteSharing(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+
+    [Test]
+    [RunOn(OS.Windows)]
+    public void TheMoveOfASingleFileWaitsForAShortLivedHandleOnTheStagedFile()
+    {
+        using var sandbox = TestSandbox.Create("morphir-convert-move-");
+        var staging = sandbox.PathOf(".out.json.convert-held.tmp");
+        var output = sandbox.PathOf("out.json");
+        File.WriteAllText(staging, "{}");
+        var scanner = HoldWithoutDeleteSharing(staging);
+        var waits = 0;
+        try
+        {
+            DiskModelConversionStore.MoveFileIntoPlace(staging, output, afterWait: () =>
+            {
+                if (waits++ == 0) scanner.Dispose();
+            });
+        }
+        finally { scanner.Dispose(); }
+
+        waits.Should().Be(1, "the first move met the handle and the second did not");
+        File.ReadAllText(output).Should().Be("{}");
+        File.Exists(staging).Should().BeFalse("the staged file was moved");
+    }
+
+    [Test]
+    [RunOn(OS.Windows)]
+    public void TheMoveOfASingleFileKeepsAFileThatAppearsAtTheOutputDuringTheWait()
+    {
+        using var sandbox = TestSandbox.Create("morphir-convert-move-");
+        var staging = sandbox.PathOf(".out.json.convert-held.tmp");
+        var output = sandbox.PathOf("out.json");
+        File.WriteAllText(staging, "{}");
+        var scanner = HoldWithoutDeleteSharing(staging);
+        Action move = () => DiskModelConversionStore.MoveFileIntoPlace(staging, output, afterWait: () =>
+        {
+            if (!scanner.CanRead) return;
+            File.WriteAllText(output, "someone else's");
+            scanner.Dispose();
+        });
+        try
+        {
+            move.Should().Throw<IOException>().WithMessage("*appeared*");
+        }
+        finally { scanner.Dispose(); }
+
+        File.ReadAllText(output).Should().Be("someone else's", "the other writer's file is kept");
+        File.Exists(staging).Should().BeTrue("the caller deletes its staging");
     }
 
     [Test]

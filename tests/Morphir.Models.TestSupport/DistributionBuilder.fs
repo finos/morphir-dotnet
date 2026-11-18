@@ -56,6 +56,10 @@ type LiteralShape =
     | TextValue of string
     /// <summary>A whole number.</summary>
     | WholeValue of int64
+    /// <summary>A float, written as this lexeme, such as <c>1.0</c> or <c>1e2</c>.</summary>
+    | FloatText of lexeme: string
+    /// <summary>A v4 document literal; a classic model has none.</summary>
+    | DocumentContent of Morphir.IR.V4.DocumentValue
 
 /// <summary>A value definition.</summary>
 type ValueShape =
@@ -184,6 +188,8 @@ module Sdk =
         | BoolValue _ -> bool
         | TextValue _ -> string
         | WholeValue _ -> int
+        | FloatText _ -> typeOf "basics" "float"
+        | DocumentContent _ -> Named(fqName "morphir/SDK" "document" "document", [])
 
 /// <summary>A public module with no types, no values and no documentation.</summary>
 let emptyModuleBuilder: ModuleBuilder = {
@@ -396,6 +402,11 @@ module private ToV4 =
         | BoolValue flag -> BoolLiteral flag
         | TextValue text -> StringLiteral text
         | WholeValue number -> IntegerLiteral(BigInteger number)
+        | FloatText lexeme ->
+            match FloatValue.create (System.Double.Parse(lexeme, System.Globalization.CultureInfo.InvariantCulture)) (Some lexeme) with
+            | Ok value -> FloatLiteral value
+            | Error message -> invalidArg (nameof shape) message
+        | DocumentContent document -> DocumentLiteral document
 
     let private documented doc value : Documented<_> = { Doc = doc; Value = value }
 
@@ -532,6 +543,8 @@ module private ToClassic =
         | BoolValue flag -> BoolLiteral flag
         | TextValue text -> StringLiteral text
         | WholeValue number -> WholeNumberLiteral number
+        | FloatText lexeme -> FloatLiteral(System.Double.Parse(lexeme, System.Globalization.CultureInfo.InvariantCulture))
+        | DocumentContent _ -> invalidArg (nameof shape) "A classic model has no document literal."
 
     let typeDefinition (shape: TypeShape) : Type.TypeDefinition<unit> =
         match shape with

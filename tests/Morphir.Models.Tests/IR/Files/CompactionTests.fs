@@ -280,6 +280,48 @@ let private reversedMembers (element: JsonElement) =
 
     parseText ((nonNull (reverse false (JsonNode.Parse(element.GetRawText())))).ToJsonString())
 
+/// The JSON of a value with no whitespace, its members in their order and its numbers as their lexemes.
+let private verbatim (element: JsonElement) =
+    use buffer = new IO.MemoryStream()
+
+    do
+        use writer =
+            new Utf8JsonWriter(buffer, JsonWriterOptions(Encoder = Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping))
+
+        element.WriteTo writer
+
+    Encoding.UTF8.GetString(buffer.ToArray())
+
+/// The content of each document literal of a document, as JSON with no whitespace, in document order.
+let private documentLiterals (element: JsonElement) =
+    let rec find (element: JsonElement) =
+        [
+            match element.ValueKind with
+            | JsonValueKind.Object ->
+                for property in element.EnumerateObject() do
+                    if property.Name = "DocumentLiteral" then
+                        yield verbatim property.Value
+                    else
+                        yield! find property.Value
+            | JsonValueKind.Array ->
+                for item in element.EnumerateArray() do
+                    yield! find item
+            | _ -> ()
+        ]
+
+    find element
+
+/// The raw text of each number token of JSON text, in order.
+let private numberLexemes (bytes: byte array) =
+    let mutable reader = Utf8JsonReader(ReadOnlySpan bytes)
+    let lexemes = ResizeArray()
+
+    while reader.Read() do
+        if reader.TokenType = JsonTokenType.Number then
+            lexemes.Add(Encoding.UTF8.GetString(reader.ValueSpan))
+
+    List.ofSeq lexemes
+
 /// The parameter names of each value of a written file, in the order the file writes them: the keys of every object
 /// that a member inputTypes or inputs holds.
 let private parametersOf (bytes: byte array) =
@@ -419,6 +461,45 @@ let tests =
                     let reordered, _ = compacted family (reversedMembers input)
                     Expect.sequenceEqual second first "compacting twice gives identical bytes"
                     Expect.sequenceEqual reordered first "the same document with its members in another order gives the same bytes"
+                }
+        ]
+
+        testList "Numbers and document literals are written as in the source" [
+            for name, distribution, aliased in
+                [ "declined", DistributionMother.exactNumbers, false
+                  "compacted", DistributionMother.longNamesWithExactNumbers, true ] do
+                yield test $"in a {name} single file" {
+                    let plain = v4Bytes distribution
+                    let bytes, wasAliased = compacted IrFamily.V4 (parse plain)
+                    Expect.equal wasAliased aliased $"the file is {name}"
+                    Expect.equal (List.sort (numberLexemes bytes)) (List.sort (numberLexemes plain)) "every number keeps its lexeme"
+
+                    for lexeme in [ "9007199254740993"; "1.0"; "1e2"; "12345678901234567890123"; "-0" ] do
+                        Expect.contains (numberLexemes bytes) lexeme $"{lexeme} is written as it is"
+
+                    Expect.equal
+                        (documentLiterals (parse bytes))
+                        (documentLiterals (parse plain))
+                        "the document literal keeps its keys' order and its lexemes"
+
+                    Expect.equal
+                        (documentLiterals (expandedDocument "model.json" bytes))
+                        (documentLiterals (parse plain))
+                        "the expanded document literal is the plain one"
+
+                    Expect.isTrue (sameV4Model distribution) "the expanded file decodes to the same model"
+                }
+
+                yield test $"in the files of a {name} tree" {
+                    let tree = Trees.treeOf distribution
+                    Expect.isTrue (treeLossless tree) "the tree reads back as the same model"
+                    let plain = Driver.texts (writtenOk (Driver.write tree))
+                    let written = Driver.texts (writtenOk (Driver.writeCompacted tree))
+
+                    for KeyValue(location, text) in plain do
+                        let bytes = Encoding.UTF8.GetBytes written[location]
+                        Expect.equal (List.sort (numberLexemes bytes)) (List.sort (numberLexemes (Encoding.UTF8.GetBytes text))) $"{location} keeps its numbers' lexemes"
+                        Expect.equal (documentLiterals (parse bytes)) (documentLiterals (parseText text)) $"{location} keeps its document literal"
                 }
         ]
 

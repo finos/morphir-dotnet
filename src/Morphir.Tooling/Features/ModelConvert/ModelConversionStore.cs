@@ -338,7 +338,7 @@ public sealed class DiskModelConversionStore : IModelConversionStore
         {
             staging = StagingPath(target.FullPath, ".tmp");
             File.WriteAllBytes(staging, bytes);
-            File.Move(staging, target.FullPath, overwrite: false);
+            MoveFileIntoPlace(staging, target.FullPath);
             staging = null;
             return new ModelWrite([], []) { Notices = notices, Compacted = compacted };
         }
@@ -402,6 +402,24 @@ public sealed class DiskModelConversionStore : IModelConversionStore
 
     private static ConvertDiagnostic CompactionDeclined(string message, string location) =>
         new(ModelConvertCodes.CompactionDeclined, ConvertDiagnostic.Info, message, location);
+
+    /// <summary>
+    /// Moves the staged single file at <paramref name="staging"/> to <paramref name="output"/>, which must not exist.
+    /// On Windows, while another process holds the staged file open (a virus scanner or a search indexer does, just
+    /// after a file is written), the move waits a bounded time (<see cref="FileReplacement"/>), as the publication of a
+    /// tree does. Before each further attempt it checks again that nothing is at the output, since the wait gives
+    /// another writer time to put something there; if something is, the move fails with an
+    /// <see cref="IOException"/> and leaves it. <paramref name="afterWait"/> runs after each wait, for tests.
+    /// </summary>
+    internal static void MoveFileIntoPlace(string staging, string output, Action? afterWait = null)
+    {
+        var moved = FileReplacement.Replace(() => File.Move(staging, output, overwrite: false), () =>
+        {
+            afterWait?.Invoke();
+            return !File.Exists(output) && !Directory.Exists(output);
+        });
+        if (!moved) throw new IOException($"Something appeared at '{output}' while the move of the output waited for another handle; it is left as it is.");
+    }
 
     private static ModelWrite WriteFailed(ModelTarget target, Exception error) =>
         ModelWrite.Refused([ConvertDiagnostic.Failure(ModelConvertCodes.WriteFailed, error.Message, target.Given)]);
