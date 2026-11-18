@@ -587,6 +587,22 @@
           "Morphir.Models": "[1.0.0, )"
         }
       },
+      "morphir.knowledge": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.knowledge.okf": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Markdig": "[1.6.0, )",
+          "Morphir.Files": "[1.0.0, )",
+          "Morphir.Knowledge": "[1.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
+        }
+      },
       "morphir.lang.csharp": {
         "type": "Project",
         "dependencies": {
@@ -679,6 +695,7 @@
           "Morphir.Extensions.Wasm": "[1.0.0, )",
           "Morphir.Files": "[1.0.0, )",
           "Morphir.Ion": "[1.0.0, )",
+          "Morphir.Knowledge.Okf": "[1.0.0, )",
           "Morphir.Lang.CSharp": "[1.0.0, )",
           "Morphir.MiddleEnd": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )",
@@ -830,6 +847,12 @@
         "requested": "[5.0.0-beta-77, )",
         "resolved": "5.0.0-beta-77",
         "contentHash": "zVBqn2alHIDTOSjgWDUo31irEg59ZfM6T8e24UcUn6o/F+5Qr0jRjGPp2LzME7PHyKh+crK+boBmdCAFguwqjw=="
+      },
+      "Markdig": {
+        "type": "CentralTransitive",
+        "requested": "[1.6.0, )",
+        "resolved": "1.6.0",
+        "contentHash": "rJEpDfPM8wrfXUgkNejjg2bJN9bciy44uVyRwKUI+92CnSmbaLeJTLPYcCdvgM4RFsKrhs8d2H2hO78yZpMl3g=="
       },
       "Microsoft.CodeAnalysis.CSharp": {
         "type": "CentralTransitive",

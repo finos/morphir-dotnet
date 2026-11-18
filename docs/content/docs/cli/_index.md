@@ -14,6 +14,7 @@ The Morphir .NET CLI provides powerful command-line tools for working with Morph
 - [morphir compile](./compile/) - Compile C# or F# sources to Morphir IR (every host has the C# frontend; `dotnet-morphir` also has the F# frontend built in)
 - [morphir generate](./generate/) - Generate F# or C# from classic or v4 JSON/Ion libraries
 - [morphir validate](./validate/) - Check a model with the built-in analyzers, such as the type validator
+- [morphir knowledge validate](./knowledge-validate/) - Check an OKF knowledge bundle and optional Morphir authoring policy
 - [morphir extension list](./management/#extension-list) - List the built-in generators and analyzers of this host
 - [morphir extension runtimes](./extension-runtimes/) - Report whether this host can run WASM extensions, or why not
 - [WASM host runner adapter](./mck-wasm-host/) - Development source awaiting the dedicated `morphir-mck` entry point

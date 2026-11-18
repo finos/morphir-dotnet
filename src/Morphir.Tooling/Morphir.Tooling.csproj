@@ -72,6 +72,7 @@
     <ProjectReference Include="..\Morphir.Extensions.Wasm\Morphir.Extensions.Wasm.csproj" />
     <ProjectReference Include="..\Morphir.Analyzers\Morphir.Analyzers.fsproj" />
     <ProjectReference Include="..\Morphir.Files\Morphir.Files.fsproj" />
+    <ProjectReference Include="..\Morphir.Knowledge.Okf\Morphir.Knowledge.Okf.fsproj" />
     <ProjectReference Include="..\Morphir.CodeGeneration.FSharp\Morphir.CodeGeneration.FSharp.fsproj" />
     <ProjectReference Include="..\Morphir.Lang.CSharp\Morphir.Lang.CSharp.fsproj" />
     <ProjectReference Include="..\Morphir.MiddleEnd\Morphir.MiddleEnd.fsproj" />
