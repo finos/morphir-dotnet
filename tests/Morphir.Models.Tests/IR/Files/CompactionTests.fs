@@ -568,6 +568,49 @@ let tests =
                 }
         ]
 
+        testList "A classic float is written as the plain file writes it" [
+            // A classic FloatLiteral is a double, so 1.0 and 1e2 are written 1 and 100 by the plain file, compacted or not.
+            let shortest, source = [ "1"; "100" ], [ "1.0"; "1e2" ]
+
+            for name, distribution, aliased in
+                [ "declined", DistributionMother.v3Floats, false
+                  "compacted", DistributionMother.v3LongNamesWithFloats, true ] do
+                yield test $"in a {name} single file" {
+                    let plain = v3Bytes distribution
+                    let bytes, wasAliased = compacted IrFamily.Classic3 (parse plain)
+                    Expect.equal wasAliased aliased $"the file is {name}"
+
+                    for written, file in [ plain, "the plain file"; bytes, "the written file" ] do
+                        for lexeme in shortest do
+                            Expect.contains (numberLexemes written) lexeme $"{file} writes the float {lexeme}"
+
+                        for lexeme in source do
+                            Expect.isFalse (List.contains lexeme (numberLexemes written)) $"{file} does not write {lexeme}"
+
+                    Expect.equal (List.sort (numberLexemes bytes)) (List.sort (numberLexemes plain)) "every number is as the plain file writes it"
+                    Expect.equal (v3Model (expandedDocument "model.json" bytes)) distribution "the model's floats are unchanged"
+                }
+
+                yield test $"in the files of a {name} tree" {
+                    let tree = Trees.classicTreeOf (Trees.withNumberedSlots distribution)
+                    Expect.isTrue (treeLossless tree) "the tree reads back as the same model"
+                    let plain = Driver.texts (writtenOk (Driver.write tree))
+                    let written = Driver.texts (writtenOk (Driver.writeCompacted tree))
+                    let lexemesOf (texts: Map<string, string>) =
+                        [ for KeyValue(_, text) in texts do yield! numberLexemes (Encoding.UTF8.GetBytes text) ]
+
+                    for lexeme in shortest do
+                        Expect.contains (lexemesOf written) lexeme $"the tree writes the float {lexeme}"
+
+                    for lexeme in source do
+                        Expect.isFalse (List.contains lexeme (lexemesOf written)) $"the tree does not write {lexeme}"
+
+                    for KeyValue(location, text) in plain do
+                        let bytes = Encoding.UTF8.GetBytes written[location]
+                        Expect.equal (List.sort (numberLexemes bytes)) (List.sort (numberLexemes (Encoding.UTF8.GetBytes text))) $"{location} writes its numbers as its plain file does"
+                }
+        ]
+
         testList "A value's parameters keep their order" [
             let library = DistributionMother.v4LibraryWithUnsortedParameters
             let specs = DistributionMother.v4SpecsWithUnsortedParameters

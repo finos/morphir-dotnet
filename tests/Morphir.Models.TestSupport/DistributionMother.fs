@@ -364,6 +364,30 @@ let longNamesWithTypedDocument: Distribution =
          >> withTypedDocument)
     |> buildV4
 
+/// The values of the classic float cases: the floats 1.0 and 1e2. A classic float is a double, so a classic file
+/// writes them in their shortest double form, 1 and 100.
+let private withClassicFloats =
+    withValue (name "one") (Constant(FloatText "1.0"))
+    >> withValue (name "hundred") (Constant(FloatText "1e2"))
+
+/// <summary>
+/// A classic library with the floats <c>1.0</c> and <c>1e2</c>, whose file writes them <c>1</c> and <c>100</c>. Its
+/// file is too small for an alias, so compaction declines it.
+/// </summary>
+let v3Floats: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
+    aV3Library (packageName "acme/numbers")
+    |> withModule (modulePath "constants") withClassicFloats
+    |> buildV3
+
+/// <summary>
+/// <see cref="v3LongNameUsedOften"/> with the floats of <see cref="v3Floats"/> in a module of their own: a file that
+/// compaction writes as an envelope.
+/// </summary>
+let v3LongNamesWithFloats: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
+    withLongNameUsedOften aV3Library
+    |> withModule (modulePath "constants") withClassicFloats
+    |> buildV3
+
 /// <summary>A classic library whose one type is named <see cref="Names.nonAscii"/>, a name with an <c>é</c>.</summary>
 let nonAsciiName: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>> =
     aV3Library (packageName "my-org/menu")
