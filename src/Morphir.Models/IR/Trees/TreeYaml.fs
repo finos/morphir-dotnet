@@ -133,7 +133,8 @@ module internal TreeYaml =
                 YamlAtom.Number(numericLexeme text)
             | _ -> YamlAtom.String text
 
-    let readLimited
+    let private readDocument
+        contextual
         (maxDepth: int)
         (maxEvents: int)
         (file: string)
@@ -193,6 +194,7 @@ module internal TreeYaml =
             let parser = Parser(strictScanner)
             let mutable cursor = parser.Current
             let mutable count = 0
+            let mutable duplicate: (string list * ParsingEvent) option = None
 
             let advance path =
                 activePath <- path
@@ -275,7 +277,12 @@ module internal TreeYaml =
                                 "Merge keys are not part of the profile."
 
                         if not (keys.Add key) then
-                            fail child keyEvent "duplicate_member" "Duplicate mapping key."
+                            if contextual then
+                                // The schema marker may occur later than the duplicate.
+                                if duplicate.IsNone then
+                                    duplicate <- Some(child, keyEvent)
+                            else
+                                fail child keyEvent "duplicate_member" "Duplicate mapping key."
 
                         writer.WritePropertyName key
                         advance child
@@ -325,7 +332,31 @@ module internal TreeYaml =
             writer.Flush()
             let encoded = ReadOnlyMemory(output.GetBuffer(), 0, int output.Length)
             use document = JsonDocument.Parse(encoded, JsonDocumentOptions(MaxDepth = maxDepth))
-            Ok(document.RootElement.Clone())
+            let root = document.RootElement
+
+            match duplicate with
+            | Some(path, keyEvent) ->
+                let envelope = fst (root.TryGetProperty "$schema")
+
+                let inContext =
+                    match path with
+                    | [ _ ]
+                    | [ _; "context" ] -> true
+                    | [ _; ("names" | "packagePaths" | "modulePaths" | "fqNames"); "context" ] ->
+                        true
+                    | _ -> false
+
+                let code =
+                    if
+                        envelope
+                        && inContext
+                    then
+                        "context.duplicate_entry"
+                    else
+                        "duplicate_member"
+
+                fail path keyEvent code "Duplicate mapping key."
+            | None -> Ok(root.Clone())
         with
         | TreeYamlFailure(code, message) -> refused code message
         | :? YamlException as error ->
@@ -333,6 +364,12 @@ module internal TreeYaml =
                 "invalid_yaml"
                 $"{pointer activePath} (line {error.Start.Line}, column {error.Start.Column}): {error.Message}"
         | :? DecoderFallbackException -> refused "invalid_yaml" "/: Expected UTF-8 input."
+
+    let readLimited maxDepth maxEvents file bytes =
+        readDocument false maxDepth maxEvents file bytes
+
+    let readContextual maxDepth file bytes =
+        readDocument true maxDepth 1_000_000 file bytes
 
     let read maxDepth file bytes =
         readLimited maxDepth 1_000_000 file bytes

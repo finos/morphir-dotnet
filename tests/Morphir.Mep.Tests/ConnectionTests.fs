@@ -490,17 +490,21 @@ module internal ConformanceFixture =
                 }
             )
 
-    /// Signals the next real read after a known byte boundary. The preceding frame has then been parsed by RunAsync.
+    /// Signals once a read starts at or beyond a byte boundary, even if it started before the caller armed the signal.
     type ObservedRead(inner: Stream) =
         inherit Stream()
         let gate = obj ()
         let mutable consumed = 0L
+        let mutable readStartedAt = 0L
         let mutable boundary: (int64 * TaskCompletionSource<unit>) option = None
         member _.AfterBytes(count: int64) =
             lock gate (fun () ->
                 if count <= 0L || boundary.IsSome then invalidOp "Fixture setup: invalid or already armed read boundary."
                 let completion = signal ()
-                boundary <- Some(count, completion)
+                if readStartedAt >= count then
+                    completion.TrySetResult() |> ignore
+                else
+                    boundary <- Some(count, completion)
                 completion.Task)
         override _.CanRead = true
         override _.CanWrite = false
@@ -515,8 +519,9 @@ module internal ConformanceFixture =
         override _.ReadAsync(buffer: Memory<byte>, token) =
             ValueTask<int>(task {
                 lock gate (fun () ->
+                    readStartedAt <- consumed
                     match boundary with
-                    | Some(count, completion) when consumed >= count ->
+                    | Some(count, completion) when readStartedAt >= count ->
                         boundary <- None
                         completion.TrySetResult() |> ignore
                     | _ -> ())

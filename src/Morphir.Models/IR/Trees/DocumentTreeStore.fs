@@ -161,12 +161,13 @@ module DocumentTreeStore =
         | Error errors ->
             List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>
 
-    /// Open a revision-bound document tree without reading its modules or definitions.
+    /// Open a revision-bound tree with an explicit file-local name encoding.
     /// MaxFiles bounds directory entries inspected for each next-module lookup.
     /// The revision must identify an immutable view or a held read lease.
-    [<CompiledName("OpenSnapshot")>]
-    let openSnapshot
+    [<CompiledName("OpenSnapshotWithEncoding")>]
+    let openSnapshotWithEncoding
         (options: ReadOptions)
+        (encoding: BoundedTreeEncoding)
         (revision: unit -> string)
         (provider: Microsoft.Extensions.FileProviders.IFileProvider)
         : Result<BoundedTreeSnapshot, StoreError list> =
@@ -174,7 +175,12 @@ module DocumentTreeStore =
             Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
         else
             TreeFileSource.fromFileProvider options.MaxFiles revision provider
-            |> BoundedTreeReader.openTree options.MaxFileBytes
+            |> BoundedTreeReader.openTreeWithEncoding encoding options.MaxFileBytes
+
+    /// Open a revision-bound plain tree without reading its modules or definitions.
+    [<CompiledName("OpenSnapshot")>]
+    let openSnapshot options revision provider =
+        openSnapshotWithEncoding options BoundedTreeEncoding.Plain revision provider
 
     /// Read the next page of modules in the selected package.
     [<CompiledName("PageModules")>]
@@ -190,3 +196,16 @@ module DocumentTreeStore =
     [<CompiledName("ReadMember")>]
     let readMember address snapshot =
         BoundedTreeReader.readMember address snapshot
+
+    /// Read one selected member and retain its source file bytes for opaque pass-through.
+    /// For an inline member the bytes are the original containing module.
+    [<CompiledName("ReadMemberWithArtifact")>]
+    let readMemberWithArtifact address snapshot =
+        BoundedTreeReader.readMemberWithArtifact address snapshot
+
+    /// Resolve one typed alias without expanding the member around it.
+    /// Path tokens within the selected payload are object keys or canonical array indices.
+    /// The result uses the name spelling of the selected IR version.
+    [<CompiledName("ResolveMemberAlias")>]
+    let resolveMemberAlias address path snapshot =
+        BoundedTreeReader.resolveMemberAlias address path snapshot

@@ -23,6 +23,13 @@ type BoundedTreeBody =
     | V4Type of V4TypeDocument
     | V4Value of V4ValueDocument
 
+/// A selected body and the original encoded document that supplied it.
+type BoundedTreeSelection = {
+    Body: BoundedTreeBody
+    File: string
+    Encoded: ReadOnlyMemory<byte>
+}
+
 type BoundedTreeCursor = private BoundedTreeCursor of obj * DocumentAddress * int
 
 type BoundedTreeMemberPage = {
@@ -49,6 +56,13 @@ type BoundedTreeModulePage = {
     Next: BoundedTreeModuleCursor option
 }
 
+/// File-local name encoding accepted by a bounded reader.
+[<RequireQualifiedAccess>]
+type BoundedTreeEncoding =
+    | Plain
+    | ContextualDraft1
+    | ContextualDraft1Streaming
+
 [<RequireQualifiedAccess>]
 type internal BoundedTreeManifest =
     | Classic of ClassicManifestFile
@@ -61,6 +75,7 @@ type BoundedTreeSnapshot =
             Revision: string
             Identity: obj
             ByteLimit: int64
+            Encoding: BoundedTreeEncoding
             Profile: TreeFileSource.Profile
             Manifest: BoundedTreeManifest
         }
@@ -85,6 +100,11 @@ type private ModuleInventory = {
     InlineTypes: Set<Name>
     InlineValues: Set<Name>
     FileNames: Map<Name, string>
+}
+
+type private BoundedTreeFile = {
+    Input: MorphirFile<JsonElement>
+    Bytes: byte array
 }
 
 [<RequireQualifiedAccess>]
@@ -112,26 +132,37 @@ module internal BoundedTreeReader =
             else
                 result
 
-    let private readRoot byteLimit source expected pathBudget logical =
+    let private readRoot encoding byteLimit source expected pathBudget logical =
         let plainOnly location =
             refuse
                 "tree.unsupported_context"
                 (Some location)
                 "This reader accepts plain tree files."
 
-        let parse profile location (bytes: byte array) =
-            let memory = ReadOnlyMemory bytes
+        let order =
+            match encoding with
+            | BoundedTreeEncoding.Plain -> ContextOrder.WholeFile
+            | BoundedTreeEncoding.ContextualDraft1 -> ContextOrder.Bounded
+            | BoundedTreeEncoding.ContextualDraft1Streaming -> ContextOrder.Streaming
 
+        let parse profile location (bytes: byte array) =
             match profile with
             | TreeFileSource.Json ->
-                MorphirFile.readEnvelope ContextLimits.draft1 location memory
+                MorphirFile.readEnvelopeWithOrder
+                    order
+                    ContextLimits.draft1
+                    location
+                    (ReadOnlyMemory bytes)
                 |> Result.bind (fun input ->
-                    if input.Context.IsSome then
+                    if
+                        encoding = BoundedTreeEncoding.Plain
+                        && input.Context.IsSome
+                    then
                         plainOnly location
                     else
-                        Ok input.Document
+                        Ok input
                 )
-            | TreeFileSource.Yaml ->
+            | TreeFileSource.Yaml when encoding = BoundedTreeEncoding.Plain ->
                 TreeYaml.read ContextLimits.draft1.MaxDepth location bytes
                 |> Result.bind (fun document ->
                     let mutable schema = Unchecked.defaultof<JsonElement>
@@ -139,8 +170,16 @@ module internal BoundedTreeReader =
                     if document.TryGetProperty("$schema", &schema) then
                         plainOnly location
                     else
-                        Ok document
+                        Ok
+                            {
+                                Schema = None
+                                Context = None
+                                Document = document
+                            }
                 )
+            | TreeFileSource.Yaml ->
+                TreeYaml.readContextual ContextLimits.draft1.MaxDepth location bytes
+                |> Result.bind (MorphirFile.readEnvelopeRoot order ContextLimits.draft1 location)
 
         TreeFileSource.snapshotLocation source expected logical
         |> TreeFileSource.one
@@ -153,8 +192,12 @@ module internal BoundedTreeReader =
             else
                 TreeFileSource.snapshotBytes byteLimit source location
                 |> TreeFileSource.one
-                |> Result.bind (parse profile location)
-                |> Result.map (fun document -> profile, location, document)
+                |> Result.bind (fun bytes ->
+                    parse profile location bytes
+                    |> Result.map (fun document ->
+                        profile, location, { Input = document; Bytes = bytes }
+                    )
+                )
         )
 
     let private decodeAt location decode root =
@@ -163,6 +206,25 @@ module internal BoundedTreeReader =
             StoreErrors.error error.Rule (Some location) $"{error.Location}: {error.Message}"
         ])
 
+    let private expandRoot limit family location projection (file: BoundedTreeFile) =
+        match file.Input.Context with
+        | None -> Ok file.Input.Document
+        | Some context ->
+            let checkVersion =
+                match family with
+                | IrFamily.Classic3 -> ClassicTreeFiles.checkFileVersion
+                | IrFamily.V4 -> V4TreeFiles.checkFileVersion
+
+            decodeAt location checkVersion file.Input.Document
+            |> Result.bind (fun () ->
+                ContextExpansion.expandBounded
+                    limit
+                    family
+                    location
+                    context
+                    projection
+                    file.Input.Document
+            )
 
     let private validateManifest location manifest =
         match manifest with
@@ -182,7 +244,8 @@ module internal BoundedTreeReader =
                     "Only an Application can have entry points."
         | BoundedTreeManifest.Classic _ -> Ok manifest
 
-    let openTree
+    let openTreeWithEncoding
+        encoding
         byteLimit
         (source: TreeFileSource.SnapshotSource)
         : Result<BoundedTreeSnapshot, StoreError list> =
@@ -198,8 +261,8 @@ module internal BoundedTreeReader =
                 source
                 revision
                 (fun () ->
-                    readRoot byteLimit source None Int32.MaxValue "manifest"
-                    |> Result.bind (fun (profile, location, root) ->
+                    readRoot encoding byteLimit source None Int32.MaxValue "manifest"
+                    |> Result.bind (fun (profile, location, file) ->
                         let decode document =
                             if TreeFileSource.isClassicManifest document then
                                 ClassicTreeFiles.readManifest document
@@ -208,18 +271,33 @@ module internal BoundedTreeReader =
                                 V4TreeFiles.readManifest document
                                 |> Result.map BoundedTreeManifest.V4
 
-                        decodeAt location decode root
+                        expandRoot
+                            byteLimit
+                            (MorphirFile.familyOf file.Input.Document)
+                            location
+                            ContextExpansion.Projection.Complete
+                            file
+                        |> Result.bind (decodeAt location decode)
                         |> Result.bind (validateManifest location)
                         |> Result.map (fun manifest -> {
                             Source = source
                             Revision = revision
                             Identity = obj ()
                             ByteLimit = byteLimit
+                            Encoding = encoding
                             Profile = profile
                             Manifest = manifest
                         })
                     )
                 )
+
+    let openTree byteLimit source =
+        openTreeWithEncoding BoundedTreeEncoding.Plain byteLimit source
+
+    let private family snapshot =
+        match snapshot.Manifest with
+        | BoundedTreeManifest.Classic _ -> IrFamily.Classic3
+        | BoundedTreeManifest.V4 _ -> IrFamily.V4
 
     let private ownership manifest =
         match manifest with
@@ -336,13 +414,20 @@ module internal BoundedTreeReader =
                 let logical = DocumentAddress.logicalPath own moduleAddress
 
                 readRoot
+                    snapshot.Encoding
                     snapshot.ByteLimit
                     snapshot.Source
                     (Some snapshot.Profile)
                     pathBudget
                     logical
-                |> Result.bind (fun (_, location, root) ->
-                    moduleInventory snapshot location holdsDefinitions root
+                |> Result.bind (fun (_, location, file) ->
+                    expandRoot
+                        snapshot.ByteLimit
+                        (family snapshot)
+                        location
+                        ContextExpansion.Projection.ModuleInventory
+                        file
+                    |> Result.bind (moduleInventory snapshot location holdsDefinitions)
                     |> Result.bind (fun inventory ->
                         if
                             inventory.Path
@@ -355,7 +440,7 @@ module internal BoundedTreeReader =
                         else
                             validateInventory location inventory
                             |> Result.bind (fun validated ->
-                                action own location holdsDefinitions pathBudget validated root
+                                action own location holdsDefinitions pathBudget validated file
                             )
                     )
                 )
@@ -625,15 +710,25 @@ module internal BoundedTreeReader =
                     )
             )
 
-    let private inlineBody snapshot location holdsDefinitions suffix name (root: JsonElement) =
-        let field = if suffix = ".type" then "types" else "values"
+    let private selected location (file: BoundedTreeFile) body = {
+        Body = body
+        File = location
+        Encoded = ReadOnlyMemory file.Bytes
+    }
 
-        // The codec validates uniqueness by parsed Name. Read the property with its original spelling.
-        let property =
-            root.GetProperty(field).EnumerateObject()
-            |> Seq.tryFind (fun property -> CanonicalNames.parseName property.Name = Ok name)
+    let private inlineField suffix =
+        if suffix = ".type" then "types" else "values"
 
-        match property with
+    let private inlineProperty field name (root: JsonElement) =
+        // Inventory validates uniqueness by parsed Name. Use the property's original spelling.
+        root.GetProperty(field: string).EnumerateObject()
+        |> Seq.tryFind (fun property -> CanonicalNames.parseName property.Name = Ok name)
+
+    let private inlineBody snapshot location holdsDefinitions suffix name (file: BoundedTreeFile) =
+        let field = inlineField suffix
+        let root = file.Input.Document
+
+        match inlineProperty field name root with
         | None -> refuse "tree.missing_member" (Some location) "The inline member is missing."
         | Some property ->
             let payload = property.Value
@@ -641,50 +736,76 @@ module internal BoundedTreeReader =
             let memberLocation =
                 V4JsonDecoding.memberAt (V4JsonDecoding.memberAt "$" field) property.Name
 
-            // Classic attributes retain JsonElements. Reparse the selected slice so
-            // the returned attributes do not retain other inline bodies in the module.
-            use selected =
-                JsonDocument.Parse(
-                    payload.GetRawText(),
-                    JsonDocumentOptions(MaxDepth = ContextLimits.draft1.MaxDepth)
-                )
+            let decode item =
+                match snapshot.Manifest, suffix with
+                | BoundedTreeManifest.Classic _, ".type" ->
+                    decodeAt
+                        location
+                        (ClassicTreeFiles.readInlineType holdsDefinitions memberLocation)
+                        item
+                    |> Result.map BoundedTreeBody.ClassicType
+                | BoundedTreeManifest.Classic _, _ ->
+                    decodeAt
+                        location
+                        (ClassicTreeFiles.readInlineValue holdsDefinitions memberLocation)
+                        item
+                    |> Result.map BoundedTreeBody.ClassicValue
+                | BoundedTreeManifest.V4 _, ".type" ->
+                    decodeAt
+                        location
+                        (V4TreeFiles.readInlineType holdsDefinitions memberLocation)
+                        item
+                    |> Result.map BoundedTreeBody.V4Type
+                | BoundedTreeManifest.V4 _, _ ->
+                    decodeAt
+                        location
+                        (V4TreeFiles.readInlineValue holdsDefinitions memberLocation)
+                        item
+                    |> Result.map BoundedTreeBody.V4Value
 
-            let item = selected.RootElement
+            let decoded =
+                match file.Input.Context with
+                | Some context ->
+                    ContextExpansion.expandMember
+                        snapshot.ByteLimit
+                        (family snapshot)
+                        location
+                        context
+                        (suffix = ".type")
+                        holdsDefinitions
+                        memberLocation
+                        payload
+                    |> Result.bind decode
+                | None ->
+                    // Classic attributes retain JsonElements. Keep only the selected slice.
+                    use slice =
+                        JsonDocument.Parse(
+                            payload.GetRawText(),
+                            JsonDocumentOptions(MaxDepth = ContextLimits.draft1.MaxDepth)
+                        )
 
-            match snapshot.Manifest, suffix with
-            | BoundedTreeManifest.Classic _, ".type" ->
-                decodeAt
-                    location
-                    (ClassicTreeFiles.readInlineType holdsDefinitions memberLocation)
-                    item
-                |> Result.map BoundedTreeBody.ClassicType
-            | BoundedTreeManifest.Classic _, _ ->
-                decodeAt
-                    location
-                    (ClassicTreeFiles.readInlineValue holdsDefinitions memberLocation)
-                    item
-                |> Result.map BoundedTreeBody.ClassicValue
-            | BoundedTreeManifest.V4 _, ".type" ->
-                decodeAt location (V4TreeFiles.readInlineType holdsDefinitions memberLocation) item
-                |> Result.map BoundedTreeBody.V4Type
-            | BoundedTreeManifest.V4 _, _ ->
-                decodeAt location (V4TreeFiles.readInlineValue holdsDefinitions memberLocation) item
-                |> Result.map BoundedTreeBody.V4Value
+                    decode slice.RootElement
 
-    let private splitBody snapshot logical pathBudget holdsDefinitions suffix name =
+            decoded
+            |> Result.map (selected location file)
+
+    let private splitBody snapshot location holdsDefinitions suffix name file =
         let read decode wrap =
-            readRoot snapshot.ByteLimit snapshot.Source (Some snapshot.Profile) pathBudget logical
-            |> Result.bind (fun (_, location, root) ->
-                decodeAt location decode root
-                |> Result.bind (fun (stated, document) ->
-                    if stated = name then
-                        Ok(wrap document)
-                    else
-                        refuse
-                            "tree.name_mismatch"
-                            (Some location)
-                            "The file's name does not match the selected member."
-                )
+            expandRoot
+                snapshot.ByteLimit
+                (family snapshot)
+                location
+                ContextExpansion.Projection.Complete
+                file
+            |> Result.bind (decodeAt location decode)
+            |> Result.bind (fun (stated, document) ->
+                if stated = name then
+                    Ok(selected location file (wrap document))
+                else
+                    refuse
+                        "tree.name_mismatch"
+                        (Some location)
+                        "The file's name does not match the selected member."
             )
 
         match snapshot.Manifest, suffix with
@@ -697,11 +818,12 @@ module internal BoundedTreeReader =
         | BoundedTreeManifest.V4 _, _ ->
             read (V4TreeFiles.readValue holdsDefinitions) BoundedTreeBody.V4Value
 
-    /// Resolve a member in the admitted module and decode only its selected body.
-    let readMember
+    let private selectMember
         (address: DocumentAddress)
         (snapshot: BoundedTreeSnapshot)
-        : Result<BoundedTreeBody, StoreError list> =
+        onInline
+        onSplit
+        =
         atRevision
             snapshot.Source
             snapshot.Revision
@@ -718,7 +840,7 @@ module internal BoundedTreeReader =
                     withModule
                         snapshot
                         moduleAddress
-                        (fun own moduleFile holdsDefinitions pathBudget inventory root ->
+                        (fun own moduleFile holdsDefinitions pathBudget inventory file ->
                             let names, inlines =
                                 if suffix = ".type" then
                                     inventory.Types, inventory.InlineTypes
@@ -749,21 +871,103 @@ module internal BoundedTreeReader =
                                             (Some sidecar)
                                             "The selected member is both inline and split."
                                     | Error problem when problem.Code = "tree.missing_member" ->
-                                        inlineBody
-                                            snapshot
-                                            moduleFile
-                                            holdsDefinitions
-                                            suffix
-                                            name
-                                            root
+                                        onInline moduleFile holdsDefinitions suffix name file
                                     | Error problem -> Error [ problem ]
                                 else
-                                    splitBody
-                                        snapshot
-                                        logical
+                                    readRoot
+                                        snapshot.Encoding
+                                        snapshot.ByteLimit
+                                        snapshot.Source
+                                        (Some snapshot.Profile)
                                         pathBudget
-                                        holdsDefinitions
-                                        suffix
-                                        name
+                                        logical
+                                    |> Result.bind (fun (_, location, split) ->
+                                        onSplit location holdsDefinitions suffix name split
+                                    )
                         )
             )
+
+    /// Resolve a member in the admitted module and decode only its selected body.
+    let readMemberWithArtifact address snapshot =
+        selectMember address snapshot (inlineBody snapshot) (splitBody snapshot)
+
+    let readMember address snapshot =
+        readMemberWithArtifact address snapshot
+        |> Result.map (fun selection -> selection.Body)
+
+    let resolveMemberAlias address (path: IReadOnlyList<string>) snapshot =
+        let tail = List.ofSeq path
+        let selectedFamily = family snapshot
+
+        let resolve
+            location
+            (file: BoundedTreeFile)
+            holdsDefinitions
+            suffix
+            memberLocation
+            payload
+            =
+            match file.Input.Context with
+            | None ->
+                refuse
+                    "context.not_an_alias"
+                    (Some location)
+                    "The selected file has no file-local context."
+            | Some context ->
+                ContextExpansion.resolveMemberAlias
+                    snapshot.ByteLimit
+                    selectedFamily
+                    location
+                    context
+                    (suffix = ".type")
+                    holdsDefinitions
+                    memberLocation
+                    tail
+                    payload
+
+        let inlineAlias location holdsDefinitions suffix name (file: BoundedTreeFile) =
+            let field = inlineField suffix
+
+            match inlineProperty field name file.Input.Document with
+            | Some property ->
+                let memberLocation =
+                    V4JsonDecoding.memberAt (V4JsonDecoding.memberAt "$" field) property.Name
+
+                resolve location file holdsDefinitions suffix memberLocation property.Value
+            | None -> refuse "tree.missing_member" (Some location) "The inline member is missing."
+
+        let splitAlias location holdsDefinitions suffix name (file: BoundedTreeFile) =
+            let header =
+                match selectedFamily with
+                | IrFamily.Classic3 -> ClassicTreeFiles.readNodeHeader holdsDefinitions
+                | IrFamily.V4 -> V4TreeFiles.readNodeHeader holdsDefinitions
+
+            expandRoot
+                snapshot.ByteLimit
+                selectedFamily
+                location
+                ContextExpansion.Projection.MemberHeader
+                file
+            |> Result.bind (decodeAt location header)
+            |> Result.bind (fun (stated, ()) ->
+                if
+                    stated
+                    <> name
+                then
+                    refuse
+                        "tree.name_mismatch"
+                        (Some location)
+                        "The file's name does not match the selected member."
+                else
+                    let field = if holdsDefinitions then "def" else "spec"
+
+                    resolve
+                        location
+                        file
+                        holdsDefinitions
+                        suffix
+                        (V4JsonDecoding.memberAt "$" field)
+                        (file.Input.Document.GetProperty field)
+            )
+
+        selectMember address snapshot inlineAlias splitAlias

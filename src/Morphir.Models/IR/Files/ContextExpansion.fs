@@ -7,9 +7,14 @@ open Morphir.Compat
 open System
 open System.IO
 open System.Runtime.CompilerServices
+open System.Text
 open System.Text.Json
 open Morphir.IR
 open Morphir.IR.Trees
+open Morphir.Json.V4
+
+exception private ContextExpansionLimit
+exception private ContextExpansionRefused of StoreError
 
 /// <summary>
 /// Expands the references of a compacted document (<c>ir/name-compaction</c>). A reference is exactly the object
@@ -41,6 +46,12 @@ module internal ContextExpansion =
     type Spelling =
         | CanonicalString
         | ClassicArrays
+
+    [<RequireQualifiedAccess>]
+    type Projection =
+        | Complete
+        | ModuleInventory
+        | MemberHeader
 
     /// What a JSON value holds: whether a reference may stand for it, and the shape of each member and item. A member
     /// or item without a shape is copied as written. Members and items are functions, so a shape is built only as far
@@ -122,10 +133,21 @@ module internal ContextExpansion =
     /// The id of a reference: exactly the object <c>{"$name": "&lt;id&gt;"}</c>.
     let referenceId (element: JsonElement) =
         if element.ValueKind = JsonValueKind.Object then
-            match List.ofSeq (element.EnumerateObject()) with
-            | [ property ] when property.Name = "$name" && property.Value.ValueKind = JsonValueKind.String ->
-                Some(nonNull (property.Value.GetString()))
-            | _ -> None
+            let mutable entries = element.EnumerateObject()
+
+            if entries.MoveNext() then
+                let property = entries.Current
+
+                if
+                    property.NameEquals "$name"
+                    && not (entries.MoveNext())
+                then
+                    NameContext.tryString property.Value
+                    |> Option.filter NameContext.isAliasId
+                else
+                    None
+            else
+                None
         else
             None
 
@@ -684,6 +706,13 @@ module internal ContextExpansion =
                 | _ -> None
             )
 
+        let memberShape isType holdsDefinitions =
+            match isType, holdsDefinitions with
+            | true, true -> accessControlled (typeDefinition ())
+            | true, false -> typeSpecification ()
+            | false, true -> accessControlled (valueDefinition ())
+            | false, false -> valueSpecification ()
+
         /// <summary>
         /// A v4 single file, or a manifest, module, type or value file of a v4 tree. A module file's inline entries
         /// are definitions in the own package of a Library or an Application and specifications elsewhere
@@ -921,6 +950,13 @@ module internal ContextExpansion =
                 | _ -> None
             )
 
+        let memberShape isType holdsDefinitions =
+            match isType, holdsDefinitions with
+            | true, true -> typeDefinitionEntry ()
+            | true, false -> documented (typeSpecification ())
+            | false, true -> valueDefinitionEntry ()
+            | false, false -> documented (valueSpecification ())
+
         /// A classic v3 single file, or a manifest, module, type or value file of a v3 tree, whose envelope members
         /// are canonical strings around the classic JSON of each entry.
         let root () =
@@ -950,6 +986,11 @@ module internal ContextExpansion =
         match family with
         | IrFamily.V4 -> V4.root ()
         | IrFamily.Classic3 -> Classic.root ()
+
+    let private memberShape family isType holdsDefinitions =
+        match family with
+        | IrFamily.V4 -> V4.memberShape isType holdsDefinitions
+        | IrFamily.Classic3 -> Classic.memberShape isType holdsDefinitions
 
     /// The name of a table as the context writes it.
     let tableName table =
@@ -1002,8 +1043,17 @@ module internal ContextExpansion =
     /// <c>2052</c>, <c>a</c>, which reads back as <c>FR-2052-a</c>), and the classic form must keep the name. Nothing
     /// is written for an unknown id or an unholdable spelling.
     /// </summary>
-    let private resolve (context: FileContext) (writer: Utf8JsonWriter) (table, spelling) (id: string) =
-        let write (entries: Map<string, TableEntry<'v>>) (print: 'v -> string) (classic: Utf8JsonWriter -> 'v -> unit) =
+    let private resolve
+        (context: FileContext)
+        (writer: Utf8JsonWriter)
+        (table, spelling)
+        (id: string)
+        =
+        let write
+            (entries: Map<string, TableEntry<'v>>)
+            (print: 'v -> string)
+            (classic: Utf8JsonWriter -> 'v -> unit)
+            =
             match Map.tryFind id entries with
             | Some entry ->
                 match spelling with
@@ -1022,30 +1072,82 @@ module internal ContextExpansion =
 
         match table with
         | NamesTable -> write context.Names CanonicalNames.nameToString writeClassicName
-        | PackagePathsTable -> write context.PackagePaths CanonicalNames.pathToString writeClassicPath
+        | PackagePathsTable ->
+            write context.PackagePaths CanonicalNames.pathToString writeClassicPath
         | ModulePathsTable -> write context.ModulePaths CanonicalNames.pathToString writeClassicPath
         | FqNamesTable -> write context.FqNames CanonicalNames.fqNameToString writeClassicFqName
 
     /// What expansion found wrong: ids that their position's table does not define, and entries that a classic slot
     /// cannot hold, each with its spelling and what its word arrays read back as.
     type private Problems = {
-        Unknown: ResizeArray<Table * string>
-        Unholdable: ResizeArray<Table * string * string * string>
+        Unknown: ResizeArray<string * Table * string>
+        Unholdable: ResizeArray<string * Table * string * string * string>
+        Malformed: ResizeArray<string>
     }
 
-    let rec private walk context (problems: Problems) (writer: Utf8JsonWriter) (shape: Shape) (element: JsonElement) =
+    let private unknownAlias file slot table id =
+        StoreErrors.error
+            "context.unknown_alias"
+            (Some file)
+            $"{slot}: The reference to '{id}' is at a position of context.{tableName table}, which does not define '{id}'."
+
+    let private unholdableAlias file slot table id spelling readBack =
+        StoreErrors.error
+            "context.invalid_entry"
+            (Some file)
+            $"{slot}: context.{tableName table}.{id} is '{spelling}', and a classic v3 slot cannot hold it: its word arrays read back as '{readBack}'."
+
+    let private invalidReference file slot =
+        StoreErrors.error
+            "context.invalid_reference"
+            (Some file)
+            $"{slot}: Expected one $name member with a string alias."
+
+    let rec private walk
+        context
+        (problems: Problems)
+        file
+        bounded
+        checkSize
+        copy
+        (writer: Utf8JsonWriter)
+        projection
+        location
+        (shape: Shape)
+        (element: JsonElement)
+        =
         RuntimeHelpers.EnsureSufficientExecutionStack()
 
-        match shape.Reference, referenceId element with
-        | Some reference, Some id ->
-            match resolve context writer reference id with
-            | Resolved -> ()
-            | Unknown ->
-                problems.Unknown.Add((fst reference, id))
-                element.WriteTo writer
-            | Unholdable(spelling, readBack) ->
-                problems.Unholdable.Add((fst reference, id, spelling, readBack))
-                element.WriteTo writer
+        match shape.Reference with
+        | Some reference when hasMember "$name" element ->
+            match referenceId element with
+            | None ->
+                if bounded then
+                    raise (ContextExpansionRefused(invalidReference file location))
+
+                problems.Malformed.Add location
+                copy element
+            | Some id ->
+                match resolve context writer reference id with
+                | Resolved -> ()
+                | Unknown ->
+                    if bounded then
+                        raise (
+                            ContextExpansionRefused(unknownAlias file location (fst reference) id)
+                        )
+
+                    problems.Unknown.Add((location, fst reference, id))
+                    copy element
+                | Unholdable(spelling, readBack) ->
+                    if bounded then
+                        raise (
+                            ContextExpansionRefused(
+                                unholdableAlias file location (fst reference) id spelling readBack
+                            )
+                        )
+
+                    problems.Unholdable.Add((location, fst reference, id, spelling, readBack))
+                    copy element
         | _ ->
             match element.ValueKind with
             | JsonValueKind.Object ->
@@ -1054,9 +1156,44 @@ module internal ContextExpansion =
                 for property in element.EnumerateObject() do
                     writer.WritePropertyName property.Name
 
-                    match shape.Member element property.Name property.Value with
-                    | Some inner -> walk context problems writer inner property.Value
-                    | None -> property.Value.WriteTo writer
+                    if
+                        projection = Projection.MemberHeader
+                        && (property.Name = "def"
+                            || property.Name = "spec")
+                    then
+                        writer.WriteNullValue()
+                    elif
+                        projection = Projection.ModuleInventory
+                        && (property.Name = "types"
+                            || property.Name = "values")
+                        && property.Value.ValueKind = JsonValueKind.Object
+                    then
+                        // Inventory codecs inspect these keys. Bodies remain in the original module.
+                        writer.WriteStartObject()
+
+                        for memberKey in property.Value.EnumerateObject() do
+                            writer.WriteNull memberKey.Name
+                            checkSize 0L
+
+                        writer.WriteEndObject()
+                    else
+                        match shape.Member element property.Name property.Value with
+                        | Some inner ->
+                            walk
+                                context
+                                problems
+                                file
+                                bounded
+                                checkSize
+                                copy
+                                writer
+                                Projection.Complete
+                                (V4JsonDecoding.memberAt location property.Name)
+                                inner
+                                property.Value
+                        | None -> copy property.Value
+
+                    checkSize 0L
 
                 writer.WriteEndObject()
             | JsonValueKind.Array ->
@@ -1065,12 +1202,28 @@ module internal ContextExpansion =
                 element.EnumerateArray()
                 |> Seq.iteri (fun index item ->
                     match shape.Item element index with
-                    | Some inner -> walk context problems writer inner item
-                    | None -> item.WriteTo writer
+                    | Some inner ->
+                        walk
+                            context
+                            problems
+                            file
+                            bounded
+                            checkSize
+                            copy
+                            writer
+                            Projection.Complete
+                            (V4JsonDecoding.itemAt location index)
+                            inner
+                            item
+                    | None -> copy item
+
+                    checkSize 0L
                 )
 
                 writer.WriteEndArray()
-            | _ -> element.WriteTo writer
+            | _ -> copy element
+
+        checkSize 0L
 
     /// <summary>
     /// The plain document of a compacted one: each reference at a typed name position replaced by its spelling. It is
@@ -1080,18 +1233,20 @@ module internal ContextExpansion =
     /// position. An expanded document nested deeper than <c>limits.MaxDepth</c> is refused with
     /// <c>depth_limit_exceeded</c>.
     /// </summary>
-    let expand
+    let private expandPart
         (limits: ContextLimits)
-        (family: IrFamily)
+        maxOutput
         (file: string)
         (context: FileContext)
+        projection
+        location
+        shape
         (document: JsonElement)
         : Result<JsonElement, StoreError list> =
-        let root = rootOf family
-
         let problems = {
             Unknown = ResizeArray()
             Unholdable = ResizeArray()
+            Malformed = ResizeArray()
         }
 
         let tooDeep () =
@@ -1109,44 +1264,198 @@ module internal ContextExpansion =
         // stack that cannot hold the document's depth refuses it as too deep rather than ending the process.
         let written =
             try
-                use writer = new Utf8JsonWriter(buffer, JsonWriterOptions(MaxDepth = limits.MaxDepth + 8))
-                walk context problems writer root document
-                true
-            with
-            | :? InvalidOperationException
-            | :? InsufficientExecutionStackException -> false
+                use writer =
+                    new Utf8JsonWriter(
+                        buffer,
+                        JsonWriterOptions(
+                            MaxDepth =
+                                limits.MaxDepth
+                                + 8
+                        )
+                    )
 
-        if not written then
-            tooDeep ()
-        elif problems.Unknown.Count > 0 || problems.Unholdable.Count > 0 then
+                let checkSize additionalBytes =
+                    match maxOutput with
+                    | Some limit when
+                        writer.BytesCommitted
+                        + int64 writer.BytesPending
+                        + additionalBytes > limit
+                        ->
+                        raise ContextExpansionLimit
+                    | _ -> ()
+
+                let copy (value: JsonElement) =
+                    if Option.isSome maxOutput then
+                        // The checked input already owns the original token. Budget it before attaching it
+                        // to the output, without escaping an entire opaque subtree again.
+                        let raw = value.GetRawText()
+                        checkSize (int64 (Encoding.UTF8.GetByteCount raw))
+                        writer.WriteRawValue(raw, skipInputValidation = true)
+                    else
+                        value.WriteTo writer
+
+                walk
+                    context
+                    problems
+                    file
+                    maxOutput.IsSome
+                    checkSize
+                    copy
+                    writer
+                    projection
+                    location
+                    shape
+                    document
+
+                Ok()
+            with
+            | ContextExpansionRefused error -> Error [ error ]
+            | ContextExpansionLimit ->
+                Error [
+                    StoreErrors.error
+                        "tree.file_too_large"
+                        (Some file)
+                        "Expanded names exceed the document byte limit."
+                ]
+            | :? InvalidOperationException
+            | :? InsufficientExecutionStackException -> tooDeep ()
+
+        match written with
+        | Error errors -> Error errors
+        | Ok() when
+            problems.Unknown.Count > 0
+            || problems.Unholdable.Count > 0
+            || problems.Malformed.Count > 0
+            ->
             let unknown =
                 problems.Unknown
-                |> Seq.distinct
-                |> Seq.map (fun (table, id) ->
-                    StoreErrors.error
-                        "context.unknown_alias"
-                        (Some file)
-                        $"The reference to '{id}' is at a position of context.{tableName table}, which does not define '{id}'."
-                )
+                |> Seq.distinctBy (fun (_, table, id) -> table, id)
+                |> Seq.map (fun (slot, table, id) -> unknownAlias file slot table id)
 
             let unholdable =
                 problems.Unholdable
-                |> Seq.distinct
-                |> Seq.map (fun (table, id, spelling, readBack) ->
-                    StoreErrors.error
-                        "context.invalid_entry"
-                        (Some file)
-                        $"context.{tableName table}.{id} is '{spelling}', and a classic v3 slot cannot hold it: its word arrays read back as '{readBack}'."
+                |> Seq.distinctBy (fun (_, table, id, spelling, readBack) ->
+                    table, id, spelling, readBack
+                )
+                |> Seq.map (fun (slot, table, id, spelling, readBack) ->
+                    unholdableAlias file slot table id spelling readBack
                 )
 
-            Seq.append unknown unholdable |> List.ofSeq |> Error
-        else
+            let malformed =
+                problems.Malformed
+                |> Seq.map (invalidReference file)
+
+            Seq.concat [ unknown; unholdable; malformed ]
+            |> List.ofSeq
+            |> Error
+        | Ok() ->
             // A classic spelling is deeper than the reference it replaces, so a document within the limit can expand
             // past it.
             let maxDepth = limits.MaxDepth
 
             try
-                use expanded = JsonDocument.Parse(ReadOnlyMemory(buffer.ToArray()), JsonDocumentOptions(MaxDepth = maxDepth))
+                use expanded =
+                    JsonDocument.Parse(
+                        ReadOnlyMemory(buffer.GetBuffer(), 0, int buffer.Length),
+                        JsonDocumentOptions(MaxDepth = maxDepth)
+                    )
+
                 Ok(expanded.RootElement.Clone())
             with :? JsonException ->
                 tooDeep ()
+
+    let expand limits family file context document =
+        expandPart limits None file context Projection.Complete "$" (rootOf family) document
+
+    let expandBounded limit family file context projection document =
+        expandPart
+            ContextLimits.draft1
+            (Some limit)
+            file
+            context
+            projection
+            "$"
+            (rootOf family)
+            document
+
+    let expandMember limit family file context isType holdsDefinitions location element =
+        let shape = memberShape family isType holdsDefinitions
+
+        expandPart
+            ContextLimits.draft1
+            (Some limit)
+            file
+            context
+            Projection.Complete
+            location
+            shape
+            element
+
+    /// Follows only the requested slot. A path token is a property name or a canonical array index.
+    let resolveMemberAlias
+        limit
+        family
+        file
+        context
+        isType
+        holdsDefinitions
+        location
+        path
+        document
+        =
+        let refused location =
+            Error [
+                StoreErrors.error
+                    "context.not_an_alias"
+                    (Some file)
+                    $"{location}: The selected position does not contain a typed name alias."
+            ]
+
+        let rec select location (shape: Shape) (element: JsonElement) segments =
+            match segments, element.ValueKind with
+            | [], _ when
+                shape.Reference.IsSome
+                && hasMember "$name" element
+                ->
+                expandPart
+                    ContextLimits.draft1
+                    (Some limit)
+                    file
+                    context
+                    Projection.Complete
+                    location
+                    shape
+                    element
+            | [], _ -> refused location
+            | field :: rest, JsonValueKind.Object ->
+                let child = V4JsonDecoding.memberAt location field
+
+                let matches =
+                    element.EnumerateObject()
+                    |> Seq.filter (fun memberValue -> memberValue.NameEquals field)
+                    |> Seq.truncate 2
+                    |> Seq.toList
+
+                match matches with
+                | [ property ] ->
+                    match shape.Member element field property.Value with
+                    | Some inner -> select child inner property.Value rest
+                    | None -> refused child
+                | _ -> refused child
+            | index :: rest, JsonValueKind.Array ->
+                match Int32.TryParse index with
+                | true, offset when
+                    offset
+                    >= 0
+                    && offset < element.GetArrayLength()
+                    && index = offset.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    ->
+                    let child = V4JsonDecoding.itemAt location offset
+
+                    match shape.Item element offset with
+                    | Some inner -> select child inner element[offset] rest
+                    | None -> refused child
+                | _ -> refused location
+            | _ -> refused location
+
+        select location (memberShape family isType holdsDefinitions) document path
