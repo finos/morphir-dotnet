@@ -93,6 +93,17 @@ Feature: Model conversion of compacted files
       | 4  |
       | 3  |
 
+  Scenario: A compacted file is compacted again under the current policy
+    Given the plain v4 single file of the compaction policy's cases
+    When I compact the model
+    Then the conversion succeeds
+    And the written single file is compacted
+    When I compact the written model
+    Then the conversion succeeds
+    And the conversion report states the layouts "single-file" and "single-file"
+    And the conversion report states the encodings "compacted" and "compacted"
+    And the last two written single files are the same
+
   Scenario: Bare compact means names
     Given the plain v4 single file of the compaction policy's cases
     When I compact the model

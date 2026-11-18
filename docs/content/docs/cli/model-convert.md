@@ -277,7 +277,9 @@ declined. `--compact` takes its mode only after `=`. An unknown mode, such as `-
 
 A run that changes neither the layout nor the encoding fails with exit code 2 and `model.nothing_to_do`: a plain input
 with no `--layout` and no `--compact`. The message names the input's layout and encoding. The command reads only the
-top level of the input (of a tree, the top level of each tree file, to find an envelope) and writes nothing:
+top level of the input (of a tree, the top level of each tree file, to find an envelope) and writes nothing. A
+compacted input with `--compact` and no `--layout` is not nothing to do: it is compacted again under the current
+policy, and a file that the policy wrote comes back the same.
 
 ```bash
 $ morphir model convert --input morphir-ir.json --output other.json --json=document

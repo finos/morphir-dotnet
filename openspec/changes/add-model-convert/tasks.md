@@ -162,6 +162,7 @@ Every scenario of this change and the test that proves it, by its final name: a 
 | cli-model-conversion | A single file is compacted and stays one file | `ModelConversionCompaction.feature`: "A single file is compacted and stays one file" (v4 and v3); `ModelConvert/ModelConvert.feature` (in process): "A single file is compacted and stays one file" |
 | cli-model-conversion | A compacted tree becomes a plain single file | `ModelConversionCompaction.feature`: "A compacted tree becomes a plain single file" |
 | cli-model-conversion | Nothing to do | `ModelConversion.feature`: "Nothing to do"; `ModelConvert/ModelConvert.feature` (in process): "Nothing to do" |
+| cli-model-conversion | A compacted file is compacted again under the current policy | `ModelConversionCompaction.feature`: "A compacted file is compacted again under the current policy" |
 | cli-model-conversion | Bare compact means names | `ModelConversionCompaction.feature`: "Bare compact means names" |
 | cli-model-conversion | Unknown mode | `ModelConversionCompaction.feature`: "Unknown mode"; `ModelConvert/ModelConvert.feature` (in process): "An unknown compaction mode lists the known mode" |
 | cli-model-conversion | A compaction that no alias pays for is written plain, with a notice | `ModelConversionCompaction.feature`: "A compaction that no alias pays for is written plain, with a notice"; `ModelConvert/ModelConvert.feature` (in process): "A compacted output that no alias pays for is written plain, with a notice" |

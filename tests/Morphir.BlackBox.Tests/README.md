@@ -581,6 +581,7 @@ two steps have the same pattern.
 | Model conversion | `When I convert the model with the compaction mode {string} after a space` |
 | Model conversion | `When I convert the written model to a single file` |
 | Model conversion | `When I convert the written model to a document tree` |
+| Model conversion | `When I compact the written model` |
 | Model conversion | `When I convert the plain twin of the model to a single file` |
 | Model conversion | `When I convert the plain twin of the model to a document tree` |
 | Model conversion | `When I verify the written tree as JSON` |

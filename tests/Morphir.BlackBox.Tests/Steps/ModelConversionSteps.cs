@@ -148,6 +148,10 @@ public sealed class ModelConversionSteps(IModelConversionDriver conversion, IMod
     [When("I convert the written model to a document tree")]
     public Task ConvertTheWrittenModelToADocumentTree() => Convert(Output, ModelLayout.DocumentTree);
 
+    /// <summary>Compacts the model that the last conversion wrote, with a bare compaction option and no layout: it keeps its layout.</summary>
+    [When("I compact the written model")]
+    public Task CompactTheWrittenModel() => Convert(Output, layout: null, CompactionArgument.Default);
+
     /// <summary>Converts the plain twin of the compacted model of the scenario, which a step put beside it.</summary>
     [When("I convert the plain twin of the model to a single file")]
     public Task ConvertThePlainTwinToASingleFile() => Convert(PlainTwin, ModelLayout.SingleFile);

@@ -25,7 +25,7 @@ The command SHALL read a file as a single-file model and a directory holding a m
 - **THEN** the report names IR version 3 for both runs and the final file says `"formatVersion": 3`
 
 ### Requirement: The output is chosen by layout and encoding
-`--layout document-tree|single-file` SHALL choose the output layout and default to the input's layout. `--compact` SHALL choose compacted output and its absence plain output. Every combination SHALL work for IR 3.1.0 and IR 4. A request that changes neither the layout nor the encoding SHALL fail with exit code 2 and a message naming the input's layout and encoding.
+`--layout document-tree|single-file` SHALL choose the output layout and default to the input's layout. `--compact` SHALL choose compacted output and its absence plain output. Every combination SHALL work for IR 3.1.0 and IR 4. A request that changes neither SHALL fail with exit code 2 and name the input's layout and encoding, but a compacted input given `--compact` SHALL be compacted again.
 
 #### Scenario: A single file is compacted and stays one file
 - **WHEN** a v4 single file is converted with `--compact` and no `--layout`
@@ -38,6 +38,10 @@ The command SHALL read a file as a single-file model and a directory holding a m
 #### Scenario: Nothing to do
 - **WHEN** a plain single file is converted with no `--layout` and no `--compact`
 - **THEN** the command exits 2 and names the input as a plain single file
+
+#### Scenario: A compacted file is compacted again under the current policy
+- **WHEN** a compacted v4 single file is converted with `--compact` and no `--layout`
+- **THEN** the command exits 0, the report states the encodings `compacted` and `compacted`, and a file that the current policy wrote is written again unchanged
 
 ### Requirement: Compaction takes an optional mode
 `--compact` SHALL take an optional mode that names which compactions to apply. The mode `names` SHALL apply name interning under the parent's writer policy, and a bare `--compact` SHALL mean `names`. An unknown mode SHALL fail with exit code 2 and list the known modes. The report SHALL name the mode and the policy.
