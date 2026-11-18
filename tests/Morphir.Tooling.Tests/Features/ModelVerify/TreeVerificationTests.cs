@@ -303,6 +303,32 @@ public class TreeVerificationTests
     }
 
     [Test]
+    public async Task AStreamThatFailsOnCloseReportsTheUnreadableFile()
+    {
+        const string location = "manifest.json";
+        var manifest = DocumentTreeStoreDriver.texts(Written(DocumentTreeMother.noModules))[location];
+        var bytes = System.Text.Encoding.UTF8.GetBytes(manifest);
+        var source = new StreamSource(
+            FSharpFunc<Unit, Stream>.FromConverter(_ => new FailingCloseStream(bytes)), FSharpOption<long>.None);
+        var files = VFileTreeModule.fromFiles(ListModule.OfSeq(new[] { VFileModule.ofStream(location, source) }));
+
+        var result = await Verify(files);
+
+        result.IsValid.Should().BeFalse();
+        result.ExitCode.Should().Be(1);
+        result.Errors.Should().ContainSingle(error => error.File == location && error.Code == "tree.unreadable_file");
+    }
+
+    private sealed class FailingCloseStream(byte[] bytes) : MemoryStream(bytes, writable: false)
+    {
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            if (disposing) throw new IOException("The test stream failed to close.");
+        }
+    }
+
+    [Test]
     public async Task AnErrorInsideOneTreeFileNamesTheFileAndItsJsonLocation()
     {
         var result = await Verify(DocumentTreeMother.Invalid.typeFileWithAnUnknownTypeTag());
