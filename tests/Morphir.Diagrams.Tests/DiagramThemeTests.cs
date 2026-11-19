@@ -150,6 +150,7 @@ public partial class DiagramThemeTests
     [Arguments("#12345")]
     [Arguments("rgba(256, 0, 0, 1)")]
     [Arguments("rgba(0, 0, 0, 1.5)")]
+    [Arguments("rgba(0, 0, 0, 9999999999999999999999999999999999999999)")]
     [Arguments("rgb(0, 0)")]
     public void ColorRejectsUnsupportedText(string? text)
     {

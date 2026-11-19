@@ -124,6 +124,7 @@ if (!NTriples.TryWrite(dataset, NamedGraphHandling.Reject, out var output, out v
     var graphs = writeError.Match(
         namedGraphs: names => names.Length,
         predicateWithoutLocalName: _ => 0,
+        reservedPredicate: _ => 0,
         notXmlCharacters: _ => 0);
     throw new InvalidOperationException($"{graphs} named graph(s): {writeError}");
 }
@@ -147,7 +148,12 @@ The writer splits each predicate at its longest suffix that is an XML local
 name. It binds `rdf`, `rdfs`, `xsd`, `oa`, `dcterms` and `md` to the namespaces
 of `RdfNamespaces`, and other namespaces to `ns0`, `ns1` and so on in sorted
 order. A predicate with no such suffix, such as `https://example.org/p/1`, fails
-with `RdfWriteError.PredicateWithoutLocalName`. A literal with a character that
+with `RdfWriteError.PredicateWithoutLocalName`. A predicate whose name RDF/XML
+reserves for its own syntax fails with `RdfWriteError.ReservedPredicate`:
+`rdf:li`, which a reader turns into `rdf:_1`, and `rdf:about`,
+`rdf:Description`, `rdf:ID`, `rdf:nodeID`, `rdf:resource`, `rdf:datatype`,
+`rdf:parseType`, `rdf:RDF`, `rdf:aboutEach`, `rdf:aboutEachPrefix` and
+`rdf:bagID`, which a reader refuses. A literal with a character that
 XML 1.0 forbids fails with `RdfWriteError.NotXmlCharacters`. Named graphs follow
 `NamedGraphHandling`, as for N-Triples. Every check runs before the writer emits
 anything.

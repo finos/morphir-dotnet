@@ -147,6 +147,23 @@ public class DiagramAnnotationMappingTests
     }
 
     [Test]
+    public void ACommentInANamedGraphStaysInOtherWithItsGraph()
+    {
+        var snapshot = DiagramMother.Snapshot(DiagramMother.Checkout);
+        var review = GraphLocation.Named(GraphName.FromIri(Iri.Create("https://example.org/graphs/review")));
+        var written = MappingMother.Write(DiagramAnnotationSet.Create([MappingMother.Comment(snapshot, "node=Billing")], []));
+        var inReview = RdfDataset.Empty;
+        foreach (var quad in written.Quads)
+            inReview = inReview.Add(Quad.FromTriple(review, quad.ToTriple()));
+
+        var back = MappingMother.Read(inReview, snapshot);
+
+        back.Comments.ShouldBeEmpty("only the default graph holds annotations");
+        back.Other.Length.ShouldBe(inReview.Quads.Length);
+        back.Other.ShouldAllBe(quad => quad.Graph.Equals(review));
+    }
+
+    [Test]
     public void OtherStatementsAreWrittenBackUnchanged()
     {
         var snapshot = DiagramMother.Snapshot(DiagramMother.Checkout);

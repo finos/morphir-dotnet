@@ -134,16 +134,18 @@ type Color internal (r: int, g: int, b: int, opacity: decimal) =
                     let r, g, b =
                         channel found.Groups[1].Value, channel found.Groups[2].Value, channel found.Groups[3].Value
 
+                    // TryParse: an opacity of many digits matches the pattern but overflows decimal.
                     let opacity =
                         if found.Groups[4].Success then
-                            Decimal.Parse(found.Groups[4].Value, CultureInfo.InvariantCulture)
+                            match Decimal.TryParse(found.Groups[4].Value, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture) with
+                            | true, value -> Some value
+                            | false, _ -> None
                         else
-                            1m
+                            Some 1m
 
-                    if r > 255 || g > 255 || b > 255 || opacity > 1m then
-                        Error(failure trimmed)
-                    else
-                        Ok(Color(r, g, b, opacity))
+                    match opacity with
+                    | Some opacity when r <= 255 && g <= 255 && b <= 255 && opacity <= 1m -> Ok(Color(r, g, b, opacity))
+                    | _ -> Error(failure trimmed)
 
     /// Reads colour text. For C# callers.
     static member TryParse

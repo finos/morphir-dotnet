@@ -362,7 +362,13 @@ type DiagramAnnotations private () =
         =
         let quads = dataset.Quads
         let consumed = HashSet<Quad>()
-        let bySubject = quads |> Seq.groupBy (fun item -> item.Subject) |> dict
+        // Only the default graph holds annotations, as writeAll writes them. A statement of a named graph is never
+        // consumed, so it stays in Other with its graph, and statements of two graphs never form one annotation.
+        let bySubject =
+            quads
+            |> Seq.filter (fun item -> item.Graph = GraphLocation.DefaultGraph)
+            |> Seq.groupBy (fun item -> item.Subject)
+            |> dict
 
         let statements subject =
             match bySubject.TryGetValue subject with

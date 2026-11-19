@@ -90,6 +90,14 @@ let tests =
             | Error(RdfWriteError.PredicateWithoutLocalName named) -> Expect.equal named predicate "the predicate is named"
             | other -> failtest $"expected a predicate failure, got {other}"
 
+        testCase "a predicate that RDF/XML reserves for its syntax is a typed failure that names it" <| fun () ->
+            for name in [ "li"; "about"; "Description" ] do
+                let predicate = RdfXmlMother.iri (RdfNamespaces.Rdf + name)
+                let dataset = RdfXmlMother.dataset [ { Subject = RdfXmlMother.order; Predicate = predicate; Object = RdfObject.Literal(RdfLiteral.CreateString "x") } ]
+                match RdfXml.Write dataset with
+                | Error(RdfWriteError.ReservedPredicate named) -> Expect.equal named predicate $"rdf:{name} is named"
+                | other -> failtest $"expected a reserved-predicate failure for rdf:{name}, got {other}"
+
         testCase "a literal with a character XML cannot hold is a typed failure" <| fun () ->
             let literal = RdfLiteral.CreateString "bell\u0007"
             let dataset = RdfXmlMother.dataset [ { Subject = RdfXmlMother.order; Predicate = RdfXmlMother.vocab "sound"; Object = RdfObject.Literal literal } ]

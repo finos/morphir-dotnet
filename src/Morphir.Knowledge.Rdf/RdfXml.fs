@@ -15,6 +15,18 @@ open System.Xml.Linq
 open Morphir.Knowledge
 
 module internal RdfXmlNames =
+    /// The RDF namespace.
+    let rdf = RdfNamespaces.Rdf
+
+    /// The names in the RDF namespace that cannot be property elements (RDF 1.1 XML Syntax, coreSyntaxTerms,
+    /// oldTerms and rdf:Description), plus rdf:li, which a reader turns into rdf:_n.
+    let reserved =
+        System.Collections.Generic.HashSet<string>(
+            [ "RDF"; "ID"; "about"; "parseType"; "resource"; "nodeID"; "datatype"; "Description"
+              "aboutEach"; "aboutEachPrefix"; "bagID"; "li" ],
+            StringComparer.Ordinal
+        )
+
     let private isSurrogatePair (text: string) index =
         index + 1 < text.Length && Char.IsHighSurrogate text[index] && Char.IsLowSurrogate text[index + 1]
 
@@ -76,6 +88,15 @@ module internal RdfXmlWriter =
             let invalidPredicate =
                 triples |> List.tryFind (fun triple -> (RdfXmlNames.split triple.Predicate.Value).IsNone)
 
+            // RDF/XML syntax names (RDF 1.1 XML Syntax, 7.2.2 and 7.2.5): a property element of one of these is
+            // read back as another statement (rdf:li becomes rdf:_n) or refused.
+            let reservedPredicate =
+                triples
+                |> List.tryFind (fun triple ->
+                    let name = triple.Predicate.Value
+                    name.StartsWith(RdfXmlNames.rdf, StringComparison.Ordinal)
+                    && RdfXmlNames.reserved.Contains(name.Substring RdfXmlNames.rdf.Length))
+
             let invalidLiteral =
                 triples
                 |> List.tryPick (fun triple ->
@@ -83,10 +104,11 @@ module internal RdfXmlWriter =
                     | RdfObject.Literal value when not (RdfXmlNames.xmlText value.LexicalForm) -> Some value
                     | _ -> None)
 
-            match invalidPredicate, invalidLiteral with
-            | Some triple, _ -> Error(RdfWriteError.PredicateWithoutLocalName triple.Predicate)
-            | None, Some literal -> Error(RdfWriteError.NotXmlCharacters literal)
-            | None, None ->
+            match invalidPredicate, reservedPredicate, invalidLiteral with
+            | Some triple, _, _ -> Error(RdfWriteError.PredicateWithoutLocalName triple.Predicate)
+            | None, Some triple, _ -> Error(RdfWriteError.ReservedPredicate triple.Predicate)
+            | None, None, Some literal -> Error(RdfWriteError.NotXmlCharacters literal)
+            | None, None, None ->
                 let ordered =
                     triples
                     |> List.sortWith (fun left right ->
