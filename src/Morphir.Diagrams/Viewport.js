@@ -129,7 +129,7 @@
         draw();
     });
     viewport.addEventListener("pointerdown", event => {
-        if (scale <= 1 || !event.isPrimary || event.button !== 0 || event.target.closest("a")) return;
+        if (scale <= 1 || !event.isPrimary || event.button !== 0 || event.target.closest("a, .annotation-marker")) return;
         pointer = { id: event.pointerId, startX: event.clientX, startY: event.clientY, x, y };
         viewport.setPointerCapture(event.pointerId);
         viewport.focus({ preventScroll: true });

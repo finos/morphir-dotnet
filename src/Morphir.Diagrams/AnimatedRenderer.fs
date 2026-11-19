@@ -164,9 +164,44 @@ body:has(.diagram-fullscreen[open]) { overflow: hidden; }
 .download-button .icon { inline-size: 16px; block-size: 16px; }
 .motion-status { max-inline-size: 70ch; margin: .625rem .25rem 0; color: var(--diagram-page-muted); }
 .motion-overlay { pointer-events: none; }
+.annotation-marker { cursor: pointer; }
+.annotation-marker:focus-visible { outline: none; }
+.annotation-marker__hit { fill: transparent; }
+.annotation-marker:focus-visible .annotation-marker__hit { fill: none; stroke: var(--player-focus); stroke-width: 2; }
+.annotation-marker__pill { fill: var(--text, var(--diagram-page-text)); stroke: var(--bg, var(--diagram-page-bg)); stroke-width: 2; }
+.annotation-marker:hover .annotation-marker__pill { fill: color-mix(in srgb, var(--text, var(--diagram-page-text)) 82%, var(--bg, var(--diagram-page-bg))); }
+.annotation-marker[aria-expanded="true"] .annotation-marker__pill { fill: var(--diagram-page-accent); }
+.annotation-marker__count { fill: var(--bg, var(--diagram-page-bg)); font: 600 11px var(--player-font); pointer-events: none; }
+.annotation-highlight { fill: color-mix(in srgb, var(--text, var(--diagram-page-text)) 7%, transparent); stroke: var(--text, var(--diagram-page-text)); stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; pointer-events: none; }
+.diagram-canvas[data-annotation-open] .diagram-viewport { margin-inline-end: calc(min(22rem, 100% - 1.25rem) + 1.25rem); }
+.annotation-panel { position: absolute; z-index: 3; top: 3.75rem; right: .625rem; bottom: .625rem; display: flex; flex-direction: column; inline-size: min(22rem, calc(100% - 1.25rem)); border: 1px solid var(--player-line); border-radius: var(--player-radius); background: var(--diagram-page-surface); color: var(--diagram-page-text); box-shadow: 0 16px 40px -24px color-mix(in srgb, var(--diagram-page-text) 45%, transparent); }
+.annotation-panel[hidden] { display: none; }
+.annotation-panel__header { display: flex; align-items: flex-start; gap: .5rem; padding: .75rem .375rem .625rem 1rem; border-bottom: 1px solid var(--player-line); }
+.annotation-panel__heading { flex: 1; min-inline-size: 0; }
+.annotation-panel__title { margin: .25rem 0 0; font-size: 15px; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.annotation-panel__title:focus-visible { outline: none; }
+.annotation-panel__kind { margin: .125rem 0 0; color: var(--diagram-page-muted); }
+.annotation-panel__close { flex: none; inline-size: 36px; block-size: 36px; }
+.annotation-panel__body { overflow: auto; overscroll-behavior: contain; padding: 0 0 .75rem; }
+.annotation-section__title { margin: .875rem 1rem .25rem; color: var(--diagram-page-muted); font-size: 12px; font-weight: 600; }
+.annotation-list { margin: 0; padding: 0; list-style: none; }
+.annotation-item { margin: 0 .375rem; padding: .5rem .625rem; border-radius: 8px; }
+.annotation-item:hover, .annotation-item:focus-within { background: var(--player-hover); }
+.annotation-item:focus-visible { outline-offset: -2px; }
+.annotation-item p { margin: 0; }
+.annotation-meta { display: flex; flex-wrap: wrap; gap: 0 .75rem; color: var(--diagram-page-muted); font-size: 12px; }
+.annotation-author { overflow-wrap: anywhere; color: var(--diagram-page-text); }
+.annotation-item .annotation-body { margin-top: .25rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.annotation-predicate { font-size: 12px; overflow-wrap: anywhere; }
+.annotation-predicate__namespace { color: var(--diagram-page-muted); }
+.annotation-iri { display: block; margin-top: .125rem; overflow-wrap: anywhere; color: var(--diagram-page-text); }
+a.annotation-iri { color: var(--diagram-page-accent); text-decoration: underline; text-underline-offset: 2px; }
+.annotation-item .annotation-also { margin-top: .25rem; color: var(--diagram-page-muted); font-size: 12px; }
 @media (prefers-reduced-motion: no-preference) {
     .icon-button, .play-button, .motion-speed select { transition: background-color .15s ease, scale .15s ease; }
     .play-button:active:not(:disabled) { scale: .94; }
+    .annotation-panel:not([hidden]) { animation: annotation-open .16s ease-out; }
+    @keyframes annotation-open { from { opacity: 0; translate: .75rem 0; } }
 }
 @media (max-width: 36rem) {
     .motion-controls { display: grid; grid-template-columns: auto auto auto 1fr auto auto; grid-template-areas: "play restart step . speed download" "seek seek seek seek position position"; }
@@ -177,6 +212,12 @@ body:has(.diagram-fullscreen[open]) { overflow: hidden; }
     [data-control="download"] { grid-area: download; }
     .motion-timeline { grid-area: seek; min-inline-size: 0; }
     [data-control="position"] { grid-area: position; justify-self: end; }
+    .diagram-canvas[data-annotation-open] .diagram-viewport { margin-inline-end: 0; }
+    .annotation-panel { position: static; inline-size: auto; border-width: 1px 0 0; border-radius: 0; box-shadow: none; }
+    .diagram-canvas:fullscreen, .diagram-fullscreen[open] > .diagram-canvas { display: flex; flex-direction: column; }
+    .diagram-canvas:fullscreen .diagram-viewport, .diagram-fullscreen[open] .diagram-viewport { flex: 1 1 0; block-size: auto; min-block-size: 0; }
+    .diagram-canvas:fullscreen .annotation-panel, .diagram-fullscreen[open] .annotation-panel { flex: none; max-block-size: 50%; }
+    @keyframes annotation-open { from { opacity: 0; translate: 0 .75rem; } }
 }
 @media (max-width: 24rem) {
     .motion-controls { gap: .25rem; padding-inline: .375rem .5rem; }
@@ -186,7 +227,7 @@ body:has(.diagram-fullscreen[open]) { overflow: hidden; }
     .download-button > span { display: none; }
 }
 @media print {
-    .diagram-toolbar, .motion-controls, [data-control="status"], .motion-overlay { display: none; }
+    .diagram-toolbar, .motion-controls, [data-control="status"], .motion-overlay, .annotation-layer, .annotation-panel { display: none; }
     .diagram-canvas { border: 0; }
     [data-viewport-ready] .diagram-viewport { block-size: auto; overflow: visible; }
     [data-viewport-ready] .diagram-content { position: static; width: auto !important; height: auto !important; transform: none !important; }
@@ -260,6 +301,39 @@ body:has(.diagram-fullscreen[open]) { overflow: hidden; }
             json.WriteNumber("connector", step.Connector.Ordinal)
             json.WriteNumber("startMs", step.StartMilliseconds)
             json.WriteNumber("durationMs", step.DurationMilliseconds)
+            json.WriteEndObject()
+
+        json.WriteEndArray()
+        json.WriteStartArray("annotations")
+
+        for reference, items in scene.Annotations do
+            json.WriteStartObject()
+            json.WriteString("ref", reference)
+            json.WriteStartArray("items")
+
+            for item in items do
+                json.WriteStartObject()
+                json.WriteString("kind", item.Kind)
+
+                match item.Kind with
+                | "comment" ->
+                    json.WriteString("id", item.Id)
+                    json.WriteString("author", item.Author)
+                    json.WriteString("time", item.Time)
+                    json.WriteString("body", item.Body)
+                | "link" ->
+                    json.WriteString("id", item.Id)
+                    json.WriteString("predicate", item.Predicate)
+                    json.WriteString("target", item.Target)
+                    json.WriteBoolean("isWeb", item.IsWeb)
+                | _ ->
+                    json.WriteString("predicate", item.Predicate)
+                    json.WriteString("value", item.Value)
+                    json.WriteBoolean("isWeb", item.IsWeb)
+
+                json.WriteEndObject()
+
+            json.WriteEndArray()
             json.WriteEndObject()
 
         json.WriteEndArray()

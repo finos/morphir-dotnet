@@ -72,10 +72,11 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 Start only after the player control redesign on the diagrams branch has landed.
 
-- [ ] 11.1 Write failing tests for the `annotations` projection in the motion-data JSON (comments, links and properties, the `isWeb` flag, escaping)
-- [ ] 11.2 Implement the projection in `AnimatedRenderer`, and the markers, panel, highlighting and keyboard handling in `Player.js`, using the `frontend-design` skill and the theme variables. Verify that the tests from 11.1 pass
-- [ ] 11.3 Verify in Chromium, in light and dark mode and at narrow width, that opening by keyboard works, that `<script>` in a body stays literal text, that `javascript:` and `file:` targets are not links, that unknown-vocabulary properties are listed, and that print hides the markers
-- [ ] 11.4 Document the player annotation layer in the Diagrams README, and verify the offline demo page in the docs
+- [x] 11.1 Write failing tests for the `annotations` projection in the motion-data JSON (comments, links and properties, the `isWeb` flag, escaping)
+- [x] 11.2 Implement the projection in `AnimatedRenderer`, and the markers, panel, highlighting and keyboard handling in `Player.js`, using the `frontend-design` skill and the theme variables. Verify that the tests from 11.1 pass
+- [x] 11.3 Verify in Chromium, in light and dark mode and at narrow width, that opening by keyboard works, that `<script>` in a body stays literal text, that `javascript:` and `file:` targets are not links, that unknown-vocabulary properties are listed, and that print hides the markers
+- [x] 11.4 Document the player annotation layer in the Diagrams README, and verify the offline demo page in the docs
+  - No offline demo page exists under `docs/`; the annotated player was verified from pages generated for 11.3.
 
 ## 12. Integration
 

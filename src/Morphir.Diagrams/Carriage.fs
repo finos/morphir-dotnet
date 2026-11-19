@@ -15,6 +15,18 @@ open Morphir.Knowledge
 open Morphir.Knowledge.Rdf
 open Morphir.Svg
 
+/// One comment, link or other statement about a diagram element, as the player shows it.
+type internal AnnotationItem =
+    { Kind: string
+      Id: string
+      Author: string
+      Time: string
+      Body: string
+      Predicate: string
+      Target: string
+      Value: string
+      IsWeb: bool }
+
 /// Builds the metadata element of a rendered diagram from the caller's dataset.
 module internal Carriage =
     let private error code message =
@@ -196,6 +208,138 @@ module internal Carriage =
                                 | Error failure -> notEmbeddable embedding (failure.ToString())
 
                         content |> Result.map (fun nodes -> Some nodes, dropped @ unknown)
+
+    let private isWeb (value: string) =
+        value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || value.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+
+    /// The player's view of the dataset: for each element, in enumeration order, its comments, links
+    /// and other statements. JavaScript never sees RDF, only these plain values.
+    let project (diagram: Diagram) (options: SvgRenderOptions) : (string * AnnotationItem list) list =
+        match options.MetadataRequest, Option.ofObj options.Document with
+        | Some(dataset, _, _), Some document when not (document.Iri.Value.Contains '#') ->
+            let documentIri = document.Iri
+            let quads = dataset.Quads
+            let bySubject = quads |> Seq.groupBy (fun quad -> quad.Subject) |> dict
+            let elements = DiagramElementRef.Enumerate diagram
+            let known = HashSet elements
+            let iri local (ns: string) = Iri.Create(ns + local)
+            let oa local = iri local RdfNamespaces.WebAnnotation
+            let md local = iri local RdfNamespaces.MorphirDiagram
+
+            let objects subject (predicate: Iri) =
+                match bySubject.TryGetValue subject with
+                | true, statements -> statements |> Seq.filter (fun quad -> quad.Predicate = predicate) |> Seq.map (fun quad -> quad.Object) |> Seq.toList
+                | false, _ -> []
+
+            let asSubject object =
+                match object with
+                | RdfObject.Iri value -> Some(RdfSubject.Iri value)
+                | RdfObject.BlankNode node -> Some(RdfSubject.BlankNode node)
+                | RdfObject.Literal _ -> None
+
+            let text object =
+                match object with
+                | RdfObject.Literal literal -> literal.LexicalForm
+                | RdfObject.Iri value -> value.Value
+                | RdfObject.BlankNode _ -> ""
+
+            let first subject predicate = objects subject predicate |> List.tryHead |> Option.map text |> Option.defaultValue ""
+
+            /// The elements of this diagram that a specific resource selects.
+            let selected object =
+                match asSubject object with
+                | Some resource when objects resource (oa "hasSource") |> List.contains (RdfObject.Iri documentIri) ->
+                    [ for selector in objects resource (oa "hasSelector") do
+                          for subject in Option.toList (asSubject selector) do
+                              for value in objects subject (iri "value" RdfNamespaces.Rdf) do
+                                  match DiagramElementRef.Parse(text value) with
+                                  | Ok reference when known.Contains reference -> yield reference
+                                  | _ -> () ]
+                | _ -> []
+
+            /// The IRI a link target resolves to: an IRI itself, or the source of a specific resource.
+            let targetIri object =
+                match asSubject object with
+                | Some(RdfSubject.Iri value) when objects (RdfSubject.Iri value) (oa "hasSource") |> List.isEmpty -> value.Value
+                | Some resource ->
+                    let source = first resource (oa "hasSource")
+                    let fragments = objects resource (oa "hasSelector") |> List.collect (fun selector -> asSubject selector |> Option.toList |> List.collect (fun subject -> objects subject (iri "value" RdfNamespaces.Rdf)))
+
+                    match objects resource (oa "hasSelector") |> List.length, fragments with
+                    | 1, [ fragment ] when not (source.Contains '#') && (DiagramElementRef.Parse(text fragment) |> Result.isOk) -> source + "#" + text fragment
+                    | _ -> source
+                | None -> ""
+
+            let items = ResizeArray<DiagramElementRef * AnnotationItem>()
+            let direct = HashSet<string * string * string>()
+            let blank = { Kind = ""; Id = ""; Author = ""; Time = ""; Body = ""; Predicate = ""; Target = ""; Value = ""; IsWeb = false }
+
+            for KeyValue(subject, _) in bySubject do
+                let id =
+                    match subject with
+                    | RdfSubject.Iri value -> value.Value
+                    | RdfSubject.BlankNode _ -> ""
+
+                match objects subject (oa "bodyValue"), objects subject (oa "hasTarget") with
+                | body :: _, targets when not targets.IsEmpty ->
+                    for target in targets do
+                        for reference in selected target do
+                            items.Add(
+                                reference,
+                                { blank with
+                                    Kind = "comment"
+                                    Id = id
+                                    Author = first subject (iri "creator" RdfNamespaces.DublinCoreTerms)
+                                    Time = first subject (iri "created" RdfNamespaces.DublinCoreTerms)
+                                    Body = text body }
+                            )
+                | _ -> ()
+
+                match objects subject (md "linkSource"), objects subject (md "linkPredicate"), objects subject (md "linkTarget") with
+                | source :: _, (RdfObject.Iri predicate) :: _, target :: _ ->
+                    let resolved = targetIri target
+
+                    for reference in selected source do
+                        let elementIri = documentIri.Value + "#" + reference.ToString()
+                        direct.Add((elementIri, predicate.Value, resolved)) |> ignore
+
+                        items.Add(
+                            reference,
+                            { blank with Kind = "link"; Id = id; Predicate = predicate.Value; Target = resolved; IsWeb = isWeb resolved }
+                        )
+                | _ -> ()
+
+            let prefix = documentIri.Value + "#"
+
+            for quad in quads do
+                match quad.Subject with
+                | RdfSubject.Iri subject when subject.Value.StartsWith(prefix, StringComparison.Ordinal) ->
+                    match DiagramElementRef.ParseIri(documentIri, subject) with
+                    | Ok reference when known.Contains reference ->
+                        let value = text quad.Object
+                        let isIri = match quad.Object with RdfObject.Iri _ -> true | _ -> false
+
+                        if not (direct.Contains((subject.Value, quad.Predicate.Value, value))) then
+                            items.Add(
+                                reference,
+                                { blank with Kind = "property"; Predicate = quad.Predicate.Value; Value = value; IsWeb = isIri && isWeb value }
+                            )
+                    | _ -> ()
+                | _ -> ()
+
+            let kindOrder kind = match kind with "comment" -> 0 | "link" -> 1 | _ -> 2
+
+            [ for reference in elements do
+                  let own =
+                      items
+                      |> Seq.filter (fun (owner, _) -> owner = reference)
+                      |> Seq.map snd
+                      |> Seq.distinct
+                      |> Seq.sortBy (fun item -> kindOrder item.Kind, item.Id, item.Predicate, item.Target, item.Value, item.Time, item.Body)
+                      |> Seq.toList
+
+                  if not own.IsEmpty then yield reference.ToString(), own ]
+        | _ -> []
 
 /// Why metadata could not be read from an SVG.
 [<RequireQualifiedAccess>]

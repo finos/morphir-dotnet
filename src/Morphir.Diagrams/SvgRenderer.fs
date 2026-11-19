@@ -22,7 +22,7 @@ type SvgRenderer private () =
                 | Diagram.Flowchart model -> FlowchartSvg.render options metadata model
                 | Diagram.Sequence model -> SequenceSvg.render options metadata model
 
-            Ok(scene.WithDiagnostics warnings)
+            Ok((scene.WithDiagnostics warnings).WithAnnotations(Carriage.project diagram options))
 
     /// Lays out a diagram in the Archify theme and retains bindings to its rendered connector paths.
     static member BuildScene(diagram: Diagram) =

@@ -193,12 +193,16 @@ public class DiagramAnnotationMappingTests
 
 internal static class MappingMother
 {
-    public static Annotation<DiagramSelection, string> Comment(DiagramSnapshot snapshot, params string[] references)
+    public static Annotation<DiagramSelection, string> Comment(DiagramSnapshot snapshot, params string[] references) =>
+        CommentWithBody(snapshot, "Is this call idempotent?\nCheck <retries> & \"timeouts\".", references);
+
+    /// <summary>The reviewer's comment with another body.</summary>
+    public static Annotation<DiagramSelection, string> CommentWithBody(DiagramSnapshot snapshot, string body, params string[] references)
     {
         DiagramSelection.TryCreate(snapshot, references.Select(DiagramElementRef.Create), out var selection, out var error)
             .ShouldBeTrue(error?.ToString());
         return new Annotation<DiagramSelection, string>(
-            AnnotationId.Create(Iri.Create("urn:review:1")), selection, "Is this call idempotent?\nCheck <retries> & \"timeouts\".",
+            AnnotationId.Create(Iri.Create("urn:review:1")), selection, body,
             new AnnotationProvenance(Iri.Create("urn:reviewer:one"), new DateTimeOffset(2026, 11, 18, 9, 0, 0, TimeSpan.FromHours(-6))));
     }
 

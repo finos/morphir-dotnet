@@ -147,7 +147,7 @@ public class AnimatedDiagramTests
         throw new InvalidOperationException(string.Join("\n", diagnostics));
     }
 
-    private static JsonDocument ReadMotionData(string html)
+    internal static JsonDocument ReadMotionData(string html)
     {
         const string opening = "<script type=\"application/json\" data-motion-data>";
         var openingIndex = html.IndexOf(opening, StringComparison.Ordinal);

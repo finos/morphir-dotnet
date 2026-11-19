@@ -476,6 +476,31 @@ DTDs prohibited and no resolver. The library does not look for sidecar files; a
 suggested name is the diagram's file name with `.nq`, `.nt` or `.rdf` appended,
 such as `checkout.mmd.nq`.
 
+## Notes in the player
+
+Pass the same options to `Mermaid.RenderAnimated(source, options)`, or pass
+`SvgRenderer.BuildScene(diagram, options)` to `AnimatedRenderer.Render`, and the
+offline player shows the dataset on the diagram. Each element that has comments, links or other
+statements gets a small marker with the number of items: at the top right of a
+node, group or participant, and at the middle of an edge or message. Markers keep
+one size on screen at every zoom level.
+
+Activate a marker with a pointer, <kbd>Enter</kbd> or <kbd>Space</kbd> to open the
+notes panel. The panel lists the element's comments with author, time (in UTC) and
+body, then its links, then its other statements, each with the full predicate IRI.
+The element is outlined with a dashed frame while the panel is open. Focus or point
+at a comment or link that targets more than one element to outline all of them;
+the item also names the other elements. <kbd>Esc</kbd> or the close button closes
+the panel and returns focus to the marker. The panel docks beside the diagram,
+and below it on narrow screens, so it never covers an element.
+
+The player gets a JSON projection of the dataset and never reads RDF. Bodies,
+names and values are shown as plain text, so markup in a comment stays literal.
+Only `http` and `https` targets are links, and they open in a new tab without a
+referrer; any other scheme, such as `javascript:` or `file:`, is shown as text.
+Markers, outlines and the panel are not part of the downloaded SVG, and printing
+hides them. A player without a dataset has no markers.
+
 ## Migration coverage
 
 | Mermaid family | Supported syntax |

@@ -36,13 +36,20 @@ type DiagramScene
         document: SvgDocument,
         connectors: ImmutableArray<DiagramConnector>,
         options: SvgRenderOptions,
-        diagnostics: ImmutableArray<Diagnostic>
+        diagnostics: ImmutableArray<Diagnostic>,
+        annotations: (string * AnnotationItem list) list
     ) =
     /// Warnings found while building the scene, such as metadata about elements this diagram lacks.
     member _.Diagnostics = diagnostics
 
     member internal _.WithDiagnostics(found: Diagnostic seq) =
-        DiagramScene(document, connectors, options, ImmutableArray.CreateRange found)
+        DiagramScene(document, connectors, options, ImmutableArray.CreateRange found, annotations)
+
+    /// The player's view of the metadata, by element reference.
+    member internal _.Annotations = annotations
+
+    member internal _.WithAnnotations(projected: (string * AnnotationItem list) list) =
+        DiagramScene(document, connectors, options, diagnostics, projected)
 
     /// Script-free static document.
     member _.Document = document

@@ -25,6 +25,7 @@
     let request = null;
     const overlays = new Map();
     const overlayLayer = create("g", { "aria-hidden": "true" });
+    const annotationLayer = create("g", { class: "annotation-layer" });
 
     seek.max = String(duration);
     // One tick for each scheduled start, so the timeline shows where connections begin.
@@ -96,7 +97,8 @@
         });
         const dot = create("circle", { r: "4.5", fill: accent, stroke: "var(--diagram-page-bg, #ffffff)", "stroke-width": "2" });
         group.append(path, dot);
-        if (overlayLayer.parentNode === null) svg.append(overlayLayer);
+        // Motion plays under the annotation markers, so a moving signal never covers one.
+        if (overlayLayer.parentNode === null) svg.insertBefore(overlayLayer, annotationLayer.parentNode === svg ? annotationLayer : null);
         overlayLayer.insertBefore(group, nextGroup);
         const overlay = { group, path, dot, length: path.getTotalLength() };
         overlays.set(step.ordinal, overlay);
@@ -201,6 +203,259 @@
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 0);
     });
+
+    // Annotation layer: a marker on each element that has comments, links or statements, and a
+    // panel that lists them. Every text from the data is set with textContent, never as markup,
+    // and only http and https targets become links.
+    const annotations = data.annotations ?? [];
+    const canvas = root.querySelector("[data-viewport-root]");
+    const kinds = {
+        node: "Node", group: "Group", edge: "Edge", participant: "Participant",
+        message: "Message", note: "Note", frame: "Frame", step: "Step"
+    };
+    const sections = [["comment", "Comments"], ["link", "Links"], ["property", "Statements"]];
+    const plural = { comment: ["comment", "comments"], link: ["link", "links"], property: ["statement", "statements"] };
+    const timeFormat = new Intl.DateTimeFormat(undefined, {
+        year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+        timeZone: "UTC", timeZoneName: "short"
+    });
+    const targets = new Map();
+    const highlights = [];
+    let panel = null;
+    let current = null;
+
+    function html(name, attributes = {}, text) {
+        const element = document.createElement(name);
+        for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+        if (text !== undefined) element.textContent = text;
+        return element;
+    }
+
+    function decode(key) {
+        try { return decodeURIComponent(key); } catch { return key; }
+    }
+
+    function describe(reference) {
+        const split = reference.indexOf("=");
+        const kind = reference.slice(0, split);
+        const parts = reference.slice(split + 1).split("/").map(decode);
+        const ordinal = Number(parts.at(-1));
+        const title = kind === "edge" || kind === "message"
+            ? `${parts[0]} to ${parts[1]}${ordinal > 0 ? ` (${ordinal + 1})` : ""}`
+            : kind === "note" || kind === "frame" || kind === "step" ? `${kinds[kind]} ${ordinal + 1}`
+            : parts.join("/");
+        return { title, kind: kinds[kind] ?? kind };
+    }
+
+    function elementsOf(reference) {
+        return [...svg.querySelectorAll("[data-ref]")].filter(element => element.dataset.ref === reference);
+    }
+
+    // The box of an element in the coordinates of the annotation layer, whatever transforms lie between.
+    function frame(element) {
+        const box = element.getBBox();
+        const matrix = annotationLayer.getScreenCTM().inverse().multiply(element.getScreenCTM());
+        const corners = [[box.x, box.y], [box.x + box.width, box.y], [box.x, box.y + box.height], [box.x + box.width, box.y + box.height]]
+            .map(([x, y]) => new DOMPoint(x, y).matrixTransform(matrix));
+        const xs = corners.map(point => point.x);
+        const ys = corners.map(point => point.y);
+        return { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) };
+    }
+
+    // A connection carries its marker at the middle of its longest line; any other element at its top right corner.
+    function anchor(element, kind) {
+        const box = frame(element);
+        if (kind === "edge" || kind === "message") {
+            const lines = [...element.querySelectorAll("path, line, polyline")];
+            const longest = lines.reduce((best, line) => !best || line.getTotalLength() > best.getTotalLength() ? line : best, null);
+            if (longest) {
+                const matrix = annotationLayer.getScreenCTM().inverse().multiply(longest.getScreenCTM());
+                return longest.getPointAtLength(longest.getTotalLength() / 2).matrixTransform(matrix);
+            }
+        }
+        return { x: box.x + box.width, y: box.y };
+    }
+
+    function summary(items) {
+        return sections.map(([kind]) => {
+            const count = items.filter(item => item.kind === kind).length;
+            return count === 0 ? null : `${count} ${plural[kind][count === 1 ? 0 : 1]}`;
+        }).filter(Boolean).join(", ");
+    }
+
+    function makeMarker(entry) {
+        const elements = elementsOf(entry.ref);
+        if (elements.length === 0) return;
+        const kind = entry.ref.slice(0, entry.ref.indexOf("="));
+        const point = anchor(elements[0], kind);
+        const { title } = describe(entry.ref);
+        const count = String(entry.items.length);
+        const width = 12 + count.length * 7;
+        const marker = create("g", {
+            class: "annotation-marker", role: "button", tabindex: "0", "aria-expanded": "false",
+            "aria-label": `${title}, ${describe(entry.ref).kind.toLowerCase()}: ${summary(entry.items)}`
+        });
+        marker.dataset.annotationRef = entry.ref;
+        marker.append(
+            create("rect", { class: "annotation-marker__hit", x: String(-width / 2 - 6), y: "-16", width: String(width + 12), height: "32", rx: "16" }),
+            create("rect", { class: "annotation-marker__pill", x: String(-width / 2), y: "-10", width: String(width), height: "20", rx: "10" }),
+            Object.assign(create("text", { class: "annotation-marker__count", x: "0", y: "0", "text-anchor": "middle", "dominant-baseline": "central" }), { textContent: count })
+        );
+        marker.addEventListener("click", () => toggle(entry, marker));
+        marker.addEventListener("keydown", event => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            toggle(entry, marker);
+        });
+        annotationLayer.append(marker);
+        targets.set(entry.ref, { entry, marker, elements, point });
+    }
+
+    // Markers keep one size on screen, whatever the fitted size or zoom of the diagram.
+    function placeMarkers() {
+        const size = 1 / Math.max(svg.getScreenCTM()?.a ?? 1, 1e-6);
+        for (const { marker, point } of targets.values()) {
+            marker.setAttribute("transform", `translate(${point.x} ${point.y}) scale(${size})`);
+        }
+    }
+
+    function highlight(references) {
+        for (const shape of highlights.splice(0)) shape.remove();
+        for (const reference of references) {
+            for (const element of targets.get(reference)?.elements ?? elementsOf(reference)) {
+                const box = frame(element);
+                const shape = create("rect", {
+                    class: "annotation-highlight", "aria-hidden": "true",
+                    x: String(box.x - 6), y: String(box.y - 6), width: String(box.width + 12), height: String(box.height + 12), rx: "8"
+                });
+                annotationLayer.insertBefore(shape, annotationLayer.firstChild);
+                highlights.push(shape);
+            }
+        }
+    }
+
+    // A link or statement value: a navigable link only for http and https, plain text otherwise.
+    function value(text, isWeb) {
+        if (!isWeb) return html("span", { class: "annotation-iri" }, text);
+        return html("a", { class: "annotation-iri", href: text, target: "_blank", rel: "noopener noreferrer" }, text);
+    }
+
+    // The predicate IRI in full: its namespace quiet, its local name in the text colour.
+    function predicate(iri) {
+        const cut = Math.max(iri.lastIndexOf("#"), iri.lastIndexOf("/")) + 1;
+        const term = html("p", { class: "annotation-predicate" });
+        if (cut > 0 && cut < iri.length) term.append(html("span", { class: "annotation-predicate__namespace" }, iri.slice(0, cut)));
+        term.append(html("span", { class: "annotation-predicate__name" }, cut > 0 && cut < iri.length ? iri.slice(cut) : iri));
+        return term;
+    }
+
+    function time(text) {
+        const date = new Date(text);
+        return html("time", { datetime: text }, Number.isNaN(date.getTime()) ? text : timeFormat.format(date));
+    }
+
+    // The other elements that a comment or link with this identity also targets.
+    function alsoOn(item, reference) {
+        if (item.id === undefined) return [reference];
+        return annotations.filter(entry => entry.items.some(other => other.kind === item.kind && other.id === item.id)).map(entry => entry.ref);
+    }
+
+    function renderItem(item, reference) {
+        const entry = html("li", { class: `annotation-item annotation-item--${item.kind}`, tabindex: "0" });
+        if (item.kind === "comment") {
+            const meta = html("p", { class: "annotation-meta" });
+            meta.append(html("span", { class: "annotation-author" }, item.author), time(item.time));
+            entry.append(meta, html("p", { class: "annotation-body" }, item.body));
+        } else {
+            entry.append(predicate(item.predicate), value(item.kind === "link" ? item.target : item.value, item.isWeb));
+        }
+        const related = alsoOn(item, reference);
+        const others = related.filter(other => other !== reference).map(other => describe(other).title);
+        if (others.length > 0) entry.append(html("p", { class: "annotation-also" }, `Also on ${others.join(", ")}`));
+        const show = () => highlight(related);
+        const restore = event => { if (!entry.contains(event.relatedTarget)) highlight([reference]); };
+        entry.addEventListener("focusin", show);
+        entry.addEventListener("pointerenter", show);
+        entry.addEventListener("focusout", restore);
+        entry.addEventListener("pointerleave", () => { if (!entry.contains(document.activeElement)) highlight([reference]); });
+        return entry;
+    }
+
+    function makePanel() {
+        panel = html("aside", { class: "annotation-panel", hidden: "" });
+        const header = html("div", { class: "annotation-panel__header" });
+        const heading = html("div", { class: "annotation-panel__heading" });
+        heading.append(html("h2", { class: "annotation-panel__title", tabindex: "-1" }), html("p", { class: "annotation-panel__kind" }));
+        const close = html("button", { type: "button", class: "icon-button annotation-panel__close", "aria-label": "Close notes" });
+        const icon = create("svg", { class: "icon", viewBox: "0 0 24 24", "aria-hidden": "true", focusable: "false" });
+        icon.append(create("path", { d: "M6 6l12 12M18 6L6 18" }));
+        close.append(icon);
+        close.addEventListener("click", () => closePanel(true));
+        header.append(heading, close);
+        panel.append(header, html("div", { class: "annotation-panel__body" }));
+        canvas.append(panel);
+    }
+
+    function openPanel(entry, marker) {
+        if (panel === null) makePanel();
+        current?.marker.setAttribute("aria-expanded", "false");
+        current = { entry, marker };
+        marker.setAttribute("aria-expanded", "true");
+        const { title, kind } = describe(entry.ref);
+        panel.setAttribute("aria-label", `Notes on ${title}`);
+        panel.querySelector(".annotation-panel__title").textContent = title;
+        panel.querySelector(".annotation-panel__kind").textContent = `${kind}: ${summary(entry.items)}`;
+        const body = panel.querySelector(".annotation-panel__body");
+        body.replaceChildren();
+        for (const [kind, label] of sections) {
+            const items = entry.items.filter(item => item.kind === kind);
+            if (items.length === 0) continue;
+            const section = html("section", { class: "annotation-section" });
+            const list = html("ul", { class: "annotation-list" });
+            list.append(...items.map(item => renderItem(item, entry.ref)));
+            section.append(html("h3", { class: "annotation-section__title" }, label), list);
+            body.append(section);
+        }
+        panel.hidden = false;
+        canvas.dataset.annotationOpen = "true";
+        highlight([entry.ref]);
+        panel.querySelector(".annotation-panel__title").focus({ preventScroll: true });
+        panel.scrollIntoView({ block: "nearest" });
+    }
+
+    function closePanel(returnFocus) {
+        if (current === null) return;
+        const { marker } = current;
+        marker.setAttribute("aria-expanded", "false");
+        current = null;
+        panel.hidden = true;
+        delete canvas.dataset.annotationOpen;
+        highlight([]);
+        if (returnFocus) marker.focus({ preventScroll: true });
+    }
+
+    function toggle(entry, marker) {
+        if (current?.marker === marker) closePanel(true);
+        else openPanel(entry, marker);
+    }
+
+    if (annotations.length > 0) {
+        svg.append(annotationLayer);
+        for (const entry of annotations) makeMarker(entry);
+        placeMarkers();
+        // The viewport resizes and zooms the diagram through the style of its content.
+        let placing = null;
+        new MutationObserver(() => {
+            placing ??= requestAnimationFrame(() => { placing = null; placeMarkers(); });
+        }).observe(root.querySelector("[data-viewport-content]"), { attributes: true, attributeFilter: ["style"] });
+        // Esc closes the panel before it would close the expanded view.
+        root.addEventListener("keydown", event => {
+            if (event.key !== "Escape" || current === null) return;
+            event.preventDefault();
+            event.stopPropagation();
+            closePanel(true);
+        }, true);
+    }
 
     reflectState();
     draw();

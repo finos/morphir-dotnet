@@ -48,7 +48,7 @@ module internal SvgWriting =
                 | Some content -> document.WithMetadata(List.toArray content)
                 | None -> document
 
-            DiagramScene(document, Reading.immutable connectors, options, ImmutableArray.Empty)
+            DiagramScene(document, Reading.immutable connectors, options, ImmutableArray.Empty, [])
 
     let element (writer: SceneBuilder) name pairs body = writer.Element name pairs body
 
