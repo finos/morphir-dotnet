@@ -16,10 +16,10 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 ## 3. Canonicalization (rdf-datasets, RDF-2)
 
-- [ ] 3.1 Write failing tests that run the pinned RDFC-1.0 evaluation tests, the isomorphic-inputs scenario, and the work-limit scenario
-- [ ] 3.2 Implement `RdfCanonicalization.Canonicalize(dataset, limits)` per RDFC-1.0, with a typed limit failure, and verify that the tests from 3.1 pass
-- [ ] 3.3 Add a canonical option to the N-Quads and N-Triples writers, with the default output unchanged, and verify byte-identical output for two reads of the same input
-- [ ] 3.4 Document canonical output in the RDF README, and verify the sample in a test
+- [x] 3.1 Write failing tests that run the pinned RDFC-1.0 evaluation tests, the isomorphic-inputs scenario, and the work-limit scenario
+- [x] 3.2 Implement `RdfCanonicalization.Canonicalize(dataset, limits)` per RDFC-1.0, with a typed limit failure, and verify that the tests from 3.1 pass
+- [x] 3.3 Add a canonical option to the N-Quads and N-Triples writers, with the default output unchanged, and verify byte-identical output for two reads of the same input
+- [x] 3.4 Document canonical output in the RDF README, and verify the sample in a test
 
 ## 4. RDF/XML writer (rdf-datasets, RDF-2)
 

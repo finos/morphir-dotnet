@@ -401,8 +401,9 @@ module internal NQuadsWriter =
         NQuadsGrammar.strictUtf8.GetBytes(output.ToString())
 
 module internal NQuadsReading =
-    /// Reads statements line by line with one blank-node table for the whole input.
-    let read allowGraph (source: ReadOnlyMemory<byte>) =
+    /// Reads statements line by line with one blank-node table for the whole input, and returns
+    /// the dataset with the identity of each source label.
+    let readLabelled allowGraph (source: ReadOnlyMemory<byte>) =
         try
             let text = NQuadsGrammar.strictUtf8.GetString source.Span
             let blankNodes = Dictionary<string, BlankNodeId>(StringComparer.Ordinal)
@@ -422,11 +423,14 @@ module internal NQuadsReading =
                 while start < text.Length && (text[start] = '\n' || text[start] = '\r') do
                     start <- start + 1
 
-            Ok dataset
+            Ok(dataset, blankNodes :> IReadOnlyDictionary<string, BlankNodeId>)
         with
         | ParseError error -> Error error
         | :? DecoderFallbackException ->
             Error { Kind = NQuadsReadErrorKind.InvalidUtf8; Message = "The input is not valid UTF-8."; Span = ValueNone }
+
+    /// Reads statements line by line with one blank-node table for the whole input.
+    let read allowGraph source = readLabelled allowGraph source |> Result.map fst
 
 /// A UTF-8 RDF 1.1 N-Quads reader and writer.
 [<AbstractClass; Sealed>]
@@ -461,6 +465,38 @@ type NQuads private () =
             Error(NQuadsWriteError.EmptyNamedGraphs omitted)
         else
             Ok { Bytes = NQuadsWriter.write dataset; OmittedGraphs = omitted }
+
+    /// Writes canonical N-Quads: canonical blank-node labels, canonical escaping, and statements in
+    /// code point order. Isomorphic datasets write identical bytes. Empty named graphs are
+    /// rejected, because N-Quads cannot hold them. For F# callers.
+    static member Write(canonical: CanonicalDataset) : Result<NQuadsOutput, NQuadsWriteError> =
+        ArgumentNullException.ThrowIfNull canonical
+
+        let empty =
+            canonical.Dataset.NamedGraphs
+            |> Seq.choose (fun pair -> if pair.Value.IsEmpty then Some pair.Key else None)
+            |> ImmutableArray.CreateRange
+
+        if not empty.IsEmpty then
+            Error(NQuadsWriteError.EmptyNamedGraphs empty)
+        else
+            Ok { Bytes = NQuadsGrammar.strictUtf8.GetBytes(CanonicalNQuads.document canonical); OmittedGraphs = ImmutableArray.Empty }
+
+    /// Writes canonical N-Quads. For C# callers.
+    static member TryWrite(
+        canonical: CanonicalDataset,
+        [<Out; MaybeNullWhen(false)>] output: byref<NQuadsOutput>,
+        [<Out; MaybeNullWhen(true)>] error: byref<NQuadsWriteError>
+    ) =
+        match NQuads.Write canonical with
+        | Ok value ->
+            output <- value
+            error <- Unchecked.defaultof<_>
+            true
+        | Error failure ->
+            output <- Unchecked.defaultof<_>
+            error <- failure
+            false
 
     /// Writes a dataset and rejects empty named graphs. For F# callers.
     static member Write(dataset: RdfDataset) =

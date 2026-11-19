@@ -130,6 +130,67 @@ if (!NTriples.TryWrite(dataset, NamedGraphHandling.Reject, out var output, out v
 Console.Write(Encoding.UTF8.GetString(output.Bytes.Span));
 ```
 
+## Canonical output
+
+Every read gives blank nodes fresh identities, so two reads of one file write
+different labels. `RdfCanonicalization.Canonicalize` implements
+[RDF Dataset Canonicalization (RDFC-1.0)](https://www.w3.org/TR/rdf-canon/): it
+labels every blank node `c14n0`, `c14n1` and so on, so that isomorphic datasets
+get the same labels. Pass the resulting `CanonicalDataset` to a writer for
+canonical output, with canonical escaping and statements sorted in code point
+order. Isomorphic datasets then write identical bytes. Writing a plain
+`RdfDataset` is unchanged.
+
+Canonicalization of some blank-node graphs is exponential, so it counts its
+work: each n-degree hash and each permutation it tries. It stops with
+`CanonicalizationError.WorkLimitExceeded` at the limit of
+`CanonicalizationOptions`. The default limit admits the W3C poison graphs, which
+need a few thousand units, and stops a ten-node clique. SHA-256 is the default
+hash. `WithHashAlgorithm(CanonicalHashAlgorithm.Sha384)` selects SHA-384.
+
+### F#
+
+```fsharp
+open System
+open System.Text
+open Morphir.Knowledge.Rdf
+
+let dataset =
+    match NQuads.Read(ReadOnlyMemory(Encoding.UTF8.GetBytes "_:x <urn:p> _:y .\n_:y <urn:p> _:x .\n")) with
+    | Ok dataset -> dataset
+    | Error error -> failwith (error.ToString())
+
+match RdfCanonicalization.Canonicalize(dataset, CanonicalizationOptions.Default) with
+| Ok canonical ->
+    match NQuads.Write canonical with
+    | Ok output -> printf "%s" (Encoding.UTF8.GetString output.Bytes)
+    | Error error -> failwith (error.ToString())
+| Error error -> failwith (error.ToString())
+```
+
+### C#
+
+```csharp
+using System;
+using System.Text;
+using Morphir.Knowledge.Rdf;
+
+if (!NQuads.TryRead(Encoding.UTF8.GetBytes("_:x <urn:p> _:y .\n_:y <urn:p> _:x .\n"), out var dataset, out var readError))
+    throw new InvalidOperationException(readError.ToString());
+
+var options = CanonicalizationOptions.Default.WithWorkLimit(10_000);
+if (!RdfCanonicalization.TryCanonicalize(dataset, options, out var canonical, out var canonicalError))
+    throw new InvalidOperationException(canonicalError.ToString());
+
+if (!NQuads.TryWrite(canonical, out var output, out var writeError))
+    throw new InvalidOperationException(writeError.ToString());
+
+Console.Write(Encoding.UTF8.GetString(output.Bytes));
+```
+
+The pinned [RDFC-1.0 tests](../../tests/Fixtures/RdfCanon/PROVENANCE.md) exercise
+the canonicalizer, including the SHA-384, issued-identifier map and poison tests.
+
 The pinned [RDF 1.1 N-Quads syntax cases](../../tests/Fixtures/RdfNQuads/PROVENANCE.md)
 exercise the reader, including the blank-node grammar. The applicable references
 are [RDF 1.1 Concepts](https://www.w3.org/TR/rdf11-concepts/),

@@ -42,6 +42,40 @@ type NTriples private () =
     /// For F# callers.
     static member Write(dataset: RdfDataset) = NTriples.Write(dataset, NamedGraphHandling.Reject)
 
+    /// Writes the default graph as canonical N-Triples: canonical labels and escaping, statements in
+    /// code point order. Isomorphic datasets write identical bytes. Named graphs follow the policy.
+    /// For F# callers.
+    static member Write(canonical: CanonicalDataset, namedGraphs: NamedGraphHandling) : Result<RdfOutput, RdfWriteError> =
+        ArgumentNullException.ThrowIfNull canonical
+        ArgumentNullException.ThrowIfNull namedGraphs
+
+        DefaultGraphOnly.split canonical.Dataset namedGraphs
+        |> Result.map (fun (graph, omitted) ->
+            let text =
+                graph.Quads
+                |> Seq.map (CanonicalNQuads.line canonical.LabelOf)
+                |> Seq.sortWith CanonicalNQuads.compare
+                |> String.concat ""
+
+            RdfOutput(NQuadsGrammar.strictUtf8.GetBytes text, omitted))
+
+    /// Writes the default graph as canonical N-Triples under the named-graph policy. For C# callers.
+    static member TryWrite(
+        canonical: CanonicalDataset,
+        namedGraphs: NamedGraphHandling,
+        [<Out; MaybeNullWhen(false)>] output: byref<RdfOutput>,
+        [<Out; MaybeNullWhen(true)>] error: byref<RdfWriteError>
+    ) =
+        match NTriples.Write(canonical, namedGraphs) with
+        | Ok value ->
+            output <- value
+            error <- Unchecked.defaultof<_>
+            true
+        | Error failure ->
+            output <- Unchecked.defaultof<_>
+            error <- failure
+            false
+
     /// Writes the default graph under the caller's named-graph policy. For C# callers.
     static member TryWrite(
         dataset: RdfDataset,

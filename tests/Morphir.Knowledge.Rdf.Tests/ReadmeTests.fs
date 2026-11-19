@@ -58,11 +58,25 @@ let tests =
         let samples = blocks "csharp"
 
         testCase "the README has a C# sample for each codec" <| fun () ->
-            Expect.containsAll (samples |> List.map fst) [ "Read and write"; "N-Triples" ] "every codec section has a C# sample"
+            Expect.containsAll (samples |> List.map fst) [ "Read and write"; "N-Triples"; "Canonical output" ] "every codec section has a C# sample"
 
         for section, source in samples do
             testCase $"the C# sample of '{section}' compiles" <| fun () ->
                 Expect.isEmpty (compile source) "the sample compiles without warnings"
+
+        testCase "the F# sample of 'Canonical output' runs" <| fun () ->
+            let dataset =
+                match NQuads.Read(ReadOnlyMemory(Encoding.UTF8.GetBytes "_:x <urn:p> _:y .\n_:y <urn:p> _:x .\n")) with
+                | Ok dataset -> dataset
+                | Error error -> failwith (error.ToString())
+
+            match RdfCanonicalization.Canonicalize(dataset, CanonicalizationOptions.Default) with
+            | Ok canonical ->
+                match NQuads.Write canonical with
+                | Ok output ->
+                    Expect.equal (Encoding.UTF8.GetString output.Bytes) "_:c14n0 <urn:p> _:c14n1 .\n_:c14n1 <urn:p> _:c14n0 .\n" "the cycle has canonical labels"
+                | Error error -> failwith (error.ToString())
+            | Error error -> failwith (error.ToString())
 
         testCase "the F# sample of 'N-Triples' runs" <| fun () ->
             let bytes = Encoding.UTF8.GetBytes("<urn:item> <urn:status> \"approved\" .\n")
