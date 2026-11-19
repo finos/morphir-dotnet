@@ -274,6 +274,7 @@ module internal SequenceSvg =
 
                     let caption =
                         match index, label with
+                        | _, Some title when kind = SequenceFrameKind.Try -> title
                         | 0, Some title -> $"{kind.WireValue} [{title}]"
                         | 0, None -> kind.WireValue
                         | _, Some title -> $"[{title}]"

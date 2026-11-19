@@ -59,7 +59,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 ## 9. ZenUML and sequence symbols
 
 - [x] 9.1 Read and print ZenUML into the sequence model with try, catch and finally sections, and annotators as participant kinds (others drawn as plain participants with a warning); verify the pinned ZenUML corpus.
-- [ ] 9.2 Paint participant symbols and exception frames; verify SVG tests and that sequences without them keep their snapshots.
+- [x] 9.2 Paint participant symbols and exception frames; verify SVG tests and that sequences without them keep their snapshots.
 
 ## 10. Architecture diagrams
 

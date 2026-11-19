@@ -91,6 +91,15 @@ public class ZenUmlTests
     }
 
     [Test]
+    public void AnExceptionFrameIsDrawnWithItsSections()
+    {
+        var svg = Mermaid.RenderSvg("zenuml\n  try {\n    A->B: work\n  } catch {\n    B->A: failed\n  }\n").Output.ShouldNotBeNull();
+
+        svg.ShouldContain("data-frame=\"try\"");
+        svg.ShouldContain(">catch<");
+    }
+
+    [Test]
     public void PrintingWhatWasPrintedGivesTheSameZenUmlForEveryReferenceExample()
     {
         using var reference = JsonDocument.Parse(PinnedCorpus.File(FixtureCatalog.DiagramsMbt.ZenUml, "/semantics.json"));
