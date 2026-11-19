@@ -25,7 +25,7 @@ type SvgRenderer private () =
                 | _, Some graph -> FlowchartSvg.render options metadata graph
                 | _, None -> invalidOp "Every family other than sequences has a graph."
 
-            Ok((scene.WithDiagnostics warnings).WithAnnotations(Carriage.project diagram options))
+            Ok(((scene.WithDiagnostics warnings).WithAnnotations(Carriage.project diagram options)).WithStructure diagram)
 
     /// Lays out a diagram in the Archify theme and retains bindings to its rendered connector paths.
     static member BuildScene(diagram: Diagram) =

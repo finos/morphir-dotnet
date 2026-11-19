@@ -29,7 +29,9 @@
 
     seek.max = String(duration);
     // One tick for each scheduled start, so the timeline shows where connections begin.
-    const ticks = duration === 0 ? [] : [...new Set(data.steps.map(step => step.startMs))].map(start => {
+    const visits = data.visits ?? [];
+    const starts = [...data.steps, ...visits].map(item => item.startMs);
+    const ticks = duration === 0 ? [] : [...new Set(starts)].map(start => {
         const tick = document.createElement("span");
         tick.style.left = `${start / duration * 100}%`;
         tick.dataset.start = String(start);
@@ -60,6 +62,11 @@
         const time = data.repeat ? elapsed % duration : elapsed;
         const steps = data.repeat ? [data.steps[Math.floor(time / data.steps[0].durationMs)]] : data.steps;
         const active = new Set();
+        // A visit highlights its element for the visit's interval; the visited element stays in its place.
+        for (const visit of visits) {
+            const on = time >= visit.startMs && time < visit.startMs + visit.durationMs;
+            for (const element of elementsOf(visit.ref)) element.classList.toggle("is-visited", on);
+        }
         let nextGroup = overlayLayer.firstElementChild;
         for (const step of steps) {
             if (time < step.startMs || time >= step.startMs + step.durationMs) continue;
@@ -135,10 +142,10 @@
     function reflectState() {
         play.setAttribute("aria-label", playing ? "Pause" : "Play");
         play.setAttribute("aria-pressed", String(playing));
-        status.textContent = playing ? data.repeat ? "Playing authored order." : "Playing explicit scenario."
+        status.textContent = playing ? data.authored ? "Playing authored order." : "Playing explicit scenario."
             : !data.repeat && duration > 0 && elapsed === duration ? "Finished."
             : reduced.matches ? "Paused. Reduced motion: use Step or Position."
-            : data.repeat ? "Authored order illustration. Paused." : "Explicit scenario. Paused.";
+            : data.authored ? "Authored order illustration. Paused." : "Explicit scenario. Paused.";
     }
 
     function inspect(time) {
@@ -154,8 +161,8 @@
         if (duration === 0) return;
         const time = data.repeat ? elapsed % duration : elapsed;
         let next = duration;
-        for (const step of data.steps) {
-            if (step.startMs > time && step.startMs < next) next = step.startMs;
+        for (const start of starts) {
+            if (start > time && start < next) next = start;
         }
         inspect(data.repeat ? next % duration : next);
     }
@@ -455,6 +462,78 @@
             event.stopPropagation();
             closePanel(true);
         }, true);
+    }
+
+    // Structural exploration: breadth-first walks in connection order, as DiagramExploration does in F#.
+    const explorer = root.querySelector("details[data-explore]");
+    if (explorer) {
+        const field = name => explorer.querySelector(`[data-explore="${name}"]`);
+        const result = field("result");
+        const label = index => data.nodes[index].id;
+
+        function walk(origin, upstream) {
+            const undirected = field("undirected").checked;
+            const neighbours = data.nodes.map(() => []);
+            for (const connection of data.connections) {
+                const plain = undirected && !connection.forward && !connection.backward;
+                let along = connection.forward || plain, against = connection.backward || plain;
+                if (upstream) [along, against] = [against, along];
+                if (along) neighbours[connection.source].push(connection.target);
+                if (against) neighbours[connection.target].push(connection.source);
+            }
+            const previous = new Map([[origin, -1]]);
+            const order = [];
+            for (let queue = [origin]; queue.length > 0 && order.length <= 10000;) {
+                const current = queue.shift();
+                order.push(current);
+                for (const next of neighbours[current]) {
+                    if (!previous.has(next)) { previous.set(next, current); queue.push(next); }
+                }
+            }
+            return { previous, order, exhausted: order.length > 10000 };
+        }
+
+        function show(nodes, text) {
+            const hits = new Set(nodes.map(index => data.nodes[index].ref));
+            for (let index = 1; index < nodes.length; index++) {
+                const [a, b] = [nodes[index - 1], nodes[index]];
+                const joining = data.connections.find(connection =>
+                    connection.source === a && connection.target === b || connection.source === b && connection.target === a);
+                if (joining) hits.add(joining.ref);
+            }
+            for (const element of svg.querySelectorAll("[data-ref]")) element.classList.toggle("explore-hit", hits.has(element.dataset.ref));
+            svg.classList.toggle("is-exploring", nodes.length > 0);
+            result.textContent = text;
+        }
+
+        function reach(upstream) {
+            const origin = Number(field("from").value);
+            const { order, exhausted } = walk(origin, upstream);
+            if (exhausted) { show([], "More than 10,000 elements: the walk stopped."); return; }
+            const hits = new Set(order.map(index => data.nodes[index].ref));
+            for (const connection of data.connections) {
+                if (order.includes(connection.source) && order.includes(connection.target)) hits.add(connection.ref);
+            }
+            for (const element of svg.querySelectorAll("[data-ref]")) element.classList.toggle("explore-hit", hits.has(element.dataset.ref));
+            svg.classList.add("is-exploring");
+            result.textContent = `Structurally ${upstream ? "upstream of" : "downstream of"} ${label(origin)}: ${order.map(label).join(", ")}.`;
+        }
+
+        field("to").selectedIndex = Math.min(1, data.nodes.length - 1);
+        field("route").addEventListener("click", () => {
+            const origin = Number(field("from").value), goal = Number(field("to").value);
+            const { previous, exhausted } = walk(origin, false);
+            if (!previous.has(goal)) {
+                show([], exhausted ? "More than 10,000 elements: the walk stopped." : `${label(goal)} is unreachable from ${label(origin)}.`);
+                return;
+            }
+            const route = [];
+            for (let current = goal; current >= 0; current = previous.get(current)) route.unshift(current);
+            show(route, `Structural route: ${route.map(label).join(" → ")}. Conditions are not evaluated.`);
+        });
+        field("upstream").addEventListener("click", () => reach(true));
+        field("downstream").addEventListener("click", () => reach(false));
+        field("clear").addEventListener("click", () => show([], "Pick elements to see structural routes. Conditions are not evaluated."));
     }
 
     reflectState();

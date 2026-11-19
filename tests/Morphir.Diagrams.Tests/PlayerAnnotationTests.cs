@@ -73,7 +73,7 @@ public class PlayerAnnotationTests
 
         foreach (var sink in new[] { "innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "DOMParser" })
             html.ShouldNotContain(sink);
-        print[..print.IndexOf("</style>", StringComparison.Ordinal)].ShouldContain(".annotation-layer, .annotation-panel { display: none; }");
+        print[..print.IndexOf("</style>", StringComparison.Ordinal)].ShouldContain(".annotation-layer, .annotation-panel, .explore { display: none; }");
     }
 
     [Test]

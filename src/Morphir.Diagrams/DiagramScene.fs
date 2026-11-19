@@ -37,19 +37,34 @@ type DiagramScene
         connectors: ImmutableArray<DiagramConnector>,
         options: SvgRenderOptions,
         diagnostics: ImmutableArray<Diagnostic>,
-        annotations: (string * AnnotationItem list) list
+        annotations: (string * AnnotationItem list) list,
+        structure: Structure,
+        elements: Set<string>
     ) =
+    internal new(document, connectors, options, diagnostics, annotations) =
+        DiagramScene(document, connectors, options, diagnostics, annotations, { Nodes = [||]; Connections = [||] }, Set.empty)
+
     /// Warnings found while building the scene, such as metadata about elements this diagram lacks.
     member _.Diagnostics = diagnostics
 
     member internal _.WithDiagnostics(found: Diagnostic seq) =
-        DiagramScene(document, connectors, options, ImmutableArray.CreateRange found, annotations)
+        DiagramScene(document, connectors, options, ImmutableArray.CreateRange found, annotations, structure, elements)
 
     /// The player's view of the metadata, by element reference.
     member internal _.Annotations = annotations
 
     member internal _.WithAnnotations(projected: (string * AnnotationItem list) list) =
-        DiagramScene(document, connectors, options, diagnostics, projected)
+        DiagramScene(document, connectors, options, diagnostics, projected, structure, elements)
+
+    /// The elements and connections that the player explores.
+    member internal _.Structure = structure
+
+    /// The element references of the diagram, which node visits may name.
+    member internal _.Elements = elements
+
+    member internal _.WithStructure(diagram: Diagram) =
+        let references = DiagramElementRef.Enumerate diagram |> Seq.map (fun reference -> reference.ToString()) |> Set.ofSeq
+        DiagramScene(document, connectors, options, diagnostics, annotations, Structures.ofDiagram diagram, references)
 
     /// Script-free static document.
     member _.Document = document

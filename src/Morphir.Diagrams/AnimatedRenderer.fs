@@ -47,6 +47,36 @@ type PlaybackStep
     override _.ToString() =
         $"Connector {connector.Ordinal} at {startMilliseconds} ms for {durationMilliseconds} ms"
 
+/// One timed visit to a diagram element in a finite playback scenario: the player highlights the element.
+[<Sealed>]
+type NodeVisit private (reference: DiagramElementRef, startMilliseconds: int64, durationMilliseconds: int64) =
+    /// The element to highlight.
+    member _.Reference = reference
+
+    /// Start time relative to the beginning of the scenario.
+    member _.StartMilliseconds = startMilliseconds
+
+    /// Positive time for which the element stays highlighted.
+    member _.DurationMilliseconds = durationMilliseconds
+
+    member internal _.EndMilliseconds = startMilliseconds + durationMilliseconds
+
+    /// Schedules a visit. Throws if the interval is empty, negative, or exceeds the exact browser clock range.
+    static member Create(reference: DiagramElementRef, startMilliseconds: int64, durationMilliseconds: int64) =
+        ArgumentNullException.ThrowIfNull reference
+        let maximum = 9_007_199_254_740_991L
+
+        if startMilliseconds < 0L then
+            invalidArg (nameof startMilliseconds) "The start time must be nonnegative."
+
+        if durationMilliseconds <= 0L || durationMilliseconds > maximum - startMilliseconds then
+            invalidArg (nameof durationMilliseconds) "The duration must be positive and fit the playback clock."
+
+        NodeVisit(reference, startMilliseconds, durationMilliseconds)
+
+    override _.ToString() =
+        $"{reference} at {startMilliseconds} ms for {durationMilliseconds} ms"
+
 [<RequireQualifiedAccess>]
 module private PlayerArtifact =
     let stepMilliseconds = 1000L
@@ -197,7 +227,22 @@ body:has(.diagram-fullscreen[open]) { overflow: hidden; }
 .annotation-iri { display: block; margin-top: .125rem; overflow-wrap: anywhere; color: var(--diagram-page-text); }
 a.annotation-iri { color: var(--diagram-page-accent); text-decoration: underline; text-underline-offset: 2px; }
 .annotation-item .annotation-also { margin-top: .25rem; color: var(--diagram-page-muted); font-size: 12px; }
+.explore { margin: .625rem .25rem 0; }
+.explore > summary { inline-size: fit-content; padding: .25rem .5rem; border-radius: 6px; font-weight: 600; cursor: pointer; }
+.explore > summary:hover { background: var(--player-hover); }
+.explore__form { display: flex; flex-wrap: wrap; align-items: end; gap: .5rem .75rem; margin-top: .5rem; }
+.explore label { display: inline-flex; flex-direction: column; gap: .25rem; min-inline-size: 0; color: var(--diagram-page-muted); }
+.explore select, .explore button { block-size: 32px; max-inline-size: min(16rem, 100%); padding: 0 12px; border: 1px solid var(--player-line); border-radius: 999px; background: var(--diagram-page-surface); color: var(--diagram-page-text); font: inherit; }
+.explore button { cursor: pointer; }
+.explore button:hover { background: var(--player-hover); }
+.explore .explore__check { flex-direction: row; align-items: center; block-size: 32px; color: var(--diagram-page-text); }
+.explore__actions { display: flex; flex-wrap: wrap; gap: .375rem; }
+.explore__result { max-inline-size: 70ch; margin: .5rem 0 0; color: var(--diagram-page-muted); overflow-wrap: anywhere; }
+svg.is-exploring [data-ref]:not(.explore-hit) { opacity: .22; }
+.explore-hit :is(.outline, .box, .connector, .m-line) { stroke: var(--diagram-page-accent); }
+[data-ref].is-visited :is(.outline, .box) { stroke: var(--diagram-page-accent); stroke-width: 3; }
 @media (prefers-reduced-motion: no-preference) {
+    svg [data-ref] { transition: opacity .2s ease; }
     .icon-button, .play-button, .motion-speed select { transition: background-color .15s ease, scale .15s ease; }
     .play-button:active:not(:disabled) { scale: .94; }
     .annotation-panel:not([hidden]) { animation: annotation-open .16s ease-out; }
@@ -227,7 +272,8 @@ a.annotation-iri { color: var(--diagram-page-accent); text-decoration: underline
     .download-button > span { display: none; }
 }
 @media print {
-    .diagram-toolbar, .motion-controls, [data-control="status"], .motion-overlay, .annotation-layer, .annotation-panel { display: none; }
+    .diagram-toolbar, .motion-controls, [data-control="status"], .motion-overlay, .annotation-layer, .annotation-panel, .explore { display: none; }
+    svg.is-exploring [data-ref] { opacity: 1; }
     .diagram-canvas { border: 0; }
     [data-viewport-ready] .diagram-viewport { block-size: auto; overflow: visible; }
     [data-viewport-ready] .diagram-content { position: static; width: auto !important; height: auto !important; transform: none !important; }
@@ -270,16 +316,19 @@ a.annotation-iri { color: var(--diagram-page-accent); text-decoration: underline
 <p class="motion-status" data-control="status" role="status">Authored order illustration. Paused.</p>
 <script type="application/json" data-motion-data>"""
 
-    let private motionData (scene: DiagramScene) repeat (steps: PlaybackStep array) (svg: string) =
+    let private motionData (scene: DiagramScene) repeat (steps: PlaybackStep array) (visits: NodeVisit array) (svg: string) =
         let bytes = ArrayBufferWriter<byte>()
         use json = new Utf8JsonWriter(bytes)
         json.WriteStartObject()
         // The default JSON encoder escapes script terminators and Unicode line separators.
         json.WriteString("svg", svg)
-        json.WriteBoolean("repeat", repeat)
+        json.WriteBoolean("repeat", repeat && steps.Length > 0)
+        json.WriteBoolean("authored", repeat)
 
         let duration =
-            steps |> Array.fold (fun total step -> max total step.EndMilliseconds) 0L
+            max
+                (steps |> Array.fold (fun total step -> max total step.EndMilliseconds) 0L)
+                (visits |> Array.fold (fun total visit -> max total visit.EndMilliseconds) 0L)
 
         json.WriteNumber("durationMs", duration)
         json.WriteStartArray("paths")
@@ -301,6 +350,37 @@ a.annotation-iri { color: var(--diagram-page-accent); text-decoration: underline
             json.WriteNumber("connector", step.Connector.Ordinal)
             json.WriteNumber("startMs", step.StartMilliseconds)
             json.WriteNumber("durationMs", step.DurationMilliseconds)
+            json.WriteEndObject()
+
+        json.WriteEndArray()
+        json.WriteStartArray("visits")
+
+        for visit in visits do
+            json.WriteStartObject()
+            json.WriteString("ref", visit.Reference.ToString())
+            json.WriteNumber("startMs", visit.StartMilliseconds)
+            json.WriteNumber("durationMs", visit.DurationMilliseconds)
+            json.WriteEndObject()
+
+        json.WriteEndArray()
+        json.WriteStartArray("nodes")
+
+        for id, reference in scene.Structure.Nodes do
+            json.WriteStartObject()
+            json.WriteString("id", id.Value)
+            json.WriteString("ref", reference)
+            json.WriteEndObject()
+
+        json.WriteEndArray()
+        json.WriteStartArray("connections")
+
+        for source, target, forward, backward, reference in scene.Structure.Connections do
+            json.WriteStartObject()
+            json.WriteNumber("source", source)
+            json.WriteNumber("target", target)
+            json.WriteBoolean("forward", forward)
+            json.WriteBoolean("backward", backward)
+            json.WriteString("ref", reference)
             json.WriteEndObject()
 
         json.WriteEndArray()
@@ -341,7 +421,33 @@ a.annotation-iri { color: var(--diagram-page-accent); text-decoration: underline
         json.Flush()
         Encoding.UTF8.GetString bytes.WrittenSpan
 
-    let write (scene: DiagramScene) repeat steps =
+    /// Structural exploration: routes and reachability over the diagram's connections.
+    let private explorer (scene: DiagramScene) =
+        if scene.Structure.Nodes.Length < 2 || scene.Structure.Connections.Length = 0 then
+            ""
+        else
+            let options =
+                scene.Structure.Nodes
+                |> Seq.mapi (fun index (id, _) ->
+                    let text = Net.WebUtility.HtmlEncode id.Value
+                    $"<option value=\"{index}\">{text}</option>")
+                |> String.concat ""
+
+            String.concat
+                ""
+                [
+                    "<details class=\"explore\" data-explore>\n<summary>Explore routes</summary>\n<div class=\"explore__form\">"
+                    $"<label>From <select data-explore=\"from\">{options}</select></label>"
+                    $"<label>To <select data-explore=\"to\">{options}</select></label>"
+                    "<label class=\"explore__check\"><input type=\"checkbox\" data-explore=\"undirected\"> Follow links without arrowheads</label>"
+                    "<div class=\"explore__actions\"><button type=\"button\" data-explore=\"route\">Show route</button>"
+                    "<button type=\"button\" data-explore=\"upstream\">Upstream</button>"
+                    "<button type=\"button\" data-explore=\"downstream\">Downstream</button>"
+                    "<button type=\"button\" data-explore=\"clear\">Clear</button></div></div>"
+                    "<p class=\"explore__result\" data-explore=\"result\" role=\"status\">Pick elements to see structural routes. Conditions are not evaluated.</p>\n</details>\n"
+                ]
+
+    let write (scene: DiagramScene) repeat steps visits =
         let svg = scene.Document.Render()
 
         let html =
@@ -351,8 +457,8 @@ a.annotation-iri { color: var(--diagram-page-accent); text-decoration: underline
                     chrome scene.Options
                     opening
                     svg
-                    controls
-                    motionData scene repeat steps svg
+                    controls.Replace("<script type=\"application/json\" data-motion-data>", explorer scene + "<script type=\"application/json\" data-motion-data>")
+                    motionData scene repeat steps visits svg
                     "</script>\n<script>\n"
                     player.Value
                     "\n"
@@ -379,7 +485,20 @@ type AnimatedRenderer private () =
             )
             |> Seq.toArray
 
-        PlayerArtifact.write scene true steps
+        // A diagram with no connectors to play visits its elements in order instead.
+        let visits =
+            if steps.Length > 0 then
+                [||]
+            else
+                scene.Structure.Nodes
+                |> Array.mapi (fun index (_, reference) ->
+                    NodeVisit.Create(
+                        DiagramElementRef.Create reference,
+                        int64 index * PlayerArtifact.stepMilliseconds,
+                        PlayerArtifact.stepMilliseconds
+                    ))
+
+        PlayerArtifact.write scene true steps visits
 
     /// Plays a finite schedule. All of its connector bindings must come from the supplied scene.
     static member Render(scene: DiagramScene, steps: IReadOnlyList<PlaybackStep>) =
@@ -405,8 +524,30 @@ type AnimatedRenderer private () =
                 && Object.ReferenceEquals(scene.Connectors[index], step.Connector)
 
             if steps |> Array.forall belongsToScene then
-                PlayerArtifact.write scene false steps
+                PlayerArtifact.write scene false steps [||]
             else
                 fail
                     "animation/plan-mismatch"
                     "A playback step binds a connector from another diagram scene."
+
+    /// Plays a finite schedule of connector occurrences and element visits. Every connector must come from the
+    /// supplied scene and every visit must name one of its elements.
+    static member Render(scene: DiagramScene, steps: IReadOnlyList<PlaybackStep>, visits: IReadOnlyList<NodeVisit>) =
+        ArgumentNullException.ThrowIfNull visits
+        let visits = visits |> Seq.toArray
+
+        if visits.Length > Reading.edgeLimit then
+            RenderedDiagram("text/html", None, ImmutableArray.Create(Reading.error "animation/plan-limit" $"A scenario can contain at most {Reading.edgeLimit} visits." None))
+        else
+            match visits |> Array.tryFind (fun visit -> isNull (box visit) || not (scene.Elements.Contains(visit.Reference.ToString()))) with
+            | Some visit when not (isNull (box visit)) ->
+                RenderedDiagram(
+                    "text/html",
+                    None,
+                    ImmutableArray.Create(Reading.error "animation/visit-mismatch" $"{visit.Reference} is not an element of this diagram." None)
+                )
+            | Some _ -> raise (ArgumentNullException(nameof visits))
+            | None ->
+                let checkedSteps = AnimatedRenderer.Render(scene, steps)
+
+                if isNull checkedSteps.Output then checkedSteps else PlayerArtifact.write scene false (steps |> Seq.toArray) visits

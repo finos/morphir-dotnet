@@ -105,7 +105,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 16. Playback exploration
 
-- [ ] 16.1 Add the connection graph to the motion data for every family; verify motion data tests.
+- [x] 16.1 Add the connection graph to the motion data for every family; verify motion data tests.
 - [ ] 16.2 Add route and reachability queries in F# and in `Player.js` with direction rules and limits; verify F# tests and matching player answers in Chromium.
 - [ ] 16.3 Add explicit scenarios and node visits; verify scenario tests and playback in Chromium.
 - [ ] 16.4 Add the exploration panel with keyboard, narrow and print behaviour; verify with the frontend-design skill and Chromium at desktop and 420 px.

@@ -107,7 +107,8 @@ public class AnimatedDiagramTests
     public void PlayerControlsAreInlineIconButtonsWithAccessibleNames()
     {
         var html = Mermaid.RenderAnimated("sequenceDiagram\n  A->>B: Submit").Output.ShouldNotBeNull();
-        var chrome = html[..html.IndexOf("<script type=\"application/json\"", StringComparison.Ordinal)];
+        // The playback and view controls; the route explorer below them has text buttons.
+        var chrome = html[..html.IndexOf("<details class=\"explore\"", StringComparison.Ordinal)];
 
         var buttons = Regex.Matches(chrome, "<button[^>]*>").Select(match => match.Value).ToArray();
         buttons.Length.ShouldBe(8);

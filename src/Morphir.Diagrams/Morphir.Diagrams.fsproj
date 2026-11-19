@@ -28,6 +28,7 @@
         <Compile Include="DiagramAnnotations.fs" />
         <Compile Include="Themes.fs" />
         <Compile Include="Carriage.fs" />
+        <Compile Include="Exploration.fs" />
         <Compile Include="DiagramScene.fs" />
         <Compile Include="Reading.fs" />
         <Compile Include="FlowchartReader.fs" />
