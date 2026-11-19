@@ -67,16 +67,36 @@ module private PlayerArtifact =
     let private player = script "Player"
     let private viewport = script "Viewport"
 
-    let private opening =
+    let private head =
         """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Diagram playback</title>
 <style>
-:root { color-scheme: light dark; }
-body { font: 1rem system-ui, sans-serif; margin: 1.5rem; background: light-dark(#f9fafb, #0f1014); color: light-dark(#111827, #e5e7eb); }
-.diagram-canvas { overflow: auto; box-sizing: border-box; border: 1px solid var(--diagram-viewer-border, light-dark(#d1d5db, #374151)); background: var(--diagram-viewer-canvas-bg, light-dark(#f4f5f7, #020617)); }
+"""
+
+    /// The page chrome takes its colours from the palette that the diagram uses.
+    let private chrome (options: SvgRenderOptions) =
+        let theme = options.Theme
+
+        let pick (role: ThemePalette -> Color) =
+            match options.Mode with
+            | ThemeMode.Dark -> (role theme.Dark).ToCss()
+            | ThemeMode.Light -> (role theme.Light).ToCss()
+            | ThemeMode.Auto -> $"light-dark({(role theme.Light).ToCss()}, {(role theme.Dark).ToCss()})"
+
+        let scheme =
+            match options.Mode with
+            | ThemeMode.Auto -> "light dark"
+            | mode -> mode.WireValue
+
+        $":root {{ color-scheme: {scheme}; --diagram-page-bg: {pick _.Background}; --diagram-page-text: {pick _.Text}; --diagram-page-surface: {pick _.Mask}; --diagram-page-border: {pick _.Muted}; }}\n"
+
+    let private opening =
+        """body { font: 1rem system-ui, sans-serif; margin: 1.5rem; background: var(--diagram-page-bg); color: var(--diagram-page-text); }
+.diagram-canvas { overflow: auto; box-sizing: border-box; border: 1px solid var(--diagram-viewer-border, var(--diagram-page-border)); background: var(--diagram-viewer-canvas-bg, var(--diagram-page-bg)); }
 .diagram-canvas svg { display: block; max-width: 100%; height: auto; }
-.diagram-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .25rem; padding: .25rem; background: var(--diagram-viewer-toolbar-bg, light-dark(#ffffff, #17181f)); }
+.diagram-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .25rem; padding: .25rem; background: var(--diagram-viewer-toolbar-bg, var(--diagram-page-surface)); }
+.diagram-toolbar button, .motion-controls :is(button, select) { color: var(--diagram-page-text); background: var(--diagram-page-surface); border: 1px solid var(--diagram-page-border); }
 .diagram-toolbar[hidden] { display: none; }
 .diagram-toolbar button { min-width: 44px; min-height: 44px; border-radius: var(--diagram-viewer-control-radius, .35rem); }
 .diagram-toolbar output { min-width: 3rem; text-align: center; }
@@ -180,6 +200,8 @@ body:has(.diagram-fullscreen[open]) { overflow: hidden; }
         let html =
             String.Concat(
                 [|
+                    head
+                    chrome scene.Options
                     opening
                     svg
                     controls

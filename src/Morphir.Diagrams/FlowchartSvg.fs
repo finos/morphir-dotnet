@@ -139,11 +139,11 @@ module internal FlowchartSvg =
     let private family shape =
         match shape with
         | FlowShape.Diamond
-        | FlowShape.Hexagon -> Theme.Cloud
-        | FlowShape.Cylinder -> Theme.Database
+        | FlowShape.Hexagon -> ColorFamily.Cloud
+        | FlowShape.Cylinder -> ColorFamily.Database
         | FlowShape.Circle
-        | FlowShape.DoubleCircle -> Theme.MessageBus
-        | _ -> Theme.Backend
+        | FlowShape.DoubleCircle -> ColorFamily.MessageBus
+        | _ -> ColorFamily.Backend
 
     /// Paints the shape of a node and returns its colour family.
     let private shape writer (node: FlowNode) x y halfWidth halfHeight =
@@ -251,7 +251,7 @@ module internal FlowchartSvg =
         | FlowShape.Diamond -> max 45 (textWidth + 10), 32
         | _ -> max 40 (textWidth / 2 + 18), 23
 
-    let render (model: Flowchart) =
+    let render (options: SvgRenderOptions) (model: Flowchart) =
         let indices = Dictionary<DiagramId, int>()
 
         let sizes = model.Nodes |> Seq.map dimensions |> Seq.toArray
@@ -339,8 +339,8 @@ module internal FlowchartSvg =
             width
             height
             heads
-            (Theme.onFills Theme.dark)
-            (Theme.onFills Theme.light)
+            options
+            true
             (fun writer ->
                 for group, box in groups do
                     SvgWriting.element

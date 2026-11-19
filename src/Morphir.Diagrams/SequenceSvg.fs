@@ -11,26 +11,26 @@ open System.Globalization
 module internal SequenceSvg =
     /// Plain participants cycle through these families in order.
     let private cycle =
-        [| Theme.Frontend; Theme.Backend; Theme.Database; Theme.Cloud; Theme.MessageBus |]
+        [| ColorFamily.Frontend; ColorFamily.Backend; ColorFamily.Database; ColorFamily.Cloud; ColorFamily.MessageBus |]
 
     let private families (participants: seq<Participant>) =
-        let result = Dictionary<DiagramId, Theme.Family>()
+        let result = Dictionary<DiagramId, ColorFamily>()
         let mutable next = 0
 
         for participant in participants do
             match participant.Kind with
-            | ParticipantKind.Actor -> result.Add(participant.Id, Theme.Frontend)
+            | ParticipantKind.Actor -> result.Add(participant.Id, ColorFamily.Frontend)
             | ParticipantKind.Participant ->
                 result.Add(participant.Id, cycle[next % cycle.Length])
                 next <- next + 1
 
         result
 
-    let private drawParticipant writer (participant: Participant) (family: Theme.Family) x y halfWidth =
+    let private drawParticipant writer (participant: Participant) (family: ColorFamily) x y halfWidth =
         SvgWriting.element
             writer
             "g"
-            [ "class", $"participant f-{family.Name}"; "data-participant", participant.Id.Value ]
+            [ "class", $"participant f-{family.WireValue}"; "data-participant", participant.Id.Value ]
             (fun () ->
                 let stroke = Theme.stroke family
 
@@ -84,7 +84,7 @@ module internal SequenceSvg =
             "g"
             [ "class", "note" ]
             (fun () ->
-                let external = Theme.External
+                let external = ColorFamily.External
                 SvgWriting.rectangle writer left (y - 21) width 35 4 Theme.mask "none"
 
                 SvgWriting.rectangle
@@ -101,17 +101,17 @@ module internal SequenceSvg =
             )
 
     /// Cross heads use the security family, and dotted replies the external family.
-    let private messageFamily (families: Dictionary<DiagramId, Theme.Family>) (message: SequenceMessage) =
+    let private messageFamily (families: Dictionary<DiagramId, ColorFamily>) (message: SequenceMessage) =
         if message.SenderHead = EdgeHead.Cross || message.ReceiverHead = EdgeHead.Cross then
-            Theme.Security
+            ColorFamily.Security
         elif message.IsDashed then
-            Theme.External
+            ColorFamily.External
         else
             families[message.Sender]
 
     /// Dotted replies are grey dashed lines unless they are crossed.
     let private messageStroke family (message: SequenceMessage) =
-        if message.IsDashed && family <> Theme.Security then
+        if message.IsDashed && family <> ColorFamily.Security then
             Theme.arrow
         else
             Theme.stroke family
@@ -139,7 +139,7 @@ module internal SequenceSvg =
         SvgWriting.element
             writer
             "g"
-            [ "class", $"message f-{family.Name}" ]
+            [ "class", $"message f-{family.WireValue}" ]
             (fun () ->
                 SvgWriting.connector
                     writer
@@ -199,7 +199,7 @@ module internal SequenceSvg =
 
                 band
                     "band"
-                    (tint |> Option.defaultValue (Theme.fill Theme.External))
+                    (tint |> Option.defaultValue (Theme.fill ColorFamily.External))
                     [
                         if tint.IsSome then
                             "fill-opacity", "0.18"
@@ -237,7 +237,7 @@ module internal SequenceSvg =
 
     let private drawActivation
         writer
-        (families: Dictionary<DiagramId, Theme.Family>)
+        (families: Dictionary<DiagramId, ColorFamily>)
         x
         (activation: SequenceLayout.Activation)
         =
@@ -269,7 +269,7 @@ module internal SequenceSvg =
                     (Theme.stroke family)
             )
 
-    let render (model: SequenceDiagram) =
+    let render (options: SvgRenderOptions) (model: SequenceDiagram) =
         let indices = Dictionary<DiagramId, int>()
 
         model.Participants
@@ -327,8 +327,8 @@ module internal SequenceSvg =
             width
             height
             heads
-            Theme.dark
-            Theme.light
+            options
+            false
             (fun writer ->
                 layout.Frames
                 |> Seq.sortBy (fun frame -> frame.Top, frame.Depth)

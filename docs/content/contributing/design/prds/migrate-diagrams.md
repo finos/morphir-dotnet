@@ -24,13 +24,14 @@ Status: In Progress
 | Finite scenarios with repeated and concurrent connector occurrences | Implemented |
 | Offline viewport zoom, fit, pan, and fullscreen | Implemented |
 | Archify classic theme with adaptive dark and light palettes and colour families | Implemented |
+| Custom themes, Monokai and Cobalt built-ins, and fixed dark or light output | Implemented |
 | Playback route exploration, rounded and bridged connector styling, trace evidence, and raster export | Planned |
 
 ## Implementation notes
 
 - The reference is [diagrams.mbt at 60a8dd1](https://github.com/moonrockz/diagrams.mbt/tree/60a8dd19f386b6fc65e9ddf5ddccec213c622d07). Its Draw.io and Graphviz DOT readers are planned upstream.
 - The first increment exercises the full source-to-SVG path from both F# and C# library APIs. It establishes a shared diagnostic and document contract for subsequent format work.
-- Standalone SVG uses a native layout with the archify classic theme of the upstream renderer. Its palette values and the light-theme text shades match the upstream output. The fixed dark and light output modes of upstream are not yet exposed. See the [library guide](../../../../../src/Morphir.Diagrams/README.md) for the supported syntax.
+- Standalone SVG uses a native layout with the archify classic theme of the upstream renderer. Its palette values and the light-theme text shades match the upstream output. Every theme has hand-set dark and light palettes; `ThemePalette.DeriveLight` helps custom themes that supply one mode. A fixed mode writes one block of CSS variables rather than upstream's literal presentation attributes, so host pages can still override the variables. Loading themes from JSON files is deferred. See the [library guide](../../../../../src/Morphir.Diagrams/README.md) for the supported syntax.
 - The migration proceeds in native F# by diagram family, starting with Mermaid flowcharts and sequences. The Mermaid sequence model now retains nested frame sections and activation events. Numbered messages carry their resolved numbers.
 - A local render check of the pinned upstream inputs produced well-formed SVG for 24 of the 38 sequence documentation examples and 16 of the 34 flowchart corpus cases. This check exercises reading and rendering. The upstream semantic and layout assertions still need to be ported.
 - [Morphir.Svg](../../../../../src/Morphir.Svg/README.md) owns immutable SVG authoring and serialization. `Morphir.Diagrams` captures the final path geometry when it emits each headed flowchart edge or sequence message. The standalone player uses that geometry for its moving overlay and embeds the canonical SVG for byte-exact downloads.

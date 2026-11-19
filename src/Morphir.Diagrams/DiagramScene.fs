@@ -30,9 +30,13 @@ type DiagramConnector
 
 /// An SVG document and its connector occurrences.
 [<Sealed>]
-type DiagramScene internal (document: SvgDocument, connectors: ImmutableArray<DiagramConnector>) =
+type DiagramScene
+    internal (document: SvgDocument, connectors: ImmutableArray<DiagramConnector>, options: SvgRenderOptions) =
     /// Script-free static document.
     member _.Document = document
+
+    /// The theme and mode that the document was rendered with.
+    member _.Options = options
 
     /// Connector bindings eligible for authored-order playback.
     member _.Connectors = connectors

@@ -166,14 +166,27 @@ type Mermaid private () =
             diagnostics <- errors
             false
 
-    /// Parses Mermaid source and renders it to SVG, returning diagnostics on failure.
+    /// Parses Mermaid source and renders it to SVG in the Archify theme, returning diagnostics on failure.
     static member RenderSvg(source: string | null) =
+        Mermaid.RenderSvg(source, SvgRenderOptions.Default)
+
+    /// Parses Mermaid source and renders it to SVG with a theme and mode, returning diagnostics on failure.
+    static member RenderSvg(source: string | null, options: SvgRenderOptions) =
+        ArgumentNullException.ThrowIfNull options
+
         match Mermaid.Parse source with
-        | Ok document -> SvgRenderer.Render document.Diagram
+        | Ok document -> SvgRenderer.Render(document.Diagram, options)
         | Error errors -> RenderedDiagram("image/svg+xml", None, errors)
 
-    /// Parses Mermaid source and renders an offline HTML playback artifact.
+    /// Parses Mermaid source and renders an offline HTML playback artifact in the Archify theme.
     static member RenderAnimated(source: string | null) =
+        Mermaid.RenderAnimated(source, SvgRenderOptions.Default)
+
+    /// Parses Mermaid source and renders an offline HTML playback artifact with a theme and mode.
+    /// The page chrome takes its colours from the same palette.
+    static member RenderAnimated(source: string | null, options: SvgRenderOptions) =
+        ArgumentNullException.ThrowIfNull options
+
         match Mermaid.Parse source with
-        | Ok document -> AnimatedRenderer.Render(SvgRenderer.BuildScene document.Diagram)
+        | Ok document -> AnimatedRenderer.Render(SvgRenderer.BuildScene(document.Diagram, options))
         | Error errors -> RenderedDiagram("text/html", None, errors)

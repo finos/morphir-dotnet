@@ -72,27 +72,106 @@ Style the viewport per player on the `[data-diagram-viewer]` root with the
 Route exploration, rounded and bridged connector routing, and raster
 exports are tracked in the migration PRD.
 
-## Theme
+## Themes
 
-SVG output uses the classic preset of archify, as diagrams.mbt adapts it.
-The diagram is dark by default and light when the viewer prefers light.
-A `data-theme="dark"` or `data-theme="light"` attribute on the root `<svg>`
-overrides the viewer preference. The colours are CSS custom properties
-scoped to the root's generated `id`, so several diagrams can share a page.
-The `id` and the marker identifiers derive from the output, so the same
-diagram always produces the same bytes.
+Every theme has a dark and a light palette. The built-in themes are
+`DiagramThemes.Archify` (the default), `DiagramThemes.Monokai` and
+`DiagramThemes.Cobalt`. Archify is the classic preset of archify, as
+diagrams.mbt adapts it. Pass a theme and a mode in `SvgRenderOptions`:
+
+```fsharp
+let options = SvgRenderOptions.Create(DiagramThemes.Cobalt, ThemeMode.Dark)
+let svg = Mermaid.RenderSvg(source, options)
+```
+
+```csharp
+var options = SvgRenderOptions.Default.WithTheme(DiagramThemes.Monokai);
+var html = Mermaid.RenderAnimated(source, options).Output;
+```
+
+`ThemeMode.Auto`, the default, writes both palettes. The diagram is dark
+unless the viewer prefers light, and a `data-theme="dark"` or
+`data-theme="light"` attribute on the root `<svg>` overrides the preference.
+`ThemeMode.Dark` and `ThemeMode.Light` write only that palette. The offline
+player page takes its background, text, surface and border colours from the
+same palette and mode. The `id` and the marker identifiers derive from the
+output, so several diagrams can share a page and the same diagram always
+produces the same bytes.
+
+### Custom themes
+
+A palette has a background, text, muted text, a mask for the opaque chips
+behind labels, an arrow colour, and a fill and stroke for each of the seven
+`ColorFamily` values. `Color.Parse` and `Color.TryParse` read `#rgb`,
+`#rrggbb`, `rgb(r, g, b)` and `rgba(r, g, b, a)`.
+
+```csharp
+FamilyColors Accent(string stroke, string fill) => FamilyColors.Create(Color.Create(fill), Color.Create(stroke));
+
+var dark = ThemePalette.Create(
+    background: Color.Create("#0b1d2a"), text: Color.Create("#f5f7fa"),
+    muted: Color.Create("#9db0c2"), mask: Color.Create("#08151f"), arrow: Color.Create("#9db0c2"),
+    frontend: Accent("#5ad1e6", "rgba(90, 209, 230, 0.18)"),
+    backend: Accent("#7bd88f", "rgba(123, 216, 143, 0.18)"),
+    database: Accent("#b39df3", "rgba(179, 157, 243, 0.18)"),
+    cloud: Accent("#f2c14e", "rgba(242, 193, 78, 0.18)"),
+    security: Accent("#f2727f", "rgba(242, 114, 127, 0.18)"),
+    messageBus: Accent("#f59e5b", "rgba(245, 158, 91, 0.18)"),
+    external: Accent("#8a9bab", "rgba(138, 155, 171, 0.2)"));
+
+if (DiagramTheme.TryCreate("Harbour", dark, ThemePalette.DeriveLight(dark), out var theme, out var diagnostics))
+    html = Mermaid.RenderAnimated(source, SvgRenderOptions.Default.WithTheme(theme)).Output;
+```
+
+F# callers use `DiagramTheme.Validate(name, dark, light)`, which returns a
+`Result`. `DiagramTheme.Create` throws
+instead. A theme is rejected with `theme/name` when its name is blank and
+with `theme/text-contrast` when either palette's text has less than 4.5:1
+contrast with its background. To vary a built-in theme, pass its palettes
+to `DiagramTheme.Create`, changing a family with `ThemePalette.WithFamily`.
+
+A family's text colour is derived unless `FamilyColors.Create(fill, stroke,
+ink)` sets it. The derived colour is the stroke, darkened on a light
+background or lightened on a dark one in 1 percent HSL lightness steps until
+it has 4.5:1 contrast with the background and the mask. Flowchart labels sit
+on the node fill, so their text must also pass over the fill. An explicit ink
+is written unchanged. `ThemePalette.DeriveLight` makes a light palette from
+a dark one for themes that supply one mode. The built-in light palettes are
+set by hand.
+
+### CSS variables
+
+The SVG references its colours as CSS custom properties. These names are a
+public contract:
+
+| Variable | Use |
+| --- | --- |
+| `--bg` | Canvas and group backgrounds |
+| `--text` | Participant names, group titles, edge labels and notes |
+| `--muted` | Group outlines |
+| `--mask` | Opaque chips behind labels, participant boxes and activation bars |
+| `--arrow` | Connectors, lifelines, frames and dotted replies |
+| `--{family}-fill` | Fills of the family's shapes |
+| `--{family}-stroke` | Outlines and message lines of the family |
+| `--{family}-ink` | Labels of the family |
+
+`{family}` is the `ColorFamily.WireValue`: `frontend`, `backend`,
+`database`, `cloud`, `security`, `messagebus` or `external`. The renderer's
+selectors have zero specificity (`:where(svg#id)`), so any host rule that
+matches the inline `<svg>` overrides a variable:
+
+```css
+.docs svg[data-diagram] { --bg: transparent; --frontend-stroke: #0969da; }
+```
 
 Flowchart nodes take a colour family from their shape: decisions and
-hexagons are amber, cylinders are violet, circles are orange, and other
-shapes are green. Groups are dashed outlines. Sequence actors are cyan, and
-plain participants cycle through cyan, green, violet, amber and orange.
-Requests use their sender's colour, dotted replies are grey dashed lines,
-and messages with a cross head are rose. Labels sit on opaque chips. In the
-light theme, text uses a darker shade of each accent so that it keeps at
-least 4.5:1 contrast. Text uses a monospace font stack and the SVG embeds no
-font data.
-
-The offline player page follows the same colour-scheme preference.
+hexagons are `cloud`, cylinders are `database`, circles are `messagebus`,
+and other shapes are `backend`. Groups are dashed outlines. Sequence actors
+are `frontend`, and plain participants cycle through `frontend`, `backend`,
+`database`, `cloud` and `messagebus`. Requests use their sender's family,
+dotted replies use `external` with an `--arrow` line, and messages with a
+cross head use `security`. Text uses a monospace font stack and the SVG
+embeds no font data.
 
 ## Migration coverage
 

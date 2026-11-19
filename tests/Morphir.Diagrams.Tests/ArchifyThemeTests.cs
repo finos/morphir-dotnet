@@ -20,10 +20,11 @@ public class ArchifyThemeTests
         var id = ((string?)svg.Attribute("id")).ShouldNotBeNull();
         var style = svg.Descendants(Svg + "style").ShouldHaveSingleItem().Value;
 
-        style.ShouldContain($"svg#{id} {{\n  --bg: #020617;");
-        style.ShouldContain($"@media (prefers-color-scheme: light) {{\n  svg#{id} {{\n    --bg: #f4f5f7;");
-        style.ShouldContain($"svg#{id}[data-theme=\"dark\"] {{");
-        style.ShouldContain($"svg#{id}[data-theme=\"light\"] {{");
+        // Zero specificity, so that a host page can override any variable with plain CSS.
+        style.ShouldContain($":where(svg#{id}) {{\n  --bg: #020617;");
+        style.ShouldContain($"@media (prefers-color-scheme: light) {{\n  :where(svg#{id}) {{\n    --bg: #f4f5f7;");
+        style.ShouldContain($":where(svg#{id}[data-theme=\"dark\"]) {{");
+        style.ShouldContain($":where(svg#{id}[data-theme=\"light\"]) {{");
         // Light accents are darkened until text has 4.5:1 contrast on the background and masks.
         style.ShouldContain("--frontend-ink: #077995;");
         style.ShouldContain("--messagebus-ink: #c3490a;");

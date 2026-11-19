@@ -14,7 +14,7 @@ module internal SvgWriting =
     let private attributes (pairs: (string * string) list) =
         pairs |> List.map (fun (name, value) -> SvgAttribute.Create(name, value)) |> List.toArray
 
-    type SceneBuilder(prefix: string) =
+    type SceneBuilder(prefix: string, options: SvgRenderOptions) =
         let root = ResizeArray<SvgNode>()
         let connectors = ResizeArray<DiagramConnector>()
         let mutable current = root
@@ -40,7 +40,7 @@ module internal SvgWriting =
             connectors.Add(DiagramConnector(connectors.Count, source, target, data, reversed))
 
         member _.Build pairs =
-            DiagramScene(SvgDocument.Create(attributes pairs, root), Reading.immutable connectors)
+            DiagramScene(SvgDocument.Create(attributes pairs, root), Reading.immutable connectors, options)
 
     let element (writer: SceneBuilder) name pairs body = writer.Element name pairs body
 
@@ -179,16 +179,17 @@ module internal SvgWriting =
             ]
 
     /// Writes a themed diagram. `heads` lists each head with the stroke it is painted in.
-    /// Generated identifiers derive from the output, so that inline copies of
-    /// different diagrams do not share markers or styles.
+    /// Labels on fills get inks that also read over those fills. Generated identifiers
+    /// derive from the output, so that inline copies of different diagrams do not share
+    /// markers or styles.
     let document
         kind
         title
         width
         height
         (heads: seq<EdgeHead * string>)
-        (dark: Theme.Palette)
-        (light: Theme.Palette)
+        (options: SvgRenderOptions)
+        onFills
         (render: SceneBuilder -> unit)
         =
         let heads =
@@ -198,9 +199,9 @@ module internal SvgWriting =
             |> Seq.toArray
 
         let draw prefix =
-            let writer = SceneBuilder(prefix)
+            let writer = SceneBuilder(prefix, options)
             let id = prefix + "-diagram"
-            let style = Theme.styleSheet $"svg#{id}" dark light
+            let style = Theme.styleSheet id onFills options
             element writer "title" [] (fun () -> writer.Add(SvgNode.CreateText title))
 
             element
